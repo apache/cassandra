@@ -75,6 +75,15 @@ public class QueryFilter
         collateColumns(returnCF, filteredIterators, gcBefore);
     }
 
+    /**
+     * When there is only a single source of atoms, we can skip the collate step
+     */
+    public void collateOnDiskAtom(ColumnFamily returnCF, Iterator<? extends OnDiskAtom> toCollate, int gcBefore)
+    {
+        Iterator<Column> columns = gatherTombstones(returnCF, toCollate);
+        filter.collectReducedColumns(returnCF, columns, gcBefore);
+    }
+
     public void collateColumns(final ColumnFamily returnCF, List<? extends Iterator<Column>> toCollate, final int gcBefore)
     {
         Comparator<Column> fcomp = filter.getColumnComparator(returnCF.getComparator());

@@ -110,7 +110,7 @@ public class SSTableImportTest extends SchemaLoader
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
         QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "Super4");
         ColumnFamily cf = cloneForAdditions(qf.getSSTableColumnIterator(reader));
-        qf.collateOnDiskAtom(cf, Collections.singletonList(qf.getSSTableColumnIterator(reader)), Integer.MIN_VALUE);
+        qf.collateOnDiskAtom(cf, qf.getSSTableColumnIterator(reader), Integer.MIN_VALUE);
 
         DeletionTime delTime = cf.deletionInfo().rangeCovering(CompositeType.build(ByteBufferUtil.bytes("superA"))).iterator().next();
         assertEquals("supercolumn deletion time did not match the expected time", new DeletionInfo(0, 0), new DeletionInfo(delTime));

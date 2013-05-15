@@ -204,7 +204,7 @@ public class SSTableExportTest extends SchemaLoader
         reader = SSTableReader.open(Descriptor.fromFilename(tempSS2.getPath()));
         QueryFilter qf = QueryFilter.getNamesFilter(Util.dk("rowA"), "Standard1", ByteBufferUtil.bytes("name"));
         ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
-        qf.collateOnDiskAtom(cf, Collections.singletonList(qf.getSSTableColumnIterator(reader)), Integer.MIN_VALUE);
+        qf.collateOnDiskAtom(cf, qf.getSSTableColumnIterator(reader), Integer.MIN_VALUE);
         assertTrue(cf != null);
         assertTrue(cf.getColumn(ByteBufferUtil.bytes("name")).value().equals(hexToBytes("76616c")));
 

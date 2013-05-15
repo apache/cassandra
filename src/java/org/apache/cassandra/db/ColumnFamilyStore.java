@@ -1322,7 +1322,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         ColumnFamily cf = cached.cloneMeShallow(ArrayBackedSortedColumns.factory, filter.filter.isReversed());
         OnDiskAtomIterator ci = filter.getMemtableColumnIterator(cached, null);
-        filter.collateOnDiskAtom(cf, Collections.singletonList(ci), gcBefore);
+        filter.collateOnDiskAtom(cf, ci, gcBefore);
         return removeDeletedCF(cf, gcBefore);
     }
 
