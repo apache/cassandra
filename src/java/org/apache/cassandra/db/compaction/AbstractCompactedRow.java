@@ -25,8 +25,6 @@ import java.security.MessageDigest;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.io.sstable.ColumnStats;
-import org.apache.cassandra.db.DeletionInfo;
-import org.apache.cassandra.db.ColumnIndex;
 
 /**
  * a CompactedRow is an object that takes a bunch of rows (keys + columnfamilies)

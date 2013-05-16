@@ -19,7 +19,6 @@ package org.apache.cassandra.config;
 
 import java.io.File;
 import java.io.FileFilter;
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -51,7 +50,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.service.CacheService;
-import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class DatabaseDescriptor

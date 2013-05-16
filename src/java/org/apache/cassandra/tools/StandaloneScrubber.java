@@ -19,10 +19,8 @@
 package org.apache.cassandra.tools;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.*;
 
-import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategyOptions;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;

@@ -28,7 +28,6 @@ import java.util.Map;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
-import org.apache.cassandra.net.MessagingService;
 
 /**
  * This ack gets sent out as a result of the receipt of a GossipDigestSynMessage by an

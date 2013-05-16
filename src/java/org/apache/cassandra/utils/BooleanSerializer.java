@@ -20,9 +20,7 @@ package org.apache.cassandra.utils;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.UUID;
 
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 
 public class BooleanSerializer implements IVersionedSerializer<Boolean>

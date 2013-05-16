@@ -23,7 +23,6 @@ import java.util.List;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.net.MessagingService;
 
 /**
  * This is the first message that gets sent out as a start of the Gossip protocol in a

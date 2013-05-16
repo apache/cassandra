@@ -20,7 +20,6 @@ package org.apache.cassandra.tools;
 import java.io.IOException;
 import java.io.PrintStream;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
 

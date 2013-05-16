@@ -21,13 +21,9 @@ package org.apache.cassandra.io.compress;
  */
 
 
-import java.io.File;
 import java.io.FileNotFoundException;
 
 import com.google.common.util.concurrent.RateLimiter;
-
-import org.apache.cassandra.io.util.PoolingSegmentedFile;
-import org.apache.cassandra.io.util.RandomAccessReader;
 
 public class CompressedThrottledReader extends CompressedRandomAccessReader
 {
