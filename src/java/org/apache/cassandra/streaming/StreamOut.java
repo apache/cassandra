@@ -22,14 +22,17 @@ import java.util.*;
 import java.util.concurrent.Future;
 
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -110,13 +113,35 @@ public class StreamOut
     */
     public static void transferRanges(StreamOutSession session, Iterable<ColumnFamilyStore> cfses, Collection<Range<Token>> ranges, OperationType type)
     {
+        transferRanges(session, cfses, ranges, type, true);
+    }
+
+    /**
+     * Stream the given ranges to the target endpoint from each of the given CFs.
+    */
+    public static void transferRanges(StreamOutSession session,
+                                      Iterable<ColumnFamilyStore> cfses,
+                                      Collection<Range<Token>> ranges,
+                                      OperationType type,
+                                      boolean flushTables)
+    {
         assert ranges.size() > 0;
         logger.info("Beginning transfer to {}", session.getHost());
         logger.debug("Ranges are {}", StringUtils.join(ranges, ","));
-        flushSSTables(cfses);
-        Iterable<SSTableReader> sstables = Collections.emptyList();
+
+        if (flushTables)
+            flushSSTables(cfses);
+
+        List<SSTableReader> sstables = Lists.newLinkedList();
         for (ColumnFamilyStore cfStore : cfses)
-            sstables = Iterables.concat(sstables, cfStore.markCurrentSSTablesReferenced());
+        {
+            List<AbstractBounds<RowPosition>> rowBoundsList = Lists.newLinkedList();
+            for (Range<Token> range : ranges)
+                rowBoundsList.add(range.toRowBounds());
+            ColumnFamilyStore.ViewFragment view = cfStore.markReferenced(rowBoundsList);
+            sstables.addAll(view.sstables);
+        }
+
         transferSSTables(session, sstables, ranges, type);
     }
 
