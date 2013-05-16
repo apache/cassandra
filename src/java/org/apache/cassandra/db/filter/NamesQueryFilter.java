@@ -95,11 +95,7 @@ public class NamesQueryFilter implements IDiskAtomFilter
     public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore)
     {
         while (reducedColumns.hasNext())
-        {
-            Column column = reducedColumns.next();
-            if (QueryFilter.isRelevant(column, container, gcBefore))
-                container.addColumn(column);
-        }
+            container.addIfRelevant(reducedColumns.next(), gcBefore);
     }
 
     public Comparator<Column> getColumnComparator(AbstractType<?> comparator)
