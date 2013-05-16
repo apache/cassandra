@@ -17,17 +17,14 @@
  */
 package org.apache.cassandra.db.filter;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
 public class QueryFilter
@@ -175,7 +172,7 @@ public class QueryFilter
         // the column itself must be not gc-able (it is live, or a still relevant tombstone, or has live subcolumns), (1)
         // and if its container is deleted, the column must be changed more recently than the container tombstone (2)
         // (since otherwise, the only thing repair cares about is the container tombstone)
-        long maxChange = column.mostRecentNonGCableChangeAt(gcBefore);
+        long maxChange = column.timestamp();
         return (column.getLocalDeletionTime() >= gcBefore || maxChange > column.getMarkedForDeleteAt()) // (1)
                && (!container.deletionInfo().isDeleted(column.name(), maxChange)); // (2)
     }

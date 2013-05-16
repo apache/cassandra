@@ -153,16 +153,6 @@ public class Column implements OnDiskAtom
         throw new IllegalStateException("column is not marked for delete");
     }
 
-    public long mostRecentLiveChangeAt()
-    {
-        return timestamp;
-    }
-
-    public long mostRecentNonGCableChangeAt(int gcbefore)
-    {
-        return timestamp;
-    }
-
     public int dataSize()
     {
         return name().remaining() + value.remaining() + TypeSizes.NATIVE.sizeof(timestamp);

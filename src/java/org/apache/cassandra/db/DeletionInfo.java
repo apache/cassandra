@@ -32,7 +32,6 @@ import org.apache.cassandra.io.ISSTableSerializer;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.IntervalTree;
 
@@ -100,7 +99,7 @@ public class DeletionInfo
      */
     public boolean isDeleted(Column column)
     {
-        return isDeleted(column.name(), column.mostRecentLiveChangeAt());
+        return isDeleted(column.name(), column.timestamp());
     }
 
     public boolean isDeleted(ByteBuffer name, long timestamp)
