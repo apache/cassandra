@@ -1358,54 +1358,88 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return markCurrentViewReferenced().sstables;
     }
 
-    /**
-     * @return a ViewFragment containing the sstables and memtables that may need to be merged
-     * for the given @param key, according to the interval tree
-     */
-    public ViewFragment markReferenced(DecoratedKey key)
+    abstract class AbstractViewSSTableFinder
     {
-        assert !key.isMinimum();
-        DataTracker.View view;
-        List<SSTableReader> sstables;
-        while (true)
+        abstract List<SSTableReader> findSSTables(DataTracker.View view);
+        protected List<SSTableReader> sstablesForRowBounds(AbstractBounds<RowPosition> rowBounds, DataTracker.View view)
         {
-            view = data.getView();
-            sstables = view.intervalTree.search(key);
-            if (SSTableReader.acquireReferences(sstables))
-                break;
-            // retry w/ new view
+            RowPosition stopInTree = rowBounds.right.isMinimum() ? view.intervalTree.max() : rowBounds.right;
+            return view.intervalTree.search(Interval.<RowPosition, SSTableReader>create(rowBounds.left, stopInTree));
         }
-        return new ViewFragment(sstables, Iterables.concat(Collections.singleton(view.memtable), view.memtablesPendingFlush));
     }
 
-    /**
-     * @return a ViewFragment containing the sstables and memtables that may need to be merged
-     * for rows between @param startWith and @param stopAt, inclusive, according to the interval tree
-     */
-    public ViewFragment markReferenced(RowPosition startWith, RowPosition stopAt)
+    private ViewFragment markReferenced(AbstractViewSSTableFinder finder)
     {
-        DataTracker.View view;
         List<SSTableReader> sstables;
+        DataTracker.View view;
+
         while (true)
         {
             view = data.getView();
-            // startAt == minimum is ok, but stopAt == minimum is confusing because all IntervalTree deals with
-            // is Comparable, so it won't know to special-case that. However max() should not be call if the
-            // intervalTree is empty sochecking that first
-            //
+
             if (view.intervalTree.isEmpty())
             {
                 sstables = Collections.emptyList();
                 break;
             }
 
-            RowPosition stopInTree = stopAt.isMinimum() ? view.intervalTree.max() : stopAt;
-            sstables = view.intervalTree.search(Interval.<RowPosition, SSTableReader>create(startWith, stopInTree));
+            sstables = finder.findSSTables(view);
             if (SSTableReader.acquireReferences(sstables))
                 break;
             // retry w/ new view
         }
+
         return new ViewFragment(sstables, Iterables.concat(Collections.singleton(view.memtable), view.memtablesPendingFlush));
+    }
+
+    /**
+     * @return a ViewFragment containing the sstables and memtables that may need to be merged
+     * for the given @param key, according to the interval tree
+     */
+    public ViewFragment markReferenced(final DecoratedKey key)
+    {
+        assert !key.isMinimum();
+        return markReferenced(new AbstractViewSSTableFinder()
+        {
+            List<SSTableReader> findSSTables(DataTracker.View view)
+            {
+                return view.intervalTree.search(key);
+            }
+        });
+    }
+
+    /**
+     * @return a ViewFragment containing the sstables and memtables that may need to be merged
+     * for rows within @param rowBounds, inclusive, according to the interval tree.
+     */
+    public ViewFragment markReferenced(final AbstractBounds<RowPosition> rowBounds)
+    {
+        return markReferenced(new AbstractViewSSTableFinder()
+        {
+            List<SSTableReader> findSSTables(DataTracker.View view)
+            {
+                return sstablesForRowBounds(rowBounds, view);
+            }
+        });
+    }
+
+    /**
+     * @return a ViewFragment containing the sstables and memtables that may need to be merged
+     * for rows for all of @param rowBoundsCollection, inclusive, according to the interval tree.
+     */
+    public ViewFragment markReferenced(final Collection<AbstractBounds<RowPosition>> rowBoundsCollection)
+    {
+        return markReferenced(new AbstractViewSSTableFinder()
+        {
+            List<SSTableReader> findSSTables(DataTracker.View view)
+            {
+                Set<SSTableReader> sstables = Sets.newHashSet();
+                for (AbstractBounds<RowPosition> rowBounds : rowBoundsCollection)
+                    sstables.addAll(sstablesForRowBounds(rowBounds, view));
+
+                return ImmutableList.copyOf(sstables);
+            }
+        });
     }
 
     public List<String> getSSTablesForKey(String key)
@@ -1463,7 +1497,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         QueryFilter filter = new QueryFilter(null, name, columnFilter);
 
-        final ViewFragment view = markReferenced(startWith, stopAt);
+        final ViewFragment view = markReferenced(range);
         Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), range.getString(metadata.getKeyValidator()));
 
         try

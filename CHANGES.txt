@@ -48,6 +48,7 @@
 
 1.2.6
  * Write row markers when serializing schema (CASSANDRA-5572)
+ * Check only SSTables for the requested range when streaming (CASSANDRA-5569)
 
 
 1.2.5
