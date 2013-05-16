@@ -188,8 +188,10 @@ row_cache_save_period: 0
 # Defaults to SerializingCacheProvider
 row_cache_provider: SerializingCacheProvider
 
-# The pluggable memory allocation for off-heap row cache, Experiments show that JEMAlloc
-# saves some memory than the native GCC allocator.
+# The off-heap memory allocator.  Affects storage engine metadata as
+# well as caches.  Experiments show that JEMAlloc saves some memory
+# than the native GCC allocator (i.e., JEMalloc is more
+# fragmentation-resistant).
 # 
 # Supported values are: NativeAllocator, JEMallocAllocator
 #

@@ -59,6 +59,7 @@ Features
 --------
     - Alias support has been added to CQL3 SELECT statement. Refer to
       CQL3 documentation (http://cassandra.apache.org/doc/cql3/CQL.html) for details.
+    - JEMalloc support (see memory_allocator in cassandra.yaml)
 
 
 1.2.5
