@@ -44,12 +44,17 @@ public class QueryMessage extends Message.Request
         {
             String query = CBUtil.readLongString(body);
             ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
-            List<ByteBuffer> values = new ArrayList<ByteBuffer>();
+            List<ByteBuffer> values;
             if (body.readable())
             {
                 int paramCount = body.readUnsignedShort();
+                values = paramCount == 0 ? Collections.<ByteBuffer>emptyList() : new ArrayList<ByteBuffer>(paramCount);
                 for (int i = 0; i < paramCount; i++)
                      values.add(CBUtil.readValue(body));
+            }
+            else
+            {
+                values = Collections.emptyList();
             }
             return new QueryMessage(query, values, consistency);
         }

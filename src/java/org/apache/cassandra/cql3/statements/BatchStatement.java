@@ -98,25 +98,47 @@ public class BatchStatement implements CQLStatement
     {
         Map<Pair<String, ByteBuffer>, IMutation> mutations = new HashMap<Pair<String, ByteBuffer>, IMutation>();
         for (ModificationStatement statement : statements)
-        {
-            // Group mutation together, otherwise they won't get applied atomically
-            for (IMutation m : statement.getMutations(variables, local, cl, getTimestamp(now), true))
-            {
-                Pair<String, ByteBuffer> key = Pair.create(m.getTable(), m.key());
-                IMutation existing = mutations.get(key);
-
-                if (existing == null)
-                {
-                    mutations.put(key, m);
-                }
-                else
-                {
-                    existing.addAll(m);
-                }
-            }
-        }
+            addStatementMutations(statement, variables, local, cl, now, mutations);
 
         return mutations.values();
+    }
+
+    private Collection<? extends IMutation> getMutations(List<List<ByteBuffer>> variables, ConsistencyLevel cl, long now)
+    throws RequestExecutionException, RequestValidationException
+    {
+        Map<Pair<String, ByteBuffer>, IMutation> mutations = new HashMap<Pair<String, ByteBuffer>, IMutation>();
+        for (int i = 0; i < statements.size(); i++)
+        {
+            ModificationStatement statement = statements.get(i);
+            List<ByteBuffer> statementVariables = variables.get(i);
+            addStatementMutations(statement, statementVariables, false, cl, now, mutations);
+        }
+        return mutations.values();
+    }
+
+    private void addStatementMutations(ModificationStatement statement,
+                                       List<ByteBuffer> variables,
+                                       boolean local,
+                                       ConsistencyLevel cl,
+                                       long now,
+                                       Map<Pair<String, ByteBuffer>, IMutation> mutations)
+    throws RequestExecutionException, RequestValidationException
+    {
+        // Group mutation together, otherwise they won't get applied atomically
+        for (IMutation m : statement.getMutations(variables, local, cl, getTimestamp(now), true))
+        {
+            Pair<String, ByteBuffer> key = Pair.create(m.getTable(), m.key());
+            IMutation existing = mutations.get(key);
+
+            if (existing == null)
+            {
+                mutations.put(key, m);
+            }
+            else
+            {
+                existing.addAll(m);
+            }
+        }
     }
 
     public ResultMessage execute(ConsistencyLevel cl, QueryState queryState, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
@@ -124,10 +146,22 @@ public class BatchStatement implements CQLStatement
         if (cl == null)
             throw new InvalidRequestException("Invalid empty consistency level");
 
-        Collection<? extends IMutation> mutations = getMutations(variables, false, cl, queryState.getTimestamp());
+        execute(getMutations(variables, false, cl, queryState.getTimestamp()), cl);
+        return null;
+    }
+
+    public void executeWithPerStatementVariables(ConsistencyLevel cl, QueryState queryState, List<List<ByteBuffer>> variables) throws RequestExecutionException, RequestValidationException
+    {
+        if (cl == null)
+            throw new InvalidRequestException("Invalid empty consistency level");
+
+        execute(getMutations(variables, cl, queryState.getTimestamp()), cl);
+    }
+
+    private void execute(Collection<? extends IMutation> mutations, ConsistencyLevel cl) throws RequestExecutionException, RequestValidationException
+    {
         boolean mutateAtomic = (type == Type.LOGGED && mutations.size() > 1);
         StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic);
-        return null;
     }
 
     public ResultMessage executeInternal(QueryState queryState) throws RequestValidationException, RequestExecutionException

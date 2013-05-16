@@ -69,7 +69,8 @@ public abstract class Message
         PREPARE      (9,  Direction.REQUEST,  PrepareMessage.codec),
         EXECUTE      (10, Direction.REQUEST,  ExecuteMessage.codec),
         REGISTER     (11, Direction.REQUEST,  RegisterMessage.codec),
-        EVENT        (12, Direction.RESPONSE, EventMessage.codec);
+        EVENT        (12, Direction.RESPONSE, EventMessage.codec),
+        BATCH        (13, Direction.REQUEST,  BatchMessage.codec);
 
         public final int opcode;
         public final Direction direction;

@@ -102,6 +102,13 @@ public abstract class CBUtil
         return cb;
     }
 
+    public static ChannelBuffer byteToCB(byte b)
+    {
+        ChannelBuffer cb = ChannelBuffers.buffer(1);
+        cb.writeByte(b);
+        return cb;
+    }
+
     public static ChannelBuffer intToCB(int i)
     {
         ChannelBuffer cb = ChannelBuffers.buffer(4);

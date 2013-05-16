@@ -125,8 +125,8 @@ public class QueryProcessor
     throws RequestExecutionException, RequestValidationException
     {
         ClientState clientState = queryState.getClientState();
-        statement.validate(clientState);
         statement.checkAccess(clientState);
+        statement.validate(clientState);
         ResultMessage result = statement.execute(cl, queryState, variables);
         return result == null ? new ResultMessage.Void() : result;
     }
@@ -145,6 +145,11 @@ public class QueryProcessor
         if (prepared.getBoundsTerms() != variables.size())
             throw new InvalidRequestException("Invalid amount of bind variables");
         return processStatement(prepared, cl, queryState, variables);
+    }
+
+    public static CQLStatement parseStatement(String queryStr, QueryState queryState) throws RequestValidationException
+    {
+        return getStatement(queryStr, queryState.getClientState()).statement;
     }
 
     public static UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException
@@ -259,6 +264,16 @@ public class QueryProcessor
         }
 
         return processStatement(statement, cl, queryState, variables);
+    }
+
+    public static ResultMessage processBatch(BatchStatement batch, ConsistencyLevel cl, QueryState queryState, List<List<ByteBuffer>> variables)
+    throws RequestExecutionException, RequestValidationException
+    {
+        ClientState clientState = queryState.getClientState();
+        batch.checkAccess(clientState);
+        batch.validate(clientState);
+        batch.executeWithPerStatementVariables(cl, queryState, variables);
+        return new ResultMessage.Void();
     }
 
     private static ParsedStatement.Prepared getStatement(String queryStr, ClientState clientState)

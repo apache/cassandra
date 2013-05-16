@@ -20,7 +20,8 @@ Table of Contents
       4.1.4. QUERY
       4.1.5. PREPARE
       4.1.6. EXECUTE
-      4.1.7. REGISTER
+      4.1.7. BATCH
+      4.1.8. REGISTER
     4.2. Responses
       4.2.1. ERROR
       4.2.2. READY
@@ -159,6 +160,7 @@ Table of Contents
     0x0A    EXECUTE
     0x0B    REGISTER
     0x0C    EVENT
+    0x0D    BATCH
 
   Messages are described in Section 4.
 
@@ -304,8 +306,36 @@ Table of Contents
 
   The response from the server will be a RESULT message.
 
+4.1.7. BATCH
 
-4.1.7. REGISTER
+  Allows executing a list of queries (prepared or not) as a batch (note that
+  only DML statements are accepted in a batch). The body of the message must
+  be:
+    <type><n><query_1>...<query_n><consistency>
+  where:
+    - <type> is a [byte] indicating the type of batch to use:
+        - If <type> == 0, the batch will be "logged". This is equivalent to a
+          normal CQL3 batch statement.
+        - If <type> == 1, the batch will be "unlogged".
+        - If <type> == 2, the batch will be a "counter" batch (and non-counter
+          statements will be rejected).
+    - <n> is a [short] indicating the number of following queries.
+    - <query_1>...<query_n> are the queries to execute. A <query_i> must be of the
+      form:
+        <kind><string_or_id><n><value_1>...<value_n>
+      where:
+       - <kind> is a [byte] indicating whether the following query is a prepared
+         one or not. <kind> value must be either 0 or 1.
+       - <string_or_id> depends on the value of <kind>. If <kind> == 0, it should be
+         a [long string] query string (as in QUERY, the query string might contain
+         bind markers). Otherwise (that is, if <kind> == 1), it should be a
+         [short bytes] representing a prepared query ID.
+       - <n> is a [short] indicating the number (possibly 0) of following values.
+       - <value_1>...<value_n> are the [bytes] to use for bound variables.
+    - <consistency> is the [consistency] level for the operation.
+
+
+4.1.8. REGISTER
 
   Register this connection to receive some type of events. The body of the
   message is a [string list] representing the event types to register to. See
@@ -645,8 +675,10 @@ Table of Contents
               bytes] representing the unknown ID.
 
 8. Changes from v1
-  * Protocol is versioned to allow old client connects to a newer server, if a newer
-    client connects to an older server, it needs to check if it gets a
+  * Protocol is versioned to allow old client connects to a newer server, if a
+    newer client connects to an older server, it needs to check if it gets a
     ProtocolException on connection and try connecting with a lower version.
   * A query can now have bind variables even though the statement is not
-    prepared. (see Section 4.1.4)
+    prepared; see Section 4.1.4.
+  * A new BATCH message allows to batch a set of queries (prepared or not); see 
+    Section 4.1.7.
