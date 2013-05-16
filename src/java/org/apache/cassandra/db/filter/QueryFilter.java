@@ -25,6 +25,7 @@ import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.MergeIterator;
 
 public class QueryFilter
@@ -83,23 +84,25 @@ public class QueryFilter
 
     public void collateColumns(final ColumnFamily returnCF, List<? extends Iterator<Column>> toCollate, final int gcBefore)
     {
-        Comparator<Column> fcomp = filter.getColumnComparator(returnCF.getComparator());
+        final Comparator<Column> fcomp = filter.getColumnComparator(returnCF.getComparator());
         // define a 'reduced' iterator that merges columns w/ the same name, which
         // greatly simplifies computing liveColumns in the presence of tombstones.
         MergeIterator.Reducer<Column, Column> reducer = new MergeIterator.Reducer<Column, Column>()
         {
-            ColumnFamily curCF = returnCF.cloneMeShallow();
+            Column current;
 
-            public void reduce(Column current)
+            public void reduce(Column next)
             {
-                curCF.addColumn(current);
+                assert current == null || fcomp.compare(current, next) == 0;
+                current = current == null ? next : current.reconcile(next, HeapAllocator.instance);
             }
 
             protected Column getReduced()
             {
-                Column c = curCF.iterator().next();
-                curCF.clear();
-                return c;
+                assert current != null;
+                Column toReturn = current;
+                current = null;
+                return toReturn;
             }
         };
         Iterator<Column> reduced = MergeIterator.get(toCollate, fcomp, reducer);
