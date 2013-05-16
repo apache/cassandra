@@ -46,6 +46,10 @@
  * Don't create empty RowMutations in CommitLogReplayer (CASSANDRA-5541)
 
 
+1.2.6
+ * Write row markers when serializing schema (CASSANDRA-5572)
+
+
 1.2.5
  * make BytesToken.toString only return hex bytes (CASSANDRA-5566)
  * Ensure that submitBackground enqueues at least one task (CASSANDRA-5554)

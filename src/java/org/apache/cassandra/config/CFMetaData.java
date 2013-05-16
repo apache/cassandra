@@ -1425,6 +1425,7 @@ public final class CFMetaData
         ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
+        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, ""));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "id"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "type"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "comparator"));
@@ -1477,6 +1478,7 @@ public final class CFMetaData
         ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
+        cf.addColumn(Column.create("", timestamp, cfName, ""));
         cf.addColumn(Column.create(cfType.toString(), timestamp, cfName, "type"));
 
         if (isSuper())
