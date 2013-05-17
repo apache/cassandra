@@ -1,4 +1,5 @@
 2.0
+ * Experimental triggers (CASSANDRA-1311)
  * JEMalloc support for off-heap allocation (CASSANDRA-3997)
  * Single-pass compaction (CASSANDRA-4180)
  * Removed token range bisection (CASSANDRA-5518)

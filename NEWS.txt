@@ -60,6 +60,10 @@ Features
     - Alias support has been added to CQL3 SELECT statement. Refer to
       CQL3 documentation (http://cassandra.apache.org/doc/cql3/CQL.html) for details.
     - JEMalloc support (see memory_allocator in cassandra.yaml)
+    - Experimental triggers support.  See examples/ for how to use.  "Experimental"
+      means "tied closely to internal data structures; we plan to decouple this in
+      the future, which will probably break triggers written against this initial
+      API."
 
 
 1.2.5
