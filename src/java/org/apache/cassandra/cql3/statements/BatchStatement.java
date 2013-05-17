@@ -125,11 +125,8 @@ public class BatchStatement implements CQLStatement
             throw new InvalidRequestException("Invalid empty consistency level");
 
         Collection<? extends IMutation> mutations = getMutations(variables, false, cl, queryState.getTimestamp());
-        if (type == Type.LOGGED && mutations.size() > 1)
-            StorageProxy.mutateAtomically((Collection<RowMutation>) mutations, cl);
-        else
-            StorageProxy.mutate(mutations, cl);
-
+        boolean mutateAtomic = (type == Type.LOGGED && mutations.size() > 1);
+        StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic);
         return null;
     }
 

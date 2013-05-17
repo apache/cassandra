@@ -507,7 +507,7 @@ public class QueryProcessor
                     validateKey(mutation.key());
                 }
 
-                StorageProxy.mutate(rowMutations, update.getConsistencyLevel());
+                StorageProxy.mutateWithTriggers(rowMutations, update.getConsistencyLevel(), false);
 
                 result.type = CqlResultType.VOID;
                 return result;
@@ -536,7 +536,7 @@ public class QueryProcessor
                     validateKey(mutation.key());
                 }
 
-                StorageProxy.mutate(mutations, batch.getConsistencyLevel());
+                StorageProxy.mutateWithTriggers(mutations, batch.getConsistencyLevel(), false);
 
                 result.type = CqlResultType.VOID;
                 return result;
@@ -582,7 +582,7 @@ public class QueryProcessor
                     validateKey(deletion.key());
                 }
 
-                StorageProxy.mutate(deletions, delete.getConsistencyLevel());
+                StorageProxy.mutateWithTriggers(deletions, delete.getConsistencyLevel(), false);
 
                 result.type = CqlResultType.VOID;
                 return result;

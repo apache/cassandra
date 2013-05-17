@@ -351,7 +351,7 @@ public abstract class ModificationStatement implements CQLStatement
         else
             cl.validateForWrite(cfm.ksName);
 
-        StorageProxy.mutate(getMutations(variables, false, cl, queryState.getTimestamp(), false), cl);
+        StorageProxy.mutateWithTriggers(getMutations(variables, false, cl, queryState.getTimestamp(), false), cl, false);
         return null;
     }
 

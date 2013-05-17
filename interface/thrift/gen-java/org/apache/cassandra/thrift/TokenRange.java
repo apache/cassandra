@@ -774,7 +774,7 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
                 struct.endpoints = new ArrayList<String>(_list48.size);
                 for (int _i49 = 0; _i49 < _list48.size; ++_i49)
                 {
-                  String _elem50; // required
+                  String _elem50; // optional
                   _elem50 = iprot.readString();
                   struct.endpoints.add(_elem50);
                 }
@@ -792,7 +792,7 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
                 struct.rpc_endpoints = new ArrayList<String>(_list51.size);
                 for (int _i52 = 0; _i52 < _list51.size; ++_i52)
                 {
-                  String _elem53; // required
+                  String _elem53; // optional
                   _elem53 = iprot.readString();
                   struct.rpc_endpoints.add(_elem53);
                 }
@@ -810,7 +810,7 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
                 struct.endpoint_details = new ArrayList<EndpointDetails>(_list54.size);
                 for (int _i55 = 0; _i55 < _list54.size; ++_i55)
                 {
-                  EndpointDetails _elem56; // required
+                  EndpointDetails _elem56; // optional
                   _elem56 = new EndpointDetails();
                   _elem56.read(iprot);
                   struct.endpoint_details.add(_elem56);
@@ -953,7 +953,7 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
         struct.endpoints = new ArrayList<String>(_list63.size);
         for (int _i64 = 0; _i64 < _list63.size; ++_i64)
         {
-          String _elem65; // required
+          String _elem65; // optional
           _elem65 = iprot.readString();
           struct.endpoints.add(_elem65);
         }
@@ -966,7 +966,7 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
           struct.rpc_endpoints = new ArrayList<String>(_list66.size);
           for (int _i67 = 0; _i67 < _list66.size; ++_i67)
           {
-            String _elem68; // required
+            String _elem68; // optional
             _elem68 = iprot.readString();
             struct.rpc_endpoints.add(_elem68);
           }
@@ -979,7 +979,7 @@ public class TokenRange implements org.apache.thrift.TBase<TokenRange, TokenRang
           struct.endpoint_details = new ArrayList<EndpointDetails>(_list69.size);
           for (int _i70 = 0; _i70 < _list69.size; ++_i70)
           {
-            EndpointDetails _elem71; // required
+            EndpointDetails _elem71; // optional
             _elem71 = new EndpointDetails();
             _elem71.read(iprot);
             struct.endpoint_details.add(_elem71);

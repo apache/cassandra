@@ -1062,10 +1062,7 @@ public class CassandraServer implements Cassandra.Iface
         schedule(DatabaseDescriptor.getWriteRpcTimeout());
         try
         {
-            if (mutateAtomically)
-                StorageProxy.mutateAtomically((List<RowMutation>) mutations, consistencyLevel);
-            else
-                StorageProxy.mutate(mutations, consistencyLevel);
+            StorageProxy.mutateWithTriggers(mutations, consistencyLevel, mutateAtomically);
         }
         catch (RequestExecutionException e)
         {

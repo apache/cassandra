@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +34,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.commons.lang.StringUtils;
 
 public class CFPropDefs {
     private static final Logger logger = LoggerFactory.getLogger(CFPropDefs.class);
@@ -53,6 +55,7 @@ public class CFPropDefs {
     public static final String KW_POPULATE_IO_CACHE_ON_FLUSH = "populate_io_cache_on_flush";
     public static final String KW_BF_FP_CHANCE = "bloom_filter_fp_chance";
     public static final String KW_MEMTABLE_FLUSH_PERIOD = "memtable_flush_period_in_ms";
+    public static final String KW_TRIGGER_CLASS = "trigger_class";
 
     // Maps CQL short names to the respective Cassandra comparator/validator class names
     public static final Map<String, String> comparators = new HashMap<String, String>();
@@ -96,6 +99,7 @@ public class CFPropDefs {
         keywords.add(KW_POPULATE_IO_CACHE_ON_FLUSH);
         keywords.add(KW_BF_FP_CHANCE);
         keywords.add(KW_MEMTABLE_FLUSH_PERIOD);
+        keywords.add(KW_TRIGGER_CLASS);
 
         obsoleteKeywords.add("row_cache_size");
         obsoleteKeywords.add("key_cache_size");
@@ -284,6 +288,14 @@ public class CFPropDefs {
             }
         }
         return result;
+    }
+
+    public Set<String> getPropertySet(String key, Set<String> defaultValue)
+    {
+        String value = properties.get(key);
+        if (Strings.isNullOrEmpty(value))
+            return defaultValue;
+        return Sets.newHashSet(StringUtils.split(value, ','));
     }
 
     public String toString()

@@ -333,6 +333,12 @@ public class FBUtilities
         return scpurl.getFile();
     }
 
+    public static File cassandraHomeDir()
+    {
+        String libDir = new File(FBUtilities.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getParent();
+        return new File(new File(libDir).getParent());
+    }
+
     public static String getReleaseVersionString()
     {
         try

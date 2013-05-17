@@ -26,8 +26,11 @@ import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
+import com.google.common.base.Strings;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.builder.EqualsBuilder;
@@ -138,6 +141,7 @@ public final class CFMetaData
                                                                        + "default_write_consistency text,"
                                                                        + "speculative_retry text,"
                                                                        + "populate_io_cache_on_flush boolean,"
+                                                                       + "trigger_class text,"
                                                                        + "dropped_columns map<text, bigint>,"
                                                                        + "PRIMARY KEY (keyspace_name, columnfamily_name)"
                                                                        + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=8640");
@@ -360,6 +364,7 @@ public final class CFMetaData
     private volatile SpeculativeRetry speculativeRetry = DEFAULT_SPECULATIVE_RETRY;
     private volatile boolean populateIoCacheOnFlush = DEFAULT_POPULATE_IO_CACHE_ON_FLUSH;
     private volatile Map<ByteBuffer, Long> droppedColumns = new HashMap<ByteBuffer, Long>();
+    private volatile Set<String> triggerClass = null;
 
     /*
      * All CQL3 columns definition are stored in the column_metadata map.
@@ -405,6 +410,7 @@ public final class CFMetaData
     public CFMetaData speculativeRetry(SpeculativeRetry prop) {speculativeRetry = prop; return this;}
     public CFMetaData populateIoCacheOnFlush(boolean prop) {populateIoCacheOnFlush = prop; return this;}
     public CFMetaData droppedColumns(Map<ByteBuffer, Long> cols) {droppedColumns = cols; return this;}
+    public CFMetaData triggerClass(Set<String> prop) {triggerClass = prop; return this;}
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType<?> comp, AbstractType<?> subcc)
     {
@@ -502,6 +508,7 @@ public final class CFMetaData
                              .gcGraceSeconds(0)
                              .caching(indexCaching)
                              .speculativeRetry(parent.speculativeRetry)
+                             .triggerClass(parent.triggerClass)
                              .compactionStrategyClass(parent.compactionStrategyClass)
                              .compactionStrategyOptions(parent.compactionStrategyOptions)
                              .reloadSecondaryIndexMetadata(parent);
@@ -556,7 +563,8 @@ public final class CFMetaData
                       .speculativeRetry(oldCFMD.speculativeRetry)
                       .memtableFlushPeriod(oldCFMD.memtableFlushPeriod)
                       .populateIoCacheOnFlush(oldCFMD.populateIoCacheOnFlush)
-                      .droppedColumns(oldCFMD.droppedColumns);
+                      .droppedColumns(oldCFMD.droppedColumns)
+                      .triggerClass(oldCFMD.triggerClass);
     }
 
     /**
@@ -687,6 +695,11 @@ public final class CFMetaData
                : bloomFilterFpChance;
     }
 
+    public Set<String> getTriggerClass()
+    {
+        return triggerClass;
+    }
+
     public Caching getCaching()
     {
         return caching;
@@ -756,6 +769,7 @@ public final class CFMetaData
             .append(speculativeRetry, rhs.speculativeRetry)
             .append(populateIoCacheOnFlush, rhs.populateIoCacheOnFlush)
             .append(droppedColumns, rhs.droppedColumns)
+            .append(triggerClass, rhs.triggerClass)
             .isEquals();
     }
 
@@ -788,6 +802,7 @@ public final class CFMetaData
             .append(speculativeRetry)
             .append(populateIoCacheOnFlush)
             .append(droppedColumns)
+            .append(triggerClass)
             .toHashCode();
     }
 
@@ -877,6 +892,8 @@ public final class CFMetaData
                 newCFMD.speculativeRetry(SpeculativeRetry.fromString(cf_def.speculative_retry));
             if (cf_def.isSetPopulate_io_cache_on_flush())
                 newCFMD.populateIoCacheOnFlush(cf_def.populate_io_cache_on_flush);
+            if (cf_def.isSetTrigger_class())
+                newCFMD.triggerClass(cf_def.trigger_class);
 
             CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
 
@@ -958,6 +975,8 @@ public final class CFMetaData
         speculativeRetry = cfm.speculativeRetry;
         populateIoCacheOnFlush = cfm.populateIoCacheOnFlush;
 
+        if (cfm.triggerClass != null)
+            triggerClass = cfm.triggerClass;
         if (!cfm.droppedColumns.isEmpty())
             droppedColumns = cfm.droppedColumns;
 
@@ -1118,6 +1137,8 @@ public final class CFMetaData
         def.setCaching(caching.toString());
         def.setDefault_time_to_live(defaultTimeToLive);
         def.setSpeculative_retry(speculativeRetry.toString());
+        if (triggerClass != null)
+            def.setTrigger_class(new HashSet<String>(triggerClass));
         return def;
     }
 
@@ -1453,6 +1474,7 @@ public final class CFMetaData
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "column_aliases"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "compaction_strategy_options"));
         cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "index_interval"));
+        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "trigger_class"));
 
         for (Map.Entry<ByteBuffer, Long> entry : droppedColumns.entrySet())
             cf.addColumn(new DeletedColumn(makeDroppedColumnName(entry.getKey()), ldt, timestamp));
@@ -1516,6 +1538,8 @@ public final class CFMetaData
         cf.addColumn(Column.create(json(compactionStrategyOptions), timestamp, cfName, "compaction_strategy_options"));
         cf.addColumn(Column.create(indexInterval, timestamp, cfName, "index_interval"));
         cf.addColumn(Column.create(speculativeRetry.toString(), timestamp, cfName, "speculative_retry"));
+        cf.addColumn(triggerClass == null ? DeletedColumn.create(ldt, timestamp, cfName, "trigger_class")
+                                          : Column.create(StringUtils.join(triggerClass, ','), timestamp, cfName, "trigger_class"));
 
         for (Map.Entry<ByteBuffer, Long> entry : droppedColumns.entrySet())
             cf.addColumn(new Column(makeDroppedColumnName(entry.getKey()), LongType.instance.decompose(entry.getValue()), timestamp));
@@ -1565,6 +1589,8 @@ public final class CFMetaData
                 cfm.indexInterval(result.getInt("index_interval"));
             if (result.has("populate_io_cache_on_flush"))
                 cfm.populateIoCacheOnFlush(result.getBoolean("populate_io_cache_on_flush"));
+            if (result.has("trigger_class") && !Strings.isNullOrEmpty(result.getString("trigger_class")))
+                cfm.triggerClass(Sets.newHashSet(StringUtils.split(result.getString("trigger_class"), ',')));
 
             /*
              * The info previously hold by key_alias(es), column_alias and value_alias is now stored in column_metadata (because 1) this
@@ -1987,6 +2013,7 @@ public final class CFMetaData
             .append("indexInterval", indexInterval)
             .append("populateIoCacheOnFlush", populateIoCacheOnFlush)
             .append("droppedColumns", droppedColumns)
+            .append("trigger_class", triggerClass)
             .toString();
     }
 }

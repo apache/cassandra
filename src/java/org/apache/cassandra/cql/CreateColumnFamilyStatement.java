@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -201,7 +202,8 @@ public class CreateColumnFamilyStatement
                    .bloomFilterFpChance(getPropertyDouble(CFPropDefs.KW_BF_FP_CHANCE, null))
                    .memtableFlushPeriod(getPropertyInt(CFPropDefs.KW_MEMTABLE_FLUSH_PERIOD, 0))
                    .defaultTimeToLive(getPropertyInt(CFPropDefs.KW_DEFAULT_TIME_TO_LIVE, CFMetaData.DEFAULT_DEFAULT_TIME_TO_LIVE))
-                   .populateIoCacheOnFlush(getPropertyBoolean(CFPropDefs.KW_POPULATE_IO_CACHE_ON_FLUSH, CFMetaData.DEFAULT_POPULATE_IO_CACHE_ON_FLUSH));
+                   .populateIoCacheOnFlush(getPropertyBoolean(CFPropDefs.KW_POPULATE_IO_CACHE_ON_FLUSH, CFMetaData.DEFAULT_POPULATE_IO_CACHE_ON_FLUSH))
+                   .triggerClass(getPropertySet(CFPropDefs.KW_TRIGGER_CLASS, null));
 
             // CQL2 can have null keyAliases
             if (keyAlias != null)
@@ -236,6 +238,11 @@ public class CreateColumnFamilyStatement
     private Integer getPropertyInt(String key, Integer defaultValue) throws InvalidRequestException
     {
         return cfProps.getPropertyInt(key, defaultValue);
+    }
+
+    private Set<String> getPropertySet(String key, Set<String> defaultValue)
+    {
+        return cfProps.getPropertySet(key, defaultValue);
     }
 
     public Map<Term, String> getColumns()

@@ -467,7 +467,7 @@ public class SlicePredicate implements org.apache.thrift.TBase<SlicePredicate, S
                 struct.column_names = new ArrayList<ByteBuffer>(_list16.size);
                 for (int _i17 = 0; _i17 < _list16.size; ++_i17)
                 {
-                  ByteBuffer _elem18; // required
+                  ByteBuffer _elem18; // optional
                   _elem18 = iprot.readBinary();
                   struct.column_names.add(_elem18);
                 }
@@ -572,7 +572,7 @@ public class SlicePredicate implements org.apache.thrift.TBase<SlicePredicate, S
           struct.column_names = new ArrayList<ByteBuffer>(_list21.size);
           for (int _i22 = 0; _i22 < _list21.size; ++_i22)
           {
-            ByteBuffer _elem23; // required
+            ByteBuffer _elem23; // optional
             _elem23 = iprot.readBinary();
             struct.column_names.add(_elem23);
           }

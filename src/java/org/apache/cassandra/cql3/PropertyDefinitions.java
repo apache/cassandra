@@ -76,6 +76,16 @@ public class PropertyDefinitions
         return (Map<String, String>)val;
     }
 
+    protected Set<String> getSet(String name, Set<String> defaultValue) throws SyntaxException
+    {
+        Object val = properties.get(name);
+        if (val == null)
+            return defaultValue;
+        if (!(val instanceof Set))
+            throw new SyntaxException(String.format("Invalid value for property '%s'", name));
+        return (Set<String>) val;
+    }
+
     public Boolean hasProperty(String name)
     {
         return properties.containsKey(name);

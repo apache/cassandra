@@ -485,7 +485,7 @@ public class SuperColumn implements org.apache.thrift.TBase<SuperColumn, SuperCo
                 struct.columns = new ArrayList<Column>(_list0.size);
                 for (int _i1 = 0; _i1 < _list0.size; ++_i1)
                 {
-                  Column _elem2; // required
+                  Column _elem2; // optional
                   _elem2 = new Column();
                   _elem2.read(iprot);
                   struct.columns.add(_elem2);
@@ -566,7 +566,7 @@ public class SuperColumn implements org.apache.thrift.TBase<SuperColumn, SuperCo
         struct.columns = new ArrayList<Column>(_list5.size);
         for (int _i6 = 0; _i6 < _list5.size; ++_i6)
         {
-          Column _elem7; // required
+          Column _elem7; // optional
           _elem7 = new Column();
           _elem7.read(iprot);
           struct.columns.add(_elem7);
