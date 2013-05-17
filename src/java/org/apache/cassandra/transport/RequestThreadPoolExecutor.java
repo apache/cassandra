@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.transport;
 
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
@@ -33,7 +33,7 @@ public class RequestThreadPoolExecutor extends DebuggableThreadPoolExecutor
         super(DatabaseDescriptor.getNativeTransportMinThreads(),
               DatabaseDescriptor.getNativeTransportMaxThreads(),
               CORE_THREAD_TIMEOUT_SEC, TimeUnit.SECONDS,
-              new ArrayBlockingQueue(32), // Seems to help smooth latency compared to SynchronousQueue.
+              new LinkedBlockingQueue<Runnable>(32), // Seems to help smooth latency compared to SynchronousQueue.
               new NamedThreadFactory("Native-Transport-Requests"));
     }
 }
