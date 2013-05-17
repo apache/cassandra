@@ -95,7 +95,11 @@ public class CollationController
                     iterators.add(iter);
                     temp.delete(iter.getColumnFamily());
                     while (iter.hasNext())
-                        temp.addAtom(iter.next());
+                    {
+                        OnDiskAtom atom = iter.next();
+                        if (atom.getLocalDeletionTime() >= gcBefore)
+                            temp.addAtom(atom);
+                    }
                 }
 
                 container.addAll(temp, HeapAllocator.instance);
@@ -126,22 +130,22 @@ public class CollationController
                 if (((NamesQueryFilter) reducedFilter.filter).columns.isEmpty())
                     break;
 
+                Tracing.trace("Merging data from sstable {}", sstable.descriptor.generation);
                 OnDiskAtomIterator iter = reducedFilter.getSSTableColumnIterator(sstable);
                 iterators.add(iter);
                 if (iter.getColumnFamily() != null)
                 {
                     ColumnFamily cf = iter.getColumnFamily();
                     if (cf.isMarkedForDelete())
-                    {
-                        // track the most recent row level tombstone we encounter
                         mostRecentRowTombstone = cf.deletionInfo().getTopLevelDeletion().markedForDeleteAt;
-                    }
-
                     temp.delete(cf);
                     sstablesIterated++;
-                    Tracing.trace("Merging data from sstable {}", sstable.descriptor.generation);
                     while (iter.hasNext())
-                        temp.addAtom(iter.next());
+                    {
+                        OnDiskAtom atom = iter.next();
+                        if (atom.getLocalDeletionTime() >= gcBefore)
+                            temp.addAtom(atom);
+                    }
                 }
 
                 container.addAll(temp, HeapAllocator.instance);
@@ -153,10 +157,22 @@ public class CollationController
             if (iterators.isEmpty())
                 return null;
 
-            // do a final collate.  toCollate is boilerplate required to provide a CloseableIterator
-            ColumnFamily returnCF = container.cloneMeShallow();
-            Tracing.trace("Collating all results");
-            filter.collateOnDiskAtom(returnCF, container.iterator(), gcBefore);
+            // We may have added columns that are shadowed by range or row tombstones, since we don't know what
+            // tombstones we may encounter in older sstables (and we don't know how many older sstables we'll have
+            // to open, without processing newer ones first).  So, make one more pass if necessary to clean those out.
+            ColumnFamily returnCF;
+            if (container.isMarkedForDelete())
+            {
+                returnCF = container.cloneMeShallow();
+                Tracing.trace("Removing shadowed cells");
+                filter.collateOnDiskAtom(returnCF, container.iterator(), gcBefore);
+            }
+            else
+            {
+                // skipping the collate is safe because we only do this time-ordered path for NameQueryFilter;
+                // for SQF, the collate is also what limits us to the requested number of columns.
+                returnCF = container;
+            }
 
             // "hoist up" the requested data into a more recent sstable
             if (sstablesIterated > cfs.getMinimumCompactionThreshold()

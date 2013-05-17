@@ -100,10 +100,9 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
 
     public void addIfRelevant(Column column, int gcBefore)
     {
-        // the column itself must be not gc-able (it is live, or a still relevant tombstone, or has live subcolumns), (1)
+        // the column itself must be not gc-able (it is live, or a still relevant tombstone), (1)
         // and if its container is deleted, the column must be changed more recently than the container tombstone (2)
-        // (since otherwise, the only thing repair cares about is the container tombstone)
-        if ((column.getLocalDeletionTime() >= gcBefore || column.timestamp() > column.getMarkedForDeleteAt()) // (1)
+        if ((column.getLocalDeletionTime() >= gcBefore) // (1)
             && (!deletionInfo().isDeleted(column.name(), column.timestamp())))                                // (2)
         {
             addColumn(column);

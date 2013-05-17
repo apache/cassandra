@@ -1,4 +1,5 @@
 2.0
+ * Avoid unnecessary second pass on name-based queries (CASSANDRA-5577)
  * Experimental triggers (CASSANDRA-1311)
  * JEMalloc support for off-heap allocation (CASSANDRA-3997)
  * Single-pass compaction (CASSANDRA-4180)
