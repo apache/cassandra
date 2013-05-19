@@ -34,11 +34,9 @@ public class SSTableSliceIterator implements OnDiskAtomIterator
 {
     private final OnDiskAtomIterator reader;
     private final DecoratedKey key;
-    private final SSTableReader sstable;
 
     public SSTableSliceIterator(SSTableReader sstable, DecoratedKey key, ColumnSlice[] slices, boolean reversed)
     {
-        this.sstable = sstable;
         this.key = key;
         RowIndexEntry indexEntry = sstable.getPosition(key, SSTableReader.Operator.EQ);
         this.reader = indexEntry == null ? null : createReader(sstable, indexEntry, null, slices, reversed);
@@ -58,7 +56,6 @@ public class SSTableSliceIterator implements OnDiskAtomIterator
      */
     public SSTableSliceIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, ColumnSlice[] slices, boolean reversed, RowIndexEntry indexEntry)
     {
-        this.sstable = sstable;
         this.key = key;
         reader = createReader(sstable, indexEntry, file, slices, reversed);
     }
