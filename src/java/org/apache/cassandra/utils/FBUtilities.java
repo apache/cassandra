@@ -50,6 +50,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.IAllocator;
 import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.thrift.TBase;
@@ -341,9 +342,10 @@ public class FBUtilities
 
     public static String getReleaseVersionString()
     {
+        InputStream in = null;
         try
         {
-            InputStream in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties");
+            in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties");
             if (in == null)
             {
                 return "Unknown";
@@ -356,6 +358,10 @@ public class FBUtilities
         {
             logger.warn("Unable to load version.properties", e);
             return "debug version";
+        }
+        finally
+        {
+            FileUtils.closeQuietly(in);
         }
     }
 

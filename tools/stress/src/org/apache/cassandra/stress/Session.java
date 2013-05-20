@@ -219,16 +219,22 @@ public class Session implements Serializable
             {
                 try
                 {
-                    String node = null;
+                    String node;
                     List<String> tmpNodes = new ArrayList<String>();
                     BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(cmd.getOptionValue("D"))));
-                    while ((node = in.readLine()) != null)
+                    try
                     {
-                        if (node.length() > 0)
-                            tmpNodes.add(node);
+                        while ((node = in.readLine()) != null)
+                        {
+                            if (node.length() > 0)
+                                tmpNodes.add(node);
+                        }
+                        nodes = tmpNodes.toArray(new String[tmpNodes.size()]);
                     }
-                    nodes = tmpNodes.toArray(new String[tmpNodes.size()]);
-                    in.close();
+                    finally
+                    {
+                        in.close();
+                    }
                 }
                 catch(IOException ioe)
                 {

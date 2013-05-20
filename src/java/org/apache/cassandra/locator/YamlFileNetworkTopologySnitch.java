@@ -30,6 +30,7 @@ import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -321,10 +322,17 @@ public class YamlFileNetworkTopologySnitch
                     "Could not read topology config file "
                             + topologyConfigFilename);
         }
-        final Yaml yaml = new Yaml(new Loader(configConstructor));
-        final TopologyConfig topologyConfig = (TopologyConfig) yaml
-                .load(configFileInputStream);
-
+        Yaml yaml;
+        TopologyConfig topologyConfig;
+        try
+        {
+            yaml = new Yaml(new Loader(configConstructor));
+            topologyConfig = (TopologyConfig) yaml.load(configFileInputStream);
+        }
+        finally
+        {
+            FileUtils.closeQuietly(configFileInputStream);
+        }
         final Map<InetAddress, NodeData> nodeDataMap = new HashMap<InetAddress, NodeData>();
 
         if (topologyConfig.topology == null)

@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.FileUtils;
 
 import org.yaml.snakeyaml.Loader;
 import org.yaml.snakeyaml.TypeDescription;
@@ -65,11 +66,11 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
     public Config loadConfig() throws ConfigurationException
     {
+        InputStream input = null;
         try
         {
             URL url = getStorageConfigURL();
-            logger.info("Loading settings from " + url);
-            InputStream input;
+            logger.info("Loading settings from {}", url);
             try
             {
                 input = url.openStream();
@@ -89,6 +90,10 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         catch (YAMLException e)
         {
             throw new ConfigurationException("Invalid yaml", e);
+        }
+        finally
+        {
+            FileUtils.closeQuietly(input);
         }
     }
 }
