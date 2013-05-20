@@ -21,6 +21,7 @@ package org.apache.cassandra.thrift;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.thinkaurelius.thrift.TDisruptorServer;
 import org.apache.thrift.server.TServer;
 
 /**
@@ -53,7 +54,7 @@ public class TServerCustomFactory implements TServerFactory
         }
         else if(ThriftServer.HSHA.equalsIgnoreCase(serverType))
         {
-            server = new CustomTHsHaServer.Factory().buildTServer(args);
+            server = new THsHaDisruptorServer.Factory().buildTServer(args);
             logger.info(String.format("Using custom half-sync/half-async thrift server on %s : %s", args.addr.getHostName(), args.addr.getPort()));
         }
         else

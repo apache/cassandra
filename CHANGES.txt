@@ -56,6 +56,7 @@
  * Allow preparing timestamp, ttl and limit in CQL3 queries (CASSANDRA-4450)
  * Support native link w/o JNA in Java7 (CASSANDRA-3734)
  * Use SASL authentication in binary protocol v2 (CASSANDRA-5545)
+ * Replace Thrift HsHa with LMAX Disruptor based implementation (CASSANDRA-5582)
 
 1.2.6
  * Reduce SSTableLoader memory usage (CASSANDRA-5555)
