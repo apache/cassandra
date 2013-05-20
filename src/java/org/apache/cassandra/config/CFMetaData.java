@@ -1446,38 +1446,9 @@ public final class CFMetaData
         ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, ""));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "id"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "type"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "comparator"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "subcomparator"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "comment"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "read_repair_chance"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "local_read_repair_chance"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "replicate_on_write"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "populate_io_cache_on_flush"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "gc_grace_seconds"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "default_validator"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "key_validator"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "min_compaction_threshold"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "max_compaction_threshold"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "memtable_flush_period_in_ms"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "key_alias"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "key_aliases"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "bloom_filter_fp_chance"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "caching"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "default_time_to_live"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "speculative_retry"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "compaction_strategy_class"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "compression_parameters"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "value_alias"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "column_aliases"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "compaction_strategy_options"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "index_interval"));
-        cf.addColumn(DeletedColumn.create(ldt, timestamp, cfName, "trigger_class"));
-
-        for (Map.Entry<ByteBuffer, Long> entry : droppedColumns.entrySet())
-            cf.addColumn(new DeletedColumn(makeDroppedColumnName(entry.getKey()), ldt, timestamp));
+        ColumnNameBuilder builder = SchemaColumnFamiliesCf.getCfDef().getColumnNameBuilder();
+        builder.add(ByteBufferUtil.bytes(cfName));
+        cf.addAtom(new RangeTombstone(builder.build(), builder.buildAsEndOfRange(), timestamp, ldt));
 
         for (ColumnDefinition cd : column_metadata.values())
             cd.deleteFromSchema(rm, cfName, getColumnDefinitionComparator(cd), timestamp);
