@@ -70,7 +70,7 @@ public class HintedHandOffTest extends SchemaLoader
                ByteBufferUtil.EMPTY_BYTE_BUFFER,
                System.currentTimeMillis());
 
-        RowMutation.hintFor(rm, UUID.randomUUID()).apply();
+        rm.toHint(rm.calculateHintTTL(), UUID.randomUUID()).apply();
 
         // flush data to disk
         hintStore.forceBlockingFlush();

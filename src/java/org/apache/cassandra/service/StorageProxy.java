@@ -550,12 +550,19 @@ public class StorageProxy implements StorageProxyMBean
         {
             public void runMayThrow() throws IOException
             {
-                logger.debug("Adding hint for {}", target);
-
-                writeHintForMutation(mutation, target);
-                // Notify the handler only for CL == ANY
-                if (responseHandler != null && consistencyLevel == ConsistencyLevel.ANY)
-                    responseHandler.response(null);
+                int ttl = mutation.calculateHintTTL();
+                if (ttl > 0)
+                {
+                    logger.debug("Adding hint for {}", target);
+                    writeHintForMutation(mutation, ttl, target);
+                    // Notify the handler only for CL == ANY
+                    if (responseHandler != null && consistencyLevel == ConsistencyLevel.ANY)
+                        responseHandler.response(null);
+                }
+                else
+                {
+                    logger.debug("Skipped writing hint for {} (ttl {})", target, ttl);
+                }
             }
         };
 
@@ -569,8 +576,9 @@ public class StorageProxy implements StorageProxyMBean
         return (Future<Void>) StageManager.getStage(Stage.MUTATION).submit(runnable);
     }
 
-    public static void writeHintForMutation(RowMutation mutation, InetAddress target) throws IOException
+    public static void writeHintForMutation(RowMutation mutation, int ttl, InetAddress target) throws IOException
     {
+        assert ttl > 0;
         UUID hostId = StorageService.instance.getTokenMetadata().getHostId(target);
         if ((hostId == null) && (MessagingService.instance().getVersion(target) < MessagingService.VERSION_12))
         {
@@ -578,9 +586,7 @@ public class StorageProxy implements StorageProxyMBean
             return;
         }
         assert hostId != null : "Missing host ID for " + target.getHostAddress();
-        RowMutation hintedMutation = RowMutation.hintFor(mutation, hostId);
-        hintedMutation.apply();
-
+        mutation.toHint(ttl, hostId).apply();
         totalHints.incrementAndGet();
     }
 
