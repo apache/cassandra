@@ -76,7 +76,8 @@ class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService
         //  so we have to break it into firstTask / extra tasks)
         incompleteTasks.clear();
         taskValues.clear();
-        long end = System.nanoTime() + (long)(1000000 * DatabaseDescriptor.getCommitLogSyncBatchWindow());
+        long start = System.nanoTime();
+        long window = (long)(1000000 * DatabaseDescriptor.getCommitLogSyncBatchWindow());
 
         // it doesn't seem worth bothering future-izing the exception
         // since if a commitlog op throws, we're probably screwed anyway
@@ -84,7 +85,7 @@ class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService
         taskValues.add(firstTask.getRawCallable().call());
         while (!queue.isEmpty()
                && queue.peek().getRawCallable() instanceof CommitLog.LogRecordAdder
-               && System.nanoTime() < end)
+               && System.nanoTime() - start < window)
         {
             CheaterFutureTask task = queue.remove();
             incompleteTasks.add(task);
