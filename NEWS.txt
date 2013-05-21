@@ -100,7 +100,7 @@ Features
 
 Upgrading
 ---------
-    - CQL3 uses to be case-insensitive for property map key in ALTER and CREATE
+    - CQL3 used to be case-insensitive for property map key in ALTER and CREATE
       statements. In other words:
         CREATE KEYSPACE test WITH replication = { 'CLASS' : 'SimpleStrategy',
                                                   'REPLICATION_FACTOR' : '1' }
