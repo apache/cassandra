@@ -50,7 +50,7 @@ public class EndpointState
     EndpointState(HeartBeatState initialHbState)
     {
         hbState = initialHbState;
-        updateTimestamp = System.currentTimeMillis();
+        updateTimestamp = System.nanoTime();
         isAlive = true;
     }
 
@@ -85,6 +85,9 @@ public class EndpointState
     }
 
     /* getters and setters */
+    /**
+     * @return System.nanoTime() when state was updated last time.
+     */
     public long getUpdateTimestamp()
     {
         return updateTimestamp;
@@ -92,7 +95,7 @@ public class EndpointState
 
     void updateTimestamp()
     {
-        updateTimestamp = System.currentTimeMillis();
+        updateTimestamp = System.nanoTime();
     }
 
     public boolean isAlive()

@@ -18,6 +18,7 @@
 package org.apache.cassandra.service;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ReadResponse;
@@ -60,7 +61,7 @@ public class RowDigestResolver extends AbstractRowResolver
         if (logger.isDebugEnabled())
             logger.debug("resolving " + replies.size() + " responses");
 
-        long startTime = System.currentTimeMillis();
+        long start = System.nanoTime();
 
         // validate digests against each other; throw immediately on mismatch.
         // also extract the data reply, if any.
@@ -104,7 +105,7 @@ public class RowDigestResolver extends AbstractRowResolver
         }
 
         if (logger.isDebugEnabled())
-            logger.debug("resolve: " + (System.currentTimeMillis() - startTime) + " ms.");
+            logger.debug("resolve: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
         return new Row(key, data);
     }
 

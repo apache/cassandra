@@ -48,12 +48,12 @@ public class ExpiringMap<K, V>
             assert value != null;
             this.value = value;
             this.timeout = timeout;
-            this.createdAt = System.currentTimeMillis();
+            this.createdAt = System.nanoTime();
         }
 
-        private boolean isReadyToDieAt(long time)
+        private boolean isReadyToDieAt(long atNano)
         {
-            return ((time - createdAt) > timeout);
+            return atNano - createdAt > TimeUnit.MILLISECONDS.toNanos(timeout);
         }
     }
 
@@ -85,7 +85,7 @@ public class ExpiringMap<K, V>
         {
             public void run()
             {
-                long start = System.currentTimeMillis();
+                long start = System.nanoTime();
                 int n = 0;
                 for (Map.Entry<K, CacheableObject<V>> entry : cache.entrySet())
                 {
@@ -153,6 +153,9 @@ public class ExpiringMap<K, V>
         return co == null ? null : co.value;
     }
 
+    /**
+     * @return System.nanoTime() when key was put into the map.
+     */
     public long getAge(K key)
     {
         CacheableObject<V> co = cache.get(key);

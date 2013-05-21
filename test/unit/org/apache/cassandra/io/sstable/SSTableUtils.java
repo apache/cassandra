@@ -199,7 +199,6 @@ public class SSTableUtils
         {
             File datafile = (dest == null) ? tempSSTableFile(ksname, cfname, generation) : new File(dest.filenameFor(Component.DATA));
             SSTableWriter writer = new SSTableWriter(datafile.getAbsolutePath(), expectedSize);
-            long start = System.currentTimeMillis();
             while (appender.append(writer)) { /* pass */ }
             SSTableReader reader = writer.closeAndOpenReader();
             // mark all components for removal

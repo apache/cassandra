@@ -112,7 +112,8 @@ public class Memtable
     // actually only store DecoratedKey.
     private final ConcurrentNavigableMap<RowPosition, AtomicSortedColumns> rows = new ConcurrentSkipListMap<RowPosition, AtomicSortedColumns>();
     public final ColumnFamilyStore cfs;
-    private final long creationTime;
+    private final long creationTime = System.currentTimeMillis();
+    private final long creationNano = System.nanoTime();
 
     private final SlabAllocator allocator = new SlabAllocator();
     // We really only need one column by allocator but one by memtable is not a big waste and avoids needing allocators to know about CFS
@@ -132,7 +133,6 @@ public class Memtable
     public Memtable(ColumnFamilyStore cfs)
     {
         this.cfs = cfs;
-        this.creationTime = System.currentTimeMillis();
         this.initialComparator = cfs.metadata.comparator;
         this.cfs.scheduleFlush();
 
@@ -201,7 +201,7 @@ public class Memtable
                 {
                     activelyMeasuring = Memtable.this;
 
-                    long start = System.currentTimeMillis();
+                    long start = System.nanoTime();
                     // ConcurrentSkipListMap has cycles, so measureDeep will have to track a reference to EACH object it visits.
                     // So to reduce the memory overhead of doing a measurement, we break it up to row-at-a-time.
                     long deepSize = meter.measure(rows);
@@ -232,7 +232,7 @@ public class Memtable
                         cfs.liveRatio = (cfs.liveRatio + newRatio) / 2.0;
 
                     logger.info("{} liveRatio is {} (just-counted was {}).  calculation took {}ms for {} columns",
-                                cfs, cfs.liveRatio, newRatio, System.currentTimeMillis() - start, objects);
+                                cfs, cfs.liveRatio, newRatio, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start), objects);
                     activelyMeasuring = null;
                 }
                 finally
@@ -333,7 +333,7 @@ public class Memtable
     public boolean isExpired()
     {
         int period = cfs.metadata.getMemtableFlushPeriod();
-        return period > 0 && (System.currentTimeMillis() >= creationTime + period);
+        return period > 0 && (System.nanoTime() - creationNano >= TimeUnit.MILLISECONDS.toNanos(period));
     }
 
     /**

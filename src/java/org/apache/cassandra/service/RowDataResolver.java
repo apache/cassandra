@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterables;
 
@@ -56,7 +57,7 @@ public class RowDataResolver extends AbstractRowResolver
     {
         if (logger.isDebugEnabled())
             logger.debug("resolving " + replies.size() + " responses");
-        long startTime = System.currentTimeMillis();
+        long start = System.nanoTime();
 
         ColumnFamily resolved;
         if (replies.size() > 1)
@@ -93,7 +94,7 @@ public class RowDataResolver extends AbstractRowResolver
         }
 
         if (logger.isDebugEnabled())
-            logger.debug("resolve: " + (System.currentTimeMillis() - startTime) + " ms.");
+            logger.debug("resolve: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
         return new Row(key, resolved);
     }

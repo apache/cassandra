@@ -91,7 +91,7 @@ public class StressAction extends Thread
 
         int interval = client.getProgressInterval();
         int epochIntervals = client.getProgressInterval() * 10;
-        long testStartTime = System.currentTimeMillis();
+        long testStartTime = System.nanoTime();
         
         StressStatistics stats = new StressStatistics(client, output);
 
@@ -132,7 +132,7 @@ public class StressAction extends Thread
                 int opDelta = total - oldTotal;
                 int keyDelta = keyCount - oldKeyCount;
 
-                long currentTimeInSeconds = (System.currentTimeMillis() - testStartTime) / 1000;
+                long currentTimeInSeconds = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - testStartTime);
 
                 output.println(String.format("%d,%d,%d,%.1f,%.1f,%.1f,%d",
                                              total,

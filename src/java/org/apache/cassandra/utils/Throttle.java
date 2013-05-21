@@ -72,12 +72,12 @@ public class Throttle
             logger.debug("{} target throughput now {} bytes/ms.", this, newTargetBytesPerMS);
             targetBytesPerMS = newTargetBytesPerMS;
             bytesAtLastDelay += bytesDelta;
-            timeAtLastDelay = System.currentTimeMillis();
+            timeAtLastDelay = System.nanoTime();
             return;
         }
 
         // time passed since last delay
-        long msSinceLast = System.currentTimeMillis() - timeAtLastDelay;
+        long msSinceLast = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - timeAtLastDelay);
         // the excess bytes in this period
         long excessBytes = bytesDelta - msSinceLast * targetBytesPerMS;
 
@@ -91,7 +91,7 @@ public class Throttle
             Uninterruptibles.sleepUninterruptibly(timeToDelay, TimeUnit.MILLISECONDS);
         }
         bytesAtLastDelay += bytesDelta;
-        timeAtLastDelay = System.currentTimeMillis();
+        timeAtLastDelay = System.nanoTime();
     }
 
     @Override

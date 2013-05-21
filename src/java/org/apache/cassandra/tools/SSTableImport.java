@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -327,7 +328,7 @@ public class SSTableImport
     private int importUnsorted(String jsonFile, ColumnFamily columnFamily, String ssTablePath, IPartitioner<?> partitioner) throws IOException
     {
         int importedKeys = 0;
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
 
         JsonParser parser = getParser(jsonFile);
 
@@ -369,9 +370,9 @@ public class SSTableImport
 
             importedKeys++;
 
-            long current = System.currentTimeMillis();
+            long current = System.nanoTime();
 
-            if (current - start >= 5000) // 5 secs.
+            if (TimeUnit.NANOSECONDS.toSeconds(current - start) >= 5) // 5 secs.
             {
                 System.out.printf("Currently imported %d keys.%n", importedKeys);
                 start = current;
@@ -390,7 +391,7 @@ public class SSTableImport
             IPartitioner<?> partitioner) throws IOException
     {
         int importedKeys = 0; // already imported keys count
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
 
         JsonParser parser = getParser(jsonFile);
 
@@ -449,9 +450,9 @@ public class SSTableImport
             importedKeys++;
             lineNumber++;
 
-            long current = System.currentTimeMillis();
+            long current = System.nanoTime();
 
-            if (current - start >= 5000) // 5 secs.
+            if (TimeUnit.NANOSECONDS.toSeconds(current - start) >= 5) // 5 secs.
             {
                 System.out.printf("Currently imported %d keys.%n", importedKeys);
                 start = current;

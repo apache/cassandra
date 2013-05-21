@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.Sets;
@@ -113,7 +114,7 @@ public class CompactionTask extends AbstractCompactionTask
         // all the sstables (that existed when we started)
         logger.info("Compacting {}", toCompact);
 
-        long startTime = System.currentTimeMillis();
+        long start = System.nanoTime();
         long totalkeysWritten = 0;
 
         long estimatedTotalKeys = Math.max(cfs.metadata.getIndexInterval(), SSTableReader.getApproximateKeyCount(actuallyCompact, cfs.metadata));
@@ -249,7 +250,7 @@ public class CompactionTask extends AbstractCompactionTask
         if (logger.isInfoEnabled())
         {
             // log a bunch of statistics about the result
-            long dTime = System.currentTimeMillis() - startTime;
+            long dTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
             long startsize = SSTable.getTotalBytes(toCompact);
             long endsize = SSTable.getTotalBytes(sstables);
             double ratio = (double)endsize / (double)startsize;

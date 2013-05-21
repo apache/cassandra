@@ -475,7 +475,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
 
             CompactionController controller = new CompactionController(cfs, Collections.singleton(sstable), getDefaultGcBefore(cfs));
-            long startTime = System.currentTimeMillis();
+            long start = System.nanoTime();
 
             long totalkeysWritten = 0;
 
@@ -576,7 +576,7 @@ public class CompactionManager implements CompactionManagerMBean
                 results.add(newSstable);
 
                 String format = "Cleaned up to %s.  %,d to %,d (~%d%% of original) bytes for %,d keys.  Time: %,dms.";
-                long dTime = System.currentTimeMillis() - startTime;
+                long dTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
                 long startsize = sstable.onDiskLength();
                 long endsize = newSstable.onDiskLength();
                 double ratio = (double) endsize / (double) startsize;

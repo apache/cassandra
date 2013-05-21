@@ -277,8 +277,9 @@ public class OutboundTcpConnection extends Thread
 
         targetVersion = MessagingService.instance().getVersion(poolReference.endPoint());
 
-        long start = System.currentTimeMillis();
-        while (System.currentTimeMillis() < start + DatabaseDescriptor.getRpcTimeout())
+        long start = System.nanoTime();
+        long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getRpcTimeout());
+        while (System.nanoTime() - start < timeout)
         {
             try
             {

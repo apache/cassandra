@@ -35,7 +35,7 @@ public class TruncateResponseHandler implements IAsyncCallback
     protected final SimpleCondition condition = new SimpleCondition();
     private final int responseCount;
     protected final AtomicInteger responses = new AtomicInteger(0);
-    private final long startTime;
+    private final long start;
 
     public TruncateResponseHandler(int responseCount)
     {
@@ -44,16 +44,16 @@ public class TruncateResponseHandler implements IAsyncCallback
         assert 1 <= responseCount: "invalid response count " + responseCount;
 
         this.responseCount = responseCount;
-        startTime = System.currentTimeMillis();
+        start = System.nanoTime();
     }
 
     public void get() throws TimeoutException
     {
-        long timeout = DatabaseDescriptor.getTruncateRpcTimeout() - (System.currentTimeMillis() - startTime);
+        long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getTruncateRpcTimeout()) - (System.nanoTime() - start);
         boolean success;
         try
         {
-            success = condition.await(timeout, TimeUnit.MILLISECONDS); // TODO truncate needs a much longer timeout
+            success = condition.await(timeout, TimeUnit.NANOSECONDS); // TODO truncate needs a much longer timeout
         }
         catch (InterruptedException ex)
         {

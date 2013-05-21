@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.net;
 
+import java.util.concurrent.TimeUnit;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,7 +30,7 @@ public class ResponseVerbHandler implements IVerbHandler
 
     public void doVerb(MessageIn message, int id)
     {
-        long latency = System.currentTimeMillis() - MessagingService.instance().getRegisteredCallbackAge(id);
+        long latency = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - MessagingService.instance().getRegisteredCallbackAge(id));
         CallbackInfo callbackInfo = MessagingService.instance().removeRegisteredCallback(id);
         if (callbackInfo == null)
         {

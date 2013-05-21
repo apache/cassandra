@@ -34,12 +34,12 @@ public class AsyncOneResponse<T> implements IAsyncCallback<T>
     private final AtomicBoolean done = new AtomicBoolean(false);
     private final Lock lock = new ReentrantLock();
     private final Condition condition;
-    private final long startTime;
+    private final long start;
 
     public AsyncOneResponse()
     {
         condition = lock.newCondition();
-        startTime = System.currentTimeMillis();
+        start = System.nanoTime();
     }
 
     public T get(long timeout, TimeUnit tu) throws TimeoutException
@@ -52,9 +52,9 @@ public class AsyncOneResponse<T> implements IAsyncCallback<T>
             {
                 if (!done.get())
                 {
-                    timeout = TimeUnit.MILLISECONDS.convert(timeout, tu);
-                    long overall_timeout = timeout - (System.currentTimeMillis() - startTime);
-                    bVal = overall_timeout > 0 && condition.await(overall_timeout, TimeUnit.MILLISECONDS);
+                    timeout = tu.toNanos(timeout);
+                    long overall_timeout = timeout - (System.nanoTime() - start);
+                    bVal = overall_timeout > 0 && condition.await(overall_timeout, TimeUnit.NANOSECONDS);
                 }
             }
             catch (InterruptedException ex)

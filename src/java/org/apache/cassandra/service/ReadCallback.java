@@ -48,7 +48,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
 
     public final IResponseResolver<TMessage, TResolved> resolver;
     private final SimpleCondition condition = new SimpleCondition();
-    final long startTime;
+    final long start;
     private final int blockfor;
     final List<InetAddress> endpoints;
     private final IReadCommand command;
@@ -73,7 +73,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         this.blockfor = blockfor;
         this.consistencyLevel = consistencyLevel;
         this.resolver = resolver;
-        this.startTime = System.currentTimeMillis();
+        this.start = System.nanoTime();
         this.endpoints = endpoints;
     }
 
@@ -82,12 +82,12 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         return new ReadCallback<TMessage, TResolved>(newResolver, consistencyLevel, blockfor, command, table, endpoints);
     }
 
-    public boolean await(long interimTimeout)
+    public boolean await(long timePastStart, TimeUnit unit)
     {
-        long timeout = interimTimeout - (System.currentTimeMillis() - startTime);
+        long time = unit.toNanos(timePastStart) - (System.nanoTime() - start);
         try
         {
-            return condition.await(timeout, TimeUnit.MILLISECONDS);
+            return condition.await(time, TimeUnit.NANOSECONDS);
         }
         catch (InterruptedException ex)
         {
@@ -97,14 +97,14 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
 
     public TResolved get() throws ReadTimeoutException, DigestMismatchException
     {
-        long timeout = command.getTimeout() - (System.currentTimeMillis() - startTime);
-        if (!await(timeout))
+        if (!await(command.getTimeout(), TimeUnit.MICROSECONDS))
         {
             ReadTimeoutException ex = new ReadTimeoutException(consistencyLevel, received.get(), blockfor, resolver.isDataPresent());
             if (logger.isDebugEnabled())
                 logger.debug("Read timeout: {}", ex.toString());
             throw ex;
         }
+
         return blockfor == 1 ? resolver.getData() : resolver.resolve();
     }
 

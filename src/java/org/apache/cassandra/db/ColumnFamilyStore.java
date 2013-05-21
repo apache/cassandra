@@ -536,15 +536,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (!isRowCacheEnabled())
             return;
 
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
 
         int cachedRowsRead = CacheService.instance.rowCache.loadSaved(this);
         if (cachedRowsRead > 0)
-            logger.info(String.format("completed loading (%d ms; %d keys) row cache for %s.%s",
-                        System.currentTimeMillis() - start,
+            logger.info("completed loading ({} ms; {} keys) row cache for {}.{}",
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start),
                         cachedRowsRead,
                         table.getName(),
-                        name));
+                        name);
     }
 
     /**
@@ -1828,11 +1828,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             // sleep a little to make sure that our truncatedAt comes after any sstable
             // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
-            long starttime = System.currentTimeMillis();
-            while ((System.currentTimeMillis() - starttime) < 1)
-            {
-                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);
-            }
+            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);
         }
         else
         {
@@ -1910,8 +1906,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 CompactionManager.instance.interruptCompactionFor(allMetadata, interruptValidation);
 
                 // wait for the interruption to be recognized
-                long start = System.currentTimeMillis();
-                while (System.currentTimeMillis() < start + 60000)
+                long start = System.nanoTime();
+                long delay = TimeUnit.MINUTES.toNanos(1);
+                while (System.nanoTime() - start < delay)
                 {
                     if (CompactionManager.instance.isCompacting(selfWithIndexes))
                         Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
@@ -1924,7 +1921,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     if (!cfs.getDataTracker().getCompacting().isEmpty())
                     {
-                        logger.warn("Unable to cancel in-progress compactios for {}.  Probably there is an unusually large row in progress somewhere.  It is also possible that buggy code left some sstables compacting after it was done with them", metadata.cfName);
+                        logger.warn("Unable to cancel in-progress compactions for {}.  Probably there is an unusually large row in progress somewhere.  It is also possible that buggy code left some sstables compacting after it was done with them", metadata.cfName);
                     }
                 }
                 logger.debug("Compactions successfully cancelled");

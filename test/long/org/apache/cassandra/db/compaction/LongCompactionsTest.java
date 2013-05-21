@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.config.Schema;
 import org.junit.Test;
@@ -96,7 +97,7 @@ public class LongCompactionsTest extends SchemaLoader
         // give garbage collection a bit of time to catch up
         Thread.sleep(1000);
 
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
         final int gcBefore = (int) (System.currentTimeMillis() / 1000) - Schema.instance.getCFMetaData(TABLE1, "Standard1").getGcGraceSeconds();
         new CompactionTask(store, sstables, gcBefore).execute(null);
         System.out.println(String.format("%s: sstables=%d rowsper=%d colsper=%d: %d ms",
@@ -104,7 +105,7 @@ public class LongCompactionsTest extends SchemaLoader
                                          sstableCount,
                                          rowsPerSSTable,
                                          colsPerRow,
-                                         System.currentTimeMillis() - start));
+                                         TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)));
     }
 
     @Test

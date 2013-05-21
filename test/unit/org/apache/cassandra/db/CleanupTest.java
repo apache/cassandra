@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -104,8 +105,8 @@ public class CleanupTest extends SchemaLoader
         assertEquals(LOOPS, rows.size());
 
         SecondaryIndex index = cfs.indexManager.getIndexForColumn(COLUMN);
-        long start = System.currentTimeMillis();
-        while (!index.isIndexBuilt(COLUMN) && System.currentTimeMillis() < start + 10000)
+        long start = System.nanoTime();
+        while (!index.isIndexBuilt(COLUMN) && System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10))
             Thread.sleep(10);
 
         // verify we get it back w/ index query too

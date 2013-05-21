@@ -201,7 +201,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
 
     public void receiveTiming(InetAddress host, long latency) // this is cheap
     {
-        lastReceived.put(host, System.currentTimeMillis());
+        lastReceived.put(host, System.nanoTime());
 
         ExponentiallyDecayingSample sample = samples.get(host);
         if (sample == null)
@@ -237,8 +237,8 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             double mean = entry.getValue().getSnapshot().getMedian();
             if (mean > maxLatency)
                 maxLatency = mean;
-            long timePenalty = lastReceived.containsKey(entry.getKey()) ? lastReceived.get(entry.getKey()) : System.currentTimeMillis();
-            timePenalty = System.currentTimeMillis() - timePenalty;
+            long timePenalty = lastReceived.containsKey(entry.getKey()) ? lastReceived.get(entry.getKey()) : System.nanoTime();
+            timePenalty = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - timePenalty);
             timePenalty = timePenalty > UPDATE_INTERVAL_IN_MS ? UPDATE_INTERVAL_IN_MS : timePenalty;
             // a convenient place to remember this since we've already calculated it and need it later
             penalties.put(entry.getKey(), timePenalty);

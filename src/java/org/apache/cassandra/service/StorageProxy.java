@@ -201,8 +201,9 @@ public class StorageProxy implements StorageProxyMBean
     {
         CFMetaData metadata = Schema.instance.getCFMetaData(table, cfName);
 
-        long timedOut = System.currentTimeMillis() + DatabaseDescriptor.getCasContentionTimeout();
-        while (System.currentTimeMillis() < timedOut)
+        long start = System.nanoTime();
+        long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getCasContentionTimeout());
+        while (System.nanoTime() - start < timeout)
         {
             // for simplicity, we'll do a single liveness check at the start of each attempt
             Pair<List<InetAddress>, Integer> p = getPaxosParticipants(table, key);
@@ -1055,7 +1056,8 @@ public class StorageProxy implements StorageProxyMBean
                 ReadCommand command = commands.get(0);
                 CFMetaData metadata = Schema.instance.getCFMetaData(command.table, command.cfName);
 
-                long timedOut = System.currentTimeMillis() + DatabaseDescriptor.getCasContentionTimeout();
+                long start = System.nanoTime();
+                long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getCasContentionTimeout());
                 while (true)
                 {
                     Pair<List<InetAddress>, Integer> p = getPaxosParticipants(command.table, command.key);
@@ -1065,7 +1067,7 @@ public class StorageProxy implements StorageProxyMBean
                     if (beginAndRepairPaxos(command.key, metadata, liveEndpoints, requiredParticipants) != null)
                         break;
 
-                    if (System.currentTimeMillis() >= timedOut)
+                    if (System.nanoTime() - start >= timeout)
                         throw new WriteTimeoutException(WriteType.CAS, ConsistencyLevel.SERIAL, -1, -1);
                 }
 
@@ -1149,7 +1151,7 @@ public class StorageProxy implements StorageProxyMBean
                         rows.add(row);
                     }
                     if (logger.isDebugEnabled())
-                        logger.debug("Read: " + (System.currentTimeMillis() - exec.handler.startTime) + " ms.");
+                        logger.debug("Read: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - exec.handler.start));
                 }
                 catch (DigestMismatchException ex)
                 {
@@ -1233,7 +1235,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         private final ReadCommand command;
         private final ReadCallback<ReadResponse, Row> handler;
-        private final long start = System.currentTimeMillis();
+        private final long start = System.nanoTime();
 
         LocalReadRunnable(ReadCommand command, ReadCallback<ReadResponse, Row> handler)
         {
@@ -1249,7 +1251,7 @@ public class StorageProxy implements StorageProxyMBean
             Table table = Table.open(command.table);
             Row r = command.getRow(table);
             ReadResponse result = ReadVerbHandler.getResponse(command, r);
-            MessagingService.instance().addLatency(FBUtilities.getBroadcastAddress(), System.currentTimeMillis() - start);
+            MessagingService.instance().addLatency(FBUtilities.getBroadcastAddress(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
             handler.response(result);
         }
     }
@@ -1258,7 +1260,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         private final RangeSliceCommand command;
         private final ReadCallback<RangeSliceReply, Iterable<Row>> handler;
-        private final long start = System.currentTimeMillis();
+        private final long start = System.nanoTime();
 
         LocalRangeSliceRunnable(RangeSliceCommand command, ReadCallback<RangeSliceReply, Iterable<Row>> handler)
         {
@@ -1272,7 +1274,7 @@ public class StorageProxy implements StorageProxyMBean
             logger.trace("LocalReadRunnable reading {}", command);
 
             RangeSliceReply result = new RangeSliceReply(RangeSliceVerbHandler.executeLocally(command));
-            MessagingService.instance().addLatency(FBUtilities.getBroadcastAddress(), System.currentTimeMillis() - start);
+            MessagingService.instance().addLatency(FBUtilities.getBroadcastAddress(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
             handler.response(result);
         }
     }
@@ -1754,7 +1756,7 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static abstract class DroppableRunnable implements Runnable
     {
-        private final long constructionTime = System.currentTimeMillis();
+        private final long constructionTime = System.nanoTime();
         private final MessagingService.Verb verb;
 
         public DroppableRunnable(MessagingService.Verb verb)
@@ -1764,7 +1766,7 @@ public class StorageProxy implements StorageProxyMBean
 
         public final void run()
         {
-            if (System.currentTimeMillis() > constructionTime + DatabaseDescriptor.getTimeout(verb))
+            if (TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - constructionTime) > DatabaseDescriptor.getTimeout(verb))
             {
                 MessagingService.instance().incrementDroppedMessages(verb);
                 return;
@@ -1789,11 +1791,11 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static abstract class LocalMutationRunnable implements Runnable
     {
-        private final long constructionTime = System.currentTimeMillis();
+        private final long constructionTime = System.nanoTime();
 
         public final void run()
         {
-            if (System.currentTimeMillis() > constructionTime + DatabaseDescriptor.getTimeout(MessagingService.Verb.MUTATION))
+            if (TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - constructionTime) > DatabaseDescriptor.getTimeout(MessagingService.Verb.MUTATION))
             {
                 MessagingService.instance().incrementDroppedMessages(MessagingService.Verb.MUTATION);
                 HintRunnable runnable = new HintRunnable(FBUtilities.getBroadcastAddress())

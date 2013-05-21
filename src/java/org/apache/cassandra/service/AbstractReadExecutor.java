@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -170,7 +171,7 @@ public abstract class AbstractReadExecutor
             if (cfs.sampleLatency > command.getTimeout())
                 return;
 
-            if (!handler.await(cfs.sampleLatency))
+            if (!handler.await(cfs.sampleLatency, TimeUnit.MILLISECONDS))
             {
                 InetAddress endpoint = unfiltered.get(handler.endpoints.size());
 

@@ -166,7 +166,7 @@ public class SSTableReader extends SSTable
         assert components.contains(Component.DATA) : "Data component is missing for sstable" + descriptor;
         assert components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
 
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
         logger.info("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(COMPONENT_DATA)).length());
 
         SSTableMetadata sstableMetadata = SSTableMetadata.serializer.deserialize(descriptor);
@@ -198,10 +198,10 @@ public class SSTableReader extends SSTable
         if (validate)
             sstable.validate();
 
-        logger.debug("INDEX LOAD TIME for " + descriptor + ": " + (System.currentTimeMillis() - start) + " ms.");
+        logger.debug("INDEX LOAD TIME for {}: {} ms.", descriptor, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
         if (sstable.getKeyCache() != null)
-            logger.debug(String.format("key cache contains %s/%s keys", sstable.getKeyCache().size(), sstable.getKeyCache().getCapacity()));
+            logger.debug("key cache contains {}/{} keys", sstable.getKeyCache().size(), sstable.getKeyCache().getCapacity());
 
         return sstable;
     }

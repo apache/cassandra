@@ -36,7 +36,7 @@ public abstract class AbstractWriteResponseHandler implements IAsyncCallback
 {
     private final SimpleCondition condition = new SimpleCondition();
     protected final Table table;
-    protected final long startTime;
+    protected final long start;
     protected final Collection<InetAddress> naturalEndpoints;
     protected final ConsistencyLevel consistencyLevel;
     protected final Runnable callback;
@@ -56,7 +56,7 @@ public abstract class AbstractWriteResponseHandler implements IAsyncCallback
     {
         this.table = table;
         this.pendingEndpoints = pendingEndpoints;
-        this.startTime = System.currentTimeMillis();
+        this.start = System.nanoTime();
         this.consistencyLevel = consistencyLevel;
         this.naturalEndpoints = naturalEndpoints;
         this.callback = callback;
@@ -65,12 +65,12 @@ public abstract class AbstractWriteResponseHandler implements IAsyncCallback
 
     public void get() throws WriteTimeoutException
     {
-        long timeout = DatabaseDescriptor.getWriteRpcTimeout() - (System.currentTimeMillis() - startTime);
+        long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getWriteRpcTimeout()) - (System.nanoTime() - start);
 
         boolean success;
         try
         {
-            success = condition.await(timeout, TimeUnit.MILLISECONDS);
+            success = condition.await(timeout, TimeUnit.NANOSECONDS);
         }
         catch (InterruptedException ex)
         {

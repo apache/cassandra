@@ -118,7 +118,7 @@ public class BulkLoader
     static class ProgressIndicator
     {
         private final Map<InetAddress, Collection<PendingFile>> filesByHost;
-        private long startTime;
+        private long start;
         private long lastProgress;
         private long lastTime;
 
@@ -129,7 +129,7 @@ public class BulkLoader
 
         public void start()
         {
-            startTime = System.currentTimeMillis();
+            start = lastTime = System.nanoTime();
         }
 
         public boolean printProgress()
@@ -160,15 +160,15 @@ public class BulkLoader
                 sb.append(" ").append(completed).append("/").append(pendings.size());
                 sb.append(" (").append(size == 0 ? 100L : progress * 100L / size).append(")] ");
             }
-            long time = System.currentTimeMillis();
-            long deltaTime = time - lastTime;
+            long time = System.nanoTime();
+            long deltaTime = TimeUnit.NANOSECONDS.toMillis(time - lastTime);
             lastTime = time;
             long deltaProgress = totalProgress - lastProgress;
             lastProgress = totalProgress;
 
             sb.append("[total: ").append(totalSize == 0 ? 100L : totalProgress * 100L / totalSize).append(" - ");
             sb.append(mbPerSec(deltaProgress, deltaTime)).append("MB/s");
-            sb.append(" (avg: ").append(mbPerSec(totalProgress, time - startTime)).append("MB/s)]");
+            sb.append(" (avg: ").append(mbPerSec(totalProgress, TimeUnit.NANOSECONDS.toMillis(time - start))).append("MB/s)]");
             System.out.print(sb.toString());
             return done;
         }

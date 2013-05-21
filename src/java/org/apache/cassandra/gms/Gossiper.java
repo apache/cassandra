@@ -223,7 +223,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         Long downtime = unreachableEndpoints.get(ep);
         if (downtime != null)
-            return System.currentTimeMillis() - downtime;
+            return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - downtime);
         else
             return 0L;
     }
@@ -556,6 +556,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private void doStatusCheck()
     {
         long now = System.currentTimeMillis();
+        long nowNano = System.nanoTime();
 
         Set<InetAddress> eps = endpointStateMap.keySet();
         for (InetAddress endpoint : eps)
@@ -567,11 +568,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             EndpointState epState = endpointStateMap.get(endpoint);
             if (epState != null)
             {
-                long duration = now - epState.getUpdateTimestamp();
-
                 // check if this is a fat client. fat clients are removed automatically from
                 // gossip after FatClientTimeout.  Do not remove dead states here.
-                if (isFatClient(endpoint) && !justRemovedEndpoints.containsKey(endpoint) && (duration > FatClientTimeout))
+                if (isFatClient(endpoint)
+                    && !justRemovedEndpoints.containsKey(endpoint)
+                    && TimeUnit.NANOSECONDS.toMillis(nowNano - epState.getUpdateTimestamp()) > FatClientTimeout)
                 {
                     logger.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout + "ms, removing from gossip");
                     removeEndpoint(endpoint); // will put it in justRemovedEndpoints to respect quarantine delay
@@ -783,7 +784,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.trace("marking as down {}", addr);
         localState.markDead();
         liveEndpoints.remove(addr);
-        unreachableEndpoints.put(addr, System.currentTimeMillis());
+        unreachableEndpoints.put(addr, System.nanoTime());
         logger.info("InetAddress {} is now DOWN", addr);
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onDead(addr, localState);
@@ -1079,7 +1080,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         EndpointState epState = new EndpointState(new HeartBeatState(0));
         epState.markDead();
         endpointStateMap.put(ep, epState);
-        unreachableEndpoints.put(ep, System.currentTimeMillis());
+        unreachableEndpoints.put(ep, System.nanoTime());
         if (logger.isTraceEnabled())
             logger.trace("Adding saved endpoint " + ep + " " + epState.getHeartBeatState().getGeneration());
     }

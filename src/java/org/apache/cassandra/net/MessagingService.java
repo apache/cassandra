@@ -744,6 +744,9 @@ public final class MessagingService implements MessagingServiceMBean
         return callbacks.remove(messageId);
     }
 
+    /**
+     * @return System.nanoTime() when callback was created.
+     */
     public long getRegisteredCallbackAge(int messageId)
     {
         return callbacks.getAge(messageId);

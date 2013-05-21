@@ -18,6 +18,7 @@
 package org.apache.cassandra.utils;
 
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 import junit.framework.Assert;
 
@@ -80,36 +81,36 @@ public class LongBitSetTest
         StringBuffer buffer = new StringBuffer();
         // start off fresh.
         System.gc();
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
         for (long i = 0; i < size_to_test; i++)
             obs.set(i);
-        buffer.append("||").append(System.currentTimeMillis() - start);
+        buffer.append("||").append(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
-        start = System.currentTimeMillis();
+        start = System.nanoTime();
         for (long i = 0; i < size_to_test; i++)
             obs.get(i);
-        buffer.append("|").append(System.currentTimeMillis() - start);
+        buffer.append("|").append(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
-        start = System.currentTimeMillis();
+        start = System.nanoTime();
         for (long i = 0; i < size_to_test; i++)
             obs.clear(i);
-        buffer.append("|").append(System.currentTimeMillis() - start);
+        buffer.append("|").append(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
         System.gc();
-        start = System.currentTimeMillis();
+        start = System.nanoTime();
         for (long i = 0; i < size_to_test; i++)
             offbs.set(i);
-        buffer.append("|").append(System.currentTimeMillis() - start);
+        buffer.append("|").append(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
-        start = System.currentTimeMillis();
+        start = System.nanoTime();
         for (long i = 0; i < size_to_test; i++)
             offbs.get(i);
+        buffer.append("|").append(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
-        buffer.append("|").append(System.currentTimeMillis() - start);
-        start = System.currentTimeMillis();
+        start = System.nanoTime();
         for (long i = 0; i < size_to_test; i++)
             offbs.clear(i);
-        buffer.append("|").append(System.currentTimeMillis() - start).append("|");
+        buffer.append("|").append(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)).append("|");
         logger.info(buffer.toString());
         // System.out.println(buffer.toString());
     }
