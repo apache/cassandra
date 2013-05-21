@@ -592,12 +592,14 @@ class Shell(cmd.Cmd):
 
     # TODO: FIXME
     def get_index_names(self, ksname=None):
-        indnames = []
-        for c in self.get_columnfamilies(ksname):
-            for md in c.column_metadata:
-                if md.index_name is not None:
-                    indnames.append(md.index_name)
-        return indnames
+        cols = []
+        if self.cqlver_atleast(3) and not self.is_cql3_beta():
+            for cfname in self.get_columnfamily_names_cql3(ksname=ksname):
+                cols.extend(self.get_columnfamily_layout(ksname, cfname).columns)
+        else:
+            for cf in self.get_columnfamilies(ksname):
+                cols.extend(cf.column_metadata)
+        return [col.index_name for col in cols if col.index_name is not None]
 
     def get_column_names(self, ksname, cfname):
         if ksname is None:
