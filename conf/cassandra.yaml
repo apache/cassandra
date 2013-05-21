@@ -405,12 +405,8 @@ rpc_server_type: sync
 # internode_send_buff_size_in_bytes:
 # internode_recv_buff_size_in_bytes:
 
-# Frame size for thrift (maximum field length).
+# Frame size for thrift (maximum message length).
 thrift_framed_transport_size_in_mb: 15
-
-# The max length of a thrift message, including all fields and
-# internal thrift overhead.
-thrift_max_message_length_in_mb: 16
 
 # Set to true to have Cassandra create a hard link to each sstable
 # flushed or streamed locally in a backups/ subdirectory of the

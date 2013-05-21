@@ -97,7 +97,9 @@ public class Config
     public Integer native_transport_min_threads = 16;
     public Integer native_transport_max_threads = 128;
 
+    @Deprecated
     public Integer thrift_max_message_length_in_mb = 16;
+
     public Integer thrift_framed_transport_size_in_mb = 15;
     public Boolean snapshot_before_compaction = false;
     public Boolean auto_snapshot = true;
