@@ -77,7 +77,6 @@ public class ConfigHelper
     private static final String INPUT_TRANSPORT_FACTORY_CLASS = "cassandra.input.transport.factory.class";
     private static final String OUTPUT_TRANSPORT_FACTORY_CLASS = "cassandra.output.transport.factory.class";
     private static final String THRIFT_FRAMED_TRANSPORT_SIZE_IN_MB = "cassandra.thrift.framed.size_mb";
-    private static final String THRIFT_MAX_MESSAGE_LENGTH_IN_MB = "cassandra.thrift.message.max_size_mb";
 
     private static final Logger logger = LoggerFactory.getLogger(ConfigHelper.class);
 
@@ -503,20 +502,6 @@ public class ConfigHelper
         return conf.getInt(THRIFT_FRAMED_TRANSPORT_SIZE_IN_MB, 15) * 1024 * 1024; // 15MB is default in Cassandra
     }
 
-    public static void setThriftMaxMessageLengthInMb(Configuration conf, int maxMessageSizeInMB)
-    {
-        conf.setInt(THRIFT_MAX_MESSAGE_LENGTH_IN_MB, maxMessageSizeInMB);
-    }
-
-    /**
-     * @param conf The configuration to use.
-     * @return Value (converts MBs to Bytes) set by {@link #setThriftMaxMessageLengthInMb(Configuration, int)} or default of 16MB
-     */
-    public static int getThriftMaxMessageLength(Configuration conf)
-    {
-        return conf.getInt(THRIFT_MAX_MESSAGE_LENGTH_IN_MB, 16) * 1024 * 1024; // 16MB is default in Cassandra
-    }
-
     public static CompressionParameters getOutputCompressionParamaters(Configuration conf)
     {
         if (getOutputCompressionClass(conf) == null)
@@ -578,7 +563,7 @@ public class ConfigHelper
         {
             TSocket socket = new TSocket(host, port);
             TTransport transport = getInputTransportFactory(conf).openTransport(socket, conf);
-            return new Cassandra.Client(new TBinaryProtocol(transport, getThriftMaxMessageLength(conf)));
+            return new Cassandra.Client(new TBinaryProtocol(transport, true, true));
         }
         catch (LoginException e)
         {

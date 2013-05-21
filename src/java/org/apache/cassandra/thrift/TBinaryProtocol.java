@@ -31,20 +31,6 @@ import java.nio.ByteBuffer;
 
 public class TBinaryProtocol extends org.apache.thrift.protocol.TBinaryProtocol
 {
-
-    public TBinaryProtocol(TTransport trans)
-    {
-        this(trans, false, true);
-    }
-
-    public TBinaryProtocol(TTransport trans, int readLength)
-    {
-        this(trans);
-
-        if (readLength > 0)
-            setReadLength(readLength);
-    }
-
     public TBinaryProtocol(TTransport trans, boolean strictRead, boolean strictWrite)
     {
         super(trans);
@@ -62,11 +48,6 @@ public class TBinaryProtocol extends org.apache.thrift.protocol.TBinaryProtocol
         public Factory(boolean strictRead, boolean strictWrite)
         {
             super(strictRead, strictWrite, 0);
-        }
-
-        public Factory(boolean strictRead, boolean strictWrite, int readLength)
-        {
-            super(strictRead, strictWrite, readLength);
         }
 
         public TProtocol getProtocol(TTransport trans)

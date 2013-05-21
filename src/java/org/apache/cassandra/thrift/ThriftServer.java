@@ -90,7 +90,7 @@ public class ThriftServer implements CassandraDaemon.Server
             logger.info(String.format("Binding thrift service to %s:%s", listenAddr, listenPort));
 
             TServerFactory.Args args = new TServerFactory.Args();
-            args.tProtocolFactory = new TBinaryProtocol.Factory(true, true, DatabaseDescriptor.getThriftMaxMessageLength());
+            args.tProtocolFactory = new TBinaryProtocol.Factory(true, true);
             args.addr = new InetSocketAddress(listenAddr, listenPort);
             args.cassandraServer = new CassandraServer();
             args.processor = new Cassandra.Processor(args.cassandraServer);
