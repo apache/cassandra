@@ -162,7 +162,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             String location = getLocation();
             socket = new TSocket(location, ConfigHelper.getInputRpcPort(conf));
             TTransport transport = ConfigHelper.getInputTransportFactory(conf).openTransport(socket, conf);
-            TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport, ConfigHelper.getThriftMaxMessageLength(conf));
+            TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport, true, true);
             client = new Cassandra.Client(binaryProtocol);
 
             // log in
