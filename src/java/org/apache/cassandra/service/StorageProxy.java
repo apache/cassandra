@@ -31,7 +31,6 @@ import javax.management.ObjectName;
 import com.google.common.base.Function;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.Uninterruptibles;
-
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -779,12 +778,19 @@ public class StorageProxy implements StorageProxyMBean
         {
             public void runMayThrow()
             {
-                logger.debug("Adding hint for {}", target);
-
-                writeHintForMutation(mutation, target);
-                // Notify the handler only for CL == ANY
-                if (responseHandler != null && consistencyLevel == ConsistencyLevel.ANY)
-                    responseHandler.response(null);
+                int ttl = HintedHandOffManager.calculateHintTTL(mutation);
+                if (ttl > 0)
+                {
+                    logger.debug("Adding hint for {}", target);
+                    writeHintForMutation(mutation, ttl, target);
+                    // Notify the handler only for CL == ANY
+                    if (responseHandler != null && consistencyLevel == ConsistencyLevel.ANY)
+                        responseHandler.response(null);
+                }
+                else
+                {
+                    logger.debug("Skipped writing hint for {} (ttl {})", target, ttl);
+                }
             }
         };
 
@@ -798,13 +804,12 @@ public class StorageProxy implements StorageProxyMBean
         return (Future<Void>) StageManager.getStage(Stage.MUTATION).submit(runnable);
     }
 
-    public static void writeHintForMutation(RowMutation mutation, InetAddress target)
+    public static void writeHintForMutation(RowMutation mutation, int ttl, InetAddress target)
     {
+        assert ttl > 0;
         UUID hostId = StorageService.instance.getTokenMetadata().getHostId(target);
         assert hostId != null : "Missing host ID for " + target.getHostAddress();
-        RowMutation hintedMutation = HintedHandOffManager.hintFor(mutation, hostId);
-        hintedMutation.apply();
-
+        HintedHandOffManager.hintFor(mutation, ttl, hostId).apply();
         totalHints.incrementAndGet();
     }
 

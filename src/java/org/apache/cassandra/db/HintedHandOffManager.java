@@ -118,24 +118,31 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
      * Returns a mutation representing a Hint to be sent to <code>targetId</code>
      * as soon as it becomes available again.
      */
-    public static RowMutation hintFor(RowMutation mutation, UUID targetId)
+    public static RowMutation hintFor(RowMutation mutation, int ttl, UUID targetId)
     {
+        assert ttl > 0;
         UUID hintId = UUIDGen.getTimeUUID();
-
-        // The hint TTL is set at the smallest GCGraceSeconds for any of the CFs in the RM;
-        // this ensures that deletes aren't "undone" by delivery of an old hint
-        int ttl = Integer.MAX_VALUE;
-        for (ColumnFamily cf : mutation.getColumnFamilies())
-            ttl = Math.min(ttl, cf.metadata().getGcGraceSeconds());
-
         // serialize the hint with id and version as a composite column name
         ByteBuffer name = comparator.decompose(hintId, MessagingService.current_version);
         ByteBuffer value = ByteBuffer.wrap(FBUtilities.serialize(mutation, RowMutation.serializer, MessagingService.current_version));
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Schema.instance.getCFMetaData(Table.SYSTEM_KS, SystemTable.HINTS_CF));
         cf.addColumn(name, value, System.currentTimeMillis(), ttl);
-
         return new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(targetId), cf);
     }
+
+    /*
+     * determine the TTL for the hint RowMutation
+     * this is set at the smallest GCGraceSeconds for any of the CFs in the RM
+     * this ensures that deletes aren't "undone" by delivery of an old hint
+     */
+    public static int calculateHintTTL(RowMutation mutation)
+    {
+        int ttl = Integer.MAX_VALUE;
+        for (ColumnFamily cf : mutation.getColumnFamilies())
+            ttl = Math.min(ttl, cf.metadata().getGcGraceSeconds());
+        return ttl;
+    }
+
 
     public void start()
     {

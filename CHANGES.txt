@@ -53,6 +53,7 @@
 1.2.6
  * Write row markers when serializing schema (CASSANDRA-5572)
  * Check only SSTables for the requested range when streaming (CASSANDRA-5569)
+ * Improve batchlog replay behavior and hint ttl handling (CASSANDRA-5314)
 Merged from 1.1:
  * Remove buggy thrift max message length option (CASSANDRA-5529)
  * Fix NPE in Pig's widerow mode (CASSANDRA-5488)
