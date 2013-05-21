@@ -564,22 +564,6 @@ class Shell(cmd.Cmd):
     def get_keyspace_names(self):
         return [k.name for k in self.get_keyspaces()]
 
-    def get_columnfamilies(self, ksname=None):
-        if ksname is None:
-            ksname = self.current_keyspace
-            if ksname is None:
-                raise NoKeyspaceError("Not in any keyspace.")
-        return self.get_keyspace(ksname).cf_defs
-
-    def get_columnfamily(self, cfname, ksname=None):
-        if ksname is None:
-            ksname = self.current_keyspace
-        cf_defs = self.get_columnfamilies(ksname)
-        for c in cf_defs:
-            if c.name == cfname:
-                return c
-        raise ColumnFamilyNotFound("Unconfigured column family %r" % (cfname,))
-
     def get_columnfamily_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
@@ -590,16 +574,13 @@ class Shell(cmd.Cmd):
                             consistency_level='ONE')
         return [str(row[0]) for row in self.cursor.fetchall()]
 
-    # TODO: FIXME
     def get_index_names(self, ksname=None):
-        cols = []
-        if self.cqlver_atleast(3) and not self.is_cql3_beta():
-            for cfname in self.get_columnfamily_names_cql3(ksname=ksname):
-                cols.extend(self.get_columnfamily_layout(ksname, cfname).columns)
-        else:
-            for cf in self.get_columnfamilies(ksname):
-                cols.extend(cf.column_metadata)
-        return [col.index_name for col in cols if col.index_name is not None]
+        idxnames = []
+        for cfname in self.get_columnfamily_names(ksname=ksname):
+            for col in self.get_columnfamily_layout(ksname, cfname).columns:
+                if col.index_name is not None:
+                    idxnames.append(col.index_name)
+        return idxnames
 
     def get_column_names(self, ksname, cfname):
         if ksname is None:
