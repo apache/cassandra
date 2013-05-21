@@ -22,12 +22,11 @@ import os.path
 from .basecase import cql, cqlsh, cqlshlog, TEST_HOST, TEST_PORT, rundir
 from .run_cqlsh import run_cqlsh, call_cqlsh
 
-test_keyspace_init2 = os.path.join(rundir, 'test_keyspace_init2.cql')
-test_keyspace_init3 = os.path.join(rundir, 'test_keyspace_init3.cql')
+test_keyspace_init = os.path.join(rundir, 'test_keyspace_init.cql')
 
 def get_cassandra_connection(cql_version=None):
     if cql_version is None:
-        cql_version = '2.0.0'
+        cql_version = '3.1.0'
     conn = cql.connect(TEST_HOST, TEST_PORT, cql_version=cql_version)
     # until the cql lib does this for us
     conn.cql_version = cql_version
@@ -49,14 +48,14 @@ def create_test_keyspace(cursor):
     ksname = make_test_ks_name()
     qksname = quote_name(cursor, ksname)
     cursor.execute('''
-        CREATE KEYSPACE %s WITH strategy_class = 'SimpleStrategy'
-                           AND strategy_options:replication_factor = 1;
+        CREATE KEYSPACE %s WITH replication =
+            {'class': 'SimpleStrategy', 'replication_factor': 1};
     ''' % quote_name(cursor, ksname))
     cursor.execute('USE %s;' % qksname)
     TEST_KEYSPACES_CREATED.append(ksname)
     return ksname
 
-def split_cql_commands(source, cqlver='2.0.0'):
+def split_cql_commands(source, cqlver='3.1.0'):
     ruleset = cql_rule_set(cqlver)
     statements, in_batch = ruleset.cql_split_statements(source)
     if in_batch:
@@ -73,18 +72,10 @@ def execute_cql_file(cursor, fname):
     with open(fname) as f:
         return execute_cql_commands(cursor, f.read())
 
-def populate_test_db_cql3(cursor):
-    execute_cql_file(cursor, test_keyspace_init3)
-
-def populate_test_db_cql2(cursor):
-    execute_cql_file(cursor, test_keyspace_init2)
-
 def create_test_db():
-    with cassandra_cursor(ks=None) as c:
+    with cassandra_cursor(ks=None, cql_version='3.1.0') as c:
         k = create_test_keyspace(c)
-        populate_test_db_cql2(c)
-    with cassandra_cursor(ks=k, cql_version='3.0.0') as c:
-        populate_test_db_cql3(c)
+        execute_cql_file(c, test_keyspace_init)
     return k
 
 def remove_test_db():
@@ -132,10 +123,7 @@ def cassandra_cursor(cql_version=None, ks=''):
         conn.close()
 
 def cql_rule_set(cqlver):
-    if str(cqlver).startswith('2'):
-        return cqlsh.cqlhandling.CqlRuleSet
-    else:
-        return cqlsh.cql3handling.CqlRuleSet
+    return cqlsh.cql3handling.CqlRuleSet
 
 def quote_name(cqlver, name):
     if isinstance(cqlver, cql.cursor.Cursor):

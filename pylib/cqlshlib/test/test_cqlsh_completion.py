@@ -90,28 +90,21 @@ class CqlshCompletionCase(BaseTestCase):
     def strategies(self):
         return self.module.CqlRuleSet.replication_strategies
 
-class TestCqlshCompletion_CQL2(CqlshCompletionCase):
-    cqlver = 2
-    module = cqlsh.cqlhandling
+class TestCqlshCompletion(CqlshCompletionCase):
+    cqlver = '3.1.0'
+    module = cqlsh.cql3handling
 
     def test_complete_on_empty_string(self):
         self.trycompletions('', choices=('?', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
                                          'COPY', 'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE',
-                                         'DROP', 'HELP', 'INSERT', 'SELECT', 'SHOW', 'SOURCE',
-                                         'TRACING', 'TRUNCATE', 'UPDATE', 'USE', 'exit', 'quit'))
+                                         'DROP', 'GRANT', 'HELP', 'INSERT', 'LIST', 'REVOKE',
+                                         'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'TRUNCATE', 'UPDATE',
+                                         'USE', 'exit', 'quit'))
 
     def test_complete_command_words(self):
         self.trycompletions('alt', '\b\b\bALTER ')
         self.trycompletions('I', 'NSERT INTO ')
         self.trycompletions('exit', ' ')
-
-    def test_complete_in_string_literals(self):
-        # would be great if we could get a space after this sort of completion,
-        # but readline really wants to make things difficult for us
-        self.trycompletions("insert into system.'NodeId", "Info'")
-        self.trycompletions("USE '", choices=('system', self.cqlsh.keyspace), other_choices_ok=True)
-        self.trycompletions("create keyspace blah with strategy_class = 'Sim",
-                            "pleStrategy'")
 
     def test_complete_in_uuid(self):
         pass
@@ -130,59 +123,6 @@ class TestCqlshCompletion_CQL2(CqlshCompletionCase):
 
     def test_complete_in_batch(self):
         pass
-
-    def test_complete_in_create_keyspace(self):
-        self.trycompletions('create keyspace ', '', choices=('<new_keyspace_name>',))
-        self.trycompletions('create keyspace moo ', "WITH strategy_class = '")
-        self.trycompletions("create keyspace '12SomeName' with ", "strategy_class = '")
-        self.trycompletions("create keyspace moo with strategy_class", " = '")
-        self.trycompletions("create keyspace moo with strategy_class='",
-                            choices=self.strategies())
-        self.trycompletions("create keySPACE 123 with strategy_class='SimpleStrategy' A",
-                            "ND strategy_options:replication_factor = ")
-        self.trycompletions("create keyspace fish with strategy_class='SimpleStrategy'"
-                                  "and strategy_options:replication_factor = ", '',
-                            choices=('<option_value>',))
-        self.trycompletions("create keyspace 'PB and J' with strategy_class="
-                               "'NetworkTopologyStrategy' AND", ' ')
-        self.trycompletions("create keyspace 'PB and J' with strategy_class="
-                               "'NetworkTopologyStrategy' AND ", '',
-                            choices=('<strategy_option_name>',))
-
-    def test_complete_in_drop_keyspace(self):
-        pass
-
-    def test_complete_in_create_columnfamily(self):
-        pass
-
-    def test_complete_in_drop_columnfamily(self):
-        pass
-
-    def test_complete_in_truncate(self):
-        pass
-
-    def test_complete_in_alter_columnfamily(self):
-        pass
-
-    def test_complete_in_use(self):
-        pass
-
-    def test_complete_in_create_index(self):
-        pass
-
-    def test_complete_in_drop_index(self):
-        pass
-
-class TestCqlshCompletion_CQL3final(TestCqlshCompletion_CQL2):
-    cqlver = '3.0.0'
-    module = cqlsh.cql3handling
-
-    def test_complete_on_empty_string(self):
-        self.trycompletions('', choices=('?', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
-                                         'COPY', 'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE',
-                                         'DROP', 'GRANT', 'HELP', 'INSERT', 'LIST', 'REVOKE',
-                                         'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'TRUNCATE', 'UPDATE',
-                                         'USE', 'exit', 'quit'))
 
     def test_complete_in_create_keyspace(self):
         self.trycompletions('create keyspace ', '', choices=('<identifier>', '<quotedName>'))
@@ -241,3 +181,27 @@ class TestCqlshCompletion_CQL3final(TestCqlshCompletion_CQL2):
                             other_choices_ok=True)
         self.trycompletions("create keyspace blah with replication = {'class': 'Sim",
                             "pleStrategy'")
+
+    def test_complete_in_drop_keyspace(self):
+        pass
+
+    def test_complete_in_create_columnfamily(self):
+        pass
+
+    def test_complete_in_drop_columnfamily(self):
+        pass
+
+    def test_complete_in_truncate(self):
+        pass
+
+    def test_complete_in_alter_columnfamily(self):
+        pass
+
+    def test_complete_in_use(self):
+        pass
+
+    def test_complete_in_create_index(self):
+        pass
+
+    def test_complete_in_drop_index(self):
+        pass

@@ -197,23 +197,9 @@ class TestCqlshOutput(BaseTestCase):
                 GG
 
             """),
-        ), cqlver=(2, 3))
+        ), cqlver=3)
 
-        # different results cql2/cql3
         q = 'select COUNT(*) FROM twenty_rows_composite_table limit 1000000;'
-
-        self.assertQueriesGiveColoredOutput((
-            (q, """
-             count
-             MMMMM
-            -------
-
-                 1
-                GG
-
-            """),
-        ), cqlver=2)
-
         self.assertQueriesGiveColoredOutput((
             (q, """
              count
@@ -225,53 +211,6 @@ class TestCqlshOutput(BaseTestCase):
 
             """),
         ), cqlver=3)
-
-    def test_dynamic_cf_output(self):
-        self.assertQueriesGiveColoredOutput((
-            ('select * from dynamic_columns;', """
-             somekey,1 | 1.2,one point two
-            nMMMMMMM G   MMM YYYYYYYYYYYYY
-             somekey,2 | 2.3,two point three
-             MMMMMMM G   MMM YYYYYYYYYYYYYYY
-             somekey,3 | -0.0001,negative ten thousandth | 3.46,three point four six | 99,ninety-nine point oh
-             MMMMMMM G   MMMMMMM YYYYYYYYYYYYYYYYYYYYYYY   MMMM YYYYYYYYYYYYYYYYYYYY n MM YYYYYYYYYYYYYYYYYYYY
-
-            """),
-
-            ('select somekey, 2.3 from dynamic_columns;', """
-             somekey | 2.3
-             MMMMMMM   MMM
-            ---------+-----------------
-
-                   1 |            null
-                   G              RRRR
-                   2 | two point three
-                   G   YYYYYYYYYYYYYYY
-                   3 |            null
-                   G              RRRR
-
-            """),
-
-            ('select first 1 * from dynamic_columns where somekey = 2;', """
-             2.3
-             MMM
-            -----------------
-
-             two point three
-             YYYYYYYYYYYYYYY
-
-            """),
-
-            ('select * from dynamic_columns where somekey = 2;', """
-             somekey | 2.3
-             MMMMMMM   MMM
-            ---------+-----------------
-
-                   2 | two point three
-                   G   YYYYYYYYYYYYYYY
-
-            """),
-        ), cqlver=2, sort_results=True)
 
     def test_static_cf_output(self):
         self.assertCqlverQueriesGiveColoredOutput((
@@ -288,7 +227,7 @@ class TestCqlshOutput(BaseTestCase):
              YY   YY
 
             """),
-        ), cqlver=(2, 3))
+        ), cqlver=3)
 
         self.assertQueriesGiveColoredOutput((
             ('select * from dynamic_columns;', """
@@ -314,20 +253,9 @@ class TestCqlshOutput(BaseTestCase):
         self.assertCqlverQueriesGiveColoredOutput((
             ('select * from empty_table;', """
             """),
-        ), cqlver=(2, 3))
+        ), cqlver=3)
 
         q = 'select * from has_all_types where num = 999;'
-        self.assertQueriesGiveColoredOutput((
-            (q, """
-             num
-             MMM
-            -----
-
-             999
-             GGG
-
-            """),
-        ), cqlver=2)
 
         # same query should show up as empty in cql 3
         self.assertQueriesGiveColoredOutput((
@@ -337,21 +265,6 @@ class TestCqlshOutput(BaseTestCase):
 
     def test_columnless_key_output(self):
         q = "select a from twenty_rows_table where a in ('1', '2', '-9192');"
-        self.assertQueriesGiveColoredOutput((
-            (q, """
-             a
-             MMMMM
-            -------
-
-                 1
-             YYYYY
-                 2
-             YYYYY
-             -9192
-             YYYYY
-
-            """),
-        ), cqlver=2)
 
         self.assertQueriesGiveColoredOutput((
             (q, """
@@ -404,19 +317,7 @@ class TestCqlshOutput(BaseTestCase):
              GGGGGGGGGGGGGGGG     GGGGGGG      GGGGG
 
             """),
-        ), cqlver=(2, 3))
-
-        self.assertQueriesGiveColoredOutput((
-            ('''select * from dynamic_columns where somekey = 3;''', """
-             somekey | -0.0001                 | 3.46                 | 99
-             MMMMMMM   MMMMMMM                   MMMM                   MM
-            ---------+-------------------------+----------------------+----------------------
-
-                   3 | negative ten thousandth | three point four six | ninety-nine point oh
-                   G   YYYYYYYYYYYYYYYYYYYYYYY   YYYYYYYYYYYYYYYYYYYY   YYYYYYYYYYYYYYYYYYYY
-
-            """),
-        ), cqlver=2)
+        ), cqlver=3)
 
     def test_timestamp_output(self):
         self.assertQueriesGiveColoredOutput((
@@ -460,7 +361,7 @@ class TestCqlshOutput(BaseTestCase):
                G        GGGGG
 
             """),
-        ), cqlver=(2, 3))
+        ), cqlver=3)
 
     def test_null_output(self):
         # column with metainfo but no values
@@ -476,7 +377,7 @@ class TestCqlshOutput(BaseTestCase):
              YY   YY       RRRR
 
             """),
-        ), cqlver=(2, 3))
+        ), cqlver=3)
 
         # all-columns, including a metainfo column has no values (cql3)
         self.assertQueriesGiveColoredOutput((
@@ -492,36 +393,6 @@ class TestCqlshOutput(BaseTestCase):
 
             """),
         ), cqlver=3)
-
-        # all-columns, including a metainfo column has no values (cql2)
-        self.assertQueriesGiveColoredOutput((
-            ("select * from undefined_values_table where k in ('k1', 'k2');", """
-             k  | c
-             M    M
-            ----+----
-
-             k1 | c1
-             YY   YY
-             k2 | c2
-             YY   YY
-
-            """),
-        ), cqlver=2)
-
-        # column not in metainfo, which has no values (invalid query in cql3)
-        self.assertQueriesGiveColoredOutput((
-            ("select num, fakecol from has_all_types where num in (1, 2);", """
-             num
-             MMM
-            -----
-
-               1
-             GGG
-               2
-             GGG
-
-            """),
-        ), cqlver=2)
 
     def test_string_output_ascii(self):
         self.assertCqlverQueriesGiveColoredOutput((
@@ -542,7 +413,7 @@ class TestCqlshOutput(BaseTestCase):
              G                        YYYYYYYYYYYYYYYYYYYYYYYY
 
             """),
-        ), cqlver=(2, 3))
+        ), cqlver=3)
 
     def test_string_output_utf8(self):
         # many of these won't line up visually here, to keep the source code
@@ -573,7 +444,7 @@ class TestCqlshOutput(BaseTestCase):
              G        YYYYYYYYYYYYYYYYYYYYYYYY
 
             """.encode('utf-8')),
-        ), cqlver=(2, 3), env={'LANG': 'en_US.UTF-8'})
+        ), cqlver=3, env={'LANG': 'en_US.UTF-8'})
 
     def test_blob_output(self):
         self.assertCqlverQueriesGiveColoredOutput((
@@ -592,7 +463,7 @@ class TestCqlshOutput(BaseTestCase):
                G   mmmmmmmmmmmmmmmmmmmm
 
             """),
-        ), cqlver=(2, 3))
+        ), cqlver=3)
 
     def test_colname_decoding_errors(self):
         # not clear how to achieve this situation in the first place. the
@@ -617,7 +488,7 @@ class TestCqlshOutput(BaseTestCase):
             Failed to decode value '\x00\xff\x00\xff' (for column 'utf8col') as text: 'utf8' codec can't decode byte 0xff in position 1: invalid start byte
             RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
             """),
-        ), cqlver=(2, 3))
+        ), cqlver=3)
 
     def test_key_decoding_errors(self):
         self.assertCqlverQueriesGiveColoredOutput((
@@ -633,17 +504,17 @@ class TestCqlshOutput(BaseTestCase):
             Failed to decode value '\x00\xff\x02\x8f' (for column 'pkey') as text: 'utf8' codec can't decode byte 0xff in position 1: invalid start byte
             RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
             """),
-        ), cqlver=(2, 3))
+        ), cqlver=3)
 
     def test_prompt(self):
-        with testrun_cqlsh(tty=True, keyspace=None, cqlver=2) as c:
+        with testrun_cqlsh(tty=True, keyspace=None, cqlver=3) as c:
             self.assertEqual(c.output_header.splitlines()[-1], 'cqlsh> ')
 
             c.send('\n')
             output = c.read_to_next_prompt().replace('\r\n', '\n')
             self.assertEqual(output, '\ncqlsh> ')
 
-            cmd = "USE '%s';\n" % get_test_keyspace().replace("'", "''")
+            cmd = "USE \"%s\";\n" % get_test_keyspace().replace('"', '""')
             c.send(cmd)
             output = c.read_to_next_prompt().replace('\r\n', '\n')
             self.assertEqual(output, '%scqlsh:%s> ' % (cmd, get_test_keyspace()))
@@ -654,15 +525,17 @@ class TestCqlshOutput(BaseTestCase):
 
             c.send('use NONEXISTENTKEYSPACE;\n')
             outputlines = c.read_to_next_prompt().splitlines()
+
             self.assertEqual(outputlines[0], 'use NONEXISTENTKEYSPACE;')
-            self.assertEqual(outputlines[3], 'cqlsh:system> ')
+            self.assertEqual(outputlines[2], 'cqlsh:system> ')
             midline = ColoredText(outputlines[1])
             self.assertEqual(midline.plain(),
-                             "Bad Request: Keyspace 'NONEXISTENTKEYSPACE' does not exist")
+                             "Bad Request: Keyspace 'nonexistentkeyspace' does not exist")
             self.assertColorFromTags(midline,
                              "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
 
-    def check_describe_keyspace(self, fullcqlver):
+    def test_describe_keyspace_output(self):
+        fullcqlver = '3.1.0'
         with testrun_cqlsh(tty=True, cqlver=fullcqlver) as c:
             ks = get_test_keyspace()
             qks = quote_name(fullcqlver, ks)
@@ -684,20 +557,7 @@ class TestCqlshOutput(BaseTestCase):
                 try:
                     for stmt in statements:
                         cqlshlog.debug('TEST EXEC: %s' % stmt)
-                        try:
-                            curs.execute(stmt)
-                        except cql.ProgrammingError, e:
-                            # expected sometimes under cql3, since some existing
-                            # tables made under cql2 are not recreatable with cql3
-                            for errmsg in ('No definition found that is not part of the PRIMARY KEY',
-                                           "mismatched input '<' expecting EOF"):
-                                if errmsg in str(e):
-                                    do_drop = False
-                                    break
-                            else:
-                                raise
-                    # maybe we should do some checks that the two keyspaces
-                    # match up as much as we expect at this point?
+                        curs.execute(stmt)
                 finally:
                     curs.execute('use system')
                     if do_drop:
@@ -706,52 +566,14 @@ class TestCqlshOutput(BaseTestCase):
     def check_describe_keyspace_output(self, output, qksname, fullcqlver):
         expected_bits = [r'(?im)^CREATE KEYSPACE %s WITH\b' % re.escape(qksname),
                          r'(?im)^USE \S+;$',
-                         r';\s*$']
-        if fullcqlver == '3.0.0':
-            expected_bits.append(r'\breplication = {\n  \'class\':')
-        else:
-            expected_bits.append(r'\bstrategy_class =')
+                         r';\s*$',
+                         r'\breplication = {\n  \'class\':']
         for expr in expected_bits:
             self.assertRegexpMatches(output, expr)
-
-    def test_describe_keyspace_output(self):
-        for v in ('2.0.0', '3.0.0'):
-            self.check_describe_keyspace(v)
 
     def test_describe_columnfamily_output(self):
         # we can change these to regular expressions if/when it makes sense
         # to do so; these will likely be subject to lots of adjustments.
-
-        table_desc2 = dedent("""
-
-            CREATE TABLE has_all_types (
-              num int PRIMARY KEY,
-              intcol int,
-              timestampcol timestamp,
-              floatcol float,
-              uuidcol uuid,
-              bigintcol bigint,
-              doublecol double,
-              booleancol boolean,
-              decimalcol decimal,
-              asciicol ascii,
-              blobcol blob,
-              varcharcol text,
-              varintcol varint,
-              textcol text
-            ) WITH
-              comment='' AND
-              comparator=text AND
-              read_repair_chance=0.100000 AND
-              gc_grace_seconds=864000 AND
-              default_validation=text AND
-              min_compaction_threshold=4 AND
-              max_compaction_threshold=32 AND
-              replicate_on_write='true' AND
-              compaction_strategy_class='SizeTieredCompactionStrategy' AND
-              compression_parameters:sstable_compression='LZ4Compressor';
-
-        """)
 
         # note columns are now comparator-ordered instead of original-order.
         table_desc3 = dedent("""
@@ -771,7 +593,7 @@ class TestCqlshOutput(BaseTestCase):
               uuidcol uuid,
               varcharcol text,
               varintcol varint
-            ) WITH COMPACT STORAGE AND
+            ) WITH
               bloom_filter_fp_chance=0.010000 AND
               caching='KEYS_ONLY' AND
               comment='' AND
@@ -785,13 +607,12 @@ class TestCqlshOutput(BaseTestCase):
 
         """)
 
-        for v in ('2.0.0', '3.0.0'):
-            with testrun_cqlsh(tty=True, cqlver=v) as c:
-                for cmdword in ('describe table', 'desc columnfamily'):
-                    for semicolon in (';', ''):
-                        output = c.cmd_and_response('%s has_all_types%s' % (cmdword, semicolon))
-                        self.assertNoHasColors(output)
-                        self.assertEqual(output, {'2.0.0': table_desc2, '3.0.0': table_desc3}[v])
+        with testrun_cqlsh(tty=True, cqlver='3.0.0') as c:
+            for cmdword in ('describe table', 'desc columnfamily'):
+                for semicolon in (';', ''):
+                    output = c.cmd_and_response('%s has_all_types%s' % (cmdword, semicolon))
+                    self.assertNoHasColors(output)
+                    self.assertEqual(output, table_desc3)
 
     def test_describe_columnfamilies_output(self):
         output_re = r'''

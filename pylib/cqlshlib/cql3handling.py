@@ -56,34 +56,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'key', 'clustering', 'ttl', 'compact', 'storage', 'type', 'values', 'custom'
     ))
 
-    columnfamily_options = (
-        # (CQL option name, Thrift option name (or None if same))
-        ('comment', None),
-        ('compaction_strategy_class', 'compaction_strategy'),
-        ('comparator', 'comparator_type'),
-        ('default_validation', 'default_validation_class'),
-        ('gc_grace_seconds', None),
-        ('index_interval', None),
-        ('read_repair_chance', None),
-        ('replicate_on_write', None),
-        ('populate_io_cache_on_flush', None),
-    )
-
-    old_columnfamily_layout_options = (
-        # (CQL3 option name, schema_columnfamilies column name (or None if same))
-        ('bloom_filter_fp_chance', None),
-        ('caching', None),
-        ('comment', None),
-        ('compaction_strategy_class', None),
-        ('dclocal_read_repair_chance', 'local_read_repair_chance'),
-        ('gc_grace_seconds', None),
-        ('index_interval', None),
-        ('read_repair_chance', None),
-        ('replicate_on_write', None),
-        ('populate_io_cache_on_flush', None),
-    )
-
-    new_columnfamily_layout_options = (
+    columnfamily_layout_options = (
         ('bloom_filter_fp_chance', None),
         ('caching', None),
         ('comment', None),
@@ -95,16 +68,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('populate_io_cache_on_flush', None),
     )
 
-    old_columnfamily_layout_map_options = (
-        # (CQL3 option prefix, schema_columnfamilies column name (or None if same),
-        #  list of known suboptions)
-        ('compaction_strategy_options', None,
-            ('min_compaction_threshold', 'max_compaction_threshold')),
-        ('compression_parameters', None,
-            ('sstable_compression', 'chunk_length_kb', 'crc_check_chance')),
-    )
-
-    new_columnfamily_layout_map_options = (
+    columnfamily_layout_map_options = (
         # (CQL3 option name, schema_columnfamilies column name (or None if same),
         #  list of known map keys)
         ('compaction', 'compaction_strategy_options',
@@ -113,42 +77,49 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
             ('sstable_compression', 'chunk_length_kb', 'crc_check_chance')),
     )
 
-    new_obsolete_cf_options = (
+    obsolete_cf_options = (
         'compaction_parameters',
         'compaction_strategy_class',
         'compaction_strategy_options',
         'compression_parameters',
+        'key_cache_save_period_in_seconds',
+        'key_cache_size',
         'max_compaction_threshold',
+        'memtable_flush_after_mins',
+        'memtable_operations_in_millions',
+        'memtable_throughput_in_mb',
         'min_compaction_threshold',
+        'row_cache_provider',
+        'row_cache_save_period_in_seconds',
+        'row_cache_size',
     )
 
-    @staticmethod
-    def token_dequote(tok):
-        if tok[0] == 'unclosedName':
-            # strip one quote
-            return tok[1][1:].replace('""', '"')
-        # cql2 version knows how to do everything else
-        return CqlParsingRuleSet.token_dequote(tok)
+    consistency_levels = (
+        'ANY',
+        'ONE',
+        'TWO',
+        'THREE',
+        'QUORUM',
+        'ALL',
+        'LOCAL_QUORUM',
+        'EACH_QUORUM',
+        'SERIAL'
+    )
 
     @classmethod
-    def cql3_dequote_value(cls, value):
-        return cls.cql2_dequote_value(value)
+    def escape_value(cls, value):
+        if value is None:
+            return 'NULL' # this totally won't work
+        if isinstance(value, bool):
+            value = str(value).lower()
+        elif isinstance(value, float):
+            return '%f' % value
+        elif isinstance(value, int):
+            return str(value)
+        return "'%s'" % value.replace("'", "''")
 
     @staticmethod
-    def cql3_dequote_name(name):
-        name = name.strip()
-        if name == '':
-            return name
-        if name[0] == '"' and name[-1] == '"':
-            name = name[1:-1].replace('""', '"')
-        return name
-
-    @classmethod
-    def cql3_escape_value(cls, value):
-        return cls.cql2_escape_value(value)
-
-    @staticmethod
-    def cql3_escape_name(name):
+    def escape_name(name):
         return '"%s"' % name.replace('"', '""')
 
     valid_cql3_word_re = re.compile(r'^[a-z][0-9a-z_]*$')
@@ -162,22 +133,28 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         return cls.valid_cql3_word_re.match(s) is not None
 
     @classmethod
-    def cql3_maybe_escape_name(cls, name):
+    def maybe_escape_name(cls, name):
         if cls.is_valid_cql3_name(name):
             return name
-        return cls.cql3_escape_name(name)
+        return cls.escape_name(name)
 
-    @classmethod
-    def dequote_any(cls, t):
-        if t[0] == '"':
-            return cls.cql3_dequote_name(t)
-        return CqlParsingRuleSet.dequote_any(t)
+    @staticmethod
+    def dequote_name(name):
+        name = name.strip()
+        if name == '':
+            return name
+        if name[0] == '"' and name[-1] == '"':
+            name = name[1:-1].replace('""', '"')
+        return name
 
-    dequote_value = cql3_dequote_value
-    dequote_name = cql3_dequote_name
-    escape_value = cql3_escape_value
-    escape_name = cql3_escape_name
-    maybe_escape_name = cql3_maybe_escape_name
+    @staticmethod
+    def dequote_value(cqlword):
+        cqlword = cqlword.strip()
+        if cqlword == '':
+            return cqlword
+        if cqlword[0] == "'" and cqlword[-1] == "'":
+            cqlword = cqlword[1:-1].replace("''", "'")
+        return cqlword
 
 CqlRuleSet = Cql3ParsingRuleSet()
 
@@ -189,7 +166,6 @@ shorthands = ('completer_for', 'explain_completion',
 
 for shorthand in shorthands:
     globals()[shorthand] = getattr(CqlRuleSet, shorthand)
-
 
 
 # BEGIN SYNTAX/COMPLETION RULE DEFINITIONS
@@ -327,10 +303,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                         | <K_VALUES> )
                       ;
 
-# <property> will be defined once cqlsh determines whether we're using
-# 3.0.0-beta1 or later. :/
-
-<newPropSpec> ::= [propname]=<cident> propeq="=" [propval]=<propertyValue>
+<property> ::= [propname]=<cident> propeq="=" [propval]=<propertyValue>
                 ;
 <propertyValue> ::= propsimpleval=( <stringLiteral>
                                   | <identifier>
@@ -344,36 +317,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                       ender="}"
                     ;
 
-<oldPropSpec> ::= [propname]=<optionName> propeq="=" [optval]=<optionVal>
-                ;
-<optionName> ::= optname=<cident> ( optsep=":" subopt=( <cident> | <wholenumber> ) )?
-               ;
-<optionVal> ::= <identifier>
-              | <stringLiteral>
-              | <integer>
-              | <float>
-              ;
 '''
-
-def use_pre_3_0_0_syntax():
-    # cassandra-1.1 support
-    CqlRuleSet.append_rules('''
-        <property> ::= <oldPropSpec> ;
-    ''')
-    CqlRuleSet.columnfamily_layout_map_options = \
-            CqlRuleSet.old_columnfamily_layout_map_options
-    CqlRuleSet.columnfamily_layout_options = \
-            CqlRuleSet.old_columnfamily_layout_options
-
-def use_post_3_0_0_syntax():
-    CqlRuleSet.append_rules('''
-        <property> ::= <newPropSpec> ;
-    ''')
-    CqlRuleSet.columnfamily_layout_map_options = \
-            CqlRuleSet.new_columnfamily_layout_map_options
-    CqlRuleSet.columnfamily_layout_options = \
-            CqlRuleSet.new_columnfamily_layout_options
-    CqlRuleSet.obsolete_cf_options += CqlRuleSet.new_obsolete_cf_options
 
 def prop_equals_completer(ctxt, cass):
     if not working_on_keyspace(ctxt):
@@ -387,51 +331,50 @@ def prop_equals_completer(ctxt, cass):
             return ()
     return ['=']
 
-completer_for('oldPropSpec', 'propeq')(prop_equals_completer)
-completer_for('newPropSpec', 'propeq')(prop_equals_completer)
+completer_for('property', 'propeq')(prop_equals_completer)
 
-@completer_for('newPropSpec', 'propname')
-def new_prop_name_completer(ctxt, cass):
+@completer_for('property', 'propname')
+def prop_name_completer(ctxt, cass):
     if working_on_keyspace(ctxt):
-        return ks_new_prop_name_completer(ctxt, cass)
+        return ks_prop_name_completer(ctxt, cass)
     else:
-        return cf_new_prop_name_completer(ctxt, cass)
+        return cf_prop_name_completer(ctxt, cass)
 
 @completer_for('propertyValue', 'propsimpleval')
-def new_prop_val_completer(ctxt, cass):
+def prop_val_completer(ctxt, cass):
     if working_on_keyspace(ctxt):
-        return ks_new_prop_val_completer(ctxt, cass)
+        return ks_prop_val_completer(ctxt, cass)
     else:
-        return cf_new_prop_val_completer(ctxt, cass)
+        return cf_prop_val_completer(ctxt, cass)
 
 @completer_for('propertyValue', 'propmapkey')
-def new_prop_val_mapkey_completer(ctxt, cass):
+def prop_val_mapkey_completer(ctxt, cass):
     if working_on_keyspace(ctxt):
-        return ks_new_prop_val_mapkey_completer(ctxt, cass)
+        return ks_prop_val_mapkey_completer(ctxt, cass)
     else:
-        return cf_new_prop_val_mapkey_completer(ctxt, cass)
+        return cf_prop_val_mapkey_completer(ctxt, cass)
 
 @completer_for('propertyValue', 'propmapval')
-def new_prop_val_mapval_completer(ctxt, cass):
+def prop_val_mapval_completer(ctxt, cass):
     if working_on_keyspace(ctxt):
-        return ks_new_prop_val_mapval_completer(ctxt, cass)
+        return ks_prop_val_mapval_completer(ctxt, cass)
     else:
-        return cf_new_prop_val_mapval_completer(ctxt, cass)
+        return cf_prop_val_mapval_completer(ctxt, cass)
 
 @completer_for('propertyValue', 'ender')
-def new_prop_val_mapender_completer(ctxt, cass):
+def prop_val_mapender_completer(ctxt, cass):
     if working_on_keyspace(ctxt):
-        return ks_new_prop_val_mapender_completer(ctxt, cass)
+        return ks_prop_val_mapender_completer(ctxt, cass)
     else:
-        return cf_new_prop_val_mapender_completer(ctxt, cass)
+        return cf_prop_val_mapender_completer(ctxt, cass)
 
-def ks_new_prop_name_completer(ctxt, cass):
+def ks_prop_name_completer(ctxt, cass):
     optsseen = ctxt.get_binding('propname', ())
     if 'replication' not in optsseen:
         return ['replication']
     return ["durable_writes"]
 
-def ks_new_prop_val_completer(ctxt, cass):
+def ks_prop_val_completer(ctxt, cass):
     optname = ctxt.get_binding('propname')[-1]
     if optname == 'durable_writes':
         return ["'true'", "'false'"]
@@ -439,7 +382,7 @@ def ks_new_prop_val_completer(ctxt, cass):
         return ["{'class': '"]
     return ()
 
-def ks_new_prop_val_mapkey_completer(ctxt, cass):
+def ks_prop_val_mapkey_completer(ctxt, cass):
     optname = ctxt.get_binding('propname')[-1]
     if optname != 'replication':
         return ()
@@ -457,7 +400,7 @@ def ks_new_prop_val_mapkey_completer(ctxt, cass):
         return [Hint('<dc_name>')]
     return map(escape_value, opts.difference(keysseen))
 
-def ks_new_prop_val_mapval_completer(ctxt, cass):
+def ks_prop_val_mapval_completer(ctxt, cass):
     optname = ctxt.get_binding('propname')[-1]
     if optname != 'replication':
         return ()
@@ -466,7 +409,7 @@ def ks_new_prop_val_mapval_completer(ctxt, cass):
         return map(escape_value, CqlRuleSet.replication_strategies)
     return [Hint('<value>')]
 
-def ks_new_prop_val_mapender_completer(ctxt, cass):
+def ks_prop_val_mapender_completer(ctxt, cass):
     optname = ctxt.get_binding('propname')[-1]
     if optname != 'replication':
         return [',']
@@ -485,11 +428,11 @@ def ks_new_prop_val_mapender_completer(ctxt, cass):
         return [',']
     return ['}']
 
-def cf_new_prop_name_completer(ctxt, cass):
+def cf_prop_name_completer(ctxt, cass):
     return [c[0] for c in (CqlRuleSet.columnfamily_layout_options +
                            CqlRuleSet.columnfamily_layout_map_options)]
 
-def cf_new_prop_val_completer(ctxt, cass):
+def cf_prop_val_completer(ctxt, cass):
     exist_opts = ctxt.get_binding('propname')
     this_opt = exist_opts[-1]
     if this_opt == 'compression':
@@ -512,7 +455,7 @@ def cf_new_prop_val_completer(ctxt, cass):
         return CqlRuleSet.consistency_levels
     return [Hint('<option_value>')]
 
-def cf_new_prop_val_mapkey_completer(ctxt, cass):
+def cf_prop_val_mapkey_completer(ctxt, cass):
     optname = ctxt.get_binding('propname')[-1]
     for cql3option, _, subopts in CqlRuleSet.columnfamily_layout_map_options:
         if optname == cql3option:
@@ -538,7 +481,7 @@ def cf_new_prop_val_mapkey_completer(ctxt, cass):
         return map(escape_value, opts)
     return ()
 
-def cf_new_prop_val_mapval_completer(ctxt, cass):
+def cf_prop_val_mapval_completer(ctxt, cass):
     opt = ctxt.get_binding('propname')[-1]
     key = dequote_value(ctxt.get_binding('propmapkey')[-1])
     if opt == 'compaction':
@@ -551,133 +494,12 @@ def cf_new_prop_val_mapval_completer(ctxt, cass):
         return [Hint('<option_value>')]
     return ()
 
-def cf_new_prop_val_mapender_completer(ctxt, cass):
+def cf_prop_val_mapender_completer(ctxt, cass):
     return [',', '}']
-
-@completer_for('optionName', 'optname')
-def old_prop_name_completer(ctxt, cass):
-    if working_on_keyspace(ctxt):
-        return ks_old_prop_name_completer(ctxt, cass)
-    else:
-        return cf_old_prop_name_completer(ctxt, cass)
-
-@completer_for('oldPropSpec', 'optval')
-def old_prop_val_completer(ctxt, cass):
-    if working_on_keyspace(ctxt):
-        return ks_old_prop_val_completer(ctxt, cass)
-    else:
-        return cf_old_prop_val_completer(ctxt, cass)
-
-@completer_for('optionName', 'optsep')
-def old_prop_separator_completer(ctxt, cass):
-    if working_on_keyspace(ctxt):
-        return ks_old_prop_separator_completer(ctxt, cass)
-    else:
-        return cf_old_prop_separator_completer(ctxt, cass)
-
-@completer_for('optionName', 'subopt')
-def old_prop_suboption_completer(ctxt, cass):
-    if working_on_keyspace(ctxt):
-        return ks_old_prop_suboption_completer(ctxt, cass)
-    else:
-        return cf_old_prop_suboption_completer(ctxt, cass)
-
-def ks_old_prop_name_completer(ctxt, cass):
-    exist_opts = ctxt.get_binding('optname', ())
-    try:
-        stratopt = exist_opts.index('strategy_class')
-    except ValueError:
-        return ['strategy_class =']
-    vals = ctxt.get_binding('optval')
-    stratclass = dequote_value(vals[stratopt])
-    if stratclass in CqlRuleSet.replication_factor_strategies:
-        return ['strategy_options:replication_factor =']
-    return [Hint('<strategy_option_name>')]
-
-def ks_old_prop_val_completer(ctxt, cass):
-    exist_opts = ctxt.get_binding('optname', (None,))
-    if exist_opts[-1] == 'strategy_class':
-        return map(escape_value, CqlRuleSet.replication_strategies)
-    return [Hint('<option_value>')]
-
-def ks_old_prop_separator_completer(ctxt, cass):
-    curopt = ctxt.get_binding('optname')[-1]
-    if curopt == 'strategy_options':
-        return [':']
-    return ()
-
-def ks_old_prop_suboption_completer(ctxt, cass):
-    exist_opts = ctxt.get_binding('optname')
-    if exist_opts[-1] != 'strategy_options':
-        return ()
-    try:
-        stratopt = exist_opts.index('strategy_class')
-    except ValueError:
-        return ()
-    vals = ctxt.get_binding('optval')
-    stratclass = dequote_value(vals[stratopt])
-    if stratclass in CqlRuleSet.replication_factor_strategies:
-        return ['replication_factor =']
-    return [Hint('<dc_name>')]
-
-def cf_old_prop_name_completer(ctxt, cass):
-    return list(CqlRuleSet.columnfamily_layout_options) + \
-           [c[0] + ':' for c in CqlRuleSet.columnfamily_layout_map_options]
-
-def cf_old_prop_val_completer(ctxt, cass):
-    exist_opts = ctxt.get_binding('propname')
-    this_opt = exist_opts[-1]
-    if this_opt == 'compression_parameters:sstable_compression':
-        return map(escape_value, CqlRuleSet.available_compression_classes)
-    if this_opt == 'compaction_strategy_class':
-        return map(escape_value, CqlRuleSet.available_compaction_classes)
-    if any(this_opt == opt[0] for opt in CqlRuleSet.obsolete_cf_options):
-        return ["'<obsolete_option>'"]
-    if this_opt in ('comparator', 'default_validation'):
-        return simple_cql_types
-    if this_opt in ('read_repair_chance', 'bloom_filter_fp_chance'):
-        return [Hint('<float_between_0_and_1>')]
-    if this_opt in ('replicate_on_write', 'populate_io_cache_on_flush'):
-        return [Hint('<yes_or_no>')]
-    if this_opt in ('min_compaction_threshold', 'max_compaction_threshold', 'gc_grace_seconds'):
-        return [Hint('<integer>')]
-    return [Hint('<option_value>')]
-
-def cf_old_prop_separator_completer(ctxt, cass):
-    opt = ctxt.get_binding('optname')
-    if any(opt == c[0] for c in CqlRuleSet.columnfamily_layout_map_options):
-        return [':']
-    return ()
-
-def cf_old_prop_suboption_completer(ctxt, cass):
-    opt = ctxt.get_binding('optname')
-    if opt == 'compaction_strategy_options':
-        # try to determine the strategy class in use
-        prevopts = ctxt.get_binding('propname', ())
-        prevvals = ctxt.get_binding('optval', ())
-        for prevopt, prevval in zip(prevopts, prevvals):
-            if prevopt == 'compaction_strategy_class':
-                csc = dequote_value(prevval)
-                break
-        else:
-            layout = get_cf_layout(ctxt, cass)
-            try:
-                csc = layout.compaction_strategy
-            except Exception:
-                csc = ''
-        csc = csc.split('.')[-1]
-        if csc == 'SizeTieredCompactionStrategy':
-            return ['min_sstable_size']
-        elif csc == 'LeveledCompactionStrategy':
-            return ['sstable_size_in_mb']
-    for optname, _, subopts in CqlRuleSet.columnfamily_layout_map_options:
-        if opt == optname:
-            return subopts
-    return ()
 
 @completer_for('tokenDefinition', 'token')
 def token_word_completer(ctxt, cass):
-    return ['TOKEN(']
+    return ['token(']
 
 @completer_for('simpleStorageType', 'typename')
 def storagetype_completer(ctxt, cass):
@@ -1024,27 +846,7 @@ def create_ks_wat_completer(ctxt, cass):
         return ['KEYSPACE']
     return ['KEYSPACE', 'SCHEMA']
 
-@completer_for('oldPropSpec', 'optname')
-def create_ks_opt_completer(ctxt, cass):
-    exist_opts = ctxt.get_binding('optname', ())
-    try:
-        stratopt = exist_opts.index('strategy_class')
-    except ValueError:
-        return ['strategy_class =']
-    vals = ctxt.get_binding('optval')
-    stratclass = dequote_value(vals[stratopt])
-    if stratclass in CqlRuleSet.replication_factor_strategies:
-        return ['strategy_options:replication_factor =']
-    return [Hint('<strategy_option_name>')]
-
-@completer_for('oldPropSpec', 'optval')
-def create_ks_optval_completer(ctxt, cass):
-    exist_opts = ctxt.get_binding('optname', (None,))
-    if exist_opts[-1] == 'strategy_class':
-        return map(escape_value, CqlRuleSet.replication_strategies)
-    return [Hint('<option_value>')]
-
-@completer_for('newPropSpec', 'propname')
+@completer_for('property', 'propname')
 def keyspace_properties_option_name_completer(ctxt, cass):
     optsseen = ctxt.get_binding('propname', ())
     if 'replication' not in optsseen:
@@ -1255,7 +1057,7 @@ explain_completion('alterInstructions', 'newcol', '<new_column_name>')
 
 syntax_rules += r'''
 <alterKeyspaceStatement> ::= "ALTER" ( "KEYSPACE" | "SCHEMA" ) ks=<alterableKeyspaceName>
-                                 "WITH" <newPropSpec> ( "AND" <newPropSpec> )*
+                                 "WITH" <property> ( "AND" <property> )*
                            ;
 '''
 

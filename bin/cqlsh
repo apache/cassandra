@@ -32,7 +32,7 @@ exit 1
 from __future__ import with_statement
 
 description = "CQL Shell for Apache Cassandra"
-version = "3.0.2"
+version = "4.0.0"
 
 from StringIO import StringIO
 from itertools import groupby
@@ -121,7 +121,7 @@ CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
 HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
 DEFAULT_HOST = 'localhost'
 DEFAULT_PORT = 9160
-DEFAULT_CQLVER = '3'
+DEFAULT_CQLVER = '3.1.0'
 DEFAULT_TRANSPORT_FACTORY = 'cqlshlib.tfactory.regular_transport_factory'
 
 DEFAULT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S%z'
@@ -155,12 +155,7 @@ parser.add_option('--debug', action='store_true',
                   help='Show additional debugging information')
 parser.add_option('--cqlversion', default=DEFAULT_CQLVER,
                   help='Specify a particular CQL version (default: %default).'
-                       ' Examples: "2", "3.0.0-beta1"')
-parser.add_option("-2", "--cql2", action="store_const", dest='cqlversion', const='2',
-                  help="Shortcut notation for --cqlversion=2")
-parser.add_option("-3", "--cql3", action="store_const", dest='cqlversion', const='3',
-                  help="Shortcut notation for --cqlversion=3")
-
+                       ' Examples: "3.0.3", "3.1.0"')
 
 CQL_ERRORS = (cql.Error,)
 try:
@@ -469,14 +464,6 @@ class Shell(cmd.Cmd):
         self.cursor = self.conn.cursor()
         self.get_connection_versions()
 
-        # use 3.0.0-beta1 syntax if explicitly requested, or if using
-        # cassandra < 1.2. this only affects use of cql3; cql2 syntax
-        # in either case is the same.
-        if self.cassandraver_atleast(1, 2) and not self.is_cql3_beta():
-            cql3handling.use_post_3_0_0_syntax()
-        else:
-            cql3handling.use_pre_3_0_0_syntax()
-
         self.current_keyspace = keyspace
 
         self.color = color
@@ -509,9 +496,6 @@ class Shell(cmd.Cmd):
         self.set_cql_version(ver)
         self.cql_version = ver
         self.cql_ver_tuple = vertuple
-
-    def is_cql3_beta(self):
-        return self.cql_ver_tuple == (3, 0, 0, 'beta1')
 
     def cqlver_atleast(self, major, minor=0, patch=0):
         return self.cql_ver_tuple[:3] >= (major, minor, patch)
@@ -553,33 +537,15 @@ class Shell(cmd.Cmd):
         print "[cqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Thrift protocol %(thrift)s]" % vers
 
     def get_connection_versions(self):
-        try:
-            self.cursor.execute("select * from system.local where key = 'local'")
-        except cql.ProgrammingError:
-            vers = self.get_connection_versions_fallback()
-        else:
-            result = self.fetchdict()
-            vers = {
-                'build': result['release_version'],
-                'thrift': result['thrift_version'],
-                'cql': result['cql_version'],
-            }
+        self.cursor.execute("select * from system.local where key = 'local'")
+        result = self.fetchdict()
+        vers = {
+            'build': result['release_version'],
+            'thrift': result['thrift_version'],
+            'cql': result['cql_version'],
+        }
         self.connection_versions = vers
         self.cass_ver_tuple = tuple(map(int, vers['build'].split('-', 1)[0].split('.', 2)))
-
-    def get_connection_versions_fallback(self):
-        if self.cqlver_atleast(3):
-            query = 'select component, version from system."Versions"'
-        else:
-            query = 'select component, version from system.Versions'
-        try:
-            self.cursor.execute(query)
-            vers = dict(self.cursor)
-        except cql.ProgrammingError:
-            # older Cassandra; doesn't have system.Versions
-            thrift_ver = self.get_thrift_version()
-            return {'build': '0.0.0', 'cql': 'unknown', 'thrift': thrift_ver}
-        return vers
 
     def fetchdict(self):
         row = self.cursor.fetchone()
@@ -615,10 +581,16 @@ class Shell(cmd.Cmd):
         raise ColumnFamilyNotFound("Unconfigured column family %r" % (cfname,))
 
     def get_columnfamily_names(self, ksname=None):
-        if self.cqlver_atleast(3) and not self.is_cql3_beta():
-            return self.get_columnfamily_names_cql3(ksname=ksname)
-        return [c.name for c in self.get_columnfamilies(ksname)]
+        if ksname is None:
+            ksname = self.current_keyspace
+        cf_q = """select columnfamily_name from system.schema_columnfamilies
+                   where keyspace_name=:ks"""
+        self.cursor.execute(cf_q,
+                            {'ks': self.cql_unprotect_name(ksname)},
+                            consistency_level='ONE')
+        return [str(row[0]) for row in self.cursor.fetchall()]
 
+    # TODO: FIXME
     def get_index_names(self, ksname=None):
         indnames = []
         for c in self.get_columnfamilies(ksname):
@@ -627,35 +599,11 @@ class Shell(cmd.Cmd):
                     indnames.append(md.index_name)
         return indnames
 
-    def filterable_column_names(self, cfdef):
-        filterable = set()
-        if cfdef.key_alias is not None and cfdef.key_alias != 'KEY':
-            filterable.add(cfdef.key_alias)
-        else:
-            filterable.add('KEY')
-        for cm in cfdef.column_metadata:
-            if cm.index_name is not None:
-                filterable.add(cm.name)
-        return filterable
-
     def get_column_names(self, ksname, cfname):
         if ksname is None:
             ksname = self.current_keyspace
-        if self.cqlver_atleast(3) and not (self.is_cql3_beta() and ksname in SYSTEM_KEYSPACES):
-            return self.get_column_names_from_layout(ksname, cfname)
-        else:
-            return self.get_column_names_from_cfdef(ksname, cfname)
-
-    def get_column_names_from_layout(self, ksname, cfname):
         layout = self.get_columnfamily_layout(ksname, cfname)
         return [col.name for col in layout.columns]
-
-    def get_column_names_from_cfdef(self, ksname, cfname):
-        cfdef = self.get_columnfamily(cfname, ksname=ksname)
-        key_alias = cfdef.key_alias
-        if key_alias is None:
-            key_alias = 'KEY'
-        return [key_alias] + sorted([cm.name for cm in cfdef.column_metadata])
 
     # ===== thrift-dependent parts =====
 
@@ -705,33 +653,13 @@ class Shell(cmd.Cmd):
 
     # ===== cql3-dependent parts =====
 
-    def get_columnfamily_names_cql3(self, ksname=None):
-        if ksname is None:
-            ksname = self.current_keyspace
-        if self.cassandraver_atleast(1, 2):
-            cf_q = """select columnfamily_name from system.schema_columnfamilies
-                       where keyspace_name=:ks"""
-        else:
-            cf_q = """select "columnfamily" from system.schema_columnfamilies
-                       where "keyspace"=:ks"""
-        self.cursor.execute(cf_q,
-                            {'ks': self.cql_unprotect_name(ksname)},
-                            consistency_level='ONE')
-        return [str(row[0]) for row in self.cursor.fetchall()]
-
     def get_columnfamily_layout(self, ksname, cfname):
         if ksname is None:
             ksname = self.current_keyspace
-        if self.cassandraver_atleast(1, 2):
-            cf_q = """select * from system.schema_columnfamilies
-                       where keyspace_name=:ks and columnfamily_name=:cf"""
-            col_q = """select * from system.schema_columns
-                        where keyspace_name=:ks and columnfamily_name=:cf"""
-        else:
-            cf_q = """select * from system.schema_columnfamilies
-                       where "keyspace"=:ks and "columnfamily"=:cf"""
-            col_q = """select * from system.schema_columns
-                        where "keyspace"=:ks and "columnfamily"=:cf"""
+        cf_q = """select * from system.schema_columnfamilies
+                   where keyspace_name=:ks and columnfamily_name=:cf"""
+        col_q = """select * from system.schema_columns
+                    where keyspace_name=:ks and columnfamily_name=:cf"""
         self.cursor.execute(cf_q,
                             {'ks': ksname, 'cf': cfname},
                             consistency_level='ONE')
@@ -975,17 +903,6 @@ class Shell(cmd.Cmd):
         self.flush_output()
         return True
 
-    # these next two functions are not guaranteed perfect; just checks if the
-    # statement parses fully according to cqlsh's own understanding of the
-    # grammar. Changes to the language in Cassandra frequently don't get
-    # updated in cqlsh right away.
-
-    def parseable_as_cql3(self, statement):
-        return cql3handling.CqlRuleSet.lex_and_whole_match(statement) is not None
-
-    def parseable_as_cql2(self, statement):
-        return cqlhandling.CqlRuleSet.lex_and_whole_match(statement) is not None
-
     def get_nametype(self, cursor, num):
         """
         Determine the Cassandra type of a column name from the current row of
@@ -997,26 +914,11 @@ class Shell(cmd.Cmd):
 
         return cursor.name_info[num][1]
 
-    def has_static_result_set(self, cursor):
-        if self.cqlver_atleast(3):
-            return True  # all cql3 resultsets are static, don't bother scanning
-        last_description = None
-        for row in cursor:
-            if last_description is not None and cursor.description != last_description:
-                cursor._reset()
-                return False
-            last_description = cursor.description
-        cursor._reset()
-        return True
-
     def print_result(self, cursor, with_default_limit):
         self.decoding_errors = []
 
         self.writeresult("")
-        if self.has_static_result_set(cursor):
-            self.print_static_result(cursor)
-        else:
-            self.print_dynamic_result(cursor)
+        self.print_static_result(cursor)
         self.writeresult("")
 
         if self.decoding_errors:
@@ -1062,15 +964,6 @@ class Shell(cmd.Cmd):
         # print row data
         for row in formatted_values:
             line = ' | '.join(col.rjust(w, color=self.color) for (col, w) in zip(row, widths))
-            self.writeresult(' ' + line)
-
-    def print_dynamic_result(self, cursor):
-        for row in cursor:
-            colnames = [d[0] for d in cursor.description]
-            colnames_t = [(name, self.get_nametype(cursor, n)) for (n, name) in enumerate(colnames)]
-            colnames = [self.myformat_colname(name, nametype) for (name, nametype) in colnames_t]
-            colvals = map(self.myformat_value, row, cursor.column_types)
-            line = ' | '.join('%s,%s' % (n.coloredval, v.coloredval) for (n, v) in zip(colnames, colvals))
             self.writeresult(' ' + line)
 
     def emptyline(self):
@@ -1133,20 +1026,14 @@ class Shell(cmd.Cmd):
     def print_recreate_keyspace(self, ksdef, out):
         stratclass = trim_if_present(ksdef.strategy_class, 'org.apache.cassandra.locator.')
         ksname = self.cql_protect_name(ksdef.name)
-        if self.cqlver_atleast(3) and not self.is_cql3_beta():
-            out.write("CREATE KEYSPACE %s WITH replication = {\n" % ksname)
-            out.write("  'class': %s" % self.cql_protect_value(stratclass))
-            for opname, opval in ksdef.strategy_options.iteritems():
-                out.write(",\n  %s: %s" % (self.cql_protect_value(opname),
-                                           self.cql_protect_value(opval)))
-            out.write("\n}")
-            if not ksdef.durable_writes:
-                out.write(" AND durable_writes = 'false'")
-        else:
-            out.write("CREATE KEYSPACE %s WITH strategy_class = %s"
-                       % (ksname, self.cql_protect_value(stratclass)))
-            for opname, opval in ksdef.strategy_options.iteritems():
-                out.write("\n  AND strategy_options:%s = %s" % (opname, self.cql_protect_value(opval)))
+        out.write("CREATE KEYSPACE %s WITH replication = {\n" % ksname)
+        out.write("  'class': %s" % self.cql_protect_value(stratclass))
+        for opname, opval in ksdef.strategy_options.iteritems():
+            out.write(",\n  %s: %s" % (self.cql_protect_value(opname),
+                                       self.cql_protect_value(opval)))
+        out.write("\n}")
+        if not ksdef.durable_writes:
+            out.write(" AND durable_writes = 'false'")
         out.write(';\n')
 
         cfs = self.get_columnfamily_names(ksname)
@@ -1160,78 +1047,11 @@ class Shell(cmd.Cmd):
     def print_recreate_columnfamily(self, ksname, cfname, out):
         """
         Output CQL commands which should be pasteable back into a CQL session
-        to recreate the given table. Can change based on CQL version in use;
-        CQL 3 syntax will not be output when in CQL 2 mode, and properties
-        which are deprecated with CQL 3 use (like default_validation) will not
-        be output when in CQL 3 mode.
+        to recreate the given table.
 
         Writes output to the given out stream.
         """
-
-        # no metainfo available from system.schema_* for system CFs, so we have
-        # to use cfdef-based description for those.
-        if self.cqlver_atleast(3) and not (self.is_cql3_beta() and ksname in SYSTEM_KEYSPACES):
-            try:
-                layout = self.get_columnfamily_layout(ksname, cfname)
-            except CQL_ERRORS:
-                # most likely a 1.1 beta where cql3 is supported, but not system.schema_*
-                if self.debug:
-                    print 'warning: failed to use system.schema_* tables to describe cf'
-                    import traceback
-                    traceback.print_exc()
-            else:
-                return self.print_recreate_columnfamily_from_layout(layout, out)
-
-        cfdef = self.get_columnfamily(cfname, ksname=ksname)
-        return self.print_recreate_columnfamily_from_cfdef(cfdef, out)
-
-    def print_recreate_columnfamily_from_cfdef(self, cfdef, out):
-        cfname = self.cql_protect_name(cfdef.name)
-        out.write("CREATE TABLE %s (\n" % cfname)
-        alias = self.cql_protect_name(cfdef.key_alias) if cfdef.key_alias else 'KEY'
-        keytype = cql_typename(cfdef.key_validation_class)
-        out.write("  %s %s PRIMARY KEY" % (alias, keytype))
-        indexed_columns = []
-        for col in cfdef.column_metadata:
-            colname = self.cql_protect_name(col.name)
-            out.write(",\n  %s %s" % (colname, cql_typename(col.validation_class)))
-            if col.index_name is not None:
-                indexed_columns.append(col)
-        cf_opts = []
-        for (option, thriftname) in cqlruleset.columnfamily_options:
-            optval = getattr(cfdef, thriftname or option, None)
-            if optval is None:
-                continue
-            if option in ('comparator', 'default_validation'):
-                optval = cql_typename(optval)
-            else:
-                if option == 'row_cache_provider':
-                    optval = trim_if_present(optval, 'org.apache.cassandra.cache.')
-                elif option == 'compaction_strategy_class':
-                    optval = trim_if_present(optval, 'org.apache.cassandra.db.compaction.')
-                optval = self.cql_protect_value(optval)
-            cf_opts.append((option, optval))
-        for option, thriftname, _ in cqlruleset.columnfamily_map_options:
-            optmap = getattr(cfdef, thriftname or option, {})
-            for k, v in optmap.items():
-                if option == 'compression_parameters' and k == 'sstable_compression':
-                    v = trim_if_present(v, 'org.apache.cassandra.io.compress.')
-                cf_opts.append(('%s:%s' % (option, k), self.cql_protect_value(v)))
-        out.write('\n)')
-        if cf_opts:
-            joiner = 'WITH'
-            for optname, optval in cf_opts:
-                out.write(" %s\n  %s=%s" % (joiner, optname, optval))
-                joiner = 'AND'
-        out.write(";\n")
-
-        for col in indexed_columns:
-            out.write('\n')
-            # guess CQL can't represent index_type or index_options
-            out.write('CREATE INDEX %s ON %s (%s);\n'
-                         % (col.index_name, cfname, self.cql_protect_name(col.name)))
-
-    def print_recreate_columnfamily_from_layout(self, layout, out):
+        layout = self.get_columnfamily_layout(ksname, cfname)
         cfname = self.cql_protect_name(layout.name)
         out.write("CREATE TABLE %s (\n" % cfname)
         keycol = layout.columns[0]
@@ -1327,12 +1147,8 @@ class Shell(cmd.Cmd):
             if layoutoption == 'compaction_strategy_options':
                 optmap['class'] = compaction_strategy
 
-            if self.cqlver_atleast(3) and not self.is_cql3_beta():
-                cf_opts.append((cql3option, optmap))
-            else:
-                for k, v in optmap.items():
-                    cf_opts.append(('%s:%s' % (cql3option, k.encode('ascii')),
-                                    self.cql_protect_value(v)))
+            cf_opts.append((cql3option, optmap))
+
         if cf_opts:
             for optname, optval in cf_opts:
                 if isinstance(optval, dict):
@@ -1498,10 +1314,6 @@ class Shell(cmd.Cmd):
         When entering CSV data on STDIN, you can use the sequence "\."
         on a line by itself to end the data input.
         """
-        if not self.cqlver_atleast(3):
-            self.printerr('COPY requires CQL version 3.0.0 or higher.')
-            return
-
         ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
         if ks is None:
             ks = self.current_keyspace
@@ -1823,10 +1635,6 @@ class Shell(cmd.Cmd):
 
           TRACING with no arguments shows the current tracing status.
         """
-        if not self.cqlver_atleast(3):
-            self.printerr('Tracing requires CQL version 3.0.0 or higher.')
-            return
-
         switch = parsed.get_binding('switch')
         if switch is None:
             if self.tracing_enabled:
@@ -1853,7 +1661,7 @@ class Shell(cmd.Cmd):
 
     def do_consistency(self, parsed):
         """
-        CONSISTENCY [cqlsh with CQL3 only]
+        CONSISTENCY [cqlsh only]
 
            Overrides default consistency level (default level is ONE).
 
@@ -1869,10 +1677,6 @@ class Shell(cmd.Cmd):
 
            CONSISTENCY with no arguments shows the current consistency level.
         """
-        if not self.cqlver_atleast(3):
-            self.printerr('CONSISTENCY requires CQL version 3.0.0 or higher.')
-            return
-
         level = parsed.get_binding('level')
         if level is None:
             print 'Current consistency level is %s.' % (self.cursor.consistency_level,)
@@ -2052,7 +1856,7 @@ def read_options(cmdlineargs, environment):
 
     options.cqlversion, cqlvertup = full_cql_version(options.cqlversion)
     if cqlvertup[0] < 3:
-        options.cqlmodule = cqlhandling
+        parser.error('%r is not a supported CQL version.' % options.cqlversion)
     else:
         options.cqlmodule = cql3handling
 
