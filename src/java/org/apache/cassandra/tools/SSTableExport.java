@@ -401,7 +401,7 @@ public class SSTableExport
         Descriptor descriptor = Descriptor.fromFilename(ssTableFileName);
         if (Schema.instance.getCFMetaData(descriptor) == null)
         {
-            System.err.println(String.format("The provided column family is not part of this cassandra database: keysapce = %s, column family = %s",
+            System.err.println(String.format("The provided column family is not part of this cassandra database: keyspace = %s, column family = %s",
                                              descriptor.ksname, descriptor.cfname));
             System.exit(1);
         }
