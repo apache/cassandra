@@ -62,6 +62,16 @@ public class CassandraDaemon
         initLog4j();
     }
 
+    // Have a dedicated thread to call exit to avoid deadlock in the case where the thread that wants to invoke exit
+    // belongs to an executor that our shutdown hook wants to wait to exit gracefully. See CASSANDRA-5273.
+    private static final Thread exitThread = new Thread(new Runnable()
+    {
+        public void run()
+        {
+            System.exit(100);
+        }
+    }, "Exit invoker");
+
     /**
      * Initialize logging in such a way that it checks for config changes every 10 seconds.
      */
@@ -182,7 +192,7 @@ public class CassandraDaemon
                 {
                     // some code, like FileChannel.map, will wrap an OutOfMemoryError in another exception
                     if (e2 instanceof OutOfMemoryError)
-                        System.exit(100);
+                        exitThread.start();
 
                     if (e2 instanceof FSError)
                     {
