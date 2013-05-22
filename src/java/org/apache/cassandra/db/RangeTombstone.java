@@ -96,7 +96,6 @@ public class RangeTombstone extends Interval<ByteBuffer, DeletionTime> implement
         try
         {
             buffer.writeLong(data.markedForDeleteAt);
-            buffer.writeInt(data.localDeletionTime);
         }
         catch (IOException e)
         {
