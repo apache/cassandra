@@ -763,7 +763,22 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         if (dcMessages != null)
-            sendMessages(localDataCenter, dcMessages, responseHandler);
+        {
+            // for each datacenter, send a message to one node to relay the write to other replicas
+            for (Map.Entry<String, Multimap<MessageOut, InetAddress>> entry: dcMessages.entrySet())
+            {
+                boolean isLocalDC = entry.getKey().equals(localDataCenter);
+                for (Map.Entry<MessageOut, Collection<InetAddress>> messages: entry.getValue().asMap().entrySet())
+                {
+                    MessageOut message = messages.getKey();
+                    Collection<InetAddress> targets1 = messages.getValue();
+                    // a single message object is used for unhinted writes, so clean out any forwards
+                    // from previous loop iterations
+                    message = message.withHeaderRemoved(RowMutation.FORWARD_TO);
+                    sendMessagesToOneDC(message, targets1, isLocalDC, responseHandler);
+                }
+            }
+        }
     }
 
     public static Future<Void> submitHint(final RowMutation mutation,
@@ -811,26 +826,6 @@ public class StorageProxy implements StorageProxyMBean
         assert hostId != null : "Missing host ID for " + target.getHostAddress();
         HintedHandOffManager.hintFor(mutation, ttl, hostId).apply();
         totalHints.incrementAndGet();
-    }
-
-    /**
-     * for each datacenter, send a message to one node to relay the write to other replicas
-     */
-    private static void sendMessages(String localDataCenter, Map<String, Multimap<MessageOut, InetAddress>> dcMessages, AbstractWriteResponseHandler handler)
-    {
-        for (Map.Entry<String, Multimap<MessageOut, InetAddress>> entry: dcMessages.entrySet())
-        {
-            boolean isLocalDC = entry.getKey().equals(localDataCenter);
-            for (Map.Entry<MessageOut, Collection<InetAddress>> messages: entry.getValue().asMap().entrySet())
-            {
-                MessageOut message = messages.getKey();
-                Collection<InetAddress> targets = messages.getValue();
-                // a single message object is used for unhinted writes, so clean out any forwards
-                // from previous loop iterations
-                message = message.withHeaderRemoved(RowMutation.FORWARD_TO);
-                sendMessagesToOneDC(message, targets, isLocalDC, handler);
-            }
-        }
     }
 
     private static void sendMessagesToOneDC(MessageOut message, Collection<InetAddress> targets, boolean localDC, AbstractWriteResponseHandler handler)
