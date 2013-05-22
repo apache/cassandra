@@ -83,7 +83,7 @@ public class MessageOut<T>
         return new MessageOut<T>(verb, payload, serializer, builder.build());
     }
     
-    public MessageOut withHeaderRemoved(String key)
+    public MessageOut<T> withHeaderRemoved(String key)
     {
         ImmutableMap.Builder<String, byte[]> builder = ImmutableMap.builder();
         for (Map.Entry<String, byte[]> entry : parameters.entrySet())

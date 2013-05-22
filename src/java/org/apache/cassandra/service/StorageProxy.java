@@ -711,8 +711,8 @@ public class StorageProxy implements StorageProxyMBean
                                              ConsistencyLevel consistency_level)
     throws OverloadedException
     {
-        // Multimap that holds onto all the messages and addresses meant for a specific datacenter
-        Map<String, Multimap<MessageOut, InetAddress>> dcMessages = null;
+        // replicas grouped by datacenter
+        Map<String, Collection<InetAddress>> dcGroups = null;
 
         for (InetAddress destination : targets)
         {
@@ -736,20 +736,17 @@ public class StorageProxy implements StorageProxyMBean
                 else
                 {
                     // belongs on a different server
-                    if (logger.isTraceEnabled())
-                        logger.trace("insert writing key " + ByteBufferUtil.bytesToHex(rm.key()) + " to " + destination);
-
                     String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination);
-                    Multimap<MessageOut, InetAddress> messages = (dcMessages != null) ? dcMessages.get(dc) : null;
+                    Collection<InetAddress> messages = (dcGroups != null) ? dcGroups.get(dc) : null;
                     if (messages == null)
                     {
-                        messages = HashMultimap.create();
-                        if (dcMessages == null)
-                            dcMessages = new HashMap<String, Multimap<MessageOut, InetAddress>>();
-                        dcMessages.put(dc, messages);
+                        messages = new ArrayList<InetAddress>(3); // most DCs will have <= 3 replicas
+                        if (dcGroups == null)
+                            dcGroups = new HashMap<String, Collection<InetAddress>>();
+                        dcGroups.put(dc, messages);
                     }
 
-                    messages.put(rm.createMessage(), destination);
+                    messages.add(destination);
                 }
             }
             else
@@ -762,21 +759,18 @@ public class StorageProxy implements StorageProxyMBean
             }
         }
 
-        if (dcMessages != null)
+        if (dcGroups != null)
         {
-            // for each datacenter, send a message to one node to relay the write to other replicas
-            for (Map.Entry<String, Multimap<MessageOut, InetAddress>> entry: dcMessages.entrySet())
+            MessageOut<RowMutation> message = rm.createMessage();
+            // for each datacenter, send the message to one node to relay the write to other replicas
+            for (Map.Entry<String, Collection<InetAddress>> entry: dcGroups.entrySet())
             {
                 boolean isLocalDC = entry.getKey().equals(localDataCenter);
-                for (Map.Entry<MessageOut, Collection<InetAddress>> messages: entry.getValue().asMap().entrySet())
-                {
-                    MessageOut message = messages.getKey();
-                    Collection<InetAddress> targets1 = messages.getValue();
-                    // a single message object is used for unhinted writes, so clean out any forwards
-                    // from previous loop iterations
-                    message = message.withHeaderRemoved(RowMutation.FORWARD_TO);
-                    sendMessagesToOneDC(message, targets1, isLocalDC, responseHandler);
-                }
+                Collection<InetAddress> dcTargets = entry.getValue();
+                // a single message object is used for unhinted writes, so clean out any forwards
+                // from previous loop iterations
+                message = message.withHeaderRemoved(RowMutation.FORWARD_TO);
+                sendMessagesToOneDC(message, dcTargets, isLocalDC, responseHandler);
             }
         }
     }
