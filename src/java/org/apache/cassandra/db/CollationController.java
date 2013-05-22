@@ -41,20 +41,15 @@ public class CollationController
 
     private final ColumnFamilyStore cfs;
     private final QueryFilter filter;
-    private final ColumnFamily.Factory factory;
     private final int gcBefore;
 
     private int sstablesIterated = 0;
 
-    public CollationController(ColumnFamilyStore cfs, boolean mutableColumns, QueryFilter filter, int gcBefore)
+    public CollationController(ColumnFamilyStore cfs, QueryFilter filter, int gcBefore)
     {
         this.cfs = cfs;
         this.filter = filter;
         this.gcBefore = gcBefore;
-
-        this.factory = mutableColumns
-                     ? AtomicSortedColumns.factory
-                     : ArrayBackedSortedColumns.factory;
     }
 
     public ColumnFamily getTopLevelColumns()
@@ -73,7 +68,7 @@ public class CollationController
     private ColumnFamily collectTimeOrderedData()
     {
         logger.trace("collectTimeOrderedData");
-        final ColumnFamily container = factory.create(cfs.metadata, filter.filter.isReversed());
+        final ColumnFamily container = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());
         List<OnDiskAtomIterator> iterators = new ArrayList<OnDiskAtomIterator>();
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
@@ -223,7 +218,7 @@ public class CollationController
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
         List<OnDiskAtomIterator> iterators = new ArrayList<OnDiskAtomIterator>(Iterables.size(view.memtables) + view.sstables.size());
-        ColumnFamily returnCF = factory.create(cfs.metadata, filter.filter.isReversed());
+        ColumnFamily returnCF = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());
 
         try
         {

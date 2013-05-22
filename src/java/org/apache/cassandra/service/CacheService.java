@@ -130,14 +130,12 @@ public class CacheService implements CacheServiceMBean
      */
     private AutoSavingCache<RowCacheKey, IRowCacheEntry> initRowCache()
     {
-        logger.info("Initializing row cache with capacity of {} MBs and provider {}",
-                    DatabaseDescriptor.getRowCacheSizeInMB(),
-                    DatabaseDescriptor.getRowCacheProvider().getClass().getName());
+        logger.info("Initializing row cache with capacity of {} MBs", DatabaseDescriptor.getRowCacheSizeInMB());
 
         long rowCacheInMemoryCapacity = DatabaseDescriptor.getRowCacheSizeInMB() * 1024 * 1024;
 
         // cache object
-        ICache<RowCacheKey, IRowCacheEntry> rc = DatabaseDescriptor.getRowCacheProvider().create(rowCacheInMemoryCapacity);
+        ICache<RowCacheKey, IRowCacheEntry> rc = new SerializingCacheProvider().create(rowCacheInMemoryCapacity);
         AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache = new AutoSavingCache<RowCacheKey, IRowCacheEntry>(rc, CacheType.ROW_CACHE, new RowCacheSerializer());
 
         int rowCacheKeysToSave = DatabaseDescriptor.getRowCacheKeysToSave();
@@ -302,7 +300,7 @@ public class CacheService implements CacheServiceMBean
                 public Pair<RowCacheKey, IRowCacheEntry> call() throws Exception
                 {
                     DecoratedKey key = cfs.partitioner.decorateKey(buffer);
-                    ColumnFamily data = cfs.getTopLevelColumns(QueryFilter.getIdentityFilter(key, cfs.name), Integer.MIN_VALUE, true);
+                    ColumnFamily data = cfs.getTopLevelColumns(QueryFilter.getIdentityFilter(key, cfs.name), Integer.MIN_VALUE);
                     return Pair.create(new RowCacheKey(cfs.metadata.cfId, key), (IRowCacheEntry) data);
                 }
             });
@@ -313,7 +311,7 @@ public class CacheService implements CacheServiceMBean
             for (ByteBuffer key : buffers)
             {
                 DecoratedKey dk = cfs.partitioner.decorateKey(key);
-                ColumnFamily data = cfs.getTopLevelColumns(QueryFilter.getIdentityFilter(dk, cfs.name), Integer.MIN_VALUE, true);
+                ColumnFamily data = cfs.getTopLevelColumns(QueryFilter.getIdentityFilter(dk, cfs.name), Integer.MIN_VALUE);
                 if (data != null)
                     rowCache.put(new RowCacheKey(cfs.metadata.cfId, dk), data);
             }

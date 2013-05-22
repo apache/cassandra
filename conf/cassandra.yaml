@@ -170,24 +170,6 @@ row_cache_save_period: 0
 # Disabled by default, meaning all keys are going to be saved
 # row_cache_keys_to_save: 100
 
-# The provider for the row cache to use.
-#
-# Supported values are: ConcurrentLinkedHashCacheProvider, SerializingCacheProvider
-#
-# SerializingCacheProvider serialises the contents of the row and stores
-# it in native memory, i.e., off the JVM Heap. Serialized rows take
-# significantly less memory than "live" rows in the JVM, so you can cache
-# more rows in a given memory footprint.  And storing the cache off-heap
-# means you can use smaller heap sizes, reducing the impact of GC pauses.
-# Note however that when a row is requested from the row cache, it must be
-# deserialized into the heap for use.
-#
-# It is also valid to specify the fully-qualified class name to a class
-# that implements org.apache.cassandra.cache.IRowCacheProvider.
-#
-# Defaults to SerializingCacheProvider
-row_cache_provider: SerializingCacheProvider
-
 # The off-heap memory allocator.  Affects storage engine metadata as
 # well as caches.  Experiments show that JEMAlloc saves some memory
 # than the native GCC allocator (i.e., JEMalloc is more

@@ -808,29 +808,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         FBUtilities.waitOnFuture(forceFlush());
     }
 
-    public void maybeUpdateRowCache(DecoratedKey key, ColumnFamily columnFamily)
+    public void maybeUpdateRowCache(DecoratedKey key)
     {
         if (!isRowCacheEnabled())
             return;
 
         RowCacheKey cacheKey = new RowCacheKey(metadata.cfId, key);
-
-        // always invalidate a copying cache value
-        if (CacheService.instance.rowCache.isPutCopying())
-        {
-            invalidateCachedRow(cacheKey);
-            return;
-        }
-
-        // invalidate a normal cache value if it's a sentinel, so the read will retry (and include the new update)
-        IRowCacheEntry cachedRow = CacheService.instance.rowCache.getInternal(cacheKey);
-        if (cachedRow != null)
-        {
-            if (cachedRow instanceof RowCacheSentinel)
-                invalidateCachedRow(cacheKey);
-            else
-                ((ColumnFamily) cachedRow).addAll(columnFamily, HeapAllocator.instance);
-        }
+        invalidateCachedRow(cacheKey);
     }
 
     /**
@@ -846,7 +830,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         Memtable mt = getMemtableThreadSafe();
         mt.put(key, columnFamily, indexer);
-        maybeUpdateRowCache(key, columnFamily);
+        maybeUpdateRowCache(key);
         metric.writeLatency.addNano(System.nanoTime() - start);
 
         // recompute liveRatio, if we have doubled the number of ops since last calculated
@@ -1239,7 +1223,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 // Some other read is trying to cache the value, just do a normal non-caching read
                 Tracing.trace("Row cache miss (race)");
-                return getTopLevelColumns(filter, Integer.MIN_VALUE, false);
+                return getTopLevelColumns(filter, Integer.MIN_VALUE);
             }
             Tracing.trace("Row cache hit");
             return (ColumnFamily) cached;
@@ -1251,9 +1235,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         try
         {
-            ColumnFamily data = getTopLevelColumns(QueryFilter.getIdentityFilter(filter.key, name),
-                                                   Integer.MIN_VALUE,
-                                                   true);
+            ColumnFamily data = getTopLevelColumns(QueryFilter.getIdentityFilter(filter.key, name), Integer.MIN_VALUE);
             if (sentinelSuccess && data != null)
                 CacheService.instance.rowCache.replace(key, sentinel, data);
 
@@ -1295,7 +1277,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             else
             {
-                ColumnFamily cf = getTopLevelColumns(filter, gcBefore, false);
+                ColumnFamily cf = getTopLevelColumns(filter, gcBefore);
 
                 if (cf == null)
                     return null;
@@ -1462,13 +1444,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore, boolean forCache)
+    public ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore)
     {
         Tracing.trace("Executing single-partition query on {}", name);
-        CollationController controller = new CollationController(this,
-                                                                 forCache && !CacheService.instance.rowCache.isPutCopying(),
-                                                                 filter,
-                                                                 gcBefore);
+        CollationController controller = new CollationController(this, filter, gcBefore);
         ColumnFamily columns = controller.getTopLevelColumns();
         metric.updateSSTableIterated(controller.getSstablesIterated());
         return columns;
@@ -1727,8 +1706,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public ColumnFamily getRawCachedRow(DecoratedKey key)
     {
-        if (!isRowCacheEnabled() || metadata.cfId == null)
-            return null; // secondary index
+        if (!isRowCacheEnabled())
+            return null;
 
         IRowCacheEntry cached = CacheService.instance.rowCache.getInternal(new RowCacheKey(metadata.cfId, key));
         return cached == null || cached instanceof RowCacheSentinel ? null : (ColumnFamily) cached;

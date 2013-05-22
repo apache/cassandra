@@ -130,9 +130,4 @@ public class ConcurrentLinkedHashCache<K extends IMeasurableMemory, V extends IM
     {
         return map.containsKey(key);
     }
-
-    public boolean isPutCopying()
-    {
-        return false;
-    }
 }

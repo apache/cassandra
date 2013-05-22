@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.config;
 
-import org.apache.cassandra.cache.SerializingCacheProvider;
 import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.io.util.NativeAllocator;
@@ -164,7 +163,6 @@ public class Config
     public long row_cache_size_in_mb = 0;
     public volatile int row_cache_save_period = 0;
     public int row_cache_keys_to_save = Integer.MAX_VALUE;
-    public String row_cache_provider = SerializingCacheProvider.class.getSimpleName();
     public String memory_allocator = NativeAllocator.class.getSimpleName();
     public boolean populate_io_cache_on_flush = false;
 

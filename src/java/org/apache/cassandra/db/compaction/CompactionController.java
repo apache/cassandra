@@ -177,20 +177,6 @@ public class CompactionController
         cfs.invalidateCachedRow(key);
     }
 
-    public void removeDeletedInCache(DecoratedKey key)
-    {
-        // For the copying cache, we'd need to re-serialize the updated cachedRow, which would be racy
-        // vs other updates.  We'll just ignore it instead, since the next update to this row will invalidate it
-        // anyway, so the odds of a "tombstones consuming memory indefinitely" problem are minimal.
-        // See https://issues.apache.org/jira/browse/CASSANDRA-3921 for more discussion.
-        if (CacheService.instance.rowCache.isPutCopying())
-            return;
-
-        ColumnFamily cachedRow = cfs.getRawCachedRow(key);
-        if (cachedRow != null)
-            ColumnFamilyStore.removeDeleted(cachedRow, gcBefore);
-    }
-
     /**
      * @return an AbstractCompactedRow implementation to write the merged rows in question.
      *

@@ -165,9 +165,6 @@ public class CompactionTask extends AbstractCompactionTask
                     continue;
                 }
 
-                // If the row is cached, we call removeDeleted on at read time it to have coherent query returns,
-                // but if the row is not pushed out of the cache, obsolete tombstones will persist indefinitely.
-                controller.removeDeletedInCache(row.key);
                 totalkeysWritten++;
 
                 if (DatabaseDescriptor.getPreheatKeyCache())

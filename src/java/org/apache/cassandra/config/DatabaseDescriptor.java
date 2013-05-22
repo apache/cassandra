@@ -30,7 +30,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.*;
-import org.apache.cassandra.cache.IRowCacheProvider;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
@@ -79,7 +78,6 @@ public class DatabaseDescriptor
     private static RequestSchedulerOptions requestSchedulerOptions;
 
     private static long keyCacheSizeInMB;
-    private static IRowCacheProvider rowCacheProvider;
     private static IAllocator memoryAllocator;
 
     private static String localDC;
@@ -428,7 +426,6 @@ public class DatabaseDescriptor
                     + conf.key_cache_size_in_mb + "', supported values are <integer> >= 0.");
         }
 
-        rowCacheProvider = FBUtilities.newCacheProvider(conf.row_cache_provider);
         memoryAllocator = FBUtilities.newOffHeapAllocator(conf.memory_allocator);
 
         if(conf.encryption_options != null)
@@ -1164,11 +1161,6 @@ public class DatabaseDescriptor
     public static int getRowCacheKeysToSave()
     {
         return conf.row_cache_keys_to_save;
-    }
-
-    public static IRowCacheProvider getRowCacheProvider()
-    {
-        return rowCacheProvider;
     }
 
     public static IAllocator getoffHeapMemoryAllocator()

@@ -26,7 +26,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.net.MessagingService;
 
-public class SerializingCacheProvider implements IRowCacheProvider
+public class SerializingCacheProvider
 {
     public ICache<RowCacheKey, IRowCacheEntry> create(long capacity)
     {

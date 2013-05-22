@@ -249,9 +249,4 @@ public class SerializingCache<K, V> implements ICache<K, V>
     {
         return map.containsKey(key);
     }
-
-    public boolean isPutCopying()
-    {
-        return true;
-    }
 }

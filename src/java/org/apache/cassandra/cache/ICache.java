@@ -51,10 +51,4 @@ public interface ICache<K, V>
     public Set<K> hotKeySet(int n);
 
     public boolean containsKey(K key);
-
-    /**
-     * @return true if the cache implementation inherently copies the cached values; otherwise,
-     * the caller should copy manually before caching shared values like Thrift ByteBuffers.
-     */
-    public boolean isPutCopying();
 }

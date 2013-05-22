@@ -125,11 +125,6 @@ public class InstrumentingCache<K, V>
         return map.containsKey(key);
     }
 
-    public boolean isPutCopying()
-    {
-        return map.isPutCopying();
-    }
-
     public CacheMetrics getMetrics()
     {
         return metrics;

@@ -26,10 +26,8 @@ import javax.management.ObjectName;
 
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.cache.AutoSavingCache;
-import org.apache.cassandra.cache.IRowCacheEntry;
-import org.apache.cassandra.cache.KeyCacheKey;
-import org.apache.cassandra.cache.RowCacheKey;
+import org.apache.cassandra.cache.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -92,18 +90,19 @@ public class StatusLogger
         int keyCacheKeysToSave = DatabaseDescriptor.getKeyCacheKeysToSave();
         int rowCacheKeysToSave = DatabaseDescriptor.getRowCacheKeysToSave();
 
-        logger.info(String.format("%-25s%10s%25s%25s%65s", "Cache Type", "Size", "Capacity", "KeysToSave", "Provider"));
-        logger.info(String.format("%-25s%10s%25s%25s%65s", "KeyCache",
-                                                           keyCache.weightedSize(),
-                                                           keyCache.getCapacity(),
-                                                           keyCacheKeysToSave == Integer.MAX_VALUE ? "all" : keyCacheKeysToSave,
-                                                           ""));
+        logger.info(String.format("%-25s%10s%25s%25s",
+                                  "Cache Type", "Size", "Capacity", "KeysToSave"));
+        logger.info(String.format("%-25s%10s%25s%25s",
+                                  "KeyCache",
+                                  keyCache.weightedSize(),
+                                  keyCache.getCapacity(),
+                                  keyCacheKeysToSave == Integer.MAX_VALUE ? "all" : keyCacheKeysToSave));
 
-        logger.info(String.format("%-25s%10s%25s%25s%65s", "RowCache",
-                                                           rowCache.weightedSize(),
-                                                           rowCache.getCapacity(),
-                                                           rowCacheKeysToSave == Integer.MAX_VALUE ? "all" : rowCacheKeysToSave,
-                                                           DatabaseDescriptor.getRowCacheProvider().getClass().getName()));
+        logger.info(String.format("%-25s%10s%25s%25s",
+                                  "RowCache",
+                                  rowCache.weightedSize(),
+                                  rowCache.getCapacity(),
+                                  rowCacheKeysToSave == Integer.MAX_VALUE ? "all" : rowCacheKeysToSave));
 
         // per-CF stats
         logger.info(String.format("%-25s%20s", "ColumnFamily", "Memtable ops,data"));
