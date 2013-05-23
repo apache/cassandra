@@ -40,8 +40,6 @@ import org.apache.cassandra.transport.messages.ResultMessage;
  */
 public abstract class ModificationStatement extends CFStatement implements CQLStatement
 {
-    public static final ConsistencyLevel defaultConsistency = ConsistencyLevel.ONE;
-
     public static enum Type
     {
         LOGGED, UNLOGGED, COUNTER
