@@ -79,7 +79,8 @@ public class CommitLogReplayer
             ReplayPosition rp = ReplayPosition.getReplayPosition(cfs.getSSTables());
 
             // but, if we've truncted the cf in question, then we need to need to start replay after the truncation
-            ReplayPosition truncatedAt = truncationPositions.get(cfs.metadata.cfId).left;
+            Pair<ReplayPosition, Long> truncateRecord = truncationPositions.get(cfs.metadata.cfId);
+            ReplayPosition truncatedAt = truncateRecord == null ? null : truncateRecord.left;
             if (truncatedAt != null)
                 rp = replayPositionOrdering.max(Arrays.asList(rp, truncatedAt));
 
