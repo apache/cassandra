@@ -199,7 +199,7 @@ public class SystemTable
      */
     public static void removeTruncationRecord(UUID cfId)
     {
-        String req = "DELETE truncation_time['%s'] from system.%s WHERE key = '%s'";
+        String req = "DELETE truncated_at['%s'] from system.%s WHERE key = '%s'";
         processInternal(String.format(req, cfId, LOCAL_CF, LOCAL_KEY));
         forceBlockingFlush(LOCAL_CF);
     }
