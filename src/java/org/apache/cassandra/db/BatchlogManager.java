@@ -122,8 +122,8 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(CFMetaData.BatchlogCf);
         cf.addColumn(new Column(columnName(""), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp));
-        cf.addColumn(new Column(columnName("written_at"), writtenAt, timestamp));
         cf.addColumn(new Column(columnName("data"), data, timestamp));
+        cf.addColumn(new Column(columnName("written_at"), writtenAt, timestamp));
 
         return new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(uuid), cf);
     }
