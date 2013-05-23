@@ -298,6 +298,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             valid = false;
             unregisterMBean();
 
+            SystemTable.removeTruncationRecord(metadata.cfId);
             data.unreferenceSSTables();
             indexManager.invalidate();
         }
@@ -2076,5 +2077,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public double getDroppableTombstoneRatio()
     {
         return getDataTracker().getDroppableTombstoneRatio();
+    }
+
+    public long getTruncationTime()
+    {
+        Pair<ReplayPosition, Long> truncationRecord = SystemTable.getTruncationRecords().get(metadata.cfId);
+        return truncationRecord == null ? Long.MIN_VALUE : truncationRecord.right;
     }
 }
