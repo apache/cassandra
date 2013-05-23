@@ -808,6 +808,9 @@
           <include name="org/apache/cassandra/utils/ByteBufferUtil*.class" />
           <include name="org/apache/cassandra/utils/Hex.class" />
           <include name="org/apache/cassandra/utils/UUIDGen*.class" />
+          <include name="org/apache/cassandra/utils/FBUtilities*.class" />
+          <include name="org/apache/cassandra/exceptions/*.class" />
+          <include name="org/apache/cassandra/utils/CloseableIterator.class" />
         </fileset>
         <manifest>
           <attribute name="Implementation-Title" value="Cassandra"/>
@@ -1114,7 +1117,13 @@
       <classpath>
         <pathelement location="${test.classes}" />
         <pathelement location="${build.dir}/${ant.project.name}-clientutil-${version}.jar" />
-
+        <pathelement location="${build.dir}/${ant.project.name}-thrift-${version}.jar" />
+        <pathelement location="${build.lib}/libthrift-0.9.0.jar" />
+        <pathelement location="${build.lib}/slf4j-api-1.7.2.jar" />
+        <pathelement location="${build.lib}/slf4j-log4j12-1.7.2.jar" />
+        <pathelement location="${build.lib}/log4j-1.2.16.jar" />
+        <pathelement location="${build.lib}/jackson-core-asl-1.9.2.jar" />
+        <pathelement location="${build.lib}/jackson-mapper-asl-1.9.2.jar" />
         <fileset dir="${build.dir.lib}">
           <include name="**/junit*.jar" />
         </fileset>
