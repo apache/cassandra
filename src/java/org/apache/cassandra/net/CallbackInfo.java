@@ -55,10 +55,10 @@ public class CallbackInfo
     }
 
     /**
-     * @return TRUE if a hint should be written for this target and if the CL was achieved. FALSE otherwise.
+     * @return TRUE iff a hint should be written for this target.
      *
      * NOTE:
-     * Assumes it is only called after the write of "message" to "target" has timed out.
+     * Assumes it is only called after the write of "sentMessage" to "target" has timed out.
      */
     public boolean shouldHint()
     {
