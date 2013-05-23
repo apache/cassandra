@@ -57,6 +57,11 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         {
             String value = options.containsKey(SSTABLE_SIZE_OPTION) ? options.get(SSTABLE_SIZE_OPTION) : "5";
             configuredMaxSSTableSize = Integer.parseInt(value);
+            if (configuredMaxSSTableSize >= 1000)
+            {
+                // Yes, people have done this
+                logger.warn("Max sstable size of {}MB is configured; having a unit of compaction this large is probably a bad idea", configuredMaxSSTableSize);
+            }
         }
         maxSSTableSizeInMB = configuredMaxSSTableSize;
 

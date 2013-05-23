@@ -70,8 +70,10 @@ public class LeveledManifest
         this.cfs = cfs;
         this.maxSSTableSizeInBytes = maxSSTableSizeInMB * 1024 * 1024;
 
-        // allocate enough generations for a PB of data
-        int n = (int) Math.log10(1000 * 1000 * 1000 / maxSSTableSizeInMB);
+        // allocate enough generations for a PB of data, with a 1-MB sstable size.  (Note that if maxSSTableSize is
+        // updated, we will still have sstables of the older, potentially smaller size.  So don't make this
+        // dependent on maxSSTableSize.)
+        int n = (int) Math.log10(1000 * 1000 * 1000);
         generations = new List[n];
         lastCompactedKeys = new RowPosition[n];
         for (int i = 0; i < generations.length; i++)
