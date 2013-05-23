@@ -238,6 +238,15 @@ public class RowMutation implements IMutation
         return buff.append("])").toString();
     }
 
+    public RowMutation without(UUID cfId)
+    {
+        RowMutation rm = new RowMutation(table, key);
+        for (Map.Entry<UUID, ColumnFamily> entry : modifications.entrySet())
+            if (!entry.getKey().equals(cfId))
+                rm.add(entry.getValue());
+        return rm;
+    }
+
     public static class RowMutationSerializer implements IVersionedSerializer<RowMutation>
     {
         public void serialize(RowMutation rm, DataOutput out, int version) throws IOException

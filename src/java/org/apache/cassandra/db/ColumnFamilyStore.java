@@ -326,6 +326,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             valid = false;
             unregisterMBean();
 
+            SystemTable.removeTruncationRecord(metadata.cfId);
             data.unreferenceSSTables();
             indexManager.invalidate();
         }
@@ -1845,7 +1846,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 for (SecondaryIndex index : indexManager.getIndexes())
                     index.truncateBlocking(truncatedAt);
 
-                SystemTable.saveTruncationPosition(ColumnFamilyStore.this, replayAfter);
+                SystemTable.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
 
                 logger.debug("cleaning out row cache");
                 for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
@@ -2221,5 +2222,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public double getDroppableTombstoneRatio()
     {
         return getDataTracker().getDroppableTombstoneRatio();
+    }
+
+    public long getTruncationTime()
+    {
+        Pair<ReplayPosition, Long> truncationRecord = SystemTable.getTruncationRecords().get(metadata.cfId);
+        return truncationRecord == null ? Long.MIN_VALUE : truncationRecord.right;
     }
 }
