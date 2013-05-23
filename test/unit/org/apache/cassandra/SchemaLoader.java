@@ -121,6 +121,7 @@ public class SchemaLoader
         AbstractType bytes = BytesType.instance;
 
         AbstractType<?> composite = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{BytesType.instance, TimeUUIDType.instance, IntegerType.instance}));
+        AbstractType<?> compositeMaxMin = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{BytesType.instance, IntegerType.instance}));
         Map<Byte, AbstractType<?>> aliases = new HashMap<Byte, AbstractType<?>>();
         aliases.put((byte)'b', BytesType.instance);
         aliases.put((byte)'t', TimeUUIDType.instance);
@@ -191,6 +192,11 @@ public class SchemaLoader
                                                           "StandardComposite",
                                                           st,
                                                           composite,
+                                                          null),
+                                           new CFMetaData(ks1,
+                                                          "StandardComposite2",
+                                                          st,
+                                                          compositeMaxMin,
                                                           null),
                                            new CFMetaData(ks1,
                                                           "StandardDynamicComposite",

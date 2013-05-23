@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Sets;
@@ -56,7 +57,7 @@ public class SSTableWriter extends SSTable
              keyCount,
              Schema.instance.getCFMetaData(Descriptor.fromFilename(filename)),
              StorageService.getPartitioner(),
-             SSTableMetadata.createCollector());
+             SSTableMetadata.createCollector(Schema.instance.getCFMetaData(Descriptor.fromFilename(filename)).comparator));
     }
 
     private static Set<Component> components(CFMetaData metadata)
@@ -214,6 +215,8 @@ public class SSTableWriter extends SSTable
         long minTimestamp = Long.MAX_VALUE;
         long maxTimestamp = Long.MIN_VALUE;
         int maxLocalDeletionTime = Integer.MIN_VALUE;
+        List<ByteBuffer> minColumnNames = Collections.emptyList();
+        List<ByteBuffer> maxColumnNames = Collections.emptyList();
         StreamingHistogram tombstones = new StreamingHistogram(TOMBSTONE_HISTOGRAM_BIN_SIZE);
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(metadata);
         cf.delete(deletionInfo);
@@ -239,6 +242,8 @@ public class SSTableWriter extends SSTable
                 }
                 minTimestamp = Math.min(minTimestamp, atom.minTimestamp());
                 maxTimestamp = Math.max(maxTimestamp, atom.maxTimestamp());
+                minColumnNames = ColumnNameHelper.minComponents(minColumnNames, atom.name(), metadata.comparator);
+                maxColumnNames = ColumnNameHelper.maxComponents(maxColumnNames, atom.name(), metadata.comparator);
                 maxLocalDeletionTime = Math.max(maxLocalDeletionTime, atom.getLocalDeletionTime());
 
                 columnIndexer.add(atom); // This write the atom on disk too
@@ -258,6 +263,8 @@ public class SSTableWriter extends SSTable
         sstableMetadataCollector.addRowSize(dataFile.getFilePointer() - currentPosition);
         sstableMetadataCollector.addColumnCount(columnIndexer.writtenAtomCount());
         sstableMetadataCollector.mergeTombstoneHistogram(tombstones);
+        sstableMetadataCollector.updateMinColumnNames(minColumnNames);
+        sstableMetadataCollector.updateMaxColumnNames(maxColumnNames);
         afterAppend(key, currentPosition, RowIndexEntry.create(currentPosition, deletionInfo.getTopLevelDeletion(), columnIndexer.build()));
         return currentPosition;
     }

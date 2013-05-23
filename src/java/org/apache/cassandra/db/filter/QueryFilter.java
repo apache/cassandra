@@ -217,4 +217,9 @@ public class QueryFilter
     {
         return getClass().getSimpleName() + "(key=" + key + ", cfName=" + cfName + (filter == null ? "" : ", filter=" + filter) + ")";
     }
+
+    public boolean shouldInclude(SSTableReader sstable)
+    {
+        return filter.shouldInclude(sstable);
+    }
 }

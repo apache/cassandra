@@ -1203,7 +1203,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         String ks = "Keyspace1";
         String cf = "Standard3"; // should be empty
 
-        CFMetaData cfmeta = Schema.instance.getCFMetaData(ks, cf);
+        final CFMetaData cfmeta = Schema.instance.getCFMetaData(ks, cf);
         Directories dir = Directories.create(ks, cf);
         ByteBuffer key = bytes("key");
 
@@ -1226,7 +1226,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         {
             protected SSTableWriter getWriter()
             {
-                SSTableMetadata.Collector collector = SSTableMetadata.createCollector();
+                SSTableMetadata.Collector collector = SSTableMetadata.createCollector(cfmeta.comparator);
                 collector.addAncestor(sstable1.descriptor.generation); // add ancestor from previously written sstable
                 return new SSTableWriter(makeFilename(directory, metadata.ksName, metadata.cfName),
                                          0,

@@ -19,7 +19,9 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.DataOutput;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -30,10 +32,12 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.sstable.ColumnNameHelper;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.StreamingHistogram;
 
@@ -106,7 +110,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
                                       reducer == null ? Long.MAX_VALUE : reducer.minTimestampSeen,
                                       reducer == null ? maxDelTimestamp : Math.max(maxDelTimestamp, reducer.maxTimestampSeen),
                                       reducer == null ? Integer.MIN_VALUE : reducer.maxLocalDeletionTimeSeen,
-                                      reducer == null ? new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE) : reducer.tombstones
+                                      reducer == null ? new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE) : reducer.tombstones,
+                                      reducer == null ? Collections.<ByteBuffer>emptyList() : reducer.minColumnNameSeen,
+                                      reducer == null ? Collections.<ByteBuffer>emptyList() : reducer.maxColumnNameSeen
         );
         reducer = null;
 
@@ -190,6 +196,8 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         long maxTimestampSeen = Long.MIN_VALUE;
         int maxLocalDeletionTimeSeen = Integer.MIN_VALUE;
         StreamingHistogram tombstones = new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE);
+        List<ByteBuffer> minColumnNameSeen = Collections.emptyList();
+        List<ByteBuffer> maxColumnNameSeen = Collections.emptyList();
 
         public void reduce(OnDiskAtom current)
         {
@@ -247,6 +255,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
                 minTimestampSeen = Math.min(minTimestampSeen, reduced.minTimestamp());
                 maxTimestampSeen = Math.max(maxTimestampSeen, reduced.maxTimestamp());
                 maxLocalDeletionTimeSeen = Math.max(maxLocalDeletionTimeSeen, reduced.getLocalDeletionTime());
+                minColumnNameSeen = ColumnNameHelper.minComponents(minColumnNameSeen, reduced.name(), controller.cfs.metadata.comparator);
+                maxColumnNameSeen = ColumnNameHelper.maxComponents(maxColumnNameSeen, reduced.name(), controller.cfs.metadata.comparator);
+
                 int deletionTime = reduced.getLocalDeletionTime();
                 if (deletionTime < Integer.MAX_VALUE)
                 {

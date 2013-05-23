@@ -78,6 +78,8 @@ public interface IDiskAtomFilter
     public IDiskAtomFilter cloneShallow();
     public boolean maySelectPrefix(Comparator<ByteBuffer> cmp, ByteBuffer prefix);
 
+    boolean shouldInclude(SSTableReader sstable);
+
     public static class Serializer implements IVersionedSerializer<IDiskAtomFilter>
     {
         public static Serializer instance = new Serializer();

@@ -27,6 +27,8 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.cql3.ColumnNameBuilder;
@@ -185,6 +187,38 @@ public class CompositeType extends AbstractCompositeType
             AbstractType tnew = types.get(i);
             if (!tnew.isCompatibleWith(tprev))
                 return false;
+        }
+        return true;
+    }
+
+    /**
+     * Deconstructs the composite and fills out any missing components with EMPTY_BYTE_BUFFER.
+     */
+    public List<AbstractCompositeType.CompositeComponent> deconstructAndExpand(ByteBuffer composite)
+    {
+        List<AbstractCompositeType.CompositeComponent> components = deconstruct(composite);
+        for (int i = components.size(); i < types.size(); i++)
+            components.add(new AbstractCompositeType.CompositeComponent(this.types.get(i), ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        return components;
+    }
+
+    @Override
+    public boolean intersects(List<ByteBuffer> minColumnNames, List<ByteBuffer> maxColumnNames, SliceQueryFilter filter)
+    {
+        int typeCount = types.get(types.size() - 1) instanceof ColumnToCollectionType ? types.size() - 1 : types.size();
+
+        assert minColumnNames.size() == typeCount;
+
+        for (ColumnSlice slice : filter.slices)
+        {
+            List<AbstractCompositeType.CompositeComponent> start = deconstructAndExpand(filter.isReversed() ? slice.finish : slice.start);
+            List<AbstractCompositeType.CompositeComponent> finish = deconstructAndExpand(filter.isReversed() ? slice.start : slice.finish);
+            for (int i = 0; i < typeCount; i++)
+            {
+                AbstractType<?> t = types.get(i);
+                if (!t.intersects(minColumnNames.get(i), maxColumnNames.get(i), start.get(i).value, finish.get(i).value))
+                    return false;
+            }
         }
         return true;
     }

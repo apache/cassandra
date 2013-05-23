@@ -50,7 +50,8 @@
  * Don't create empty RowMutations in CommitLogReplayer (CASSANDRA-5541)
  * Use range tombstones when dropping cfs/columns from schema (CASSANDRA-5579)
  * cqlsh: drop CQL2/CQL3-beta support (CASSANDRA-5585)
-
+ * Track max/min column names in sstables to be able to optimize slice
+   queries (CASSANDRA-5514)
 
 1.2.6
  * Fix dealing with ridiculously large max sstable sizes in LCS (CASSANDRA-5589)

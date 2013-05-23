@@ -131,10 +131,10 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 
     public static class CompositeComponent
     {
-        public AbstractType comparator;
+        public AbstractType<?> comparator;
         public ByteBuffer   value;
 
-        public CompositeComponent( AbstractType comparator, ByteBuffer value )
+        public CompositeComponent( AbstractType<?> comparator, ByteBuffer value )
         {
             this.comparator = comparator;
             this.value      = value;

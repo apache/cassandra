@@ -21,10 +21,12 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,12 +34,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.SSTableSliceIterator;
+import org.apache.cassandra.db.marshal.AbstractCompositeType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SliceQueryFilter implements IDiskAtomFilter
 {
@@ -228,6 +232,19 @@ public class SliceQueryFilter implements IDiskAtomFilter
             if (slice.includes(cmp, prefix))
                 return true;
         return false;
+    }
+
+    public boolean shouldInclude(SSTableReader sstable)
+    {
+        List<ByteBuffer> minColumnNames = sstable.getSSTableMetadata().minColumnNames;
+        List<ByteBuffer> maxColumnNames = sstable.getSSTableMetadata().maxColumnNames;
+        assert minColumnNames.size() == maxColumnNames.size();
+        AbstractType<?> comparator = sstable.metadata.comparator;
+
+        if (minColumnNames.isEmpty() || maxColumnNames.isEmpty())
+            return true;
+
+        return comparator.intersects(minColumnNames, maxColumnNames, this);
     }
 
     public static class Serializer implements IVersionedSerializer<SliceQueryFilter>

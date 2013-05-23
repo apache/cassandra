@@ -1,5 +1,7 @@
 package org.apache.cassandra.io.sstable;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -11,6 +13,9 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
@@ -138,6 +143,100 @@ public class SSTableMetadataTest extends SchemaLoader
         for(SSTableReader sstable : store.getSSTables())
         {
             assertEquals(ttltimestamp + 100, sstable.getSSTableMetadata().maxLocalDeletionTime, 10);
+        }
+    }
+
+    @Test
+    public void trackMaxMinColNames() throws CharacterCodingException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open("Keyspace1");
+        ColumnFamilyStore store = table.getColumnFamilyStore("Standard3");
+        store.getCompactionStrategy();
+        for (int j = 0; j < 8; j++)
+        {
+            DecoratedKey key = Util.dk("row"+j);
+            RowMutation rm = new RowMutation("Keyspace1", key.key);
+            for (int i = 100; i<150; i++)
+            {
+                rm.add("Standard3", ByteBufferUtil.bytes(j+"col"+i),
+                   ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                   System.currentTimeMillis());
+            }
+            rm.apply();
+        }
+        store.forceBlockingFlush();
+        assertEquals(1, store.getSSTables().size());
+        for (SSTableReader sstable : store.getSSTables())
+        {
+            assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().minColumnNames.get(0)), "0col100");
+            assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().maxColumnNames.get(0)), "7col149");
+        }
+        DecoratedKey key = Util.dk("row2");
+        RowMutation rm = new RowMutation("Keyspace1", key.key);
+        for (int i = 101; i<299; i++)
+        {
+            rm.add("Standard3", ByteBufferUtil.bytes(9+"col"+i),
+               ByteBufferUtil.EMPTY_BYTE_BUFFER,
+               System.currentTimeMillis());
+        }
+        rm.apply();
+
+        store.forceBlockingFlush();
+        store.forceMajorCompaction();
+        assertEquals(1, store.getSSTables().size());
+        for (SSTableReader sstable : store.getSSTables())
+        {
+            assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().minColumnNames.get(0)), "0col100");
+            assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().maxColumnNames.get(0)), "9col298");
+        }
+    }
+    @Test
+    public void testMaxMinComposites() throws CharacterCodingException, ExecutionException, InterruptedException
+    {
+        /*
+        creates two sstables, columns like this:
+        ---------------------
+        k   |a0:9|a1:8|..|a9:0
+        ---------------------
+        and
+        ---------------------
+        k2  |b0:9|b1:8|..|b9:0
+        ---------------------
+        meaning max columns are b9 and 9, min is a0 and 0
+         */
+        Table table = Table.open("Keyspace1");
+
+        ColumnFamilyStore cfs = table.getColumnFamilyStore("StandardComposite2");
+
+        CompositeType ct = CompositeType.getInstance(BytesType.instance, IntegerType.instance);
+
+        ByteBuffer key = ByteBufferUtil.bytes("k");
+        for (int i = 0; i < 10; i++)
+        {
+            RowMutation rm = new RowMutation("Keyspace1", key);
+            ByteBuffer colName = ct.builder().add(ByteBufferUtil.bytes("a"+(9-i))).add(ByteBufferUtil.bytes(i)).build();
+            rm.add("StandardComposite2", colName, ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+            rm.apply();
+        }
+        cfs.forceBlockingFlush();
+
+        key = ByteBufferUtil.bytes("k2");
+        for (int i = 0; i < 10; i++)
+        {
+            RowMutation rm = new RowMutation("Keyspace1", key);
+            ByteBuffer colName = ct.builder().add(ByteBufferUtil.bytes("b"+(9-i))).add(ByteBufferUtil.bytes(i)).build();
+            rm.add("StandardComposite2", colName, ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+            rm.apply();
+        }
+        cfs.forceBlockingFlush();
+        cfs.forceMajorCompaction();
+        assertEquals(cfs.getSSTables().size(), 1);
+        for (SSTableReader sstable : cfs.getSSTables())
+        {
+            assertEquals("b9", ByteBufferUtil.string(sstable.getSSTableMetadata().maxColumnNames.get(0)));
+            assertEquals(9, ByteBufferUtil.toInt(sstable.getSSTableMetadata().maxColumnNames.get(1)));
+            assertEquals("a0", ByteBufferUtil.string(sstable.getSSTableMetadata().minColumnNames.get(0)));
+            assertEquals(0, ByteBufferUtil.toInt(sstable.getSSTableMetadata().minColumnNames.get(1)));
         }
     }
 }

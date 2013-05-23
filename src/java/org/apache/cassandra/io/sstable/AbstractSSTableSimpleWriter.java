@@ -56,7 +56,7 @@ public abstract class AbstractSSTableSimpleWriter
             0, // We don't care about the bloom filter
             metadata,
             DatabaseDescriptor.getPartitioner(),
-            SSTableMetadata.createCollector());
+            SSTableMetadata.createCollector(metadata.comparator));
     }
 
     // find available generation and pick up filename from that

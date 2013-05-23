@@ -18,8 +18,11 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.StreamingHistogram;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,6 +66,8 @@ public class SSTableMetadata
     public final Set<Integer> ancestors;
     public final StreamingHistogram estimatedTombstoneDropTime;
     public final int sstableLevel;
+    public final List<ByteBuffer> maxColumnNames;
+    public final List<ByteBuffer> minColumnNames;
 
     private SSTableMetadata()
     {
@@ -77,7 +82,9 @@ public class SSTableMetadata
              null,
              Collections.<Integer>emptySet(),
              defaultTombstoneDropTimeHistogram(),
-             0);
+             0,
+             Collections.<ByteBuffer>emptyList(),
+             Collections.<ByteBuffer>emptyList());
     }
 
     private SSTableMetadata(EstimatedHistogram rowSizes,
@@ -91,7 +98,9 @@ public class SSTableMetadata
                             String partitioner,
                             Set<Integer> ancestors,
                             StreamingHistogram estimatedTombstoneDropTime,
-                            int sstableLevel)
+                            int sstableLevel,
+                            List<ByteBuffer> minColumnNames,
+                            List<ByteBuffer> maxColumnNames)
     {
         this.estimatedRowSize = rowSizes;
         this.estimatedColumnCount = columnCounts;
@@ -105,16 +114,18 @@ public class SSTableMetadata
         this.ancestors = ancestors;
         this.estimatedTombstoneDropTime = estimatedTombstoneDropTime;
         this.sstableLevel = sstableLevel;
+        this.minColumnNames = minColumnNames;
+        this.maxColumnNames = maxColumnNames;
     }
 
-    public static Collector createCollector()
+    public static Collector createCollector(AbstractType<?> columnNameComparator)
     {
-        return new Collector();
+        return new Collector(columnNameComparator);
     }
 
-    public static Collector createCollector(Collection<SSTableReader> sstables, int level)
+    public static Collector createCollector(Collection<SSTableReader> sstables, AbstractType<?> columnNameComparator, int level)
     {
-        Collector collector = new Collector();
+        Collector collector = new Collector(columnNameComparator);
 
         collector.replayPosition(ReplayPosition.getReplayPosition(sstables));
         collector.sstableLevel(level);
@@ -153,7 +164,9 @@ public class SSTableMetadata
                                    metadata.partitioner,
                                    metadata.ancestors,
                                    metadata.estimatedTombstoneDropTime,
-                                   sstableLevel);
+                                   sstableLevel,
+                                   metadata.minColumnNames,
+                                   metadata.maxColumnNames);
 
     }
 
@@ -211,7 +224,14 @@ public class SSTableMetadata
         protected Set<Integer> ancestors = new HashSet<Integer>();
         protected StreamingHistogram estimatedTombstoneDropTime = defaultTombstoneDropTimeHistogram();
         protected int sstableLevel;
+        protected List<ByteBuffer> minColumnNames = Collections.emptyList();
+        protected List<ByteBuffer> maxColumnNames = Collections.emptyList();
+        private final AbstractType<?> columnNameComparator;
 
+        private Collector(AbstractType<?> columnNameComparator)
+        {
+            this.columnNameComparator = columnNameComparator;
+        }
         public void addRowSize(long rowSize)
         {
             estimatedRowSize.add(rowSize);
@@ -264,7 +284,9 @@ public class SSTableMetadata
                                        partitioner,
                                        ancestors,
                                        estimatedTombstoneDropTime,
-                                       sstableLevel);
+                                       sstableLevel,
+                                       minColumnNames,
+                                       maxColumnNames);
         }
 
         public Collector estimatedRowSize(EstimatedHistogram estimatedRowSize)
@@ -306,6 +328,8 @@ public class SSTableMetadata
             addRowSize(size);
             addColumnCount(stats.columnCount);
             mergeTombstoneHistogram(stats.tombstoneHistogram);
+            updateMinColumnNames(stats.minColumnNames);
+            updateMaxColumnNames(stats.maxColumnNames);
         }
 
         public Collector sstableLevel(int sstableLevel)
@@ -314,6 +338,19 @@ public class SSTableMetadata
             return this;
         }
 
+        public Collector updateMinColumnNames(List<ByteBuffer> minColumnNames)
+        {
+            if (minColumnNames.size() > 0)
+                this.minColumnNames = ColumnNameHelper.mergeMin(this.minColumnNames, minColumnNames, columnNameComparator);
+            return this;
+        }
+
+        public Collector updateMaxColumnNames(List<ByteBuffer> maxColumnNames)
+        {
+            if (maxColumnNames.size() > 0)
+                this.maxColumnNames = ColumnNameHelper.mergeMax(this.maxColumnNames, maxColumnNames, columnNameComparator);
+            return this;
+        }
     }
 
     public static class SSTableMetadataSerializer
@@ -338,8 +375,18 @@ public class SSTableMetadata
                 out.writeInt(g);
             StreamingHistogram.serializer.serialize(sstableStats.estimatedTombstoneDropTime, out);
             out.writeInt(sstableStats.sstableLevel);
+            serializeMinMaxColumnNames(sstableStats.minColumnNames, sstableStats.maxColumnNames, out);
         }
 
+        private void serializeMinMaxColumnNames(List<ByteBuffer> minColNames, List<ByteBuffer> maxColNames, DataOutput out) throws IOException
+        {
+            out.writeInt(minColNames.size());
+            for (ByteBuffer columnName : minColNames)
+                ByteBufferUtil.writeWithShortLength(columnName, out);
+            out.writeInt(maxColNames.size());
+            for (ByteBuffer columnName : maxColNames)
+                ByteBufferUtil.writeWithShortLength(columnName, out);
+        }
         /**
          * Used to serialize to an old version - needed to be able to update sstable level without a full compaction.
          *
@@ -370,6 +417,8 @@ public class SSTableMetadata
                 out.writeInt(g);
             StreamingHistogram.serializer.serialize(sstableStats.estimatedTombstoneDropTime, out);
             out.writeInt(sstableStats.sstableLevel);
+            if (legacyDesc.version.tracksMaxMinColumnNames)
+                serializeMinMaxColumnNames(sstableStats.minColumnNames, sstableStats.maxColumnNames, out);
         }
 
         public SSTableMetadata deserialize(Descriptor descriptor) throws IOException
@@ -423,6 +472,28 @@ public class SSTableMetadata
             if (loadSSTableLevel && in.available() > 0)
                 sstableLevel = in.readInt();
 
+            List<ByteBuffer> minColumnNames;
+            List<ByteBuffer> maxColumnNames;
+            if (desc.version.tracksMaxMinColumnNames)
+            {
+                int colCount = in.readInt();
+                minColumnNames = new ArrayList<ByteBuffer>(colCount);
+                for (int i = 0; i < colCount; i++)
+                {
+                    minColumnNames.add(ByteBufferUtil.readWithShortLength(in));
+                }
+                colCount = in.readInt();
+                maxColumnNames = new ArrayList<ByteBuffer>(colCount);
+                for (int i = 0; i < colCount; i++)
+                {
+                    maxColumnNames.add(ByteBufferUtil.readWithShortLength(in));
+                }
+            }
+            else
+            {
+                minColumnNames = Collections.emptyList();
+                maxColumnNames = Collections.emptyList();
+            }
             return new SSTableMetadata(rowSizes,
                                        columnCounts,
                                        replayPosition,
@@ -434,7 +505,9 @@ public class SSTableMetadata
                                        partitioner,
                                        ancestors,
                                        tombstoneHistogram,
-                                       sstableLevel);
+                                       sstableLevel,
+                                       minColumnNames,
+                                       maxColumnNames);
         }
     }
 }

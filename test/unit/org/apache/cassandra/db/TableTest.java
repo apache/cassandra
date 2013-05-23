@@ -35,12 +35,18 @@ import org.junit.Test;
 
 import static junit.framework.Assert.*;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.Relation;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.expiringColumn;
 import static org.apache.cassandra.Util.getBytes;
+import static org.junit.Assert.assertEquals;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -427,6 +433,102 @@ public class TableTest extends SchemaLoader
         assert indexEntry.columnsIndex().size() > 2;
 
         validateSliceLarge(cfStore);
+    }
+
+    @Test
+    public void testLimitSSTables() throws CharacterCodingException, InterruptedException
+    {
+        Table table = Table.open("Keyspace1");
+        ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
+        cfStore.disableAutoCompaction();
+        DecoratedKey key = Util.dk("row_maxmin");
+        for (int j = 0; j < 10; j++)
+        {
+            ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
+            for (int i = 1000 + (j*100); i < 1000 + ((j+1)*100); i++)
+            {
+                cf.addColumn(column("col" + i, ("v" + i), i));
+            }
+            RowMutation rm = new RowMutation("Keyspace1", key.key, cf);
+            rm.apply();
+            cfStore.forceBlockingFlush();
+        }
+        cfStore.metric.sstablesPerReadHistogram.clear();
+        ColumnFamily cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes(""), ByteBufferUtil.bytes("col1499"), false, 1000);
+        assertEquals(cfStore.metric.sstablesPerReadHistogram.max(), 5, 0.1);
+        int i = 0;
+        for (Column c : cf.getSortedColumns())
+        {
+            assertEquals(ByteBufferUtil.string(c.name), "col" + (1000 + i++));
+        }
+        assertEquals(i, 500);
+        cfStore.metric.sstablesPerReadHistogram.clear();
+        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col1500"), ByteBufferUtil.bytes("col2000"), false, 1000);
+        assertEquals(cfStore.metric.sstablesPerReadHistogram.max(), 5, 0.1);
+
+        for (Column c : cf.getSortedColumns())
+        {
+            assertEquals(ByteBufferUtil.string(c.name), "col"+(1000 + i++));
+        }
+        assertEquals(i, 1000);
+
+        // reverse
+        cfStore.metric.sstablesPerReadHistogram.clear();
+        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col2000"), ByteBufferUtil.bytes("col1500"), true, 1000);
+        assertEquals(cfStore.metric.sstablesPerReadHistogram.max(), 5, 0.1);
+        i = 500;
+        for (Column c : cf.getSortedColumns())
+        {
+            assertEquals(ByteBufferUtil.string(c.name), "col"+(1000 + i++));
+        }
+        assertEquals(i, 1000);
+
+    }
+
+    @Test
+    public void testLimitSSTablesComposites() throws CharacterCodingException, ExecutionException, InterruptedException
+    {
+        /*
+        creates 10 sstables, composite columns like this:
+        ---------------------
+        k   |a0:0|a1:1|..|a9:9
+        ---------------------
+        ---------------------
+        k   |a0:10|a1:11|..|a9:19
+        ---------------------
+        ...
+        ---------------------
+        k   |a0:90|a1:91|..|a9:99
+        ---------------------
+        then we slice out col1 = a5 and col2 > 85 -> which should let us just check 2 sstables and get 2 columns
+         */
+        Table table = Table.open("Keyspace1");
+
+        ColumnFamilyStore cfs = table.getColumnFamilyStore("StandardComposite2");
+        cfs.disableAutoCompaction();
+
+        CompositeType ct = CompositeType.getInstance(BytesType.instance, IntegerType.instance);
+        DecoratedKey key = Util.dk("k");
+        for (int j = 0; j < 10; j++)
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                RowMutation rm = new RowMutation("Keyspace1", key.key);
+                ByteBuffer colName = ct.builder().add(ByteBufferUtil.bytes("a" + i)).add(ByteBufferUtil.bytes(j*10 + i)).build();
+                rm.add("StandardComposite2", colName, ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+                rm.apply();
+            }
+            cfs.forceBlockingFlush();
+        }
+        ByteBuffer start = ct.builder().add(ByteBufferUtil.bytes("a5")).add(ByteBufferUtil.bytes(85)).build();
+        ByteBuffer finish = ct.builder().add(ByteBufferUtil.bytes("a5")).buildAsEndOfRange();
+        cfs.metric.sstablesPerReadHistogram.clear();
+        ColumnFamily cf = cfs.getColumnFamily(key, start, finish, false, 1000);
+        int colCount = 0;
+        for (Column c : cf)
+            colCount++;
+        assertEquals(2, colCount);
+        assertEquals(2, cfs.metric.sstablesPerReadHistogram.max(), 0.1);
     }
 
     private void validateSliceLarge(ColumnFamilyStore cfStore) throws IOException

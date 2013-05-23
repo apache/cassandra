@@ -25,6 +25,7 @@ import java.util.*;
 
 import org.junit.Test;
 
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.io.compress.*;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -56,7 +57,7 @@ public class CompressedInputStreamTest
         // write compressed data file of longs
         File tmp = new File(File.createTempFile("cassandra", "unittest").getParent(), "ks-cf-ib-1-Data.db");
         Descriptor desc = Descriptor.fromFilename(tmp.getAbsolutePath());
-        SSTableMetadata.Collector collector = SSTableMetadata.createCollector();
+        SSTableMetadata.Collector collector = SSTableMetadata.createCollector(BytesType.instance);
         CompressionParameters param = new CompressionParameters(SnappyCompressor.instance, 32, Collections.EMPTY_MAP);
         CompressedSequentialWriter writer = new CompressedSequentialWriter(tmp, desc.filenameFor(Component.COMPRESSION_INFO), false, param, collector);
         Map<Long, Long> index = new HashMap<Long, Long>();

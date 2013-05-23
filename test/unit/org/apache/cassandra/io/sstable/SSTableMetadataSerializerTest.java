@@ -28,6 +28,7 @@ import java.io.IOException;
 import org.junit.Test;
 
 import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
@@ -46,7 +47,7 @@ public class SSTableMetadataSerializerTest
         long minTimestamp = 2162517136L;
         long maxTimestamp = 4162517136L;
 
-        SSTableMetadata.Collector collector = SSTableMetadata.createCollector()
+        SSTableMetadata.Collector collector = SSTableMetadata.createCollector(BytesType.instance)
                                                              .estimatedRowSize(rowSizes)
                                                              .estimatedColumnCount(columnCounts)
                                                              .replayPosition(rp);

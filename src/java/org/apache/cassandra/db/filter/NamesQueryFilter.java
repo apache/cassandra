@@ -142,6 +142,12 @@ public class NamesQueryFilter implements IDiskAtomFilter
         return false;
     }
 
+    public boolean shouldInclude(SSTableReader sstable)
+    {
+        // only called by collationcontroller for slice queries
+        throw new UnsupportedOperationException();
+    }
+
     public static class Serializer implements IVersionedSerializer<NamesQueryFilter>
     {
         public void serialize(NamesQueryFilter f, DataOutput out, int version) throws IOException

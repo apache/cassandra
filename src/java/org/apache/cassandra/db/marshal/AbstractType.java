@@ -25,10 +25,14 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
 
 /**
@@ -276,4 +280,26 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     {
         return getClass().getName();
     }
+
+    protected boolean intersects(ByteBuffer minColName, ByteBuffer maxColName, ByteBuffer sliceStart, ByteBuffer sliceEnd)
+    {
+        return (sliceStart.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER) || compare(maxColName, sliceStart) >= 0)
+               && (sliceEnd.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER) || compare(sliceEnd, minColName) >= 0);
+    }
+
+    public boolean intersects(List<ByteBuffer> minColumnNames, List<ByteBuffer> maxColumnNames, SliceQueryFilter filter)
+    {
+        assert minColumnNames.size() == 1;
+
+        for (ColumnSlice slice : filter.slices)
+        {
+            ByteBuffer start = filter.isReversed() ? slice.finish : slice.start;
+            ByteBuffer finish = filter.isReversed() ? slice.start : slice.finish;
+
+            if (intersects(minColumnNames.get(0), maxColumnNames.get(0), start, finish))
+                return true;
+        }
+        return false;
+    }
 }
+
