@@ -43,7 +43,6 @@ import org.apache.cassandra.utils.Pair;
  */
 public abstract class ModificationStatement implements CQLStatement
 {
-    public static final ConsistencyLevel defaultConsistency = ConsistencyLevel.ONE;
     private static final ColumnIdentifier RESULT_COLUMN = new ColumnIdentifier("result", false);
 
     private final int boundTerms;
