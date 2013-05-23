@@ -36,6 +36,7 @@ import org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -64,6 +65,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
      */
     public IndexedSliceReader(SSTableReader sstable, RowIndexEntry indexEntry, FileDataInput input, ColumnSlice[] slices, boolean reversed)
     {
+        Tracing.trace("Seeking to partition indexed section in data file");
         this.sstable = sstable;
         this.originalInput = input;
         this.reversed = reversed;

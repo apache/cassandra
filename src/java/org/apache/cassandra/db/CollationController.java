@@ -67,7 +67,6 @@ public class CollationController
      */
     private ColumnFamily collectTimeOrderedData()
     {
-        logger.trace("collectTimeOrderedData");
         final ColumnFamily container = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());
         List<OnDiskAtomIterator> iterators = new ArrayList<OnDiskAtomIterator>();
         Tracing.trace("Acquiring sstable references");
@@ -214,7 +213,6 @@ public class CollationController
      */
     private ColumnFamily collectAllData()
     {
-        logger.trace("collectAllData");
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
         List<OnDiskAtomIterator> iterators = new ArrayList<OnDiskAtomIterator>(Iterables.size(view.memtables) + view.sstables.size());
@@ -222,7 +220,7 @@ public class CollationController
 
         try
         {
-            Tracing.trace("Merging memtable contents");
+            Tracing.trace("Merging memtable tombstones");
             for (Memtable memtable : view.memtables)
             {
                 OnDiskAtomIterator iter = filter.getMemtableColumnIterator(memtable);
