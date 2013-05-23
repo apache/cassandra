@@ -866,7 +866,7 @@ public class CompactionManager implements CompactionManagerMBean
                     for (SecondaryIndex index : main.indexManager.getIndexes())
                         index.truncate(truncatedAt);
 
-                    SystemTable.saveTruncationPosition(main, replayAfter);
+                    SystemTable.saveTruncationRecord(main, truncatedAt, replayAfter);
 
                     for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
                     {

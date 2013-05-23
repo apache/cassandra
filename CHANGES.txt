@@ -1,4 +1,5 @@
 1.2.6
+ * Ignore pre-truncate hints (CASSANDRA-4655)
  * Move System.exit on OOM into a separate thread (CASSANDRA-5273)
  * Write row markers when serializing schema (CASSANDRA-5572)
  * Check only SSTables for the requested range when streaming (CASSANDRA-5569)

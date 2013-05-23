@@ -30,6 +30,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.RateLimiter;
@@ -363,6 +364,30 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 catch (IOException e)
                 {
                     throw new AssertionError(e);
+                }
+
+                Map<UUID, Long> truncationTimesCache = new HashMap<UUID, Long>();
+                for (UUID cfId : ImmutableSet.copyOf((rm.getColumnFamilyIds())))
+                {
+                    Long truncatedAt = truncationTimesCache.get(cfId);
+                    if (truncatedAt == null)
+                    {
+                        ColumnFamilyStore cfs = Table.open(rm.getTable()).getColumnFamilyStore(cfId);
+                        truncatedAt = cfs.getTruncationTime();
+                        truncationTimesCache.put(cfId, truncatedAt);
+                    }
+
+                    if (hint.maxTimestamp() < truncatedAt)
+                    {
+                        logger.debug("Skipping delivery of hint for truncated columnfamily {}" + cfId);
+                        rm = rm.without(cfId);
+                    }
+                }
+
+                if (rm.isEmpty())
+                {
+                    deleteHint(hostIdBytes, hint.name(), hint.maxTimestamp());
+                    continue;
                 }
 
                 MessageOut<RowMutation> message = rm.createMessage();

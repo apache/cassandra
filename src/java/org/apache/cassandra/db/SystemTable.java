@@ -47,7 +47,10 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.Constants;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CounterId;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
 
@@ -178,19 +181,30 @@ public class SystemTable
         }
     }
 
-    public static void saveTruncationPosition(ColumnFamilyStore cfs, ReplayPosition position)
+    public static void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, ReplayPosition position)
     {
         String req = "UPDATE system.%s SET truncated_at = truncated_at + %s WHERE key = '%s'";
-        processInternal(String.format(req, LOCAL_CF, positionAsMapEntry(cfs, position), LOCAL_KEY));
+        processInternal(String.format(req, LOCAL_CF, truncationAsMapEntry(cfs, truncatedAt, position), LOCAL_KEY));
         forceBlockingFlush(LOCAL_CF);
     }
 
-    private static String positionAsMapEntry(ColumnFamilyStore cfs, ReplayPosition position)
+    /**
+     * This method is used to remove information about truncation time for specified column family
+     */
+    public static void removeTruncationRecord(UUID cfId)
+    {
+        String req = "DELETE truncation_time['%s'] from system.%s WHERE key = '%s'";
+        processInternal(String.format(req, cfId, LOCAL_CF, LOCAL_KEY));
+        forceBlockingFlush(LOCAL_CF);
+    }
+
+    private static String truncationAsMapEntry(ColumnFamilyStore cfs, long truncatedAt, ReplayPosition position)
     {
         DataOutputBuffer out = new DataOutputBuffer();
         try
         {
             ReplayPosition.serializer.serialize(position, out);
+            out.writeLong(truncatedAt);
         }
         catch (IOException e)
         {
@@ -201,7 +215,7 @@ public class SystemTable
                              ByteBufferUtil.bytesToHex(ByteBuffer.wrap(out.getData(), 0, out.getLength())));
     }
 
-    public static Map<UUID, ReplayPosition> getTruncationPositions()
+    public static Map<UUID, Pair<ReplayPosition, Long>> getTruncationRecords()
     {
         String req = "SELECT truncated_at FROM system.%s WHERE key = '%s'";
         UntypedResultSet rows = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
@@ -213,19 +227,18 @@ public class SystemTable
         if (rawMap == null)
             return Collections.emptyMap();
 
-        Map<UUID, ReplayPosition> positions = new HashMap<UUID, ReplayPosition>();
+        Map<UUID, Pair<ReplayPosition, Long>> positions = new HashMap<UUID, Pair<ReplayPosition, Long>>();
         for (Map.Entry<UUID, ByteBuffer> entry : rawMap.entrySet())
-        {
-            positions.put(entry.getKey(), positionFromBlob(entry.getValue()));
-        }
+            positions.put(entry.getKey(), truncationRecordFromBlob(entry.getValue()));
         return positions;
     }
 
-    private static ReplayPosition positionFromBlob(ByteBuffer bytes)
+    private static Pair<ReplayPosition, Long> truncationRecordFromBlob(ByteBuffer bytes)
     {
         try
         {
-            return ReplayPosition.serializer.deserialize(new DataInputStream(ByteBufferUtil.inputStream(bytes)));
+            DataInputStream in = new DataInputStream(ByteBufferUtil.inputStream(bytes));
+            return Pair.create(ReplayPosition.serializer.deserialize(in), in.available() > 0 ? in.readLong() : Long.MIN_VALUE);
         }
         catch (IOException e)
         {
