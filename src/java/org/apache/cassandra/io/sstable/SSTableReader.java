@@ -732,7 +732,7 @@ public class SSTableReader extends SSTable
             assert key instanceof DecoratedKey; // EQ only make sense if the key is a valid row key
             if (!bf.isPresent(((DecoratedKey)key).key))
             {
-                logger.debug("Bloom filter allows skipping sstable {}", descriptor.generation);
+                Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.generation);
                 return null;
             }
         }
@@ -745,7 +745,6 @@ public class SSTableReader extends SSTable
             RowIndexEntry cachedPosition = getCachedPosition(cacheKey, updateCacheAndStats);
             if (cachedPosition != null)
             {
-                logger.trace("Cache hit for {} -> {}", cacheKey, cachedPosition);
                 Tracing.trace("Key cache hit for sstable {}", descriptor.generation);
                 return cachedPosition;
             }
@@ -835,7 +834,7 @@ public class SSTableReader extends SSTable
                         }
                         if (op == Operator.EQ && updateCacheAndStats)
                             bloomFilterTracker.addTruePositive();
-                        Tracing.trace("Partition index lookup complete for sstable {}", descriptor.generation);
+                        Tracing.trace("Partition index with {} entries found for sstable {}", indexEntry.columnsIndex().size(), descriptor.generation);
                         return indexEntry;
                     }
 
