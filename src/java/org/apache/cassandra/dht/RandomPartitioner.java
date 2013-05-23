@@ -40,8 +40,6 @@ public class RandomPartitioner extends AbstractPartitioner<BigIntegerToken>
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("-1");
     public static final BigInteger MAXIMUM = new BigInteger("2").pow(127);
 
-    private static final byte DELIMITER_BYTE = ":".getBytes()[0];
-
     public DecoratedKey decorateKey(ByteBuffer key)
     {
         return new DecoratedKey(getToken(key), key);
@@ -128,23 +126,23 @@ public class RandomPartitioner extends AbstractPartitioner<BigIntegerToken>
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
     {
         Map<Token, Float> ownerships = new HashMap<Token, Float>();
-        Iterator i = sortedTokens.iterator();
+        Iterator<Token> i = sortedTokens.iterator();
 
         // 0-case
         if (!i.hasNext()) { throw new RuntimeException("No nodes present in the cluster. Has this node finished starting up?"); }
         // 1-case
         if (sortedTokens.size() == 1) {
-            ownerships.put((Token)i.next(), new Float(1.0));
+            ownerships.put(i.next(), new Float(1.0));
         }
         // n-case
         else {
             // NOTE: All divisions must take place in BigDecimals, and all modulo operators must take place in BigIntegers.
             final BigInteger ri = MAXIMUM;                                                  //  (used for addition later)
             final BigDecimal r  = new BigDecimal(ri);                                       // The entire range, 2**127
-            Token start = (Token)i.next(); BigInteger ti = ((BigIntegerToken)start).token;  // The first token and its value
+            Token start = i.next(); BigInteger ti = ((BigIntegerToken)start).token;  // The first token and its value
             Token t; BigInteger tim1 = ti;                                                  // The last token and its value (after loop)
             while (i.hasNext()) {
-                t = (Token)i.next(); ti = ((BigIntegerToken)t).token;                               // The next token and its value
+                t = i.next(); ti = ((BigIntegerToken)t).token;                                      // The next token and its value
                 float x = new BigDecimal(ti.subtract(tim1).add(ri).mod(ri)).divide(r).floatValue(); // %age = ((T(i) - T(i-1) + R) % R) / R
                 ownerships.put(t, x);                                                               // save (T(i) -> %age)
                 tim1 = ti;                                                                          // -> advance loop
