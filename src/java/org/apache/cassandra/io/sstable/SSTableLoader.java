@@ -124,7 +124,7 @@ public class SSTableLoader
         }
 
         Map<InetAddress, Collection<Range<Token>>> endpointToRanges = client.getEndpointToRangesMap();
-        outputHandler.output(String.format("Streaming revelant part of %sto %s", names(sstables), endpointToRanges.keySet()));
+        outputHandler.output(String.format("Streaming revelant part of %s to %s", names(sstables), endpointToRanges.keySet()));
 
         // There will be one streaming session by endpoint
         LoaderFuture future = new LoaderFuture(endpointToRanges.size());
