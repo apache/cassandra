@@ -144,8 +144,7 @@ public class NamesQueryFilter implements IDiskAtomFilter
 
     public boolean shouldInclude(SSTableReader sstable)
     {
-        // only called by collationcontroller for slice queries
-        throw new UnsupportedOperationException();
+        return true;
     }
 
     public static class Serializer implements IVersionedSerializer<NamesQueryFilter>
