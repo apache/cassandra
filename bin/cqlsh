@@ -421,9 +421,12 @@ def describe_interval(seconds):
     return words
 
 class Shell(cmd.Cmd):
-    default_prompt  = "cqlsh> "
+    custom_prompt = os.getenv('CQLSH_PROMPT', '')
+    if custom_prompt is not '':
+        custom_prompt += "\n"
+    default_prompt = custom_prompt + "cqlsh> "
     continue_prompt = "   ... "
-    keyspace_prompt          = "cqlsh:%s> "
+    keyspace_prompt = custom_prompt + "cqlsh:%s> "
     keyspace_continue_prompt = "%s    ... "
     num_retries = 4
     show_line_nums = False
