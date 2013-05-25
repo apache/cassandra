@@ -1287,7 +1287,7 @@ public class NodeCmd
     private static void handleSnapshots(NodeCommand nc, String tag, String[] cmdArgs, String columnFamily, NodeProbe probe) throws IOException
     {
         String[] keyspaces = Arrays.copyOfRange(cmdArgs, 0, cmdArgs.length);
-        System.out.print("Requested snapshot for: ");
+        System.out.print("Requested " + ((nc == NodeCommand.SNAPSHOT) ? "creating" : "clearing") + " snapshot for: ");
         if ( keyspaces.length > 0 )
         {
           for (int i = 0; i < keyspaces.length; i++)
