@@ -133,7 +133,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     {
         CfDef cfDef = getCfDef(loadSignature);
         ByteBuffer key = null;
-        Tuple tuple = TupleFactory.getInstance().newTuple();
+        Tuple tuple = null; 
         DefaultDataBag bag = new DefaultDataBag();
         try
         {
@@ -142,12 +142,15 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                 hasNext = reader.nextKeyValue();
                 if (!hasNext)
                 {
+                    if (tuple == null)
+                        tuple = TupleFactory.getInstance().newTuple();
+
                     if (lastRow != null)
                     {
                         if (tuple.size() == 0) // lastRow is a new one
                         {
                             key = (ByteBuffer)reader.getCurrentKey();
-                            tuple = addKeyToTuple(tuple, key, cfDef, parseType(cfDef.getKey_validation_class()));
+                            tuple = keyToTuple(key, cfDef, parseType(cfDef.getKey_validation_class()));
                         }
                         for (Map.Entry<ByteBuffer, IColumn> entry : lastRow.entrySet())
                         {
@@ -183,7 +186,10 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                     key = (ByteBuffer)reader.getCurrentKey();
                     if (lastKey != null && !(key.equals(lastKey))) // last key only had one value
                     {
-                        tuple = addKeyToTuple(tuple, lastKey, cfDef, parseType(cfDef.getKey_validation_class()));
+                        if (tuple == null)
+                            tuple = keyToTuple(lastKey, cfDef, parseType(cfDef.getKey_validation_class()));
+                        else
+                            addKeyToTuple(tuple, lastKey, cfDef, parseType(cfDef.getKey_validation_class()));
                         for (Map.Entry<ByteBuffer, IColumn> entry : lastRow.entrySet())
                         {
                             bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
@@ -193,7 +199,10 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                         lastRow = (SortedMap<ByteBuffer,IColumn>)reader.getCurrentValue();
                         return tuple;
                     }
-                    tuple = addKeyToTuple(tuple, lastKey, cfDef, parseType(cfDef.getKey_validation_class()));
+                    if (tuple == null)
+                        tuple = keyToTuple(key, cfDef, parseType(cfDef.getKey_validation_class()));
+                    else
+                        addKeyToTuple(tuple, lastKey, cfDef, parseType(cfDef.getKey_validation_class()));
                 }
                 SortedMap<ByteBuffer,IColumn> row = (SortedMap<ByteBuffer,IColumn>)reader.getCurrentValue();
                 if (lastRow != null) // prepend what was read last time
@@ -236,7 +245,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             // output tuple, will hold the key, each indexed column in a tuple, then a bag of the rest
             // NOTE: we're setting the tuple size here only for the key so we can use setTupleValue on it
 
-            Tuple tuple = addKeyToTuple(null, key, cfDef, parseType(cfDef.getKey_validation_class()));
+            Tuple tuple = keyToTuple(key, cfDef, parseType(cfDef.getKey_validation_class()));
             DefaultDataBag bag = new DefaultDataBag();
 
             // we must add all the indexed columns first to match the schema
@@ -295,12 +304,15 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         return t;
     }
 
-    private Tuple addKeyToTuple(Tuple tuple, ByteBuffer key, CfDef cfDef, AbstractType comparator) throws IOException
+    private Tuple keyToTuple(ByteBuffer key, CfDef cfDef, AbstractType comparator) throws IOException
     {
-        if( tuple == null )
-        {
-            tuple = TupleFactory.getInstance().newTuple(1);
-        }
+        Tuple tuple = TupleFactory.getInstance().newTuple(1);
+        addKeyToTuple(tuple, key, cfDef, comparator);
+        return tuple;
+    }
+
+    private void addKeyToTuple(Tuple tuple, ByteBuffer key, CfDef cfDef, AbstractType comparator) throws IOException
+    {
         if( comparator instanceof AbstractCompositeType )
         {
             setTupleValue(tuple, 0, composeComposite((AbstractCompositeType)comparator,key));
@@ -309,7 +321,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         {
             setTupleValue(tuple, 0, getDefaultMarshallers(cfDef).get(MarshallerType.KEY_VALIDATOR).compose(key));
         }
-        return tuple;
+
     }
 
     private Tuple columnToTuple(IColumn col, CfDef cfDef, AbstractType comparator) throws IOException
