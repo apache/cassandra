@@ -28,9 +28,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * CassandraAuthorizer is an IAuthorizer implementation that keeps
@@ -55,20 +60,26 @@ public class CassandraAuthorizer implements IAuthorizer
                                                                       PERMISSIONS_CF,
                                                                       90 * 24 * 60 * 60); // 3 months.
 
+    private SelectStatement authorizeStatement;
+
     // Returns every permission on the resource granted to the user.
     public Set<Permission> authorize(AuthenticatedUser user, IResource resource)
     {
         if (user.isSuper())
             return Permission.ALL;
 
-        UntypedResultSet rows;
+        UntypedResultSet result;
         try
         {
-            rows = process(String.format("SELECT permissions FROM %s.%s WHERE username = '%s' AND resource = '%s'",
-                                         Auth.AUTH_KS,
-                                         PERMISSIONS_CF,
-                                         escape(user.getName()),
-                                         escape(resource.getName())));
+            ResultMessage.Rows rows = authorizeStatement.execute(ConsistencyLevel.ONE,
+                                                                 new QueryState(new ClientState(true)),
+                                                                 Lists.newArrayList(ByteBufferUtil.bytes(user.getName()),
+                                                                                    ByteBufferUtil.bytes(resource.getName())));
+            result = new UntypedResultSet(rows.result);
+        }
+        catch (RequestValidationException e)
+        {
+            throw new AssertionError(e); // not supposed to happen
         }
         catch (RequestExecutionException e)
         {
@@ -76,11 +87,11 @@ public class CassandraAuthorizer implements IAuthorizer
             return Permission.NONE;
         }
 
-        if (rows.isEmpty() || !rows.one().has(PERMISSIONS))
+        if (result.isEmpty() || !result.one().has(PERMISSIONS))
             return Permission.NONE;
 
         Set<Permission> permissions = EnumSet.noneOf(Permission.class);
-        for (String perm : rows.one().getSet(PERMISSIONS, UTF8Type.instance))
+        for (String perm : result.one().getSet(PERMISSIONS, UTF8Type.instance))
             permissions.add(Permission.valueOf(perm));
         return permissions;
     }
@@ -238,6 +249,16 @@ public class CassandraAuthorizer implements IAuthorizer
             {
                 throw new AssertionError(e);
             }
+        }
+
+        try
+        {
+            String query = String.format("SELECT permissions FROM %s.%s WHERE username = ? AND resource = ?", Auth.AUTH_KS, PERMISSIONS_CF);
+            authorizeStatement = (SelectStatement) QueryProcessor.parseStatement(query).prepare().statement;
+        }
+        catch (RequestValidationException e)
+        {
+            throw new AssertionError(e); // not supposed to happen
         }
     }
 
