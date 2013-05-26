@@ -97,6 +97,7 @@ Merged from 1.1:
  * Add nodetool enablebackup/disablebackup (CASSANDRA-5556)
  * cqlsh: fix DESCRIBE after case insensitive USE (CASSANDRA-5567)
 Merged from 1.1
+ * Remove buggy thrift max message length option (CASSANDRA-5529)
  * Add retry mechanism to OTC for non-droppable_verbs (CASSANDRA-5393)
  * Use allocator information to improve memtable memory usage estimate
    (CASSANDRA-5497)
