@@ -20,6 +20,7 @@ package org.apache.cassandra.auth;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,12 +30,14 @@ import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.locator.SimpleStrategy;
-import org.apache.cassandra.service.IMigrationListener;
-import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.*;
+import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class Auth
@@ -57,6 +60,8 @@ public class Auth
                                                                 USERS_CF,
                                                                 90 * 24 * 60 * 60); // 3 months.
 
+    private static SelectStatement selectUserStatement;
+
     /**
      * Checks if the username is stored in AUTH_KS.USERS_CF.
      *
@@ -65,15 +70,7 @@ public class Auth
      */
     public static boolean isExistingUser(String username)
     {
-        String query = String.format("SELECT * FROM %s.%s WHERE name = '%s'", AUTH_KS, USERS_CF, escape(username));
-        try
-        {
-            return !QueryProcessor.process(query, consistencyForUser(username)).isEmpty();
-        }
-        catch (RequestExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return !selectUser(username).isEmpty();
     }
 
     /**
@@ -84,16 +81,8 @@ public class Auth
      */
     public static boolean isSuperuser(String username)
     {
-        String query = String.format("SELECT super FROM %s.%s WHERE name = '%s'", AUTH_KS, USERS_CF, escape(username));
-        try
-        {
-            UntypedResultSet result = QueryProcessor.process(query, consistencyForUser(username));
-            return !result.isEmpty() && result.one().getBoolean("super");
-        }
-        catch (RequestExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        UntypedResultSet result = selectUser(username);
+        return !result.isEmpty() && result.one().getBoolean("super");
     }
 
     /**
@@ -156,6 +145,16 @@ public class Auth
                                           },
                                           SUPERUSER_SETUP_DELAY,
                                           TimeUnit.MILLISECONDS);
+        }
+
+        try
+        {
+            String query = String.format("SELECT * FROM %s.%s WHERE name = ?", AUTH_KS, USERS_CF);
+            selectUserStatement = (SelectStatement) QueryProcessor.parseStatement(query).prepare().statement;
+        }
+        catch (RequestValidationException e)
+        {
+            throw new AssertionError(e); // not supposed to happen
         }
     }
 
@@ -225,6 +224,25 @@ public class Auth
     private static String escape(String name)
     {
         return StringUtils.replace(name, "'", "''");
+    }
+
+    private static UntypedResultSet selectUser(String username)
+    {
+        try
+        {
+            ResultMessage.Rows rows = selectUserStatement.execute(consistencyForUser(username),
+                                                                  new QueryState(new ClientState(true)),
+                                                                  Lists.newArrayList(ByteBufferUtil.bytes(username)));
+            return new UntypedResultSet(rows.result);
+        }
+        catch (RequestValidationException e)
+        {
+            throw new AssertionError(e); // not supposed to happen
+        }
+        catch (RequestExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     /**

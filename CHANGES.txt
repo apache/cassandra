@@ -62,6 +62,7 @@
  * Improve batchlog replay behavior and hint ttl handling (CASSANDRA-5314)
  * Exclude localTimestamp from validation for tombstones (CASSANDRA-5398)
  * cqlsh: add custom prompt support (CASSANDRA-5539)
+ * Reuse prepared statements in hot auth queries (CASSANDRA-5594)
 Merged from 1.1:
  * Remove buggy thrift max message length option (CASSANDRA-5529)
  * Fix NPE in Pig's widerow mode (CASSANDRA-5488)
