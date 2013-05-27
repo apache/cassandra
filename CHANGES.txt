@@ -52,6 +52,7 @@
  * cqlsh: drop CQL2/CQL3-beta support (CASSANDRA-5585)
  * Track max/min column names in sstables to be able to optimize slice
    queries (CASSANDRA-5514)
+ * Binary protocol: allow batching already prepared statements (CASSANDRA-4693)
 
 1.2.6
  * Fix dealing with ridiculously large max sstable sizes in LCS (CASSANDRA-5589)
