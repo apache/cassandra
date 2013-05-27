@@ -232,15 +232,18 @@ class TestMutations(ThriftTester):
 
     def test_cas(self):
         _set_keyspace('Keyspace1')
-        assert not client.cas('key1', 'Standard1', _SIMPLE_COLUMNS, _SIMPLE_COLUMNS)
+        def cas(expected, updates):
+            return client.cas('key1', 'Standard1', expected, updates, ConsistencyLevel.ONE)
 
-        assert client.cas('key1', 'Standard1', None, _SIMPLE_COLUMNS)
+        assert not cas(_SIMPLE_COLUMNS, _SIMPLE_COLUMNS)
+
+        assert cas(None, _SIMPLE_COLUMNS)
 
         result = [cosc.column for cosc in _big_slice('key1', ColumnParent('Standard1'))]
         # CAS will use its own timestamp, so we can't just compare result == _SIMPLE_COLUMNS
         assert dict((c.name, c.value) for c in result) == dict((c.name, c.value) for c in _SIMPLE_COLUMNS), result
 
-        assert not client.cas('key1', 'Standard1', None, _SIMPLE_COLUMNS)
+        assert not cas(None, _SIMPLE_COLUMNS)
 
         # CL.SERIAL for reads
         assert client.get('key1', ColumnPath('Standard1', column='c1'), ConsistencyLevel.SERIAL).column.value == 'value1'

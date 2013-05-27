@@ -26,9 +26,7 @@ import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 
 /*
- * This message is sent back the row mutation verb handler
- * and basically specifies if the write succeeded or not for a particular
- * key in a table
+ * This empty response is sent by a replica to inform the coordinator that the write succeeded
  */
 public class WriteResponse
 {

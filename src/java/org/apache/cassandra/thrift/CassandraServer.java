@@ -724,7 +724,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public boolean cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates)
+    public boolean cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (startSessionIfRequested())
@@ -780,7 +780,7 @@ public class CassandraServer implements Cassandra.Iface
             }
 
             schedule(DatabaseDescriptor.getWriteRpcTimeout());
-            return StorageProxy.cas(cState.getKeyspace(), column_family, key, cfExpected, cfUpdates);
+            return StorageProxy.cas(cState.getKeyspace(), column_family, key, cfExpected, cfUpdates, ThriftConversion.fromThrift(consistency_level));
         }
         catch (RequestTimeoutException e)
         {

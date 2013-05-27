@@ -60,6 +60,7 @@ public class TimedOutException extends TException implements org.apache.thrift.T
 
   private static final org.apache.thrift.protocol.TField ACKNOWLEDGED_BY_FIELD_DESC = new org.apache.thrift.protocol.TField("acknowledged_by", org.apache.thrift.protocol.TType.I32, (short)1);
   private static final org.apache.thrift.protocol.TField ACKNOWLEDGED_BY_BATCHLOG_FIELD_DESC = new org.apache.thrift.protocol.TField("acknowledged_by_batchlog", org.apache.thrift.protocol.TType.BOOL, (short)2);
+  private static final org.apache.thrift.protocol.TField PAXOS_IN_PROGRESS_FIELD_DESC = new org.apache.thrift.protocol.TField("paxos_in_progress", org.apache.thrift.protocol.TType.BOOL, (short)3);
 
   private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
   static {
@@ -75,9 +76,15 @@ public class TimedOutException extends TException implements org.apache.thrift.T
    */
   public int acknowledged_by; // optional
   /**
-   * in case of atomic_batch_mutate method this field tells if the batch was written to the batchlog.
+   * in case of atomic_batch_mutate method this field tells if the batch
+   * was written to the batchlog.
    */
   public boolean acknowledged_by_batchlog; // optional
+  /**
+   * for the CAS method, this field tells if we timed out during the paxos
+   * protocol, as opposed to during the commit of our update
+   */
+  public boolean paxos_in_progress; // optional
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -89,9 +96,15 @@ public class TimedOutException extends TException implements org.apache.thrift.T
      */
     ACKNOWLEDGED_BY((short)1, "acknowledged_by"),
     /**
-     * in case of atomic_batch_mutate method this field tells if the batch was written to the batchlog.
+     * in case of atomic_batch_mutate method this field tells if the batch
+     * was written to the batchlog.
      */
-    ACKNOWLEDGED_BY_BATCHLOG((short)2, "acknowledged_by_batchlog");
+    ACKNOWLEDGED_BY_BATCHLOG((short)2, "acknowledged_by_batchlog"),
+    /**
+     * for the CAS method, this field tells if we timed out during the paxos
+     * protocol, as opposed to during the commit of our update
+     */
+    PAXOS_IN_PROGRESS((short)3, "paxos_in_progress");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -110,6 +123,8 @@ public class TimedOutException extends TException implements org.apache.thrift.T
           return ACKNOWLEDGED_BY;
         case 2: // ACKNOWLEDGED_BY_BATCHLOG
           return ACKNOWLEDGED_BY_BATCHLOG;
+        case 3: // PAXOS_IN_PROGRESS
+          return PAXOS_IN_PROGRESS;
         default:
           return null;
       }
@@ -152,14 +167,17 @@ public class TimedOutException extends TException implements org.apache.thrift.T
   // isset id assignments
   private static final int __ACKNOWLEDGED_BY_ISSET_ID = 0;
   private static final int __ACKNOWLEDGED_BY_BATCHLOG_ISSET_ID = 1;
+  private static final int __PAXOS_IN_PROGRESS_ISSET_ID = 2;
   private byte __isset_bitfield = 0;
-  private _Fields optionals[] = {_Fields.ACKNOWLEDGED_BY,_Fields.ACKNOWLEDGED_BY_BATCHLOG};
+  private _Fields optionals[] = {_Fields.ACKNOWLEDGED_BY,_Fields.ACKNOWLEDGED_BY_BATCHLOG,_Fields.PAXOS_IN_PROGRESS};
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
     Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
     tmpMap.put(_Fields.ACKNOWLEDGED_BY, new org.apache.thrift.meta_data.FieldMetaData("acknowledged_by", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     tmpMap.put(_Fields.ACKNOWLEDGED_BY_BATCHLOG, new org.apache.thrift.meta_data.FieldMetaData("acknowledged_by_batchlog", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.BOOL)));
+    tmpMap.put(_Fields.PAXOS_IN_PROGRESS, new org.apache.thrift.meta_data.FieldMetaData("paxos_in_progress", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.BOOL)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(TimedOutException.class, metaDataMap);
@@ -175,6 +193,7 @@ public class TimedOutException extends TException implements org.apache.thrift.T
     __isset_bitfield = other.__isset_bitfield;
     this.acknowledged_by = other.acknowledged_by;
     this.acknowledged_by_batchlog = other.acknowledged_by_batchlog;
+    this.paxos_in_progress = other.paxos_in_progress;
   }
 
   public TimedOutException deepCopy() {
@@ -187,6 +206,8 @@ public class TimedOutException extends TException implements org.apache.thrift.T
     this.acknowledged_by = 0;
     setAcknowledged_by_batchlogIsSet(false);
     this.acknowledged_by_batchlog = false;
+    setPaxos_in_progressIsSet(false);
+    this.paxos_in_progress = false;
   }
 
   /**
@@ -225,14 +246,16 @@ public class TimedOutException extends TException implements org.apache.thrift.T
   }
 
   /**
-   * in case of atomic_batch_mutate method this field tells if the batch was written to the batchlog.
+   * in case of atomic_batch_mutate method this field tells if the batch
+   * was written to the batchlog.
    */
   public boolean isAcknowledged_by_batchlog() {
     return this.acknowledged_by_batchlog;
   }
 
   /**
-   * in case of atomic_batch_mutate method this field tells if the batch was written to the batchlog.
+   * in case of atomic_batch_mutate method this field tells if the batch
+   * was written to the batchlog.
    */
   public TimedOutException setAcknowledged_by_batchlog(boolean acknowledged_by_batchlog) {
     this.acknowledged_by_batchlog = acknowledged_by_batchlog;
@@ -253,6 +276,37 @@ public class TimedOutException extends TException implements org.apache.thrift.T
     __isset_bitfield = EncodingUtils.setBit(__isset_bitfield, __ACKNOWLEDGED_BY_BATCHLOG_ISSET_ID, value);
   }
 
+  /**
+   * for the CAS method, this field tells if we timed out during the paxos
+   * protocol, as opposed to during the commit of our update
+   */
+  public boolean isPaxos_in_progress() {
+    return this.paxos_in_progress;
+  }
+
+  /**
+   * for the CAS method, this field tells if we timed out during the paxos
+   * protocol, as opposed to during the commit of our update
+   */
+  public TimedOutException setPaxos_in_progress(boolean paxos_in_progress) {
+    this.paxos_in_progress = paxos_in_progress;
+    setPaxos_in_progressIsSet(true);
+    return this;
+  }
+
+  public void unsetPaxos_in_progress() {
+    __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __PAXOS_IN_PROGRESS_ISSET_ID);
+  }
+
+  /** Returns true if field paxos_in_progress is set (has been assigned a value) and false otherwise */
+  public boolean isSetPaxos_in_progress() {
+    return EncodingUtils.testBit(__isset_bitfield, __PAXOS_IN_PROGRESS_ISSET_ID);
+  }
+
+  public void setPaxos_in_progressIsSet(boolean value) {
+    __isset_bitfield = EncodingUtils.setBit(__isset_bitfield, __PAXOS_IN_PROGRESS_ISSET_ID, value);
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case ACKNOWLEDGED_BY:
@@ -271,6 +325,14 @@ public class TimedOutException extends TException implements org.apache.thrift.T
       }
       break;
 
+    case PAXOS_IN_PROGRESS:
+      if (value == null) {
+        unsetPaxos_in_progress();
+      } else {
+        setPaxos_in_progress((Boolean)value);
+      }
+      break;
+
     }
   }
 
@@ -281,6 +343,9 @@ public class TimedOutException extends TException implements org.apache.thrift.T
 
     case ACKNOWLEDGED_BY_BATCHLOG:
       return Boolean.valueOf(isAcknowledged_by_batchlog());
+
+    case PAXOS_IN_PROGRESS:
+      return Boolean.valueOf(isPaxos_in_progress());
 
     }
     throw new IllegalStateException();
@@ -297,6 +362,8 @@ public class TimedOutException extends TException implements org.apache.thrift.T
       return isSetAcknowledged_by();
     case ACKNOWLEDGED_BY_BATCHLOG:
       return isSetAcknowledged_by_batchlog();
+    case PAXOS_IN_PROGRESS:
+      return isSetPaxos_in_progress();
     }
     throw new IllegalStateException();
   }
@@ -332,6 +399,15 @@ public class TimedOutException extends TException implements org.apache.thrift.T
         return false;
     }
 
+    boolean this_present_paxos_in_progress = true && this.isSetPaxos_in_progress();
+    boolean that_present_paxos_in_progress = true && that.isSetPaxos_in_progress();
+    if (this_present_paxos_in_progress || that_present_paxos_in_progress) {
+      if (!(this_present_paxos_in_progress && that_present_paxos_in_progress))
+        return false;
+      if (this.paxos_in_progress != that.paxos_in_progress)
+        return false;
+    }
+
     return true;
   }
 
@@ -348,6 +424,11 @@ public class TimedOutException extends TException implements org.apache.thrift.T
     builder.append(present_acknowledged_by_batchlog);
     if (present_acknowledged_by_batchlog)
       builder.append(acknowledged_by_batchlog);
+
+    boolean present_paxos_in_progress = true && (isSetPaxos_in_progress());
+    builder.append(present_paxos_in_progress);
+    if (present_paxos_in_progress)
+      builder.append(paxos_in_progress);
 
     return builder.toHashCode();
   }
@@ -376,6 +457,16 @@ public class TimedOutException extends TException implements org.apache.thrift.T
     }
     if (isSetAcknowledged_by_batchlog()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.acknowledged_by_batchlog, typedOther.acknowledged_by_batchlog);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetPaxos_in_progress()).compareTo(typedOther.isSetPaxos_in_progress());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetPaxos_in_progress()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.paxos_in_progress, typedOther.paxos_in_progress);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -409,6 +500,12 @@ public class TimedOutException extends TException implements org.apache.thrift.T
       if (!first) sb.append(", ");
       sb.append("acknowledged_by_batchlog:");
       sb.append(this.acknowledged_by_batchlog);
+      first = false;
+    }
+    if (isSetPaxos_in_progress()) {
+      if (!first) sb.append(", ");
+      sb.append("paxos_in_progress:");
+      sb.append(this.paxos_in_progress);
       first = false;
     }
     sb.append(")");
@@ -472,6 +569,14 @@ public class TimedOutException extends TException implements org.apache.thrift.T
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
+          case 3: // PAXOS_IN_PROGRESS
+            if (schemeField.type == org.apache.thrift.protocol.TType.BOOL) {
+              struct.paxos_in_progress = iprot.readBool();
+              struct.setPaxos_in_progressIsSet(true);
+            } else { 
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+            }
+            break;
           default:
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
         }
@@ -495,6 +600,11 @@ public class TimedOutException extends TException implements org.apache.thrift.T
       if (struct.isSetAcknowledged_by_batchlog()) {
         oprot.writeFieldBegin(ACKNOWLEDGED_BY_BATCHLOG_FIELD_DESC);
         oprot.writeBool(struct.acknowledged_by_batchlog);
+        oprot.writeFieldEnd();
+      }
+      if (struct.isSetPaxos_in_progress()) {
+        oprot.writeFieldBegin(PAXOS_IN_PROGRESS_FIELD_DESC);
+        oprot.writeBool(struct.paxos_in_progress);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldStop();
@@ -521,19 +631,25 @@ public class TimedOutException extends TException implements org.apache.thrift.T
       if (struct.isSetAcknowledged_by_batchlog()) {
         optionals.set(1);
       }
-      oprot.writeBitSet(optionals, 2);
+      if (struct.isSetPaxos_in_progress()) {
+        optionals.set(2);
+      }
+      oprot.writeBitSet(optionals, 3);
       if (struct.isSetAcknowledged_by()) {
         oprot.writeI32(struct.acknowledged_by);
       }
       if (struct.isSetAcknowledged_by_batchlog()) {
         oprot.writeBool(struct.acknowledged_by_batchlog);
       }
+      if (struct.isSetPaxos_in_progress()) {
+        oprot.writeBool(struct.paxos_in_progress);
+      }
     }
 
     @Override
     public void read(org.apache.thrift.protocol.TProtocol prot, TimedOutException struct) throws org.apache.thrift.TException {
       TTupleProtocol iprot = (TTupleProtocol) prot;
-      BitSet incoming = iprot.readBitSet(2);
+      BitSet incoming = iprot.readBitSet(3);
       if (incoming.get(0)) {
         struct.acknowledged_by = iprot.readI32();
         struct.setAcknowledged_byIsSet(true);
@@ -541,6 +657,10 @@ public class TimedOutException extends TException implements org.apache.thrift.T
       if (incoming.get(1)) {
         struct.acknowledged_by_batchlog = iprot.readBool();
         struct.setAcknowledged_by_batchlogIsSet(true);
+      }
+      if (incoming.get(2)) {
+        struct.paxos_in_progress = iprot.readBool();
+        struct.setPaxos_in_progressIsSet(true);
       }
     }
   }

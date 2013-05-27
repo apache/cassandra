@@ -148,10 +148,17 @@ exception TimedOutException {
      */
     1: optional i32 acknowledged_by
 
-    /**
-     * in case of atomic_batch_mutate method this field tells if the batch was written to the batchlog.
+    /** 
+     * in case of atomic_batch_mutate method this field tells if the batch 
+     * was written to the batchlog.  
      */
     2: optional bool acknowledged_by_batchlog
+
+    /** 
+     * for the CAS method, this field tells if we timed out during the paxos
+     * protocol, as opposed to during the commit of our update
+     */
+    3: optional bool paxos_in_progress
 }
 
 /** invalid authentication request (invalid keyspace, user does not exist, or credentials invalid) */
@@ -643,7 +650,8 @@ service Cassandra {
   bool cas(1:required binary key, 
            2:required string column_family,
            3:list<Column> expected,
-           4:list<Column> updates)
+           4:list<Column> updates,
+           5:required ConsistencyLevel consistency_level=ConsistencyLevel.QUORUM)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**

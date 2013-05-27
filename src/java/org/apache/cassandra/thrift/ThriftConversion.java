@@ -84,6 +84,8 @@ public class ThriftConversion
                 toe.setAcknowledged_by_batchlog(false);
             else if (wte.writeType == WriteType.BATCH)
                 toe.setAcknowledged_by_batchlog(true);
+            else if (wte.writeType == WriteType.CAS)
+                toe.setPaxos_in_progress(true);
         }
         return toe;
     }

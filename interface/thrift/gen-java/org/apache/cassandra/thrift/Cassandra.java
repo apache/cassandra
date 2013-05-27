@@ -170,8 +170,9 @@ public class Cassandra {
      * @param column_family
      * @param expected
      * @param updates
+     * @param consistency_level
      */
-    public boolean cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates) throws InvalidRequestException, UnavailableException, TimedOutException, org.apache.thrift.TException;
+    public boolean cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, org.apache.thrift.TException;
 
     /**
      * Remove data from the row specified by key at the granularity specified by column_path, and the given timestamp. Note
@@ -424,7 +425,7 @@ public class Cassandra {
 
     public void add(ByteBuffer key, ColumnParent column_parent, CounterColumn column, ConsistencyLevel consistency_level, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.add_call> resultHandler) throws org.apache.thrift.TException;
 
-    public void cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.cas_call> resultHandler) throws org.apache.thrift.TException;
+    public void cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates, ConsistencyLevel consistency_level, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.cas_call> resultHandler) throws org.apache.thrift.TException;
 
     public void remove(ByteBuffer key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.remove_call> resultHandler) throws org.apache.thrift.TException;
 
@@ -903,19 +904,20 @@ public class Cassandra {
       return;
     }
 
-    public boolean cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates) throws InvalidRequestException, UnavailableException, TimedOutException, org.apache.thrift.TException
+    public boolean cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, org.apache.thrift.TException
     {
-      send_cas(key, column_family, expected, updates);
+      send_cas(key, column_family, expected, updates, consistency_level);
       return recv_cas();
     }
 
-    public void send_cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates) throws org.apache.thrift.TException
+    public void send_cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates, ConsistencyLevel consistency_level) throws org.apache.thrift.TException
     {
       cas_args args = new cas_args();
       args.setKey(key);
       args.setColumn_family(column_family);
       args.setExpected(expected);
       args.setUpdates(updates);
+      args.setConsistency_level(consistency_level);
       sendBase("cas", args);
     }
 
@@ -2274,9 +2276,9 @@ public class Cassandra {
       }
     }
 
-    public void cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates, org.apache.thrift.async.AsyncMethodCallback<cas_call> resultHandler) throws org.apache.thrift.TException {
+    public void cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates, ConsistencyLevel consistency_level, org.apache.thrift.async.AsyncMethodCallback<cas_call> resultHandler) throws org.apache.thrift.TException {
       checkReady();
-      cas_call method_call = new cas_call(key, column_family, expected, updates, resultHandler, this, ___protocolFactory, ___transport);
+      cas_call method_call = new cas_call(key, column_family, expected, updates, consistency_level, resultHandler, this, ___protocolFactory, ___transport);
       this.___currentMethod = method_call;
       ___manager.call(method_call);
     }
@@ -2286,12 +2288,14 @@ public class Cassandra {
       private String column_family;
       private List<Column> expected;
       private List<Column> updates;
-      public cas_call(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates, org.apache.thrift.async.AsyncMethodCallback<cas_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
+      private ConsistencyLevel consistency_level;
+      public cas_call(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates, ConsistencyLevel consistency_level, org.apache.thrift.async.AsyncMethodCallback<cas_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
         super(client, protocolFactory, transport, resultHandler, false);
         this.key = key;
         this.column_family = column_family;
         this.expected = expected;
         this.updates = updates;
+        this.consistency_level = consistency_level;
       }
 
       public void write_args(org.apache.thrift.protocol.TProtocol prot) throws org.apache.thrift.TException {
@@ -2301,6 +2305,7 @@ public class Cassandra {
         args.setColumn_family(column_family);
         args.setExpected(expected);
         args.setUpdates(updates);
+        args.setConsistency_level(consistency_level);
         args.write(prot);
         prot.writeMessageEnd();
       }
@@ -3722,7 +3727,7 @@ public class Cassandra {
       public cas_result getResult(I iface, cas_args args) throws org.apache.thrift.TException {
         cas_result result = new cas_result();
         try {
-          result.success = iface.cas(args.key, args.column_family, args.expected, args.updates);
+          result.success = iface.cas(args.key, args.column_family, args.expected, args.updates, args.consistency_level);
           result.setSuccessIsSet(true);
         } catch (InvalidRequestException ire) {
           result.ire = ire;
@@ -20085,6 +20090,7 @@ public class Cassandra {
     private static final org.apache.thrift.protocol.TField COLUMN_FAMILY_FIELD_DESC = new org.apache.thrift.protocol.TField("column_family", org.apache.thrift.protocol.TType.STRING, (short)2);
     private static final org.apache.thrift.protocol.TField EXPECTED_FIELD_DESC = new org.apache.thrift.protocol.TField("expected", org.apache.thrift.protocol.TType.LIST, (short)3);
     private static final org.apache.thrift.protocol.TField UPDATES_FIELD_DESC = new org.apache.thrift.protocol.TField("updates", org.apache.thrift.protocol.TType.LIST, (short)4);
+    private static final org.apache.thrift.protocol.TField CONSISTENCY_LEVEL_FIELD_DESC = new org.apache.thrift.protocol.TField("consistency_level", org.apache.thrift.protocol.TType.I32, (short)5);
 
     private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
     static {
@@ -20096,13 +20102,23 @@ public class Cassandra {
     public String column_family; // required
     public List<Column> expected; // required
     public List<Column> updates; // required
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public ConsistencyLevel consistency_level; // required
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
       KEY((short)1, "key"),
       COLUMN_FAMILY((short)2, "column_family"),
       EXPECTED((short)3, "expected"),
-      UPDATES((short)4, "updates");
+      UPDATES((short)4, "updates"),
+      /**
+       * 
+       * @see ConsistencyLevel
+       */
+      CONSISTENCY_LEVEL((short)5, "consistency_level");
 
       private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -20125,6 +20141,8 @@ public class Cassandra {
             return EXPECTED;
           case 4: // UPDATES
             return UPDATES;
+          case 5: // CONSISTENCY_LEVEL
+            return CONSISTENCY_LEVEL;
           default:
             return null;
         }
@@ -20178,24 +20196,30 @@ public class Cassandra {
       tmpMap.put(_Fields.UPDATES, new org.apache.thrift.meta_data.FieldMetaData("updates", org.apache.thrift.TFieldRequirementType.DEFAULT, 
           new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
               new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, Column.class))));
+      tmpMap.put(_Fields.CONSISTENCY_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("consistency_level", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+          new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, ConsistencyLevel.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(cas_args.class, metaDataMap);
     }
 
     public cas_args() {
+      this.consistency_level = org.apache.cassandra.thrift.ConsistencyLevel.QUORUM;
+
     }
 
     public cas_args(
       ByteBuffer key,
       String column_family,
       List<Column> expected,
-      List<Column> updates)
+      List<Column> updates,
+      ConsistencyLevel consistency_level)
     {
       this();
       this.key = key;
       this.column_family = column_family;
       this.expected = expected;
       this.updates = updates;
+      this.consistency_level = consistency_level;
     }
 
     /**
@@ -20223,6 +20247,9 @@ public class Cassandra {
         }
         this.updates = __this__updates;
       }
+      if (other.isSetConsistency_level()) {
+        this.consistency_level = other.consistency_level;
+      }
     }
 
     public cas_args deepCopy() {
@@ -20235,6 +20262,8 @@ public class Cassandra {
       this.column_family = null;
       this.expected = null;
       this.updates = null;
+      this.consistency_level = org.apache.cassandra.thrift.ConsistencyLevel.QUORUM;
+
     }
 
     public byte[] getKey() {
@@ -20373,6 +20402,38 @@ public class Cassandra {
       }
     }
 
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public ConsistencyLevel getConsistency_level() {
+      return this.consistency_level;
+    }
+
+    /**
+     * 
+     * @see ConsistencyLevel
+     */
+    public cas_args setConsistency_level(ConsistencyLevel consistency_level) {
+      this.consistency_level = consistency_level;
+      return this;
+    }
+
+    public void unsetConsistency_level() {
+      this.consistency_level = null;
+    }
+
+    /** Returns true if field consistency_level is set (has been assigned a value) and false otherwise */
+    public boolean isSetConsistency_level() {
+      return this.consistency_level != null;
+    }
+
+    public void setConsistency_levelIsSet(boolean value) {
+      if (!value) {
+        this.consistency_level = null;
+      }
+    }
+
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
       case KEY:
@@ -20407,6 +20468,14 @@ public class Cassandra {
         }
         break;
 
+      case CONSISTENCY_LEVEL:
+        if (value == null) {
+          unsetConsistency_level();
+        } else {
+          setConsistency_level((ConsistencyLevel)value);
+        }
+        break;
+
       }
     }
 
@@ -20423,6 +20492,9 @@ public class Cassandra {
 
       case UPDATES:
         return getUpdates();
+
+      case CONSISTENCY_LEVEL:
+        return getConsistency_level();
 
       }
       throw new IllegalStateException();
@@ -20443,6 +20515,8 @@ public class Cassandra {
         return isSetExpected();
       case UPDATES:
         return isSetUpdates();
+      case CONSISTENCY_LEVEL:
+        return isSetConsistency_level();
       }
       throw new IllegalStateException();
     }
@@ -20496,6 +20570,15 @@ public class Cassandra {
           return false;
       }
 
+      boolean this_present_consistency_level = true && this.isSetConsistency_level();
+      boolean that_present_consistency_level = true && that.isSetConsistency_level();
+      if (this_present_consistency_level || that_present_consistency_level) {
+        if (!(this_present_consistency_level && that_present_consistency_level))
+          return false;
+        if (!this.consistency_level.equals(that.consistency_level))
+          return false;
+      }
+
       return true;
     }
 
@@ -20522,6 +20605,11 @@ public class Cassandra {
       builder.append(present_updates);
       if (present_updates)
         builder.append(updates);
+
+      boolean present_consistency_level = true && (isSetConsistency_level());
+      builder.append(present_consistency_level);
+      if (present_consistency_level)
+        builder.append(consistency_level.getValue());
 
       return builder.toHashCode();
     }
@@ -20570,6 +20658,16 @@ public class Cassandra {
       }
       if (isSetUpdates()) {
         lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.updates, typedOther.updates);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetConsistency_level()).compareTo(typedOther.isSetConsistency_level());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetConsistency_level()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.consistency_level, typedOther.consistency_level);
         if (lastComparison != 0) {
           return lastComparison;
         }
@@ -20625,6 +20723,14 @@ public class Cassandra {
         sb.append(this.updates);
       }
       first = false;
+      if (!first) sb.append(", ");
+      sb.append("consistency_level:");
+      if (this.consistency_level == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.consistency_level);
+      }
+      first = false;
       sb.append(")");
       return sb.toString();
     }
@@ -20636,6 +20742,9 @@ public class Cassandra {
       }
       if (column_family == null) {
         throw new org.apache.thrift.protocol.TProtocolException("Required field 'column_family' was not present! Struct: " + toString());
+      }
+      if (consistency_level == null) {
+        throw new org.apache.thrift.protocol.TProtocolException("Required field 'consistency_level' was not present! Struct: " + toString());
       }
       // check for sub-struct validity
     }
@@ -20728,6 +20837,14 @@ public class Cassandra {
                 org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
               }
               break;
+            case 5: // CONSISTENCY_LEVEL
+              if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
+                struct.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
+                struct.setConsistency_levelIsSet(true);
+              } else { 
+                org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+              }
+              break;
             default:
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
           }
@@ -20777,6 +20894,11 @@ public class Cassandra {
           }
           oprot.writeFieldEnd();
         }
+        if (struct.consistency_level != null) {
+          oprot.writeFieldBegin(CONSISTENCY_LEVEL_FIELD_DESC);
+          oprot.writeI32(struct.consistency_level.getValue());
+          oprot.writeFieldEnd();
+        }
         oprot.writeFieldStop();
         oprot.writeStructEnd();
       }
@@ -20796,6 +20918,7 @@ public class Cassandra {
         TTupleProtocol oprot = (TTupleProtocol) prot;
         oprot.writeBinary(struct.key);
         oprot.writeString(struct.column_family);
+        oprot.writeI32(struct.consistency_level.getValue());
         BitSet optionals = new BitSet();
         if (struct.isSetExpected()) {
           optionals.set(0);
@@ -20831,6 +20954,8 @@ public class Cassandra {
         struct.setKeyIsSet(true);
         struct.column_family = iprot.readString();
         struct.setColumn_familyIsSet(true);
+        struct.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
+        struct.setConsistency_levelIsSet(true);
         BitSet incoming = iprot.readBitSet(2);
         if (incoming.get(0)) {
           {

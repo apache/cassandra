@@ -281,6 +281,19 @@ public enum ConsistencyLevel
         }
     }
 
+    public void validateForCas(String table) throws InvalidRequestException
+    {
+        switch (this)
+        {
+            case LOCAL_QUORUM:
+            case EACH_QUORUM:
+                requireNetworkTopologyStrategy(table);
+                break;
+            case ANY:
+                throw new InvalidRequestException("ANY is not supported with CAS. Use SERIAL if you mean, make sure it is accepted but I don't care how many replicas commit it for non-SERIAL reads");
+        }
+    }
+
     public void validateCounterForWrite(CFMetaData metadata) throws InvalidRequestException
     {
         if (this == ConsistencyLevel.ANY)
