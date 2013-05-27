@@ -121,14 +121,24 @@ public class ColumnFamilyInputFormat extends InputFormat<ByteBuffer, SortedMap<B
             List<Future<List<InputSplit>>> splitfutures = new ArrayList<Future<List<InputSplit>>>();
             KeyRange jobKeyRange = ConfigHelper.getInputKeyRange(conf);
             Range<Token> jobRange = null;
-            if (jobKeyRange != null && jobKeyRange.start_token != null)
+            if (jobKeyRange != null)
             {
-                assert partitioner.preservesOrder() : "ConfigHelper.setInputKeyRange(..) can only be used with a order preserving paritioner";
-                assert jobKeyRange.start_key == null : "only start_token supported";
-                assert jobKeyRange.end_key == null : "only end_token supported";
-                jobRange = new Range<Token>(partitioner.getTokenFactory().fromString(jobKeyRange.start_token),
-                                            partitioner.getTokenFactory().fromString(jobKeyRange.end_token),
-                                            partitioner);
+                if (jobKeyRange.start_key == null)
+                {
+                    logger.warn("ignoring jobKeyRange specified without start_key");
+                }
+                else
+                {
+                    if (!partitioner.preservesOrder())
+                        throw new UnsupportedOperationException("KeyRange based on keys can only be used with a order preserving paritioner");
+                    if (jobKeyRange.start_token != null)
+                        throw new IllegalArgumentException("only start_key supported");
+                    if (jobKeyRange.end_token != null)
+                        throw new IllegalArgumentException("only start_key supported");
+                    jobRange = new Range<Token>(partitioner.getToken(jobKeyRange.start_key),
+                                                partitioner.getToken(jobKeyRange.end_key),
+                                                partitioner);
+                }
             }
 
             for (TokenRange range : masterRangeNodes)
