@@ -22,6 +22,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -95,14 +96,74 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return new SliceQueryFilter(newSlices, reversed, count, compositesToGroup);
     }
 
+    public SliceQueryFilter withUpdatedStart(ByteBuffer newStart, AbstractType<?> comparator)
+    {
+        Comparator<ByteBuffer> cmp = reversed ? comparator.reverseComparator : comparator;
+
+        List<ColumnSlice> newSlices = new ArrayList<ColumnSlice>();
+        boolean pastNewStart = false;
+        for (int i = 0; i < slices.length; i++)
+        {
+            ColumnSlice slice = slices[i];
+
+            if (pastNewStart)
+            {
+                newSlices.add(slice);
+                continue;
+            }
+
+            if (slices[i].isBefore(cmp, newStart))
+                continue;
+
+            if (slice.includes(cmp, newStart))
+                newSlices.add(new ColumnSlice(newStart, slice.finish));
+            else
+                newSlices.add(slice);
+
+            pastNewStart = true;
+        }
+        return withUpdatedSlices(newSlices.toArray(new ColumnSlice[newSlices.size()]));
+    }
+
     public SliceQueryFilter withUpdatedSlice(ByteBuffer start, ByteBuffer finish)
     {
         return new SliceQueryFilter(new ColumnSlice[]{ new ColumnSlice(start, finish) }, reversed, count, compositesToGroup);
     }
 
-    public OnDiskAtomIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key)
+    public OnDiskAtomIterator getColumnFamilyIterator(final DecoratedKey key, final ColumnFamily cf)
     {
-        return Memtable.getSliceIterator(key, cf, this);
+        assert cf != null;
+        final Iterator<Column> filteredIter = reversed ? cf.reverseIterator(slices) : cf.iterator(slices);
+
+        return new OnDiskAtomIterator()
+        {
+            public ColumnFamily getColumnFamily()
+            {
+                return cf;
+            }
+
+            public DecoratedKey getKey()
+            {
+                return key;
+            }
+
+            public boolean hasNext()
+            {
+                return filteredIter.hasNext();
+            }
+
+            public OnDiskAtom next()
+            {
+                return filteredIter.next();
+            }
+
+            public void close() throws IOException { }
+
+            public void remove()
+            {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 
     public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key)
@@ -122,7 +183,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
 
     public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore, long now)
     {
-        columnCounter = getColumnCounter(container, now);
+        columnCounter = columnCounter(container.getComparator(), now);
 
         while (reducedColumns.hasNext())
         {
@@ -144,15 +205,11 @@ public class SliceQueryFilter implements IDiskAtomFilter
 
     public int getLiveCount(ColumnFamily cf, long now)
     {
-        ColumnCounter counter = getColumnCounter(cf, now);
-        for (Column column : cf)
-            counter.count(column, cf);
-        return counter.live();
+        return columnCounter(cf.getComparator(), now).countAll(cf).live();
     }
 
-    private ColumnCounter getColumnCounter(ColumnFamily container, long now)
+    public ColumnCounter columnCounter(AbstractType<?> comparator, long now)
     {
-        AbstractType<?> comparator = container.getComparator();
         if (compositesToGroup < 0)
             return new ColumnCounter(now);
         else if (compositesToGroup == 0)
@@ -163,7 +220,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
 
     public void trim(ColumnFamily cf, int trimTo, long now)
     {
-        ColumnCounter counter = getColumnCounter(cf, now);
+        ColumnCounter counter = columnCounter(cf.getComparator(), now);
 
         Collection<Column> columns = reversed
                                    ? cf.getReverseSortedColumns()

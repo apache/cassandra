@@ -45,7 +45,7 @@ public class StartupMessage extends Message.Request
             return new StartupMessage(CBUtil.readStringMap(body));
         }
 
-        public ChannelBuffer encode(StartupMessage msg)
+        public ChannelBuffer encode(StartupMessage msg, int version)
         {
             ChannelBuffer cb = ChannelBuffers.dynamicBuffer();
             CBUtil.writeStringMap(cb, msg.options);
@@ -63,7 +63,7 @@ public class StartupMessage extends Message.Request
 
     public ChannelBuffer encode()
     {
-        return codec.encode(this);
+        return codec.encode(this, getVersion());
     }
 
     public Message.Response execute(QueryState state)

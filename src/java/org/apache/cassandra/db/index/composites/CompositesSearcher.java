@@ -44,16 +44,10 @@ public class CompositesSearcher extends SecondaryIndexSearcher
     }
 
     @Override
-    public List<Row> search(AbstractBounds<RowPosition> range,
-                            List<IndexExpression> clause,
-                            IDiskAtomFilter dataFilter,
-                            int maxResults,
-                            long now,
-                            boolean countCQL3Rows)
+    public List<Row> search(ExtendedFilter filter)
     {
-        assert clause != null && !clause.isEmpty();
-        ExtendedFilter filter = ExtendedFilter.create(baseCfs, clause, dataFilter, maxResults, now, countCQL3Rows, false);
-        return baseCfs.filter(getIndexedIterator(range, filter), filter);
+        assert filter.getClause() != null && !filter.getClause().isEmpty();
+        return baseCfs.filter(getIndexedIterator(filter), filter);
     }
 
     private ByteBuffer makePrefix(CompositesIndex index, ByteBuffer key, ExtendedFilter filter, boolean isStart)
@@ -62,10 +56,11 @@ public class CompositesSearcher extends SecondaryIndexSearcher
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
         ColumnNameBuilder builder;
-        if (filter.originalFilter() instanceof SliceQueryFilter)
+        IDiskAtomFilter columnFilter = filter.columnFilter(key);
+        if (columnFilter instanceof SliceQueryFilter)
         {
-            SliceQueryFilter originalFilter = (SliceQueryFilter)filter.originalFilter();
-            builder = index.makeIndexColumnNameBuilder(key, isStart ? originalFilter.start() : originalFilter.finish());
+            SliceQueryFilter sqf = (SliceQueryFilter)columnFilter;
+            builder = index.makeIndexColumnNameBuilder(key, isStart ? sqf.start() : sqf.finish());
         }
         else
         {
@@ -74,7 +69,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
         return isStart ? builder.build() : builder.buildAsEndOfRange();
     }
 
-    private ColumnFamilyStore.AbstractScanIterator getIndexedIterator(final AbstractBounds<RowPosition> range, final ExtendedFilter filter)
+    private ColumnFamilyStore.AbstractScanIterator getIndexedIterator(final ExtendedFilter filter)
     {
         // Start with the most-restrictive indexed clause, then apply remaining clauses
         // to each row matching that clause.
@@ -93,6 +88,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
          * possible key having a given token. A fix would be to actually store the token along the key in the
          * indexed row.
          */
+        final AbstractBounds<RowPosition> range = filter.dataRange.keyRange();
         ByteBuffer startKey = range.left instanceof DecoratedKey ? ((DecoratedKey)range.left).key : ByteBufferUtil.EMPTY_BYTE_BUFFER;
         ByteBuffer endKey = range.right instanceof DecoratedKey ? ((DecoratedKey)range.right).key : ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
@@ -140,12 +136,12 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                 DecoratedKey currentKey = null;
                 ColumnFamily data = null;
                 int columnsCount = 0;
-                int limit = ((SliceQueryFilter)filter.initialFilter()).count;
+                int limit = filter.currentLimit();
 
                 while (true)
                 {
                     // Did we got more columns that needed to respect the user limit?
-                    // (but we still need to return was fetch already)
+                    // (but we still need to return what was fetch already)
                     if (columnsCount > limit)
                         return makeReturn(currentKey, data);
 
@@ -235,7 +231,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
 
                         // Check if this entry cannot be a hit due to the original column filter
                         ByteBuffer start = entry.indexedEntryStart();
-                        if (!filter.originalFilter().maySelectPrefix(baseComparator, start))
+                        if (!filter.columnFilter(dk.key).maySelectPrefix(baseComparator, start))
                             continue;
 
                         logger.trace("Adding index hit to current row for {}", indexComparator.getString(column.name()));
@@ -256,7 +252,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
 
                         assert newData != null : "An entry with not data should have been considered stale";
 
-                        if (!filter.isSatisfiedBy(dk.key, newData, entry.indexedEntryNameBuilder))
+                        if (!filter.isSatisfiedBy(dk, newData, entry.indexedEntryNameBuilder))
                             continue;
 
                         if (data == null)

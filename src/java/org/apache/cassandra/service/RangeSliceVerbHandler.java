@@ -19,39 +19,16 @@ package org.apache.cassandra.service;
 
 import java.util.List;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.RangeSliceCommand;
+import org.apache.cassandra.db.AbstractRangeCommand;
 import org.apache.cassandra.db.RangeSliceReply;
-import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.tracing.Tracing;
 
-public class RangeSliceVerbHandler implements IVerbHandler<RangeSliceCommand>
+public class RangeSliceVerbHandler implements IVerbHandler<AbstractRangeCommand>
 {
-    public static List<Row> executeLocally(RangeSliceCommand command)
-    {
-        ColumnFamilyStore cfs = Table.open(command.keyspace).getColumnFamilyStore(command.column_family);
-        if (cfs.indexManager.hasIndexFor(command.row_filter))
-            return cfs.search(command.range,
-                              command.row_filter,
-                              command.predicate,
-                              command.maxResults,
-                              command.timestamp,
-                              command.countCQL3Rows);
-        else
-            return cfs.getRangeSlice(command.range,
-                                     command.row_filter,
-                                     command.predicate,
-                                     command.maxResults,
-                                     command.timestamp,
-                                     command.countCQL3Rows,
-                                     command.isPaging);
-    }
-
-    public void doVerb(MessageIn<RangeSliceCommand> message, int id)
+    public void doVerb(MessageIn<AbstractRangeCommand> message, int id)
     {
         try
         {
@@ -60,7 +37,7 @@ public class RangeSliceVerbHandler implements IVerbHandler<RangeSliceCommand>
                 /* Don't service reads! */
                 throw new RuntimeException("Cannot service reads while bootstrapping!");
             }
-            RangeSliceReply reply = new RangeSliceReply(executeLocally(message.payload));
+            RangeSliceReply reply = new RangeSliceReply(message.payload.executeLocally());
             Tracing.trace("Enqueuing response to {}", message.from);
             MessagingService.instance().sendReply(reply.createMessage(), id, message.from);
         }

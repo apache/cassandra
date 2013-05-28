@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Function;
 import com.google.common.base.Throwables;
-import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.StageManager;
@@ -336,52 +335,6 @@ public class Memtable
         return period > 0 && (System.nanoTime() - creationNano >= TimeUnit.MILLISECONDS.toNanos(period));
     }
 
-    /**
-     * obtain an iterator of columns in this memtable in the specified order starting from a given column.
-     */
-    public static OnDiskAtomIterator getSliceIterator(final DecoratedKey key, final ColumnFamily cf, SliceQueryFilter filter)
-    {
-        assert cf != null;
-        final Iterator<Column> filteredIter = filter.reversed ? cf.reverseIterator(filter.slices) : cf.iterator(filter.slices);
-
-        return new OnDiskAtomIterator()
-        {
-            public ColumnFamily getColumnFamily()
-            {
-                return cf;
-            }
-
-            public DecoratedKey getKey()
-            {
-                return key;
-            }
-
-            public boolean hasNext()
-            {
-                return filteredIter.hasNext();
-            }
-
-            public OnDiskAtom next()
-            {
-                return filteredIter.next();
-            }
-
-            public void close() throws IOException { }
-
-            public void remove()
-            {
-                throw new UnsupportedOperationException();
-            }
-        };
-    }
-
-    public static OnDiskAtomIterator getNamesIterator(final DecoratedKey key, final ColumnFamily cf, final NamesQueryFilter filter)
-    {
-        assert cf != null;
-
-        return new ByNameColumnIterator(filter.columns.iterator(), cf, key);
-    }
-
     public ColumnFamily getColumnFamily(DecoratedKey key)
     {
         return rows.get(key);
@@ -390,44 +343,6 @@ public class Memtable
     public long creationTime()
     {
         return creationTime;
-    }
-
-    private static class ByNameColumnIterator extends AbstractIterator<OnDiskAtom> implements OnDiskAtomIterator
-    {
-        private final ColumnFamily cf;
-        private final DecoratedKey key;
-        private final Iterator<ByteBuffer> iter;
-
-        public ByNameColumnIterator(Iterator<ByteBuffer> iter, ColumnFamily cf, DecoratedKey key)
-        {
-            this.iter = iter;
-            this.cf = cf;
-            this.key = key;
-        }
-
-        public ColumnFamily getColumnFamily()
-        {
-            return cf;
-        }
-
-        public DecoratedKey getKey()
-        {
-            return key;
-        }
-
-        protected OnDiskAtom computeNext()
-        {
-            while (iter.hasNext())
-            {
-                ByteBuffer current = iter.next();
-                Column column = cf.getColumn(current);
-                if (column != null)
-                    return column;
-            }
-            return endOfData();
-        }
-
-        public void close() throws IOException { }
     }
 
     class FlushRunnable extends DiskAwareRunnable

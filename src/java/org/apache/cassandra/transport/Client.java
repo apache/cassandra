@@ -35,14 +35,7 @@ import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.transport.messages.CredentialsMessage;
-import org.apache.cassandra.transport.messages.ExecuteMessage;
-import org.apache.cassandra.transport.messages.OptionsMessage;
-import org.apache.cassandra.transport.messages.PrepareMessage;
-import org.apache.cassandra.transport.messages.QueryMessage;
-import org.apache.cassandra.transport.messages.RegisterMessage;
-import org.apache.cassandra.transport.messages.AuthResponse;
-import org.apache.cassandra.transport.messages.StartupMessage;
+import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.utils.Hex;
 
 import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
@@ -116,8 +109,37 @@ public class Client extends SimpleClient
         }
         else if (msgType.equals("QUERY"))
         {
-            String query = line.substring(6);
-            return new QueryMessage(query, ConsistencyLevel.ONE);
+            line = line.substring(6);
+            // Ugly hack to allow setting a page size, but that's playground code anyway
+            String query = line;
+            int pageSize = -1;
+            if (line.matches(".+ !\\d+$"))
+            {
+                int idx = line.lastIndexOf('!');
+                query = line.substring(0, idx-1);
+                try
+                {
+                    pageSize = Integer.parseInt(line.substring(idx+1, line.length()));
+                }
+                catch (NumberFormatException e)
+                {
+                    return null;
+                }
+            }
+            return new QueryMessage(query, Collections.<ByteBuffer>emptyList(), ConsistencyLevel.ONE, pageSize);
+        }
+        else if (msgType.equals("NEXT"))
+        {
+            line = line.substring(5);
+            try
+            {
+                int pageSize = Integer.parseInt(line);
+                return new NextMessage(pageSize);
+            }
+            catch (NumberFormatException e)
+            {
+                return null;
+            }
         }
         else if (msgType.equals("PREPARE"))
         {
@@ -145,7 +167,7 @@ public class Client extends SimpleClient
                     }
                     values.add(bb);
                 }
-                return new ExecuteMessage(id, values, ConsistencyLevel.ONE);
+                return new ExecuteMessage(id, values, ConsistencyLevel.ONE, -1);
             }
             catch (Exception e)
             {

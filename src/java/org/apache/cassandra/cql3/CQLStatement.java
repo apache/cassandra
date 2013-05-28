@@ -51,11 +51,14 @@ public interface CQLStatement
     /**
      * Execute the statement and return the resulting result or null if there is no result.
      *
+     * @param cl the consistency level for the query
      * @param state the current query state
      * @param variables the values for bounded variables. The implementation
      * can assume that each bound term have a corresponding value.
+     * @param pageSize the initial page size for the result set potentially returned. A negative value
+     * means no paging needs to be done. Statements that do not return result sets can ignore this value.
      */
-    public ResultMessage execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables) throws RequestValidationException, RequestExecutionException;
+    public ResultMessage execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables, int pageSize) throws RequestValidationException, RequestExecutionException;
 
     /**
      * Variante of execute used for internal query against the system tables, and thus only query the local node.

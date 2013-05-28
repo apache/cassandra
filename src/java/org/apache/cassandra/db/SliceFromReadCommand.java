@@ -106,6 +106,11 @@ public class SliceFromReadCommand extends ReadCommand
         return filter;
     }
 
+    public SliceFromReadCommand withUpdatedFilter(SliceQueryFilter newFilter)
+    {
+        return new SliceFromReadCommand(table, key, cfName, timestamp, newFilter);
+    }
+
     /**
      * The original number of columns requested by the user.
      * This can be different from count when the slice command is a retry (see

@@ -17,9 +17,17 @@
  */
 package org.apache.cassandra.service;
 
+import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.UUID;
 
+import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.db.Row;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -30,6 +38,7 @@ public class QueryState
     private final ClientState clientState;
     private volatile long clock;
     private volatile UUID preparedTracingSession;
+    private volatile Pager pager;
 
     public QueryState(ClientState clientState)
     {
@@ -68,6 +77,13 @@ public class QueryState
         this.preparedTracingSession = sessionId;
     }
 
+    public UUID getAndResetCurrentTracingSession()
+    {
+        UUID previous = preparedTracingSession;
+        preparedTracingSession = null;
+        return previous;
+    }
+
     public void createTracingSession()
     {
         if (this.preparedTracingSession == null)
@@ -77,9 +93,53 @@ public class QueryState
         else
         {
             UUID session = this.preparedTracingSession;
-            this.preparedTracingSession = null;
             Tracing.instance.newSession(session);
         }
     }
-}
 
+    public void attachPager(QueryPager queryPager, SelectStatement statement, List<ByteBuffer> variables)
+    {
+        pager = new Pager(queryPager, statement, variables);
+    }
+
+    public boolean hasPager()
+    {
+        return pager != null;
+    }
+
+    public void dropPager()
+    {
+        pager = null;
+    }
+
+    public ResultMessage.Rows getNextPage(int pageSize) throws RequestValidationException, RequestExecutionException
+    {
+        assert pager != null; // We've already validated (in ServerConnection) that this should not be null
+
+        int currentLimit = pager.queryPager.maxRemaining();
+        List<Row> page = pager.queryPager.fetchPage(pageSize);
+        ResultMessage.Rows msg = pager.statement.processResults(page, pager.variables, currentLimit, pager.queryPager.timestamp());
+
+        if (pager.queryPager.isExhausted())
+            dropPager();
+        else
+            msg.result.metadata.setHasMorePages();
+
+        return msg;
+    }
+
+    // Groups the actual query pager with the Select Query
+    private static class Pager
+    {
+        private final QueryPager queryPager;
+        private final SelectStatement statement;
+        private final List<ByteBuffer> variables;
+
+        private Pager(QueryPager queryPager, SelectStatement statement, List<ByteBuffer> variables)
+        {
+            this.queryPager = queryPager;
+            this.statement = statement;
+            this.variables = variables;
+        }
+    }
+}

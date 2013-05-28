@@ -27,6 +27,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import org.apache.commons.lang.StringUtils;
+import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
@@ -75,9 +76,10 @@ public class NamesQueryFilter implements IDiskAtomFilter
        return new NamesQueryFilter(newColumns, countCQL3Rows);
     }
 
-    public OnDiskAtomIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key)
+    public OnDiskAtomIterator getColumnFamilyIterator(DecoratedKey key, ColumnFamily cf)
     {
-        return Memtable.getNamesIterator(key, cf, this);
+        assert cf != null;
+        return new ByNameColumnIterator(columns.iterator(), cf, key);
     }
 
     public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key)
@@ -120,6 +122,8 @@ public class NamesQueryFilter implements IDiskAtomFilter
 
     public int getLiveCount(ColumnFamily cf, long now)
     {
+        // Note: we could use columnCounter() but we save the object allocation as it's simple enough
+
         if (countCQL3Rows)
             return cf.hasOnlyTombstones(now) ? 0 : 1;
 
@@ -145,6 +149,56 @@ public class NamesQueryFilter implements IDiskAtomFilter
     public boolean shouldInclude(SSTableReader sstable)
     {
         return true;
+    }
+
+    public boolean countCQL3Rows()
+    {
+        return countCQL3Rows;
+    }
+
+    public ColumnCounter columnCounter(AbstractType<?> comparator, long now)
+    {
+        return countCQL3Rows
+             ? new ColumnCounter.GroupByPrefix(now, null, 0)
+             : new ColumnCounter(now);
+    }
+
+    private static class ByNameColumnIterator extends AbstractIterator<OnDiskAtom> implements OnDiskAtomIterator
+    {
+        private final ColumnFamily cf;
+        private final DecoratedKey key;
+        private final Iterator<ByteBuffer> iter;
+
+        public ByNameColumnIterator(Iterator<ByteBuffer> iter, ColumnFamily cf, DecoratedKey key)
+        {
+            this.iter = iter;
+            this.cf = cf;
+            this.key = key;
+        }
+
+        public ColumnFamily getColumnFamily()
+        {
+            return cf;
+        }
+
+        public DecoratedKey getKey()
+        {
+            return key;
+        }
+
+        protected OnDiskAtom computeNext()
+        {
+            while (iter.hasNext())
+            {
+                ByteBuffer current = iter.next();
+                Column column = cf.getColumn(current);
+                if (column != null)
+                    return column;
+            }
+            return endOfData();
+        }
+
+        public void close() throws IOException { }
     }
 
     public static class Serializer implements IVersionedSerializer<NamesQueryFilter>

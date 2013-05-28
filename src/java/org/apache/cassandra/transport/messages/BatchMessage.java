@@ -73,7 +73,7 @@ public class BatchMessage extends Message.Request
             return new BatchMessage(toType(type), queryOrIds, variables, consistency);
         }
 
-        public ChannelBuffer encode(BatchMessage msg)
+        public ChannelBuffer encode(BatchMessage msg, int version)
         {
             // We have:
             //   - type
@@ -160,7 +160,7 @@ public class BatchMessage extends Message.Request
 
     public ChannelBuffer encode()
     {
-        return codec.encode(this);
+        return codec.encode(this, getVersion());
     }
 
     public Message.Response execute(QueryState state)

@@ -45,18 +45,15 @@ public class RowIteratorFactory
      * and filtered by the queryfilter.
      * @param memtables Memtables pending flush.
      * @param sstables SStables to scan through.
-     * @param startWith Start at this key
-     * @param stopAt Stop and this key
-     * @param filter Used to decide which columns to pull out
+     * @param range The data range to fetch
      * @param cfs
      * @return A row iterator following all the given restrictions
      */
     public static CloseableIterator<Row> getIterator(final Iterable<Memtable> memtables,
                                                      final Collection<SSTableReader> sstables,
-                                                     final RowPosition startWith,
-                                                     final RowPosition stopAt,
-                                                     final QueryFilter filter,
-                                                     final ColumnFamilyStore cfs)
+                                                     final DataRange range,
+                                                     final ColumnFamilyStore cfs,
+                                                     final long now)
     {
         // fetch data from current memtable, historical memtables, and SSTables in the correct order.
         final List<CloseableIterator<OnDiskAtomIterator>> iterators = new ArrayList<CloseableIterator<OnDiskAtomIterator>>();
@@ -64,19 +61,19 @@ public class RowIteratorFactory
         // memtables
         for (Memtable memtable : memtables)
         {
-            iterators.add(new ConvertToColumnIterator<AtomicSortedColumns>(filter, memtable.getEntryIterator(startWith, stopAt)));
+            iterators.add(new ConvertToColumnIterator<AtomicSortedColumns>(range, memtable.getEntryIterator(range.startKey(), range.stopKey())));
         }
 
         for (SSTableReader sstable : sstables)
         {
-            final SSTableScanner scanner = sstable.getScanner(filter, startWith);
+            final SSTableScanner scanner = sstable.getScanner(range);
             iterators.add(scanner);
         }
 
         // reduce rows from all sources into a single row
         return MergeIterator.get(iterators, COMPARE_BY_KEY, new MergeIterator.Reducer<OnDiskAtomIterator, Row>()
         {
-            private final int gcBefore = cfs.gcBefore(filter.timestamp);
+            private final int gcBefore = cfs.gcBefore(now);
             private final List<OnDiskAtomIterator> colIters = new ArrayList<OnDiskAtomIterator>();
             private DecoratedKey key;
             private ColumnFamily returnCF;
@@ -96,17 +93,16 @@ public class RowIteratorFactory
 
             protected Row getReduced()
             {
-
                 // First check if this row is in the rowCache. If it is we can skip the rest
                 ColumnFamily cached = cfs.getRawCachedRow(key);
                 if (cached == null)
                 {
                     // not cached: collate
-                    filter.collateOnDiskAtom(returnCF, colIters, gcBefore);
+                    QueryFilter.collateOnDiskAtom(returnCF, colIters, range.columnFilter(key.key), gcBefore, now);
                 }
                 else
                 {
-                    QueryFilter keyFilter = new QueryFilter(key, filter.cfName, filter.filter, filter.timestamp);
+                    QueryFilter keyFilter = new QueryFilter(key, cfs.name, range.columnFilter(key.key), now);
                     returnCF = cfs.filterColumnFamily(cached, keyFilter);
                 }
 
@@ -123,12 +119,12 @@ public class RowIteratorFactory
      */
     private static class ConvertToColumnIterator<T extends ColumnFamily> implements CloseableIterator<OnDiskAtomIterator>
     {
-        private final QueryFilter filter;
+        private final DataRange range;
         private final Iterator<Map.Entry<DecoratedKey, T>> iter;
 
-        public ConvertToColumnIterator(QueryFilter filter, Iterator<Map.Entry<DecoratedKey, T>> iter)
+        public ConvertToColumnIterator(DataRange range, Iterator<Map.Entry<DecoratedKey, T>> iter)
         {
-            this.filter = filter;
+            this.range = range;
             this.iter = iter;
         }
 
@@ -151,7 +147,7 @@ public class RowIteratorFactory
             {
                 public OnDiskAtomIterator create()
                 {
-                    return filter.getMemtableColumnIterator(entry.getValue(), entry.getKey());
+                    return range.columnFilter(entry.getKey().key).getColumnFamilyIterator(entry.getKey(), entry.getValue());
                 }
             });
         }

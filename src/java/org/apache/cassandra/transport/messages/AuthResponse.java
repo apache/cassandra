@@ -52,7 +52,7 @@ public class AuthResponse extends Message.Request
         }
 
         @Override
-        public ChannelBuffer encode(AuthResponse response)
+        public ChannelBuffer encode(AuthResponse response, int version)
         {
             return CBUtil.valueToCB(response.token);
         }
@@ -69,7 +69,7 @@ public class AuthResponse extends Message.Request
     @Override
     public ChannelBuffer encode()
     {
-        return codec.encode(this);
+        return codec.encode(this, getVersion());
     }
 
     @Override

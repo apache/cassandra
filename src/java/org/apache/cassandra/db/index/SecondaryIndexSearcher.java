@@ -21,8 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.IDiskAtomFilter;
-import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 
@@ -39,12 +38,7 @@ public abstract class SecondaryIndexSearcher
         this.baseCfs = indexManager.baseCfs;
     }
 
-    public abstract List<Row> search(AbstractBounds<RowPosition> range,
-                                     List<IndexExpression> clause,
-                                     IDiskAtomFilter dataFilter,
-                                     int maxResults,
-                                     long now,
-                                     boolean countCQL3Rows);
+    public abstract List<Row> search(ExtendedFilter filter);
 
     /**
      * @return true this index is able to handle given clauses.

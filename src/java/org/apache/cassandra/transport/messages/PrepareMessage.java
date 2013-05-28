@@ -38,7 +38,7 @@ public class PrepareMessage extends Message.Request
             return new PrepareMessage(query);
         }
 
-        public ChannelBuffer encode(PrepareMessage msg)
+        public ChannelBuffer encode(PrepareMessage msg, int version)
         {
             return CBUtil.longStringToCB(msg.query);
         }
@@ -54,7 +54,7 @@ public class PrepareMessage extends Message.Request
 
     public ChannelBuffer encode()
     {
-        return codec.encode(this);
+        return codec.encode(this, getVersion());
     }
 
     public Message.Response execute(QueryState state)

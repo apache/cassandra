@@ -678,7 +678,8 @@ public class SystemTable
         return schemaCFS(schemaCfName).getRangeSlice(new Range<RowPosition>(minToken.minKeyBound(), minToken.maxKeyBound()),
                                                      null,
                                                      new IdentityQueryFilter(),
-                                                     Integer.MAX_VALUE);
+                                                     Integer.MAX_VALUE,
+                                                     System.currentTimeMillis());
     }
 
     public static Collection<RowMutation> serializeSchema()

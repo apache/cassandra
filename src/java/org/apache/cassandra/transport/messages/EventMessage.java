@@ -31,7 +31,7 @@ public class EventMessage extends Message.Response
             return new EventMessage(Event.deserialize(body));
         }
 
-        public ChannelBuffer encode(EventMessage msg)
+        public ChannelBuffer encode(EventMessage msg, int version)
         {
             return msg.event.serialize();
         }
@@ -48,7 +48,7 @@ public class EventMessage extends Message.Response
 
     public ChannelBuffer encode()
     {
-        return codec.encode(this);
+        return codec.encode(this, getVersion());
     }
 
     @Override

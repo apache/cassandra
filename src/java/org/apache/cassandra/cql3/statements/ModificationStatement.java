@@ -332,7 +332,7 @@ public abstract class ModificationStatement implements CQLStatement
         return ifNotExists || (columnConditions != null && !columnConditions.isEmpty());
     }
 
-    public ResultMessage execute(ConsistencyLevel cl, QueryState queryState, List<ByteBuffer> variables)
+    public ResultMessage execute(ConsistencyLevel cl, QueryState queryState, List<ByteBuffer> variables, int pageSize)
     throws RequestExecutionException, RequestValidationException
     {
         if (cl == null)

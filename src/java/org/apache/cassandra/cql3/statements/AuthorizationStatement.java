@@ -41,7 +41,7 @@ public abstract class AuthorizationStatement extends ParsedStatement implements 
         return 0;
     }
 
-    public ResultMessage execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables)
+    public ResultMessage execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables, int pageSize)
     throws RequestValidationException, RequestExecutionException
     {
         return execute(state.getClientState());

@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import com.google.common.collect.ImmutableMap;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import org.apache.cassandra.cql3.CQLStatement;
@@ -49,10 +50,11 @@ public class ExecuteMessage extends Message.Request
                 values.add(CBUtil.readValue(body));
 
             ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
-            return new ExecuteMessage(id, values, consistency);
+            int resultPageSize = body.readInt();
+            return new ExecuteMessage(id, values, consistency, resultPageSize);
         }
 
-        public ChannelBuffer encode(ExecuteMessage msg)
+        public ChannelBuffer encode(ExecuteMessage msg, int version)
         {
             // We have:
             //   - statementId
@@ -60,7 +62,7 @@ public class ExecuteMessage extends Message.Request
             //   - The values
             //   - options
             int vs = msg.values.size();
-            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(3, 0, vs);
+            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(4, 0, vs);
             builder.add(CBUtil.bytesToCB(msg.statementId.bytes));
             builder.add(CBUtil.shortToCB(vs));
 
@@ -69,6 +71,7 @@ public class ExecuteMessage extends Message.Request
                 builder.addValue(value);
 
             builder.add(CBUtil.consistencyLevelToCB(msg.consistency));
+            builder.add(CBUtil.intToCB(msg.resultPageSize));
             return builder.build();
         }
     };
@@ -76,23 +79,25 @@ public class ExecuteMessage extends Message.Request
     public final MD5Digest statementId;
     public final List<ByteBuffer> values;
     public final ConsistencyLevel consistency;
+    public final int resultPageSize;
 
-    public ExecuteMessage(byte[] statementId, List<ByteBuffer> values, ConsistencyLevel consistency)
+    public ExecuteMessage(byte[] statementId, List<ByteBuffer> values, ConsistencyLevel consistency, int resultPageSize)
     {
-        this(MD5Digest.wrap(statementId), values, consistency);
+        this(MD5Digest.wrap(statementId), values, consistency, resultPageSize);
     }
 
-    public ExecuteMessage(MD5Digest statementId, List<ByteBuffer> values, ConsistencyLevel consistency)
+    public ExecuteMessage(MD5Digest statementId, List<ByteBuffer> values, ConsistencyLevel consistency, int resultPageSize)
     {
         super(Message.Type.EXECUTE);
         this.statementId = statementId;
         this.values = values;
         this.consistency = consistency;
+        this.resultPageSize = resultPageSize;
     }
 
     public ChannelBuffer encode()
     {
-        return codec.encode(this);
+        return codec.encode(this, getVersion());
     }
 
     public Message.Response execute(QueryState state)
@@ -104,6 +109,9 @@ public class ExecuteMessage extends Message.Request
             if (statement == null)
                 throw new PreparedQueryNotFoundException(statementId);
 
+            if (resultPageSize == 0)
+                throw new ProtocolException("The page size cannot be 0");
+
             UUID tracingId = null;
             if (isTracingRequested())
             {
@@ -114,11 +122,16 @@ public class ExecuteMessage extends Message.Request
             if (state.traceNextQuery())
             {
                 state.createTracingSession();
+
+                ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+                if (resultPageSize > 0)
+                    builder.put("page_size", Integer.toString(resultPageSize));
+
                 // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
-                Tracing.instance.begin("Execute CQL3 prepared query", Collections.<String, String>emptyMap());
+                Tracing.instance.begin("Execute CQL3 prepared query", builder.build());
             }
 
-            Message.Response response = QueryProcessor.processPrepared(statement, consistency, state, values);
+            Message.Response response = QueryProcessor.processPrepared(statement, consistency, state, values, resultPageSize);
 
             if (tracingId != null)
                 response.setTracingId(tracingId);
@@ -132,6 +145,9 @@ public class ExecuteMessage extends Message.Request
         finally
         {
             Tracing.instance.stopSession();
+            // Trash the current session id if we won't need it anymore
+            if (!state.hasPager())
+                state.getAndResetCurrentTracingSession();
         }
     }
 

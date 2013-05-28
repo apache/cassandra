@@ -97,7 +97,11 @@ public class ResultSet
         String ksName = metadata.names.get(0).ksName;
         String cfName = metadata.names.get(0).cfName;
         long count = rows.size();
+        return makeCountResult(ksName, cfName, count, alias);
+    }
 
+    public static ResultSet makeCountResult(String ksName, String cfName, long count, ColumnIdentifier alias)
+    {
         ColumnSpecification spec = new ColumnSpecification(ksName, cfName, alias == null ? COUNT_COLUMN : alias, LongType.instance);
         Metadata newMetadata = new Metadata(Collections.singletonList(spec));
         List<List<ByteBuffer>> newRows = Collections.singletonList(Collections.singletonList(ByteBufferUtil.bytes(count)));
@@ -190,10 +194,10 @@ public class ResultSet
             return rs;
         }
 
-        public ChannelBuffer encode(ResultSet rs)
+        public ChannelBuffer encode(ResultSet rs, int version)
         {
             CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(2, 0, rs.metadata.names.size() * rs.rows.size());
-            builder.add(Metadata.codec.encode(rs.metadata));
+            builder.add(Metadata.codec.encode(rs.metadata, version));
             builder.add(CBUtil.intToCB(rs.rows.size()));
 
             for (List<ByteBuffer> row : rs.rows)
@@ -241,6 +245,11 @@ public class ResultSet
             return true;
         }
 
+        public void setHasMorePages()
+        {
+            flags.add(Flag.HAS_MORE_PAGES);
+        }
+
         @Override
         public String toString()
         {
@@ -251,6 +260,8 @@ public class ResultSet
                 sb.append("(").append(name.ksName).append(", ").append(name.cfName).append(")");
                 sb.append(", ").append(name.type).append("]");
             }
+            if (flags.contains(Flag.HAS_MORE_PAGES))
+                sb.append(" (to be continued)");
             return sb.toString();
         }
 
@@ -286,7 +297,7 @@ public class ResultSet
                 return new Metadata(flags, names);
             }
 
-            public ChannelBuffer encode(Metadata m)
+            public ChannelBuffer encode(Metadata m, int version)
             {
                 boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);
 
@@ -294,6 +305,9 @@ public class ResultSet
                 CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(1 + m.names.size(), stringCount, 0);
 
                 ChannelBuffer header = ChannelBuffers.buffer(8);
+
+                assert version > 1 || !m.flags.contains(Flag.HAS_MORE_PAGES);
+
                 header.writeInt(Flag.serialize(m.flags));
                 header.writeInt(m.names.size());
                 builder.add(header);
@@ -322,13 +336,14 @@ public class ResultSet
     public static enum Flag
     {
         // The order of that enum matters!!
-        GLOBAL_TABLES_SPEC;
+        GLOBAL_TABLES_SPEC,
+        HAS_MORE_PAGES;
 
         public static EnumSet<Flag> deserialize(int flags)
         {
             EnumSet<Flag> set = EnumSet.noneOf(Flag.class);
             Flag[] values = Flag.values();
-            for (int n = 0; n < 32; n++)
+            for (int n = 0; n < values.length; n++)
             {
                 if ((flags & (1 << n)) != 0)
                     set.add(values[n]);

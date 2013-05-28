@@ -123,7 +123,7 @@ public class ErrorMessage extends Message.Response
             return new ErrorMessage(te);
         }
 
-        public ChannelBuffer encode(ErrorMessage msg)
+        public ChannelBuffer encode(ErrorMessage msg, int version)
         {
             ChannelBuffer ccb = CBUtil.intToCB(msg.error.code().value);
             ChannelBuffer mcb = CBUtil.stringToCB(msg.error.getMessage());
@@ -213,7 +213,7 @@ public class ErrorMessage extends Message.Response
 
     public ChannelBuffer encode()
     {
-        return codec.encode(this);
+        return codec.encode(this, getVersion());
     }
 
     @Override

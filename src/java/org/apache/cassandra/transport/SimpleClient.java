@@ -156,7 +156,7 @@ public class SimpleClient
 
     public ResultMessage execute(String query, List<ByteBuffer> values, ConsistencyLevel consistencyLevel)
     {
-        Message.Response msg = execute(new QueryMessage(query, values, consistencyLevel));
+        Message.Response msg = execute(new QueryMessage(query, values, consistencyLevel, -1));
         assert msg instanceof ResultMessage;
         return (ResultMessage)msg;
     }
@@ -170,7 +170,7 @@ public class SimpleClient
 
     public ResultMessage executePrepared(byte[] statementId, List<ByteBuffer> values, ConsistencyLevel consistency)
     {
-        Message.Response msg = execute(new ExecuteMessage(statementId, values, consistency));
+        Message.Response msg = execute(new ExecuteMessage(statementId, values, consistency, -1));
         assert msg instanceof ResultMessage;
         return (ResultMessage)msg;
     }

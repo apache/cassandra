@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.filter;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -32,6 +33,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -45,47 +47,36 @@ public abstract class ExtendedFilter
 
     public final ColumnFamilyStore cfs;
     public final long timestamp;
-    protected final IDiskAtomFilter originalFilter;
+    public final DataRange dataRange;
     private final int maxResults;
     private final boolean countCQL3Rows;
-    private final boolean isPaging;
+    private volatile int currentLimit;
 
     public static ExtendedFilter create(ColumnFamilyStore cfs,
+                                        DataRange dataRange,
                                         List<IndexExpression> clause,
-                                        IDiskAtomFilter filter,
                                         int maxResults,
-                                        long timestamp,
                                         boolean countCQL3Rows,
-                                        boolean isPaging)
+                                        long timestamp)
     {
         if (clause == null || clause.isEmpty())
-        {
-            return new EmptyClauseFilter(cfs, filter, maxResults, timestamp, countCQL3Rows, isPaging);
-        }
-        else
-        {
-            if (isPaging)
-                throw new IllegalArgumentException("Cross-row paging is not supported along with index clauses");
-            return cfs.getComparator() instanceof CompositeType
-                 ? new FilterWithCompositeClauses(cfs, clause, filter, maxResults, timestamp, countCQL3Rows)
-                 : new FilterWithClauses(cfs, clause, filter, maxResults, timestamp, countCQL3Rows);
-        }
+            return new EmptyClauseFilter(cfs, dataRange, maxResults, countCQL3Rows, timestamp);
+
+        return new WithClauses(cfs, dataRange, clause, maxResults, countCQL3Rows, timestamp);
     }
 
-    protected ExtendedFilter(ColumnFamilyStore cfs, IDiskAtomFilter filter, int maxResults, long timestamp, boolean countCQL3Rows, boolean isPaging)
+    protected ExtendedFilter(ColumnFamilyStore cfs, DataRange dataRange, int maxResults, boolean countCQL3Rows, long timestamp)
     {
         assert cfs != null;
-        assert filter != null;
+        assert dataRange != null;
         this.cfs = cfs;
-        this.originalFilter = filter;
+        this.dataRange = dataRange;
         this.maxResults = maxResults;
         this.timestamp = timestamp;
         this.countCQL3Rows = countCQL3Rows;
-        this.isPaging = isPaging;
+        this.currentLimit = maxResults;
         if (countCQL3Rows)
-            originalFilter.updateColumnsLimit(maxResults);
-        if (isPaging && (!(originalFilter instanceof SliceQueryFilter) || ((SliceQueryFilter)originalFilter).finish().remaining() != 0))
-            throw new IllegalArgumentException("Cross-row paging is only supported for SliceQueryFilter having an empty finish column");
+            dataRange.updateColumnsLimit(maxResults);
     }
 
     public int maxRows()
@@ -98,37 +89,30 @@ public abstract class ExtendedFilter
         return countCQL3Rows ? maxResults : Integer.MAX_VALUE;
     }
 
-    /**
-     * Update the filter if necessary given the number of column already
-     * fetched.
-     */
-    public void updateFilter(int currentColumnsCount)
+    public int currentLimit()
     {
-        // As soon as we'd done our first call, we want to reset the start column if we're paging
-        if (isPaging)
-            ((SliceQueryFilter)initialFilter()).setStart(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        return currentLimit;
+    }
 
-        if (!countCQL3Rows)
-            return;
-
-        int remaining = maxResults - currentColumnsCount;
-        initialFilter().updateColumnsLimit(remaining);
+    public IDiskAtomFilter columnFilter(ByteBuffer key)
+    {
+        return dataRange.columnFilter(key);
     }
 
     public int lastCounted(ColumnFamily data)
     {
-        if (initialFilter() instanceof SliceQueryFilter)
-            return ((SliceQueryFilter)initialFilter()).lastCounted();
-        else
-            return initialFilter().getLiveCount(data, timestamp);
+        return dataRange.getLiveCount(data, timestamp);
     }
 
-    /** The initial filter we'll do our first slice with (either the original or a superset of it) */
-    public abstract IDiskAtomFilter initialFilter();
-
-    public IDiskAtomFilter originalFilter()
+    public void updateFilter(int currentColumnsCount)
     {
-        return originalFilter;
+        if (!countCQL3Rows)
+            return;
+
+        currentLimit = maxResults - currentColumnsCount;
+        // We propagate that limit to the underlying filter so each internal query don't
+        // fetch more than we needs it to.
+        dataRange.updateColumnsLimit(currentLimit);
     }
 
     public abstract List<IndexExpression> getClause();
@@ -138,18 +122,18 @@ public abstract class ExtendedFilter
      * @param data the data retrieve by the initial filter
      * @return a filter or null if there can't be any columns we missed with our initial filter (typically if it was a names query, or a slice of the entire row)
      */
-    public abstract IDiskAtomFilter getExtraFilter(ColumnFamily data);
+    public abstract IDiskAtomFilter getExtraFilter(DecoratedKey key, ColumnFamily data);
 
     /**
      * @return data pruned down to the columns originally asked for
      */
-    public abstract ColumnFamily prune(ColumnFamily data);
+    public abstract ColumnFamily prune(DecoratedKey key, ColumnFamily data);
 
     /**
      * @return true if the provided data satisfies all the expressions from
      * the clause of this filter.
      */
-    public abstract boolean isSatisfiedBy(ByteBuffer rowKey, ColumnFamily data, ColumnNameBuilder builder);
+    public abstract boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder);
 
     public static boolean satisfies(int comparison, IndexOperator op)
     {
@@ -170,44 +154,54 @@ public abstract class ExtendedFilter
         }
     }
 
-    private static class FilterWithClauses extends ExtendedFilter
+    public static class WithClauses extends ExtendedFilter
     {
-        protected final List<IndexExpression> clause;
-        protected final IDiskAtomFilter initialFilter;
+        private final List<IndexExpression> clause;
+        private final IDiskAtomFilter optimizedFilter;
 
-        public FilterWithClauses(ColumnFamilyStore cfs,
-                                 List<IndexExpression> clause,
-                                 IDiskAtomFilter filter,
-                                 int maxResults,
-                                 long timestamp,
-                                 boolean countCQL3Rows)
+        public WithClauses(ColumnFamilyStore cfs,
+                           DataRange range,
+                           List<IndexExpression> clause,
+                           int maxResults,
+                           boolean countCQL3Rows,
+                           long timestamp)
         {
-            super(cfs, filter, maxResults, timestamp, countCQL3Rows, false);
+            super(cfs, range, maxResults, countCQL3Rows, timestamp);
             assert clause != null;
             this.clause = clause;
-            this.initialFilter = computeInitialFilter();
+            this.optimizedFilter = computeOptimizedFilter();
         }
 
-        /** Sets up the initial filter. */
-        protected IDiskAtomFilter computeInitialFilter()
+        /*
+         * Potentially optimize the column filter if we have a change to make it catch all clauses
+         * right away.
+         */
+        private IDiskAtomFilter computeOptimizedFilter()
         {
-            if (originalFilter instanceof SliceQueryFilter)
+            /*
+             * We shouldn't do the "optimization" for composites as the index names are not valid column names 
+             * (which the rest of the method assumes). Said optimization is not useful for composites anyway.
+             * We also don't want to do for paging ranges as the actual filter depends on the row key (it would
+             * probably be possible to make it work but we won't really use it so we don't bother).
+             */
+            if (cfs.getComparator() instanceof CompositeType || dataRange instanceof DataRange.Paging)
+                return null;
+
+            IDiskAtomFilter filter = dataRange.columnFilter(null); // ok since not a paging range
+            if (filter instanceof SliceQueryFilter)
             {
                 // if we have a high chance of getting all the columns in a single index slice (and it's not too costly), do that.
                 // otherwise, the extraFilter (lazily created) will fetch by name the columns referenced by the additional expressions.
                 if (cfs.getMaxRowSize() < DatabaseDescriptor.getColumnIndexSize())
                 {
                     logger.trace("Expanding slice filter to entire row to cover additional expressions");
-                    return new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                ((SliceQueryFilter) originalFilter).reversed,
-                                                Integer.MAX_VALUE);
+                    return new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, ((SliceQueryFilter)filter).reversed, Integer.MAX_VALUE);
                 }
             }
             else
             {
                 logger.trace("adding columns to original Filter to cover additional expressions");
-                assert originalFilter instanceof NamesQueryFilter;
+                assert filter instanceof NamesQueryFilter;
                 if (!clause.isEmpty())
                 {
                     SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfs.getComparator());
@@ -215,16 +209,17 @@ public abstract class ExtendedFilter
                     {
                         columns.add(expr.column_name);
                     }
-                    columns.addAll(((NamesQueryFilter) originalFilter).columns);
-                    return ((NamesQueryFilter)originalFilter).withUpdatedColumns(columns);
+                    columns.addAll(((NamesQueryFilter) filter).columns);
+                    return ((NamesQueryFilter) filter).withUpdatedColumns(columns);
                 }
             }
-            return originalFilter;
+            return null;
         }
 
-        public IDiskAtomFilter initialFilter()
+        @Override
+        public IDiskAtomFilter columnFilter(ByteBuffer key)
         {
-            return initialFilter;
+            return optimizedFilter == null ? dataRange.columnFilter(key) : optimizedFilter;
         }
 
         public List<IndexExpression> getClause()
@@ -233,21 +228,13 @@ public abstract class ExtendedFilter
         }
 
         /*
-         * We may need an extra query only if the original was a slice query (and thus may have miss the expression for the clause).
-         * Even then, there is no point in doing an extra query if the original filter grabbed the whole row.
-         * Lastly, we only need the extra query if we haven't yet got all the expressions from the clause.
+         * We may need an extra query only if the original query wasn't selecting the row entirely.
+         * Furthermore, we only need the extra query if we haven't yet got all the expressions from the clause.
          */
-        private boolean needsExtraQuery(ColumnFamily data)
+        private boolean needsExtraQuery(ByteBuffer rowKey, ColumnFamily data)
         {
-            if (!(originalFilter instanceof SliceQueryFilter))
-                return false;
-
-            SliceQueryFilter filter = (SliceQueryFilter)originalFilter;
-            // Check if we've fetch the whole row
-            if (filter.slices.length == 1
-             && filter.start().equals(ByteBufferUtil.EMPTY_BYTE_BUFFER)
-             && filter.finish().equals(ByteBufferUtil.EMPTY_BYTE_BUFFER)
-             && filter.count == Integer.MAX_VALUE)
+            IDiskAtomFilter filter = columnFilter(rowKey);
+            if (filter instanceof SliceQueryFilter && DataRange.isFullRowSlice((SliceQueryFilter)filter))
                 return false;
 
             for (IndexExpression expr : clause)
@@ -261,9 +248,18 @@ public abstract class ExtendedFilter
             return false;
         }
 
-        public IDiskAtomFilter getExtraFilter(ColumnFamily data)
+        public IDiskAtomFilter getExtraFilter(DecoratedKey rowKey, ColumnFamily data)
         {
-            if (!needsExtraQuery(data))
+            /*
+             * This method assumes the IndexExpression names are valid column names, which is not the
+             * case with composites. This is ok for now however since:
+             * 1) CompositeSearcher doesn't use it.
+             * 2) We don't yet allow non-indexed range slice with filters in CQL3 (i.e. this will never be
+             * called by CFS.filter() for composites).
+             */
+            assert !(cfs.getComparator() instanceof CompositeType);
+
+            if (!needsExtraQuery(rowKey.key, data))
                 return null;
 
             // Note: for counters we must be careful to not add a column that was already there (to avoid overcount). That is
@@ -278,17 +274,19 @@ public abstract class ExtendedFilter
             return new NamesQueryFilter(columns);
         }
 
-        public ColumnFamily prune(ColumnFamily data)
+        public ColumnFamily prune(DecoratedKey rowKey, ColumnFamily data)
         {
-            if (initialFilter == originalFilter)
+            if (optimizedFilter == null)
                 return data;
+
             ColumnFamily pruned = data.cloneMeShallow();
-            OnDiskAtomIterator iter = originalFilter.getMemtableColumnIterator(data, null);
-            originalFilter.collectReducedColumns(pruned, QueryFilter.gatherTombstones(pruned, iter), cfs.gcBefore(timestamp), timestamp);
+            IDiskAtomFilter filter = dataRange.columnFilter(rowKey.key);
+            OnDiskAtomIterator iter = filter.getColumnFamilyIterator(rowKey, data);
+            filter.collectReducedColumns(pruned, QueryFilter.gatherTombstones(pruned, iter), cfs.gcBefore(timestamp), timestamp);
             return pruned;
         }
 
-        public boolean isSatisfiedBy(ByteBuffer rowKey, ColumnFamily data, ColumnNameBuilder builder)
+        public boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder)
         {
             // We enforces even the primary clause because reads are not synchronized with writes and it is thus possible to have a race
             // where the index returned a row which doesn't have the primary column when we actually read it
@@ -310,7 +308,7 @@ public abstract class ExtendedFilter
                 }
                 else
                 {
-                    dataValue = extractDataValue(def, rowKey, data, builder);
+                    dataValue = extractDataValue(def, rowKey.key, data, builder);
                     validator = def.getValidator();
                 }
 
@@ -346,68 +344,29 @@ public abstract class ExtendedFilter
         }
     }
 
-    private static class FilterWithCompositeClauses extends FilterWithClauses
-    {
-        public FilterWithCompositeClauses(ColumnFamilyStore cfs,
-                                          List<IndexExpression> clause,
-                                          IDiskAtomFilter filter,
-                                          int maxResults,
-                                          long timestamp,
-                                          boolean countCQL3Rows)
-        {
-            super(cfs, clause, filter, maxResults, timestamp, countCQL3Rows);
-        }
-
-        /*
-         * For composites, the index name is not a valid column name (it's only
-         * one of the component), which means we should not do the
-         * NamesQueryFilter part of FilterWithClauses in particular.
-         * Besides, CompositesSearcher doesn't really use the initial filter
-         * expect to know the limit set by the user, so create a fake filter
-         * with only the count information.
-         */
-        protected IDiskAtomFilter computeInitialFilter()
-        {
-            int limit = originalFilter instanceof SliceQueryFilter
-                      ? ((SliceQueryFilter)originalFilter).count
-                      : Integer.MAX_VALUE;
-            return new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, false, limit);
-        }
-    }
-
     private static class EmptyClauseFilter extends ExtendedFilter
     {
-        public EmptyClauseFilter(ColumnFamilyStore cfs,
-                                 IDiskAtomFilter filter,
-                                 int maxResults,
-                                 long timestamp,
-                                 boolean countCQL3Rows,
-                                 boolean isPaging)
+        public EmptyClauseFilter(ColumnFamilyStore cfs, DataRange range, int maxResults, boolean countCQL3Rows, long timestamp)
         {
-            super(cfs, filter, maxResults, timestamp, countCQL3Rows, isPaging);
-        }
-
-        public IDiskAtomFilter initialFilter()
-        {
-            return originalFilter;
+            super(cfs, range, maxResults, countCQL3Rows, timestamp);
         }
 
         public List<IndexExpression> getClause()
         {
-            throw new UnsupportedOperationException();
+            return Collections.<IndexExpression>emptyList();
         }
 
-        public IDiskAtomFilter getExtraFilter(ColumnFamily data)
+        public IDiskAtomFilter getExtraFilter(DecoratedKey key, ColumnFamily data)
         {
             return null;
         }
 
-        public ColumnFamily prune(ColumnFamily data)
+        public ColumnFamily prune(DecoratedKey rowKey, ColumnFamily data)
         {
             return data;
         }
 
-        public boolean isSatisfiedBy(ByteBuffer rowKey, ColumnFamily data, ColumnNameBuilder builder)
+        public boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder)
         {
             return true;
         }

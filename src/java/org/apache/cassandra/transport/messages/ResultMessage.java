@@ -40,7 +40,7 @@ public abstract class ResultMessage extends Message.Response
             return kind.subcodec.decode(body, version);
         }
 
-        public ChannelBuffer encode(ResultMessage msg)
+        public ChannelBuffer encode(ResultMessage msg, int version)
         {
             ChannelBuffer kcb = ChannelBuffers.buffer(4);
             kcb.writeInt(msg.kind.id);
@@ -101,7 +101,7 @@ public abstract class ResultMessage extends Message.Response
 
     public ChannelBuffer encode()
     {
-        return codec.encode(this);
+        return codec.encode(this, getVersion());
     }
 
     protected abstract ChannelBuffer encodeBody();
@@ -124,7 +124,7 @@ public abstract class ResultMessage extends Message.Response
                 return new Void();
             }
 
-            public ChannelBuffer encode(ResultMessage msg)
+            public ChannelBuffer encode(ResultMessage msg, int version)
             {
                 assert msg instanceof Void;
                 return ChannelBuffers.EMPTY_BUFFER;
@@ -133,7 +133,7 @@ public abstract class ResultMessage extends Message.Response
 
         protected ChannelBuffer encodeBody()
         {
-            return subcodec.encode(this);
+            return subcodec.encode(this, getVersion());
         }
 
         public CqlResult toThriftResult()
@@ -166,7 +166,7 @@ public abstract class ResultMessage extends Message.Response
                 return new SetKeyspace(keyspace);
             }
 
-            public ChannelBuffer encode(ResultMessage msg)
+            public ChannelBuffer encode(ResultMessage msg, int version)
             {
                 assert msg instanceof SetKeyspace;
                 return CBUtil.stringToCB(((SetKeyspace)msg).keyspace);
@@ -175,7 +175,7 @@ public abstract class ResultMessage extends Message.Response
 
         protected ChannelBuffer encodeBody()
         {
-            return subcodec.encode(this);
+            return subcodec.encode(this, getVersion());
         }
 
         public CqlResult toThriftResult()
@@ -199,11 +199,11 @@ public abstract class ResultMessage extends Message.Response
                 return new Rows(ResultSet.codec.decode(body, version));
             }
 
-            public ChannelBuffer encode(ResultMessage msg)
+            public ChannelBuffer encode(ResultMessage msg, int version)
             {
                 assert msg instanceof Rows;
                 Rows rowMsg = (Rows)msg;
-                return ResultSet.codec.encode(rowMsg.result);
+                return ResultSet.codec.encode(rowMsg.result, version);
             }
         };
 
@@ -217,7 +217,7 @@ public abstract class ResultMessage extends Message.Response
 
         protected ChannelBuffer encodeBody()
         {
-            return subcodec.encode(this);
+            return subcodec.encode(this, getVersion());
         }
 
         public CqlResult toThriftResult()
@@ -243,12 +243,12 @@ public abstract class ResultMessage extends Message.Response
                 return new Prepared(id, -1, ResultSet.Metadata.codec.decode(body, version));
             }
 
-            public ChannelBuffer encode(ResultMessage msg)
+            public ChannelBuffer encode(ResultMessage msg, int version)
             {
                 assert msg instanceof Prepared;
                 Prepared prepared = (Prepared)msg;
                 assert prepared.statementId != null;
-                return ChannelBuffers.wrappedBuffer(CBUtil.bytesToCB(prepared.statementId.bytes), ResultSet.Metadata.codec.encode(prepared.metadata));
+                return ChannelBuffers.wrappedBuffer(CBUtil.bytesToCB(prepared.statementId.bytes), ResultSet.Metadata.codec.encode(prepared.metadata, version));
             }
         };
 
@@ -278,7 +278,7 @@ public abstract class ResultMessage extends Message.Response
 
         protected ChannelBuffer encodeBody()
         {
-            return subcodec.encode(this);
+            return subcodec.encode(this, getVersion());
         }
 
         public CqlResult toThriftResult()
@@ -347,7 +347,7 @@ public abstract class ResultMessage extends Message.Response
 
             }
 
-            public ChannelBuffer encode(ResultMessage msg)
+            public ChannelBuffer encode(ResultMessage msg, int version)
             {
                 assert msg instanceof SchemaChange;
                 SchemaChange scm = (SchemaChange)msg;
@@ -361,7 +361,7 @@ public abstract class ResultMessage extends Message.Response
 
         protected ChannelBuffer encodeBody()
         {
-            return subcodec.encode(this);
+            return subcodec.encode(this, getVersion());
         }
 
         public CqlResult toThriftResult()

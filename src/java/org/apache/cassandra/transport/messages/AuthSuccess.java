@@ -43,7 +43,7 @@ public class AuthSuccess extends Message.Response
         }
 
         @Override
-        public ChannelBuffer encode(AuthSuccess success)
+        public ChannelBuffer encode(AuthSuccess success, int version)
         {
             return CBUtil.valueToCB(success.token);
         }
@@ -60,7 +60,7 @@ public class AuthSuccess extends Message.Response
     @Override
     public ChannelBuffer encode()
     {
-        return codec.encode(this);
+        return codec.encode(this, getVersion());
     }
 
     public byte[] getToken()

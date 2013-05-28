@@ -22,6 +22,7 @@ Table of Contents
       4.1.6. EXECUTE
       4.1.7. BATCH
       4.1.8. REGISTER
+      4.1.9. NEXT
     4.2. Responses
       4.2.1. ERROR
       4.2.2. READY
@@ -38,8 +39,9 @@ Table of Contents
       4.2.8. AUTH_SUCCESS
   5. Compression
   6. Collection types
-  7. Error codes
-  8. Changes from v1
+  7. Result paging
+  8. Error codes
+  9. Changes from v1
 
 
 1. Overview
@@ -98,7 +100,7 @@ Table of Contents
     0x82    Response frame for this protocol version
 
   This document describe the version 2 of the protocol. For the changes made since
-  version 1, see Section 8.
+  version 1, see Section 9.
 
 
 2.2. flags
@@ -165,6 +167,7 @@ Table of Contents
     0x0E    AUTH_CHALLENGE
     0x0F    AUTH_RESPONSE
     0x10    AUTH_SUCCESS
+    0x11    NEXT
 
   Messages are described in Section 4.
 
@@ -276,10 +279,13 @@ Table of Contents
 4.1.4. QUERY
 
   Performs a CQL query. The body of the message must be:
-    <query><consistency>[<n><value_1>...<value_n>]
+    <query><consistency><result_page_size>[<n><value_1>...<value_n>]
   where:
     - <query> the query, [long string].
     - <consistency> is the [consistency] level for the operation.
+    - <result_page_size> is an [int] controlling the desired page size of the
+      result (in CQL3 rows). A negative value disable paging of the result. See the
+      section on paging (Section 7) for more details.
     - optional: <n> [short], the number of following values.
     - optional: <value_1>...<value_n> are [bytes] to use for bound variables in the query.
 
@@ -302,7 +308,7 @@ Table of Contents
 4.1.6. EXECUTE
 
   Executes a prepared query. The body of the message must be:
-    <id><n><value_1>....<value_n><consistency>
+    <id><n><value_1>....<value_n><consistency><result_page_size>
   where:
     - <id> is the prepared query ID. It's the [short bytes] returned as a
       response to a PREPARE message.
@@ -310,6 +316,9 @@ Table of Contents
     - <value_1>...<value_n> are the [bytes] to use for bound variables in the
       prepared query.
     - <consistency> is the [consistency] level for the operation.
+    - <result_page_size> is an [int] controlling the desired page size of the
+      result (in CQL3 rows). A negative value disable paging of the result. See the
+      section on paging (Section 7) for more details.
 
   Note that the consistency is ignored by some (prepared) queries (USE, CREATE,
   ALTER, TRUNCATE, ...).
@@ -360,6 +369,17 @@ Table of Contents
   multiple times the same event messages, wasting bandwidth.
 
 
+4.1.9. NEXT
+
+  Request the next page of result if paging was requested by a QUERY or EXECUTE
+  statement and there is more result to fetch (see Section 7 for more details).
+  The body of a NEXT message is a single [int] indicating the number of maximum
+  rows to return with the next page of results (it is equivalent to the
+  <result_page_size> in a QUERY or EXECUTE message).
+
+  The result to a NEXT message will be a RESULT message.
+
+
 4.2. Responses
 
   This section describes the content of the frame body for the different
@@ -372,7 +392,7 @@ Table of Contents
   Indicates an error processing a request. The body of the message will be an
   error code ([int]) followed by a [string] error message. Then, depending on
   the exception, more content may follow. The error codes are defined in
-  Section 7, along with their additional content if any.
+  Section 8, along with their additional content if any.
 
 
 4.2.2. READY
@@ -450,6 +470,12 @@ Table of Contents
             0x0001    Global_tables_spec: if set, only one table spec (keyspace
                       and table name) is provided as <global_table_spec>. If not
                       set, <global_table_spec> is not present.
+            0x0002    Has_more_pages: indicates whether this is not the last
+                      page of results and more should be retrieve using a NEXT
+                      message. If not set, this is the laste "page" of result
+                      and NEXT cannot and should not be used. If no result
+                      paging has been requested in the QUERY/EXECUTE/BATCH
+                      message, this will never be set.
         - <columns_count> is an [int] representing the number of columns selected
           by the query this result is of. It defines the number of <col_spec_i>
           elements in and the number of element for each row in <rows_content>.
@@ -623,7 +649,52 @@ Table of Contents
           value.
 
 
-7. Error codes
+7. Result paging
+
+  The protocol allows for paging the result of queries. For that, the QUERY and
+  EXECUTE messages have a <result_page_size> value that indicate the desired
+  page size in CQL3 rows.
+
+  If a positive value is provided for <result_page_size>, the result set of the
+  RESULT message returned for the query will contain at most the
+  <result_page_size> first rows of the query result. If that first page of result
+  contains the full result set for the query, the RESULT message (of kind `Rows`)
+  will have the Has_more_pages flag *not* set. However, if some results are not
+  part of the first response, the Has_more_pages flag will be set. In that latter
+  case, more rows of the result can be retrieved by sending a NEXT message *with the
+  same stream id than the initial query*. The NEXT message also contains its own
+  <result_page_size> that control how many of the remaining result rows will be
+  sent in response. If the response to this NEXT message still does not contains
+  the full remainder of the query result set (the Has_more_pages is set once more),
+  another NEXT message can be send for more result, etc...
+
+  If a RESULT message has the Has_more_pages flag set and any other message than
+  a NEXT message is send on the same stream id, the query is cancelled and no more
+  of its result can be retrieved.
+
+  Only CQL3 queries that return a result set (RESULT message with a Rows `kind`)
+  support paging. For other type of queries, the <result_page_size> value is
+  ignored.
+
+  The <result_page_size> can be set to a negative value to disable paging (in
+  which case the whole result set will be retuned in the first RESULT message,
+  message that will not have the Has_more_pages flag set). The
+  <result_page_size> value cannot be 0.
+
+  Note to client implementors:
+  - While <result_page_size> can be as low as 1, it will likely be detrimental
+    to performance to pick a value too low. A value below 100 is probably too
+    low for most use cases.
+  - Clients should not rely on the actual size of the result set returned to
+    decide if a NEXT message should be issued. Instead, they should always
+    check the Has_more_pages flag (unless they did not enabled paging for the query
+    obviously). Clients should also not assert that no result will have more than
+    <result_page_size> results. While the current implementation always respect
+    the exact value of <result_page_size>, we reserve ourselves the right to return
+    slightly smaller or bigger pages in the future for performance reasons.
+
+
+8. Error codes
 
   The supported error codes are described below:
     0x0000    Server error: something unexpected happened. This indicates a
@@ -715,7 +786,7 @@ Table of Contents
               this host. The rest of the ERROR message body will be [short
               bytes] representing the unknown ID.
 
-8. Changes from v1
+9. Changes from v1
   * Protocol is versioned to allow old client connects to a newer server, if a
     newer client connects to an older server, it needs to check if it gets a
     ProtocolException on connection and try connecting with a lower version.
@@ -727,3 +798,8 @@ Table of Contents
     removed and replaced by a server/client challenges/responses exchanges (done
     through the new AUTH_RESPONSE/AUTH_CHALLENGE messages). See Section 4.2.3 for
     details.
+  * Query paging has been added (Section 7): QUERY and EXECUTE message have an
+    additional <result_page_size> [int], a new NEXT message has been added and
+    the Rows kind of RESULT message has an additional flag. Note that paging is
+    optional, and a client that don't want to handle it can always pass -1 for
+    the <result_page_size> in QUERY and EXECUTE.

@@ -89,6 +89,12 @@ public class ColumnSlice
         return cmp.compare(start, name) <= 0 && (finish.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER) || cmp.compare(finish, name) >= 0);
     }
 
+    public boolean isBefore(Comparator<ByteBuffer> cmp, ByteBuffer name)
+    {
+        return !finish.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER) && cmp.compare(finish, name) < 0;
+    }
+
+
     @Override
     public final int hashCode()
     {

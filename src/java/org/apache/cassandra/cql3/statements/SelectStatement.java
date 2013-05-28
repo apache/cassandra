@@ -39,6 +39,9 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.RangeSliceVerbHandler;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.pager.Pageable;
+import org.apache.cassandra.service.pager.QueryPager;
+import org.apache.cassandra.service.pager.QueryPagers;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
@@ -54,6 +57,8 @@ import org.apache.cassandra.utils.Pair;
  */
 public class SelectStatement implements CQLStatement
 {
+    private static final int DEFAULT_COUNT_PAGE_SIZE = 10000;
+
     private final int boundTerms;
     public final CFDefinition cfDef;
     public final Parameters parameters;
@@ -130,23 +135,78 @@ public class SelectStatement implements CQLStatement
         // Nothing to do, all validation has been done by RawStatement.prepare()
     }
 
-    public ResultMessage.Rows execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables) throws RequestExecutionException, RequestValidationException
+    public ResultMessage.Rows execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables, int pageSize) throws RequestExecutionException, RequestValidationException
     {
         if (cl == null)
             throw new InvalidRequestException("Invalid empty consistency level");
 
         cl.validateForRead(keyspace());
 
+
         int limit = getLimit(variables);
         long now = System.currentTimeMillis();
-        List<Row> rows = isKeyRange || usesSecondaryIndexing
-                       ? StorageProxy.getRangeSlice(getRangeCommand(variables, limit, now), cl)
-                       : StorageProxy.read(getSliceCommands(variables, limit, now), cl);
+        Pageable command = isKeyRange || usesSecondaryIndexing
+                         ? getRangeCommand(variables, limit, now)
+                         : new Pageable.ReadCommands(getSliceCommands(variables, limit, now));
+
+        // A count query will never be paged for the user, but we always page it internally to avoid OOM.
+        // If we user provided a pageSize we'll use that to page internally (because why not), otherwise we use our default
+        if (parameters.isCount && pageSize < 0)
+            pageSize = DEFAULT_COUNT_PAGE_SIZE;
+
+        if (pageSize < 0 || !QueryPagers.mayNeedPaging(command, pageSize))
+        {
+            return execute(command, cl, variables, limit, now);
+        }
+        else
+        {
+            QueryPager pager = QueryPagers.pager(command, cl);
+            return parameters.isCount
+                 ? pageCountQuery(pager, variables, pageSize)
+                 : setupPaging(pager, state, variables, limit, pageSize);
+        }
+    }
+
+    private ResultMessage.Rows execute(Pageable command, ConsistencyLevel cl, List<ByteBuffer> variables, int limit, long now) throws RequestValidationException, RequestExecutionException
+    {
+        List<Row> rows = command instanceof Pageable.ReadCommands
+                       ? StorageProxy.read(((Pageable.ReadCommands)command).commands, cl)
+                       : StorageProxy.getRangeSlice((RangeSliceCommand)command, cl);
 
         return processResults(rows, variables, limit, now);
     }
 
-    private ResultMessage.Rows processResults(List<Row> rows, List<ByteBuffer> variables, int limit, long now) throws RequestValidationException
+    // TODO: we could probably refactor processResults so it doesn't needs the variables, so we don't have to keep around. But that can wait.
+    private ResultMessage.Rows setupPaging(QueryPager pager, QueryState state, List<ByteBuffer> variables, int limit, int pageSize) throws RequestValidationException, RequestExecutionException
+    {
+        List<Row> page = pager.fetchPage(pageSize);
+
+        ResultMessage.Rows msg = processResults(page, variables, limit, pager.timestamp());
+
+        // Don't bother setting up the pager if we actually don't need to.
+        if (pager.isExhausted())
+            return msg;
+
+        state.attachPager(pager, this, variables);
+        msg.result.metadata.setHasMorePages();
+        return msg;
+    }
+
+    private ResultMessage.Rows pageCountQuery(QueryPager pager, List<ByteBuffer> variables, int pageSize) throws RequestValidationException, RequestExecutionException
+    {
+        int count = 0;
+        while (!pager.isExhausted())
+        {
+            int maxLimit = pager.maxRemaining();
+            ResultSet rset = process(pager.fetchPage(pageSize), variables, maxLimit, pager.timestamp());
+            count += rset.rows.size();
+        }
+
+        ResultSet result = ResultSet.makeCountResult(keyspace(), columnFamily(), count, parameters.countAlias);
+        return new ResultMessage.Rows(result);
+    }
+
+    public ResultMessage.Rows processResults(List<Row> rows, List<ByteBuffer> variables, int limit, long now) throws RequestValidationException
     {
         // Even for count, we need to process the result as it'll group some column together in sparse column families
         ResultSet rset = process(rows, variables, limit, now);
@@ -169,7 +229,7 @@ public class SelectStatement implements CQLStatement
         int limit = getLimit(variables);
         long now = System.currentTimeMillis();
         List<Row> rows = isKeyRange || usesSecondaryIndexing
-                       ? RangeSliceVerbHandler.executeLocally(getRangeCommand(variables, limit, now))
+                       ? getRangeCommand(variables, limit, now).executeLocally()
                        : readLocally(keyspace(), getSliceCommands(variables, limit, now));
 
         return processResults(rows, variables, limit, now);

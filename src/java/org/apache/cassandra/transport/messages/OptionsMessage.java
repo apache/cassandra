@@ -42,7 +42,7 @@ public class OptionsMessage extends Message.Request
             return new OptionsMessage();
         }
 
-        public ChannelBuffer encode(OptionsMessage msg)
+        public ChannelBuffer encode(OptionsMessage msg, int version)
         {
             return ChannelBuffers.EMPTY_BUFFER;
         }
@@ -55,7 +55,7 @@ public class OptionsMessage extends Message.Request
 
     public ChannelBuffer encode()
     {
-        return codec.encode(this);
+        return codec.encode(this, getVersion());
     }
 
     public Message.Response execute(QueryState state)

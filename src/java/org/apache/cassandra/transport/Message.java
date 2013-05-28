@@ -73,7 +73,8 @@ public abstract class Message
         BATCH          (13, Direction.REQUEST,  BatchMessage.codec),
         AUTH_CHALLENGE (14, Direction.RESPONSE, AuthChallenge.codec),
         AUTH_RESPONSE  (15, Direction.REQUEST,  AuthResponse.codec),
-        AUTH_SUCCESS   (16, Direction.RESPONSE, AuthSuccess.codec);
+        AUTH_SUCCESS   (16, Direction.RESPONSE, AuthSuccess.codec),
+        NEXT           (17, Direction.REQUEST,  NextMessage.codec);
 
         public final int opcode;
         public final Direction direction;
@@ -298,11 +299,11 @@ public abstract class Message
             {
                 assert request.connection() instanceof ServerConnection;
                 ServerConnection connection = (ServerConnection)request.connection();
-                connection.validateNewMessage(request.type, request.getVersion());
+                QueryState qstate = connection.validateNewMessage(request.type, request.getVersion(), request.getStreamId());
 
                 logger.debug("Received: {}, v={}", request, request.getVersion());
 
-                Response response = request.execute(connection.getQueryState(request.getStreamId()));
+                Response response = request.execute(qstate);
                 response.setStreamId(request.getStreamId());
                 response.setVersion(request.getVersion());
                 response.attach(connection);

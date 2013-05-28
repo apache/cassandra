@@ -38,6 +38,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DataTracker;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
@@ -994,17 +995,12 @@ public class SSTableReader extends SSTable
 
     /**
      *
-     * @param filter filter to use when reading the columns
+     * @param dataRange filter to use when reading the columns
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public SSTableScanner getScanner(QueryFilter filter)
+    public SSTableScanner getScanner(DataRange dataRange)
     {
-        return new SSTableScanner(this, filter, null);
-    }
-
-    public SSTableScanner getScanner(QueryFilter filter, RowPosition startWith)
-    {
-        return new SSTableScanner(this, filter, startWith, null);
+        return new SSTableScanner(this, dataRange, null);
     }
 
     /**
@@ -1018,7 +1014,7 @@ public class SSTableReader extends SSTable
 
     public SSTableScanner getScanner(RateLimiter limiter)
     {
-        return new SSTableScanner(this, null, limiter);
+        return new SSTableScanner(this, DataRange.allData(partitioner), limiter);
     }
 
     /**
@@ -1034,7 +1030,7 @@ public class SSTableReader extends SSTable
 
         Iterator<Pair<Long, Long>> rangeIterator = getPositionsForRanges(Collections.singletonList(range)).iterator();
         if (rangeIterator.hasNext())
-            return new SSTableScanner(this, null, range, limiter);
+            return new SSTableScanner(this, DataRange.forKeyRange(range), limiter);
         else
             return new EmptyCompactionScanner(getFilename());
     }

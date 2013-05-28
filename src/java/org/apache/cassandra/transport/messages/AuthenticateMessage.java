@@ -35,7 +35,7 @@ public class AuthenticateMessage extends Message.Response
             return new AuthenticateMessage(authenticator);
         }
 
-        public ChannelBuffer encode(AuthenticateMessage msg)
+        public ChannelBuffer encode(AuthenticateMessage msg, int version)
         {
             return CBUtil.stringToCB(msg.authenticator);
         }
@@ -51,7 +51,7 @@ public class AuthenticateMessage extends Message.Response
 
     public ChannelBuffer encode()
     {
-        return codec.encode(this);
+        return codec.encode(this, getVersion());
     }
 
     @Override

@@ -40,7 +40,7 @@ public class AuthChallenge extends Message.Response
         }
 
         @Override
-        public ChannelBuffer encode(AuthChallenge challenge)
+        public ChannelBuffer encode(AuthChallenge challenge, int version)
         {
             return CBUtil.valueToCB(challenge.token);
         }
@@ -57,7 +57,7 @@ public class AuthChallenge extends Message.Response
     @Override
     public ChannelBuffer encode()
     {
-        return codec.encode(this);
+        return codec.encode(this, getVersion());
     }
 
     public byte[] getToken()

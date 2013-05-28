@@ -108,7 +108,8 @@ public class PasswordAuthenticator implements ISaslAwareAuthenticator
         {
             ResultMessage.Rows rows = authenticateStatement.execute(consistencyForUser(username),
                                                                     new QueryState(new ClientState(true)),
-                                                                    Lists.newArrayList(ByteBufferUtil.bytes(username)));
+                                                                    Lists.newArrayList(ByteBufferUtil.bytes(username)),
+                                                                    -1);
             result = new UntypedResultSet(rows.result);
         }
         catch (RequestValidationException e)

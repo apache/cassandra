@@ -48,13 +48,13 @@ public class QueryFilter
         ColumnFamily cf = memtable.getColumnFamily(key);
         if (cf == null)
             return null;
-        return getMemtableColumnIterator(cf, key);
+        return getColumnFamilyIterator(cf);
     }
 
-    public OnDiskAtomIterator getMemtableColumnIterator(ColumnFamily cf, DecoratedKey key)
+    public OnDiskAtomIterator getColumnFamilyIterator(ColumnFamily cf)
     {
         assert cf != null;
-        return filter.getMemtableColumnIterator(cf, key);
+        return filter.getColumnFamilyIterator(key, cf);
     }
 
     public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable)
@@ -69,10 +69,15 @@ public class QueryFilter
 
     public void collateOnDiskAtom(final ColumnFamily returnCF, List<? extends Iterator<? extends OnDiskAtom>> toCollate, final int gcBefore)
     {
+        collateOnDiskAtom(returnCF, toCollate, filter, gcBefore, timestamp);
+    }
+
+    public static void collateOnDiskAtom(final ColumnFamily returnCF, List<? extends Iterator<? extends OnDiskAtom>> toCollate, IDiskAtomFilter filter, int gcBefore, long timestamp)
+    {
         List<Iterator<Column>> filteredIterators = new ArrayList<Iterator<Column>>(toCollate.size());
         for (Iterator<? extends OnDiskAtom> iter : toCollate)
             filteredIterators.add(gatherTombstones(returnCF, iter));
-        collateColumns(returnCF, filteredIterators, gcBefore);
+        collateColumns(returnCF, filteredIterators, filter, gcBefore, timestamp);
     }
 
     /**
@@ -84,7 +89,12 @@ public class QueryFilter
         filter.collectReducedColumns(returnCF, columns, gcBefore, timestamp);
     }
 
-    public void collateColumns(final ColumnFamily returnCF, List<? extends Iterator<Column>> toCollate, final int gcBefore)
+    public void collateColumns(final ColumnFamily returnCF, List<? extends Iterator<Column>> toCollate, int gcBefore)
+    {
+        collateColumns(returnCF, toCollate, filter, gcBefore, timestamp);
+    }
+
+    public static void collateColumns(final ColumnFamily returnCF, List<? extends Iterator<Column>> toCollate, IDiskAtomFilter filter, int gcBefore, long timestamp)
     {
         final Comparator<Column> fcomp = filter.getColumnComparator(returnCF.getComparator());
         // define a 'reduced' iterator that merges columns w/ the same name, which

@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+
 import com.google.common.collect.ImmutableMap;
 import org.jboss.netty.buffer.ChannelBuffer;
 
@@ -44,6 +45,7 @@ public class QueryMessage extends Message.Request
         {
             String query = CBUtil.readLongString(body);
             ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
+            int resultPageSize = body.readInt();
             List<ByteBuffer> values;
             if (body.readable())
             {
@@ -56,10 +58,10 @@ public class QueryMessage extends Message.Request
             {
                 values = Collections.emptyList();
             }
-            return new QueryMessage(query, values, consistency);
+            return new QueryMessage(query, values, consistency, resultPageSize);
         }
 
-        public ChannelBuffer encode(QueryMessage msg)
+        public ChannelBuffer encode(QueryMessage msg, int version)
         {
             // We have:
             //   - query
@@ -68,11 +70,13 @@ public class QueryMessage extends Message.Request
             //   - Number of values
             //   - The values
             int vs = msg.values.size();
-            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(3, 0, vs);
+            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(3 + (vs > 0 ? 1 : 0), 0, vs);
             builder.add(CBUtil.longStringToCB(msg.query));
             builder.add(CBUtil.consistencyLevelToCB(msg.consistency));
-            if (vs > 0 && msg.getVersion() > 1)
+            builder.add(CBUtil.intToCB(msg.resultPageSize));
+            if (vs > 0)
             {
+                assert version > 1 : "Version 1 of the protocol do not allow values";
                 builder.add(CBUtil.shortToCB(vs));
                 for (ByteBuffer value : msg.values)
                     builder.addValue(value);
@@ -83,30 +87,35 @@ public class QueryMessage extends Message.Request
 
     public final String query;
     public final ConsistencyLevel consistency;
+    public final int resultPageSize;
     public final List<ByteBuffer> values;
 
     public QueryMessage(String query, ConsistencyLevel consistency)
     {
-        this(query, Collections.<ByteBuffer>emptyList(), consistency);
+        this(query, Collections.<ByteBuffer>emptyList(), consistency, -1);
     }
 
-    public QueryMessage(String query, List<ByteBuffer> values, ConsistencyLevel consistency)
+    public QueryMessage(String query, List<ByteBuffer> values, ConsistencyLevel consistency, int resultPageSize)
     {
         super(Type.QUERY);
         this.query = query;
+        this.resultPageSize = resultPageSize;
         this.consistency = consistency;
         this.values = values;
     }
 
     public ChannelBuffer encode()
     {
-        return codec.encode(this);
+        return codec.encode(this, getVersion());
     }
 
     public Message.Response execute(QueryState state)
     {
         try
         {
+            if (resultPageSize == 0)
+                throw new ProtocolException("The page size cannot be 0");
+
             UUID tracingId = null;
             if (isTracingRequested())
             {
@@ -117,10 +126,16 @@ public class QueryMessage extends Message.Request
             if (state.traceNextQuery())
             {
                 state.createTracingSession();
-                Tracing.instance.begin("Execute CQL3 query", ImmutableMap.of("query", query));
+
+                ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+                builder.put("query", query);
+                if (resultPageSize > 0)
+                    builder.put("page_size", Integer.toString(resultPageSize));
+
+                Tracing.instance.begin("Execute CQL3 query", builder.build());
             }
 
-            Message.Response response = QueryProcessor.process(query, values, consistency, state);
+            Message.Response response = QueryProcessor.process(query, values, consistency, state, resultPageSize);
 
             if (tracingId != null)
                 response.setTracingId(tracingId);
@@ -136,6 +151,9 @@ public class QueryMessage extends Message.Request
         finally
         {
             Tracing.instance.stopSession();
+            // Trash the current session id if we won't need it anymore
+            if (!state.hasPager())
+                state.getAndResetCurrentTracingSession();
         }
     }
 

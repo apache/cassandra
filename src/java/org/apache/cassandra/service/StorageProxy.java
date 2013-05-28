@@ -1294,11 +1294,11 @@ public class StorageProxy implements StorageProxyMBean
 
     static class LocalRangeSliceRunnable extends DroppableRunnable
     {
-        private final RangeSliceCommand command;
+        private final AbstractRangeCommand command;
         private final ReadCallback<RangeSliceReply, Iterable<Row>> handler;
         private final long start = System.nanoTime();
 
-        LocalRangeSliceRunnable(RangeSliceCommand command, ReadCallback<RangeSliceReply, Iterable<Row>> handler)
+        LocalRangeSliceRunnable(AbstractRangeCommand command, ReadCallback<RangeSliceReply, Iterable<Row>> handler)
         {
             super(MessagingService.Verb.READ);
             this.command = command;
@@ -1307,7 +1307,7 @@ public class StorageProxy implements StorageProxyMBean
 
         protected void runMayThrow()
         {
-            RangeSliceReply result = new RangeSliceReply(RangeSliceVerbHandler.executeLocally(command));
+            RangeSliceReply result = new RangeSliceReply(command.executeLocally());
             MessagingService.instance().addLatency(FBUtilities.getBroadcastAddress(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
             handler.response(result);
         }
@@ -1337,7 +1337,7 @@ public class StorageProxy implements StorageProxyMBean
         return inter;
     }
 
-    public static List<Row> getRangeSlice(RangeSliceCommand command, ConsistencyLevel consistency_level)
+    public static List<Row> getRangeSlice(AbstractRangeCommand command, ConsistencyLevel consistency_level)
     throws UnavailableException, ReadTimeoutException
     {
         Tracing.trace("Determining replicas to query");
@@ -1348,11 +1348,9 @@ public class StorageProxy implements StorageProxyMBean
         // now scan until we have enough results
         try
         {
-            IDiskAtomFilter commandPredicate = command.predicate;
-
             int cql3RowCount = 0;
             rows = new ArrayList<Row>();
-            List<AbstractBounds<RowPosition>> ranges = getRestrictedRanges(command.range);
+            List<AbstractBounds<RowPosition>> ranges = getRestrictedRanges(command.keyRange);
             int i = 0;
             AbstractBounds<RowPosition> nextRange = null;
             List<InetAddress> nextEndpoints = null;
@@ -1408,15 +1406,7 @@ public class StorageProxy implements StorageProxyMBean
                     ++i;
                 }
 
-                RangeSliceCommand nodeCmd = new RangeSliceCommand(command.keyspace,
-                                                                  command.column_family,
-                                                                  command.timestamp,
-                                                                  commandPredicate,
-                                                                  range,
-                                                                  command.row_filter,
-                                                                  command.maxResults,
-                                                                  command.countCQL3Rows,
-                                                                  command.isPaging);
+                AbstractRangeCommand nodeCmd = command.forSubRange(range);
 
                 // collect replies and resolve according to consistency level
                 RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(nodeCmd.keyspace, command.timestamp);
@@ -1431,7 +1421,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 else
                 {
-                    MessageOut<RangeSliceCommand> message = nodeCmd.createMessage();
+                    MessageOut<? extends AbstractRangeCommand> message = nodeCmd.createMessage();
                     for (InetAddress endpoint : filteredEndpoints)
                     {
                         Tracing.trace("Enqueuing request to {}", endpoint);
@@ -1444,8 +1434,8 @@ public class StorageProxy implements StorageProxyMBean
                     for (Row row : handler.get())
                     {
                         rows.add(row);
-                        if (nodeCmd.countCQL3Rows)
-                            cql3RowCount += row.getLiveCount(commandPredicate, command.timestamp);
+                        if (nodeCmd.countCQL3Rows())
+                            cql3RowCount += row.getLiveCount(command.predicate, command.timestamp);
                     }
                     FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getWriteRpcTimeout());
                 }
@@ -1462,18 +1452,9 @@ public class StorageProxy implements StorageProxyMBean
                 }
 
                 // if we're done, great, otherwise, move to the next range
-                int count = nodeCmd.countCQL3Rows ? cql3RowCount : rows.size();
-                if (count >= nodeCmd.maxResults)
+                int count = nodeCmd.countCQL3Rows() ? cql3RowCount : rows.size();
+                if (count >= nodeCmd.limit())
                     break;
-
-                // if we are paging and already got some rows, reset the column filter predicate,
-                // so we start iterating the next row from the first column
-                if (!rows.isEmpty() && command.isPaging)
-                {
-                    // We only allow paging with a slice filter (doesn't make sense otherwise anyway)
-                    assert commandPredicate instanceof SliceQueryFilter;
-                    commandPredicate = ((SliceQueryFilter)commandPredicate).withUpdatedSlices(ColumnSlice.ALL_COLUMNS_ARRAY);
-                }
             }
         }
         finally
@@ -1483,13 +1464,13 @@ public class StorageProxy implements StorageProxyMBean
         return trim(command, rows);
     }
 
-    private static List<Row> trim(RangeSliceCommand command, List<Row> rows)
+    private static List<Row> trim(AbstractRangeCommand command, List<Row> rows)
     {
-        // When countCQL3Rows, we let the caller trim the result.
-        if (command.countCQL3Rows)
+        // When maxIsColumns, we let the caller trim the result.
+        if (command.countCQL3Rows())
             return rows;
         else
-            return rows.size() > command.maxResults ? rows.subList(0, command.maxResults) : rows;
+            return rows.size() > command.limit() ? rows.subList(0, command.limit()) : rows;
     }
 
     /**

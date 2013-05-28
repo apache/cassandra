@@ -39,7 +39,7 @@ public class RegisterMessage extends Message.Request
             return new RegisterMessage(eventTypes);
         }
 
-        public ChannelBuffer encode(RegisterMessage msg)
+        public ChannelBuffer encode(RegisterMessage msg, int version)
         {
             ChannelBuffer cb = ChannelBuffers.dynamicBuffer();
             cb.writeShort(msg.eventTypes.size());
@@ -69,7 +69,7 @@ public class RegisterMessage extends Message.Request
 
     public ChannelBuffer encode()
     {
-        return codec.encode(this);
+        return codec.encode(this, getVersion());
     }
 
     @Override
