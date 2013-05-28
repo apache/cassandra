@@ -118,6 +118,8 @@ public class NodeCmd
         ENABLETHRIFT,
         FLUSH,
         GETCOMPACTIONTHRESHOLD,
+        GETCOMPACTIONTHROUGHPUT,
+        GETSTREAMTHROUGHPUT,
         GETENDPOINTS,
         GETSSTABLES,
         GOSSIPINFO,
@@ -721,6 +723,39 @@ public class NodeCmd
         outs.printf("%25s%10s%n", "Active compaction remaining time : ", remainingTime);
     }
 
+    /**
+     * Print the compaction threshold
+     *
+     * @param outs the stream to write to
+     */
+    public void printCompactionThreshold(PrintStream outs, String ks, String cf)
+    {
+        ColumnFamilyStoreMBean cfsProxy = probe.getCfsProxy(ks, cf);
+        outs.println("Current compaction thresholds for " + ks + "/" + cf + ": \n" +
+                     " min = " + cfsProxy.getMinimumCompactionThreshold() + ", " +
+                     " max = " + cfsProxy.getMaximumCompactionThreshold());
+    }
+
+    /**
+     * Print the compaction throughput
+     *
+     * @param outs the stream to write to
+     */
+    public void printCompactionThroughput(PrintStream outs)
+    {
+        outs.println("Current compaction throughput: " + probe.getCompactionThroughput() + " MB/s");
+    }
+
+    /**
+     * Print the stream throughput
+     *
+     * @param outs the stream to write to
+     */
+    public void printStreamThroughput(PrintStream outs)
+    {
+        outs.println("Current stream throughput: " + probe.getStreamThroughput() + " MB/s");
+    }
+
     public void printColumnFamilyStats(PrintStream outs)
     {
         Map <String, List <ColumnFamilyStoreMBean>> cfstoreMap = new HashMap <String, List <ColumnFamilyStoreMBean>>();
@@ -1178,8 +1213,11 @@ public class NodeCmd
 
                 case GETCOMPACTIONTHRESHOLD :
                     if (arguments.length != 2) { badUse("getcompactionthreshold requires ks and cf args."); }
-                    probe.getCompactionThreshold(System.out, arguments[0], arguments[1]);
+                    nodeCmd.printCompactionThreshold(System.out, arguments[0], arguments[1]);
                     break;
+
+                case GETCOMPACTIONTHROUGHPUT : nodeCmd.printCompactionThroughput(System.out); break;
+                case GETSTREAMTHROUGHPUT : nodeCmd.printStreamThroughput(System.out); break;
 
                 case CFHISTOGRAMS :
                     if (arguments.length != 2) { badUse("cfhistograms requires ks and cf args"); }
