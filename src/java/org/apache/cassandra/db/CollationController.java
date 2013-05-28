@@ -247,6 +247,7 @@ public class CollationController
             List<SSTableReader> skippedSSTables = null;
             long mostRecentRowTombstone = Long.MIN_VALUE;
             long minTimestamp = Long.MAX_VALUE;
+            int nonIntersectingSSTables = 0;
 
             for (SSTableReader sstable : view.sstables)
             {
@@ -258,6 +259,7 @@ public class CollationController
 
                 if (!filter.shouldInclude(sstable))
                 {
+                    nonIntersectingSSTables++;
                     // sstable contains no tombstone if maxLocalDeletionTime == Integer.MAX_VALUE, so we can safely skip those entirely
                     if (sstable.getSSTableMetadata().maxLocalDeletionTime != Integer.MAX_VALUE)
                     {
@@ -281,6 +283,7 @@ public class CollationController
                 }
             }
 
+            int includedDueToTombstones = 0;
             // Check for row tombstone in the skipped sstables
             if (skippedSSTables != null)
             {
@@ -297,13 +300,15 @@ public class CollationController
                     // we are only interested in row-level tombstones here, and only if markedForDeleteAt is larger than minTimestamp
                     if (cf.deletionInfo().getTopLevelDeletion().markedForDeleteAt > minTimestamp)
                     {
+                        includedDueToTombstones++;
                         iterators.add(iter);
                         returnCF.delete(cf.deletionInfo().getTopLevelDeletion());
                         sstablesIterated++;
                     }
                 }
             }
-
+            if (Tracing.isTracing())
+                Tracing.trace("Skipped {}/{} non-slice-intersecting sstables, included {} due to tombstones", new Object[] {nonIntersectingSSTables, view.sstables.size(), includedDueToTombstones});
             // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
             // and "there used to be data, but it's gone now" (we should cache the empty CF so we don't need to rebuild that slower)
             if (iterators.isEmpty())
