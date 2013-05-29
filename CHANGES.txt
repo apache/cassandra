@@ -54,6 +54,7 @@
    queries (CASSANDRA-5514, CASSANDRA-5595)
  * Binary protocol: allow batching already prepared statements (CASSANDRA-4693)
  * Allow preparing timestamp, ttl and limit in CQL3 queries (CASSANDRA-4450)
+ * Support native link w/o JNA in Java7 (CASSANDRA-3734)
 
 1.2.6
  * (Hadoop) Fix InputKeyRange in CFIF (CASSANDRA-5536)
