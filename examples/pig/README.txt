@@ -88,3 +88,7 @@ PIG_USE_SECONDARY:  this allows easy use of secondary indexes within your
                     can also be set in the LOAD url by adding the
                     'use_secondary=true' parameter.
 
+PIG_INPUT_SPLIT_SIZE: this sets the split size passed to Hadoop, controlling
+                      the amount of mapper tasks created.  This can also be set in the LOAD url by
+                      adding the 'split_size=X' parameter, where X is an integer amount for the size.
+
