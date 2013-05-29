@@ -318,7 +318,9 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         logger.debug("Using pageSize of {}", pageSize);
 
         // rate limit is in bytes per second. Uses Double.MAX_VALUE if disabled (set to 0 in cassandra.yaml).
-        int throttleInKB = DatabaseDescriptor.getHintedHandoffThrottleInKB();
+        // max rate is scaled by the number of nodes in the cluster (CASSANDRA-5272).
+        int throttleInKB = DatabaseDescriptor.getHintedHandoffThrottleInKB()
+                           / (StorageService.instance.getTokenMetadata().getAllEndpoints().size() - 1);
         RateLimiter rateLimiter = RateLimiter.create(throttleInKB == 0 ? Double.MAX_VALUE : throttleInKB * 1024);
 
         delivery:
