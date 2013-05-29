@@ -88,28 +88,30 @@ public class DatabaseDescriptor
         // In client mode, we use a default configuration. Note that the fields of this class will be
         // left unconfigured however (the partitioner or localDC will be null for instance) so this
         // should be used with care.
-        if (Config.isClientMode())
+        try
         {
-            conf = new Config();
-        }
-        else
-        {
-            try
+            if (Config.isClientMode())
+            {
+                conf = new Config();
+                // at least we have to set memoryAllocator to open SSTable in client mode
+                memoryAllocator = FBUtilities.newOffHeapAllocator(conf.memory_allocator);
+            }
+            else
             {
                 applyConfig(loadConfig());
             }
-            catch (ConfigurationException e)
-            {
-                logger.error("Fatal configuration error", e);
-                System.err.println(e.getMessage() + "\nFatal configuration error; unable to start server. See log for stacktrace.");
-                System.exit(1);
-            }
-            catch (Exception e)
-            {
-                logger.error("Fatal error during configuration loading", e);
-                System.err.println(e.getMessage() + "\nFatal error during configuration loading; unable to start server. See log for stacktrace.");
-                System.exit(1);
-            }
+        }
+        catch (ConfigurationException e)
+        {
+            logger.error("Fatal configuration error", e);
+            System.err.println(e.getMessage() + "\nFatal configuration error; unable to start. See log for stacktrace.");
+            System.exit(1);
+        }
+        catch (Exception e)
+        {
+            logger.error("Fatal error during configuration loading", e);
+            System.err.println(e.getMessage() + "\nFatal error during configuration loading; unable to start. See log for stacktrace.");
+            System.exit(1);
         }
     }
 
