@@ -8,6 +8,16 @@ upgrade, just in case you need to roll back to the previous version.
 (Cassandra version X + 1 will always be able to read data files created
 by version X, but the inverse is not necessarily the case.)
 
+1.2.6
+=====
+
+Upgrading
+---------
+    - hinted_handoff_throttle_in_kb is now reduced by a factor
+      proportional to the number of nodes in the cluster (see
+      https://issues.apache.org/jira/browse/CASSANDRA-5272).
+
+
 1.2.5
 =====
 

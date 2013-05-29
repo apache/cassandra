@@ -1,4 +1,5 @@
 1.2.6
+ * Scale hinted_handoff_throttle_in_kb to cluster size (CASSANDRA-5272)
  * (Hadoop) Fix InputKeyRange in CFIF (CASSANDRA-5536)
  * Fix dealing with ridiculously large max sstable sizes in LCS (CASSANDRA-5589)
  * Ignore pre-truncate hints (CASSANDRA-4655)
