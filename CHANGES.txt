@@ -70,6 +70,7 @@
 Merged from 1.1:
  * Remove buggy thrift max message length option (CASSANDRA-5529)
  * Fix NPE in Pig's widerow mode (CASSANDRA-5488)
+ * Add split size parameter to Pig and disable split combination (CASSANDRA-5544)
 
 
 1.2.5
