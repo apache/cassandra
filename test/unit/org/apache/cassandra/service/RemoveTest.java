@@ -27,29 +27,23 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.sink.IMessageSink;
 import org.apache.cassandra.net.sink.SinkManager;
-import org.apache.cassandra.streaming.StreamUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class RemoveTest
 {
@@ -119,9 +113,6 @@ public class RemoveTest
     @Test
     public void testRemoveHostId() throws InterruptedException
     {
-        ReplicationSink rSink = new ReplicationSink();
-        SinkManager.add(rSink);
-
         // start removal in background and send replication confirmations
         final AtomicBoolean success = new AtomicBoolean(false);
         Thread remover = new Thread()
@@ -158,26 +149,5 @@ public class RemoveTest
 
         assertTrue(success.get());
         assertTrue(tmd.getLeavingEndpoints().isEmpty());
-    }
-
-    /**
-     * sink that captures STREAM_REQUEST messages and calls finishStreamRequest on it
-     */
-    class ReplicationSink implements IMessageSink
-    {
-        public MessageIn handleMessage(MessageIn msg, int id, InetAddress to)
-        {
-            if (!msg.verb.equals(MessagingService.Verb.STREAM_REQUEST))
-                return msg;
-
-            StreamUtil.finishStreamRequest(msg, to);
-
-            return null;
-        }
-
-        public MessageOut handleMessage(MessageOut msg, int id, InetAddress to)
-        {
-            return msg;
-        }
     }
 }

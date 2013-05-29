@@ -23,6 +23,8 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -38,6 +40,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.sstable.SSTableSimpleUnsortedWriter;
+import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.hadoop.conf.Configuration;
@@ -221,7 +224,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
         if (writer != null)
         {
             writer.close();
-            SSTableLoader.LoaderFuture future = loader.stream();
+            Future<StreamState> future = loader.stream();
             while (true)
             {
                 try
@@ -229,7 +232,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
                     future.get(1000, TimeUnit.MILLISECONDS);
                     break;
                 }
-                catch (TimeoutException te)
+                catch (ExecutionException | TimeoutException te)
                 {
                     progress.progress();
                 }
@@ -238,12 +241,12 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
                     throw new IOException(e);
                 }
             }
-            if (future.hadFailures())
+            if (loader.getFailedHosts().size() > 0)
             {
-                if (future.getFailedHosts().size() > maxFailures)
-                    throw new IOException("Too many hosts failed: " + future.getFailedHosts());
+                if (loader.getFailedHosts().size() > maxFailures)
+                    throw new IOException("Too many hosts failed: " + loader.getFailedHosts());
                 else
-                    logger.warn("Some hosts failed: " + future.getFailedHosts());
+                    logger.warn("Some hosts failed: " + loader.getFailedHosts());
             }
         }
     }

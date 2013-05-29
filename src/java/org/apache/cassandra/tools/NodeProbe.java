@@ -50,8 +50,8 @@ import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.*;
-import org.apache.cassandra.streaming.StreamingService;
-import org.apache.cassandra.streaming.StreamingServiceMBean;
+import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.streaming.StreamManagerMBean;
 import org.apache.cassandra.utils.SimpleCondition;
 
 /**
@@ -73,7 +73,7 @@ public class NodeProbe
     private StorageServiceMBean ssProxy;
     private MemoryMXBean memProxy;
     private RuntimeMXBean runtimeProxy;
-    private StreamingServiceMBean streamProxy;
+    private StreamManagerMBean streamProxy;
     public MessagingServiceMBean msProxy;
     private FailureDetectorMBean fdProxy;
     private CacheServiceMBean cacheService;
@@ -150,8 +150,8 @@ public class NodeProbe
             ssProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageServiceMBean.class);
             name = new ObjectName(MessagingService.MBEAN_NAME);
             msProxy = JMX.newMBeanProxy(mbeanServerConn, name, MessagingServiceMBean.class);
-            name = new ObjectName(StreamingService.MBEAN_OBJECT_NAME);
-            streamProxy = JMX.newMBeanProxy(mbeanServerConn, name, StreamingServiceMBean.class);
+            name = new ObjectName(StreamManagerMBean.OBJECT_NAME);
+            streamProxy = JMX.newMBeanProxy(mbeanServerConn, name, StreamManagerMBean.class);
             name = new ObjectName(CompactionManager.MBEAN_OBJECT_NAME);
             compactionProxy = JMX.newMBeanProxy(mbeanServerConn, name, CompactionManagerMBean.class);
             name = new ObjectName(FailureDetector.MBEAN_NAME);
@@ -545,24 +545,9 @@ public class NodeProbe
         return cfsProxy.getSSTablesForKey(key);
     }
 
-    public Set<InetAddress> getStreamDestinations()
+    public Set<StreamState> getStreamStatus()
     {
-        return streamProxy.getStreamDestinations();
-    }
-
-    public List<String> getFilesDestinedFor(InetAddress host) throws IOException
-    {
-        return streamProxy.getOutgoingFiles(host.getHostAddress());
-    }
-
-    public Set<InetAddress> getStreamSources()
-    {
-        return streamProxy.getStreamSources();
-    }
-
-    public List<String> getIncomingFiles(InetAddress host) throws IOException
-    {
-        return streamProxy.getIncomingFiles(host.getHostAddress());
+        return streamProxy.getCurrentStreams();
     }
 
     public String getOperationMode()

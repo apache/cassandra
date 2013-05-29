@@ -23,32 +23,23 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.net.CompactEndpointSerializationHelper;
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.UUIDSerializer;
-
 
 /**
  * Task that make two nodes exchange (stream) some ranges (for a given table/cf).
@@ -72,9 +63,9 @@ public class StreamingRepairTask implements Runnable
     private final String tableName;
     private final String cfName;
     private final Collection<Range<Token>> ranges;
-    private final IStreamCallback callback;
+    private final StreamEventHandler callback;
 
-    private StreamingRepairTask(UUID id, InetAddress owner, InetAddress src, InetAddress dst, String tableName, String cfName, Collection<Range<Token>> ranges, IStreamCallback callback)
+    private StreamingRepairTask(UUID id, InetAddress owner, InetAddress src, InetAddress dst, String tableName, String cfName, Collection<Range<Token>> ranges, StreamEventHandler callback)
     {
         this.id = id;
         this.owner = owner;
@@ -121,21 +112,15 @@ public class StreamingRepairTask implements Runnable
 
     private void initiateStreaming()
     {
-        ColumnFamilyStore cfstore = Table.open(tableName).getColumnFamilyStore(cfName);
-        try
-        {
-            logger.info(String.format("[streaming task #%s] Performing streaming repair of %d ranges with %s", id, ranges.size(), dst));
-            Collection<ColumnFamilyStore> cfses = Collections.singleton(cfstore);
-            // send ranges to the remote node
-            StreamOutSession outsession = StreamOutSession.create(tableName, dst, callback);
-            StreamOut.transferRanges(outsession, cfses, ranges, OperationType.AES, false);
-            // request ranges from the remote node
-            StreamIn.requestRanges(dst, tableName, cfses, ranges, callback, OperationType.AES);
-        }
-        catch(Exception e)
-        {
-            throw new RuntimeException("Streaming repair failed", e);
-        }
+        logger.info(String.format("[streaming task #%s] Performing streaming repair of %d ranges with %s", id, ranges.size(), dst));
+        StreamResultFuture op = new StreamPlan("Repair")
+                                    .flushBeforeTransfer(true)
+                                    // request ranges from the remote node
+                                    .requestRanges(dst, tableName, ranges, cfName)
+                                    // send ranges to the remote node
+                                    .transferRanges(dst, tableName, ranges, cfName)
+                                    .execute();
+        op.addEventListener(callback);
     }
 
     private void forwardToSource()
@@ -147,45 +132,34 @@ public class StreamingRepairTask implements Runnable
         MessagingService.instance().sendOneWay(msg, src);
     }
 
-    private static IStreamCallback makeReplyingCallback(final InetAddress taskOwner, final UUID taskId)
+    private static StreamEventHandler makeReplyingCallback(final InetAddress taskOwner, final UUID taskId)
     {
-        return new IStreamCallback()
+        return new StreamEventHandler()
         {
-            // we expect one callback for the receive, and one for the send
-            private final AtomicInteger outstanding = new AtomicInteger(2);
-
-            public void onSuccess()
+            public void onSuccess(StreamState finalState)
             {
-                if (outstanding.decrementAndGet() > 0)
-                    return; // waiting on more calls
-
                 StreamingRepairResponse.reply(taskOwner, taskId);
             }
 
-            public void onFailure() {}
+            public void onFailure(Throwable t) {}
+            public void handleStreamEvent(StreamEvent event) {}
         };
     }
 
     // wrap a given callback so as to unregister the streaming repair task on completion
-    private static IStreamCallback wrapCallback(final Runnable callback, final UUID taskid, final boolean isLocalTask)
+    private static StreamEventHandler wrapCallback(final Runnable callback, final UUID taskid, final boolean isLocalTask)
     {
-        return new IStreamCallback()
+        return new StreamEventHandler()
         {
-            // we expect one callback for the receive, and one for the send
-            private final AtomicInteger outstanding = new AtomicInteger(isLocalTask ? 2 : 1);
-
-            public void onSuccess()
+            public void onSuccess(StreamState finalState)
             {
-                if (outstanding.decrementAndGet() > 0)
-                    // waiting on more calls
-                    return;
-
                 tasks.remove(taskid);
                 if (callback != null)
                     callback.run();
             }
 
-            public void onFailure() {}
+            public void onFailure(Throwable t) {}
+            public void handleStreamEvent(StreamEvent event) {}
         };
     }
 
@@ -220,7 +194,10 @@ public class StreamingRepairTask implements Runnable
 
             logger.info(String.format("[streaming task #%s] task succeeded", task.id));
             if (task.callback != null)
-                task.callback.onSuccess();
+            {
+                // TODO null
+                task.callback.onSuccess(null);
+            }
         }
 
         private static void reply(InetAddress remote, UUID taskid)

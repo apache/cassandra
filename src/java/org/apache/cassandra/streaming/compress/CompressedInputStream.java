@@ -17,9 +17,12 @@
  */
 package org.apache.cassandra.streaming.compress;
 
-import java.io.*;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Iterator;
-import java.util.concurrent.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 

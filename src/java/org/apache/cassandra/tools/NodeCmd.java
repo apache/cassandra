@@ -45,6 +45,9 @@ import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.StorageProxyMBean;
+import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.streaming.ProgressInfo;
+import org.apache.cassandra.streaming.SessionInfo;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
 
@@ -614,56 +617,34 @@ public class NodeCmd
     public void printNetworkStats(final InetAddress addr, PrintStream outs)
     {
         outs.printf("Mode: %s%n", probe.getOperationMode());
-        Set<InetAddress> hosts = addr == null ? probe.getStreamDestinations() : new HashSet<InetAddress>(){{add(addr);}};
-        if (hosts.size() == 0)
+        Set<StreamState> statuses = probe.getStreamStatus();
+        if (statuses.isEmpty())
             outs.println("Not sending any streams.");
-        for (InetAddress host : hosts)
+        for (StreamState status : statuses)
         {
-            try
+            outs.printf("%s %s%n", status.description, status.planId.toString());
+            for (SessionInfo info : status.sessions)
             {
-                List<String> files = probe.getFilesDestinedFor(host);
-                if (files.size() > 0)
+                outs.printf("    %s%n", info.peer.toString());
+                if (!info.receivingSummaries.isEmpty())
                 {
-                    outs.printf("Streaming to: %s%n", host);
-                    for (String file : files)
-                        outs.printf("   %s%n", file);
+                    outs.printf("        Receiving %d files, %d bytes total%n", info.getTotalFilesToReceive(), info.getTotalSizeToReceive());
+                    for (ProgressInfo progress : info.getReceivingFiles())
+                    {
+                        outs.printf("            %s%n", progress.toString());
+                    }
                 }
-                else
+                if (!info.sendingSummaries.isEmpty())
                 {
-                    outs.printf(" Nothing streaming to %s%n", host);
+                    outs.printf("        Sending %d files, %d bytes total%n", info.getTotalFilesToSend(), info.getTotalSizeToSend());
+                    for (ProgressInfo progress : info.getSendingFiles())
+                    {
+                        outs.printf("            %s%n", progress.toString());
+                    }
                 }
-            }
-            catch (IOException ex)
-            {
-                outs.printf("   Error retrieving file data for %s%n", host);
             }
         }
 
-        hosts = addr == null ? probe.getStreamSources() : new HashSet<InetAddress>(){{add(addr); }};
-        if (hosts.size() == 0)
-            outs.println("Not receiving any streams.");
-        for (InetAddress host : hosts)
-        {
-            try
-            {
-                List<String> files = probe.getIncomingFiles(host);
-                if (files.size() > 0)
-                {
-                    outs.printf("Streaming from: %s%n", host);
-                    for (String file : files)
-                        outs.printf("   %s%n", file);
-                }
-                else
-                {
-                    outs.printf(" Nothing streaming from %s%n", host);
-                }
-            }
-            catch (IOException ex)
-            {
-                outs.printf("   Error retrieving file data for %s%n", host);
-            }
-        }
-        
         outs.printf("Read Repair Statistics:%nAttempted: %d%nMismatch (Blocking): %d%nMismatch (Background): %d%n", probe.getReadRepairAttempted(), probe.getReadRepairRepairedBlocking(), probe.getReadRepairRepairedBackground());
 
         MessagingServiceMBean ms = probe.msProxy;

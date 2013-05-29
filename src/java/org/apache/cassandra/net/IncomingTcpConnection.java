@@ -24,24 +24,25 @@ import java.net.SocketException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xerial.snappy.SnappyInputStream;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.io.util.FastByteArrayInputStream;
-import org.apache.cassandra.streaming.IncomingStreamReader;
-import org.apache.cassandra.streaming.StreamHeader;
-import org.xerial.snappy.SnappyInputStream;
 
 public class IncomingTcpConnection extends Thread
 {
     private static final Logger logger = LoggerFactory.getLogger(IncomingTcpConnection.class);
 
+    private final int version;
+    private final boolean compressed;
     private final Socket socket;
     public InetAddress from;
 
-    public IncomingTcpConnection(Socket socket)
+    public IncomingTcpConnection(int version, boolean compressed, Socket socket)
     {
         assert socket != null;
+        this.version = version;
+        this.compressed = compressed;
         this.socket = socket;
         if (DatabaseDescriptor.getInternodeRecvBufferSize() != null)
         {
@@ -66,20 +67,10 @@ public class IncomingTcpConnection extends Thread
     {
         try
         {
-            // determine the connection type to decide whether to buffer
-            DataInputStream in = new DataInputStream(socket.getInputStream());
-            MessagingService.validateMagic(in.readInt());
-            int header = in.readInt();
-            boolean isStream = MessagingService.getBits(header, 3, 1) == 1;
-            int version = MessagingService.getBits(header, 15, 8);
-            logger.debug("Connection version {} from {}", version, socket.getInetAddress());
-
-            if (isStream)
-                handleStream(in, version);
-            else if (version < MessagingService.VERSION_12)
-                handleLegacyVersion(version);
+            if (version < MessagingService.VERSION_12)
+                handleLegacyVersion();
             else
-                handleModernVersion(version, header);
+                handleModernVersion();
         }
         catch (EOFException e)
         {
@@ -96,7 +87,7 @@ public class IncomingTcpConnection extends Thread
         }
     }
 
-    private void handleModernVersion(int version, int header) throws IOException
+    private void handleModernVersion() throws IOException
     {
         DataOutputStream out = new DataOutputStream(socket.getOutputStream());
         out.writeInt(MessagingService.current_version);
@@ -105,7 +96,6 @@ public class IncomingTcpConnection extends Thread
         DataInputStream in = new DataInputStream(socket.getInputStream());
         int maxVersion = in.readInt();
         from = CompactEndpointSerializationHelper.deserialize(in);
-        boolean compressed = MessagingService.getBits(header, 2, 1) == 1;
 
         if (compressed)
         {
@@ -136,26 +126,9 @@ public class IncomingTcpConnection extends Thread
         }
     }
 
-    private void handleLegacyVersion(int version)
+    private void handleLegacyVersion()
     {
         throw new UnsupportedOperationException("Unable to read obsolete message version " + version + "; the earliest version supported is 1.2.0");
-    }
-
-    private void handleStream(DataInputStream input, int version) throws IOException
-    {
-        if (version == MessagingService.current_version)
-        {
-            int size = input.readInt();
-            byte[] headerBytes = new byte[size];
-            input.readFully(headerBytes);
-            stream(StreamHeader.serializer.deserialize(new DataInputStream(new FastByteArrayInputStream(headerBytes)), version), input);
-        }
-        else
-        {
-            // streaming connections are per-session and have a fixed version.  we can't do anything with a wrong-version stream connection, so drop it.
-            logger.error("Received stream using protocol version {} (my version {}). Terminating connection",
-                         version, MessagingService.current_version);
-        }
     }
 
     private InetAddress receiveMessage(DataInputStream input, int version) throws IOException
@@ -203,10 +176,5 @@ public class IncomingTcpConnection extends Thread
             if (logger.isDebugEnabled())
                 logger.debug("error closing socket", e);
         }
-    }
-
-    private void stream(StreamHeader streamHeader, DataInputStream input) throws IOException
-    {
-        new IncomingStreamReader(streamHeader, socket).read();
     }
 }

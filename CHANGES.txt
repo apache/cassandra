@@ -60,6 +60,7 @@
  * cqlsh: Add row count to SELECT output (CASSANDRA-5636)
  * Include a timestamp with all read commands to determine column expiration
    (CASSANDRA-5149)
+ * Streaming 2.0 (CASSANDRA-5286)
 
 1.2.6
  * Fix cross-DC mutation forwarding (CASSANDRA-5632)

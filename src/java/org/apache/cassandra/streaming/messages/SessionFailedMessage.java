@@ -15,27 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.streaming;
+package org.apache.cassandra.streaming.messages;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.util.List;
-import java.util.Set;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 
-public interface StreamingServiceMBean
+import org.apache.cassandra.streaming.StreamSession;
+
+public class SessionFailedMessage extends StreamMessage
 {
-    /** hosts recieving outgoing streams */
-    public Set<InetAddress> getStreamDestinations();
+    public static Serializer<SessionFailedMessage> serializer = new Serializer<SessionFailedMessage>()
+    {
+        public SessionFailedMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
+        {
+            return new SessionFailedMessage();
+        }
 
-    /** outgoing streams */
-    public List<String> getOutgoingFiles(String host) throws IOException;
+        public void serialize(SessionFailedMessage message, WritableByteChannel out, int version, StreamSession session) throws IOException {}
+    };
 
-    /** hosts sending incoming streams. */
-    public Set<InetAddress> getStreamSources();
-
-    /** details about incoming streams */
-    public List<String> getIncomingFiles(String host) throws IOException;
-
-    /** What's currently happening wrt streaming. */
-    public String getStatus();
+    public SessionFailedMessage()
+    {
+        super(Type.SESSION_FAILED);
+    }
 }

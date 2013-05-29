@@ -20,173 +20,77 @@ package org.apache.cassandra.streaming;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
-import java.util.UUID;
 
-import com.google.common.collect.Iterables;
-
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.net.CompactEndpointSerializationHelper;
-import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.UUIDSerializer;
 
-/**
-* This class encapsulates the message that needs to be sent to nodes
-* that handoff data. The message contains information about ranges
-* that need to be transferred and the target node.
-*
-* If a file is specified, ranges and table will not. vice-versa should hold as well.
-*/
 public class StreamRequest
 {
     public static final IVersionedSerializer<StreamRequest> serializer = new StreamRequestSerializer();
 
-    protected final UUID sessionId;
-    protected final InetAddress target;
+    public final String keyspace;
+    public final Collection<Range<Token>> ranges;
+    public final Collection<String> columnFamilies = new HashSet<>();
 
-    // if this is specified, ranges and table should not be.
-    protected final PendingFile file;
-
-    // if these are specified, file should not be.
-    protected final Collection<Range<Token>> ranges;
-    protected final String table;
-    protected final Iterable<ColumnFamilyStore> columnFamilies;
-    protected final OperationType type;
-
-    StreamRequest(InetAddress target, Collection<Range<Token>> ranges, String table, Iterable<ColumnFamilyStore> columnFamilies, UUID sessionId, OperationType type)
+    public StreamRequest(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies)
     {
-        this.target = target;
+        this.keyspace = keyspace;
         this.ranges = ranges;
-        this.table = table;
-        this.columnFamilies = columnFamilies;
-        this.sessionId = sessionId;
-        this.type = type;
-        file = null;
+        this.columnFamilies.addAll(columnFamilies);
     }
 
-    StreamRequest(InetAddress target, PendingFile file, UUID sessionId)
+    public static class StreamRequestSerializer implements IVersionedSerializer<StreamRequest>
     {
-        this.target = target;
-        this.file = file;
-        this.sessionId = sessionId;
-        this.type = file.type;
-        ranges = null;
-        table = null;
-        columnFamilies = null;
-    }
-
-    public MessageOut<StreamRequest> createMessage()
-    {
-        return new MessageOut<StreamRequest>(MessagingService.Verb.STREAM_REQUEST, this, serializer);
-    }
-
-    public String toString()
-    {
-        StringBuilder sb = new StringBuilder("");
-        if (file == null)
+        public void serialize(StreamRequest request, DataOutput out, int version) throws IOException
         {
-            sb.append(table);
-            sb.append("@");
-            sb.append(columnFamilies.toString());
-            sb.append("@");
-            sb.append(target);
-            sb.append("------->");
-            for (Range<Token> range : ranges)
+            out.writeUTF(request.keyspace);
+            out.writeInt(request.ranges.size());
+            for (Range<Token> range : request.ranges)
             {
-                sb.append(range);
-                sb.append(" ");
+                Token.serializer.serialize(range.left, out);
+                Token.serializer.serialize(range.right, out);
             }
-            sb.append(type);
-        }
-        else
-        {
-            sb.append(file.toString());
-        }
-        return sb.toString();
-    }
-
-    private static class StreamRequestSerializer implements IVersionedSerializer<StreamRequest>
-    {
-        public void serialize(StreamRequest srm, DataOutput out, int version) throws IOException
-        {
-            UUIDSerializer.serializer.serialize(srm.sessionId, out, MessagingService.current_version);
-            CompactEndpointSerializationHelper.serialize(srm.target, out);
-            if (srm.file != null)
-            {
-                out.writeBoolean(true);
-                PendingFile.serializer.serialize(srm.file, out, version);
-            }
-            else
-            {
-                out.writeBoolean(false);
-                out.writeUTF(srm.table);
-                out.writeInt(srm.ranges.size());
-                for (Range<Token> range : srm.ranges)
-                    AbstractBounds.serializer.serialize(range, out, version);
-
-                out.writeUTF(srm.type.name());
-
-                out.writeInt(Iterables.size(srm.columnFamilies));
-                for (ColumnFamilyStore cfs : srm.columnFamilies)
-                    ColumnFamily.serializer.serializeCfId(cfs.metadata.cfId, out, version);
-            }
+            out.writeInt(request.columnFamilies.size());
+            for (String cf : request.columnFamilies)
+                out.writeUTF(cf);
         }
 
         public StreamRequest deserialize(DataInput in, int version) throws IOException
         {
-            UUID sessionId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
-            InetAddress target = CompactEndpointSerializationHelper.deserialize(in);
-            boolean singleFile = in.readBoolean();
-            if (singleFile)
+            String keyspace = in.readUTF();
+            int rangeCount = in.readInt();
+            List<Range<Token>> ranges = new ArrayList<>(rangeCount);
+            for (int i = 0; i < rangeCount; i++)
             {
-                PendingFile file = PendingFile.serializer.deserialize(in, version);
-                return new StreamRequest(target, file, sessionId);
+                Token left = Token.serializer.deserialize(in);
+                Token right = Token.serializer.deserialize(in);
+                ranges.add(new Range<>(left, right));
             }
-            else
-            {
-                String table = in.readUTF();
-                int size = in.readInt();
-                List<Range<Token>> ranges = (size == 0) ? null : new ArrayList<Range<Token>>(size);
-                for (int i = 0; i < size; ++i)
-                    ranges.add((Range<Token>) AbstractBounds.serializer.deserialize(in, version).toTokenBounds());
-                OperationType type = OperationType.valueOf(in.readUTF());
-
-                List<ColumnFamilyStore> stores = new ArrayList<ColumnFamilyStore>();
-                int cfsSize = in.readInt();
-                for (int i = 0; i < cfsSize; ++i)
-                    stores.add(Table.open(table).getColumnFamilyStore(ColumnFamily.serializer.deserializeCfId(in, version)));
-
-                return new StreamRequest(target, ranges, table, stores, sessionId, type);
-            }
+            int cfCount = in.readInt();
+            List<String> columnFamilies = new ArrayList<>(cfCount);
+            for (int i = 0; i < cfCount; i++)
+                columnFamilies.add(in.readUTF());
+            return new StreamRequest(keyspace, ranges, columnFamilies);
         }
 
-        public long serializedSize(StreamRequest sr, int version)
+        public long serializedSize(StreamRequest request, int version)
         {
-            long size = TypeSizes.NATIVE.sizeof(sr.sessionId);
-            size += CompactEndpointSerializationHelper.serializedSize(sr.target);
-            size += TypeSizes.NATIVE.sizeof(true);
-            if (sr.file != null)
-                return size + PendingFile.serializer.serializedSize(sr.file, version);
-
-            size += TypeSizes.NATIVE.sizeof(sr.table);
-            size += TypeSizes.NATIVE.sizeof(sr.ranges.size());
-            for (Range<Token> range : sr.ranges)
-                size += AbstractBounds.serializer.serializedSize(range, version);
-            size += TypeSizes.NATIVE.sizeof(sr.type.name());
-            size += TypeSizes.NATIVE.sizeof(Iterables.size(sr.columnFamilies));
-            for (ColumnFamilyStore cfs : sr.columnFamilies)
-                size += ColumnFamily.serializer.cfIdSerializedSize(cfs.metadata.cfId, TypeSizes.NATIVE, version);
+            int size = TypeSizes.NATIVE.sizeof(request.keyspace);
+            size += TypeSizes.NATIVE.sizeof(request.ranges.size());
+            for (Range<Token> range : request.ranges)
+            {
+                size += Token.serializer.serializedSize(range.left, TypeSizes.NATIVE);
+                size += Token.serializer.serializedSize(range.right, TypeSizes.NATIVE);
+            }
+            size += TypeSizes.NATIVE.sizeof(request.columnFamilies.size());
+            for (String cf : request.columnFamilies)
+                size += TypeSizes.NATIVE.sizeof(cf);
             return size;
         }
     }

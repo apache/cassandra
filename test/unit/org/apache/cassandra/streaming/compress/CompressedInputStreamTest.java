@@ -26,7 +26,10 @@ import java.util.*;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.io.compress.*;
+import org.apache.cassandra.io.compress.CompressedSequentialWriter;
+import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMetadata;

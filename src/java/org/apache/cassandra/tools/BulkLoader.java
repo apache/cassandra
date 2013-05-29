@@ -24,6 +24,11 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.cli.*;
+import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.transport.TFramedTransport;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
 
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -32,17 +37,10 @@ import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableLoader;
-import org.apache.cassandra.streaming.PendingFile;
+import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.OutputHandler;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.protocol.TProtocol;
-import org.apache.thrift.transport.TFramedTransport;
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
-
-import com.google.common.util.concurrent.Uninterruptibles;
 
 public class BulkLoader
 {
@@ -61,52 +59,20 @@ public class BulkLoader
     public static void main(String args[])
     {
         LoaderOptions options = LoaderOptions.parseArgs(args);
+        OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
+        SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(options.hosts, options.rpcPort, options.user, options.passwd), handler);
+        DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
+        StreamResultFuture future = loader.stream(options.ignores);
+        future.addEventListener(new ProgressIndicator(handler));
         try
         {
-            OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
-            SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(handler, options.hosts, options.rpcPort, options.user, options.passwd), handler);
-            DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
-            SSTableLoader.LoaderFuture future = loader.stream(options.ignores);
-
-            if (options.noProgress)
-            {
-                future.get();
-            }
-            else
-            {
-                ProgressIndicator indicator = new ProgressIndicator(future.getPendingFiles());
-                indicator.start();
-                System.out.println("");
-                boolean printEnd = false;
-                while (!future.isDone())
-                {
-                    if (indicator.printProgress())
-                    {
-                        // We're done with streaming
-                        System.out.println("\nWaiting for targets to rebuild indexes ...");
-                        printEnd = true;
-                        future.get();
-                        assert future.isDone();
-                    }
-                    else
-                    {
-                        Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
-                    }
-                }
-                if (!printEnd)
-                    indicator.printProgress();
-                if (future.hadFailures())
-                {
-                    System.err.println("Streaming to the following hosts failed:");
-                    System.err.println(future.getFailedHosts());
-                    System.exit(1);
-                }
-            }
-
+            future.get();
             System.exit(0); // We need that to stop non daemonized threads
         }
         catch (Exception e)
         {
+            System.err.println("Streaming to the following hosts failed:");
+            System.err.println(loader.getFailedHosts());
             System.err.println(e.getMessage());
             if (options.debug)
                 e.printStackTrace(System.err);
@@ -115,62 +81,63 @@ public class BulkLoader
     }
 
     // Return true when everything is at 100%
-    static class ProgressIndicator
+    static class ProgressIndicator implements StreamEventHandler
     {
-        private final Map<InetAddress, Collection<PendingFile>> filesByHost;
+        private final Set<ProgressInfo> progresses = new HashSet<>();
+        private final OutputHandler handler;
+
         private long start;
         private long lastProgress;
         private long lastTime;
 
-        public ProgressIndicator(Map<InetAddress, Collection<PendingFile>> filesByHost)
+        public ProgressIndicator(OutputHandler handler)
         {
-            this.filesByHost = new HashMap<InetAddress, Collection<PendingFile>>(filesByHost);
-        }
-
-        public void start()
-        {
+            this.handler = handler;
             start = lastTime = System.nanoTime();
         }
 
-        public boolean printProgress()
-        {
-            boolean done = true;
-            StringBuilder sb = new StringBuilder();
-            sb.append("\rprogress: ");
-            long totalProgress = 0;
-            long totalSize = 0;
-            for (Map.Entry<InetAddress, Collection<PendingFile>> entry : filesByHost.entrySet())
-            {
-                long progress = 0;
-                long size = 0;
-                int completed = 0;
-                Collection<PendingFile> pendings = entry.getValue();
-                for (PendingFile f : pendings)
-                {
-                    progress += f.progress;
-                    size += f.size;
-                    if (f.progress == f.size)
-                        completed++;
-                }
-                totalProgress += progress;
-                totalSize += size;
-                if (completed != pendings.size())
-                    done = false;
-                sb.append("[").append(entry.getKey());
-                sb.append(" ").append(completed).append("/").append(pendings.size());
-                sb.append(" (").append(size == 0 ? 100L : progress * 100L / size).append(")] ");
-            }
-            long time = System.nanoTime();
-            long deltaTime = TimeUnit.NANOSECONDS.toMillis(time - lastTime);
-            lastTime = time;
-            long deltaProgress = totalProgress - lastProgress;
-            lastProgress = totalProgress;
+        public void onSuccess(StreamState finalState) {}
+        public void onFailure(Throwable t) {}
 
-            sb.append("[total: ").append(totalSize == 0 ? 100L : totalProgress * 100L / totalSize).append(" - ");
-            sb.append(mbPerSec(deltaProgress, deltaTime)).append("MB/s");
-            sb.append(" (avg: ").append(mbPerSec(totalProgress, TimeUnit.NANOSECONDS.toMillis(time - start))).append("MB/s)]");
-            System.out.print(sb.toString());
-            return done;
+        public void handleStreamEvent(StreamEvent event)
+        {
+            if (event.eventType == StreamEvent.Type.FILE_PROGRESS)
+            {
+                ProgressInfo progressInfo = ((StreamEvent.ProgressEvent) event).progress;
+
+                // update progress
+                if (progresses.contains(progressInfo))
+                    progresses.remove(progressInfo);
+                progresses.add(progressInfo);
+
+                StringBuilder sb = new StringBuilder();
+                sb.append("\rprogress: ");
+
+                long totalProgress = 0;
+                long totalSize = 0;
+                long completed = 0;
+                for (ProgressInfo entry : progresses)
+                {
+                    if (entry.currentBytes == entry.totalBytes)
+                        completed++;
+                    totalProgress += entry.currentBytes;
+                    totalSize += entry.totalBytes;
+                    sb.append("[").append(entry.peer);
+                    sb.append(" ").append(completed).append("/").append(progresses.size());
+                    sb.append(" (").append(entry.totalBytes == 0 ? 100L : entry.currentBytes * 100L / entry.totalBytes).append(")] ");
+                }
+                long time = System.nanoTime();
+                long deltaTime = TimeUnit.NANOSECONDS.toMillis(time - lastTime);
+                lastTime = time;
+                long deltaProgress = totalProgress - lastProgress;
+                lastProgress = totalProgress;
+
+                sb.append("[total: ").append(totalSize == 0 ? 100L : totalProgress * 100L / totalSize).append(" - ");
+                sb.append(mbPerSec(deltaProgress, deltaTime)).append("MB/s");
+                sb.append(" (avg: ").append(mbPerSec(totalProgress, TimeUnit.NANOSECONDS.toMillis(time - start))).append("MB/s)]");
+
+                handler.output(sb.toString());
+            }
         }
 
         private int mbPerSec(long bytes, long timeInMs)
@@ -182,13 +149,13 @@ public class BulkLoader
 
     static class ExternalClient extends SSTableLoader.Client
     {
-        private final Set<String> knownCfs = new HashSet<String>();
+        private final Set<String> knownCfs = new HashSet<>();
         private final Set<InetAddress> hosts;
         private final int rpcPort;
         private final String user;
         private final String passwd;
 
-        public ExternalClient(OutputHandler outputHandler, Set<InetAddress> hosts, int port, String user, String passwd)
+        public ExternalClient(Set<InetAddress> hosts, int port, String user, String passwd)
         {
             super();
             this.hosts = hosts;
@@ -213,7 +180,7 @@ public class BulkLoader
 
                     for (TokenRange tr : client.describe_ring(keyspace))
                     {
-                        Range<Token> range = new Range<Token>(tkFactory.fromString(tr.start_token), tkFactory.fromString(tr.end_token));
+                        Range<Token> range = new Range<>(tkFactory.fromString(tr.start_token), tkFactory.fromString(tr.end_token));
                         for (String ep : tr.endpoints)
                         {
                             addRangeForEndpoint(range, InetAddress.getByName(ep));

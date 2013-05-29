@@ -22,6 +22,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +37,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.streaming.OperationType;
 
 public class BootStrapper
 {
@@ -63,7 +63,7 @@ public class BootStrapper
         if (logger.isDebugEnabled())
             logger.debug("Beginning bootstrap process");
 
-        RangeStreamer streamer = new RangeStreamer(tokenMetadata, address, OperationType.BOOTSTRAP);
+        RangeStreamer streamer = new RangeStreamer(tokenMetadata, address, "Bootstrap");
         streamer.addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(FailureDetector.instance));
 
         for (String table : Schema.instance.getNonSystemTables())
@@ -72,8 +72,19 @@ public class BootStrapper
             streamer.addRanges(table, strategy.getPendingAddressRanges(tokenMetadata, tokens, address));
         }
 
-        streamer.fetch();
-        StorageService.instance.finishBootstrapping();
+        try
+        {
+            streamer.fetchAsync().get();
+            StorageService.instance.finishBootstrapping();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException("Interrupted while waiting on boostrap to complete. Bootstrap will have to be restarted.");
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException("Error during boostrap: " + e.getCause().getMessage(), e.getCause());
+        }
     }
 
     /**

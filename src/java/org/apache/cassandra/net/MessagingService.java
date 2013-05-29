@@ -17,13 +17,9 @@
  */
 package org.apache.cassandra.net;
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOError;
-import java.io.IOException;
+import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.net.*;
-import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousCloseException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ServerSocketChannel;
@@ -53,7 +49,6 @@ import org.apache.cassandra.gms.GossipDigestAck;
 import org.apache.cassandra.gms.GossipDigestAck2;
 import org.apache.cassandra.gms.GossipDigestSyn;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.metrics.ConnectionMetrics;
 import org.apache.cassandra.metrics.DroppedMessageMetrics;
@@ -63,7 +58,6 @@ import org.apache.cassandra.service.*;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PrepareResponse;
 import org.apache.cassandra.streaming.*;
-import org.apache.cassandra.streaming.compress.CompressedFileStreamTask;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -92,8 +86,8 @@ public final class MessagingService implements MessagingServiceMBean
         REQUEST_RESPONSE, // client-initiated reads and writes
         @Deprecated STREAM_INITIATE,
         @Deprecated STREAM_INITIATE_DONE,
-        STREAM_REPLY,
-        STREAM_REQUEST,
+        @Deprecated STREAM_REPLY,
+        @Deprecated STREAM_REQUEST,
         RANGE_SLICE,
         @Deprecated BOOTSTRAP_TOKEN,
         TREE_REQUEST,
@@ -192,8 +186,6 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.MUTATION, RowMutation.serializer);
         put(Verb.READ_REPAIR, RowMutation.serializer);
         put(Verb.READ, ReadCommand.serializer);
-        put(Verb.STREAM_REPLY, StreamReply.serializer);
-        put(Verb.STREAM_REQUEST, StreamRequest.serializer);
         put(Verb.RANGE_SLICE, RangeSliceCommand.serializer);
         put(Verb.BOOTSTRAP_TOKEN, BootStrapper.StringSerializer.instance);
         put(Verb.TREE_REQUEST, ActiveRepairService.TreeRequest.serializer);
@@ -637,34 +629,6 @@ public final class MessagingService implements MessagingServiceMBean
         return iar;
     }
 
-    /**
-     * Stream a file from source to destination. This is highly optimized
-     * to not hold any of the contents of the file in memory.
-     *
-     * @param header Header contains file to stream and other metadata.
-     * @param to     endpoint to which we need to stream the file.
-     */
-
-    public void stream(StreamHeader header, InetAddress to)
-    {
-        DebuggableThreadPoolExecutor executor = streamExecutors.get(to);
-        if (executor == null)
-        {
-            // Using a core pool size of 0 is important. See documentation of streamExecutors.
-            executor = DebuggableThreadPoolExecutor.createWithMaximumPoolSize("Streaming to " + to, 1, 1, TimeUnit.SECONDS);
-            DebuggableThreadPoolExecutor old = streamExecutors.putIfAbsent(to, executor);
-            if (old != null)
-            {
-                executor.shutdown();
-                executor = old;
-            }
-        }
-
-        executor.execute(header.file == null || header.file.compressionInfo == null
-                         ? new FileStreamTask(header, to)
-                         : new CompressedFileStreamTask(header, to));
-    }
-
     public void register(ILatencySubscriber subcriber)
     {
         subscribers.add(subcriber);
@@ -763,44 +727,6 @@ public final class MessagingService implements MessagingServiceMBean
         return packed >>> (start + 1) - count & ~(-1 << count);
     }
 
-    public ByteBuffer constructStreamHeader(StreamHeader streamHeader, boolean compress, int version)
-    {
-        int header = 0;
-        // set compression bit.
-        if (compress)
-            header |= 4;
-        // set streaming bit
-        header |= 8;
-        // Setting up the version bit
-        header |= (version << 8);
-
-        /* Adding the StreamHeader which contains the session Id along
-         * with the pendingfile info for the stream.
-         * | Session Id | Pending File Size | Pending File | Bool more files |
-         * | No. of Pending files | Pending Files ... |
-         */
-        byte[] bytes;
-        try
-        {
-            DataOutputBuffer buffer = new DataOutputBuffer();
-            StreamHeader.serializer.serialize(streamHeader, buffer, version);
-            bytes = buffer.getData();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        assert bytes.length > 0;
-
-        ByteBuffer buffer = ByteBuffer.allocate(4 + 4 + 4 + bytes.length);
-        buffer.putInt(PROTOCOL_MAGIC);
-        buffer.putInt(header);
-        buffer.putInt(bytes.length);
-        buffer.put(bytes);
-        buffer.flip();
-        return buffer;
-    }
-
     /**
      * @return the last version associated with address, or @param version if this is the first such version
      */
@@ -885,9 +811,29 @@ public final class MessagingService implements MessagingServiceMBean
                 {
                     Socket socket = server.accept();
                     if (authenticate(socket))
-                        new IncomingTcpConnection(socket).start();
+                    {
+                        // determine the connection type to decide whether to buffer
+                        DataInputStream in = new DataInputStream(socket.getInputStream());
+                        MessagingService.validateMagic(in.readInt());
+                        int header = in.readInt();
+                        boolean isStream = MessagingService.getBits(header, 3, 1) == 1;
+                        int version = MessagingService.getBits(header, 15, 8);
+                        logger.debug("Connection version {} from {}", version, socket.getInetAddress());
+
+                        if (isStream)
+                        {
+                            new IncomingStreamingConnection(version, socket).start();
+                        }
+                        else
+                        {
+                            boolean compressed = MessagingService.getBits(header, 2, 1) == 1;
+                            new IncomingTcpConnection(version, compressed, socket).start();
+                        }
+                    }
                     else
+                    {
                         socket.close();
+                    }
                 }
                 catch (AsynchronousCloseException e)
                 {

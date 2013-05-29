@@ -22,30 +22,29 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.streaming.*;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.OutputHandler;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * Cassandra SSTable bulk loader.
  * Load an externally created sstable into a cluster.
  */
-public class SSTableLoader
+public class SSTableLoader implements StreamEventHandler
 {
     private final File directory;
     private final String keyspace;
     private final Client client;
     private final OutputHandler outputHandler;
+    private final Set<InetAddress> failedHosts = new HashSet<>();
 
     static
     {
@@ -109,110 +108,61 @@ public class SSTableLoader
         return sstables;
     }
 
-    public LoaderFuture stream()
+    public StreamResultFuture stream()
     {
         return stream(Collections.<InetAddress>emptySet());
     }
 
-    public LoaderFuture stream(Set<InetAddress> toIgnore)
+    public StreamResultFuture stream(Set<InetAddress> toIgnore)
     {
         client.init(keyspace);
 
+        StreamPlan plan = new StreamPlan("Bulk Load");
         Collection<SSTableReader> sstables = openSSTables();
         if (sstables.isEmpty())
         {
-            outputHandler.output("No sstables to stream");
-            return new LoaderFuture(0);
+            // return empty result
+            return plan.execute();
         }
-
         Map<InetAddress, Collection<Range<Token>>> endpointToRanges = client.getEndpointToRangesMap();
-        outputHandler.output(String.format("Streaming revelant part of %s to %s", names(sstables), endpointToRanges.keySet()));
+        outputHandler.output(String.format("Streaming relevant part of %sto %s", names(sstables), endpointToRanges.keySet()));
 
-        // There will be one streaming session by endpoint
-        LoaderFuture future = new LoaderFuture(endpointToRanges.size());
         for (Map.Entry<InetAddress, Collection<Range<Token>>> entry : endpointToRanges.entrySet())
         {
             InetAddress remote = entry.getKey();
             if (toIgnore.contains(remote))
-            {
-                future.latch.countDown();
                 continue;
-            }
             Collection<Range<Token>> ranges = entry.getValue();
-            StreamOutSession session = StreamOutSession.create(keyspace, remote, new CountDownCallback(future, remote));
             // transferSSTables assumes references have been acquired
             SSTableReader.acquireReferences(sstables);
-            StreamOut.transferSSTables(session, sstables, ranges, OperationType.BULK_LOAD);
-            future.setPendings(remote, session.getFiles());
+            plan.transferFiles(remote, ranges, sstables);
         }
-        return future;
+        StreamResultFuture bulkResult = plan.execute();
+        bulkResult.addEventListener(this);
+        return bulkResult;
     }
 
-    public static class LoaderFuture implements Future<Void>
+    public void onSuccess(StreamState finalState) {}
+    public void onFailure(Throwable t) {}
+
+    public void handleStreamEvent(StreamEvent event)
     {
-        final CountDownLatch latch;
-        final Map<InetAddress, Collection<PendingFile>> pendingFiles;
-        private List<InetAddress> failedHosts = new ArrayList<InetAddress>();
-
-        private LoaderFuture(int request)
+        if (event.eventType == StreamEvent.Type.FILE_PROGRESS)
         {
-            latch = new CountDownLatch(request);
-            pendingFiles = new HashMap<InetAddress, Collection<PendingFile>>();
+            ProgressInfo progress = ((StreamEvent.ProgressEvent) event).progress;
+            StringBuilder sb = new StringBuilder("\r");
+            sb.append(progress.fileName);
+            sb.append(": ");
+            sb.append(progress.currentBytes).append("/").append(progress.totalBytes);
+            System.out.print(sb.toString());
+            if (progress.currentBytes == progress.totalBytes)
+                System.out.println();
         }
-
-        private void setPendings(InetAddress remote, Collection<PendingFile> files)
+        else if (event.eventType == StreamEvent.Type.STREAM_COMPLETE)
         {
-            pendingFiles.put(remote, new ArrayList(files));
-        }
-
-        private void setFailed(InetAddress addr)
-        {
-            failedHosts.add(addr);
-        }
-
-        public List<InetAddress> getFailedHosts()
-        {
-            return failedHosts;
-        }
-
-        public boolean cancel(boolean mayInterruptIfRunning)
-        {
-            throw new UnsupportedOperationException("Cancellation is not yet supported");
-        }
-
-        public Void get() throws InterruptedException
-        {
-            latch.await();
-            return null;
-        }
-
-        public Void get(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
-        {
-            if (latch.await(timeout, unit))
-                return null;
-            else
-                throw new TimeoutException();
-        }
-
-        public boolean isCancelled()
-        {
-            // For now, cancellation is not supported, maybe one day...
-            return false;
-        }
-
-        public boolean isDone()
-        {
-            return latch.getCount() == 0;
-        }
-
-        public boolean hadFailures()
-        {
-            return failedHosts.size() > 0;
-        }
-
-        public Map<InetAddress, Collection<PendingFile>> getPendingFiles()
-        {
-            return pendingFiles;
+            StreamEvent.SessionCompleteEvent se = (StreamEvent.SessionCompleteEvent) event;
+            if (!se.success)
+                failedHosts.add(se.peer);
         }
     }
 
@@ -224,34 +174,9 @@ public class SSTableLoader
         return builder.toString();
     }
 
-    private class CountDownCallback implements IStreamCallback
+    public Set<InetAddress> getFailedHosts()
     {
-        private final InetAddress endpoint;
-        private final LoaderFuture future;
-
-        CountDownCallback(LoaderFuture future, InetAddress endpoint)
-        {
-            this.future = future;
-            this.endpoint = endpoint;
-        }
-
-        public void onSuccess()
-        {
-            future.latch.countDown();
-            outputHandler.debug(String.format("Streaming session to %s completed (waiting on %d outstanding sessions)", endpoint, future.latch.getCount()));
-
-            // There could be race with stop being called twice but it should be ok
-            if (future.latch.getCount() == 0)
-                client.stop();
-        }
-
-        public void onFailure()
-        {
-            outputHandler.output(String.format("Streaming session to %s failed", endpoint));
-            future.setFailed(endpoint);
-            future.latch.countDown();
-            client.stop();
-        }
+        return failedHosts;
     }
 
     public static abstract class Client
