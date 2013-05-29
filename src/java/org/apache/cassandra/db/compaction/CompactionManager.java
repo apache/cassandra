@@ -47,8 +47,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CompactionMetrics;
-import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.repair.Validator;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.Pair;
@@ -384,13 +384,22 @@ public class CompactionManager implements CompactionManagerMBean
     /**
      * Does not mutate data, so is not scheduled.
      */
-    public Future<Object> submitValidation(final ColumnFamilyStore cfStore, final ActiveRepairService.Validator validator)
+    public Future<Object> submitValidation(final ColumnFamilyStore cfStore, final Validator validator)
     {
         Callable<Object> callable = new Callable<Object>()
         {
             public Object call() throws IOException
             {
-                doValidationCompaction(cfStore, validator);
+                try
+                {
+                    doValidationCompaction(cfStore, validator);
+                }
+                catch (Exception e)
+                {
+                    // we need to inform the remote end of our failure, otherwise it will hang on repair forever
+                    validator.fail();
+                    throw e;
+                }
                 return this;
             }
         };
@@ -607,7 +616,7 @@ public class CompactionManager implements CompactionManagerMBean
      * Performs a readonly "compaction" of all sstables in order to validate complete rows,
      * but without writing the merge result
      */
-    private void doValidationCompaction(ColumnFamilyStore cfs, ActiveRepairService.Validator validator) throws IOException
+    private void doValidationCompaction(ColumnFamilyStore cfs, Validator validator) throws IOException
     {
         // this isn't meant to be race-proof, because it's not -- it won't cause bugs for a CFS to be dropped
         // mid-validation, or to attempt to validate a droped CFS.  this is just a best effort to avoid useless work,
@@ -618,17 +627,18 @@ public class CompactionManager implements CompactionManagerMBean
             return;
 
         Collection<SSTableReader> sstables;
+        String snapshotName = validator.desc.sessionId.toString();
         int gcBefore;
-        if (cfs.snapshotExists(validator.request.sessionid))
+        if (cfs.snapshotExists(snapshotName))
         {
             // If there is a snapshot created for the session then read from there.
-            sstables = cfs.getSnapshotSSTableReader(validator.request.sessionid);
+            sstables = cfs.getSnapshotSSTableReader(snapshotName);
 
             // Computing gcbefore based on the current time wouldn't be very good because we know each replica will execute
             // this at a different time (that's the whole purpose of repair with snaphsot). So instead we take the creation
             // time of the snapshot, which should give us roughtly the same time on each replica (roughtly being in that case
             // 'as good as in the non-snapshot' case)
-            gcBefore = cfs.gcBefore(cfs.getSnapshotCreationTime(validator.request.sessionid));
+            gcBefore = cfs.gcBefore(cfs.getSnapshotCreationTime(snapshotName));
         }
         else
         {
@@ -638,13 +648,13 @@ public class CompactionManager implements CompactionManagerMBean
             // we don't mark validating sstables as compacting in DataTracker, so we have to mark them referenced
             // instead so they won't be cleaned up if they do get compacted during the validation
             sstables = cfs.markCurrentSSTablesReferenced();
-            if (validator.request.gcBefore > 0)
-                gcBefore = validator.request.gcBefore;
+            if (validator.gcBefore > 0)
+                gcBefore = validator.gcBefore;
             else
                 gcBefore = getDefaultGcBefore(cfs);
         }
 
-        CompactionIterable ci = new ValidationCompactionIterable(cfs, sstables, validator.request.range, gcBefore);
+        CompactionIterable ci = new ValidationCompactionIterable(cfs, sstables, validator.desc.range, gcBefore);
         CloseableIterator<AbstractCompactedRow> iter = ci.iterator();
         metrics.beginCompaction(ci);
         try
@@ -664,8 +674,8 @@ public class CompactionManager implements CompactionManagerMBean
         {
             SSTableReader.releaseReferences(sstables);
             iter.close();
-            if (cfs.table.snapshotExists(validator.request.sessionid))
-                cfs.table.clearSnapshot(validator.request.sessionid);
+            if (cfs.table.snapshotExists(snapshotName))
+                cfs.table.clearSnapshot(snapshotName);
 
             metrics.finishCompaction(ci);
         }

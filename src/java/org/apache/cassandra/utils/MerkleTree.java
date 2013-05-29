@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.PeekingIterator;
 
@@ -30,6 +31,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
 
 /**
@@ -65,18 +67,9 @@ public class MerkleTree implements Serializable
 
     public final byte hashdepth;
 
-    /**
-     * The top level range that this MerkleTree covers.
-     * In a perfect world, this should be final and *not* transient. However
-     * this would break serialization with version &gte; 0.7 because it uses
-     * java serialization. We are moreover always shipping the fullRange will
-     * the request so we can add it back post-deserialization (as for the
-     * partitioner).
-     */
-    public transient Range<Token> fullRange;
-
-    // TODO This is broken; Token serialization assumes system partitioner, so if this doesn't match all hell breaks loose
-    private transient IPartitioner partitioner;
+    /** The top level range that this MerkleTree covers. */
+    public final Range<Token> fullRange;
+    private final IPartitioner partitioner;
 
     private long maxsize;
     private long size;
@@ -89,6 +82,10 @@ public class MerkleTree implements Serializable
             out.writeByte(mt.hashdepth);
             out.writeLong(mt.maxsize);
             out.writeLong(mt.size);
+            out.writeUTF(mt.partitioner.getClass().getCanonicalName());
+            // full range
+            Token.serializer.serialize(mt.fullRange.left, out);
+            Token.serializer.serialize(mt.fullRange.right, out);
             Hashable.serializer.serialize(mt.root, out, version);
         }
 
@@ -97,7 +94,22 @@ public class MerkleTree implements Serializable
             byte hashdepth = in.readByte();
             long maxsize = in.readLong();
             long size = in.readLong();
-            MerkleTree mt = new MerkleTree(null, null, hashdepth, maxsize);
+            IPartitioner partitioner;
+            try
+            {
+                partitioner = FBUtilities.newPartitioner(in.readUTF());
+            }
+            catch (ConfigurationException e)
+            {
+                throw new IOException(e);
+            }
+
+            // full range
+            Token left = Token.serializer.deserialize(in);
+            Token right = Token.serializer.deserialize(in);
+            Range<Token> fullRange = new Range<>(left, right, partitioner);
+
+            MerkleTree mt = new MerkleTree(partitioner, fullRange, hashdepth, maxsize);
             mt.size = size;
             mt.root = Hashable.serializer.deserialize(in, version);
             return mt;
@@ -105,10 +117,17 @@ public class MerkleTree implements Serializable
 
         public long serializedSize(MerkleTree mt, int version)
         {
-            return 1 // mt.hashdepth
+            long size = 1 // mt.hashdepth
                  + TypeSizes.NATIVE.sizeof(mt.maxsize)
                  + TypeSizes.NATIVE.sizeof(mt.size)
-                 + Hashable.serializer.serializedSize(mt.root, version);
+                 + TypeSizes.NATIVE.sizeof(mt.partitioner.getClass().getCanonicalName());
+
+            // full range
+            size += Token.serializer.serializedSize(mt.fullRange.left, TypeSizes.NATIVE);
+            size += Token.serializer.serializedSize(mt.fullRange.right, TypeSizes.NATIVE);
+
+            size += Hashable.serializer.serializedSize(mt.root, version);
+            return size;
         }
     }
 
@@ -122,8 +141,8 @@ public class MerkleTree implements Serializable
     public MerkleTree(IPartitioner partitioner, Range<Token> range, byte hashdepth, long maxsize)
     {
         assert hashdepth < Byte.MAX_VALUE;
-        this.fullRange = range;
-        this.partitioner = partitioner;
+        this.fullRange = Preconditions.checkNotNull(range);
+        this.partitioner = Preconditions.checkNotNull(partitioner);
         this.hashdepth = hashdepth;
         this.maxsize = maxsize;
 
@@ -196,14 +215,6 @@ public class MerkleTree implements Serializable
     public void maxsize(long maxsize)
     {
         this.maxsize = maxsize;
-    }
-
-    /**
-     * TODO: Find another way to use the local partitioner after serialization.
-     */
-    public void partitioner(IPartitioner partitioner)
-    {
-        this.partitioner = partitioner;
     }
 
     /**

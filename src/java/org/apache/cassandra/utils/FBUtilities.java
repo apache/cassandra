@@ -213,6 +213,11 @@ public class FBUtilities
         return FastByteComparisons.compareTo(bytes1, offset1, len1, bytes2, offset2, len2);
     }
 
+    public static int compareUnsigned(byte[] bytes1, byte[] bytes2)
+    {
+        return compareUnsigned(bytes1, bytes2, 0, 0, bytes1.length, bytes2.length);
+    }
+
     /**
      * @return The bitwise XOR of the inputs. The output will be the same length as the
      * longer input, but if either input is null, the output will be null.

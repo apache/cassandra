@@ -30,27 +30,23 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.compaction.PrecompactedRow;
-import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.MerkleTree;
 
 import static org.apache.cassandra.service.ActiveRepairService.*;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
 {
@@ -59,7 +55,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
 
     public String tablename;
     public String cfname;
-    public TreeRequest request;
+    public RepairJobDesc desc;
     public ColumnFamilyStore store;
     public InetAddress LOCAL, REMOTE;
 
@@ -107,62 +103,15 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
 
         local_range = StorageService.instance.getPrimaryRangesForEndpoint(tablename, LOCAL).iterator().next();
 
-        // (we use REMOTE instead of LOCAL so that the reponses for the validator.complete() get lost)
-        int gcBefore = store.gcBefore(System.currentTimeMillis());
-        request = new TreeRequest(UUID.randomUUID().toString(), REMOTE, local_range, gcBefore, new CFPair(tablename, cfname));
+        desc = new RepairJobDesc(UUID.randomUUID(), tablename, cfname, local_range);
         // Set a fake session corresponding to this fake request
-        ActiveRepairService.instance.submitArtificialRepairSession(request, tablename, cfname);
+        ActiveRepairService.instance.submitArtificialRepairSession(desc);
     }
 
     @After
     public void teardown() throws Exception
     {
         flushAES();
-    }
-
-    @Test
-    public void testValidatorPrepare() throws Throwable
-    {
-        Validator validator;
-
-        // write
-        Util.writeColumnFamily(getWriteData());
-
-        // sample
-        validator = new Validator(request);
-        validator.prepare(store);
-
-        // and confirm that the tree was split
-        assertTrue(validator.tree.size() > 1);
-    }
-
-    @Test
-    public void testValidatorComplete() throws Throwable
-    {
-        Validator validator = new Validator(request);
-        validator.prepare(store);
-        validator.completeTree();
-
-        // confirm that the tree was validated
-        Token min = validator.tree.partitioner().getMinimumToken();
-        assert validator.tree.hash(new Range<Token>(min, min)) != null;
-    }
-
-    @Test
-    public void testValidatorAdd() throws Throwable
-    {
-        Validator validator = new Validator(request);
-        IPartitioner part = validator.tree.partitioner();
-        Token mid = part.midpoint(local_range.left, local_range.right);
-        validator.prepare(store);
-
-        // add a row
-        validator.add(new PrecompactedRow(new DecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!")),
-                                          TreeMapBackedSortedColumns.factory.create(Schema.instance.getCFMetaData(tablename, cfname))));
-        validator.completeTree();
-
-        // confirm that the tree was validated
-        assert validator.tree.hash(local_range) != null;
     }
 
     @Test
@@ -251,44 +200,6 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
             neighbors.addAll(ActiveRepairService.getNeighbors(tablename, range, true));
         }
         assertEquals(expected, neighbors);
-    }
-
-    @Test
-    public void testDifferencer() throws Throwable
-    {
-        // this next part does some housekeeping so that cleanup in the differencer doesn't error out.
-        ActiveRepairService.RepairFuture sess = ActiveRepairService.instance.submitArtificialRepairSession(request, tablename, cfname);
-
-        // generate a tree
-        Validator validator = new Validator(request);
-        validator.prepare(store);
-        validator.completeTree();
-        MerkleTree ltree = validator.tree;
-
-        // and a clone
-        validator = new Validator(request);
-        validator.prepare(store);
-        validator.completeTree();
-        MerkleTree rtree = validator.tree;
-
-        // change a range in one of the trees
-        Token ltoken = StorageService.getPartitioner().midpoint(local_range.left, local_range.right);
-        ltree.invalidate(ltoken);
-        MerkleTree.TreeRange changed = ltree.get(ltoken);
-        changed.hash("non-empty hash!".getBytes());
-
-        Set<Range> interesting = new HashSet<Range>();
-        interesting.add(changed);
-
-        // difference the trees
-        // note: we reuse the same endpoint which is bogus in theory but fine here
-        ActiveRepairService.TreeResponse r1 = new ActiveRepairService.TreeResponse(REMOTE, ltree);
-        ActiveRepairService.TreeResponse r2 = new ActiveRepairService.TreeResponse(REMOTE, rtree);
-        ActiveRepairService.RepairSession.Differencer diff = sess.session.new Differencer(cfname, r1, r2);
-        diff.run();
-
-        // ensure that the changed range was recorded
-        assertEquals("Wrong differing ranges", interesting, new HashSet<Range>(diff.differences));
     }
 
     Set<InetAddress> addTokens(int max) throws Throwable
