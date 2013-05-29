@@ -98,8 +98,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('', choices=('?', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
                                          'COPY', 'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE',
                                          'DROP', 'GRANT', 'HELP', 'INSERT', 'LIST', 'REVOKE',
-                                         'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'TRUNCATE', 'UPDATE',
-                                         'USE', 'exit', 'quit'))
+                                         'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'EXPAND', 'TRUNCATE',
+                                         'UPDATE', 'USE', 'exit', 'quit'))
 
     def test_complete_command_words(self):
         self.trycompletions('alt', '\b\b\bALTER ')
