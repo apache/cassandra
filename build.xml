@@ -60,8 +60,8 @@
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
 	
-	<property name="source.version" value="1.6"/>
-	<property name="target.version" value="1.6"/>
+	<property name="source.version" value="1.7"/>
+	<property name="target.version" value="1.7"/>
 	
     <condition property="version" value="${base.version}">
       <isset property="release"/>
