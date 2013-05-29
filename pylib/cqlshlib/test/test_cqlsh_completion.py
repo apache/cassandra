@@ -98,7 +98,7 @@ class TestCqlshCompletion_CQL2(CqlshCompletionCase):
         self.trycompletions('', choices=('?', 'ALTER', 'ASSUME', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
                                          'COPY', 'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE',
                                          'DROP', 'HELP', 'INSERT', 'SELECT', 'SHOW', 'SOURCE',
-                                         'TRACING', 'TRUNCATE', 'UPDATE', 'USE', 'exit', 'quit'))
+                                         'TRACING', 'EXPAND', 'TRUNCATE', 'UPDATE', 'USE', 'exit', 'quit'))
 
     def test_complete_command_words(self):
         self.trycompletions('alt', '\b\b\bALTER ')
@@ -181,8 +181,8 @@ class TestCqlshCompletion_CQL3final(TestCqlshCompletion_CQL2):
         self.trycompletions('', choices=('?', 'ALTER', 'ASSUME', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
                                          'COPY', 'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE',
                                          'DROP', 'GRANT', 'HELP', 'INSERT', 'LIST', 'REVOKE',
-                                         'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'TRUNCATE', 'UPDATE',
-                                         'USE', 'exit', 'quit'))
+                                         'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'EXPAND', 'TRUNCATE',
+                                         'UPDATE', 'USE', 'exit', 'quit'))
 
     def test_complete_in_create_keyspace(self):
         self.trycompletions('create keyspace ', '', choices=('<identifier>', '<quotedName>'))
