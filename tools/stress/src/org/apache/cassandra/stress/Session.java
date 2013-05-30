@@ -23,10 +23,8 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Histogram;
 import org.apache.cassandra.cli.transport.FramedTransportFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.EncryptionOptions;
@@ -117,6 +115,7 @@ public class Session implements Serializable
         availableOptions.addOption("alg", SSL_ALGORITHM,         true, "SSL: algorithm (default: SunX509)");
         availableOptions.addOption("st", SSL_STORE_TYPE,         true, "SSL: type of store");
         availableOptions.addOption("ciphers", SSL_CIPHER_SUITES, true, "SSL: comma-separated list of encryption suites to use");
+        availableOptions.addOption("th",  "throttle",            true,   "Throttle the total number of operations per second to a maximum amount.");
     }
 
     private int numKeys          = 1000 * 1000;
@@ -143,6 +142,7 @@ public class Session implements Serializable
     private boolean trace         = false;
     private boolean captureStatistics = true;
     public boolean use_native_protocol = false;
+    private double maxOpsPerSecond = Double.MAX_VALUE;
 
     private final String outFileName;
 
@@ -284,6 +284,9 @@ public class Session implements Serializable
 
             if (cmd.hasOption("g"))
                 keysPerCall = Integer.parseInt(cmd.getOptionValue("g"));
+
+            if (cmd.hasOption("th"))
+                maxOpsPerSecond = Double.parseDouble(cmd.getOptionValue("th"));
 
             if (cmd.hasOption("e"))
                 consistencyLevel = ConsistencyLevel.valueOf(cmd.getOptionValue("e").toUpperCase());
@@ -513,6 +516,11 @@ public class Session implements Serializable
     public int getThreads()
     {
         return threads;
+    }
+
+    public double getMaxOpsPerSecond()
+    {
+        return maxOpsPerSecond;
     }
 
     public float getSkipKeys()
