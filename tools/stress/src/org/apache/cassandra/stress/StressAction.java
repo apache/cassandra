@@ -21,6 +21,7 @@ import java.io.PrintStream;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 
+import com.google.common.util.concurrent.RateLimiter;
 import com.yammer.metrics.stats.Snapshot;
 import org.apache.cassandra.stress.operations.*;
 import org.apache.cassandra.stress.util.CassandraClient;
@@ -67,13 +68,14 @@ public class StressAction extends Thread
 
         int itemsPerThread = client.getKeysPerThread();
         int modulo = client.getNumKeys() % threadCount;
+        RateLimiter rateLimiter = RateLimiter.create(client.getMaxOpsPerSecond());
 
         // creating required type of the threads for the test
         for (int i = 0; i < threadCount; i++) {
             if (i == threadCount - 1)
                 itemsPerThread += modulo; // last one is going to handle N + modulo items
 
-            consumers[i] = new Consumer(itemsPerThread);
+            consumers[i] = new Consumer(itemsPerThread, rateLimiter);
         }
 
         Producer producer = new Producer();
@@ -209,12 +211,14 @@ public class StressAction extends Thread
     private class Consumer extends Thread
     {
         private final int items;
+        private final RateLimiter rateLimiter;
         private volatile boolean stop = false;
         private volatile int returnCode = StressAction.SUCCESS;
 
-        public Consumer(int toConsume)
+        public Consumer(int toConsume, RateLimiter rateLimiter)
         {
             items = toConsume;
+            this.rateLimiter = rateLimiter;
         }
 
         public void run()
@@ -230,6 +234,7 @@ public class StressAction extends Thread
 
                     try
                     {
+                        rateLimiter.acquire();
                         operations.take().run(connection); // running job
                     }
                     catch (Exception e)
@@ -258,6 +263,7 @@ public class StressAction extends Thread
 
                     try
                     {
+                        rateLimiter.acquire();
                         operations.take().run(connection); // running job
                     }
                     catch (Exception e)
