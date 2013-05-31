@@ -172,7 +172,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
                 ByteBufferUtil.write(sc, out);
         }
 
-        IDiskAtomFilter.Serializer.instance.serialize(sliceCommand.predicate, out, version);
+        IDiskAtomFilter.Serializer.instance.serialize(filter, out, version);
 
         if (sliceCommand.row_filter == null)
         {
