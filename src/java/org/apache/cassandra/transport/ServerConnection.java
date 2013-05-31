@@ -19,9 +19,13 @@ package org.apache.cassandra.transport;
 
 import java.util.concurrent.ConcurrentMap;
 
+import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.auth.ISaslAwareAuthenticator;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 
+import org.apache.cassandra.auth.ISaslAwareAuthenticator.SaslAuthenticator;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class ServerConnection extends Connection
@@ -36,6 +40,7 @@ public class ServerConnection extends Connection
 
     private enum State { UNINITIALIZED, AUTHENTICATION, READY; }
 
+    private volatile SaslAuthenticator saslAuthenticator;
     private final ClientState clientState;
     private volatile State state;
 
@@ -61,7 +66,7 @@ public class ServerConnection extends Connection
         return qState;
     }
 
-    public void validateNewMessage(Message.Type type)
+    public void validateNewMessage(Message.Type type, int version)
     {
         switch (state)
         {
@@ -70,8 +75,9 @@ public class ServerConnection extends Connection
                     throw new ProtocolException(String.format("Unexpected message %s, expecting STARTUP or OPTIONS", type));
                 break;
             case AUTHENTICATION:
-                if (type != Message.Type.CREDENTIALS)
-                    throw new ProtocolException(String.format("Unexpected message %s, needs authentication through CREDENTIALS message", type));
+                // Support both SASL auth from protocol v2 and the older style Credentials auth from v1
+                if (type != Message.Type.SASL_RESPONSE && type != Message.Type.CREDENTIALS)
+                    throw new ProtocolException(String.format("Unexpected message %s, expecting %s", type, version == 1 ? "CREDENTIALS" : "SASL_RESPONSE"));
                 break;
             case READY:
                 if (type == Message.Type.STARTUP)
@@ -96,13 +102,30 @@ public class ServerConnection extends Connection
                 }
                 break;
             case AUTHENTICATION:
-                assert requestType == Message.Type.CREDENTIALS;
+                // Support both SASL auth from protocol v2 and the older style Credentials auth from v1
+                assert requestType == Message.Type.SASL_RESPONSE || requestType == Message.Type.CREDENTIALS;
+
                 if (responseType == Message.Type.READY)
+                {
                     state = State.READY;
+                    // we won't use the authenticator again, null it so that it can be GC'd
+                    saslAuthenticator = null;
+                }
             case READY:
                 break;
             default:
                 throw new AssertionError();
         }
+    }
+
+    public SaslAuthenticator getAuthenticator()
+    {
+        if (saslAuthenticator == null)
+        {
+            IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
+            assert authenticator instanceof ISaslAwareAuthenticator : "Configured IAuthenticator does not support SASL authentication";
+            saslAuthenticator = ((ISaslAwareAuthenticator)authenticator).newAuthenticator();
+        }
+        return saslAuthenticator;
     }
 }

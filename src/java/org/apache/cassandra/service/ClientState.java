@@ -115,12 +115,10 @@ public class ClientState
     }
 
     /**
-     * Attempts to login this client with the given credentials map.
+     * Attempts to login the given user.
      */
-    public void login(Map<String, String> credentials) throws AuthenticationException
+    public void login(AuthenticatedUser user) throws AuthenticationException
     {
-        AuthenticatedUser user = DatabaseDescriptor.getAuthenticator().authenticate(credentials);
-
         if (!user.isAnonymous() && !Auth.isExistingUser(user.getName()))
            throw new AuthenticationException(String.format("User %s doesn't exist - create it with CREATE USER query first",
                                                            user.getName()));

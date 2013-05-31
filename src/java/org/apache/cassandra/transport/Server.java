@@ -30,6 +30,8 @@ import javax.net.ssl.SSLEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.auth.ISaslAwareAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.security.SSLFactory;
@@ -112,6 +114,16 @@ public class Server implements CassandraDaemon.Server
 
     private void run()
     {
+        // Check that a SaslAuthenticator can be provided by the configured
+        // IAuthenticator. If not, don't start the server.
+        IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
+        if (authenticator.requireAuthentication() && !(authenticator instanceof ISaslAwareAuthenticator))
+        {
+            logger.error("Not starting native transport as the configured IAuthenticator is not capable of SASL authentication");
+            isRunning.compareAndSet(true, false);
+            return;
+        }
+
         // Configure the server.
         executionHandler = new ExecutionHandler(new RequestThreadPoolExecutor());
         factory = new NioServerSocketChannelFactory(Executors.newCachedThreadPool(), Executors.newCachedThreadPool());
@@ -223,7 +235,7 @@ public class Server implements CassandraDaemon.Server
             pipeline.addLast("dispatcher", dispatcher);
 
             return pipeline;
-      }
+        }
     }
 
     private static class SecurePipelineFactory extends PipelineFactory

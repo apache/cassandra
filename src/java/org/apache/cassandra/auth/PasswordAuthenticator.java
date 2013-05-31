@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.auth;
 
+import java.nio.charset.Charset;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -47,7 +50,7 @@ import org.mindrot.jbcrypt.BCrypt;
  * that keeps credentials (usernames and bcrypt-hashed passwords)
  * internally in C* - in system_auth.credentials CQL3 table.
  */
-public class PasswordAuthenticator implements IAuthenticator
+public class PasswordAuthenticator implements ISaslAwareAuthenticator
 {
     private static final Logger logger = LoggerFactory.getLogger(PasswordAuthenticator.class);
 
@@ -196,6 +199,11 @@ public class PasswordAuthenticator implements IAuthenticator
         }
     }
 
+    public SaslAuthenticator newAuthenticator()
+    {
+        return new PlainTextSaslAuthenticator();
+    }
+
     private void setupCredentialsTable()
     {
         if (Schema.instance.getCFMetaData(Auth.AUTH_KS, CREDENTIALS_CF) == null)
@@ -255,5 +263,76 @@ public class PasswordAuthenticator implements IAuthenticator
             return ConsistencyLevel.QUORUM;
         else
             return ConsistencyLevel.ONE;
+    }
+
+    private class PlainTextSaslAuthenticator implements ISaslAwareAuthenticator.SaslAuthenticator
+    {
+        private static final byte NUL = 0;
+        private final Charset UTF8_CHARSET = Charset.forName("UTF-8");
+
+        private boolean complete = false;
+        private Map<String, String> credentials;
+
+        @Override
+        public byte[] evaluateResponse(byte[] clientResponse) throws AuthenticationException
+        {
+            credentials = decodeCredentials(clientResponse);
+            complete = true;
+            return null;
+        }
+
+        @Override
+        public boolean isComplete()
+        {
+            return complete;
+        }
+
+        @Override
+        public AuthenticatedUser getAuthenticatedUser() throws AuthenticationException
+        {
+            return authenticate(credentials);
+        }
+
+        /**
+         * SASL PLAIN mechanism specifies that credentials are encoded in a
+         * sequence of UTF-8 bytes, delimited by 0 (US-ASCII NUL).
+         * The form is : {code}authzId<NUL>authnId<NUL>password<NUL>{code}
+         * authzId is optional, and in fact we don't care about it here as we'll
+         * set the authzId to match the authnId (that is, there is no concept of
+         * a user being authorized to act on behalf of another).
+         *
+         * @param bytes encoded credentials string sent by the client
+         * @return map containing the username/password pairs in the form an IAuthenticator
+         * would expect
+         * @throws javax.security.sasl.SaslException
+         */
+        private Map<String, String> decodeCredentials(byte[] bytes) throws AuthenticationException
+        {
+            logger.debug("Decoding credentials from client token");
+            byte[] user = null;
+            byte[] pass = null;
+            int end = bytes.length;
+            for (int i = bytes.length - 1 ; i >= 0; i--)
+            {
+                if (bytes[i] == NUL)
+                {
+                    if (pass == null)
+                        pass = Arrays.copyOfRange(bytes, i + 1, end);
+                    else if (user == null)
+                        user = Arrays.copyOfRange(bytes, i + 1, end);
+                    end = i;
+                }
+            }
+
+            if (user == null)
+                throw new AuthenticationException("Authentication ID must not be null");
+            if (pass == null)
+                throw new AuthenticationException("Password must not be null");
+
+            Map<String, String> credentials = new HashMap<String, String>();
+            credentials.put(IAuthenticator.USERNAME_KEY, new String(user, UTF8_CHARSET));
+            credentials.put(IAuthenticator.PASSWORD_KEY, new String(pass, UTF8_CHARSET));
+            return credentials;
+        }
     }
 }

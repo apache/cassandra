@@ -55,6 +55,7 @@
  * Binary protocol: allow batching already prepared statements (CASSANDRA-4693)
  * Allow preparing timestamp, ttl and limit in CQL3 queries (CASSANDRA-4450)
  * Support native link w/o JNA in Java7 (CASSANDRA-3734)
+ * Use SASL authentication in binary protocol v2 (CASSANDRA-5545)
 
 1.2.6
  * Scale hinted_handoff_throttle_in_kb to cluster size (CASSANDRA-5272)

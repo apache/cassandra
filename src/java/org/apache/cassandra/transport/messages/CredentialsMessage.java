@@ -20,6 +20,9 @@ package org.apache.cassandra.transport.messages;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.transport.ProtocolException;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 
@@ -37,6 +40,10 @@ public class CredentialsMessage extends Message.Request
     {
         public CredentialsMessage decode(ChannelBuffer body, int version)
         {
+            if (version > 1)
+                throw new ProtocolException("Legacy credentials authentication is not supported in " +
+                        "protocol versions > 1. Please use SASL authentication via a SaslResponse message");
+
             CredentialsMessage msg = new CredentialsMessage();
             int count = body.readUnsignedShort();
             for (int i = 0; i < count; i++)
@@ -78,7 +85,8 @@ public class CredentialsMessage extends Message.Request
     {
         try
         {
-            state.getClientState().login(credentials);
+            AuthenticatedUser user = DatabaseDescriptor.getAuthenticator().authenticate(credentials);
+            state.getClientState().login(user);
             return new ReadyMessage();
         }
         catch (AuthenticationException e)
