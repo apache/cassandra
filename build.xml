@@ -35,7 +35,6 @@
     <property name="build.src" value="${basedir}/src"/>
     <property name="build.src.java" value="${basedir}/src/java"/>
     <property name="build.src.resources" value="${basedir}/src/resources"/>
-    <property name="avro.src" value="${basedir}/src/avro"/>
     <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
     <property name="build.lib" value="${basedir}/lib"/>
     <property name="build.dir" value="${basedir}/build"/>
@@ -168,7 +167,6 @@
         <delete dir="${build.classes}" />
         <delete dir="${cobertura.classes.dir}" />
         <delete dir="${build.src.gen-java}" />
-        <delete file="${build.dir}/internode.avpr" />
     </target>
     <target depends="clean" name="cleanall"/>
 
@@ -356,16 +354,8 @@
           <dependency groupId="com.github.stephenc.high-scale-lib" artifactId="high-scale-lib" version="1.1.2"/>
           <dependency groupId="com.github.stephenc" artifactId="jamm" version="0.2.5"/>
           <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.6"/>
-          <dependency groupId="org.apache.cassandra.deps" artifactId="avro" version="1.4.0-cassandra-1">
-            <exclusion groupId="org.jboss.netty" artifactId="netty"/>
-            <exclusion groupId="com.thoughtworks.paranamer" artifactId="paranamer"/>
-            <exclusion groupId="com.thoughtworks.paranamer" artifactId="paranamer-ant"/>
-            <exclusion groupId="org.apache.velocity" artifactId="velocity"/>
-          </dependency>
-          
           <dependency groupId="org.apache.thrift" artifactId="libthrift" version="0.9.0"/>
 
-          <dependency groupId="com.thoughtworks.paranamer" artifactId="paranamer-ant" version="2.1"/>
           <dependency groupId="junit" artifactId="junit" version="4.6" />
           <dependency groupId="commons-logging" artifactId="commons-logging" version="1.1.1"/>
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.6">
@@ -412,9 +402,6 @@
         <parent groupId="org.apache.cassandra"
                 artifactId="cassandra-parent"
                 version="${version}"/>
-        <!-- FIXME: paranamer can be dropped after we're depending on avro
-        (since it depends on them). -->
-        <dependency groupId="com.thoughtworks.paranamer" artifactId="paranamer-ant"/>
         <dependency groupId="junit" artifactId="junit"/>
         <dependency groupId="commons-logging" artifactId="commons-logging"/>
         <dependency groupId="org.apache.rat" artifactId="apache-rat"/>
@@ -463,7 +450,6 @@
         <dependency groupId="com.googlecode.concurrentlinkedhashmap" artifactId="concurrentlinkedhashmap-lru"/>
         <dependency groupId="org.antlr" artifactId="antlr"/>
         <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
-        <dependency groupId="org.apache.cassandra.deps" artifactId="avro"/>
         <dependency groupId="org.codehaus.jackson" artifactId="jackson-core-asl"/>
         <dependency groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
         <dependency groupId="jline" artifactId="jline"/>
@@ -573,48 +559,6 @@
       </copy>
     </target>
 
-    <!--
-       Generate avro code
-    -->
-    <target name="check-avro-generate" depends="init">
-      <taskdef name="avro-protocol" classname="org.apache.avro.specific.ProtocolTask">
-        <classpath refid="cassandra.classpath" />
-      </taskdef>
-      <uptodate property="avroINProtoUpToDate" srcfile="${avro.src}/internode.genavro"
-                targetfile="${build.dir}/internode.avpr" />
-    </target>
-
-    <target name="avro-generate"
-            unless="avroINProtoUpToDate"
-            depends="init,check-avro-generate,maven-ant-tasks-retrieve-build"
-            description="Generates Java Avro classes for internal use.">
-      <avromacro protocolname="internode" inputfile="${avro.src}/internode.genavro"
-                 jsondir="${build.dir}" outputdir="${build.src}"/>
-    </target>
-
-    <macrodef name="avromacro">
-      <attribute name="protocolname" />
-      <attribute name="inputfile" />
-      <attribute name="jsondir" />
-      <attribute name="outputdir" />
-      <sequential>
-        <echo message="Generating Avro @{protocolname} code..." />
-        <mkdir dir="@{jsondir}" />
-        <!-- Generate json schema from genavro IDL -->
-        <java classname="org.apache.avro.tool.Main" fork="true">
-          <classpath refid="cassandra.classpath" />
-          <arg value="idl" />
-          <arg value="@{inputfile}" />
-          <arg value="@{jsondir}/@{protocolname}.avpr" />
-        </java>
-
-        <!-- Generate java code from JSON protocol schema -->
-        <avro-protocol destdir="@{outputdir}/gen-java">
-            <fileset file="@{jsondir}/@{protocolname}.avpr" />
-        </avro-protocol>
-      </sequential>
-    </macrodef>
-
 
     <!--
        Generate thrift code.  We have targets to build java because
@@ -692,7 +636,7 @@
         depends="maven-ant-tasks-retrieve-build,build-project" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report" description="Create code coverage report"/>
 
-    <target depends="init,avro-generate,gen-cli-grammar,gen-cql2-grammar,gen-cql3-grammar"
+    <target depends="init,gen-cli-grammar,gen-cql2-grammar,gen-cql3-grammar"
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
@@ -710,10 +654,6 @@
         <copy todir="${build.classes.main}">
             <fileset dir="${build.src.resources}" />
         </copy>
-        <taskdef name="paranamer" classname="com.thoughtworks.paranamer.ant.ParanamerGeneratorTask">
-          <classpath refid="cassandra.classpath" />
-        </taskdef>
-
         <antcall target="createVersionPropFile"/>
     </target>
 
@@ -879,7 +819,7 @@
     <!--
         The sources-jar target makes cassandra-sources.jar output required for publishing to Maven central repository.
     -->
-    <target name="sources-jar" depends="init,avro-generate" description="Assemble Cassandra Sources JAR file">
+    <target name="sources-jar" depends="init" description="Assemble Cassandra Sources JAR file">
       <jar jarfile="${build.dir}/${ant.project.name}-thrift-${version}-sources.jar">
         <fileset dir="${interface.thrift.dir}/gen-java" defaultexcludes="yes">
           <include name="org/apache/**/*.java"/>

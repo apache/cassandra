@@ -58,7 +58,6 @@ public class DatabaseDescriptorTest
         for (KSMetaData ksm : Schema.instance.getTableDefinitions())
         {
             // Not testing round-trip on the KsDef via serDe() because maps
-            //  cannot be compared in avro.
             KSMetaData ksmDupe = KSMetaData.fromThrift(ksm.toThrift());
             assert ksmDupe != null;
             assert ksmDupe.equals(ksm);

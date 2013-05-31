@@ -64,7 +64,7 @@ public class CFMetaDataTest extends SchemaLoader
     }
 
     @Test
-    public void testThriftToAvroConversion() throws Exception
+    public void testThriftConversion() throws Exception
     {
         CfDef cfDef = new CfDef().setDefault_validation_class(AsciiType.class.getCanonicalName())
                                  .setComment("Test comment")
@@ -75,7 +75,6 @@ public class CFMetaDataTest extends SchemaLoader
         // convert Thrift to CFMetaData
         CFMetaData cfMetaData = CFMetaData.fromThrift(cfDef);
 
-        // make a correct Avro object
         CfDef thriftCfDef = new CfDef();
         thriftCfDef.keyspace = KEYSPACE;
         thriftCfDef.name = COLUMN_FAMILY;
