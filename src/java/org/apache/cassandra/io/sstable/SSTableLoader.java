@@ -95,7 +95,7 @@ public class SSTableLoader
 
                 try
                 {
-                    sstables.add(SSTableReader.open(desc, components, null, client.getPartitioner()));
+                    sstables.add(SSTableReader.openForBatch(desc, components, client.getPartitioner()));
                 }
                 catch (IOException e)
                 {
