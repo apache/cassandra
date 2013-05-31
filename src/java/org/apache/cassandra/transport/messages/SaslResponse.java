@@ -43,13 +43,13 @@ public class SaslResponse extends Message.Request
             if (version == 1)
                 throw new ProtocolException("SASL Authentication is not supported in version 1 of the protocol");
 
-            return new SaslResponse(CBUtil.readBytes(body));
+            return new SaslResponse(CBUtil.readValue(body));
         }
 
         @Override
         public ChannelBuffer encode(SaslResponse response)
         {
-            return CBUtil.bytesToCB(response.token);
+            return CBUtil.valueToCB(response.token);
         }
     };
 
@@ -57,7 +57,7 @@ public class SaslResponse extends Message.Request
 
     public SaslResponse(byte[] token)
     {
-        super(Message.Type.SASL_RESPONSE);
+        super(Message.Type.AUTH_RESPONSE);
         this.token = token;
     }
 
@@ -73,13 +73,13 @@ public class SaslResponse extends Message.Request
         try
         {
             SaslAuthenticator authenticator = ((ServerConnection) connection).getAuthenticator();
-            byte[] challenge = authenticator.evaluateResponse(token);
+            byte[] challenge = authenticator.evaluateResponse(token == null ? new byte[0] : token);
             if (authenticator.isComplete())
             {
                 AuthenticatedUser user = authenticator.getAuthenticatedUser();
                 queryState.getClientState().login(user);
                 // authentication is complete, send a ready message to the client
-                return new ReadyMessage();
+                return new AuthSuccess(challenge);
             }
             else
             {

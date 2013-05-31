@@ -250,6 +250,14 @@ public abstract class CBUtil
         }
     }
 
+    public static ChannelBuffer valueToCB(byte[] bytes)
+    {
+        if (bytes == null || bytes.length == 0)
+            return intToCB(0);
+
+        return ChannelBuffers.wrappedBuffer(intToCB(bytes.length), ChannelBuffers.wrappedBuffer(bytes));
+    }
+
     public static ByteBuffer readValue(ChannelBuffer cb)
     {
         int length = cb.readInt();

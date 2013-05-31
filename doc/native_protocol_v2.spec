@@ -35,6 +35,7 @@ Table of Contents
         4.2.5.5. Schema_change
       4.2.6. EVENT
       4.2.7. AUTH_CHALLENGE
+      4.2.8. AUTH_SUCCESS
   5. Compression
   6. Collection types
   7. Error codes
@@ -163,6 +164,7 @@ Table of Contents
     0x0D    BATCH
     0x0E    AUTH_CHALLENGE
     0x0F    AUTH_RESPONSE
+    0x10    AUTH_SUCCESS
 
   Messages are described in Section 4.
 
@@ -250,9 +252,9 @@ Table of Contents
   Answers a server authentication challenge.
 
   Authentication in the protocol is SASL based. The server sends authentication
-  challenge (a bytes token) to which the client answer with this message. Those
+  challenges (a bytes token) to which the client answer with this message. Those
   exchanges continue until the server accepts the authentication by sending a
-  READY message after a client AUTH_RESPONSE. It is however that client that
+  AUTH_SUCCESS message after a client AUTH_RESPONSE. It is however that client that
   initiate the exchange by sending an initial AUTH_RESPONSE in response to a
   server AUTHENTICATE request.
 
@@ -261,7 +263,7 @@ Table of Contents
   authenticator used.
 
   The response to a AUTH_RESPONSE is either a follow-up AUTH_CHALLENGE message,
-  a READY message or an ERROR message.
+  an AUTH_SUCCESS message or an ERROR message.
 
 
 4.1.3. OPTIONS
@@ -387,15 +389,16 @@ Table of Contents
   Indicates that the server require authentication, and which authentication
   mechanism to use.
 
-  The authentication is SASL based and thus consist on a number of server
-  challenge (AUTH_CHALLENGE, Section 4.2.7) followed by client response
+  The authentication is SASL based and thus consists on a number of server
+  challenges (AUTH_CHALLENGE, Section 4.2.7) followed by client responses
   (AUTH_RESPONSE, Section 4.1.2). The Initial exchange is however boostrapped
   by an initial client response. The details of that exchange (including how
   much challenge-response pair are required) are specific to the authenticator
-  in use.
+  in use. The exchange ends when the server sends an AUTH_SUCCESS message or
+  an ERROR message.
 
-  This will be sent following a STARTUP message if authentication is required
-  and must be answered by a AUTH_RESPONSE message from the client.
+  This message will be sent following a STARTUP message if authentication is
+  required and must be answered by a AUTH_RESPONSE message from the client.
 
   The body consists of a single [string] indicating the full class name of the
   IAuthenticator in use.
@@ -576,6 +579,16 @@ Table of Contents
 
   Clients are expected to answer the server challenge by an AUTH_RESPONSE
   message.
+
+4.2.7. AUTH_SUCCESS
+
+  Indicate the success of the authentication phase. See Section 4.2.3 for more
+  details.
+
+  The body of this message is a single [bytes] token holding final information
+  from the server that the client may require to finish the authentication
+  process. What that token contains and whether it can be null depends on the
+  actual authenticator used.
 
 
 5. Compression

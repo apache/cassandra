@@ -22,30 +22,33 @@ import org.apache.cassandra.transport.Message;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 /**
- * SASL challenge sent from client to server
+ * Indicates to the client that authentication has succeeded.
+ *
+ * Optionally ships some final informations from the server (as mandated by
+ * SASL).
  */
-public class SaslChallenge extends Message.Response
+public class AuthSuccess extends Message.Response
 {
-    public static final Message.Codec<SaslChallenge> codec = new Message.Codec<SaslChallenge>()
+    public static final Message.Codec<AuthSuccess> codec = new Message.Codec<AuthSuccess>()
     {
         @Override
-        public SaslChallenge decode(ChannelBuffer body, int version)
+        public AuthSuccess decode(ChannelBuffer body, int version)
         {
-            return new SaslChallenge(CBUtil.readValue(body));
+            return new AuthSuccess(CBUtil.readValue(body));
         }
 
         @Override
-        public ChannelBuffer encode(SaslChallenge challenge)
+        public ChannelBuffer encode(AuthSuccess success)
         {
-            return CBUtil.valueToCB(challenge.token);
+            return CBUtil.valueToCB(success.token);
         }
     };
 
     private byte[] token;
 
-    public SaslChallenge(byte[] token)
+    public AuthSuccess(byte[] token)
     {
-        super(Message.Type.AUTH_CHALLENGE);
+        super(Message.Type.AUTH_SUCCESS);
         this.token = token;
     }
 
@@ -60,3 +63,4 @@ public class SaslChallenge extends Message.Response
         return token;
     }
 }
+

@@ -105,7 +105,7 @@ public class ServerConnection extends Connection
                 // Support both SASL auth from protocol v2 and the older style Credentials auth from v1
                 assert requestType == Message.Type.SASL_RESPONSE || requestType == Message.Type.CREDENTIALS;
 
-                if (responseType == Message.Type.READY)
+                if (responseType == Message.Type.READY || responseType == Message.Type.AUTH_SUCCESS)
                 {
                     state = State.READY;
                     // we won't use the authenticator again, null it so that it can be GC'd
