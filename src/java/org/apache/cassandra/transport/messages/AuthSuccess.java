@@ -21,6 +21,8 @@ import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
 import org.jboss.netty.buffer.ChannelBuffer;
 
+import java.nio.ByteBuffer;
+
 /**
  * Indicates to the client that authentication has succeeded.
  *
@@ -34,7 +36,10 @@ public class AuthSuccess extends Message.Response
         @Override
         public AuthSuccess decode(ChannelBuffer body, int version)
         {
-            return new AuthSuccess(CBUtil.readValue(body));
+            ByteBuffer b = CBUtil.readValue(body);
+            byte[] token = new byte[b.remaining()];
+            b.get(token);
+            return new AuthSuccess(token);
         }
 
         @Override

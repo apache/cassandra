@@ -21,21 +21,26 @@ import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
 import org.jboss.netty.buffer.ChannelBuffer;
 
+import java.nio.ByteBuffer;
+
 /**
  * SASL challenge sent from client to server
  */
-public class SaslChallenge extends Message.Response
+public class AuthChallenge extends Message.Response
 {
-    public static final Message.Codec<SaslChallenge> codec = new Message.Codec<SaslChallenge>()
+    public static final Message.Codec<AuthChallenge> codec = new Message.Codec<AuthChallenge>()
     {
         @Override
-        public SaslChallenge decode(ChannelBuffer body, int version)
+        public AuthChallenge decode(ChannelBuffer body, int version)
         {
-            return new SaslChallenge(CBUtil.readValue(body));
+            ByteBuffer b = CBUtil.readValue(body);
+            byte[] token = new byte[b.remaining()];
+            b.get(token);
+            return new AuthChallenge(token);
         }
 
         @Override
-        public ChannelBuffer encode(SaslChallenge challenge)
+        public ChannelBuffer encode(AuthChallenge challenge)
         {
             return CBUtil.valueToCB(challenge.token);
         }
@@ -43,7 +48,7 @@ public class SaslChallenge extends Message.Response
 
     private byte[] token;
 
-    public SaslChallenge(byte[] token)
+    public AuthChallenge(byte[] token)
     {
         super(Message.Type.AUTH_CHALLENGE);
         this.token = token;

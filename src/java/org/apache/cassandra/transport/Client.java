@@ -41,7 +41,7 @@ import org.apache.cassandra.transport.messages.OptionsMessage;
 import org.apache.cassandra.transport.messages.PrepareMessage;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.RegisterMessage;
-import org.apache.cassandra.transport.messages.SaslResponse;
+import org.apache.cassandra.transport.messages.AuthResponse;
 import org.apache.cassandra.transport.messages.StartupMessage;
 import org.apache.cassandra.utils.Hex;
 
@@ -171,7 +171,7 @@ public class Client extends SimpleClient
                 System.err.println("[ERROR] Authentication requires both 'username' and 'password'");
                 return null;
             }
-            return new SaslResponse(encodeCredentialsForSasl(credentials));
+            return new AuthResponse(encodeCredentialsForSasl(credentials));
         }
         else if (msgType.equals("REGISTER"))
         {

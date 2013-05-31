@@ -28,26 +28,31 @@ import org.apache.cassandra.transport.ServerConnection;
 
 import org.jboss.netty.buffer.ChannelBuffer;
 
+import java.nio.ByteBuffer;
+
 /**
  * A SASL token message sent from client to server. Some SASL
  * mechanisms & clients may send an initial token before
  * receiving a challenge from the server.
  */
-public class SaslResponse extends Message.Request
+public class AuthResponse extends Message.Request
 {
-    public static final Message.Codec<SaslResponse> codec = new Message.Codec<SaslResponse>()
+    public static final Message.Codec<AuthResponse> codec = new Message.Codec<AuthResponse>()
     {
         @Override
-        public SaslResponse decode(ChannelBuffer body, int version)
+        public AuthResponse decode(ChannelBuffer body, int version)
         {
             if (version == 1)
                 throw new ProtocolException("SASL Authentication is not supported in version 1 of the protocol");
 
-            return new SaslResponse(CBUtil.readValue(body));
+            ByteBuffer b = CBUtil.readValue(body);
+            byte[] token = new byte[b.remaining()];
+            b.get(token);
+            return new AuthResponse(token);
         }
 
         @Override
-        public ChannelBuffer encode(SaslResponse response)
+        public ChannelBuffer encode(AuthResponse response)
         {
             return CBUtil.valueToCB(response.token);
         }
@@ -55,7 +60,7 @@ public class SaslResponse extends Message.Request
 
     private byte[] token;
 
-    public SaslResponse(byte[] token)
+    public AuthResponse(byte[] token)
     {
         super(Message.Type.AUTH_RESPONSE);
         this.token = token;
@@ -83,7 +88,7 @@ public class SaslResponse extends Message.Request
             }
             else
             {
-                return new SaslChallenge(challenge);
+                return new AuthChallenge(challenge);
             }
         }
         catch (AuthenticationException e)

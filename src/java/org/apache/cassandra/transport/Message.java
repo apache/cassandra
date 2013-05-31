@@ -71,8 +71,8 @@ public abstract class Message
         REGISTER       (11, Direction.REQUEST,  RegisterMessage.codec),
         EVENT          (12, Direction.RESPONSE, EventMessage.codec),
         BATCH          (13, Direction.REQUEST,  BatchMessage.codec),
-        AUTH_CHALLENGE (14, Direction.RESPONSE, SaslChallenge.codec),
-        AUTH_RESPONSE  (15, Direction.REQUEST,  SaslResponse.codec),
+        AUTH_CHALLENGE (14, Direction.RESPONSE, AuthChallenge.codec),
+        AUTH_RESPONSE  (15, Direction.REQUEST,  AuthResponse.codec),
         AUTH_SUCCESS   (16, Direction.RESPONSE, AuthSuccess.codec);
 
         public final int opcode;
