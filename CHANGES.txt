@@ -51,10 +51,11 @@
  * Use range tombstones when dropping cfs/columns from schema (CASSANDRA-5579)
  * cqlsh: drop CQL2/CQL3-beta support (CASSANDRA-5585)
  * Track max/min column names in sstables to be able to optimize slice
-   queries (CASSANDRA-5514, CASSANDRA-5595)
+   queries (CASSANDRA-5514, CASSANDRA-5595, CASSANDRA-5600)
  * Binary protocol: allow batching already prepared statements (CASSANDRA-4693)
  * Allow preparing timestamp, ttl and limit in CQL3 queries (CASSANDRA-4450)
  * Support native link w/o JNA in Java7 (CASSANDRA-3734)
+ * Use SASL authentication in binary protocol v2 (CASSANDRA-5545)
 
 1.2.6
  * Reduce SSTableLoader memory usage (CASSANDRA-5555)

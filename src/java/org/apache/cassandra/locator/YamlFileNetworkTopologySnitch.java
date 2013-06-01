@@ -551,7 +551,7 @@ public class YamlFileNetworkTopologySnitch
             public void onChange(final InetAddress endpoint,
                     final ApplicationState state, final VersionedValue value)
             {
-                // No-op
+                reconnectViaPreferredAddress(endpoint);
             }
 
             /**

@@ -23,8 +23,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.cassandra.db.marshal.AbstractCompositeType;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ColumnToCollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 
 public class ColumnNameHelper
@@ -36,6 +36,8 @@ public class ColumnNameHelper
      * component is compared to the component on the same place in maxSeen, and then returning the list
      * with the max columns.
      *
+     * will collect at most the number of types in the comparator.
+     *
      * if comparator is not CompositeType, maxSeen is assumed to be of size 1 and the item there is
      * compared to the candidate.
      *
@@ -46,18 +48,26 @@ public class ColumnNameHelper
      */
     public static List<ByteBuffer> maxComponents(List<ByteBuffer> maxSeen, ByteBuffer candidate, AbstractType<?> comparator)
     {
-        if (comparator instanceof AbstractCompositeType)
+        if (comparator instanceof CompositeType)
         {
-            if (maxSeen.size() == 0)
-                return Arrays.asList(((AbstractCompositeType)comparator).split(candidate));
+            CompositeType ct = (CompositeType)comparator;
+            if (maxSeen.isEmpty())
+                return Arrays.asList(ct.split(candidate));
 
-            List<AbstractCompositeType.CompositeComponent> components = ((AbstractCompositeType)comparator).deconstruct(candidate);
-            List<ByteBuffer> retList = new ArrayList<ByteBuffer>(components.size());
-            for (int i = 0; i < maxSeen.size(); i++)
-            {
-                AbstractCompositeType.CompositeComponent component = components.get(i);
-                retList.add(ColumnNameHelper.max(maxSeen.get(i), component.value, component.comparator));
-            }
+            int typeCount = getTypeCount(ct);
+
+            List<ByteBuffer> components = Arrays.asList(ct.split(candidate));
+            List<ByteBuffer> biggest = maxSeen.size() > components.size() ? maxSeen : components;
+            // if typecount is less than both the components and maxseen, we only keep typecount columns.
+            int minSize = Math.min(typeCount, Math.min(components.size(), maxSeen.size()));
+            int maxSize = Math.min(typeCount, biggest.size());
+            List<ByteBuffer> retList = new ArrayList<ByteBuffer>(maxSize);
+
+            for (int i = 0; i < minSize; i++)
+                retList.add(ColumnNameHelper.max(maxSeen.get(i), components.get(i), ct.types.get(i)));
+            for (int i = minSize; i < maxSize; i++)
+                retList.add(biggest.get(i));
+
             return retList;
         }
         else
@@ -65,7 +75,6 @@ public class ColumnNameHelper
             if (maxSeen.size() == 0)
                 return Collections.singletonList(candidate);
             return Collections.singletonList(ColumnNameHelper.max(maxSeen.get(0), candidate, comparator));
-
         }
     }
     /**
@@ -87,16 +96,24 @@ public class ColumnNameHelper
     {
         if (comparator instanceof CompositeType)
         {
-            if (minSeen.size() == 0)
-                return Arrays.asList(((CompositeType)comparator).split(candidate));
+            CompositeType ct = (CompositeType)comparator;
+            if (minSeen.isEmpty())
+                return Arrays.asList(ct.split(candidate));
 
-            List<AbstractCompositeType.CompositeComponent> components = ((AbstractCompositeType)comparator).deconstruct(candidate);
-            List<ByteBuffer> retList = new ArrayList<ByteBuffer>(components.size());
-            for (int i = 0; i < minSeen.size(); i++)
-            {
-                AbstractCompositeType.CompositeComponent component = components.get(i);
-                retList.add(ColumnNameHelper.min(minSeen.get(i), component.value, component.comparator));
-            }
+            int typeCount = getTypeCount(ct);
+
+            List<ByteBuffer> components = Arrays.asList(ct.split(candidate));
+            List<ByteBuffer> biggest = minSeen.size() > components.size() ? minSeen : components;
+            // if typecount is less than both the components and maxseen, we only collect typecount columns.
+            int minSize = Math.min(typeCount, Math.min(components.size(), minSeen.size()));
+            int maxSize = Math.min(typeCount, biggest.size());
+            List<ByteBuffer> retList = new ArrayList<ByteBuffer>(maxSize);
+
+            for (int i = 0; i < minSize; i++)
+                retList.add(ColumnNameHelper.min(minSeen.get(i), components.get(i), ct.types.get(i)));
+            for (int i = minSize; i < maxSize; i++)
+                retList.add(biggest.get(i));
+
             return retList;
         }
         else
@@ -156,20 +173,27 @@ public class ColumnNameHelper
      */
     public static List<ByteBuffer> mergeMin(List<ByteBuffer> minColumnNames, List<ByteBuffer> candidates, AbstractType<?> columnNameComparator)
     {
-        if (minColumnNames.size() == 0)
+        if (minColumnNames.isEmpty())
             return candidates;
 
-        if (candidates.size() == 0)
+        if (candidates.isEmpty())
             return minColumnNames;
 
         if (columnNameComparator instanceof CompositeType)
         {
             CompositeType ct = (CompositeType)columnNameComparator;
-            List<ByteBuffer> retList = new ArrayList<ByteBuffer>(ct.types.size());
-            for (int i = 0; i < minColumnNames.size(); i++)
-            {
+            List<ByteBuffer> biggest = minColumnNames.size() > candidates.size() ? minColumnNames : candidates;
+            int typeCount = getTypeCount(ct);
+            int minSize = Math.min(typeCount, Math.min(minColumnNames.size(), candidates.size()));
+            int maxSize = Math.min(typeCount, biggest.size());
+
+            List<ByteBuffer> retList = new ArrayList<ByteBuffer>(maxSize);
+
+            for (int i = 0; i < minSize; i++)
                 retList.add(min(minColumnNames.get(i), candidates.get(i), ct.types.get(i)));
-            }
+            for (int i = minSize; i < maxSize; i++)
+                retList.add(biggest.get(i));
+
             return retList;
         }
         else
@@ -192,20 +216,26 @@ public class ColumnNameHelper
      */
     public static List<ByteBuffer> mergeMax(List<ByteBuffer> maxColumnNames, List<ByteBuffer> candidates, AbstractType<?> columnNameComparator)
     {
-        if (maxColumnNames.size() == 0)
+        if (maxColumnNames.isEmpty())
             return candidates;
 
-        if (candidates.size() == 0)
+        if (candidates.isEmpty())
             return maxColumnNames;
 
         if (columnNameComparator instanceof CompositeType)
         {
             CompositeType ct = (CompositeType)columnNameComparator;
-            List<ByteBuffer> retList = new ArrayList<ByteBuffer>(ct.types.size());
-            for (int i = 0; i < maxColumnNames.size(); i++)
-            {
+            List<ByteBuffer> biggest = maxColumnNames.size() > candidates.size() ? maxColumnNames : candidates;
+            int typeCount = getTypeCount(ct);
+            int minSize = Math.min(typeCount, Math.min(maxColumnNames.size(), candidates.size()));
+            int maxSize = Math.min(typeCount, biggest.size());
+            List<ByteBuffer> retList = new ArrayList<ByteBuffer>(maxSize);
+
+            for (int i = 0; i < minSize; i++)
                 retList.add(max(maxColumnNames.get(i), candidates.get(i), ct.types.get(i)));
-            }
+            for (int i = minSize; i < maxSize; i++)
+                retList.add(biggest.get(i));
+
             return retList;
         }
         else
@@ -213,5 +243,10 @@ public class ColumnNameHelper
             return Collections.singletonList(max(maxColumnNames.get(0), candidates.get(0), columnNameComparator));
         }
 
+    }
+
+    private static int getTypeCount(CompositeType ct)
+    {
+        return ct.types.get(ct.types.size() - 1) instanceof ColumnToCollectionType ? ct.types.size() - 1 : ct.types.size();
     }
 }

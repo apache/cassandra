@@ -15,7 +15,7 @@ Table of Contents
   4. Messages
     4.1. Requests
       4.1.1. STARTUP
-      4.1.2. CREDENTIALS
+      4.1.2. AUTH_RESPONSE
       4.1.3. OPTIONS
       4.1.4. QUERY
       4.1.5. PREPARE
@@ -34,6 +34,8 @@ Table of Contents
         4.2.5.4. Prepared
         4.2.5.5. Schema_change
       4.2.6. EVENT
+      4.2.7. AUTH_CHALLENGE
+      4.2.8. AUTH_SUCCESS
   5. Compression
   6. Collection types
   7. Error codes
@@ -89,7 +91,7 @@ Table of Contents
   of version is used to define the direction of the message: 0 indicates a
   request, 1 indicates a responses. This can be useful for protocol analyzers to
   distinguish the nature of the packet from the direction which it is moving.
-  The rest of that byte is the protocol version (1 for the protocol defined in
+  The rest of that byte is the protocol version (2 for the protocol defined in
   this document). In other words, for this version of the protocol, version will
   have one of:
     0x02    Request frame for this protocol version
@@ -151,7 +153,6 @@ Table of Contents
     0x01    STARTUP
     0x02    READY
     0x03    AUTHENTICATE
-    0x04    CREDENTIALS
     0x05    OPTIONS
     0x06    SUPPORTED
     0x07    QUERY
@@ -161,8 +162,13 @@ Table of Contents
     0x0B    REGISTER
     0x0C    EVENT
     0x0D    BATCH
+    0x0E    AUTH_CHALLENGE
+    0x0F    AUTH_RESPONSE
+    0x10    AUTH_SUCCESS
 
   Messages are described in Section 4.
+
+  (Note that there is no 0x04 message in this version of the protocol)
 
 
 2.5. length
@@ -226,7 +232,7 @@ Table of Contents
 
   Initialize the connection. The server will respond by either a READY message
   (in which case the connection is ready for queries) or an AUTHENTICATE message
-  (in which case credentials will need to be provided using CREDENTIALS).
+  (in which case credentials will need to be provided using AUTH_RESPONSE).
 
   This must be the first message of the connection, except for OPTIONS that can
   be sent before to find out the options supported by the server. Once the
@@ -241,19 +247,23 @@ Table of Contents
       This is optional, if not specified no compression will be used.
 
 
-4.1.2. CREDENTIALS
+4.1.2. AUTH_RESPONSE
 
-  Provides credentials information for the purpose of identification. This
-  message comes as a response to an AUTHENTICATE message from the server, but
-  can be use later in the communication to change the authentication
-  information.
+  Answers a server authentication challenge.
 
-  The body is a list of key/value informations. It is a [short] n, followed by n
-  pair of [string]. These key/value pairs are passed as is to the Cassandra
-  IAuthenticator and thus the detail of which informations is needed depends on
-  that authenticator.
+  Authentication in the protocol is SASL based. The server sends authentication
+  challenges (a bytes token) to which the client answer with this message. Those
+  exchanges continue until the server accepts the authentication by sending a
+  AUTH_SUCCESS message after a client AUTH_RESPONSE. It is however that client that
+  initiate the exchange by sending an initial AUTH_RESPONSE in response to a
+  server AUTHENTICATE request.
 
-  The response to a CREDENTIALS is a READY message (or an ERROR message).
+  The body of this message is a single [bytes] token. The details of what this
+  token contains (and when it can be null/empty, if ever) depends on the actual
+  authenticator used.
+
+  The response to a AUTH_RESPONSE is either a follow-up AUTH_CHALLENGE message,
+  an AUTH_SUCCESS message or an ERROR message.
 
 
 4.1.3. OPTIONS
@@ -376,9 +386,19 @@ Table of Contents
 
 4.2.3. AUTHENTICATE
 
-  Indicates that the server require authentication. This will be sent following
-  a STARTUP message and must be answered by a CREDENTIALS message from the
-  client to provide authentication informations.
+  Indicates that the server require authentication, and which authentication
+  mechanism to use.
+
+  The authentication is SASL based and thus consists on a number of server
+  challenges (AUTH_CHALLENGE, Section 4.2.7) followed by client responses
+  (AUTH_RESPONSE, Section 4.1.2). The Initial exchange is however boostrapped
+  by an initial client response. The details of that exchange (including how
+  much challenge-response pair are required) are specific to the authenticator
+  in use. The exchange ends when the server sends an AUTH_SUCCESS message or
+  an ERROR message.
+
+  This message will be sent following a STARTUP message if authentication is
+  required and must be answered by a AUTH_RESPONSE message from the client.
 
   The body consists of a single [string] indicating the full class name of the
   IAuthenticator in use.
@@ -548,6 +568,28 @@ Table of Contents
   should be enough), otherwise they may experience a connection refusal at
   first.
 
+4.2.7. AUTH_CHALLENGE
+
+  A server authentication challenge (see AUTH_RESPONSE (Section 4.1.2) for more
+  details).
+
+  The body of this message is a single [bytes] token. The details of what this
+  token contains (and when it can be null/empty, if ever) depends on the actual
+  authenticator used.
+
+  Clients are expected to answer the server challenge by an AUTH_RESPONSE
+  message.
+
+4.2.7. AUTH_SUCCESS
+
+  Indicate the success of the authentication phase. See Section 4.2.3 for more
+  details.
+
+  The body of this message is a single [bytes] token holding final information
+  from the server that the client may require to finish the authentication
+  process. What that token contains and whether it can be null depends on the
+  actual authenticator used.
+
 
 5. Compression
 
@@ -682,3 +724,7 @@ Table of Contents
     prepared; see Section 4.1.4.
   * A new BATCH message allows to batch a set of queries (prepared or not); see 
     Section 4.1.7.
+  * Authentication now uses SASL. Concretely, the CREDENTIALS message has been
+    removed and replaced by a server/client challenges/responses exchanges (done
+    through the new AUTH_RESPONSE/AUTH_CHALLENGE messages). See Section 4.2.3 for
+    details.

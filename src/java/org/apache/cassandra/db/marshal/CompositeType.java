@@ -191,32 +191,20 @@ public class CompositeType extends AbstractCompositeType
         return true;
     }
 
-    /**
-     * Deconstructs the composite and fills out any missing components with EMPTY_BYTE_BUFFER.
-     */
-    public List<AbstractCompositeType.CompositeComponent> deconstructAndExpand(ByteBuffer composite)
-    {
-        List<AbstractCompositeType.CompositeComponent> components = deconstruct(composite);
-        for (int i = components.size(); i < types.size(); i++)
-            components.add(new AbstractCompositeType.CompositeComponent(this.types.get(i), ByteBufferUtil.EMPTY_BYTE_BUFFER));
-        return components;
-    }
-
     @Override
     public boolean intersects(List<ByteBuffer> minColumnNames, List<ByteBuffer> maxColumnNames, SliceQueryFilter filter)
     {
-        int typeCount = types.get(types.size() - 1) instanceof ColumnToCollectionType ? types.size() - 1 : types.size();
-
-        assert minColumnNames.size() == typeCount;
-
+        assert minColumnNames.size() == maxColumnNames.size();
         for (ColumnSlice slice : filter.slices)
         {
-            List<AbstractCompositeType.CompositeComponent> start = deconstructAndExpand(filter.isReversed() ? slice.finish : slice.start);
-            List<AbstractCompositeType.CompositeComponent> finish = deconstructAndExpand(filter.isReversed() ? slice.start : slice.finish);
-            for (int i = 0; i < typeCount; i++)
+            ByteBuffer[] start = split(filter.isReversed() ? slice.finish : slice.start);
+            ByteBuffer[] finish = split(filter.isReversed() ? slice.start : slice.finish);
+            for (int i = 0; i < minColumnNames.size(); i++)
             {
                 AbstractType<?> t = types.get(i);
-                if (!t.intersects(minColumnNames.get(i), maxColumnNames.get(i), start.get(i).value, finish.get(i).value))
+                ByteBuffer s = i < start.length ? start[i] : ByteBufferUtil.EMPTY_BYTE_BUFFER;
+                ByteBuffer f = i < finish.length ? finish[i] : ByteBufferUtil.EMPTY_BYTE_BUFFER;
+                if (!t.intersects(minColumnNames.get(i), maxColumnNames.get(i), s, f))
                     return false;
             }
         }
