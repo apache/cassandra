@@ -1263,12 +1263,12 @@ class TestMutations(ThriftTester):
 
     def test_describe_token_map(self):
         # test/conf/cassandra.yaml specifies org.apache.cassandra.dht.ByteOrderedPartitioner
-        # which uses BytesToken, so this just tests that the string representation of the token	
+        # which uses BytesToken, so this just tests that the string representation of the token
         # matches a regex pattern for BytesToken.toString().
         ring = client.describe_token_map().items()
         assert len(ring) == 1
         token, node = ring[0]
-        assert re.match("^Token\(bytes\[[0-9A-Fa-f]{32}\]\)", token) 
+        assert re.match("[0-9A-Fa-f]{32}", token)
         assert node == '127.0.0.1'
 
     def test_describe_partitioner(self):
