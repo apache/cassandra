@@ -74,8 +74,6 @@ public class CassandraServer implements Cassandra.Iface
     private final static int COUNT_PAGE_SIZE = 1024;
 
     private final static List<ColumnOrSuperColumn> EMPTY_COLUMNS = Collections.emptyList();
-    private final static List<Column> EMPTY_SUBCOLUMNS = Collections.emptyList();
-    private final static List<CounterColumn> EMPTY_COUNTER_SUBCOLUMNS = Collections.emptyList();
 
     /*
      * RequestScheduler to perform the scheduling of incoming requests
@@ -121,53 +119,6 @@ public class CassandraServer implements Cassandra.Iface
             columnFamilyKeyMap.put(row.key, row.cf);
         }
         return columnFamilyKeyMap;
-    }
-
-    public List<Column> thriftifySubColumns(Collection<org.apache.cassandra.db.Column> columns)
-    {
-        if (columns == null || columns.isEmpty())
-        {
-            return EMPTY_SUBCOLUMNS;
-        }
-
-        ArrayList<Column> thriftColumns = new ArrayList<Column>(columns.size());
-        for (org.apache.cassandra.db.Column column : columns)
-        {
-            if (column.isMarkedForDelete())
-            {
-                continue;
-            }
-            Column thrift_column = new Column(column.name()).setValue(column.value()).setTimestamp(column.timestamp());
-            if (column instanceof ExpiringColumn)
-            {
-                thrift_column.setTtl(((ExpiringColumn) column).getTimeToLive());
-            }
-            thriftColumns.add(thrift_column);
-        }
-
-        return thriftColumns;
-    }
-
-    public List<CounterColumn> thriftifyCounterSubColumns(Collection<org.apache.cassandra.db.Column> columns)
-    {
-        if (columns == null || columns.isEmpty())
-        {
-            return EMPTY_COUNTER_SUBCOLUMNS;
-        }
-
-        ArrayList<CounterColumn> thriftColumns = new ArrayList<CounterColumn>(columns.size());
-        for (org.apache.cassandra.db.Column column : columns)
-        {
-            if (column.isMarkedForDelete())
-            {
-                continue;
-            }
-            assert column instanceof org.apache.cassandra.db.CounterColumn;
-            CounterColumn thrift_column = new CounterColumn(column.name(), CounterContext.instance().total(column.value()));
-            thriftColumns.add(thrift_column);
-        }
-
-        return thriftColumns;
     }
 
     public List<ColumnOrSuperColumn> thriftifyColumns(Collection<org.apache.cassandra.db.Column> columns, boolean reverseOrder)
