@@ -19,12 +19,17 @@ package org.apache.cassandra.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+import javax.management.StandardMBean;
 
 import com.google.common.collect.Iterables;
 import org.apache.log4j.PropertyConfigurator;
@@ -53,6 +58,8 @@ import org.apache.cassandra.utils.Mx4jTool;
  */
 public class CassandraDaemon
 {
+    public static final String MBEAN_NAME = "org.apache.cassandra.db:type=NativeAccess";
+    
     static
     {
         initLog4j();
@@ -420,6 +427,17 @@ public class CassandraDaemon
 
         try
         {
+            try
+            {
+                MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+                mbs.registerMBean(new StandardMBean(new NativeAccess(), NativeAccessMBean.class), new ObjectName(MBEAN_NAME));
+            }
+            catch (Exception e)
+            {
+                logger.error("error registering MBean " + MBEAN_NAME, e);
+                //Allow the server to start even if the bean can't be registered
+            }
+            
             setup();
 
             if (pidFile != null)
@@ -464,6 +482,19 @@ public class CassandraDaemon
     public static void main(String[] args)
     {
         instance.activate();
+    }
+    
+    static class NativeAccess implements NativeAccessMBean
+    {
+        public boolean isAvailable()
+        {
+            return CLibrary.jnaAvailable();
+        }
+        
+        public boolean isMemoryLockable() 
+        {
+            return CLibrary.jnaMemoryLockable();
+        }
     }
 
     public interface Server
