@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.File;
 import java.io.FileDescriptor;
-import java.io.IOException;
 import java.lang.reflect.Field;
 
 import org.slf4j.Logger;
@@ -49,12 +47,16 @@ public final class CLibrary
     private static final int POSIX_FADV_WILLNEED   = 3; /* fadvise.h */
     private static final int POSIX_FADV_DONTNEED   = 4; /* fadvise.h */
     private static final int POSIX_FADV_NOREUSE    = 5; /* fadvise.h */
+    
+    static boolean jnaAvailable = false;
+    static boolean jnaLockable = false;
 
     static
     {
         try
         {
             Native.register("c");
+            jnaAvailable = true;
         }
         catch (NoClassDefFoundError e)
         {
@@ -101,12 +103,23 @@ public final class CLibrary
     }
 
     private CLibrary() {}
+    
+    public static boolean jnaAvailable()
+    {
+        return jnaAvailable;
+    }
+    
+    public static boolean jnaMemoryLockable()
+    {
+        return jnaLockable;
+    }
 
     public static void tryMlockall()
     {
         try
         {
             mlockall(MCL_CURRENT);
+            jnaLockable = true;
             logger.info("JNA mlockall successful");
         }
         catch (UnsatisfiedLinkError e)

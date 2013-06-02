@@ -27,6 +27,7 @@
  * replace supercolumns internally by composites (CASSANDRA-3237, 5123)
  * upgrade thrift to 0.9.0 (CASSANDRA-3719)
  * drop unnecessary keyspace parameter from user-defined compaction API 
+ * Expose whether jna is enabled and memory is locked via JMX (CASSANDRA-5508)
    (CASSANDRA-5139)
  * more robust solution to incomplete compactions + counters (CASSANDRA-5151)
  * Change order of directory searching for c*.in.sh (CASSANDRA-3983)
