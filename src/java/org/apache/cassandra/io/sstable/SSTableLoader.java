@@ -68,6 +68,8 @@ public class SSTableLoader
         {
             public boolean accept(File dir, String name)
             {
+                if (new File(dir, name).isDirectory())
+                    return false;
                 Pair<Descriptor, Component> p = SSTable.tryComponentFromFilename(dir, name);
                 Descriptor desc = p == null ? null : p.left;
                 if (p == null || !p.right.equals(Component.DATA) || desc.temporary)

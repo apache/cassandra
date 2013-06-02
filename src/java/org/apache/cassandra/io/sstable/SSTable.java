@@ -191,7 +191,16 @@ public abstract class SSTable
      */
     public static Pair<Descriptor,Component> tryComponentFromFilename(File dir, String name)
     {
-        return Component.fromFilename(dir, name);
+        try
+        {
+            return Component.fromFilename(dir, name);
+        }
+        catch (NoSuchElementException e)
+        {
+            // A NoSuchElementException is thrown if the name does not match the Descriptor format
+            // This is the less impacting change (all calls to this method test for null return)
+            return null;
+        }
     }
 
     /**

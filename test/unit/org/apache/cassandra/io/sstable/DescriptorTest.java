@@ -21,6 +21,7 @@ package org.apache.cassandra.io.sstable;
  */
 
 import org.apache.cassandra.utils.FilterFactory;
+import org.apache.cassandra.utils.Pair;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -63,5 +64,12 @@ public class DescriptorTest
         desc = Descriptor.fromFilename("Keyspace1-Standard1-ia-1-Data.db");
         assertEquals("ia", desc.version.toString());
         assertEquals(desc.version.filterType, FilterFactory.Type.MURMUR3);
+    }
+
+    @Test
+    public void testInvalidnameFormat()
+    {
+        Pair<Descriptor, Component> p = SSTable.tryComponentFromFilename(null, "snapshot");
+        assertNull(p);
     }
 }
