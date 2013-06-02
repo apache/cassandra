@@ -84,7 +84,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             TypeDescription seedDesc = new TypeDescription(SeedProviderDef.class);
             seedDesc.putMapPropertyType("parameters", String.class, String.class);
             constructor.addTypeDescription(seedDesc);
-            Yaml yaml = new Yaml(new Loader(constructor));
+            Yaml yaml = new Yaml(constructor);
             return (Config)yaml.load(input);
         }
         catch (YAMLException e)

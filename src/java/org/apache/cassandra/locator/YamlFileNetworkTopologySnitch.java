@@ -326,7 +326,7 @@ public class YamlFileNetworkTopologySnitch
         TopologyConfig topologyConfig;
         try
         {
-            yaml = new Yaml(new Loader(configConstructor));
+            yaml = new Yaml(configConstructor);
             topologyConfig = (TopologyConfig) yaml.load(configFileInputStream);
         }
         finally

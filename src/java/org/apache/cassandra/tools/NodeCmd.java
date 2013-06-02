@@ -185,9 +185,7 @@ public class NodeCmd
         try
         {
             final Constructor constructor = new Constructor(NodeToolHelp.class);
-            TypeDescription desc = new TypeDescription(NodeToolHelp.class);
-            desc.putListPropertyType("commands", NodeToolHelp.NodeToolCommand.class);
-            final Yaml yaml = new Yaml(new Loader(constructor));
+            final Yaml yaml = new Yaml(constructor);
             return (NodeToolHelp)yaml.load(is);
         }
         finally
