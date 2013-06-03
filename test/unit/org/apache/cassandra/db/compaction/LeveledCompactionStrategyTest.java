@@ -172,32 +172,27 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
             rm.apply();
             cfs.forceBlockingFlush();
         }
-
         waitForLeveling(cfs);
         LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) cfs.getCompactionStrategy();
+        cfs.disableAutoCompaction();
 
-        Set<SSTableReader> changedSSTables = new HashSet<SSTableReader>();
-        Collection<SSTableReader> sstables = cfs.getDataTracker().getUncompactingSSTables();
-        assert cfs.getDataTracker().markCompacting(sstables); // dont touch my sstables!
-        // change sstable level on all current sstables
-        for (SSTableReader s : sstables)
+        while(CompactionManager.instance.getActiveCompactions() > 0)
+            Thread.sleep(100);
+
+        for (SSTableReader s : cfs.getSSTables())
         {
             assertTrue(s.getSSTableLevel() != 6);
             strategy.manifest.remove(s);
             LeveledManifest.mutateLevel(s.getSSTableMetadata(), s.descriptor, s.descriptor.filenameFor(Component.STATS), 6);
             s.reloadSSTableMetadata();
-            changedSSTables.add(s);
             strategy.manifest.add(s);
         }
         // verify that all sstables in the changed set is level 6
-        for (SSTableReader s : table.getColumnFamilyStore(cfname).getSSTables())
-        {
-            if (changedSSTables.contains(s))
-                assertTrue(s.getSSTableLevel() == 6);
-        }
+        for (SSTableReader s : cfs.getSSTables())
+            assertEquals(6, s.getSSTableLevel());
 
         int[] levels = strategy.manifest.getAllLevelSize();
         // verify that the manifest has correct amount of sstables
-        assertEquals(changedSSTables.size(), levels[6]);
+        assertEquals(cfs.getSSTables().size(), levels[6]);
     }
 }
