@@ -1415,8 +1415,10 @@ class Shell(cmd.Cmd):
         rowmap = {}
         for name, value in zip(columns, row):
             if value != nullval:
-                type = layout.get_column(name).cqltype.cql_parameterized_type()
-                if type in ('ascii', 'text', 'timestamp', 'inet'):
+                type = layout.get_column(name).cqltype
+                if issubclass(type, ReversedType):
+                    type = type.subtypes[0]
+                if type.cql_parameterized_type() in ('ascii', 'text', 'timestamp', 'inet'):
                     rowmap[name] = self.cql_protect_value(value)
                 else:
                     rowmap[name] = value
