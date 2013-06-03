@@ -203,7 +203,7 @@ public class BatchlogManager implements BatchlogManagerMBean
      * We try to deliver the mutations to the replicas ourselves if they are alive and only resort to writing hints
      * when a replica is down or a write request times out.
      */
-    private void replaySerializedMutation(RowMutation mutation, long writtenAt) throws IOException
+    private void replaySerializedMutation(RowMutation mutation, long writtenAt)
     {
         int ttl = calculateHintTTL(mutation, writtenAt);
         if (ttl <= 0)
@@ -211,7 +211,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         Set<InetAddress> liveEndpoints = new HashSet<InetAddress>();
         String ks = mutation.getTable();
-        Token tk = StorageService.getPartitioner().getToken(mutation.key());
+        Token<?> tk = StorageService.getPartitioner().getToken(mutation.key());
         for (InetAddress endpoint : Iterables.concat(StorageService.instance.getNaturalEndpoints(ks, tk),
                                                      StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, ks)))
         {
@@ -227,7 +227,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             attemptDirectDelivery(mutation, writtenAt, liveEndpoints);
     }
 
-    private void attemptDirectDelivery(RowMutation mutation, long writtenAt, Set<InetAddress> endpoints) throws IOException
+    private void attemptDirectDelivery(RowMutation mutation, long writtenAt, Set<InetAddress> endpoints)
     {
         List<WriteResponseHandler> handlers = Lists.newArrayList();
         final CopyOnWriteArraySet<InetAddress> undelivered = new CopyOnWriteArraySet<InetAddress>(endpoints);
