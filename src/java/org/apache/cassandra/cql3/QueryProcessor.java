@@ -94,21 +94,6 @@ public class QueryProcessor
         }
     }
 
-    public static void validateColumnName(ByteBuffer column)
-    throws InvalidRequestException
-    {
-        validateColumnNames(Collections.singletonList(column));
-    }
-
-    public static void validateFilter(CFMetaData metadata, IDiskAtomFilter filter)
-    throws InvalidRequestException
-    {
-        if (filter instanceof SliceQueryFilter)
-            validateSliceFilter(metadata, (SliceQueryFilter)filter);
-        else
-            validateColumnNames(((NamesQueryFilter)filter).columns);
-    }
-
     public static void validateSliceFilter(CFMetaData metadata, SliceQueryFilter range)
     throws InvalidRequestException
     {
