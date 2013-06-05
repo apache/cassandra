@@ -17,6 +17,7 @@
  * fix SnitchProperties logging context (CASSANDRA-5602)
  * Expose whether jna is enabled and memory is locked via JMX (CASSANDRA-5508)
  * cqlsh: fix COPY FROM with ReversedType (CASSANDRA-5610)
+ * Allow creating CUSTOM indexes on collections (CASSANDRA-5615)
 Merged from 1.1:
  * Remove buggy thrift max message length option (CASSANDRA-5529)
  * Fix NPE in Pig's widerow mode (CASSANDRA-5488)

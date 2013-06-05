@@ -85,7 +85,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
                 if (cd.getIndexType() != null)
                     throw new InvalidRequestException("Index already exists");
 
-                if (cd.getValidator().isCollection())
+                if (cd.getValidator().isCollection() && !isCustom)
                     throw new InvalidRequestException("Indexes on collections are no yet supported");
 
                 props.validate(isCustom);
