@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.service;
 
+import org.apache.cassandra.metrics.ReadRepairMetrics;
+
 public interface StorageProxyMBean
 {
     /**
@@ -90,4 +92,8 @@ public interface StorageProxyMBean
     public void setTruncateRpcTimeout(Long timeoutInMillis);
 
     public void reloadTriggerClass();
+    
+    public long getReadRepairAttempted();
+    public long getReadRepairRepairedBlocking();
+    public long getReadRepairRepairedBackground();
 }
