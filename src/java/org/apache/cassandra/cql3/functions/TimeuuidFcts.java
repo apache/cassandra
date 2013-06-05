@@ -35,6 +35,12 @@ public abstract class TimeuuidFcts
         {
             return ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
         }
+
+        @Override
+        public boolean isPure()
+        {
+            return false;
+        }
     };
 
     public static final Function minTimeuuidFct = new AbstractFunction("mintimeuuid", TimeUUIDType.instance, DateType.instance)

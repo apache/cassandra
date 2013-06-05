@@ -111,7 +111,9 @@ public class FunctionCall extends Term.NonTerminal
                 parameters.add(t);
             }
 
-            return allTerminal
+            // If all parameters are terminal and the function is pure, we can
+            // evaluate it now, otherwise we'd have to wait execution time
+            return allTerminal && fun.isPure()
                 ? makeTerminal(fun, execute(fun, parameters))
                 : new FunctionCall(fun, parameters);
         }

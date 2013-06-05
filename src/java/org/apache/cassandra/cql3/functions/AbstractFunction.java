@@ -50,6 +50,12 @@ public abstract class AbstractFunction implements Function
         return returnType;
     }
 
+    // Most of our functions are pure, the other ones should override this
+    public boolean isPure()
+    {
+        return true;
+    }
+
     /**
      * Creates a trivial factory that always return the provided function.
      */
