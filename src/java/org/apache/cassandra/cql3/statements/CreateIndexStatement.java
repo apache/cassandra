@@ -74,7 +74,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         if (cfm.getCfDef().isCompact && cd.type != ColumnDefinition.Type.REGULAR)
             throw new InvalidRequestException(String.format("Secondary index on %s column %s is not yet supported for compact table", cd.type, columnName));
 
-        if (cd.getValidator().isCollection())
+        if (cd.getValidator().isCollection() && !isCustom)
             throw new InvalidRequestException("Indexes on collections are no yet supported");
 
         if (cd.type == ColumnDefinition.Type.PARTITION_KEY && (cd.componentIndex == null || cd.componentIndex == 0))
