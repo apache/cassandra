@@ -39,6 +39,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ReadRepairDecision;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
@@ -59,6 +60,7 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
+import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -888,7 +890,13 @@ public class StorageProxy implements StorageProxyMBean
 
                 List<InetAddress> endpoints = getLiveSortedEndpoints(table, command.key);
                 CFMetaData cfm = Schema.instance.getCFMetaData(command.getKeyspace(), command.getColumnFamilyName());
-                endpoints = consistency_level.filterForQuery(table, endpoints, cfm.newReadRepairDecision());
+
+                ReadRepairDecision rrDecision = cfm.newReadRepairDecision();
+                endpoints = consistency_level.filterForQuery(table, endpoints, rrDecision);
+                
+                if (rrDecision != ReadRepairDecision.NONE) {
+                    ReadRepairMetrics.attempted.mark();
+                }
 
                 RowDigestResolver resolver = new RowDigestResolver(command.table, command.key);
                 ReadCallback<ReadResponse, Row> handler = new ReadCallback(resolver, consistency_level, command, endpoints);
@@ -960,6 +968,9 @@ public class StorageProxy implements StorageProxyMBean
                 catch (DigestMismatchException ex)
                 {
                     logger.debug("Digest mismatch: {}", ex.toString());
+                    
+                    ReadRepairMetrics.repairedBlocking.mark();
+                    
                     // Do a full data read to resolve the correct response (and repair node that need be)
                     RowDataResolver resolver = new RowDataResolver(command.table, command.key, command.filter());
                     ReadCallback<ReadResponse, Row> repairHandler = handler.withNewResolver(resolver);
@@ -1702,4 +1713,16 @@ public class StorageProxy implements StorageProxyMBean
 
     public Long getTruncateRpcTimeout() { return DatabaseDescriptor.getTruncateRpcTimeout(); }
     public void setTruncateRpcTimeout(Long timeoutInMillis) { DatabaseDescriptor.setTruncateRpcTimeout(timeoutInMillis); }
+    
+    public long getReadRepairAttempted() {
+        return ReadRepairMetrics.attempted.count();
+    }
+    
+    public long getReadRepairRepairedBlocking() {
+        return ReadRepairMetrics.repairedBlocking.count();
+    }
+    
+    public long getReadRepairRepairedBackground() {
+        return ReadRepairMetrics.repairedBackground.count();
+    }
 }
