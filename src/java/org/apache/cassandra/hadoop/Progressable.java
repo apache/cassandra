@@ -29,12 +29,12 @@ public class Progressable
     private TaskAttemptContext context;
     private org.apache.hadoop.util.Progressable progressable;
 
-    Progressable(TaskAttemptContext context)
+    public Progressable(TaskAttemptContext context)
     {
         this.context = context;
     }
 
-    Progressable(org.apache.hadoop.util.Progressable progressable)
+    public Progressable(org.apache.hadoop.util.Progressable progressable)
     {
         this.progressable = progressable;
     }

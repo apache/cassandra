@@ -15,41 +15,50 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.hadoop;
+package org.apache.cassandra.hadoop.cql3;
 
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import org.apache.cassandra.thrift.*;
+import java.util.Map;
+
+import org.apache.cassandra.hadoop.AbstractColumnFamilyOutputFormat;
+import org.apache.cassandra.hadoop.ColumnFamilyInputFormat;
+import org.apache.cassandra.hadoop.ConfigHelper;
+import org.apache.cassandra.hadoop.Progressable;
 import org.apache.hadoop.mapreduce.*;
 
 /**
  * The <code>ColumnFamilyOutputFormat</code> acts as a Hadoop-specific
  * OutputFormat that allows reduce tasks to store keys (and corresponding
- * values) as Cassandra rows (and respective columns) in a given
+ *  binded variable values) as CQL rows (and respective columns) in a given
  * ColumnFamily.
  *
  * <p>
  * As is the case with the {@link ColumnFamilyInputFormat}, you need to set the
- * Keyspace and ColumnFamily in your
- * Hadoop job Configuration. The {@link ConfigHelper} class, through its
+ * prepared statement in your
+ * Hadoop job Configuration. The {@link CQLConfigHelper} class, through its
+ * {@link ConfigHelper#setOutputPreparedStatement} method, is provided to make this
+ * simple.
+ * you need to set the Keyspace. The {@link ConfigHelper} class, through its
  * {@link ConfigHelper#setOutputColumnFamily} method, is provided to make this
  * simple.
  * </p>
- *
+ * 
  * <p>
  * For the sake of performance, this class employs a lazy write-back caching
- * mechanism, where its record writer batches mutations created based on the
- * reduce's inputs (in a task-specific map), and periodically makes the changes
- * official by sending a batch mutate request to Cassandra.
+ * mechanism, where its record writer prepared statement binded variable values
+ * created based on the reduce's inputs (in a task-specific map), and periodically 
+ * makes the changes official by sending a execution of prepared statement request 
+ * to Cassandra.
  * </p>
  */
-public class ColumnFamilyOutputFormat extends AbstractColumnFamilyOutputFormat<ByteBuffer,List<Mutation>>
-{
+public class ColumnFamilyOutputFormat extends AbstractColumnFamilyOutputFormat<Map<String, ByteBuffer>, List<ByteBuffer>>
+{   
     /** Fills the deprecated OutputFormat interface for streaming. */
     @Deprecated
-    public ColumnFamilyRecordWriter getRecordWriter(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job, String name, org.apache.hadoop.util.Progressable progress)
+    public ColumnFamilyRecordWriter getRecordWriter(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job, String name, org.apache.hadoop.util.Progressable progress) throws IOException
     {
         return new ColumnFamilyRecordWriter(job, new Progressable(progress));
     }
@@ -62,7 +71,7 @@ public class ColumnFamilyOutputFormat extends AbstractColumnFamilyOutputFormat<B
      * @return a {@link RecordWriter} to write the output for the job.
      * @throws IOException
      */
-    public ColumnFamilyRecordWriter getRecordWriter(final TaskAttemptContext context) throws InterruptedException
+    public ColumnFamilyRecordWriter getRecordWriter(final TaskAttemptContext context) throws IOException, InterruptedException
     {
         return new ColumnFamilyRecordWriter(context);
     }
