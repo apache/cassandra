@@ -53,7 +53,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptID;
  *   the user defined the where clause
  *   CQLConfigHelper.setInputWhereClauses. The default is no user defined where clause
  */
-public class ColumnFamilyInputFormat extends AbstractColumnFamilyInputFormat<Map<String, ByteBuffer>, Map<String, ByteBuffer>>
+public class CqlPagingInputFormat extends AbstractColumnFamilyInputFormat<Map<String, ByteBuffer>, Map<String, ByteBuffer>>
 {
     public RecordReader<Map<String, ByteBuffer>, Map<String, ByteBuffer>> getRecordReader(InputSplit split, JobConf jobConf, final Reporter reporter)
             throws IOException
@@ -67,7 +67,7 @@ public class ColumnFamilyInputFormat extends AbstractColumnFamilyInputFormat<Map
             }
         };
 
-        ColumnFamilyRecordReader recordReader = new ColumnFamilyRecordReader();
+        CqlPagingRecordReader recordReader = new CqlPagingRecordReader();
         recordReader.initialize((org.apache.hadoop.mapreduce.InputSplit)split, tac);
         return recordReader;
     }
@@ -77,7 +77,7 @@ public class ColumnFamilyInputFormat extends AbstractColumnFamilyInputFormat<Map
             org.apache.hadoop.mapreduce.InputSplit arg0, TaskAttemptContext arg1) throws IOException,
             InterruptedException
     {
-        return new ColumnFamilyRecordReader();
+        return new CqlPagingRecordReader();
     }
 
 }
