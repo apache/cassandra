@@ -32,7 +32,6 @@ import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
 import org.apache.hadoop.conf.Configuration;
-import sun.plugin2.message.transport.TransportFactory;
 
 public class TFramedTransportFactory implements ITransportFactory
 {
