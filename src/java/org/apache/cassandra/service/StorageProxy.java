@@ -39,7 +39,6 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.ReadRepairDecision;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
@@ -60,7 +59,6 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
-import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.paxos.*;
 import org.apache.cassandra.tracing.Tracing;
@@ -1163,64 +1161,9 @@ public class StorageProxy implements StorageProxyMBean
                 assert !command.isDigestQuery();
                 logger.trace("Command/ConsistencyLevel is {}/{}", command, consistency_level);
 
-<<<<<<< HEAD
                 AbstractReadExecutor exec = AbstractReadExecutor.getReadExecutor(command, consistency_level);
                 exec.executeAsync();
                 readExecutors[i] = exec;
-=======
-                List<InetAddress> endpoints = getLiveSortedEndpoints(table, command.key);
-                CFMetaData cfm = Schema.instance.getCFMetaData(command.getKeyspace(), command.getColumnFamilyName());
-
-                ReadRepairDecision rrDecision = cfm.newReadRepairDecision();
-                endpoints = consistency_level.filterForQuery(table, endpoints, rrDecision);
-                
-                if (rrDecision != ReadRepairDecision.NONE) {
-                    ReadRepairMetrics.attempted.mark();
-                }
-
-                RowDigestResolver resolver = new RowDigestResolver(command.table, command.key);
-                ReadCallback<ReadResponse, Row> handler = new ReadCallback(resolver, consistency_level, command, endpoints);
-                handler.assureSufficientLiveNodes();
-                assert !endpoints.isEmpty();
-                readCallbacks[i] = handler;
-
-                // The data-request message is sent to dataPoint, the node that will actually get the data for us
-                InetAddress dataPoint = endpoints.get(0);
-                if (dataPoint.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
-                {
-                    logger.trace("reading data locally");
-                    StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(command, handler));
-                }
-                else
-                {
-                    logger.trace("reading data from {}", dataPoint);
-                    MessagingService.instance().sendRR(command.createMessage(), dataPoint, handler);
-                }
-
-                if (endpoints.size() == 1)
-                    continue;
-
-                // send the other endpoints a digest request
-                ReadCommand digestCommand = command.copy();
-                digestCommand.setDigestQuery(true);
-                MessageOut message = null;
-                for (InetAddress digestPoint : endpoints.subList(1, endpoints.size()))
-                {
-                    if (digestPoint.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
-                    {
-                        logger.trace("reading digest locally");
-                        StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(digestCommand, handler));
-                    }
-                    else
-                    {
-                        logger.trace("reading digest from {}", digestPoint);
-                        // (We lazy-construct the digest Message object since it may not be necessary if we
-                        // are doing a local digest read, or no digest reads at all.)
-                        if (message == null)
-                            message = digestCommand.createMessage();
-                        MessagingService.instance().sendRR(message, digestPoint, handler);
-                    }
-                }
             }
 
             for (AbstractReadExecutor exec: readExecutors)
@@ -1245,9 +1188,6 @@ public class StorageProxy implements StorageProxyMBean
                 catch (DigestMismatchException ex)
                 {
                     logger.trace("Digest mismatch: {}", ex);
-                    
-                    ReadRepairMetrics.repairedBlocking.mark();
-                    
                     // Do a full data read to resolve the correct response (and repair node that need be)
                     RowDataResolver resolver = new RowDataResolver(exec.command.table, exec.command.key, exec.command.filter());
                     ReadCallback<ReadResponse, Row> repairHandler = exec.handler.withNewResolver(resolver);
@@ -1991,16 +1931,4 @@ public class StorageProxy implements StorageProxyMBean
     public Long getTruncateRpcTimeout() { return DatabaseDescriptor.getTruncateRpcTimeout(); }
     public void setTruncateRpcTimeout(Long timeoutInMillis) { DatabaseDescriptor.setTruncateRpcTimeout(timeoutInMillis); }
     public void reloadTriggerClass() { TriggerExecutor.instance.reloadClasses(); }
-    
-    public long getReadRepairAttempted() {
-        return ReadRepairMetrics.attempted.count();
-    }
-    
-    public long getReadRepairRepairedBlocking() {
-        return ReadRepairMetrics.repairedBlocking.count();
-    }
-    
-    public long getReadRepairRepairedBackground() {
-        return ReadRepairMetrics.repairedBackground.count();
-    }
 }

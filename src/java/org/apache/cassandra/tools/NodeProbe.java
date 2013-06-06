@@ -828,21 +828,6 @@ public class NodeProbe
     {
         return failed;
     }
-    
-    public long getReadRepairAttempted()
-    {
-        return spProxy.getReadRepairAttempted();
-    }
-    
-    public long getReadRepairRepairedBlocking()
-    {
-        return spProxy.getReadRepairRepairedBlocking();
-    }
-    
-    public long getReadRepairRepairedBackground()
-    {
-        return spProxy.getReadRepairRepairedBackground();
-    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
