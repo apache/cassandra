@@ -59,6 +59,7 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
+import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.paxos.*;
 import org.apache.cassandra.tracing.Tracing;
@@ -1188,6 +1189,9 @@ public class StorageProxy implements StorageProxyMBean
                 catch (DigestMismatchException ex)
                 {
                     logger.trace("Digest mismatch: {}", ex);
+                    
+                    ReadRepairMetrics.repairedBlocking.mark();
+
                     // Do a full data read to resolve the correct response (and repair node that need be)
                     RowDataResolver resolver = new RowDataResolver(exec.command.table, exec.command.key, exec.command.filter());
                     ReadCallback<ReadResponse, Row> repairHandler = exec.handler.withNewResolver(resolver);
@@ -1931,4 +1935,17 @@ public class StorageProxy implements StorageProxyMBean
     public Long getTruncateRpcTimeout() { return DatabaseDescriptor.getTruncateRpcTimeout(); }
     public void setTruncateRpcTimeout(Long timeoutInMillis) { DatabaseDescriptor.setTruncateRpcTimeout(timeoutInMillis); }
     public void reloadTriggerClass() { TriggerExecutor.instance.reloadClasses(); }
+
+    
+    public long getReadRepairAttempted() {
+        return ReadRepairMetrics.attempted.count();
+    }
+    
+    public long getReadRepairRepairedBlocking() {
+        return ReadRepairMetrics.repairedBlocking.count();
+    }
+    
+    public long getReadRepairRepairedBackground() {
+        return ReadRepairMetrics.repairedBackground.count();
+    }
 }
