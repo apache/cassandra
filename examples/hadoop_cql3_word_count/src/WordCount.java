@@ -21,13 +21,12 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.Map.Entry;
 
-import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.hadoop.cql3.ColumnFamilyOutputFormat;
+import org.apache.cassandra.hadoop.cql3.CqlConfigHelper;
+import org.apache.cassandra.hadoop.cql3.CqlOutputFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.hadoop.cql3.CQLConfigHelper;
-import org.apache.cassandra.hadoop.cql3.ColumnFamilyInputFormat;
+import org.apache.cassandra.hadoop.cql3.CqlPagingInputFormat;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.hadoop.conf.Configuration;
@@ -38,7 +37,6 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
-import org.apache.hadoop.mapreduce.Reducer.Context;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
@@ -208,28 +206,28 @@ public class WordCount extends Configured implements Tool
             job.setOutputKeyClass(Map.class);
             job.setOutputValueClass(List.class);
 
-            job.setOutputFormatClass(ColumnFamilyOutputFormat.class);
+            job.setOutputFormatClass(CqlOutputFormat.class);
 
             ConfigHelper.setOutputColumnFamily(job.getConfiguration(), KEYSPACE, OUTPUT_COLUMN_FAMILY);
             job.getConfiguration().set(PRIMARY_KEY, "word,sum");
             String query = "INSERT INTO " + KEYSPACE + "." + OUTPUT_COLUMN_FAMILY +
                            " (row_id1, row_id2, word, count_num) " +
                            " values (?, ?, ?, ?)";
-            CQLConfigHelper.setOutputCql(job.getConfiguration(), query);
+            CqlConfigHelper.setOutputCql(job.getConfiguration(), query);
             ConfigHelper.setOutputInitialAddress(job.getConfiguration(), "localhost");
             ConfigHelper.setOutputPartitioner(job.getConfiguration(), "Murmur3Partitioner");
         }
 
-        job.setInputFormatClass(ColumnFamilyInputFormat.class);
+        job.setInputFormatClass(CqlPagingInputFormat.class);
 
         ConfigHelper.setInputRpcPort(job.getConfiguration(), "9160");
         ConfigHelper.setInputInitialAddress(job.getConfiguration(), "localhost");
         ConfigHelper.setInputColumnFamily(job.getConfiguration(), KEYSPACE, COLUMN_FAMILY);
         ConfigHelper.setInputPartitioner(job.getConfiguration(), "Murmur3Partitioner");
 
-        CQLConfigHelper.setInputCQLPageRowSize(job.getConfiguration(), "3");
+        CqlConfigHelper.setInputCQLPageRowSize(job.getConfiguration(), "3");
         //this is the user defined filter clauses, you can comment it out if you want count all titles
-        CQLConfigHelper.setInputWhereClauses(job.getConfiguration(), "title='A'");
+        CqlConfigHelper.setInputWhereClauses(job.getConfiguration(), "title='A'");
         job.waitForCompletion(true);
         return 0;
     }

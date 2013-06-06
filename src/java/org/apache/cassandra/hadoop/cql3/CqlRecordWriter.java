@@ -60,11 +60,11 @@ import org.slf4j.LoggerFactory;
  * directly to a responsible endpoint.
  * </p>
  *
- * @see ColumnFamilyOutputFormat
+ * @see CqlOutputFormat
  */
-final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String, ByteBuffer>, List<ByteBuffer>>
+final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String, ByteBuffer>, List<ByteBuffer>>
 {
-    private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyRecordWriter.class);
+    private static final Logger logger = LoggerFactory.getLogger(CqlRecordWriter.class);
 
     // handles for clients for each range running in the threadpool
     private final Map<Range, RangeClient> clients;
@@ -84,29 +84,29 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<Ma
      * @param context the task attempt context
      * @throws IOException
      */
-    ColumnFamilyRecordWriter(TaskAttemptContext context) throws IOException
+    CqlRecordWriter(TaskAttemptContext context) throws IOException
     {
         this(context.getConfiguration());
         this.progressable = new Progressable(context);
     }
 
-    ColumnFamilyRecordWriter(Configuration conf, Progressable progressable) throws IOException
+    CqlRecordWriter(Configuration conf, Progressable progressable) throws IOException
     {
         this(conf);
         this.progressable = progressable;
     }
 
-    ColumnFamilyRecordWriter(Configuration conf) throws IOException
+    CqlRecordWriter(Configuration conf) throws IOException
     {
         super(conf);
         this.clients = new HashMap<Range, RangeClient>();
-        cql = CQLConfigHelper.getOutputCql(conf);
+        cql = CqlConfigHelper.getOutputCql(conf);
 
         try
         {
             String host = getAnyHost();
             int port = ConfigHelper.getOutputRpcPort(conf);
-            Cassandra.Client client = ColumnFamilyOutputFormat.createAuthenticatedClient(host, port, conf);
+            Cassandra.Client client = CqlOutputFormat.createAuthenticatedClient(host, port, conf);
             retrievePartitionKeyValidator(client);
             
             if (client != null)
@@ -250,7 +250,7 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<Ma
                         InetAddress address = iter.next();
                         String host = address.getHostName();
                         int port = ConfigHelper.getOutputRpcPort(conf);
-                        client = ColumnFamilyOutputFormat.createAuthenticatedClient(host, port, conf);
+                        client = CqlOutputFormat.createAuthenticatedClient(host, port, conf);
                     }
                     catch (Exception e)
                     {

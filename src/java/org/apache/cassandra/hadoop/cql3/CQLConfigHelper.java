@@ -21,7 +21,7 @@ package org.apache.cassandra.hadoop.cql3;
 */
 import org.apache.hadoop.conf.Configuration;
 
-public class CQLConfigHelper
+public class CqlConfigHelper
 {
     private static final String INPUT_CQL_COLUMNS_CONFIG = "cassandra.input.columnfamily.columns"; // separate by colon ,
     private static final String INPUT_CQL_PAGE_ROW_SIZE_CONFIG = "cassandra.input.page.row.size";
