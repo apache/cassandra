@@ -52,7 +52,7 @@ public class RingCache
 
     private Multimap<Range<Token>, InetAddress> rangeMap;
 
-    public RingCache(Configuration conf) throws IOException
+    public RingCache(Configuration conf)
     {
         this.conf = conf;
         this.partitioner = ConfigHelper.getOutputPartitioner(conf);

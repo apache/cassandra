@@ -24,11 +24,9 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.*;
-import org.apache.thrift.transport.TTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -43,7 +41,7 @@ import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TException;
-import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
 
 public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap<ByteBuffer, IColumn>>
     implements org.apache.hadoop.mapred.RecordReader<ByteBuffer, SortedMap<ByteBuffer, IColumn>>
@@ -59,13 +57,13 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     private boolean isEmptyPredicate;
     private int totalRowCount; // total number of rows to fetch
     private int batchSize; // fetch this many per batch
-    private String cfName;
     private String keyspace;
-    private TSocket socket;
+    private String cfName;
     private Cassandra.Client client;
     private ConsistencyLevel consistencyLevel;
     private int keyBufferSize = 8192;
     private List<IndexExpression> filter;
+
 
     public ColumnFamilyRecordReader()
     {
@@ -80,11 +78,11 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
 
     public void close()
     {
-        if (socket != null && socket.isOpen())
+        if (client != null)
         {
-            socket.close();
-            socket = null;
-            client = null;
+            TTransport transport = client.getOutputProtocol().getTransport();
+            if (transport.isOpen())
+                transport.close();
         }
     }
 
@@ -139,36 +137,25 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         predicate = ConfigHelper.getInputSlicePredicate(conf);
         boolean widerows = ConfigHelper.getInputIsWide(conf);
         isEmptyPredicate = isEmptyPredicate(predicate);
-        totalRowCount = (int) this.split.getLength();
+        totalRowCount = (this.split.getLength() < Long.MAX_VALUE)
+                ? (int) this.split.getLength()
+                : ConfigHelper.getInputSplitSize(conf);
         batchSize = ConfigHelper.getRangeBatchSize(conf);
         cfName = ConfigHelper.getInputColumnFamily(conf);
         consistencyLevel = ConsistencyLevel.valueOf(ConfigHelper.getReadConsistencyLevel(conf));
-
         keyspace = ConfigHelper.getInputKeyspace(conf);
 
         try
         {
-            // only need to connect once
-            if (socket != null && socket.isOpen())
+            if (client != null)
                 return;
 
             // create connection using thrift
             String location = getLocation();
-            socket = new TSocket(location, ConfigHelper.getInputRpcPort(conf));
-            TTransport transport = ConfigHelper.getInputTransportFactory(conf).openTransport(socket, conf);
-            TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport, true, true);
-            client = new Cassandra.Client(binaryProtocol);
 
-            // log in
-            client.set_keyspace(keyspace);
-            if (ConfigHelper.getInputKeyspaceUserName(conf) != null)
-            {
-                Map<String, String> creds = new HashMap<String, String>();
-                creds.put(IAuthenticator.USERNAME_KEY, ConfigHelper.getInputKeyspaceUserName(conf));
-                creds.put(IAuthenticator.PASSWORD_KEY, ConfigHelper.getInputKeyspacePassword(conf));
-                AuthenticationRequest authRequest = new AuthenticationRequest(creds);
-                client.login(authRequest);
-            }
+            int port = ConfigHelper.getInputRpcPort(conf);
+            client = ColumnFamilyInputFormat.createAuthenticatedClient(location, port, conf);
+
         }
         catch (Exception e)
         {

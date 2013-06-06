@@ -21,6 +21,10 @@ package org.apache.cassandra.thrift;
  *
  */
 
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
@@ -29,12 +33,30 @@ import org.apache.thrift.transport.TTransportException;
 
 import org.apache.hadoop.conf.Configuration;
 
-public class TFramedTransportFactory implements ITransportFactory
+public class TFramedTransportFactory implements ITransportFactory, TClientTransportFactory
 {
     public TTransport openTransport(TSocket socket, Configuration conf) throws TTransportException
     {
         TTransport transport = new TFramedTransport(socket, ConfigHelper.getThriftFramedTransportSize(conf));
         transport.open();
         return transport;
+    }
+
+    //
+    public TTransport openTransport(String host, int port, Configuration conf) throws TTransportException
+    {
+        TSocket socket = new TSocket(host, port);
+        TTransport transport = new TFramedTransport(socket, ConfigHelper.getThriftFramedTransportSize(conf));
+        transport.open();
+        return transport;
+    }
+
+    public void setOptions(Map<String, String> options)
+    {
+    }
+
+    public Set<String> supportedOptions()
+    {
+        return Collections.emptySet();
     }
 }
