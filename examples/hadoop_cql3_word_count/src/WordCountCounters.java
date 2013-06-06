@@ -24,23 +24,20 @@ import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.hadoop.cql3.CqlConfigHelper;
+import org.apache.cassandra.hadoop.cql3.CqlPagingInputFormat;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Mapper.Context;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
-import org.apache.cassandra.hadoop.cql3.ColumnFamilyInputFormat;
 import org.apache.cassandra.hadoop.ConfigHelper;
-import org.apache.cassandra.hadoop.cql3.CQLConfigHelper;
-import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
@@ -107,14 +104,14 @@ public class WordCountCounters extends Configured implements Tool
         job.setOutputValueClass(LongWritable.class);
         FileOutputFormat.setOutputPath(job, new Path(OUTPUT_PATH_PREFIX));
 
-        job.setInputFormatClass(ColumnFamilyInputFormat.class);
+        job.setInputFormatClass(CqlPagingInputFormat.class);
 
         ConfigHelper.setInputRpcPort(job.getConfiguration(), "9160");
         ConfigHelper.setInputInitialAddress(job.getConfiguration(), "localhost");
         ConfigHelper.setInputPartitioner(job.getConfiguration(), "Murmur3Partitioner");
         ConfigHelper.setInputColumnFamily(job.getConfiguration(), WordCount.KEYSPACE, WordCount.OUTPUT_COLUMN_FAMILY);
 
-        CQLConfigHelper.setInputCQLPageRowSize(job.getConfiguration(), "3");
+        CqlConfigHelper.setInputCQLPageRowSize(job.getConfiguration(), "3");
 
         job.waitForCompletion(true);
         return 0;

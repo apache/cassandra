@@ -57,10 +57,10 @@ import org.apache.thrift.transport.TTransport;
  * <p/>
  * Map<ByteBuffer, IColumn> as column name to columns mappings
  */
-public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffer>, Map<String, ByteBuffer>>
+public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>, Map<String, ByteBuffer>>
         implements org.apache.hadoop.mapred.RecordReader<Map<String, ByteBuffer>, Map<String, ByteBuffer>>
 {
-    private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyRecordReader.class);
+    private static final Logger logger = LoggerFactory.getLogger(CqlPagingRecordReader.class);
 
     public static final int DEFAULT_CQL_PAGE_LIMIT = 1000; // TODO: find the number large enough but not OOM
 
@@ -96,7 +96,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
 
     private AbstractType<?> keyValidator;
 
-    public ColumnFamilyRecordReader()
+    public CqlPagingRecordReader()
     {
         super();
     }
@@ -111,12 +111,12 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
         cfName = ConfigHelper.getInputColumnFamily(conf);
         consistencyLevel = ConsistencyLevel.valueOf(ConfigHelper.getReadConsistencyLevel(conf));
         keyspace = ConfigHelper.getInputKeyspace(conf);
-        columns = CQLConfigHelper.getInputcolumns(conf);
-        userDefinedWhereClauses = CQLConfigHelper.getInputWhereClauses(conf);
+        columns = CqlConfigHelper.getInputcolumns(conf);
+        userDefinedWhereClauses = CqlConfigHelper.getInputWhereClauses(conf);
 
         try
         {
-            pageRowSize = Integer.parseInt(CQLConfigHelper.getInputPageRowSize(conf));
+            pageRowSize = Integer.parseInt(CqlConfigHelper.getInputPageRowSize(conf));
         }
         catch (NumberFormatException e)
         {
@@ -134,7 +134,7 @@ public class ColumnFamilyRecordReader extends RecordReader<Map<String, ByteBuffe
             String location = getLocation();
 
             int port = ConfigHelper.getInputRpcPort(conf);
-            client = ColumnFamilyInputFormat.createAuthenticatedClient(location, port, conf);
+            client = CqlPagingInputFormat.createAuthenticatedClient(location, port, conf);
 
             // retrieve partition keys and cluster keys from system.schema_columnfamilies table
             retrieveKeys();

@@ -38,7 +38,7 @@ import org.apache.hadoop.mapreduce.*;
  * <p>
  * As is the case with the {@link ColumnFamilyInputFormat}, you need to set the
  * prepared statement in your
- * Hadoop job Configuration. The {@link CQLConfigHelper} class, through its
+ * Hadoop job Configuration. The {@link CqlConfigHelper} class, through its
  * {@link ConfigHelper#setOutputPreparedStatement} method, is provided to make this
  * simple.
  * you need to set the Keyspace. The {@link ConfigHelper} class, through its
@@ -54,13 +54,13 @@ import org.apache.hadoop.mapreduce.*;
  * to Cassandra.
  * </p>
  */
-public class ColumnFamilyOutputFormat extends AbstractColumnFamilyOutputFormat<Map<String, ByteBuffer>, List<ByteBuffer>>
+public class CqlOutputFormat extends AbstractColumnFamilyOutputFormat<Map<String, ByteBuffer>, List<ByteBuffer>>
 {   
     /** Fills the deprecated OutputFormat interface for streaming. */
     @Deprecated
-    public ColumnFamilyRecordWriter getRecordWriter(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job, String name, org.apache.hadoop.util.Progressable progress) throws IOException
+    public CqlRecordWriter getRecordWriter(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job, String name, org.apache.hadoop.util.Progressable progress) throws IOException
     {
-        return new ColumnFamilyRecordWriter(job, new Progressable(progress));
+        return new CqlRecordWriter(job, new Progressable(progress));
     }
 
     /**
@@ -71,8 +71,8 @@ public class ColumnFamilyOutputFormat extends AbstractColumnFamilyOutputFormat<M
      * @return a {@link RecordWriter} to write the output for the job.
      * @throws IOException
      */
-    public ColumnFamilyRecordWriter getRecordWriter(final TaskAttemptContext context) throws IOException, InterruptedException
+    public CqlRecordWriter getRecordWriter(final TaskAttemptContext context) throws IOException, InterruptedException
     {
-        return new ColumnFamilyRecordWriter(context);
+        return new CqlRecordWriter(context);
     }
 }
