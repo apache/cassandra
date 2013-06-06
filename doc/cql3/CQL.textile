@@ -984,9 +984,9 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @BOOLEAN@      | no  |
 | @BY@           | yes |
 | @CLUSTERING@   | no  |
-| @COLUMNFAMLY@  | yes |
+| @COLUMNFAMILY@ | yes |
 | @COMPACT@      | no  |
-| @CONSITENCY@   | no  |
+| @CONSISTENCY@  | no  |
 | @COUNT@        | no  |
 | @COUNTER@      | no  |
 | @CREATE@       | yes |
