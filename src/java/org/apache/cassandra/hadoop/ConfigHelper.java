@@ -566,21 +566,21 @@ public class ConfigHelper
         }
     }
 
-    public static TClientTransportFactory getClientTransportFactory(Configuration conf)
+    public static ITransportFactory getClientTransportFactory(Configuration conf)
     {
         String factoryClassName = conf.get(
-                TClientTransportFactory.PROPERTY_KEY,
+                ITransportFactory.PROPERTY_KEY,
                 TFramedTransportFactory.class.getName());
-        TClientTransportFactory factory = getClientTransportFactory(factoryClassName);
+        ITransportFactory factory = getClientTransportFactory(factoryClassName);
         Map<String, String> options = getOptions(conf, factory.supportedOptions());
         factory.setOptions(options);
         return factory;
     }
 
-    private static TClientTransportFactory getClientTransportFactory(String factoryClassName) {
+    private static ITransportFactory getClientTransportFactory(String factoryClassName) {
         try
         {
-            return (TClientTransportFactory) Class.forName(factoryClassName).newInstance();
+            return (ITransportFactory) Class.forName(factoryClassName).newInstance();
         }
         catch (Exception e)
         {

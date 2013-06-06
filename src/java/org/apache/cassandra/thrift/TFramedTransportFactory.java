@@ -32,17 +32,10 @@ import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
 import org.apache.hadoop.conf.Configuration;
+import sun.plugin2.message.transport.TransportFactory;
 
-public class TFramedTransportFactory implements ITransportFactory, TClientTransportFactory
+public class TFramedTransportFactory implements ITransportFactory
 {
-    public TTransport openTransport(TSocket socket, Configuration conf) throws TTransportException
-    {
-        TTransport transport = new TFramedTransport(socket, ConfigHelper.getThriftFramedTransportSize(conf));
-        transport.open();
-        return transport;
-    }
-
-    //
     public TTransport openTransport(String host, int port, Configuration conf) throws TTransportException
     {
         TSocket socket = new TSocket(host, port);
