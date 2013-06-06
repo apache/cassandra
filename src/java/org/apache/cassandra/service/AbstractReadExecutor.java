@@ -25,7 +25,6 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.ReadRepairDecision;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ReadCommand;
@@ -34,7 +33,6 @@ import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
-import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
@@ -127,14 +125,7 @@ public abstract class AbstractReadExecutor
         Table table = Table.open(command.table);
         List<InetAddress> allReplicas = StorageProxy.getLiveSortedEndpoints(table, command.key);
         CFMetaData metaData = Schema.instance.getCFMetaData(command.table, command.cfName);
-
-        ReadRepairDecision rrDecision = metaData.newReadRepairDecision();
-         
-        if (rrDecision != ReadRepairDecision.NONE) {
-            ReadRepairMetrics.attempted.mark();
-        }
-
-        List<InetAddress> queryTargets = consistency_level.filterForQuery(table, allReplicas, rrDecision);
+        List<InetAddress> queryTargets = consistency_level.filterForQuery(table, allReplicas, metaData.newReadRepairDecision());
 
         if (StorageService.instance.isClientMode())
         {
