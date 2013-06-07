@@ -30,7 +30,6 @@ import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
-
 /**
  * A thread-safe and atomic ISortedColumns implementation.
  * Operations (in particular addAll) on this implemenation are atomic and
@@ -256,11 +255,6 @@ public class AtomicSortedColumns extends ColumnFamily
             this(new SnapTreeMap<ByteBuffer, Column>(comparator), DeletionInfo.LIVE);
         }
 
-        Holder(SortedMap<ByteBuffer, Column> columns)
-        {
-            this(new SnapTreeMap<ByteBuffer, Column>(columns), DeletionInfo.LIVE);
-        }
-
         Holder(SnapTreeMap<ByteBuffer, Column> map, DeletionInfo deletionInfo)
         {
             this.map = map;
@@ -314,38 +308,6 @@ public class AtomicSortedColumns extends ColumnFamily
                 }
                 // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
                 // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
-            }
-        }
-
-        void retainAll(ColumnFamily columns)
-        {
-            Iterator<Column> iter = map.values().iterator();
-            Iterator<Column> toRetain = columns.iterator();
-            Column current = iter.hasNext() ? iter.next() : null;
-            Column retain = toRetain.hasNext() ? toRetain.next() : null;
-            Comparator<? super ByteBuffer> comparator = map.comparator();
-            while (current != null && retain != null)
-            {
-                int c = comparator.compare(current.name(), retain.name());
-                if (c == 0)
-                {
-                    current = iter.hasNext() ? iter.next() : null;
-                    retain = toRetain.hasNext() ? toRetain.next() : null;
-                }
-                else if (c < 0)
-                {
-                    iter.remove();
-                    current = iter.hasNext() ? iter.next() : null;
-                }
-                else // c > 0
-                {
-                    retain = toRetain.hasNext() ? toRetain.next() : null;
-                }
-            }
-            while (current != null)
-            {
-                iter.remove();
-                current = iter.hasNext() ? iter.next() : null;
             }
         }
     }
