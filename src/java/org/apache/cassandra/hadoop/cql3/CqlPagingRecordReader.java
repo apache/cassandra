@@ -736,7 +736,7 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
         }
     }
 
-    private class BoundColumn
+    private static class BoundColumn
     {
         final String name;
         ByteBuffer value;
