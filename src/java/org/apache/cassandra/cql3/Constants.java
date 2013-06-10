@@ -24,12 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.CounterColumnType;
-import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.db.marshal.MarshalException;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -129,6 +124,8 @@ public abstract class Constants
 
         private ByteBuffer parsedValue(AbstractType<?> validator) throws InvalidRequestException
         {
+            if (validator instanceof ReversedType<?>)
+                validator = ((ReversedType<?>) validator).baseType;
             try
             {
                 // BytesType doesn't want it's input prefixed by '0x'.

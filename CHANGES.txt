@@ -79,6 +79,8 @@
  * cqlsh: fix COPY FROM with ReversedType (CASSANDRA-5610)
  * Allow creating CUSTOM indexes on collections (CASSANDRA-5615)
  * Evaluate now() function at execution time (CASSANDRA-5616)
+ * Expose detailed read repair metrics (CASSANDRA-5618)
+ * Correct blob literal + ReversedType parsing (CASSANDRA-5629)
 Merged from 1.1:
  * Remove buggy thrift max message length option (CASSANDRA-5529)
  * Fix NPE in Pig's widerow mode (CASSANDRA-5488)
