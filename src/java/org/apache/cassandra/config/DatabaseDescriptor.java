@@ -206,7 +206,7 @@ public class DatabaseDescriptor
 
             /* Authentication and authorization backend, implementing IAuthenticator and IAuthorizer */
             if (conf.authenticator != null)
-                authenticator = FBUtilities.construct(conf.authenticator, "authenticator");
+                authenticator = FBUtilities.newAuthenticator(conf.authenticator);
 
             if (conf.authority != null)
             {
@@ -217,7 +217,7 @@ public class DatabaseDescriptor
             }
 
             if (conf.authorizer != null)
-                authorizer = FBUtilities.construct(conf.authorizer, "authorizer");
+                authorizer = FBUtilities.newAuthorizer(conf.authorizer);
 
             if (conf.internode_authenticator != null)
                 internodeAuthenticator = FBUtilities.construct(conf.internode_authenticator, "internode_authenticator");
