@@ -28,7 +28,6 @@ import com.google.common.base.Function;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
@@ -77,16 +76,11 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         return false;
     }
 
-    public void addColumn(Column column, Allocator allocator)
-    {
-        addColumn(column, allocator, SecondaryIndexManager.nullUpdater);
-    }
-
     /*
      * If we find an old column that has the same name
      * the ask it to resolve itself else add the new column
     */
-    public long addColumn(Column column, Allocator allocator, SecondaryIndexManager.Updater indexer)
+    public void addColumn(Column column, Allocator allocator)
     {
         ByteBuffer name = column.name();
         // this is a slightly unusual way to structure this; a more natural way is shown in ThreadSafeSortedColumns,
@@ -95,18 +89,10 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         // in exchange for a re-put in the SuperColumn case.
         Column oldColumn = map.put(name, column);
         if (oldColumn == null)
-            return column.dataSize();
+            return;
 
         // calculate reconciled col from old (existing) col and new col
-        Column reconciledColumn = column.reconcile(oldColumn, allocator);
-        map.put(name, reconciledColumn);
-        // for memtable updates we only care about oldcolumn, reconciledcolumn, but when compacting
-        // we need to make sure we update indexes no matter the order we merge
-        if (reconciledColumn == column)
-            indexer.update(oldColumn, reconciledColumn);
-        else
-            indexer.update(column, reconciledColumn);
-        return reconciledColumn.dataSize() - oldColumn.dataSize();
+        map.put(name, column.reconcile(oldColumn, allocator));
     }
 
     /**
