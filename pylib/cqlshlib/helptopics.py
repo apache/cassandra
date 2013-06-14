@@ -270,7 +270,6 @@ class CQLHelpTopics(object):
         print """
         ALTER TABLE <tablename> ALTER <columnname> TYPE <type>;
         ALTER TABLE <tablename> ADD <columnname> <type>;
-        ALTER TABLE <tablename> DROP <columnname>;
         ALTER TABLE <tablename> WITH <optionname> = <val> [AND <optionname> = <val> [...]];
 
         An ALTER statement is used to manipulate table metadata. It allows you
