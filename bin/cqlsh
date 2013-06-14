@@ -891,7 +891,7 @@ class Shell(cmd.Cmd):
                 self.printerr(traceback.format_exc())
                 return False
 
-        if self.cursor.description is not _VOID_DESCRIPTION:
+        if statement[:6].lower() == 'select':
             self.print_result(self.cursor, with_default_limit)
         self.flush_output()
         return True
@@ -911,7 +911,9 @@ class Shell(cmd.Cmd):
         self.decoding_errors = []
 
         self.writeresult("")
-        self.print_static_result(cursor)
+        if cursor.rowcount != 0:
+            self.print_static_result(cursor)
+        self.writeresult("(%d rows)" % cursor.rowcount)
         self.writeresult("")
 
         if self.decoding_errors:
@@ -961,6 +963,8 @@ class Shell(cmd.Cmd):
         for row in formatted_values:
             line = ' | '.join(col.rjust(w, color=self.color) for (col, w) in zip(row, widths))
             self.writeresult(' ' + line)
+
+        self.writeresult("")
 
     def print_formatted_result_vertically(self, formatted_names, formatted_values):
         max_col_width = max([n.displaywidth for n in formatted_names])

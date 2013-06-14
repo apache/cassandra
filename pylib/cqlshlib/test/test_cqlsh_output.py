@@ -71,8 +71,7 @@ class TestCqlshOutput(BaseTestCase):
         for ver in cqlver:
             self.assertQueriesGiveColoredOutput(queries_and_expected_outputs, cqlver=ver, **kwargs)
 
-    def assertQueriesGiveColoredOutput(self, queries_and_expected_outputs,
-                                       sort_results=False, **kwargs):
+    def assertQueriesGiveColoredOutput(self, queries_and_expected_outputs, **kwargs):
         """
         Allow queries and expected output to be specified in structured tuples,
         along with expected color information.
@@ -84,17 +83,6 @@ class TestCqlshOutput(BaseTestCase):
                 c_output = ColoredText(output)
                 pairs = at_a_time(dedent(expected).split('\n'), 2)
                 outlines = c_output.splitlines()
-                if sort_results:
-                    if outlines[1].plain().startswith('---'):
-                        firstpart = outlines[:2]
-                        sortme = outlines[2:]
-                    else:
-                        firstpart = []
-                        sortme = outlines
-                    lastpart = []
-                    while sortme[-1].plain() == '':
-                        lastpart.append(sortme.pop(-1))
-                    outlines = firstpart + sorted(sortme, key=lambda c:c.plain()) + lastpart
                 for (plain, colorcodes), outputline in zip(pairs, outlines):
                     self.assertEqual(outputline.plain().rstrip(), plain)
                     self.assertColorFromTags(outputline, colorcodes)
@@ -114,8 +102,8 @@ class TestCqlshOutput(BaseTestCase):
 
     def test_no_prompt_or_colors_output(self):
         # CQL queries and number of lines expected in output:
-        queries = (('select * from has_all_types limit 1;', 5),
-                   ('select * from has_value_encoding_errors limit 1;', 6))
+        queries = (('select * from has_all_types limit 1;', 7),
+                   ('select * from has_value_encoding_errors limit 1;', 8))
         for termname in ('', 'dumb', 'vt100', 'xterm'):
             cqlshlog.debug('TERM=%r' % termname)
             for cql, lines_expected in queries:
@@ -156,6 +144,9 @@ class TestCqlshOutput(BaseTestCase):
                  4
                  G
 
+
+            (1 rows)
+            nnnnnnnn
             """),
 
             ('select COUNT(*) FROM empty_table;', """
@@ -166,6 +157,9 @@ class TestCqlshOutput(BaseTestCase):
                  0
                  G
 
+
+            (1 rows)
+            nnnnnnnn
             """),
 
             ('select COUNT(*) FROM empty_composite_table;', """
@@ -176,6 +170,9 @@ class TestCqlshOutput(BaseTestCase):
                  0
                  G
 
+
+            (1 rows)
+            nnnnnnnn
             """),
 
             ('select COUNT(*) FROM twenty_rows_table limit 10;', """
@@ -186,6 +183,9 @@ class TestCqlshOutput(BaseTestCase):
                 10
                 GG
 
+
+            (1 rows)
+            nnnnnnnn
             """),
 
             ('select COUNT(*) FROM twenty_rows_table limit 1000000;', """
@@ -196,6 +196,9 @@ class TestCqlshOutput(BaseTestCase):
                 20
                 GG
 
+
+            (1 rows)
+            nnnnnnnn
             """),
         ), cqlver=3)
 
@@ -209,6 +212,9 @@ class TestCqlshOutput(BaseTestCase):
                 20
                 GG
 
+
+            (1 rows)
+            nnnnnnnn
             """),
         ), cqlver=3)
 
@@ -226,6 +232,9 @@ class TestCqlshOutput(BaseTestCase):
               2 |  2
              YY   YY
 
+
+            (3 rows)
+            nnnnnnnn
             """),
         ), cqlver=3)
 
@@ -239,19 +248,23 @@ class TestCqlshOutput(BaseTestCase):
                   GG   GGGGGGG   YYYYYYYYYYYYYYYYYYYYYYY
                    2 |     2.3 |         two point three
                   GG   GGGGGGG   YYYYYYYYYYYYYYYYYYYYYYY
-                   3 |      99 |    ninety-nine point oh
+                   3 | -0.0001 | negative ten thousandth
                   GG   GGGGGGG   YYYYYYYYYYYYYYYYYYYYYYY
                    3 |    3.46 |    three point four six
                   GG   GGGGGGG   YYYYYYYYYYYYYYYYYYYYYYY
-                   3 | -0.0001 | negative ten thousandth
+                   3 |      99 |    ninety-nine point oh
                   GG   GGGGGGG   YYYYYYYYYYYYYYYYYYYYYYY
 
+
+            (5 rows)
+            nnnnnnnn
             """),
-        ), cqlver=3, sort_results=True)
+        ), cqlver=3)
 
     def test_empty_cf_output(self):
         self.assertCqlverQueriesGiveColoredOutput((
             ('select * from empty_table;', """
+            (0 rows)
             """),
         ), cqlver=3)
 
@@ -260,6 +273,7 @@ class TestCqlshOutput(BaseTestCase):
         # same query should show up as empty in cql 3
         self.assertQueriesGiveColoredOutput((
             (q, """
+            (0 rows)
             """),
         ), cqlver=3)
 
@@ -277,6 +291,9 @@ class TestCqlshOutput(BaseTestCase):
              2
              Y
 
+
+            (2 rows)
+            nnnnnnnn
             """),
         ), cqlver=3)
 
@@ -298,6 +315,9 @@ class TestCqlshOutput(BaseTestCase):
              -2147483648 | -9223372036854775808 | -10000000000000000000000000
              GGGGGGGGGGG   GGGGGGGGGGGGGGGGGGGG   GGGGGGGGGGGGGGGGGGGGGGGGGGG
 
+
+            (4 rows)
+            nnnnnnnn
             """),
 
             ('''select decimalcol, doublecol, floatcol \
@@ -316,6 +336,9 @@ class TestCqlshOutput(BaseTestCase):
              10.0000000000000 |   -1004.1 |    1e+08
              GGGGGGGGGGGGGGGG     GGGGGGG      GGGGG
 
+
+            (4 rows)
+            nnnnnnnn
             """),
         ), cqlver=3)
 
@@ -329,6 +352,9 @@ class TestCqlshOutput(BaseTestCase):
              2012-05-14 12:53:20+0000
              GGGGGGGGGGGGGGGGGGGGGGGG
 
+
+            (1 rows)
+            nnnnnnnn
             """),
         ), env={'TZ': 'Etc/UTC'})
 
@@ -341,6 +367,9 @@ class TestCqlshOutput(BaseTestCase):
              2012-05-14 07:53:20-0500
              GGGGGGGGGGGGGGGGGGGGGGGG
 
+
+            (1 rows)
+            nnnnnnnn
             """),
         ), env={'TZ': 'EST'})
 
@@ -360,6 +389,9 @@ class TestCqlshOutput(BaseTestCase):
                3 |      False
                G        GGGGG
 
+
+            (4 rows)
+            nnnnnnnn
             """),
         ), cqlver=3)
 
@@ -376,6 +408,9 @@ class TestCqlshOutput(BaseTestCase):
              k2 | c2 |     null
              YY   YY       RRRR
 
+
+            (2 rows)
+            nnnnnnnn
             """),
         ), cqlver=3)
 
@@ -391,6 +426,9 @@ class TestCqlshOutput(BaseTestCase):
              k2 | c2 |     null
              YY   YY       RRRR
 
+
+            (2 rows)
+            nnnnnnnn
             """),
         ), cqlver=3)
 
@@ -412,6 +450,9 @@ class TestCqlshOutput(BaseTestCase):
              4 |                      fake special chars\x00\n
              G                        YYYYYYYYYYYYYYYYYYYYYYYY
 
+
+            (5 rows)
+            nnnnnnnn
             """),
         ), cqlver=3)
 
@@ -443,6 +484,9 @@ class TestCqlshOutput(BaseTestCase):
              6 |      fake special chars\\x00\\n
              G        YYYYYYYYYYYYYYYYYYYYYYYY
 
+
+            (7 rows)
+            nnnnnnnn
             """.encode('utf-8')),
         ), cqlver=3, env={'LANG': 'en_US.UTF-8'})
 
@@ -462,6 +506,9 @@ class TestCqlshOutput(BaseTestCase):
                3 |                 0x80
                G   mmmmmmmmmmmmmmmmmmmm
 
+
+            (4 rows)
+            nnnnnnnn
             """),
         ), cqlver=3)
 
@@ -485,6 +532,10 @@ class TestCqlshOutput(BaseTestCase):
                 Y   RRRRRRRRRRRRRRRRRR
 
 
+            (1 rows)
+            nnnnnnnn
+
+
             Failed to decode value '\x00\xff\x00\xff' (for column 'utf8col') as text: 'utf8' codec can't decode byte 0xff in position 1: invalid start byte
             RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
             """),
@@ -499,6 +550,10 @@ class TestCqlshOutput(BaseTestCase):
 
              '\x00\xff\x02\x8f' | whatever
              RRRRRRRRRRRRRRRRRR   YYYYYYYY
+
+
+            (1 rows)
+            nnnnnnnn
 
 
             Failed to decode value '\x00\xff\x02\x8f' (for column 'pkey') as text: 'utf8' codec can't decode byte 0xff in position 1: invalid start byte
