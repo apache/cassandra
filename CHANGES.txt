@@ -23,6 +23,8 @@
  * Expose detailed read repair metrics (CASSANDRA-5618)
  * Correct blob literal + ReversedType parsing (CASSANDRA-5629)
  * Allow GPFS to prefer the internal IP like EC2MRS (CASSANDRA-5630)
+ * fix help text for -tspw cassandra-cli (CASSANDRA-5643)
+ * don't throw away initial causes exceptions for internode encryption issues (CASSANDRA-5644)
 Merged from 1.1:
  * Remove buggy thrift max message length option (CASSANDRA-5529)
  * Fix NPE in Pig's widerow mode (CASSANDRA-5488)
@@ -193,7 +195,7 @@ Merged from 1.1:
  * GossipingPropertyFileSnitch loads saved dc/rack info if needed (CASSANDRA-5133)
  * drain should flush system CFs too (CASSANDRA-4446)
  * add inter_dc_tcp_nodelay setting (CASSANDRA-5148)
- * re-allow wrapping ranges for start_token/end_token range pairing (CASSANDRA-5106)
+ * re-allow wrapping ranges for start_token/end_token range pairitspwng (CASSANDRA-5106)
  * fix validation compaction of empty rows (CASSADRA-5136)
  * nodetool methods to enable/disable hint storage/delivery (CASSANDRA-4750)
  * disallow bloom filter false positive chance of 0 (CASSANDRA-5013)

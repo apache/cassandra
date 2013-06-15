@@ -406,7 +406,7 @@ public final class MessagingService implements MessagingServiceMBean
             }
             catch (IOException e)
             {
-                throw new ConfigurationException("Unable to create ssl socket");
+                throw new ConfigurationException("Unable to create ssl socket", e);
             }
             // setReuseAddress happens in the factory.
             logger.info("Starting Encrypted Messaging Service on SSL port {}", DatabaseDescriptor.getSSLStoragePort());
@@ -428,7 +428,7 @@ public final class MessagingService implements MessagingServiceMBean
         }
         catch (SocketException e)
         {
-            throw new ConfigurationException("Insufficient permissions to setReuseAddress");
+            throw new ConfigurationException("Insufficient permissions to setReuseAddress", e);
         }
         InetSocketAddress address = new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort());
         try
