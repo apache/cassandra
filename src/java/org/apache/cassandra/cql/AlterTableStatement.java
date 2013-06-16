@@ -186,7 +186,6 @@ public class AlterTableStatement
         cfm.populateIoCacheOnFlush(cfProps.getPropertyBoolean(CFPropDefs.KW_POPULATE_IO_CACHE_ON_FLUSH, cfm.populateIoCacheOnFlush()));
         cfm.bloomFilterFpChance(cfProps.getPropertyDouble(CFPropDefs.KW_BF_FP_CHANCE, cfm.getBloomFilterFpChance()));
         cfm.memtableFlushPeriod(cfProps.getPropertyInt(CFPropDefs.KW_MEMTABLE_FLUSH_PERIOD, cfm.getMemtableFlushPeriod()));
-        cfm.triggerClass(cfProps.getPropertySet(CFPropDefs.KW_TRIGGER_CLASS, cfm.getTriggerClass()));
 
         if (!cfProps.compactionStrategyOptions.isEmpty())
         {

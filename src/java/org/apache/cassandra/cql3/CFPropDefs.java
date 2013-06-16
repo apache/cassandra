@@ -152,8 +152,6 @@ public class CFPropDefs extends PropertyDefinitions
         cfm.speculativeRetry(CFMetaData.SpeculativeRetry.fromString(getString(KW_SPECULATIVE_RETRY, cfm.getSpeculativeRetry().toString())));
         cfm.memtableFlushPeriod(getInt(KW_MEMTABLE_FLUSH_PERIOD, cfm.getMemtableFlushPeriod()));
         cfm.populateIoCacheOnFlush(getBoolean(KW_POPULATE_IO_CACHE_ON_FLUSH, cfm.populateIoCacheOnFlush()));
-        if (hasProperty(KW_TRIGGER_CLASS))
-            cfm.triggerClass(getSet(KW_TRIGGER_CLASS, cfm.getTriggerClass()));
 
         if (compactionStrategyClass != null)
         {

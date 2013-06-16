@@ -84,6 +84,7 @@ public final class KSMetaData
                                                 CFMetaData.PeerEventsCf,
                                                 CFMetaData.HintsCf,
                                                 CFMetaData.IndexCf,
+                                                CFMetaData.SchemaTriggerCf,
                                                 CFMetaData.CounterIdCf,
                                                 CFMetaData.SchemaKeyspacesCf,
                                                 CFMetaData.SchemaColumnFamiliesCf,
@@ -228,6 +229,7 @@ public final class KSMetaData
         rm.delete(SystemTable.SCHEMA_KEYSPACES_CF, timestamp);
         rm.delete(SystemTable.SCHEMA_COLUMNFAMILIES_CF, timestamp);
         rm.delete(SystemTable.SCHEMA_COLUMNS_CF, timestamp);
+        rm.delete(SystemTable.SCHEMA_TRIGGERS_CF, timestamp);
 
         return rm;
     }

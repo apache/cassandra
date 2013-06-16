@@ -455,7 +455,7 @@ struct CfDef {
     40: optional i32 default_time_to_live,
     41: optional i32 index_interval,
     42: optional string speculative_retry="NONE",
-    43: optional set<string> trigger_class,
+    43: optional map<string, map<string, string>> triggers,
 
     /* All of the following are now ignored and unsupplied. */
 

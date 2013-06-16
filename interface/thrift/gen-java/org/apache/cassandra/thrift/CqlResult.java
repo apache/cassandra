@@ -644,14 +644,14 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
           case 2: // ROWS
             if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list174 = iprot.readListBegin();
-                struct.rows = new ArrayList<CqlRow>(_list174.size);
-                for (int _i175 = 0; _i175 < _list174.size; ++_i175)
+                org.apache.thrift.protocol.TList _list186 = iprot.readListBegin();
+                struct.rows = new ArrayList<CqlRow>(_list186.size);
+                for (int _i187 = 0; _i187 < _list186.size; ++_i187)
                 {
-                  CqlRow _elem176; // optional
-                  _elem176 = new CqlRow();
-                  _elem176.read(iprot);
-                  struct.rows.add(_elem176);
+                  CqlRow _elem188; // optional
+                  _elem188 = new CqlRow();
+                  _elem188.read(iprot);
+                  struct.rows.add(_elem188);
                 }
                 iprot.readListEnd();
               }
@@ -702,9 +702,9 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
           oprot.writeFieldBegin(ROWS_FIELD_DESC);
           {
             oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, struct.rows.size()));
-            for (CqlRow _iter177 : struct.rows)
+            for (CqlRow _iter189 : struct.rows)
             {
-              _iter177.write(oprot);
+              _iter189.write(oprot);
             }
             oprot.writeListEnd();
           }
@@ -755,9 +755,9 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
       if (struct.isSetRows()) {
         {
           oprot.writeI32(struct.rows.size());
-          for (CqlRow _iter178 : struct.rows)
+          for (CqlRow _iter190 : struct.rows)
           {
-            _iter178.write(oprot);
+            _iter190.write(oprot);
           }
         }
       }
@@ -777,14 +777,14 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
       BitSet incoming = iprot.readBitSet(3);
       if (incoming.get(0)) {
         {
-          org.apache.thrift.protocol.TList _list179 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
-          struct.rows = new ArrayList<CqlRow>(_list179.size);
-          for (int _i180 = 0; _i180 < _list179.size; ++_i180)
+          org.apache.thrift.protocol.TList _list191 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
+          struct.rows = new ArrayList<CqlRow>(_list191.size);
+          for (int _i192 = 0; _i192 < _list191.size; ++_i192)
           {
-            CqlRow _elem181; // optional
-            _elem181 = new CqlRow();
-            _elem181.read(iprot);
-            struct.rows.add(_elem181);
+            CqlRow _elem193; // optional
+            _elem193 = new CqlRow();
+            _elem193.read(iprot);
+            struct.rows.add(_elem193);
           }
         }
         struct.setRowsIsSet(true);

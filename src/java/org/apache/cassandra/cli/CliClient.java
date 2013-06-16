@@ -27,13 +27,10 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
-import com.google.common.base.CharMatcher;
 import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
-import com.google.common.base.Splitter;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
 
 import org.apache.commons.lang.StringUtils;
 
@@ -145,7 +142,6 @@ public class CliClient
         DEFAULT_TIME_TO_LIVE,
         SPECULATIVE_RETRY,
         POPULATE_IO_CACHE_ON_FLUSH,
-        TRIGGER_CLASSES
     }
 
     private static final String DEFAULT_PLACEMENT_STRATEGY = "org.apache.cassandra.locator.NetworkTopologyStrategy";
@@ -1359,10 +1355,6 @@ public class CliClient
             case POPULATE_IO_CACHE_ON_FLUSH:
                 cfDef.setPopulate_io_cache_on_flush(Boolean.parseBoolean(mValue));
                 break;
-            case TRIGGER_CLASSES:
-                Iterable<String> tcIt = Splitter.on(',').trimResults(CharMatcher.is('\'')).split(mValue);
-                cfDef.setTrigger_class(Sets.newHashSet(tcIt));
-                break;
             default:
                 //must match one of the above or we'd throw an exception at the valueOf statement above.
                 assert(false);
@@ -1827,9 +1819,6 @@ public class CliClient
 
         if (cfDef.isSetBloom_filter_fp_chance())
             writeAttr(output, false, "bloom_filter_fp_chance", cfDef.bloom_filter_fp_chance);
-        if (cfDef.isSetTrigger_class())
-            writeAttr(output, false, "trigger_class", StringUtils.join(cfDef.trigger_class, ','));
-
         if (!cfDef.compaction_strategy_options.isEmpty())
         {
             StringBuilder cOptions = new StringBuilder();
@@ -2198,9 +2187,6 @@ public class CliClient
         sessionState.out.printf("      Bloom Filter FP chance: %s%n", cf_def.isSetBloom_filter_fp_chance() ? cf_def.bloom_filter_fp_chance : "default");
         sessionState.out.printf("      Index interval: %s%n", cf_def.isSetIndex_interval() ? cf_def.index_interval : "default");
         sessionState.out.printf("      Speculative Retry: %s%n", cf_def.speculative_retry);
-
-        if (cf_def.trigger_class != null)
-            sessionState.out.printf("      Trigger class: %s%n", cf_def.trigger_class);
 
         // if we have connection to the cfMBean established
         if (cfMBean != null)

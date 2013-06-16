@@ -193,6 +193,8 @@ cqlStatement returns [ParsedStatement stmt]
     | st20=alterUserStatement          { $stmt = st20; }
     | st21=dropUserStatement           { $stmt = st21; }
     | st22=listUsersStatement          { $stmt = st22; }
+    | st23=createTriggerStatement      { $stmt = st23; }
+    | st24=dropTriggerStatement      { $stmt = st24; }
     ;
 
 /*
@@ -485,6 +487,22 @@ createIndexStatement returns [CreateIndexStatement expr]
     : K_CREATE (K_CUSTOM { isCustom = true; })? K_INDEX (idxName=IDENT)? K_ON cf=columnFamilyName '(' id=cident ')'
         ( K_WITH properties[props] )?
       { $expr = new CreateIndexStatement(cf, $idxName.text, id, isCustom, props); }
+    ;
+
+/**
+ * CREATE TRIGGER [triggerName] ON columnFamily (columnName) EXECUTE (class, class);
+ */
+createTriggerStatement returns [CreateTriggerStatement expr]
+    : K_CREATE K_TRIGGER (tn=IDENT) K_ON cf=columnFamilyName K_USING tc1=STRING_LITERAL
+      { $expr = new CreateTriggerStatement(cf, $tn.text, $tc1.text); }
+    ;
+
+/**
+ * DROP TRIGGER [triggerName] ON columnFamily (columnName);
+ */
+dropTriggerStatement returns [DropTriggerStatement expr]
+    : K_DROP K_TRIGGER (tn=IDENT) K_ON cf=columnFamilyName
+      { $expr = new DropTriggerStatement(cf, $tn.text); }
     ;
 
 /**
@@ -911,6 +929,7 @@ unreserved_function_keyword returns [String str]
         | K_PASSWORD
         | K_EXISTS
         | K_CUSTOM
+        | K_TRIGGER
         ) { $str = $k.text; }
     | t=native_type { $str = t.toString(); }
     ;
@@ -1009,6 +1028,8 @@ K_EXISTS:      E X I S T S;
 
 K_MAP:         M A P;
 K_LIST:        L I S T;
+
+K_TRIGGER:     T R I G G E R;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
