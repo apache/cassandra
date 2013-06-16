@@ -32,8 +32,6 @@ import java.util.concurrent.ExecutionException;
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Maps;
 import org.apache.commons.cli.*;
-import org.yaml.snakeyaml.Loader;
-import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
 

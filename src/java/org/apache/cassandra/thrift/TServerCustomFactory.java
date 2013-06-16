@@ -21,7 +21,6 @@ package org.apache.cassandra.thrift;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.thinkaurelius.thrift.TDisruptorServer;
 import org.apache.thrift.server.TServer;
 
 /**
