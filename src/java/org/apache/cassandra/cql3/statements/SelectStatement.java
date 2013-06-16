@@ -1274,7 +1274,7 @@ public class SelectStatement implements CQLStatement
                     break;
                 case IN:
                     if (restriction != null)
-                        throw new InvalidRequestException(String.format("%s cannot be restricted by more than one reation if it includes a IN", name));
+                        throw new InvalidRequestException(String.format("%s cannot be restricted by more than one relation if it includes a IN", name));
                     List<Term> inValues = new ArrayList<Term>(newRel.getInValues().size());
                     for (Term.Raw raw : newRel.getInValues())
                     {
@@ -1283,6 +1283,7 @@ public class SelectStatement implements CQLStatement
                         inValues.add(t);
                     }
                     restriction = new Restriction(inValues);
+
                     break;
                 case GT:
                 case GTE:
