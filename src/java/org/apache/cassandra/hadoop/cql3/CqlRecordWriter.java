@@ -20,13 +20,12 @@ package org.apache.cassandra.hadoop.cql3;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.cassandra.thrift.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.LongType;
@@ -38,15 +37,13 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.hadoop.AbstractColumnFamilyRecordWriter;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.hadoop.Progressable;
+import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransport;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * The <code>ColumnFamilyRecordWriter</code> maps the output &lt;key, value&gt;
@@ -75,7 +72,8 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
     private final String cql;
 
     private AbstractType<?> keyValidator;
-    private String [] partitionkeys;
+    private String [] partitionKeyColumns;
+    private List<String> clusterColumns;
 
     /**
      * Upon construction, obtain the map that this writer will use to collect
@@ -96,30 +94,30 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         this.progressable = progressable;
     }
 
-    CqlRecordWriter(Configuration conf) throws IOException
+    CqlRecordWriter(Configuration conf)
     {
         super(conf);
         this.clients = new HashMap<Range, RangeClient>();
-        cql = CqlConfigHelper.getOutputCql(conf);
 
         try
         {
-            String host = getAnyHost();
-            int port = ConfigHelper.getOutputRpcPort(conf);
-            Cassandra.Client client = CqlOutputFormat.createAuthenticatedClient(host, port, conf);
+            Cassandra.Client client = ConfigHelper.getClientFromOutputAddressList(conf);
             retrievePartitionKeyValidator(client);
-            
+            String cqlQuery = CqlConfigHelper.getOutputCql(conf).trim();
+            if (cqlQuery.toLowerCase().startsWith("insert"))
+                throw new UnsupportedOperationException("INSERT with CqlRecordWriter is not supported, please use UPDATE/DELETE statement");
+            cql = appendKeyWhereClauses(cqlQuery);
+
             if (client != null)
             {
                 TTransport transport = client.getOutputProtocol().getTransport();
                 if (transport.isOpen())
                     transport.close();
-                client = null;
             }
         }
         catch (Exception e)
         {
-            throw new IOException(e);
+            throw new RuntimeException(e);
         }
     }
     
@@ -161,8 +159,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
     @Override
     public void write(Map<String, ByteBuffer> keyColumns, List<ByteBuffer> values) throws IOException
     {
-        ByteBuffer rowKey = getRowKey(keyColumns);
-        Range<Token> range = ringCache.getRange(rowKey);
+        Range<Token> range = ringCache.getRange(getPartitionKey(keyColumns));
 
         // get the client for the given range, or create a new one
         RangeClient client = clients.get(range);
@@ -174,7 +171,14 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
             clients.put(range, client);
         }
 
-        client.put(Pair.create(rowKey, values));
+        // add primary key columns to the bind variables
+        List<ByteBuffer> allValues = new ArrayList<ByteBuffer>(values);
+        for (String column : partitionKeyColumns)
+            allValues.add(keyColumns.get(column));
+        for (String column : clusterColumns)
+            allValues.add(keyColumns.get(column));
+
+        client.put(allValues);
         progressable.progress();
     }
 
@@ -201,10 +205,10 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
             outer:
             while (run || !queue.isEmpty())
             {
-                Pair<ByteBuffer, List<ByteBuffer>> item;
+                List<ByteBuffer> bindVariables;
                 try
                 {
-                    item = queue.take();
+                    bindVariables = queue.take();
                 }
                 catch (InterruptedException e)
                 {
@@ -220,16 +224,15 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
                     {
                         int i = 0;
                         int itemId = preparedStatement(client);
-                        while (item != null)
+                        while (bindVariables != null)
                         {
-                            List<ByteBuffer> bindVariables = item.right;
                             client.execute_prepared_cql3_query(itemId, bindVariables, ConsistencyLevel.ONE);
                             i++;
                             
                             if (i >= batchThreshold)
                                 break;
                             
-                            item = queue.poll();
+                            bindVariables = queue.poll();
                         }
                         
                         break;
@@ -294,23 +297,22 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         }
     }
 
-    private ByteBuffer getRowKey(Map<String, ByteBuffer> keyColumns)
+    private ByteBuffer getPartitionKey(Map<String, ByteBuffer> keyColumns)
     {
-        //current row key
-        ByteBuffer rowKey;
+        ByteBuffer partitionKey;
         if (keyValidator instanceof CompositeType)
         {
-            ByteBuffer[] keys = new ByteBuffer[partitionkeys.length];
+            ByteBuffer[] keys = new ByteBuffer[partitionKeyColumns.length];
             for (int i = 0; i< keys.length; i++)
-                keys[i] = keyColumns.get(partitionkeys[i]);
+                keys[i] = keyColumns.get(partitionKeyColumns[i]);
 
-            rowKey = ((CompositeType) keyValidator).build(keys);
+            partitionKey = ((CompositeType) keyValidator).build(keys);
         }
         else
         {
-            rowKey = keyColumns.get(partitionkeys[0]);
+            partitionKey = keyColumns.get(partitionKeyColumns[0]);
         }
-        return rowKey;
+        return partitionKey;
     }
 
     /** retrieve the key validator from system.schema_columnfamilies table */
@@ -319,7 +321,8 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         String keyspace = ConfigHelper.getOutputKeyspace(conf);
         String cfName = ConfigHelper.getOutputColumnFamily(conf);
         String query = "SELECT key_validator," +
-        		       "       key_aliases " +
+        		       "       key_aliases," +
+        		       "       column_aliases " +
                        "FROM system.schema_columnfamilies " +
                        "WHERE keyspace_name='%s' and columnfamily_name='%s'";
         String formatted = String.format(query, keyspace, cfName);
@@ -334,16 +337,22 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         logger.debug("partition keys: " + keyString);
 
         List<String> keys = FBUtilities.fromJsonList(keyString);
-        partitionkeys = new String[keys.size()];
+        partitionKeyColumns = new String[keys.size()];
         int i = 0;
         for (String key : keys)
         {
-            partitionkeys[i] = key;
+            partitionKeyColumns[i] = key;
             i++;
         }
+
+        Column rawClusterColumns = result.rows.get(0).columns.get(2);
+        String clusterColumnString = ByteBufferUtil.string(ByteBuffer.wrap(rawClusterColumns.getValue()));
+
+        logger.debug("cluster columns: " + clusterColumnString);
+        clusterColumns = FBUtilities.fromJsonList(clusterColumnString);
     }
 
-    private AbstractType<?> parseType(String type) throws IOException
+    private AbstractType<?> parseType(String type) throws ConfigurationException
     {
         try
         {
@@ -352,32 +361,24 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
                 return LongType.instance;
             return TypeParser.parse(type);
         }
-        catch (ConfigurationException e)
-        {
-            throw new IOException(e);
-        }
         catch (SyntaxException e)
         {
-            throw new IOException(e);
+            throw new ConfigurationException(e.getMessage(), e);
         }
-    }
-    
-    private String getAnyHost() throws IOException, InvalidRequestException, TException
-    {
-        Cassandra.Client client = ConfigHelper.getClientFromOutputAddressList(conf);
-        List<TokenRange> ring = client.describe_ring(ConfigHelper.getOutputKeyspace(conf));
-        try
-        {
-            for (TokenRange range : ring)
-                return range.endpoints.get(0);
-        }
-        finally
-        {
-            TTransport transport = client.getOutputProtocol().getTransport();
-            if (transport.isOpen())
-                transport.close();
-        }
-        throw new IOException("There are no endpoints");
     }
 
+    /**
+     * add where clauses for partition keys and cluster columns
+     */
+    private String appendKeyWhereClauses(String cqlQuery)
+    {
+        String keyWhereClause = "";
+
+        for (String partitionKey : partitionKeyColumns)
+            keyWhereClause += String.format("%s = ?", keyWhereClause.isEmpty() ? partitionKey : (" AND " + partitionKey));
+        for (String clusterColumn : clusterColumns)
+            keyWhereClause += " AND " + clusterColumn + " = ?";
+
+        return cqlQuery + " WHERE " + keyWhereClause;
+    }
 }

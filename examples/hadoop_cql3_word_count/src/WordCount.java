@@ -166,9 +166,7 @@ public class WordCount extends Configured implements Tool
         private List<ByteBuffer> getBindVariables(Text word, int sum)
         {
             List<ByteBuffer> variables = new ArrayList<ByteBuffer>();
-            variables.add(keys.get("row_id1"));
-            variables.add(keys.get("row_id2"));
-            variables.add(ByteBufferUtil.bytes(word.toString()));
+            keys.put("word", ByteBufferUtil.bytes(word.toString()));
             variables.add(ByteBufferUtil.bytes(String.valueOf(sum)));         
             return variables;
         }
@@ -210,9 +208,8 @@ public class WordCount extends Configured implements Tool
 
             ConfigHelper.setOutputColumnFamily(job.getConfiguration(), KEYSPACE, OUTPUT_COLUMN_FAMILY);
             job.getConfiguration().set(PRIMARY_KEY, "word,sum");
-            String query = "INSERT INTO " + KEYSPACE + "." + OUTPUT_COLUMN_FAMILY +
-                           " (row_id1, row_id2, word, count_num) " +
-                           " values (?, ?, ?, ?)";
+            String query = "UPDATE " + KEYSPACE + "." + OUTPUT_COLUMN_FAMILY +
+                           " SET count_num = ? ";
             CqlConfigHelper.setOutputCql(job.getConfiguration(), query);
             ConfigHelper.setOutputInitialAddress(job.getConfiguration(), "localhost");
             ConfigHelper.setOutputPartitioner(job.getConfiguration(), "Murmur3Partitioner");
