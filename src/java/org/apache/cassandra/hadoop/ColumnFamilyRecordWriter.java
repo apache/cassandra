@@ -134,7 +134,7 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
      * A client that runs in a threadpool and connects to the list of endpoints for a particular
      * range. Mutations for keys in that range are sent to this client via a queue.
      */
-    public class RangeClient extends AbstractRangeClient<Mutation>
+    public class RangeClient extends AbstractRangeClient<Pair<ByteBuffer, Mutation>>
     {
         public final String columnFamily = ConfigHelper.getOutputColumnFamily(conf);
         

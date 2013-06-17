@@ -109,7 +109,7 @@ public abstract class AbstractColumnFamilyRecordWriter<K, Y> extends RecordWrite
         // The list of endpoints for this range
         protected final List<InetAddress> endpoints;
         // A bounded queue of incoming mutations for this range
-        protected final BlockingQueue<Pair<ByteBuffer, K>> queue = new ArrayBlockingQueue<Pair<ByteBuffer, K>>(queueSize);
+        protected final BlockingQueue<K> queue = new ArrayBlockingQueue<K>(queueSize);
 
         protected volatile boolean run = true;
         // we want the caller to know if something went wrong, so we record any unrecoverable exception while writing
@@ -132,7 +132,7 @@ public abstract class AbstractColumnFamilyRecordWriter<K, Y> extends RecordWrite
         /**
          * enqueues the given value to Cassandra
          */
-        public void put(Pair<ByteBuffer, K> value) throws IOException
+        public void put(K value) throws IOException
         {
             while (true)
             {
