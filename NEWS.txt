@@ -17,6 +17,9 @@ Upgrading
       proportional to the number of nodes in the cluster (see
       https://issues.apache.org/jira/browse/CASSANDRA-5272).
 
+    - CQL3 syntax for CREATE CUSTOM INDEX has been updated. See CQL3
+      documentation for details.
+
 
 1.2.5
 =====

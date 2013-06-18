@@ -1204,7 +1204,7 @@ def create_cf_composite_primary_key_comma_completer(ctxt, cass):
 syntax_rules += r'''
 <createIndexStatement> ::= "CREATE" "CUSTOM"? "INDEX" indexname=<identifier>? "ON"
                                cf=<columnFamilyName> "(" col=<cident> ")"
-                               ( "WITH" "options = {'class': " <stringLiteral> "}" )?
+                               ( "USING" <stringLiteral> )?
                          ;
 '''
 

@@ -41,7 +41,7 @@ import org.apache.cassandra.utils.SemanticVersion;
 
 public class QueryProcessor
 {
-    public static final SemanticVersion CQL_VERSION = new SemanticVersion("3.0.3");
+    public static final SemanticVersion CQL_VERSION = new SemanticVersion("3.0.4");
 
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
 

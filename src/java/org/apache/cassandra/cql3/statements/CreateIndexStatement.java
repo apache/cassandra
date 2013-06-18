@@ -47,15 +47,15 @@ public class CreateIndexStatement extends SchemaAlteringStatement
     private final String indexName;
     private final ColumnIdentifier columnName;
     private final boolean isCustom;
-    private final IndexPropDefs props;
+    private final String indexClass;
 
-    public CreateIndexStatement(CFName name, String indexName, ColumnIdentifier columnName, boolean isCustom, IndexPropDefs props)
+    public CreateIndexStatement(CFName name, String indexName, ColumnIdentifier columnName, boolean isCustom, String indexClass)
     {
         super(name);
         this.indexName = indexName;
         this.columnName = columnName;
         this.isCustom = isCustom;
-        this.props = props;
+        this.indexClass = indexClass;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -81,14 +81,14 @@ public class CreateIndexStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException(String.format("Cannot create index on column %s of compact CF", columnName));
             case COLUMN_METADATA:
                 ColumnDefinition cd = cfm.getColumnDefinition(columnName.key);
-
                 if (cd.getIndexType() != null)
                     throw new InvalidRequestException("Index already exists");
-
+                if (isCustom && indexClass == null)
+                    throw new InvalidRequestException("CUSTOM index requires specifiying the index class");
+                if (!isCustom && indexClass != null)
+                    throw new InvalidRequestException("Cannot specify index class for a non-CUSTOM index");
                 if (cd.getValidator().isCollection() && !isCustom)
                     throw new InvalidRequestException("Indexes on collections are no yet supported");
-
-                props.validate(isCustom);
                 break;
             default:
                 throw new AssertionError();
@@ -104,14 +104,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
         if (isCustom)
         {
-            try
-            {
-                cd.setIndexType(IndexType.CUSTOM, props.getOptions());
-            }
-            catch (SyntaxException e)
-            {
-                throw new AssertionError(); // can't happen after validation.
-            }
+            cd.setIndexType(IndexType.CUSTOM, Collections.singletonMap(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, indexClass));
         }
         else if (cfDef.isComposite)
         {
