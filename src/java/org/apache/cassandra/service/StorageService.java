@@ -336,7 +336,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             throw new IllegalStateException("No configured daemon");
         }
-        daemon.nativeServer.start();
+        
+        try
+        {
+            daemon.nativeServer.start();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Error starting native transport: " + e.getMessage());
+        }
     }
 
     public void stopNativeTransport()
