@@ -290,7 +290,7 @@ public class CliTest extends SchemaLoader
                 }
                 else
                 {
-                    assertTrue(result.startsWith("=> (column=") || result.startsWith("Value was not found"));
+                    assertTrue(result.startsWith("=> (name=") || result.startsWith("Value was not found"));
                 }
                 assertTrue(result.contains("Elapsed time:"));
             }
