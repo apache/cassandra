@@ -202,13 +202,13 @@ public class SSTableExportTest extends SchemaLoader
         new SSTableImport().importJson(tempJson.getPath(), "Keyspace1", "Standard1", tempSS2.getPath());
 
         reader = SSTableReader.open(Descriptor.fromFilename(tempSS2.getPath()));
-        QueryFilter qf = QueryFilter.getNamesFilter(Util.dk("rowA"), "Standard1", ByteBufferUtil.bytes("name"));
+        QueryFilter qf = QueryFilter.getNamesFilter(Util.dk("rowA"), "Standard1", ByteBufferUtil.bytes("name"), System.currentTimeMillis());
         ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         qf.collateOnDiskAtom(cf, qf.getSSTableColumnIterator(reader), Integer.MIN_VALUE);
         assertTrue(cf != null);
         assertTrue(cf.getColumn(ByteBufferUtil.bytes("name")).value().equals(hexToBytes("76616c")));
 
-        qf = QueryFilter.getNamesFilter(Util.dk("rowExclude"), "Standard1", ByteBufferUtil.bytes("name"));
+        qf = QueryFilter.getNamesFilter(Util.dk("rowExclude"), "Standard1", ByteBufferUtil.bytes("name"), System.currentTimeMillis());
         cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         assert cf == null;
     }

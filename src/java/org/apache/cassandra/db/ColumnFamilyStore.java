@@ -33,10 +33,6 @@ import com.google.common.base.Function;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.Uninterruptibles;
-
-import org.apache.cassandra.db.compaction.*;
-
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +48,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.db.compaction.*;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -73,6 +70,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import static org.apache.cassandra.config.CFMetaData.Caching;
 
@@ -1180,24 +1178,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return metric.writeLatency.recentLatencyHistogram.getBuckets(true);
     }
 
-    public ColumnFamily getColumnFamily(DecoratedKey key, ByteBuffer start, ByteBuffer finish, boolean reversed, int limit)
+    public ColumnFamily getColumnFamily(DecoratedKey key,
+                                        ByteBuffer start,
+                                        ByteBuffer finish,
+                                        boolean reversed,
+                                        int limit,
+                                        long timestamp)
     {
-        return getColumnFamily(QueryFilter.getSliceFilter(key, name, start, finish, reversed, limit));
-    }
-
-    /**
-     * get a list of columns starting from a given column, in a specified order.
-     * only the latest version of a column is returned.
-     * @return null if there is no data and no tombstones; otherwise a ColumnFamily
-     */
-    public ColumnFamily getColumnFamily(QueryFilter filter)
-    {
-        return getColumnFamily(filter, gcBefore());
-    }
-
-    public int gcBefore()
-    {
-        return (int) (System.currentTimeMillis() / 1000) - metadata.getGcGraceSeconds();
+        return getColumnFamily(QueryFilter.getSliceFilter(key, name, start, finish, reversed, limit, timestamp));
     }
 
     /**
@@ -1236,7 +1224,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         try
         {
-            ColumnFamily data = getTopLevelColumns(QueryFilter.getIdentityFilter(filter.key, name), Integer.MIN_VALUE);
+            ColumnFamily data = getTopLevelColumns(QueryFilter.getIdentityFilter(filter.key, name, filter.timestamp),
+                                                   Integer.MIN_VALUE);
             if (sentinelSuccess && data != null)
                 CacheService.instance.rowCache.replace(key, sentinel, data);
 
@@ -1249,7 +1238,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    ColumnFamily getColumnFamily(QueryFilter filter, int gcBefore)
+    public int gcBefore(long now)
+    {
+        return (int) (now / 1000) - metadata.getGcGraceSeconds();
+    }
+
+    /**
+     * get a list of columns starting from a given column, in a specified order.
+     * only the latest version of a column is returned.
+     * @return null if there is no data and no tombstones; otherwise a ColumnFamily
+     */
+    public ColumnFamily getColumnFamily(QueryFilter filter)
     {
         assert name.equals(filter.getColumnFamilyName()) : filter.getColumnFamilyName();
 
@@ -1258,6 +1257,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long start = System.nanoTime();
         try
         {
+            int gcBefore = gcBefore(filter.timestamp);
             if (isRowCacheEnabled())
             {
                 UUID cfId = Schema.instance.getId(table.getName(), name);
@@ -1274,7 +1274,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     return null;
                 }
 
-                result = filterColumnFamily(cached, filter, gcBefore);
+                result = filterColumnFamily(cached, filter);
             }
             else
             {
@@ -1301,12 +1301,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      *  tombstones that are no longer relevant.
      *  The returned column family won't be thread safe.
      */
-    ColumnFamily filterColumnFamily(ColumnFamily cached, QueryFilter filter, int gcBefore)
+    ColumnFamily filterColumnFamily(ColumnFamily cached, QueryFilter filter)
     {
         ColumnFamily cf = cached.cloneMeShallow(ArrayBackedSortedColumns.factory, filter.filter.isReversed());
         OnDiskAtomIterator ci = filter.getMemtableColumnIterator(cached, null);
-        filter.collateOnDiskAtom(cf, ci, gcBefore);
-        return removeDeletedCF(cf, gcBefore);
+        filter.collateOnDiskAtom(cf, ci, gcBefore(filter.timestamp));
+        return removeDeletedCF(cf, gcBefore(filter.timestamp));
     }
 
     /**
@@ -1440,7 +1440,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             return files;
         }
-        finally {
+        finally
+        {
             SSTableReader.releaseReferences(view.sstables);
         }
     }
@@ -1468,14 +1469,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
       * @param range Either a Bounds, which includes start key, or a Range, which does not.
       * @param columnFilter description of the columns we're interested in for each row
      */
-    public AbstractScanIterator getSequentialIterator(final AbstractBounds<RowPosition> range, IDiskAtomFilter columnFilter)
+    private AbstractScanIterator getSequentialIterator(final AbstractBounds<RowPosition> range,
+                                                       IDiskAtomFilter columnFilter,
+                                                       long timestamp)
     {
         assert !(range instanceof Range) || !((Range)range).isWrapAround() || range.right.isMinimum() : range;
 
         final RowPosition startWith = range.left;
         final RowPosition stopAt = range.right;
 
-        QueryFilter filter = new QueryFilter(null, name, columnFilter);
+        QueryFilter filter = new QueryFilter(null, name, columnFilter, timestamp);
 
         final ViewFragment view = markReferenced(range);
         Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), range.getString(metadata.getKeyValidator()));
@@ -1524,25 +1527,43 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public List<Row> getRangeSlice(final AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter columnFilter, List<IndexExpression> rowFilter)
+    public List<Row> getRangeSlice(final AbstractBounds<RowPosition> range,
+                                   List<IndexExpression> rowFilter,
+                                   IDiskAtomFilter columnFilter,
+                                   int maxResults)
     {
-        return getRangeSlice(range, maxResults, columnFilter, rowFilter, false, false);
+        return getRangeSlice(range, rowFilter, columnFilter, maxResults, System.currentTimeMillis(), false, false);
     }
 
-    public List<Row> getRangeSlice(final AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter columnFilter, List<IndexExpression> rowFilter, boolean countCQL3Rows, boolean isPaging)
+    public List<Row> getRangeSlice(final AbstractBounds<RowPosition> range,
+                                   List<IndexExpression> rowFilter,
+                                   IDiskAtomFilter columnFilter,
+                                   int maxResults,
+                                   long now,
+                                   boolean countCQL3Rows,
+                                   boolean isPaging)
     {
-        return filter(getSequentialIterator(range, columnFilter), ExtendedFilter.create(this, columnFilter, rowFilter, maxResults, countCQL3Rows, isPaging));
+        return filter(getSequentialIterator(range, columnFilter, now),
+                      ExtendedFilter.create(this, rowFilter, columnFilter, maxResults, now, countCQL3Rows, isPaging));
     }
 
-    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter)
+    public List<Row> search(AbstractBounds<RowPosition> range,
+                            List<IndexExpression> clause,
+                            IDiskAtomFilter columnFilter,
+                            int maxResults)
     {
-        return search(clause, range, maxResults, dataFilter, false);
+        return search(range, clause, columnFilter, maxResults, System.currentTimeMillis(), false);
     }
 
-    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean countCQL3Rows)
+    public List<Row> search(AbstractBounds<RowPosition> range,
+                            List<IndexExpression> clause,
+                            IDiskAtomFilter columnFilter,
+                            int maxResults,
+                            long now,
+                            boolean countCQL3Rows)
     {
         Tracing.trace("Executing indexed scan for {}", range.getString(metadata.getKeyValidator()));
-        return indexManager.search(clause, range, maxResults, dataFilter, countCQL3Rows);
+        return indexManager.search(range, clause, columnFilter, maxResults, now, countCQL3Rows);
     }
 
     public List<Row> filter(AbstractScanIterator rowIterator, ExtendedFilter filter)
@@ -1566,7 +1587,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     IDiskAtomFilter extraFilter = filter.getExtraFilter(data);
                     if (extraFilter != null)
                     {
-                        ColumnFamily cf = filter.cfs.getColumnFamily(new QueryFilter(rawRow.key, name, extraFilter));
+                        ColumnFamily cf = filter.cfs.getColumnFamily(new QueryFilter(rawRow.key, name, extraFilter, filter.timestamp));
                         if (cf != null)
                             data.addAll(cf, HeapAllocator.instance);
                     }
@@ -1749,14 +1770,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             stores.add(table.getColumnFamilyStores());
         }
         return Iterables.concat(stores);
-    }
-
-    public static List<ColumnFamilyStore> allUserDefined()
-    {
-        List<ColumnFamilyStore> cfses = new ArrayList<ColumnFamilyStore>();
-        for (Table table : Sets.difference(ImmutableSet.copyOf(Table.all()), Schema.systemKeyspaceNames))
-            cfses.addAll(table.getColumnFamilyStores());
-        return cfses;
     }
 
     public Iterable<DecoratedKey> keySamples(Range<Token> range)

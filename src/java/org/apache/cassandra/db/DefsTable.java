@@ -152,7 +152,9 @@ public class DefsTable
     private static Row serializedColumnFamilies(DecoratedKey ksNameKey)
     {
         ColumnFamilyStore cfsStore = SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
-        return new Row(ksNameKey, cfsStore.getColumnFamily(QueryFilter.getIdentityFilter(ksNameKey, SystemTable.SCHEMA_COLUMNFAMILIES_CF)));
+        return new Row(ksNameKey, cfsStore.getColumnFamily(QueryFilter.getIdentityFilter(ksNameKey,
+                                                                                         SystemTable.SCHEMA_COLUMNFAMILIES_CF,
+                                                                                         System.currentTimeMillis())));
     }
 
     /**

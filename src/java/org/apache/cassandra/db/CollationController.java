@@ -21,8 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Iterables;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
@@ -37,8 +35,6 @@ import org.apache.cassandra.utils.HeapAllocator;
 
 public class CollationController
 {
-    private static final Logger logger = LoggerFactory.getLogger(CollationController.class);
-
     private final ColumnFamilyStore cfs;
     private final QueryFilter filter;
     private final int gcBefore;
@@ -104,7 +100,7 @@ public class CollationController
             // (reduceNameFilter removes columns that are known to be irrelevant)
             NamesQueryFilter namesFilter = (NamesQueryFilter) filter.filter;
             TreeSet<ByteBuffer> filterColumns = new TreeSet<ByteBuffer>(namesFilter.columns);
-            QueryFilter reducedFilter = new QueryFilter(filter.key, filter.cfName, namesFilter.withUpdatedColumns(filterColumns));
+            QueryFilter reducedFilter = new QueryFilter(filter.key, filter.cfName, namesFilter.withUpdatedColumns(filterColumns), filter.timestamp);
 
             /* add the SSTables on disk */
             Collections.sort(view.sstables, SSTable.maxTimestampComparator);

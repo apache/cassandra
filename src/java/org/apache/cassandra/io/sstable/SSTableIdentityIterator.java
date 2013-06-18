@@ -181,7 +181,10 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     {
         ColumnFamily cf = columnFamily.cloneMeShallow(containerFactory, false);
         // since we already read column count, just pass that value and continue deserialization
-        columnFamily.serializer.deserializeColumnsFromSSTable(in, cf, columnCount, flag, expireBefore, dataVersion);
+        Iterator<OnDiskAtom> iter = cf.metadata().getOnDiskIterator(in, columnCount, flag, expireBefore, dataVersion);
+        while (iter.hasNext())
+            cf.addAtom(iter.next());
+
         if (validateColumns)
         {
             try

@@ -91,11 +91,11 @@ public class CompositesIndexOnRegular extends CompositesIndex
             && comp.compare(components[columnDef.componentIndex], columnDef.name) == 0;
     }
 
-    public boolean isStale(IndexedEntry entry, ColumnFamily data)
+    public boolean isStale(IndexedEntry entry, ColumnFamily data, long now)
     {
         ByteBuffer bb = entry.indexedEntryNameBuilder.copy().add(columnDef.name).build();
         Column liveColumn = data.getColumn(bb);
-        if (liveColumn == null || liveColumn.isMarkedForDelete())
+        if (liveColumn == null || liveColumn.isMarkedForDelete(now))
             return true;
 
         ByteBuffer liveValue = liveColumn.value();

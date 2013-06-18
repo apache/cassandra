@@ -48,13 +48,15 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
     };
 
     private final String table;
+    private final long timestamp;
     private List<InetAddress> sources;
     protected final Collection<MessageIn<RangeSliceReply>> responses = new ConcurrentLinkedQueue<MessageIn<RangeSliceReply>>();
     public final List<AsyncOneResponse> repairResults = new ArrayList<AsyncOneResponse>();
 
-    public RangeSliceResponseResolver(String table)
+    public RangeSliceResponseResolver(String table, long timestamp)
     {
         this.table = table;
+        this.timestamp = timestamp;
     }
 
     public void setSources(List<InetAddress> endpoints)
@@ -142,7 +144,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
         protected Row getReduced()
         {
             ColumnFamily resolved = versions.size() > 1
-                                  ? RowDataResolver.resolveSuperset(versions)
+                                  ? RowDataResolver.resolveSuperset(versions, timestamp)
                                   : versions.get(0);
             if (versions.size() < sources.size())
             {

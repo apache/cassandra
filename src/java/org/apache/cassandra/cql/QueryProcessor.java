@@ -71,7 +71,7 @@ public class QueryProcessor
 
     public static final String DEFAULT_KEY_NAME = bufferToString(CFMetaData.DEFAULT_KEY_NAME);
 
-    private static List<org.apache.cassandra.db.Row> getSlice(CFMetaData metadata, SelectStatement select, List<ByteBuffer> variables)
+    private static List<org.apache.cassandra.db.Row> getSlice(CFMetaData metadata, SelectStatement select, List<ByteBuffer> variables, long now)
     throws InvalidRequestException, ReadTimeoutException, UnavailableException, IsBootstrappingException, WriteTimeoutException
     {
         List<ReadCommand> commands = new ArrayList<ReadCommand>();
@@ -87,7 +87,7 @@ public class QueryProcessor
                 ByteBuffer key = rawKey.getByteBuffer(metadata.getKeyValidator(),variables);
 
                 validateKey(key);
-                commands.add(new SliceByNamesReadCommand(metadata.ksName, key, select.getColumnFamily(), new NamesQueryFilter(columnNames)));
+                commands.add(new SliceByNamesReadCommand(metadata.ksName, key, select.getColumnFamily(), now, new NamesQueryFilter(columnNames)));
             }
         }
         // ...a range (slice) of column names
@@ -106,6 +106,7 @@ public class QueryProcessor
                 commands.add(new SliceFromReadCommand(metadata.ksName,
                                                       key,
                                                       select.getColumnFamily(),
+                                                      now,
                                                       new SliceQueryFilter(start, finish, select.isColumnsReversed(), select.getColumnsLimit())));
             }
         }
@@ -128,7 +129,7 @@ public class QueryProcessor
         return columnNames;
     }
 
-    private static List<org.apache.cassandra.db.Row> multiRangeSlice(CFMetaData metadata, SelectStatement select, List<ByteBuffer> variables)
+    private static List<org.apache.cassandra.db.Row> multiRangeSlice(CFMetaData metadata, SelectStatement select, List<ByteBuffer> variables, long now)
     throws ReadTimeoutException, UnavailableException, InvalidRequestException
     {
         IPartitioner<?> p = StorageService.getPartitioner();
@@ -175,6 +176,7 @@ public class QueryProcessor
 
         List<org.apache.cassandra.db.Row> rows = StorageProxy.getRangeSlice(new RangeSliceCommand(metadata.ksName,
                                                                                                   select.getColumnFamily(),
+                                                                                                  now,
                                                                                                   columnFilter,
                                                                                                   bounds,
                                                                                                   expressions,
@@ -379,14 +381,15 @@ public class QueryProcessor
 
                 List<org.apache.cassandra.db.Row> rows;
 
+                long now = System.currentTimeMillis();
                 // By-key
                 if (!select.isKeyRange() && (select.getKeys().size() > 0))
                 {
-                    rows = getSlice(metadata, select, variables);
+                    rows = getSlice(metadata, select, variables, now);
                 }
                 else
                 {
-                    rows = multiRangeSlice(metadata, select, variables);
+                    rows = multiRangeSlice(metadata, select, variables, now);
                 }
 
                 // count resultset is a single column named "count"
@@ -429,7 +432,7 @@ public class QueryProcessor
                         {
                             for (org.apache.cassandra.db.Column c : row.cf.getSortedColumns())
                             {
-                                if (c.isMarkedForDelete())
+                                if (c.isMarkedForDelete(now))
                                     continue;
 
                                 ColumnDefinition cd = metadata.getColumnDefinitionFromColumnName(c.name());
@@ -474,7 +477,7 @@ public class QueryProcessor
                             if (cd != null)
                                 result.schema.value_types.put(name, TypeParser.getShortName(cd.getValidator()));
                             org.apache.cassandra.db.Column c = row.cf.getColumn(name);
-                            if (c == null || c.isMarkedForDelete())
+                            if (c == null || c.isMarkedForDelete(now))
                                 thriftColumns.add(new Column().setName(name));
                             else
                                 thriftColumns.add(thriftify(c));

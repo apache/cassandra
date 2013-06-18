@@ -1076,12 +1076,12 @@ public class SSTableReader extends SSTable
         return getScanner((RateLimiter) null);
     }
 
-   public SSTableScanner getScanner(RateLimiter limiter)
-   {
-       return new SSTableScanner(this, null, limiter);
-   }
+    public SSTableScanner getScanner(RateLimiter limiter)
+    {
+        return new SSTableScanner(this, null, limiter);
+    }
 
-   /**
+    /**
     * Direct I/O SSTableScanner over a defined range of tokens.
     *
     * @param range the range of keys to cover

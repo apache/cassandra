@@ -62,12 +62,22 @@ public class RowCacheTest extends SchemaLoader
         {
             DecoratedKey key = Util.dk("key" + i);
 
-            cachedStore.getColumnFamily(key, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+            cachedStore.getColumnFamily(key,
+                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                        false,
+                                        1,
+                                        System.currentTimeMillis());
             assert CacheService.instance.rowCache.size() == i + 1;
             assert cachedStore.containsCachedRow(key); // current key should be stored in the cache
 
             // checking if column is read correctly after cache
-            ColumnFamily cf = cachedStore.getColumnFamily(key, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+            ColumnFamily cf = cachedStore.getColumnFamily(key,
+                                                          ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                          ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                          false,
+                                                          1,
+                                                          System.currentTimeMillis());
             Collection<Column> columns = cf.getSortedColumns();
 
             Column column = columns.iterator().next();
@@ -84,11 +94,21 @@ public class RowCacheTest extends SchemaLoader
         {
             DecoratedKey key = Util.dk("key" + i);
 
-            cachedStore.getColumnFamily(key, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+            cachedStore.getColumnFamily(key,
+                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                        false,
+                                        1,
+                                        System.currentTimeMillis());
             assert cachedStore.containsCachedRow(key); // cache should be populated with the latest rows read (old ones should be popped)
 
             // checking if column is read correctly after cache
-            ColumnFamily cf = cachedStore.getColumnFamily(key, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+            ColumnFamily cf = cachedStore.getColumnFamily(key,
+                                                          ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                          ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                          false,
+                                                          1,
+                                                          System.currentTimeMillis());
             Collection<Column> columns = cf.getSortedColumns();
 
             Column column = columns.iterator().next();

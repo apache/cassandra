@@ -102,13 +102,13 @@ public class SuperColumns
         return scMap;
     }
 
-    public static void deserializerSuperColumnFamily(DataInput in, ColumnFamily cf, ColumnSerializer.Flag flag, int expireBefore, int version) throws IOException
+    public static void deserializerSuperColumnFamily(DataInput in, ColumnFamily cf, ColumnSerializer.Flag flag, int version) throws IOException
     {
         // Note that there was no way to insert a range tombstone in a SCF in 1.2
         cf.delete(DeletionInfo.serializer().deserialize(in, version, cf.getComparator()));
         assert !cf.deletionInfo().rangeIterator().hasNext();
 
-        Iterator<OnDiskAtom> iter = onDiskIterator(in, in.readInt(), flag, expireBefore);
+        Iterator<OnDiskAtom> iter = onDiskIterator(in, in.readInt(), flag, Integer.MIN_VALUE);
         while (iter.hasNext())
             cf.addAtom(iter.next());
     }

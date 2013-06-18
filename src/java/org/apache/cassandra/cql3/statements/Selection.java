@@ -213,9 +213,9 @@ public abstract class Selection
         return columnsList;
     }
 
-    public ResultSetBuilder resultSetBuilder()
+    public ResultSetBuilder resultSetBuilder(long now)
     {
-        return new ResultSetBuilder();
+        return new ResultSetBuilder(now);
     }
 
     private static ByteBuffer value(Column c)
@@ -240,12 +240,14 @@ public abstract class Selection
         List<ByteBuffer> current;
         final long[] timestamps;
         final int[] ttls;
+        final long now;
 
-        private ResultSetBuilder()
+        private ResultSetBuilder(long now)
         {
             this.resultSet = new ResultSet(metadata);
             this.timestamps = collectTimestamps ? new long[columnsList.size()] : null;
             this.ttls = collectTTLs ? new int[columnsList.size()] : null;
+            this.now = now;
         }
 
         public void add(ByteBuffer v)
@@ -264,14 +266,14 @@ public abstract class Selection
             {
                 int ttl = -1;
                 if (!isDead(c) && c instanceof ExpiringColumn)
-                    ttl = c.getLocalDeletionTime() - (int) (System.currentTimeMillis() / 1000);
+                    ttl = c.getLocalDeletionTime() - (int) (now / 1000);
                 ttls[current.size() - 1] = ttl;
             }
         }
 
         private boolean isDead(Column c)
         {
-            return c == null || c.isMarkedForDelete();
+            return c == null || c.isMarkedForDelete(now);
         }
 
         public void newRow() throws InvalidRequestException

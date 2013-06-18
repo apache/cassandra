@@ -21,18 +21,18 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class CompositesSearcher extends SecondaryIndexSearcher
 {
@@ -44,10 +44,15 @@ public class CompositesSearcher extends SecondaryIndexSearcher
     }
 
     @Override
-    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean countCQL3Rows)
+    public List<Row> search(AbstractBounds<RowPosition> range,
+                            List<IndexExpression> clause,
+                            IDiskAtomFilter dataFilter,
+                            int maxResults,
+                            long now,
+                            boolean countCQL3Rows)
     {
         assert clause != null && !clause.isEmpty();
-        ExtendedFilter filter = ExtendedFilter.create(baseCfs, dataFilter, clause, maxResults, countCQL3Rows, false);
+        ExtendedFilter filter = ExtendedFilter.create(baseCfs, clause, dataFilter, maxResults, now, countCQL3Rows, false);
         return baseCfs.filter(getIndexedIterator(range, filter), filter);
     }
 
@@ -69,7 +74,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
         return isStart ? builder.build() : builder.buildAsEndOfRange();
     }
 
-    public ColumnFamilyStore.AbstractScanIterator getIndexedIterator(final AbstractBounds<RowPosition> range, final ExtendedFilter filter)
+    private ColumnFamilyStore.AbstractScanIterator getIndexedIterator(final AbstractBounds<RowPosition> range, final ExtendedFilter filter)
     {
         // Start with the most-restrictive indexed clause, then apply remaining clauses
         // to each row matching that clause.
@@ -80,8 +85,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
         final DecoratedKey indexKey = index.getIndexKeyFor(primary.value);
 
         if (logger.isDebugEnabled())
-            logger.debug("Most-selective indexed predicate is {}",
-                         ((AbstractSimplePerColumnSecondaryIndex) index).expressionString(primary));
+            logger.debug("Most-selective indexed predicate is {}", index.expressionString(primary));
 
         /*
          * XXX: If the range requested is a token range, we'll have to start at the beginning (and stop at the end) of
@@ -155,14 +159,15 @@ public class CompositesSearcher extends SecondaryIndexSearcher
 
                         if (logger.isTraceEnabled())
                             logger.trace("Scanning index {} starting with {}",
-                                         ((AbstractSimplePerColumnSecondaryIndex)index).expressionString(primary), indexComparator.getString(startPrefix));
+                                         index.expressionString(primary), indexComparator.getString(startPrefix));
 
                         QueryFilter indexFilter = QueryFilter.getSliceFilter(indexKey,
                                                                              index.getIndexCfs().name,
                                                                              lastSeenPrefix,
                                                                              endPrefix,
                                                                              false,
-                                                                             rowsPerQuery);
+                                                                             rowsPerQuery,
+                                                                             filter.timestamp);
                         ColumnFamily indexRow = index.getIndexCfs().getColumnFamily(indexFilter);
                         if (indexRow == null || indexRow.getColumnCount() == 0)
                             return makeReturn(currentKey, data);
@@ -185,7 +190,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                     {
                         Column column = indexColumns.poll();
                         lastSeenPrefix = column.name();
-                        if (column.isMarkedForDelete())
+                        if (column.isMarkedForDelete(filter.timestamp))
                         {
                             logger.trace("skipping {}", column.name());
                             continue;
@@ -242,8 +247,8 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                                                                            false,
                                                                            Integer.MAX_VALUE,
                                                                            baseCfs.metadata.clusteringKeyColumns().size());
-                        ColumnFamily newData = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, dataFilter));
-                        if (index.isStale(entry, newData))
+                        ColumnFamily newData = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, dataFilter, filter.timestamp));
+                        if (index.isStale(entry, newData, filter.timestamp))
                         {
                             index.delete(entry);
                             continue;

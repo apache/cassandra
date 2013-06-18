@@ -66,7 +66,7 @@ public interface OnDiskAtom
 
         public OnDiskAtom deserializeFromSSTable(DataInput in, Descriptor.Version version) throws IOException
         {
-            return deserializeFromSSTable(in, ColumnSerializer.Flag.LOCAL, (int)(System.currentTimeMillis() / 1000), version);
+            return deserializeFromSSTable(in, ColumnSerializer.Flag.LOCAL, Integer.MIN_VALUE, version);
         }
 
         public OnDiskAtom deserializeFromSSTable(DataInput in, ColumnSerializer.Flag flag, int expireBefore, Descriptor.Version version) throws IOException

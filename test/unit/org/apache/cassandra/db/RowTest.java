@@ -67,12 +67,12 @@ public class RowTest extends SchemaLoader
     public void testExpiringColumnExpiration()
     {
         Column c = new ExpiringColumn(ByteBufferUtil.bytes("one"), ByteBufferUtil.bytes("A"), 0, 1);
-        assert !c.isMarkedForDelete();
+        assert !c.isMarkedForDelete(System.currentTimeMillis());
 
         // Because we keep the local deletion time with a precision of a
         // second, we could have to wait 2 seconds in worst case scenario.
         Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
 
-        assert c.isMarkedForDelete() && c.getMarkedForDeleteAt() == 0;
+        assert c.isMarkedForDelete(System.currentTimeMillis()) && c.getMarkedForDeleteAt() == 0;
     }
 }

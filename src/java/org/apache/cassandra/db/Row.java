@@ -54,9 +54,9 @@ public class Row
                ')';
     }
 
-    public int getLiveCount(IDiskAtomFilter filter)
+    public int getLiveCount(IDiskAtomFilter filter, long now)
     {
-        return cf == null ? 0 : filter.getLiveCount(cf);
+        return cf == null ? 0 : filter.getLiveCount(cf, now);
     }
 
     public static class RowSerializer implements IVersionedSerializer<Row>

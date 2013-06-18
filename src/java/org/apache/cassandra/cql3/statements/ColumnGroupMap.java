@@ -104,20 +104,22 @@ public class ColumnGroupMap
     {
         private final CompositeType composite;
         private final int idx;
+        private final long now;
         private ByteBuffer[] previous;
 
         private final List<ColumnGroupMap> groups = new ArrayList<ColumnGroupMap>();
         private ColumnGroupMap currentGroup;
 
-        public Builder(CompositeType composite, boolean hasCollections)
+        public Builder(CompositeType composite, boolean hasCollections, long now)
         {
             this.composite = composite;
             this.idx = composite.types.size() - (hasCollections ? 2 : 1);
+            this.now = now;
         }
 
         public void add(Column c)
         {
-            if (c.isMarkedForDelete())
+            if (c.isMarkedForDelete(now))
                 return;
 
             ByteBuffer[] current = composite.split(c.name());

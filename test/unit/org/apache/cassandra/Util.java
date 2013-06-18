@@ -150,10 +150,7 @@ public class Util
                                : new SliceQueryFilter(SuperColumns.startOf(superColumn), SuperColumns.endOf(superColumn), false, Integer.MAX_VALUE);
 
         Token min = StorageService.getPartitioner().getMinimumToken();
-        return cfs.getRangeSlice(new Bounds<Token>(min, min).toRowBounds(),
-                                 10000,
-                                 filter,
-                                 null);
+        return cfs.getRangeSlice(new Bounds<Token>(min, min).toRowBounds(), null, filter, 10000);
     }
 
     /**
@@ -180,7 +177,7 @@ public class Util
     {
         ColumnFamilyStore cfStore = table.getColumnFamilyStore(cfName);
         assert cfStore != null : "Column family " + cfName + " has not been defined";
-        return cfStore.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName));
+        return cfStore.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
     }
 
     public static byte[] concatByteArrays(byte[] first, byte[]... remaining)
@@ -258,7 +255,7 @@ public class Util
 
     public static void compact(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
     {
-        int gcBefore = (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds();
+        int gcBefore = cfs.gcBefore(System.currentTimeMillis());
         AbstractCompactionTask task = cfs.getCompactionStrategy().getUserDefinedTask(sstables, gcBefore);
         task.execute(null);
     }

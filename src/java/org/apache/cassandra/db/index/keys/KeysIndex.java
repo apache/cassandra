@@ -48,10 +48,10 @@ public class KeysIndex extends AbstractSimplePerColumnSecondaryIndex
         return new KeysSearcher(baseCfs.indexManager, columns);
     }
 
-    public boolean isIndexEntryStale(ByteBuffer indexedValue, ColumnFamily data)
+    public boolean isIndexEntryStale(ByteBuffer indexedValue, ColumnFamily data, long now)
     {
         Column liveColumn = data.getColumn(columnDef.name);
-        if (liveColumn == null || liveColumn.isMarkedForDelete())
+        if (liveColumn == null || liveColumn.isMarkedForDelete(now))
             return true;
 
         ByteBuffer liveValue = liveColumn.value();

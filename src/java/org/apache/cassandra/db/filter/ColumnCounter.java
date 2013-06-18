@@ -31,18 +31,24 @@ public class ColumnCounter
 {
     protected int live;
     protected int ignored;
+    protected final long timestamp;
+
+    public ColumnCounter(long timestamp)
+    {
+        this.timestamp = timestamp;
+    }
 
     public void count(Column column, ColumnFamily container)
     {
-        if (!isLive(column, container))
+        if (!isLive(column, container, timestamp))
             ignored++;
         else
             live++;
     }
 
-    protected static boolean isLive(Column column, ColumnFamily container)
+    protected static boolean isLive(Column column, ColumnFamily container, long timestamp)
     {
-        return column.isLive() && (!container.deletionInfo().isDeleted(column));
+        return column.isLive(timestamp) && (!container.deletionInfo().isDeleted(column));
     }
 
     public int live()
@@ -71,8 +77,9 @@ public class ColumnCounter
          *                column. If 0, all columns are grouped, otherwise we group
          *                those for which the {@code toGroup} first component are equals.
          */
-        public GroupByPrefix(CompositeType type, int toGroup)
+        public GroupByPrefix(long timestamp, CompositeType type, int toGroup)
         {
+            super(timestamp);
             this.type = type;
             this.toGroup = toGroup;
 
@@ -81,7 +88,7 @@ public class ColumnCounter
 
         public void count(Column column, ColumnFamily container)
         {
-            if (!isLive(column, container))
+            if (!isLive(column, container, timestamp))
             {
                 ignored++;
                 return;

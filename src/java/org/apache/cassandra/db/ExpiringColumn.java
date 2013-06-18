@@ -158,16 +158,15 @@ public class ExpiringColumn extends Column
     }
 
     @Override
+    public boolean isMarkedForDelete(long now)
+    {
+        return (int) (now / 1000) >= getLocalDeletionTime();
+    }
+
+    @Override
     public long getMarkedForDeleteAt()
     {
-        if (isMarkedForDelete())
-        {
-            return timestamp;
-        }
-        else
-        {
-            throw new IllegalStateException("column is not marked for delete");
-        }
+        return timestamp;
     }
 
     @Override

@@ -628,7 +628,7 @@ public class CompactionManager implements CompactionManagerMBean
             // this at a different time (that's the whole purpose of repair with snaphsot). So instead we take the creation
             // time of the snapshot, which should give us roughtly the same time on each replica (roughtly being in that case
             // 'as good as in the non-snapshot' case)
-            gcBefore = (int) (cfs.getSnapshotCreationTime(validator.request.sessionid) / 1000) - cfs.metadata.getGcGraceSeconds();
+            gcBefore = cfs.gcBefore(cfs.getSnapshotCreationTime(validator.request.sessionid));
         }
         else
         {
@@ -731,9 +731,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         // 2ndary indexes have ExpiringColumns too, so we need to purge tombstones deleted before now. We do not need to
         // add any GcGrace however since 2ndary indexes are local to a node.
-        return cfs.isIndex()
-               ? (int) (System.currentTimeMillis() / 1000)
-               : (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds();
+        return cfs.isIndex() ? (int) (System.currentTimeMillis() / 1000) : cfs.gcBefore(System.currentTimeMillis());
     }
 
     private static class ValidationCompactionIterable extends CompactionIterable

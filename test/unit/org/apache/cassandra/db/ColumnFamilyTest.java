@@ -142,9 +142,9 @@ public class ColumnFamilyTest extends SchemaLoader
 
         // check that tombstone wins timestamp ties
         cf_result.addTombstone(ByteBufferUtil.bytes("col1"), 0, 3);
-        assert cf_result.getColumn(ByteBufferUtil.bytes("col1")).isMarkedForDelete();
+        assert cf_result.getColumn(ByteBufferUtil.bytes("col1")).isMarkedForDelete(System.currentTimeMillis());
         cf_result.addColumn(ByteBufferUtil.bytes("col1"), val2, 3);
-        assert cf_result.getColumn(ByteBufferUtil.bytes("col1")).isMarkedForDelete();
+        assert cf_result.getColumn(ByteBufferUtil.bytes("col1")).isMarkedForDelete(System.currentTimeMillis());
 
         // check that column value wins timestamp ties in absence of tombstone
         cf_result.addColumn(ByteBufferUtil.bytes("col3"), val, 2);

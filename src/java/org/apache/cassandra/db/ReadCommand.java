@@ -35,10 +35,10 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.IReadCommand;
 import org.apache.cassandra.service.RowDataResolver;
 
-
 public abstract class ReadCommand implements IReadCommand
 {
-    public enum Type {
+    public enum Type
+    {
         GET_BY_NAMES((byte)1),
         GET_SLICES((byte)2);
 
@@ -65,23 +65,25 @@ public abstract class ReadCommand implements IReadCommand
     public final String table;
     public final String cfName;
     public final ByteBuffer key;
+    public final long timestamp;
     private boolean isDigestQuery = false;
     protected final Type commandType;
 
-    protected ReadCommand(String table, ByteBuffer key, String cfName, Type cmdType)
+    protected ReadCommand(String table, ByteBuffer key, String cfName, long timestamp, Type cmdType)
     {
         this.table = table;
         this.key = key;
         this.cfName = cfName;
+        this.timestamp = timestamp;
         this.commandType = cmdType;
     }
 
-    public static ReadCommand create(String table, ByteBuffer key, String cfName, IDiskAtomFilter filter)
+    public static ReadCommand create(String table, ByteBuffer key, String cfName, long timestamp, IDiskAtomFilter filter)
     {
         if (filter instanceof SliceQueryFilter)
-            return new SliceFromReadCommand(table, key, cfName, (SliceQueryFilter)filter);
+            return new SliceFromReadCommand(table, key, cfName, timestamp, (SliceQueryFilter)filter);
         else
-            return new SliceByNamesReadCommand(table, key, cfName, (NamesQueryFilter)filter);
+            return new SliceByNamesReadCommand(table, key, cfName, timestamp, (NamesQueryFilter)filter);
     }
 
     public boolean isDigestQuery()
@@ -143,7 +145,7 @@ class ReadCommandSerializer implements IVersionedSerializer<ReadCommand>
             if (metadata.cfType == ColumnFamilyType.Super)
             {
                 SuperColumns.SCFilter scFilter = SuperColumns.filterToSC((CompositeType)metadata.comparator, command.filter());
-                newCommand = ReadCommand.create(command.table, command.key, command.cfName, scFilter.updatedFilter);
+                newCommand = ReadCommand.create(command.table, command.key, command.cfName, command.timestamp, scFilter.updatedFilter);
                 newCommand.setDigestQuery(command.isDigestQuery());
                 superColumn = scFilter.scName;
             }
@@ -187,7 +189,7 @@ class ReadCommandSerializer implements IVersionedSerializer<ReadCommand>
             if (metadata.cfType == ColumnFamilyType.Super)
             {
                 SuperColumns.SCFilter scFilter = SuperColumns.filterToSC((CompositeType)metadata.comparator, command.filter());
-                newCommand = ReadCommand.create(command.table, command.key, command.cfName, scFilter.updatedFilter);
+                newCommand = ReadCommand.create(command.table, command.key, command.cfName, command.timestamp, scFilter.updatedFilter);
                 newCommand.setDigestQuery(command.isDigestQuery());
                 superColumn = scFilter.scName;
             }

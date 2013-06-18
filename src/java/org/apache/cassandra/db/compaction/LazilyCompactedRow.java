@@ -209,7 +209,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
                 Column column = (Column) current;
                 container.addColumn(column);
                 if (indexer != SecondaryIndexManager.nullUpdater
-                    && !column.isMarkedForDelete()
+                    && !column.isMarkedForDelete(System.currentTimeMillis())
                     && !container.getColumn(column.name()).equals(column))
                 {
                     indexer.remove(column);
@@ -247,7 +247,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
                 // PrecompactedRow.removeDeletedAndOldShards have only checked the top-level CF deletion times,
                 // not the range tombstone. For that we use the columnIndexer tombstone tracker.
                 // Note that this doesn't work for super columns.
-                if (indexBuilder.tombstoneTracker().isDeleted(reduced))
+                if (indexBuilder.tombstoneTracker().isDeleted(reduced, System.currentTimeMillis()))
                     return null;
 
                 columns++;

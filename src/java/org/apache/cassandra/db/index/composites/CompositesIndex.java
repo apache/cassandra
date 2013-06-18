@@ -93,7 +93,7 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
 
     public abstract IndexedEntry decodeEntry(DecoratedKey indexedValue, Column indexEntry);
 
-    public abstract boolean isStale(IndexedEntry entry, ColumnFamily data);
+    public abstract boolean isStale(IndexedEntry entry, ColumnFamily data, long now);
 
     public void delete(IndexedEntry entry)
     {

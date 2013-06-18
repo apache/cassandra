@@ -836,7 +836,7 @@ public class ActiveRepairService
                 if (isSequential)
                     makeSnapshots(endpoints);
 
-                int gcBefore = (int)(System.currentTimeMillis()/1000) - Table.open(tablename).getColumnFamilyStore(cfname).metadata.getGcGraceSeconds();
+                int gcBefore = Table.open(tablename).getColumnFamilyStore(cfname).gcBefore(System.currentTimeMillis());
 
                 for (InetAddress endpoint : allEndpoints)
                     treeRequests.add(new TreeRequest(getName(), endpoint, range, gcBefore, new CFPair(tablename, cfname)));

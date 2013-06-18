@@ -64,7 +64,7 @@ public class CounterUpdateColumn extends Column
         assert (column instanceof CounterUpdateColumn) || (column instanceof DeletedColumn) : "Wrong class type.";
 
         // tombstones take precedence
-        if (column.isMarkedForDelete())
+        if (column.isMarkedForDelete(Long.MIN_VALUE)) // can't be an expired column, so the current time is irrelevant
             return timestamp() > column.timestamp() ? this : column;
 
         // neither is tombstoned

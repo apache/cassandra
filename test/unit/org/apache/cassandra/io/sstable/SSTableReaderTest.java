@@ -318,7 +318,7 @@ public class SSTableReaderTest extends SchemaLoader
         List<IndexExpression> clause = Arrays.asList(expr);
         IPartitioner p = StorageService.getPartitioner();
         Range<RowPosition> range = Util.range("", "");
-        List<Row> rows = indexedCFS.search(clause, range, 100, new IdentityQueryFilter());
+        List<Row> rows = indexedCFS.search(range, clause, new IdentityQueryFilter(), 100);
         assert rows.size() == 1;
     }
 

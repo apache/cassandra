@@ -52,11 +52,11 @@ public class RowIteratorFactory
      * @return A row iterator following all the given restrictions
      */
     public static CloseableIterator<Row> getIterator(final Iterable<Memtable> memtables,
-                                          final Collection<SSTableReader> sstables,
-                                          final RowPosition startWith,
-                                          final RowPosition stopAt,
-                                          final QueryFilter filter,
-                                          final ColumnFamilyStore cfs)
+                                                     final Collection<SSTableReader> sstables,
+                                                     final RowPosition startWith,
+                                                     final RowPosition stopAt,
+                                                     final QueryFilter filter,
+                                                     final ColumnFamilyStore cfs)
     {
         // fetch data from current memtable, historical memtables, and SSTables in the correct order.
         final List<CloseableIterator<OnDiskAtomIterator>> iterators = new ArrayList<CloseableIterator<OnDiskAtomIterator>>();
@@ -76,7 +76,7 @@ public class RowIteratorFactory
         // reduce rows from all sources into a single row
         return MergeIterator.get(iterators, COMPARE_BY_KEY, new MergeIterator.Reducer<OnDiskAtomIterator, Row>()
         {
-            private final int gcBefore = (int) (System.currentTimeMillis() / 1000) - cfs.metadata.getGcGraceSeconds();
+            private final int gcBefore = cfs.gcBefore(filter.timestamp);
             private final List<OnDiskAtomIterator> colIters = new ArrayList<OnDiskAtomIterator>();
             private DecoratedKey key;
             private ColumnFamily returnCF;
@@ -106,8 +106,8 @@ public class RowIteratorFactory
                 }
                 else
                 {
-                    QueryFilter keyFilter = new QueryFilter(key, filter.cfName, filter.filter);
-                    returnCF = cfs.filterColumnFamily(cached, keyFilter, gcBefore);
+                    QueryFilter keyFilter = new QueryFilter(key, filter.cfName, filter.filter, filter.timestamp);
+                    returnCF = cfs.filterColumnFamily(cached, keyFilter);
                 }
 
                 Row rv = new Row(key, returnCF);

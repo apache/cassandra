@@ -90,7 +90,7 @@ public class NamesQueryFilter implements IDiskAtomFilter
         return new SSTableNamesIterator(sstable, file, key, columns, indexEntry);
     }
 
-    public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore)
+    public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore, long now)
     {
         while (reducedColumns.hasNext())
             container.addIfRelevant(reducedColumns.next(), gcBefore);
@@ -118,15 +118,15 @@ public class NamesQueryFilter implements IDiskAtomFilter
     {
     }
 
-    public int getLiveCount(ColumnFamily cf)
+    public int getLiveCount(ColumnFamily cf, long now)
     {
         if (countCQL3Rows)
-            return cf.hasOnlyTombstones() ? 0 : 1;
+            return cf.hasOnlyTombstones(now) ? 0 : 1;
 
         int count = 0;
         for (Column column : cf)
         {
-            if (column.isLive())
+            if (column.isLive(now))
                 count++;
         }
         return count;

@@ -44,34 +44,42 @@ public abstract class ExtendedFilter
     private static final Logger logger = LoggerFactory.getLogger(ExtendedFilter.class);
 
     public final ColumnFamilyStore cfs;
+    public final long timestamp;
     protected final IDiskAtomFilter originalFilter;
     private final int maxResults;
     private final boolean countCQL3Rows;
     private final boolean isPaging;
 
-    public static ExtendedFilter create(ColumnFamilyStore cfs, IDiskAtomFilter filter, List<IndexExpression> clause, int maxResults, boolean countCQL3Rows, boolean isPaging)
+    public static ExtendedFilter create(ColumnFamilyStore cfs,
+                                        List<IndexExpression> clause,
+                                        IDiskAtomFilter filter,
+                                        int maxResults,
+                                        long timestamp,
+                                        boolean countCQL3Rows,
+                                        boolean isPaging)
     {
         if (clause == null || clause.isEmpty())
         {
-            return new EmptyClauseFilter(cfs, filter, maxResults, countCQL3Rows, isPaging);
+            return new EmptyClauseFilter(cfs, filter, maxResults, timestamp, countCQL3Rows, isPaging);
         }
         else
         {
             if (isPaging)
                 throw new IllegalArgumentException("Cross-row paging is not supported along with index clauses");
             return cfs.getComparator() instanceof CompositeType
-                 ? new FilterWithCompositeClauses(cfs, filter, clause, maxResults, countCQL3Rows)
-                 : new FilterWithClauses(cfs, filter, clause, maxResults, countCQL3Rows);
+                 ? new FilterWithCompositeClauses(cfs, clause, filter, maxResults, timestamp, countCQL3Rows)
+                 : new FilterWithClauses(cfs, clause, filter, maxResults, timestamp, countCQL3Rows);
         }
     }
 
-    protected ExtendedFilter(ColumnFamilyStore cfs, IDiskAtomFilter filter, int maxResults, boolean countCQL3Rows, boolean isPaging)
+    protected ExtendedFilter(ColumnFamilyStore cfs, IDiskAtomFilter filter, int maxResults, long timestamp, boolean countCQL3Rows, boolean isPaging)
     {
         assert cfs != null;
         assert filter != null;
         this.cfs = cfs;
         this.originalFilter = filter;
         this.maxResults = maxResults;
+        this.timestamp = timestamp;
         this.countCQL3Rows = countCQL3Rows;
         this.isPaging = isPaging;
         if (countCQL3Rows)
@@ -112,7 +120,7 @@ public abstract class ExtendedFilter
         if (initialFilter() instanceof SliceQueryFilter)
             return ((SliceQueryFilter)initialFilter()).lastCounted();
         else
-            return initialFilter().getLiveCount(data);
+            return initialFilter().getLiveCount(data, timestamp);
     }
 
     /** The initial filter we'll do our first slice with (either the original or a superset of it) */
@@ -167,9 +175,14 @@ public abstract class ExtendedFilter
         protected final List<IndexExpression> clause;
         protected final IDiskAtomFilter initialFilter;
 
-        public FilterWithClauses(ColumnFamilyStore cfs, IDiskAtomFilter filter, List<IndexExpression> clause, int maxResults, boolean countCQL3Rows)
+        public FilterWithClauses(ColumnFamilyStore cfs,
+                                 List<IndexExpression> clause,
+                                 IDiskAtomFilter filter,
+                                 int maxResults,
+                                 long timestamp,
+                                 boolean countCQL3Rows)
         {
-            super(cfs, filter, maxResults, countCQL3Rows, false);
+            super(cfs, filter, maxResults, timestamp, countCQL3Rows, false);
             assert clause != null;
             this.clause = clause;
             this.initialFilter = computeInitialFilter();
@@ -271,7 +284,7 @@ public abstract class ExtendedFilter
                 return data;
             ColumnFamily pruned = data.cloneMeShallow();
             OnDiskAtomIterator iter = originalFilter.getMemtableColumnIterator(data, null);
-            originalFilter.collectReducedColumns(pruned, QueryFilter.gatherTombstones(pruned, iter), cfs.gcBefore());
+            originalFilter.collectReducedColumns(pruned, QueryFilter.gatherTombstones(pruned, iter), cfs.gcBefore(timestamp), timestamp);
             return pruned;
         }
 
@@ -335,9 +348,14 @@ public abstract class ExtendedFilter
 
     private static class FilterWithCompositeClauses extends FilterWithClauses
     {
-        public FilterWithCompositeClauses(ColumnFamilyStore cfs, IDiskAtomFilter filter, List<IndexExpression> clause, int maxResults, boolean countCQL3Rows)
+        public FilterWithCompositeClauses(ColumnFamilyStore cfs,
+                                          List<IndexExpression> clause,
+                                          IDiskAtomFilter filter,
+                                          int maxResults,
+                                          long timestamp,
+                                          boolean countCQL3Rows)
         {
-            super(cfs, filter, clause, maxResults, countCQL3Rows);
+            super(cfs, clause, filter, maxResults, timestamp, countCQL3Rows);
         }
 
         /*
@@ -359,9 +377,14 @@ public abstract class ExtendedFilter
 
     private static class EmptyClauseFilter extends ExtendedFilter
     {
-        public EmptyClauseFilter(ColumnFamilyStore cfs, IDiskAtomFilter filter, int maxResults, boolean countCQL3Rows, boolean isPaging)
+        public EmptyClauseFilter(ColumnFamilyStore cfs,
+                                 IDiskAtomFilter filter,
+                                 int maxResults,
+                                 long timestamp,
+                                 boolean countCQL3Rows,
+                                 boolean isPaging)
         {
-            super(cfs, filter, maxResults, countCQL3Rows, isPaging);
+            super(cfs, filter, maxResults, timestamp, countCQL3Rows, isPaging);
         }
 
         public IDiskAtomFilter initialFilter()

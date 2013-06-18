@@ -58,8 +58,8 @@ public class RemoveSubColumnTest extends SchemaLoader
         rm.delete("Super1", cname, 1);
         rm.apply();
 
-        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, "Super1"));
-        assert retrieved.getColumn(cname).isMarkedForDelete();
+        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, "Super1", System.currentTimeMillis()));
+        assert retrieved.getColumn(cname).isMarkedForDelete(System.currentTimeMillis());
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));
     }
 
@@ -86,7 +86,7 @@ public class RemoveSubColumnTest extends SchemaLoader
 
         // Mark current time and make sure the next insert happens at least
         // one second after the previous one (since gc resolution is the second)
-        int gcbefore = (int)(System.currentTimeMillis() / 1000);
+        QueryFilter filter = QueryFilter.getIdentityFilter(dk, "Super1", System.currentTimeMillis());
         Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
 
         // remove the column itself
@@ -94,8 +94,8 @@ public class RemoveSubColumnTest extends SchemaLoader
         rm.delete("Super1", cname, 2);
         rm.apply();
 
-        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, "Super1"), gcbefore);
-        assert retrieved.getColumn(cname).isMarkedForDelete();
+        ColumnFamily retrieved = store.getColumnFamily(filter);
+        assert retrieved.getColumn(cname).isMarkedForDelete(System.currentTimeMillis());
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));
     }
 }

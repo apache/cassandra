@@ -91,7 +91,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
     public void delete(ByteBuffer rowKey, Column column)
     {
-        if (column.isMarkedForDelete())
+        if (column.isMarkedForDelete(System.currentTimeMillis()))
             return;
 
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, column));

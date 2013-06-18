@@ -72,8 +72,10 @@ public class RecoveryManagerTruncateTest extends SchemaLoader
 		{
 			return null;
 		}
-		cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(
-		        Util.dk(keyName), cfName, ByteBufferUtil.bytes(columnName)));
+		cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(Util.dk(keyName),
+                                                                cfName,
+                                                                ByteBufferUtil.bytes(columnName),
+                                                                System.currentTimeMillis()));
 		if (cf == null)
 		{
 			return null;

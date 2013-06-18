@@ -83,9 +83,9 @@ public class DeletionTime implements Comparable<DeletionTime>
         return localDeletionTime < gcBefore;
     }
 
-    public boolean isDeleted(Column column)
+    public boolean isDeleted(Column column, long now)
     {
-        return column.isMarkedForDelete() && column.getMarkedForDeleteAt() <= markedForDeleteAt;
+        return column.isMarkedForDelete(now) && column.getMarkedForDeleteAt() <= markedForDeleteAt;
     }
 
     public long memorySize()

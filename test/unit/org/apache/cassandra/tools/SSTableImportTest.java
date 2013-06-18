@@ -53,7 +53,7 @@ public class SSTableImportTest extends SchemaLoader
 
         // Verify results
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
-        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "Standard1");
+        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "Standard1", System.currentTimeMillis());
         OnDiskAtomIterator iter = qf.getSSTableColumnIterator(reader);
         ColumnFamily cf = cloneForAdditions(iter);
         while (iter.hasNext()) cf.addAtom(iter.next());
@@ -87,7 +87,7 @@ public class SSTableImportTest extends SchemaLoader
 
         // Verify results
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
-        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "Standard1");
+        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "Standard1", System.currentTimeMillis());
         OnDiskAtomIterator iter = qf.getSSTableColumnIterator(reader);
         ColumnFamily cf = cloneForAdditions(iter);
         while (iter.hasNext()) cf.addAtom(iter.next());
@@ -108,7 +108,7 @@ public class SSTableImportTest extends SchemaLoader
 
         // Verify results
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
-        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "Super4");
+        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "Super4", System.currentTimeMillis());
         ColumnFamily cf = cloneForAdditions(qf.getSSTableColumnIterator(reader));
         qf.collateOnDiskAtom(cf, qf.getSSTableColumnIterator(reader), Integer.MIN_VALUE);
 
@@ -137,7 +137,7 @@ public class SSTableImportTest extends SchemaLoader
         new SSTableImport().importJson(jsonUrl, "Keyspace1", "Standard1", tempSS.getPath());
 
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
-        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "Standard1");
+        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "Standard1", System.currentTimeMillis());
         OnDiskAtomIterator iter = qf.getSSTableColumnIterator(reader);
         ColumnFamily cf = cloneForAdditions(iter);
         while (iter.hasNext())
@@ -160,7 +160,7 @@ public class SSTableImportTest extends SchemaLoader
 
         // Verify results
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
-        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "Standard1");
+        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "Standard1", System.currentTimeMillis());
         OnDiskAtomIterator iter = qf.getSSTableColumnIterator(reader);
         ColumnFamily cf = cloneForAdditions(iter);
         assertEquals(cf.deletionInfo(), new DeletionInfo(0, 0));
@@ -184,7 +184,7 @@ public class SSTableImportTest extends SchemaLoader
 
         // Verify results
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
-        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "Counter1");
+        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "Counter1", System.currentTimeMillis());
         OnDiskAtomIterator iter = qf.getSSTableColumnIterator(reader);
         ColumnFamily cf = cloneForAdditions(iter);
         while (iter.hasNext()) cf.addAtom(iter.next());

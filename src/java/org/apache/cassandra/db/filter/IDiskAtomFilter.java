@@ -66,14 +66,14 @@ public interface IDiskAtomFilter
      * by the filter code, which should have some limit on the number of columns
      * to avoid running out of memory on large rows.
      */
-    public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore);
+    public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore, long now);
 
     public Comparator<Column> getColumnComparator(AbstractType<?> comparator);
 
     public boolean isReversed();
     public void updateColumnsLimit(int newLimit);
 
-    public int getLiveCount(ColumnFamily cf);
+    public int getLiveCount(ColumnFamily cf, long now);
 
     public IDiskAtomFilter cloneShallow();
     public boolean maySelectPrefix(Comparator<ByteBuffer> cmp, ByteBuffer prefix);

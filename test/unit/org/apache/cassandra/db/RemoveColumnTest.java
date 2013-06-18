@@ -54,10 +54,16 @@ public class RemoveColumnTest extends SchemaLoader
         rm.delete("Standard1", ByteBufferUtil.bytes("Column1"), 1);
         rm.apply();
 
-        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getNamesFilter(dk, "Standard1", ByteBufferUtil.bytes("Column1")));
-        assert retrieved.getColumn(ByteBufferUtil.bytes("Column1")).isMarkedForDelete();
+        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getNamesFilter(dk,
+                                                                                  "Standard1",
+                                                                                  ByteBufferUtil.bytes("Column1"),
+                                                                                  System.currentTimeMillis()));
+        assert retrieved.getColumn(ByteBufferUtil.bytes("Column1")).isMarkedForDelete(System.currentTimeMillis());
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));
-        assertNull(Util.cloneAndRemoveDeleted(store.getColumnFamily(QueryFilter.getIdentityFilter(dk, "Standard1")), Integer.MAX_VALUE));
+        assertNull(Util.cloneAndRemoveDeleted(store.getColumnFamily(QueryFilter.getIdentityFilter(dk,
+                                                                                                  "Standard1",
+                                                                                                  System.currentTimeMillis())),
+                                              Integer.MAX_VALUE));
     }
 
     @Test
@@ -67,15 +73,15 @@ public class RemoveColumnTest extends SchemaLoader
         long timestamp = System.currentTimeMillis();
         int localDeletionTime = (int) (timestamp / 1000);
         Column c = DeletedColumn.create(localDeletionTime, timestamp, "dc1");
-        assertTrue("DeletedColumn was not marked for delete", c.isMarkedForDelete());
+        assertTrue("DeletedColumn was not marked for delete", c.isMarkedForDelete(timestamp));
 
         // Simulate a node that is 30 seconds behind
         c = DeletedColumn.create(localDeletionTime + 30, timestamp + 30000, "dc2");
-        assertTrue("DeletedColumn was not marked for delete", c.isMarkedForDelete());
+        assertTrue("DeletedColumn was not marked for delete", c.isMarkedForDelete(timestamp));
 
         // Simulate a node that is 30 ahead behind
         c = DeletedColumn.create(localDeletionTime - 30, timestamp - 30000, "dc3");
-        assertTrue("DeletedColumn was not marked for delete", c.isMarkedForDelete());
+        assertTrue("DeletedColumn was not marked for delete", c.isMarkedForDelete(timestamp));
     }
 
 }

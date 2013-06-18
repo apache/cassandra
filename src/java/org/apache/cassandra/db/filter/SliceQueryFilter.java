@@ -120,9 +120,9 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return reversed ? comparator.columnReverseComparator : comparator.columnComparator;
     }
 
-    public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore)
+    public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore, long now)
     {
-        columnCounter = getColumnCounter(container);
+        columnCounter = getColumnCounter(container, now);
 
         while (reducedColumns.hasNext())
         {
@@ -142,28 +142,28 @@ public class SliceQueryFilter implements IDiskAtomFilter
         Tracing.trace("Read {} live and {} tombstoned cells", columnCounter.live(), columnCounter.ignored());
     }
 
-    public int getLiveCount(ColumnFamily cf)
+    public int getLiveCount(ColumnFamily cf, long now)
     {
-        ColumnCounter counter = getColumnCounter(cf);
+        ColumnCounter counter = getColumnCounter(cf, now);
         for (Column column : cf)
             counter.count(column, cf);
         return counter.live();
     }
 
-    private ColumnCounter getColumnCounter(ColumnFamily container)
+    private ColumnCounter getColumnCounter(ColumnFamily container, long now)
     {
         AbstractType<?> comparator = container.getComparator();
         if (compositesToGroup < 0)
-            return new ColumnCounter();
+            return new ColumnCounter(now);
         else if (compositesToGroup == 0)
-            return new ColumnCounter.GroupByPrefix(null, 0);
+            return new ColumnCounter.GroupByPrefix(now, null, 0);
         else
-            return new ColumnCounter.GroupByPrefix((CompositeType)comparator, compositesToGroup);
+            return new ColumnCounter.GroupByPrefix(now, (CompositeType)comparator, compositesToGroup);
     }
 
-    public void trim(ColumnFamily cf, int trimTo)
+    public void trim(ColumnFamily cf, int trimTo, long now)
     {
-        ColumnCounter counter = getColumnCounter(cf);
+        ColumnCounter counter = getColumnCounter(cf, now);
 
         Collection<Column> columns = reversed
                                    ? cf.getReverseSortedColumns()

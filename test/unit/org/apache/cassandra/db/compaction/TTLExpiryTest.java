@@ -140,7 +140,7 @@ public class TTLExpiryTest extends SchemaLoader
         cfs.enableAutoCompaction(true);
         assertEquals(1, cfs.getSSTables().size());
         SSTableReader sstable = cfs.getSSTables().iterator().next();
-        SSTableScanner scanner = sstable.getScanner(new QueryFilter(null, "Standard1", new IdentityQueryFilter()));
+        SSTableScanner scanner = sstable.getScanner(new QueryFilter(null, "Standard1", new IdentityQueryFilter(), System.currentTimeMillis()));
         assertTrue(scanner.hasNext());
         while(scanner.hasNext())
         {

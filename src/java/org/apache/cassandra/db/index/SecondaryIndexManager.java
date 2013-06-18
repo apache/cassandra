@@ -509,12 +509,17 @@ public class SecondaryIndexManager
      * Performs a search across a number of column indexes
      * TODO: add support for querying across index types
      *
-     * @param clause the index query clause
      * @param range the row range to restrict to
-     * @param dataFilter the column range to restrict to
+     * @param clause the index query clause
+     * @param columnFilter the column range to restrict to
      * @return found indexed rows
      */
-    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean countCQL3Rows)
+    public List<Row> search(AbstractBounds<RowPosition> range,
+                            List<IndexExpression> clause,
+                            IDiskAtomFilter columnFilter,
+                            int maxResults,
+                            long now,
+                            boolean countCQL3Rows)
     {
         List<SecondaryIndexSearcher> indexSearchers = getIndexSearchersForQuery(clause);
 
@@ -525,8 +530,7 @@ public class SecondaryIndexManager
         if (indexSearchers.size() > 1)
             throw new RuntimeException("Unable to search across multiple secondary index types");
 
-
-        return indexSearchers.get(0).search(clause, range, maxResults, dataFilter, countCQL3Rows);
+        return indexSearchers.get(0).search(range, clause, columnFilter, maxResults, now, countCQL3Rows);
     }
 
     public Collection<SecondaryIndex> getIndexesByNames(Set<String> idxNames)
@@ -584,7 +588,7 @@ public class SecondaryIndexManager
 
         public void insert(Column column)
         {
-            if (column.isMarkedForDelete())
+            if (column.isMarkedForDelete(System.currentTimeMillis()))
                 return;
 
             for (SecondaryIndex index : indexFor(column.name()))
@@ -605,7 +609,7 @@ public class SecondaryIndexManager
                 {
                     // insert the new value before removing the old one, so we never have a period
                     // where the row is invisible to both queries (the opposite seems preferable); see CASSANDRA-5540
-                    if (!column.isMarkedForDelete())
+                    if (!column.isMarkedForDelete(System.currentTimeMillis()))
                         ((PerColumnSecondaryIndex) index).insert(key.key, column);
                     ((PerColumnSecondaryIndex) index).delete(key.key, oldColumn);
                 }
@@ -614,7 +618,7 @@ public class SecondaryIndexManager
 
         public void remove(Column column)
         {
-            if (column.isMarkedForDelete())
+            if (column.isMarkedForDelete(System.currentTimeMillis()))
                 return;
 
             for (SecondaryIndex index : indexFor(column.name()))

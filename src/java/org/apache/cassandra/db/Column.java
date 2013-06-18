@@ -143,14 +143,20 @@ public class Column implements OnDiskAtom
         return timestamp;
     }
 
-    public boolean isMarkedForDelete()
+    public boolean isMarkedForDelete(long now)
     {
-        return (int) (System.currentTimeMillis() / 1000) >= getLocalDeletionTime();
+        return false;
     }
 
+    public boolean isLive(long now)
+    {
+        return !isMarkedForDelete(now);
+    }
+
+    // Don't call unless the column is actually marked for delete.
     public long getMarkedForDeleteAt()
     {
-        throw new IllegalStateException("column is not marked for delete");
+        return Long.MAX_VALUE;
     }
 
     public int dataSize()
@@ -186,9 +192,7 @@ public class Column implements OnDiskAtom
     public Column diff(Column column)
     {
         if (timestamp() < column.timestamp())
-        {
             return column;
-        }
         return null;
     }
 
@@ -223,9 +227,9 @@ public class Column implements OnDiskAtom
     public Column reconcile(Column column, Allocator allocator)
     {
         // tombstones take precedence.  (if both are tombstones, then it doesn't matter which one we use.)
-        if (isMarkedForDelete())
+        if (isMarkedForDelete(System.currentTimeMillis()))
             return timestamp() < column.timestamp() ? column : this;
-        if (column.isMarkedForDelete())
+        if (column.isMarkedForDelete(System.currentTimeMillis()))
             return timestamp() > column.timestamp() ? this : column;
         // break ties by comparing values.
         if (timestamp() == column.timestamp())
@@ -276,17 +280,12 @@ public class Column implements OnDiskAtom
         StringBuilder sb = new StringBuilder();
         sb.append(comparator.getString(name));
         sb.append(":");
-        sb.append(isMarkedForDelete());
+        sb.append(isMarkedForDelete(System.currentTimeMillis()));
         sb.append(":");
         sb.append(value.remaining());
         sb.append("@");
         sb.append(timestamp());
         return sb.toString();
-    }
-
-    public boolean isLive()
-    {
-        return !isMarkedForDelete();
     }
 
     protected void validateName(CFMetaData metadata) throws MarshalException

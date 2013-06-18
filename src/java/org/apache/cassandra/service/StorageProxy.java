@@ -212,9 +212,13 @@ public class StorageProxy implements StorageProxyMBean
 
             // read the current value and compare with expected
             Tracing.trace("Reading existing values for CAS precondition");
-            ReadCommand readCommand = expected == null
-                                    ? new SliceFromReadCommand(table, key, cfName, new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1))
-                                    : new SliceByNamesReadCommand(table, key, cfName, new NamesQueryFilter(ImmutableSortedSet.copyOf(expected.getColumnNames())));
+            long timestamp = System.currentTimeMillis();
+            IDiskAtomFilter filter = expected == null
+                                   ? new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1)
+                                   : new NamesQueryFilter(ImmutableSortedSet.copyOf(expected.getColumnNames()));
+            ReadCommand readCommand = filter instanceof SliceQueryFilter
+                                    ? new SliceFromReadCommand(table, key, cfName, timestamp, (SliceQueryFilter) filter)
+                                    : new SliceByNamesReadCommand(table, key, cfName, timestamp, (NamesQueryFilter) filter);
             List<Row> rows = read(Arrays.asList(readCommand), ConsistencyLevel.QUORUM);
             ColumnFamily current = rows.get(0).cf;
             if (!casApplies(expected, current))
@@ -245,16 +249,18 @@ public class StorageProxy implements StorageProxyMBean
         throw new WriteTimeoutException(WriteType.CAS, ConsistencyLevel.SERIAL, -1, -1);
     }
 
-    private static boolean hasLiveColumns(ColumnFamily cf)
+    private static boolean hasLiveColumns(ColumnFamily cf, long now)
     {
-        return cf != null && !cf.hasOnlyTombstones();
+        return cf != null && !cf.hasOnlyTombstones(now);
     }
 
     private static boolean casApplies(ColumnFamily expected, ColumnFamily current)
     {
-        if (!hasLiveColumns(expected))
-            return !hasLiveColumns(current);
-        else if (!hasLiveColumns(current))
+        long now = System.currentTimeMillis();
+
+        if (!hasLiveColumns(expected, now))
+            return !hasLiveColumns(current, now);
+        else if (!hasLiveColumns(current, now))
             return false;
 
         // current has been built from expected, so we know that it can't have columns
@@ -264,14 +270,14 @@ public class StorageProxy implements StorageProxyMBean
         for (Column e : expected)
         {
             Column c = current.getColumn(e.name());
-            if (e.isLive())
+            if (e.isLive(now))
             {
-                if (!(c != null && c.isLive() && c.value().equals(e.value())))
+                if (!(c != null && c.isLive(now) && c.value().equals(e.value())))
                     return false;
             }
             else
             {
-                if (c != null && c.isLive())
+                if (c != null && c.isLive(now))
                     return false;
             }
         }
@@ -1179,7 +1185,7 @@ public class StorageProxy implements StorageProxyMBean
                     ReadRepairMetrics.repairedBlocking.mark();
 
                     // Do a full data read to resolve the correct response (and repair node that need be)
-                    RowDataResolver resolver = new RowDataResolver(exec.command.table, exec.command.key, exec.command.filter());
+                    RowDataResolver resolver = new RowDataResolver(exec.command.table, exec.command.key, exec.command.filter(), exec.command.timestamp);
                     ReadCallback<ReadResponse, Row> repairHandler = exec.handler.withNewResolver(resolver);
 
                     if (repairCommands == null)
@@ -1397,6 +1403,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 RangeSliceCommand nodeCmd = new RangeSliceCommand(command.keyspace,
                                                                   command.column_family,
+                                                                  command.timestamp,
                                                                   commandPredicate,
                                                                   range,
                                                                   command.row_filter,
@@ -1405,7 +1412,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                   command.isPaging);
 
                 // collect replies and resolve according to consistency level
-                RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(nodeCmd.keyspace);
+                RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(nodeCmd.keyspace, command.timestamp);
                 ReadCallback<RangeSliceReply, Iterable<Row>> handler = new ReadCallback(resolver, consistency_level, nodeCmd, filteredEndpoints);
                 handler.assureSufficientLiveNodes();
                 resolver.setSources(filteredEndpoints);
@@ -1431,7 +1438,7 @@ public class StorageProxy implements StorageProxyMBean
                     {
                         rows.add(row);
                         if (nodeCmd.countCQL3Rows)
-                            cql3RowCount += row.getLiveCount(commandPredicate);
+                            cql3RowCount += row.getLiveCount(commandPredicate, command.timestamp);
                     }
                     FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getWriteRpcTimeout());
                 }

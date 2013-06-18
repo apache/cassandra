@@ -51,10 +51,11 @@ public class SliceQueryPager implements Iterator<ColumnFamily>
         if (exhausted)
             return null;
 
+        long now = System.currentTimeMillis();
         SliceQueryFilter sliceFilter = new SliceQueryFilter(slices, false, DEFAULT_PAGE_SIZE);
-        QueryFilter filter = new QueryFilter(key, cfs.name, sliceFilter);
+        QueryFilter filter = new QueryFilter(key, cfs.name, sliceFilter, now);
         ColumnFamily cf = cfs.getColumnFamily(filter);
-        if (cf == null || sliceFilter.getLiveCount(cf) < DEFAULT_PAGE_SIZE)
+        if (cf == null || sliceFilter.getLiveCount(cf, now) < DEFAULT_PAGE_SIZE)
         {
             exhausted = true;
         }
@@ -62,7 +63,7 @@ public class SliceQueryPager implements Iterator<ColumnFamily>
         {
             Iterator<Column> iter = cf.getReverseSortedColumns().iterator();
             Column lastColumn = iter.next();
-            while (lastColumn.isMarkedForDelete())
+            while (lastColumn.isMarkedForDelete(now))
                 lastColumn = iter.next();
 
             int i = 0;

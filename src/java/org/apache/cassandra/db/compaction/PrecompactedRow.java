@@ -133,7 +133,7 @@ public class PrecompactedRow extends AbstractCompactedRow
             {
                 container.addColumn(column);
                 if (indexer != SecondaryIndexManager.nullUpdater
-                    && !column.isMarkedForDelete()
+                    && !column.isMarkedForDelete(System.currentTimeMillis())
                     && !container.getColumn(column.name()).equals(column))
                 {
                     indexer.remove(column);
@@ -149,7 +149,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         };
 
         Iterator<Column> reduced = MergeIterator.get(data, fcomp, reducer);
-        filter.collectReducedColumns(returnCF, reduced, CompactionManager.NO_GC);
+        filter.collectReducedColumns(returnCF, reduced, CompactionManager.NO_GC, System.currentTimeMillis());
     }
 
     public RowIndexEntry write(long currentPosition, DataOutput out) throws IOException

@@ -31,7 +31,6 @@ import java.util.UUID;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.commons.lang.builder.HashCodeBuilder;
 
 import org.apache.cassandra.cache.IRowCacheEntry;
@@ -194,7 +193,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
      *   </code>
      *  but is potentially faster.
      */
-     public abstract void addAll(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation);
+    public abstract void addAll(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation);
 
     /**
      * Replace oldColumn if present by newColumn.
@@ -426,13 +425,11 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         return metadata.comparator;
     }
 
-    public boolean hasOnlyTombstones()
+    public boolean hasOnlyTombstones(long now)
     {
         for (Column column : this)
-        {
-            if (column.isLive())
+            if (column.isLive(now))
                 return false;
-        }
         return true;
     }
 

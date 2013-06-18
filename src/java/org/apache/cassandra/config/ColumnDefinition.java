@@ -306,7 +306,8 @@ public class ColumnDefinition
                                                        DefsTable.searchComposite(cfName, true),
                                                        DefsTable.searchComposite(cfName, false),
                                                        false,
-                                                       Integer.MAX_VALUE);
+                                                       Integer.MAX_VALUE,
+                                                       System.currentTimeMillis());
         return new Row(key, cf);
     }
 

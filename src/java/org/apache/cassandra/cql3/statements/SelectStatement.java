@@ -127,17 +127,18 @@ public class SelectStatement implements CQLStatement
         cl.validateForRead(keyspace());
 
         int limit = getLimit(variables);
+        long now = System.currentTimeMillis();
         List<Row> rows = isKeyRange || usesSecondaryIndexing
-                       ? StorageProxy.getRangeSlice(getRangeCommand(variables, limit), cl)
-                       : StorageProxy.read(getSliceCommands(variables, limit), cl);
+                       ? StorageProxy.getRangeSlice(getRangeCommand(variables, limit, now), cl)
+                       : StorageProxy.read(getSliceCommands(variables, limit, now), cl);
 
-        return processResults(rows, variables, limit);
+        return processResults(rows, variables, limit, now);
     }
 
-    private ResultMessage.Rows processResults(List<Row> rows, List<ByteBuffer> variables, int limit) throws RequestValidationException
+    private ResultMessage.Rows processResults(List<Row> rows, List<ByteBuffer> variables, int limit, long now) throws RequestValidationException
     {
         // Even for count, we need to process the result as it'll group some column together in sparse column families
-        ResultSet rset = process(rows, variables, limit);
+        ResultSet rset = process(rows, variables, limit, now);
         rset = parameters.isCount ? rset.makeCountResult(parameters.countAlias) : rset;
         return new ResultMessage.Rows(rset);
     }
@@ -153,19 +154,20 @@ public class SelectStatement implements CQLStatement
 
     public ResultMessage.Rows executeInternal(QueryState state) throws RequestExecutionException, RequestValidationException
     {
-        List<ByteBuffer> variables = Collections.<ByteBuffer>emptyList();
+        List<ByteBuffer> variables = Collections.emptyList();
         int limit = getLimit(variables);
+        long now = System.currentTimeMillis();
         List<Row> rows = isKeyRange || usesSecondaryIndexing
-                       ? RangeSliceVerbHandler.executeLocally(getRangeCommand(variables, limit))
-                       : readLocally(keyspace(), getSliceCommands(variables, limit));
+                       ? RangeSliceVerbHandler.executeLocally(getRangeCommand(variables, limit, now))
+                       : readLocally(keyspace(), getSliceCommands(variables, limit, now));
 
-        return processResults(rows, variables, limit);
+        return processResults(rows, variables, limit, now);
     }
 
     public ResultSet process(List<Row> rows) throws InvalidRequestException
     {
         assert !parameters.isCount; // not yet needed
-        return process(rows, Collections.<ByteBuffer>emptyList(), getLimit(Collections.<ByteBuffer>emptyList()));
+        return process(rows, Collections.<ByteBuffer>emptyList(), getLimit(Collections.<ByteBuffer>emptyList()), System.currentTimeMillis());
     }
 
     public String keyspace()
@@ -178,7 +180,7 @@ public class SelectStatement implements CQLStatement
         return cfDef.cfm.cfName;
     }
 
-    private List<ReadCommand> getSliceCommands(List<ByteBuffer> variables, int limit) throws RequestValidationException
+    private List<ReadCommand> getSliceCommands(List<ByteBuffer> variables, int limit, long now) throws RequestValidationException
     {
         Collection<ByteBuffer> keys = getKeys(variables);
         List<ReadCommand> commands = new ArrayList<ReadCommand>(keys.size());
@@ -192,25 +194,18 @@ public class SelectStatement implements CQLStatement
             // We should not share the slice filter amongst the commands (hence the cloneShallow), due to
             // SliceQueryFilter not being immutable due to its columnCounter used by the lastCounted() method
             // (this is fairly ugly and we should change that but that's probably not a tiny refactor to do that cleanly)
-            commands.add(ReadCommand.create(keyspace(), key, columnFamily(), filter.cloneShallow()));
+            commands.add(ReadCommand.create(keyspace(), key, columnFamily(), now, filter.cloneShallow()));
         }
         return commands;
     }
 
-    private RangeSliceCommand getRangeCommand(List<ByteBuffer> variables, int limit) throws RequestValidationException
+    private RangeSliceCommand getRangeCommand(List<ByteBuffer> variables, int limit, long now) throws RequestValidationException
     {
         IDiskAtomFilter filter = makeFilter(variables, limit);
         List<IndexExpression> expressions = getIndexExpressions(variables);
         // The LIMIT provided by the user is the number of CQL row he wants returned.
         // We want to have getRangeSlice to count the number of columns, not the number of keys.
-        return new RangeSliceCommand(keyspace(),
-                                     columnFamily(),
-                                     filter,
-                                     getKeyBounds(variables),
-                                     expressions,
-                                     limit,
-                                     true,
-                                     false);
+        return new RangeSliceCommand(keyspace(), columnFamily(), now,  filter, getKeyBounds(variables), expressions, limit, true, false);
     }
 
     private AbstractBounds<RowPosition> getKeyBounds(List<ByteBuffer> variables) throws InvalidRequestException
@@ -661,9 +656,9 @@ public class SelectStatement implements CQLStatement
         };
     }
 
-    private ResultSet process(List<Row> rows, List<ByteBuffer> variables, int limit) throws InvalidRequestException
+    private ResultSet process(List<Row> rows, List<ByteBuffer> variables, int limit, long now) throws InvalidRequestException
     {
-        Selection.ResultSetBuilder result = selection.resultSetBuilder();
+        Selection.ResultSetBuilder result = selection.resultSetBuilder(now);
         for (org.apache.cassandra.db.Row row : rows)
         {
             // Not columns match the query, skip
@@ -679,7 +674,7 @@ public class SelectStatement implements CQLStatement
                 // One cqlRow per column
                 for (Column c : columnsInOrder(row.cf, variables))
                 {
-                    if (c.isMarkedForDelete())
+                    if (c.isMarkedForDelete(now))
                         continue;
 
                     ByteBuffer[] components = null;
@@ -728,11 +723,11 @@ public class SelectStatement implements CQLStatement
                 // Sparse case: group column in cqlRow when composite prefix is equal
                 CompositeType composite = (CompositeType)cfDef.cfm.comparator;
 
-                ColumnGroupMap.Builder builder = new ColumnGroupMap.Builder(composite, cfDef.hasCollections);
+                ColumnGroupMap.Builder builder = new ColumnGroupMap.Builder(composite, cfDef.hasCollections, now);
 
                 for (Column c : row.cf)
                 {
-                    if (c.isMarkedForDelete())
+                    if (c.isMarkedForDelete(now))
                         continue;
 
                     builder.add(c);
@@ -743,7 +738,7 @@ public class SelectStatement implements CQLStatement
             }
             else
             {
-                if (row.cf.hasOnlyTombstones())
+                if (row.cf.hasOnlyTombstones(now))
                     continue;
 
                 // Static case: One cqlRow for all columns

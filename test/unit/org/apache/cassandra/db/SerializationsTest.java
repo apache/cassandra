@@ -68,17 +68,17 @@ public class SerializationsTest extends AbstractSerializationsTester
         IPartitioner part = StorageService.getPartitioner();
         AbstractBounds<RowPosition> bounds = new Range<Token>(part.getRandomToken(), part.getRandomToken()).toRowBounds();
 
-        RangeSliceCommand namesCmd = new RangeSliceCommand(statics.KS, "Standard1", namesPred, bounds, 100);
+        RangeSliceCommand namesCmd = new RangeSliceCommand(statics.KS, "Standard1", statics.readTs, namesPred, bounds, 100);
         MessageOut<RangeSliceCommand> namesCmdMsg = namesCmd.createMessage();
-        RangeSliceCommand emptyRangeCmd = new RangeSliceCommand(statics.KS, "Standard1", emptyRangePred, bounds, 100);
+        RangeSliceCommand emptyRangeCmd = new RangeSliceCommand(statics.KS, "Standard1", statics.readTs, emptyRangePred, bounds, 100);
         MessageOut<RangeSliceCommand> emptyRangeCmdMsg = emptyRangeCmd.createMessage();
-        RangeSliceCommand regRangeCmd = new RangeSliceCommand(statics.KS, "Standard1", nonEmptyRangePred, bounds, 100);
+        RangeSliceCommand regRangeCmd = new RangeSliceCommand(statics.KS, "Standard1", statics.readTs, nonEmptyRangePred, bounds, 100);
         MessageOut<RangeSliceCommand> regRangeCmdMsg = regRangeCmd.createMessage();
-        RangeSliceCommand namesCmdSup = new RangeSliceCommand(statics.KS, "Super1", namesSCPred, bounds, 100);
+        RangeSliceCommand namesCmdSup = new RangeSliceCommand(statics.KS, "Super1", statics.readTs, namesSCPred, bounds, 100);
         MessageOut<RangeSliceCommand> namesCmdSupMsg = namesCmdSup.createMessage();
-        RangeSliceCommand emptyRangeCmdSup = new RangeSliceCommand(statics.KS, "Super1", emptyRangePred, bounds, 100);
+        RangeSliceCommand emptyRangeCmdSup = new RangeSliceCommand(statics.KS, "Super1", statics.readTs, emptyRangePred, bounds, 100);
         MessageOut<RangeSliceCommand> emptyRangeCmdSupMsg = emptyRangeCmdSup.createMessage();
-        RangeSliceCommand regRangeCmdSup = new RangeSliceCommand(statics.KS, "Super1", nonEmptyRangeSCPred, bounds, 100);
+        RangeSliceCommand regRangeCmdSup = new RangeSliceCommand(statics.KS, "Super1", statics.readTs, nonEmptyRangeSCPred, bounds, 100);
         MessageOut<RangeSliceCommand> regRangeCmdSupMsg = regRangeCmdSup.createMessage();
 
         DataOutputStream out = getOutput("db.RangeSliceCommand.bin");
@@ -113,8 +113,8 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testSliceByNamesReadCommandWrite() throws IOException
     {
-        SliceByNamesReadCommand standardCmd = new SliceByNamesReadCommand(statics.KS, statics.Key, statics.StandardCF, namesPred);
-        SliceByNamesReadCommand superCmd = new SliceByNamesReadCommand(statics.KS, statics.Key, statics.SuperCF, namesSCPred);
+        SliceByNamesReadCommand standardCmd = new SliceByNamesReadCommand(statics.KS, statics.Key, statics.StandardCF, statics.readTs, namesPred);
+        SliceByNamesReadCommand superCmd = new SliceByNamesReadCommand(statics.KS, statics.Key, statics.SuperCF, statics.readTs, namesSCPred);
 
         DataOutputStream out = getOutput("db.SliceByNamesReadCommand.bin");
         SliceByNamesReadCommand.serializer.serialize(standardCmd, out, getVersion());
@@ -148,8 +148,8 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testSliceFromReadCommandWrite() throws IOException
     {
-        SliceFromReadCommand standardCmd = new SliceFromReadCommand(statics.KS, statics.Key, statics.StandardCF, nonEmptyRangePred);
-        SliceFromReadCommand superCmd = new SliceFromReadCommand(statics.KS, statics.Key, statics.SuperCF, nonEmptyRangeSCPred);
+        SliceFromReadCommand standardCmd = new SliceFromReadCommand(statics.KS, statics.Key, statics.StandardCF, statics.readTs, nonEmptyRangePred);
+        SliceFromReadCommand superCmd = new SliceFromReadCommand(statics.KS, statics.Key, statics.SuperCF, statics.readTs, nonEmptyRangeSCPred);
         
         DataOutputStream out = getOutput("db.SliceFromReadCommand.bin");
         SliceFromReadCommand.serializer.serialize(standardCmd, out, getVersion());
@@ -357,8 +357,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         }};
         private final String StandardCF = "Standard1";
         private final String SuperCF = "Super1";
-        private final ByteBuffer Start = ByteBufferUtil.bytes("Start");
-        private final ByteBuffer Stop = ByteBufferUtil.bytes("Stop");
+
+        private final long readTs = 1369935512292L;
 
         private final ColumnFamily StandardCf = TreeMapBackedSortedColumns.factory.create(KS, StandardCF);
         private final ColumnFamily SuperCf = TreeMapBackedSortedColumns.factory.create(KS, SuperCF);

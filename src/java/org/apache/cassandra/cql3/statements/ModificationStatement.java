@@ -297,10 +297,12 @@ public abstract class ModificationStatement implements CQLStatement
         }
 
         List<ReadCommand> commands = new ArrayList<ReadCommand>(partitionKeys.size());
+        long now = System.currentTimeMillis();
         for (ByteBuffer key : partitionKeys)
             commands.add(new SliceFromReadCommand(keyspace(),
                                                   key,
                                                   columnFamily(),
+                                                  now,
                                                   new SliceQueryFilter(slices, false, Integer.MAX_VALUE)));
 
         List<Row> rows = local
@@ -313,7 +315,7 @@ public abstract class ModificationStatement implements CQLStatement
             if (row.cf == null || row.cf.getColumnCount() == 0)
                 continue;
 
-            ColumnGroupMap.Builder groupBuilder = new ColumnGroupMap.Builder(composite, true);
+            ColumnGroupMap.Builder groupBuilder = new ColumnGroupMap.Builder(composite, true, now);
             for (Column column : row.cf)
                 groupBuilder.add(column);
 

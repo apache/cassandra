@@ -39,11 +39,13 @@ public class RowDataResolver extends AbstractRowResolver
     private int maxLiveCount = 0;
     public List<AsyncOneResponse> repairResults = Collections.emptyList();
     private final IDiskAtomFilter filter;
+    private final long timestamp;
 
-    public RowDataResolver(String table, ByteBuffer key, IDiskAtomFilter qFilter)
+    public RowDataResolver(String table, ByteBuffer key, IDiskAtomFilter qFilter, long timestamp)
     {
         super(key, table);
         this.filter = qFilter;
+        this.timestamp = timestamp;
     }
 
     /*
@@ -74,12 +76,12 @@ public class RowDataResolver extends AbstractRowResolver
                 endpoints.add(message.from);
 
                 // compute maxLiveCount to prevent short reads -- see https://issues.apache.org/jira/browse/CASSANDRA-2643
-                int liveCount = cf == null ? 0 : filter.getLiveCount(cf);
+                int liveCount = cf == null ? 0 : filter.getLiveCount(cf, timestamp);
                 if (liveCount > maxLiveCount)
                     maxLiveCount = liveCount;
             }
 
-            resolved = resolveSuperset(versions);
+            resolved = resolveSuperset(versions, timestamp);
             if (logger.isDebugEnabled())
                 logger.debug("versions merged");
 
@@ -125,7 +127,7 @@ public class RowDataResolver extends AbstractRowResolver
         return results;
     }
 
-    static ColumnFamily resolveSuperset(Iterable<ColumnFamily> versions)
+    static ColumnFamily resolveSuperset(Iterable<ColumnFamily> versions, long now)
     {
         assert Iterables.size(versions) > 0;
 
@@ -146,7 +148,7 @@ public class RowDataResolver extends AbstractRowResolver
         // mimic the collectCollatedColumn + removeDeleted path that getColumnFamily takes.
         // this will handle removing columns and subcolumns that are supressed by a row or
         // supercolumn tombstone.
-        QueryFilter filter = new QueryFilter(null, resolved.metadata().cfName, new IdentityQueryFilter());
+        QueryFilter filter = new QueryFilter(null, resolved.metadata().cfName, new IdentityQueryFilter(), now);
         List<CloseableIterator<Column>> iters = new ArrayList<CloseableIterator<Column>>();
         for (ColumnFamily version : versions)
         {

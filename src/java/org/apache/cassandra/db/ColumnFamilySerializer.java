@@ -102,11 +102,10 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
             return null;
 
         ColumnFamily cf = factory.create(Schema.instance.getCFMetaData(deserializeCfId(in, version)));
-        int expireBefore = (int) (System.currentTimeMillis() / 1000);
 
         if (cf.metadata().isSuper() && version < MessagingService.VERSION_20)
         {
-            SuperColumns.deserializerSuperColumnFamily(in, cf, flag, expireBefore, version);
+            SuperColumns.deserializerSuperColumnFamily(in, cf, flag, version);
         }
         else
         {
@@ -115,9 +114,7 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
             ColumnSerializer columnSerializer = Column.serializer;
             int size = in.readInt();
             for (int i = 0; i < size; ++i)
-            {
-                cf.addColumn(columnSerializer.deserialize(in, flag, expireBefore));
-            }
+                cf.addColumn(columnSerializer.deserialize(in, flag));
         }
         return cf;
     }
@@ -168,21 +165,6 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
     public ColumnFamily deserializeFromSSTable(DataInput in, Descriptor.Version version)
     {
         throw new UnsupportedOperationException();
-    }
-
-    public void deserializeColumnsFromSSTable(DataInput in, ColumnFamily cf, int size, ColumnSerializer.Flag flag, int expireBefore, Descriptor.Version version)
-    {
-        Iterator<OnDiskAtom> iter = cf.metadata().getOnDiskIterator(in, size, flag, expireBefore, version);
-        while (iter.hasNext())
-            cf.addAtom(iter.next());
-    }
-
-    public void deserializeFromSSTable(DataInput in, ColumnFamily cf, ColumnSerializer.Flag flag, Descriptor.Version version) throws IOException
-    {
-        cf.delete(DeletionInfo.serializer().deserializeFromSSTable(in, version));
-        int size = in.readInt();
-        int expireBefore = (int) (System.currentTimeMillis() / 1000);
-        deserializeColumnsFromSSTable(in, cf, size, flag, expireBefore, version);
     }
 
     public void serializeCfId(UUID cfId, DataOutput out, int version) throws IOException

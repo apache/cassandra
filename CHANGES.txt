@@ -58,6 +58,8 @@
  * Use SASL authentication in binary protocol v2 (CASSANDRA-5545)
  * Replace Thrift HsHa with LMAX Disruptor based implementation (CASSANDRA-5582)
  * cqlsh: Add row count to SELECT output (CASSANDRA-5636)
+ * Include a timestamp with all read commands to determine column expiration
+   (CASSANDRA-5149)
 
 1.2.6
  * Reduce SSTableLoader memory usage (CASSANDRA-5555)

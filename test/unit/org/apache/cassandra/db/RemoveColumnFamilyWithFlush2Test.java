@@ -51,7 +51,7 @@ public class RemoveColumnFamilyWithFlush2Test extends SchemaLoader
         rm.apply();
         store.forceBlockingFlush();
 
-        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, "Standard1"));
+        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, "Standard1", System.currentTimeMillis()));
         assert retrieved.isMarkedForDelete();
         assertNull(retrieved.getColumn(ByteBufferUtil.bytes("Column1")));
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));

@@ -81,13 +81,25 @@ public class TableTest extends SchemaLoader
             {
                 ColumnFamily cf;
 
-                cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(TEST_KEY, "Standard3", new TreeSet<ByteBuffer>()));
+                cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(TEST_KEY,
+                                                                        "Standard3",
+                                                                        new TreeSet<ByteBuffer>(),
+                                                                        System.currentTimeMillis()));
                 assertColumns(cf);
 
-                cf = cfStore.getColumnFamily(QueryFilter.getSliceFilter(TEST_KEY, "Standard3", ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 0));
+                cf = cfStore.getColumnFamily(QueryFilter.getSliceFilter(TEST_KEY,
+                                                                        "Standard3",
+                                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                                        false,
+                                                                        0,
+                                                                        System.currentTimeMillis()));
                 assertColumns(cf);
 
-                cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(TEST_KEY, "Standard3", ByteBufferUtil.bytes("col99")));
+                cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(TEST_KEY,
+                                                                        "Standard3",
+                                                                        ByteBufferUtil.bytes("col99"),
+                                                                        System.currentTimeMillis()));
                 assertColumns(cf);
             }
         };
@@ -113,10 +125,16 @@ public class TableTest extends SchemaLoader
             {
                 ColumnFamily cf;
 
-                cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(TEST_KEY, "Standard1", ByteBufferUtil.bytes("col1")));
+                cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(TEST_KEY,
+                                                                        "Standard1",
+                                                                        ByteBufferUtil.bytes("col1"),
+                                                                        System.currentTimeMillis()));
                 assertColumns(cf, "col1");
 
-                cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(TEST_KEY, "Standard1", ByteBufferUtil.bytes("col3")));
+                cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(TEST_KEY,
+                                                                        "Standard1",
+                                                                        ByteBufferUtil.bytes("col3"),
+                                                                        System.currentTimeMillis()));
                 assertColumns(cf, "col3");
             }
         };
@@ -137,13 +155,13 @@ public class TableTest extends SchemaLoader
         RowMutation rm = new RowMutation("Keyspace1", key.key, cf);
         rm.apply();
 
-        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("b"), ByteBufferUtil.bytes("c"), false, 100);
+        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("b"), ByteBufferUtil.bytes("c"), false, 100, System.currentTimeMillis());
         assertEquals(2, cf.getColumnCount());
 
-        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("b"), ByteBufferUtil.bytes("b"), false, 100);
+        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("b"), ByteBufferUtil.bytes("b"), false, 100, System.currentTimeMillis());
         assertEquals(1, cf.getColumnCount());
 
-        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("b"), ByteBufferUtil.bytes("c"), false, 1);
+        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("b"), ByteBufferUtil.bytes("c"), false, 1, System.currentTimeMillis());
         assertEquals(1, cf.getColumnCount());
     }
 
@@ -193,30 +211,30 @@ public class TableTest extends SchemaLoader
                 assert DatabaseDescriptor.getColumnIndexSize() == 4096 : "Unexpected column index size, block boundaries won't be where tests expect them.";
 
                 // test forward, spanning a segment.
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col096"), ByteBufferUtil.bytes("col099"), false, 4);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col096"), ByteBufferUtil.bytes("col099"), false, 4, System.currentTimeMillis());
                 assertColumns(cf, "col096", "col097", "col098", "col099");
 
                 // test reversed, spanning a segment.
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col099"), ByteBufferUtil.bytes("col096"), true, 4);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col099"), ByteBufferUtil.bytes("col096"), true, 4, System.currentTimeMillis());
                 assertColumns(cf, "col096", "col097", "col098", "col099");
 
                 // test forward, within a segment.
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col100"), ByteBufferUtil.bytes("col103"), false, 4);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col100"), ByteBufferUtil.bytes("col103"), false, 4, System.currentTimeMillis());
                 assertColumns(cf, "col100", "col101", "col102", "col103");
 
                 // test reversed, within a segment.
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col103"), ByteBufferUtil.bytes("col100"), true, 4);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col103"), ByteBufferUtil.bytes("col100"), true, 4, System.currentTimeMillis());
                 assertColumns(cf, "col100", "col101", "col102", "col103");
 
                 // test forward from beginning, spanning a segment.
                 String[] strCols = new String[100]; // col000-col099
                 for (int i = 0; i < 100; i++)
                     strCols[i] = "col" + fmt.format(i);
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.bytes("col099"), false, 100);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.bytes("col099"), false, 100, System.currentTimeMillis());
                 assertColumns(cf, strCols);
 
                 // test reversed, from end, spanning a segment.
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.bytes("col288"), true, 12);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.bytes("col288"), true, 12, System.currentTimeMillis());
                 assertColumns(cf, "col288", "col289", "col290", "col291", "col292", "col293", "col294", "col295", "col296", "col297", "col298", "col299");
             }
         };
@@ -248,7 +266,7 @@ public class TableTest extends SchemaLoader
             RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
             rm.apply();
 
-            cf = cfs.getColumnFamily(ROW, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 1);
+            cf = cfs.getColumnFamily(ROW, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 1, System.currentTimeMillis());
             assertEquals(1, Iterables.size(cf.getColumnNames()));
             assertEquals(i, cf.getColumnNames().iterator().next().getLong());
         }
@@ -260,11 +278,11 @@ public class TableTest extends SchemaLoader
         ColumnFamily cf;
 
         // key before the rows that exists
-        cf = cfStore.getColumnFamily(Util.dk("a"), ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+        cf = cfStore.getColumnFamily(Util.dk("a"), ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1, System.currentTimeMillis());
         assertColumns(cf);
 
         // key after the rows that exist
-        cf = cfStore.getColumnFamily(Util.dk("z"), ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+        cf = cfStore.getColumnFamily(Util.dk("z"), ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1, System.currentTimeMillis());
         assertColumns(cf);
     }
 
@@ -296,26 +314,26 @@ public class TableTest extends SchemaLoader
             {
                 ColumnFamily cf;
 
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col5"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 2);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col5"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 2, System.currentTimeMillis());
                 assertColumns(cf, "col5", "col7");
 
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col4"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 2);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col4"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 2, System.currentTimeMillis());
                 assertColumns(cf, "col4", "col5", "col7");
                 assertColumns(ColumnFamilyStore.removeDeleted(cf, Integer.MAX_VALUE), "col5", "col7");
 
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col5"), ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col5"), ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2, System.currentTimeMillis());
                 assertColumns(cf, "col3", "col4", "col5");
 
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col6"), ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col6"), ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2, System.currentTimeMillis());
                 assertColumns(cf, "col3", "col4", "col5");
 
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2, System.currentTimeMillis());
                 assertColumns(cf, "col7", "col9");
 
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col95"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 2);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col95"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 2, System.currentTimeMillis());
                 assertColumns(cf);
 
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2, System.currentTimeMillis());
                 assertColumns(cf);
             }
         };
@@ -344,11 +362,11 @@ public class TableTest extends SchemaLoader
             {
                 ColumnFamily cf;
 
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 2);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 2, System.currentTimeMillis());
                 assertColumns(cf, "col1", "col2");
                 assertColumns(ColumnFamilyStore.removeDeleted(cf, Integer.MAX_VALUE), "col1");
 
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1, System.currentTimeMillis());
                 assertColumns(cf, "col2");
                 assertColumns(ColumnFamilyStore.removeDeleted(cf, Integer.MAX_VALUE));
             }
@@ -389,7 +407,7 @@ public class TableTest extends SchemaLoader
             {
                 ColumnFamily cf;
 
-                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 3);
+                cf = cfStore.getColumnFamily(ROW, ByteBufferUtil.bytes("col2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 3, System.currentTimeMillis());
                 assertColumns(cf, "col2", "col3", "col4");
 
                 ByteBuffer col = cf.getColumn(ByteBufferUtil.bytes("col2")).value();
@@ -454,7 +472,7 @@ public class TableTest extends SchemaLoader
             cfStore.forceBlockingFlush();
         }
         cfStore.metric.sstablesPerReadHistogram.clear();
-        ColumnFamily cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes(""), ByteBufferUtil.bytes("col1499"), false, 1000);
+        ColumnFamily cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes(""), ByteBufferUtil.bytes("col1499"), false, 1000, System.currentTimeMillis());
         assertEquals(cfStore.metric.sstablesPerReadHistogram.max(), 5, 0.1);
         int i = 0;
         for (Column c : cf.getSortedColumns())
@@ -463,7 +481,7 @@ public class TableTest extends SchemaLoader
         }
         assertEquals(i, 500);
         cfStore.metric.sstablesPerReadHistogram.clear();
-        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col1500"), ByteBufferUtil.bytes("col2000"), false, 1000);
+        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col1500"), ByteBufferUtil.bytes("col2000"), false, 1000, System.currentTimeMillis());
         assertEquals(cfStore.metric.sstablesPerReadHistogram.max(), 5, 0.1);
 
         for (Column c : cf.getSortedColumns())
@@ -474,7 +492,7 @@ public class TableTest extends SchemaLoader
 
         // reverse
         cfStore.metric.sstablesPerReadHistogram.clear();
-        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col2000"), ByteBufferUtil.bytes("col1500"), true, 1000);
+        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col2000"), ByteBufferUtil.bytes("col1500"), true, 1000, System.currentTimeMillis());
         assertEquals(cfStore.metric.sstablesPerReadHistogram.max(), 5, 0.1);
         i = 500;
         for (Column c : cf.getSortedColumns())
@@ -523,7 +541,7 @@ public class TableTest extends SchemaLoader
         ByteBuffer start = ct.builder().add(ByteBufferUtil.bytes("a5")).add(ByteBufferUtil.bytes(85)).build();
         ByteBuffer finish = ct.builder().add(ByteBufferUtil.bytes("a5")).buildAsEndOfRange();
         cfs.metric.sstablesPerReadHistogram.clear();
-        ColumnFamily cf = cfs.getColumnFamily(key, start, finish, false, 1000);
+        ColumnFamily cf = cfs.getColumnFamily(key, start, finish, false, 1000, System.currentTimeMillis());
         int colCount = 0;
         for (Column c : cf)
             colCount++;
@@ -535,7 +553,7 @@ public class TableTest extends SchemaLoader
     {
         DecoratedKey key = Util.dk("row3");
         ColumnFamily cf;
-        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col1000"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 3);
+        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col1000"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 3, System.currentTimeMillis());
         assertColumns(cf, "col1000", "col1001", "col1002");
 
         ByteBuffer col;
@@ -546,7 +564,7 @@ public class TableTest extends SchemaLoader
         col = cf.getColumn(ByteBufferUtil.bytes("col1002")).value();
         assertEquals(ByteBufferUtil.string(col), "v1002");
 
-        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col1195"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 3);
+        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col1195"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 3, System.currentTimeMillis());
         assertColumns(cf, "col1195", "col1196", "col1197");
 
         col = cf.getColumn(ByteBufferUtil.bytes("col1195")).value();
@@ -557,7 +575,7 @@ public class TableTest extends SchemaLoader
         assertEquals(ByteBufferUtil.string(col), "v1197");
 
 
-        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col1996"), ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 1000);
+        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col1996"), ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 1000, System.currentTimeMillis());
         Column[] columns = cf.getSortedColumns().toArray(new Column[0]);
         for (int i = 1000; i < 1996; i++)
         {
@@ -567,7 +585,7 @@ public class TableTest extends SchemaLoader
             assertEquals(ByteBufferUtil.string(column.value()), ("v" + i));
         }
 
-        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col1990"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 3);
+        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col1990"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 3, System.currentTimeMillis());
         assertColumns(cf, "col1990", "col1991", "col1992");
         col = cf.getColumn(ByteBufferUtil.bytes("col1990")).value();
         assertEquals(ByteBufferUtil.string(col), "v1990");
@@ -576,7 +594,7 @@ public class TableTest extends SchemaLoader
         col = cf.getColumn(ByteBufferUtil.bytes("col1992")).value();
         assertEquals(ByteBufferUtil.string(col), "v1992");
 
-        cf = cfStore.getColumnFamily(key, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 3);
+        cf = cfStore.getColumnFamily(key, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 3, System.currentTimeMillis());
         assertColumns(cf, "col1997", "col1998", "col1999");
         col = cf.getColumn(ByteBufferUtil.bytes("col1997")).value();
         assertEquals(ByteBufferUtil.string(col), "v1997");
@@ -585,10 +603,10 @@ public class TableTest extends SchemaLoader
         col = cf.getColumn(ByteBufferUtil.bytes("col1999")).value();
         assertEquals(ByteBufferUtil.string(col), "v1999");
 
-        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col9000"), ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 3);
+        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col9000"), ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 3, System.currentTimeMillis());
         assertColumns(cf, "col1997", "col1998", "col1999");
 
-        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col9000"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 3);
+        cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col9000"), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 3, System.currentTimeMillis());
         assertColumns(cf);
     }
 

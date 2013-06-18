@@ -39,7 +39,12 @@ public abstract class SecondaryIndexSearcher
         this.baseCfs = indexManager.baseCfs;
     }
 
-    public abstract List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean countCQL3Rows);
+    public abstract List<Row> search(AbstractBounds<RowPosition> range,
+                                     List<IndexExpression> clause,
+                                     IDiskAtomFilter dataFilter,
+                                     int maxResults,
+                                     long now,
+                                     boolean countCQL3Rows);
 
     /**
      * @return true this index is able to handle given clauses.
@@ -47,16 +52,6 @@ public abstract class SecondaryIndexSearcher
     public boolean isIndexing(List<IndexExpression> clause)
     {
         return highestSelectivityPredicate(clause) != null;
-    }
-
-    protected boolean isIndexValueStale(ColumnFamily liveData, ByteBuffer indexedColumnName, ByteBuffer indexedValue)
-    {
-        Column liveColumn = liveData.getColumn(indexedColumnName);
-        if (liveColumn == null || liveColumn.isMarkedForDelete())
-            return true;
-        
-        ByteBuffer liveValue = liveColumn.value();
-        return 0 != liveData.metadata().getValueValidator(indexedColumnName).compare(indexedValue, liveValue);
     }
 
     protected IndexExpression highestSelectivityPredicate(List<IndexExpression> clause)

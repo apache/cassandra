@@ -179,7 +179,7 @@ public class DefsTest extends SchemaLoader
         assert store != null;
         store.forceBlockingFlush();
 
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, cf, ByteBufferUtil.bytes("col0")));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, cf, ByteBufferUtil.bytes("col0"), System.currentTimeMillis()));
         assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
         Column col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
         assert ByteBufferUtil.bytes("value0").equals(col.value());
@@ -252,7 +252,7 @@ public class DefsTest extends SchemaLoader
         assert store != null;
         store.forceBlockingFlush();
 
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, newCf.cfName, ByteBufferUtil.bytes("col0")));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, newCf.cfName, ByteBufferUtil.bytes("col0"), System.currentTimeMillis()));
         assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
         Column col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
         assert ByteBufferUtil.bytes("value0").equals(col.value());
@@ -360,7 +360,7 @@ public class DefsTest extends SchemaLoader
         assert store != null;
         store.forceBlockingFlush();
 
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, newCf.cfName, ByteBufferUtil.bytes("col0")));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, newCf.cfName, ByteBufferUtil.bytes("col0"), System.currentTimeMillis()));
         assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
         Column col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
         assert ByteBufferUtil.bytes("value0").equals(col.value());

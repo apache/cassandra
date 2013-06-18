@@ -147,7 +147,7 @@ public class CompactionsTest extends SchemaLoader
 
         // check that the shadowed column is gone
         SSTableReader sstable = cfs.getSSTables().iterator().next();
-        SSTableScanner scanner = sstable.getScanner(new QueryFilter(null, "Super1", new IdentityQueryFilter()), key);
+        SSTableScanner scanner = sstable.getScanner(new QueryFilter(null, "Super1", new IdentityQueryFilter(), System.currentTimeMillis()), key);
         OnDiskAtomIterator iter = scanner.next();
         assertEquals(key, iter.getKey());
         assert iter.next() instanceof RangeTombstone;
@@ -314,7 +314,7 @@ public class CompactionsTest extends SchemaLoader
 
         Collection<SSTableReader> sstablesBefore = cfs.getSSTables();
 
-        QueryFilter filter = QueryFilter.getIdentityFilter(key, cfname);
+        QueryFilter filter = QueryFilter.getIdentityFilter(key, cfname, System.currentTimeMillis());
         assert !(cfs.getColumnFamily(filter).getColumnCount() == 0);
 
         // Remove key

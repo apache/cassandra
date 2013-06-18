@@ -36,15 +36,15 @@ public class SliceByNamesReadCommand extends ReadCommand
 
     public final NamesQueryFilter filter;
 
-    public SliceByNamesReadCommand(String table, ByteBuffer key, String cfName, NamesQueryFilter filter)
+    public SliceByNamesReadCommand(String table, ByteBuffer key, String cfName, long timestamp, NamesQueryFilter filter)
     {
-        super(table, key, cfName, Type.GET_BY_NAMES);
+        super(table, key, cfName, timestamp, Type.GET_BY_NAMES);
         this.filter = filter;
     }
 
     public ReadCommand copy()
     {
-        ReadCommand readCommand= new SliceByNamesReadCommand(table, key, cfName, filter);
+        ReadCommand readCommand= new SliceByNamesReadCommand(table, key, cfName, timestamp, filter);
         readCommand.setDigestQuery(isDigestQuery());
         return readCommand;
     }
@@ -52,7 +52,7 @@ public class SliceByNamesReadCommand extends ReadCommand
     public Row getRow(Table table)
     {
         DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
-        return table.getRow(new QueryFilter(dk, cfName, filter));
+        return table.getRow(new QueryFilter(dk, cfName, filter, timestamp));
     }
 
     @Override
@@ -62,6 +62,7 @@ public class SliceByNamesReadCommand extends ReadCommand
                "table='" + table + '\'' +
                ", key=" + ByteBufferUtil.bytesToHex(key) +
                ", cfName='" + cfName + '\'' +
+               ", timestamp='" + timestamp + '\'' +
                ", filter=" + filter +
                ')';
     }
@@ -91,6 +92,9 @@ class SliceByNamesReadCommandSerializer implements IVersionedSerializer<ReadComm
         else
             out.writeUTF(command.cfName);
 
+        if (version >= MessagingService.VERSION_20)
+            out.writeLong(cmd.timestamp);
+
         NamesQueryFilter.serializer.serialize(command.filter, out, version);
     }
 
@@ -112,6 +116,8 @@ class SliceByNamesReadCommandSerializer implements IVersionedSerializer<ReadComm
         {
             cfName = in.readUTF();
         }
+
+        long timestamp = version < MessagingService.VERSION_20 ? System.currentTimeMillis() : in.readLong();
 
         CFMetaData metadata = Schema.instance.getCFMetaData(table, cfName);
         ReadCommand command;
@@ -135,14 +141,14 @@ class SliceByNamesReadCommandSerializer implements IVersionedSerializer<ReadComm
 
             // Due to SC compat, it's possible we get back a slice filter at this point
             if (filter instanceof NamesQueryFilter)
-                command = new SliceByNamesReadCommand(table, key, cfName, (NamesQueryFilter)filter);
+                command = new SliceByNamesReadCommand(table, key, cfName, timestamp, (NamesQueryFilter)filter);
             else
-                command = new SliceFromReadCommand(table, key, cfName, (SliceQueryFilter)filter);
+                command = new SliceFromReadCommand(table, key, cfName, timestamp, (SliceQueryFilter)filter);
         }
         else
         {
             NamesQueryFilter filter = NamesQueryFilter.serializer.deserialize(in, version, metadata.comparator);
-            command = new SliceByNamesReadCommand(table, key, cfName, filter);
+            command = new SliceByNamesReadCommand(table, key, cfName, timestamp, filter);
         }
 
         command.setDigestQuery(isDigest);
@@ -165,15 +171,15 @@ class SliceByNamesReadCommandSerializer implements IVersionedSerializer<ReadComm
         size += sizes.sizeof((short)keySize) + keySize;
 
         if (version < MessagingService.VERSION_20)
-        {
             size += new QueryPath(command.cfName, superColumn).serializedSize(sizes);
-        }
         else
-        {
             size += sizes.sizeof(command.cfName);
-        }
+
+        if (version >= MessagingService.VERSION_20)
+            size += sizes.sizeof(cmd.timestamp);
 
         size += NamesQueryFilter.serializer.serializedSize(command.filter, version);
+
         return size;
     }
 }

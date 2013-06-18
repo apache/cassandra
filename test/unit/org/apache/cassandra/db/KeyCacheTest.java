@@ -119,14 +119,16 @@ public class KeyCacheTest extends SchemaLoader
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        false,
-                                                       10));
+                                                       10,
+                                                       System.currentTimeMillis()));
 
         cfs.getColumnFamily(QueryFilter.getSliceFilter(key2,
                                                        COLUMN_FAMILY1,
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        false,
-                                                       10));
+                                                       10,
+                                                       System.currentTimeMillis()));
 
         assertEquals(2, CacheService.instance.keyCache.size());
 
@@ -141,14 +143,16 @@ public class KeyCacheTest extends SchemaLoader
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        false,
-                                                       10));
+                                                       10,
+                                                       System.currentTimeMillis()));
 
         cfs.getColumnFamily(QueryFilter.getSliceFilter(key2,
                                                        COLUMN_FAMILY1,
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                        false,
-                                                       10));
+                                                       10,
+                                                       System.currentTimeMillis()));
 
         assert CacheService.instance.keyCache.size() == 4;
     }

@@ -425,7 +425,7 @@ public class SchemaLoader
         for (int i = offset; i < offset + numberOfRows; i++)
         {
             DecoratedKey key = Util.dk("key" + i);
-            store.getColumnFamily(QueryFilter.getNamesFilter(key, columnFamily, ByteBufferUtil.bytes("col" + i)));
+            store.getColumnFamily(QueryFilter.getNamesFilter(key, columnFamily, ByteBufferUtil.bytes("col" + i), System.currentTimeMillis()));
         }
     }
 

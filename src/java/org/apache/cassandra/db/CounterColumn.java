@@ -169,9 +169,11 @@ public class CounterColumn extends Column
     {
         assert (column instanceof CounterColumn) || (column instanceof DeletedColumn) : "Wrong class type: " + column.getClass();
 
-        if (column.isMarkedForDelete()) // live + tombstone: track last tombstone
+        // live + tombstone: track last tombstone
+        if (column.isMarkedForDelete(Long.MIN_VALUE)) // cannot be an expired column, so the current time is irrelevant
         {
-            if (timestamp() < column.timestamp()) // live < tombstone
+            // live < tombstone
+            if (timestamp() < column.timestamp())
             {
                 return column;
             }
@@ -230,7 +232,7 @@ public class CounterColumn extends Column
         StringBuilder sb = new StringBuilder();
         sb.append(comparator.getString(name));
         sb.append(":");
-        sb.append(isMarkedForDelete());
+        sb.append(false);
         sb.append(":");
         sb.append(contextManager.toString(value));
         sb.append("@");

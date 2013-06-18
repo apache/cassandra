@@ -15,24 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
@@ -46,8 +28,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
-import org.apache.cassandra.db.filter.NamesQueryFilter;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -57,8 +37,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.IReadCommand;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class RangeSliceCommand implements IReadCommand
@@ -69,6 +47,8 @@ public class RangeSliceCommand implements IReadCommand
 
     public final String column_family;
 
+    public final long timestamp;
+
     public final IDiskAtomFilter predicate;
     public final List<IndexExpression> row_filter;
 
@@ -77,20 +57,40 @@ public class RangeSliceCommand implements IReadCommand
     public final boolean countCQL3Rows;
     public final boolean isPaging;
 
-    public RangeSliceCommand(String keyspace, String column_family, IDiskAtomFilter predicate, AbstractBounds<RowPosition> range, int maxResults)
+    public RangeSliceCommand(String keyspace,
+                             String column_family,
+                             long timestamp,
+                             IDiskAtomFilter predicate,
+                             AbstractBounds<RowPosition> range,
+                             int maxResults)
     {
-        this(keyspace, column_family, predicate, range, null, maxResults, false, false);
+        this(keyspace, column_family, timestamp, predicate, range, null, maxResults, false, false);
     }
 
-    public RangeSliceCommand(String keyspace, String column_family, IDiskAtomFilter predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults)
+    public RangeSliceCommand(String keyspace,
+                             String column_family,
+                             long timestamp,
+                             IDiskAtomFilter predicate,
+                             AbstractBounds<RowPosition> range,
+                             List<IndexExpression> row_filter,
+                             int maxResults)
     {
-        this(keyspace, column_family, predicate, range, row_filter, maxResults, false, false);
+        this(keyspace, column_family, timestamp, predicate, range, row_filter, maxResults, false, false);
     }
 
-    public RangeSliceCommand(String keyspace, String column_family, IDiskAtomFilter predicate, AbstractBounds<RowPosition> range, List<IndexExpression> row_filter, int maxResults, boolean countCQL3Rows, boolean isPaging)
+    public RangeSliceCommand(String keyspace,
+                             String column_family,
+                             long timestamp,
+                             IDiskAtomFilter predicate,
+                             AbstractBounds<RowPosition> range,
+                             List<IndexExpression> row_filter,
+                             int maxResults,
+                             boolean countCQL3Rows,
+                             boolean isPaging)
     {
         this.keyspace = keyspace;
         this.column_family = column_family;
+        this.timestamp = timestamp;
         this.predicate = predicate;
         this.range = range;
         this.row_filter = row_filter;
@@ -110,6 +110,7 @@ public class RangeSliceCommand implements IReadCommand
         return "RangeSliceCommand{" +
                "keyspace='" + keyspace + '\'' +
                ", column_family='" + column_family + '\'' +
+               ", timestamp='" + timestamp + '\'' +
                ", predicate=" + predicate +
                ", range=" + range +
                ", row_filter =" + row_filter +
@@ -131,26 +132,13 @@ public class RangeSliceCommand implements IReadCommand
 
 class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceCommand>
 {
-    // For compatibility with pre-1.2 sake. We should remove at some point.
-    public static SlicePredicate asSlicePredicate(IDiskAtomFilter predicate)
-    {
-        SlicePredicate sp = new SlicePredicate();
-        if (predicate instanceof NamesQueryFilter)
-        {
-            sp.setColumn_names(new ArrayList<ByteBuffer>(((NamesQueryFilter)predicate).columns));
-        }
-        else
-        {
-            SliceQueryFilter sqf = (SliceQueryFilter)predicate;
-            sp.setSlice_range(new SliceRange(sqf.start(), sqf.finish(), sqf.reversed, sqf.count));
-        }
-        return sp;
-    }
-
     public void serialize(RangeSliceCommand sliceCommand, DataOutput out, int version) throws IOException
     {
         out.writeUTF(sliceCommand.keyspace);
         out.writeUTF(sliceCommand.column_family);
+
+        if (version >= MessagingService.VERSION_20)
+            out.writeLong(sliceCommand.timestamp);
 
         IDiskAtomFilter filter = sliceCommand.predicate;
         if (version < MessagingService.VERSION_20)
@@ -199,6 +187,8 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         String keyspace = in.readUTF();
         String columnFamily = in.readUTF();
 
+        long timestamp = version < MessagingService.VERSION_20 ? System.currentTimeMillis() : in.readLong();
+
         CFMetaData metadata = Schema.instance.getCFMetaData(keyspace, columnFamily);
 
         IDiskAtomFilter predicate;
@@ -234,7 +224,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             predicate = IDiskAtomFilter.Serializer.instance.deserialize(in, version, metadata.comparator);
         }
 
-        List<IndexExpression> rowFilter = null;
+        List<IndexExpression> rowFilter;
         int filterCount = in.readInt();
         rowFilter = new ArrayList<IndexExpression>(filterCount);
         for (int i = 0; i < filterCount; i++)
@@ -250,13 +240,16 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         int maxResults = in.readInt();
         boolean countCQL3Rows = in.readBoolean();
         boolean isPaging = in.readBoolean();
-        return new RangeSliceCommand(keyspace, columnFamily, predicate, range, rowFilter, maxResults, countCQL3Rows, isPaging);
+        return new RangeSliceCommand(keyspace, columnFamily, timestamp, predicate, range, rowFilter, maxResults, countCQL3Rows, isPaging);
     }
 
     public long serializedSize(RangeSliceCommand rsc, int version)
     {
         long size = TypeSizes.NATIVE.sizeof(rsc.keyspace);
         size += TypeSizes.NATIVE.sizeof(rsc.column_family);
+
+        if (version >= MessagingService.VERSION_20)
+            size += TypeSizes.NATIVE.sizeof(rsc.timestamp);
 
         IDiskAtomFilter filter = rsc.predicate;
         if (version < MessagingService.VERSION_20)

@@ -88,7 +88,7 @@ public class ColumnSerializer implements ISerializer<Column>
      */
     public Column deserialize(DataInput in, ColumnSerializer.Flag flag) throws IOException
     {
-        return deserialize(in, flag, (int) (System.currentTimeMillis() / 1000));
+        return deserialize(in, flag, Integer.MIN_VALUE);
     }
 
     public Column deserialize(DataInput in, ColumnSerializer.Flag flag, int expireBefore) throws IOException

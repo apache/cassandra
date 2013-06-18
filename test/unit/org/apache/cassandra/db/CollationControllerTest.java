@@ -69,7 +69,7 @@ public class CollationControllerTest extends SchemaLoader
 
         // A NamesQueryFilter goes down one code path (through collectTimeOrderedData())
         // It should only iterate the last flushed sstable, since it probably contains the most recent value for Column1
-        QueryFilter filter = QueryFilter.getNamesFilter(dk, "Standard1", ByteBufferUtil.bytes("Column1"));
+        QueryFilter filter = QueryFilter.getNamesFilter(dk, "Standard1", ByteBufferUtil.bytes("Column1"), System.currentTimeMillis());
         CollationController controller = new CollationController(store, filter, Integer.MIN_VALUE);
         controller.getTopLevelColumns();
         assertEquals(1, controller.getSstablesIterated());
@@ -77,7 +77,7 @@ public class CollationControllerTest extends SchemaLoader
         // SliceQueryFilter goes down another path (through collectAllData())
         // We will read "only" the last sstable in that case, but because the 2nd sstable has a tombstone that is more
         // recent than the maxTimestamp of the very first sstable we flushed, we should only read the 2 first sstables.
-        filter = QueryFilter.getIdentityFilter(dk, "Standard1");
+        filter = QueryFilter.getIdentityFilter(dk, "Standard1", System.currentTimeMillis());
         controller = new CollationController(store, filter, Integer.MIN_VALUE);
         controller.getTopLevelColumns();
         assertEquals(2, controller.getSstablesIterated());

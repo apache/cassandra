@@ -48,24 +48,25 @@ public class ReadMessageTest extends SchemaLoader
 
         ReadCommand rm, rm2;
         DecoratedKey dk = Util.dk("row1");
+        long ts = System.currentTimeMillis();
 
-        rm = new SliceByNamesReadCommand("Keyspace1", dk.key, "Standard1", new NamesQueryFilter(colList));
+        rm = new SliceByNamesReadCommand("Keyspace1", dk.key, "Standard1", ts, new NamesQueryFilter(colList));
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
 
-        rm = new SliceFromReadCommand("Keyspace1", dk.key, "Standard1", new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2));
+        rm = new SliceFromReadCommand("Keyspace1", dk.key, "Standard1", ts, new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2));
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
 
-        rm = new SliceFromReadCommand("Keyspace1", dk.key, "Standard1", new SliceQueryFilter(ByteBufferUtil.bytes("a"), ByteBufferUtil.bytes("z"), true, 5));
+        rm = new SliceFromReadCommand("Keyspace1", dk.key, "Standard1", ts, new SliceQueryFilter(ByteBufferUtil.bytes("a"), ByteBufferUtil.bytes("z"), true, 5));
         rm2 = serializeAndDeserializeReadMessage(rm);
         assertEquals(rm2.toString(), rm.toString());
 
-        rm = new SliceFromReadCommand("Keyspace1", dk.key, "Standard1", new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2));
+        rm = new SliceFromReadCommand("Keyspace1", dk.key, "Standard1", ts, new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2));
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
 
-        rm = new SliceFromReadCommand("Keyspace1", dk.key, "Standard1", new SliceQueryFilter(ByteBufferUtil.bytes("a"), ByteBufferUtil.bytes("z"), true, 5));
+        rm = new SliceFromReadCommand("Keyspace1", dk.key, "Standard1", ts, new SliceQueryFilter(ByteBufferUtil.bytes("a"), ByteBufferUtil.bytes("z"), true, 5));
         rm2 = serializeAndDeserializeReadMessage(rm);
         assertEquals(rm2.toString(), rm.toString());
     }
@@ -93,7 +94,7 @@ public class ReadMessageTest extends SchemaLoader
         rm.add("Standard1", ByteBufferUtil.bytes("Column1"), ByteBufferUtil.bytes("abcd"), 0);
         rm.apply();
 
-        ReadCommand command = new SliceByNamesReadCommand("Keyspace1", dk.key, "Standard1", new NamesQueryFilter(ByteBufferUtil.bytes("Column1")));
+        ReadCommand command = new SliceByNamesReadCommand("Keyspace1", dk.key, "Standard1", System.currentTimeMillis(), new NamesQueryFilter(ByteBufferUtil.bytes("Column1")));
         Row row = command.getRow(table);
         Column col = row.cf.getColumn(ByteBufferUtil.bytes("Column1"));
         assertEquals(col.value(), ByteBuffer.wrap("abcd".getBytes()));

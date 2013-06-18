@@ -326,15 +326,16 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         delivery:
         while (true)
         {
+            long now = System.currentTimeMillis();
             QueryFilter filter = QueryFilter.getSliceFilter(epkey,
                                                             SystemTable.HINTS_CF,
                                                             startColumn,
                                                             ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                             false,
-                                                            pageSize);
+                                                            pageSize,
+                                                            now);
 
-            ColumnFamily hintsPage = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter),
-                                                                     (int) (System.currentTimeMillis() / 1000));
+            ColumnFamily hintsPage = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), (int) (now / 1000));
 
             if (pagingFinished(hintsPage, startColumn))
                 break;
@@ -362,7 +363,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 // in which the local deletion timestamp was generated on the last column in the old page, in which
                 // case the hint will have no columns (since it's deleted) but will still be included in the resultset
                 // since (even with gcgs=0) it's still a "relevant" tombstone.
-                if (!hint.isLive())
+                if (!hint.isLive(System.currentTimeMillis()))
                     continue;
 
                 startColumn = hint.name();
@@ -479,7 +480,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         RowPosition minPos = p.getMinimumToken().minKeyBound();
         Range<RowPosition> range = new Range<RowPosition>(minPos, minPos, p);
         IDiskAtomFilter filter = new NamesQueryFilter(ImmutableSortedSet.<ByteBuffer>of());
-        List<Row> rows = hintStore.getRangeSlice(range, Integer.MAX_VALUE, filter, null);
+        List<Row> rows = hintStore.getRangeSlice(range, null, filter, Integer.MAX_VALUE);
         for (Row row : rows)
         {
             UUID hostId = UUIDGen.getUUID(row.key.key);
@@ -576,18 +577,22 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         RowPosition minPos = partitioner.getMinimumToken().minKeyBound();
         Range<RowPosition> range = new Range<RowPosition>(minPos, minPos);
 
-        // Get a bunch of rows!
-        List<Row> rows;
         try
         {
-            rows = StorageProxy.getRangeSlice(new RangeSliceCommand(Table.SYSTEM_KS, SystemTable.HINTS_CF, predicate, range, null, LARGE_NUMBER), ConsistencyLevel.ONE);
+            RangeSliceCommand cmd = new RangeSliceCommand(Table.SYSTEM_KS,
+                                                          SystemTable.HINTS_CF,
+                                                          System.currentTimeMillis(),
+                                                          predicate,
+                                                          range,
+                                                          null,
+                                                          LARGE_NUMBER);
+            return StorageProxy.getRangeSlice(cmd, ConsistencyLevel.ONE);
         }
         catch (Exception e)
         {
             logger.info("HintsCF getEPPendingHints timed out.");
             throw new RuntimeException(e);
         }
-        return rows;
     }
 
 }

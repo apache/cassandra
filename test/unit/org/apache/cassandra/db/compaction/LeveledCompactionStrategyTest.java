@@ -89,7 +89,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
 
         ActiveRepairService.CFPair p = new ActiveRepairService.CFPair(ksname, cfname);
         Range<Token> range = new Range<Token>(Util.token(""), Util.token(""));
-        int gcBefore = (int)(System.currentTimeMillis()/1000) - table.getColumnFamilyStore(cfname).metadata.getGcGraceSeconds();
+        int gcBefore = table.getColumnFamilyStore(cfname).gcBefore(System.currentTimeMillis());
         ActiveRepairService.TreeRequest req = new ActiveRepairService.TreeRequest("1", FBUtilities.getLocalAddress(), range, gcBefore, p);
         ActiveRepairService.Validator validator = new ActiveRepairService.Validator(req);
         CompactionManager.instance.submitValidation(cfs, validator).get();

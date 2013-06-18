@@ -86,7 +86,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         // major compact and test that all columns but the resurrected one is completely gone
         CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE).get();
         cfs.invalidateCachedRow(key);
-        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName));
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
         assertColumns(cf, "5");
         assert cf.getColumn(ByteBufferUtil.bytes(String.valueOf(5))) != null;
     }
@@ -138,12 +138,12 @@ public class CompactionsPurgeTest extends SchemaLoader
 
         // verify that minor compaction does GC when key is provably not
         // present in a non-compacted sstable
-        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key2, cfName));
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key2, cfName, System.currentTimeMillis()));
         assert cf == null;
 
         // verify that minor compaction still GC when key is present
         // in a non-compacted sstable but the timestamp ensures we won't miss anything
-        cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key1, cfName));
+        cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key1, cfName, System.currentTimeMillis()));
         Assert.assertEquals(1, cf.getColumnCount());
     }
 
@@ -180,8 +180,8 @@ public class CompactionsPurgeTest extends SchemaLoader
 
         // we should have both the c1 and c2 tombstones still, since the c2 timestamp is older than the c1 tombstone
         // so it would be invalid to assume we can throw out the c1 entry.
-        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key3, cfName));
-        Assert.assertFalse(cf.getColumn(ByteBufferUtil.bytes("c2")).isLive());
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key3, cfName, System.currentTimeMillis()));
+        Assert.assertFalse(cf.getColumn(ByteBufferUtil.bytes("c2")).isLive(System.currentTimeMillis()));
         Assert.assertEquals(2, cf.getColumnCount());
     }
 
@@ -218,7 +218,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         // compact and test that the row is completely gone
         Util.compactAll(cfs).get();
         assert cfs.getSSTables().isEmpty();
-        ColumnFamily cf = table.getColumnFamilyStore(cfName).getColumnFamily(QueryFilter.getIdentityFilter(key, cfName));
+        ColumnFamily cf = table.getColumnFamilyStore(cfName).getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
         assert cf == null : cf;
     }
 
@@ -244,7 +244,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         rm.apply();
 
         // move the key up in row cache
-        cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName));
+        cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
 
         // deletes row
         rm = new RowMutation(tableName, key.key);
@@ -264,10 +264,10 @@ public class CompactionsPurgeTest extends SchemaLoader
         rm.apply();
 
         // Check that the second insert did went in
-        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName));
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
         assertEquals(10, cf.getColumnCount());
         for (Column c : cf)
-            assert !c.isMarkedForDelete();
+            assert !c.isMarkedForDelete(System.currentTimeMillis());
     }
 
     @Test
@@ -309,9 +309,9 @@ public class CompactionsPurgeTest extends SchemaLoader
         rm.apply();
 
         // Check that the second insert did went in
-        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName));
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
         assertEquals(10, cf.getColumnCount());
         for (Column c : cf)
-            assert !c.isMarkedForDelete();
+            assert !c.isMarkedForDelete(System.currentTimeMillis());
     }
 }

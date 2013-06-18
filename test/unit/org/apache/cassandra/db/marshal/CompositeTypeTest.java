@@ -183,7 +183,7 @@ public class CompositeTypeTest extends SchemaLoader
         addColumn(rm, cname3);
         rm.apply();
 
-        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("k"), cfName));
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("k"), cfName, System.currentTimeMillis()));
 
         Iterator<Column> iter = cf.getSortedColumns().iterator();
 

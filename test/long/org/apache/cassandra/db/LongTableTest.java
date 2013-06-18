@@ -56,7 +56,10 @@ public class LongTableTest extends SchemaLoader
                 {
                     for (int j = 0; j < i; j++)
                     {
-                        cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("key" + i), "Standard1", ByteBufferUtil.bytes("c" + j)));
+                        cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("key" + i),
+                                                                                "Standard1",
+                                                                                ByteBufferUtil.bytes("c" + j),
+                                                                                System.currentTimeMillis()));
                         TableTest.assertColumns(cf, "c" + j);
                     }
                 }

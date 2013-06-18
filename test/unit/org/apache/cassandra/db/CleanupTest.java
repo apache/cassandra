@@ -115,7 +115,7 @@ public class CleanupTest extends SchemaLoader
         IDiskAtomFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range<RowPosition> range = Util.range("", "");
-        rows = table.getColumnFamilyStore(CF1).search(clause, range, Integer.MAX_VALUE, filter);
+        rows = table.getColumnFamilyStore(CF1).search(range, clause, filter, Integer.MAX_VALUE);
         assertEquals(LOOPS, rows.size());
 
         // we don't allow cleanup when the local host has no range to avoid wipping up all data when a node has not join the ring.
@@ -137,7 +137,7 @@ public class CleanupTest extends SchemaLoader
         assert cfs.getSSTables().isEmpty();
 
         // 2ary indexes should result in no results, too (although tombstones won't be gone until compacted)
-        rows = cfs.search(clause, range, Integer.MAX_VALUE, filter);
+        rows = cfs.search(range, clause, filter, Integer.MAX_VALUE);
         assertEquals(0, rows.size());
     }
 

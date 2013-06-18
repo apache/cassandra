@@ -78,7 +78,7 @@ public class RangeTombstoneTest extends SchemaLoader
             columns.add(b(i));
         for (int i : dead)
             columns.add(b(i));
-        cf = cfs.getColumnFamily(QueryFilter.getNamesFilter(dk(key), CFNAME, columns));
+        cf = cfs.getColumnFamily(QueryFilter.getNamesFilter(dk(key), CFNAME, columns, System.currentTimeMillis()));
 
         for (int i : live)
             assert isLive(cf, cf.getColumn(b(i))) : "Column " + i + " should be live";
@@ -86,7 +86,7 @@ public class RangeTombstoneTest extends SchemaLoader
             assert !isLive(cf, cf.getColumn(b(i))) : "Column " + i + " shouldn't be live";
 
         // Queries by slices
-        cf = cfs.getColumnFamily(QueryFilter.getSliceFilter(dk(key), CFNAME, b(7), b(30), false, Integer.MAX_VALUE));
+        cf = cfs.getColumnFamily(QueryFilter.getSliceFilter(dk(key), CFNAME, b(7), b(30), false, Integer.MAX_VALUE, System.currentTimeMillis()));
 
         for (int i : new int[]{ 7, 8, 9, 11, 13, 15, 17, 28, 29, 30 })
             assert isLive(cf, cf.getColumn(b(i))) : "Column " + i + " should be live";
@@ -130,7 +130,7 @@ public class RangeTombstoneTest extends SchemaLoader
         rm.apply();
         cfs.forceBlockingFlush();
 
-        cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(dk(key), CFNAME));
+        cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(dk(key), CFNAME, System.currentTimeMillis()));
 
         for (int i = 0; i < 5; i++)
             assert isLive(cf, cf.getColumn(b(i))) : "Column " + i + " should be live";
@@ -141,7 +141,7 @@ public class RangeTombstoneTest extends SchemaLoader
 
         // Compact everything and re-test
         CompactionManager.instance.performMaximal(cfs);
-        cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(dk(key), CFNAME));
+        cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(dk(key), CFNAME, System.currentTimeMillis()));
 
         for (int i = 0; i < 5; i++)
             assert isLive(cf, cf.getColumn(b(i))) : "Column " + i + " should be live";
@@ -153,7 +153,7 @@ public class RangeTombstoneTest extends SchemaLoader
 
     private static boolean isLive(ColumnFamily cf, Column c)
     {
-        return c != null && !c.isMarkedForDelete() && !cf.deletionInfo().isDeleted(c);
+        return c != null && !c.isMarkedForDelete(System.currentTimeMillis()) && !cf.deletionInfo().isDeleted(c);
     }
 
     private static ByteBuffer b(int i)

@@ -33,12 +33,14 @@ public class QueryFilter
     public final DecoratedKey key;
     public final String cfName;
     public final IDiskAtomFilter filter;
+    public final long timestamp;
 
-    public QueryFilter(DecoratedKey key, String cfName, IDiskAtomFilter filter)
+    public QueryFilter(DecoratedKey key, String cfName, IDiskAtomFilter filter, long timestamp)
     {
         this.key = key;
         this.cfName = cfName;
         this.filter = filter;
+        this.timestamp = timestamp;
     }
 
     public OnDiskAtomIterator getMemtableColumnIterator(Memtable memtable)
@@ -79,7 +81,7 @@ public class QueryFilter
     public void collateOnDiskAtom(ColumnFamily returnCF, Iterator<? extends OnDiskAtom> toCollate, int gcBefore)
     {
         Iterator<Column> columns = gatherTombstones(returnCF, toCollate);
-        filter.collectReducedColumns(returnCF, columns, gcBefore);
+        filter.collectReducedColumns(returnCF, columns, gcBefore, timestamp);
     }
 
     public void collateColumns(final ColumnFamily returnCF, List<? extends Iterator<Column>> toCollate, final int gcBefore)
@@ -107,7 +109,7 @@ public class QueryFilter
         };
         Iterator<Column> reduced = MergeIterator.get(toCollate, fcomp, reducer);
 
-        filter.collectReducedColumns(returnCF, reduced, gcBefore);
+        filter.collectReducedColumns(returnCF, reduced, gcBefore, timestamp);
     }
 
     /**
@@ -178,19 +180,26 @@ public class QueryFilter
      * @param finish column to stop slice at, inclusive; empty for "the last column"
      * @param reversed true to start with the largest column (as determined by configured sort order) instead of smallest
      * @param limit maximum number of non-deleted columns to return
+     * @param timestamp time to use for determining expiring columns' state
      */
-    public static QueryFilter getSliceFilter(DecoratedKey key, String cfName, ByteBuffer start, ByteBuffer finish, boolean reversed, int limit)
+    public static QueryFilter getSliceFilter(DecoratedKey key,
+                                             String cfName,
+                                             ByteBuffer start,
+                                             ByteBuffer finish,
+                                             boolean reversed,
+                                             int limit,
+                                             long timestamp)
     {
-        return new QueryFilter(key, cfName, new SliceQueryFilter(start, finish, reversed, limit));
+        return new QueryFilter(key, cfName, new SliceQueryFilter(start, finish, reversed, limit), timestamp);
     }
 
     /**
      * return a QueryFilter object that includes every column in the row.
      * This is dangerous on large rows; avoid except for test code.
      */
-    public static QueryFilter getIdentityFilter(DecoratedKey key, String cfName)
+    public static QueryFilter getIdentityFilter(DecoratedKey key, String cfName, long timestamp)
     {
-        return new QueryFilter(key, cfName, new IdentityQueryFilter());
+        return new QueryFilter(key, cfName, new IdentityQueryFilter(), timestamp);
     }
 
     /**
@@ -199,17 +208,17 @@ public class QueryFilter
      * @param cfName column family to query
      * @param columns the column names to restrict the results to, sorted in comparator order
      */
-    public static QueryFilter getNamesFilter(DecoratedKey key, String cfName, SortedSet<ByteBuffer> columns)
+    public static QueryFilter getNamesFilter(DecoratedKey key, String cfName, SortedSet<ByteBuffer> columns, long timestamp)
     {
-        return new QueryFilter(key, cfName, new NamesQueryFilter(columns));
+        return new QueryFilter(key, cfName, new NamesQueryFilter(columns), timestamp);
     }
 
     /**
      * convenience method for creating a name filter matching a single column
      */
-    public static QueryFilter getNamesFilter(DecoratedKey key, String cfName, ByteBuffer column)
+    public static QueryFilter getNamesFilter(DecoratedKey key, String cfName, ByteBuffer column, long timestamp)
     {
-        return new QueryFilter(key, cfName, new NamesQueryFilter(column));
+        return new QueryFilter(key, cfName, new NamesQueryFilter(column), timestamp);
     }
 
     @Override
