@@ -59,7 +59,16 @@ public class PermissionDetails implements Comparable<PermissionDetails>
     @Override
     public boolean equals(Object o)
     {
-        return Objects.equal(this, o);
+        if (this == o)
+            return true;
+
+        if (!(o instanceof PermissionDetails))
+            return false;
+
+        PermissionDetails pd = (PermissionDetails) o;
+        return Objects.equal(this.username, pd.username)
+            && Objects.equal(this.resource, pd.resource)
+            && Objects.equal(this.permission, pd.permission);
     }
 
     @Override
