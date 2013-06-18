@@ -440,7 +440,7 @@ public class CliClient
         SlicePredicate predicate = new SlicePredicate().setColumn_names(null).setSlice_range(range);
 
         int count = thriftClient.get_count(getKeyAsBytes(columnFamily, columnFamilySpec.getChild(1)), colParent, predicate, consistencyLevel);
-        sessionState.out.printf("%d columns%n", count);
+        sessionState.out.printf("%d cells%n", count);
     }
 
     private Iterable<CfDef> currentCfDefs()
@@ -526,7 +526,7 @@ public class CliClient
         {
             thriftClient.remove(key, path, FBUtilities.timestampMicros(), consistencyLevel);
         }
-        sessionState.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "column"));
+        sessionState.out.println(String.format("%s removed.", (columnSpecCnt == 0) ? "row" : "cell"));
         elapsedTime(startTime);
     }
 
@@ -559,7 +559,7 @@ public class CliClient
                 for (Column col : superColumn.getColumns())
                 {
                     validator = getValidatorForValue(cfDef, col.getName());
-                    sessionState.out.printf("%n     (column=%s, value=%s, timestamp=%d%s)", formatSubcolumnName(keyspace, columnFamily, col.name),
+                    sessionState.out.printf("%n     (name=%s, value=%s, timestamp=%d%s)", formatSubcolumnName(keyspace, columnFamily, col.name),
                                                     validator.getString(col.value), col.timestamp,
                                                     col.isSetTtl() ? String.format(", ttl=%d", col.getTtl()) : "");
                 }
@@ -575,7 +575,7 @@ public class CliClient
                                        ? formatSubcolumnName(keyspace, columnFamily, column.name)
                                        : formatColumnName(keyspace, columnFamily, column.name);
 
-                sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d%s)%n",
+                sessionState.out.printf("=> (name=%s, value=%s, timestamp=%d%s)%n",
                                         formattedName,
                                         validator.getString(column.value),
                                         column.timestamp,
@@ -763,7 +763,7 @@ public class CliClient
                                      : formatColumnName(keySpace, columnFamily, column.name);
 
         // print results
-        sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d%s)%n",
+        sessionState.out.printf("=> (name=%s, value=%s, timestamp=%d%s)%n",
                                 formattedColumnName,
                                 valueAsString,
                                 column.timestamp,
@@ -918,7 +918,7 @@ public class CliClient
         // table.cf['key']
         if (columnSpecCnt == 0)
         {
-            sessionState.err.println("No column name specified, (type 'help;' or '?' for help on syntax).");
+            sessionState.err.println("No cell name specified, (type 'help;' or '?' for help on syntax).");
             return;
         }
         // table.cf['key']['column'] = 'value'
@@ -1436,7 +1436,7 @@ public class CliClient
             {
                 if ((child.getChildCount() < 1) || (child.getChildCount() > 2))
                 {
-                    sessionState.err.println("Invalid columns clause.");
+                    sessionState.err.println("Invalid cells clause.");
                     return;
                 }
 
@@ -1447,7 +1447,7 @@ public class CliClient
                     columnCount = Integer.parseInt(columns);
                     if (columnCount < 0)
                     {
-                        sessionState.err.println("Invalid column limit: " + columnCount);
+                        sessionState.err.println("Invalid cell limit: " + columnCount);
                         return;
                     }
 
@@ -1456,7 +1456,7 @@ public class CliClient
                 }
                 catch (NumberFormatException nfe)
                 {
-                    sessionState.err.println("Invalid column number format: " + columns);
+                    sessionState.err.println("Invalid cell number format: " + columns);
                     return;
                 }
             }
@@ -1470,7 +1470,7 @@ public class CliClient
         if (columnCount == Integer.MAX_VALUE)
         {
             columnCount = 100;
-            sessionState.out.println("Using default column limit of 100");
+            sessionState.out.println("Using default cell limit of 100");
         }
 
 
@@ -2153,7 +2153,7 @@ public class CliClient
         if (cf_def.default_validation_class != null)
             sessionState.out.printf("      Default column value validator: %s%n", cf_def.default_validation_class);
 
-        sessionState.out.printf("      Columns sorted by: %s%s%n", cf_def.comparator_type, cf_def.column_type.equals("Super") ? "/" + cf_def.subcomparator_type : "");
+        sessionState.out.printf("      Cells sorted by: %s%s%n", cf_def.comparator_type, cf_def.column_type.equals("Super") ? "/" + cf_def.subcomparator_type : "");
         sessionState.out.printf("      GC grace seconds: %s%n", cf_def.gc_grace_seconds);
         sessionState.out.printf("      Compaction min/max thresholds: %s/%s%n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
         sessionState.out.printf("      Read repair chance: %s%n", cf_def.read_repair_chance);
@@ -2888,7 +2888,7 @@ public class CliClient
                     Column col = columnOrSuperColumn.column;
                     validator = getValidatorForValue(columnFamilyDef, col.getName());
 
-                    sessionState.out.printf("=> (column=%s, value=%s, timestamp=%d%s)%n",
+                    sessionState.out.printf("=> (name=%s, value=%s, timestamp=%d%s)%n",
                                     formatColumnName(keySpace, columnFamilyName, col.name), validator.getString(col.value), col.timestamp,
                                     col.isSetTtl() ? String.format(", ttl=%d", col.getTtl()) : "");
                 }
@@ -2901,7 +2901,7 @@ public class CliClient
                     {
                         validator = getValidatorForValue(columnFamilyDef, col.getName());
 
-                        sessionState.out.printf("%n     (column=%s, value=%s, timestamp=%d%s)",
+                        sessionState.out.printf("%n     (name=%s, value=%s, timestamp=%d%s)",
                                         formatSubcolumnName(keySpace, columnFamilyName, col.name), validator.getString(col.value), col.timestamp,
                                         col.isSetTtl() ? String.format(", ttl=%d", col.getTtl()) : "");
                     }
