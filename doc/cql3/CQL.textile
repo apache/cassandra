@@ -392,14 +392,14 @@ h3(#createIndexStmt). CREATE INDEX
 __Syntax:__
 
 bc(syntax). <create-index-stmt> ::= CREATE ( CUSTOM )? INDEX <identifier>? ON <tablename> '(' <identifier> ')'
-                                        ( WITH <properties> )?
+                                        ( USING <string> )?
 
 __Sample:__
 
 bc(sample). 
 CREATE INDEX userIndex ON NerdMovies (user);
 CREATE INDEX ON Mutants (abilityId);
-CREATE CUSTOM INDEX ON users (email) WITH options = {'class': 'path.to.the.IndexClass'};
+CREATE CUSTOM INDEX ON users (email) USING 'path.to.the.IndexClass';
 
 The @CREATE INDEX@ statement is used to create a new (automatic) secondary index for a given (existing) column in a given table. A name for the index itself can be specified before the @ON@ keyword, if desired. If data already exists for the column, it will be indexed during the execution of this statement. After the index is created, new data for the column is indexed automatically at insertion time.
 
@@ -1060,6 +1060,10 @@ h3. 3.1.0
 
 * "ALTER TABLE":#alterTableStmt @DROP@ option has been reenabled for CQL3 tables and has new semantics now: the space formerly used by dropped columns will now be eventually reclaimed (post-compaction). You should not readd previously dropped columns unless you use timestamps with microsecond precision (see "CASSANDRA-3919":https://issues.apache.org/jira/browse/CASSANDRA-3919 for more details).
 * SELECT statement now supports aliases in select clause. Aliases in WHERE and ORDER BY clauses are not supported. See the "section on select"#selectStmt for details.
+
+h3. 3.0.4
+
+* Updated the syntax for custom "secondary indexes":#createIndexStmt.
 
 h3. 3.0.3
 
