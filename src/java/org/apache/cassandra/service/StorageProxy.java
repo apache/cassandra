@@ -861,7 +861,7 @@ public class StorageProxy implements StorageProxyMBean
             ReadCallback<ReadResponse, Row>[] readCallbacks = new ReadCallback[commands.size()];
 
             if (!commandsToRetry.isEmpty())
-                logger.debug("Retrying {} commands", commandsToRetry.size());
+                Tracing.trace("Retrying {} commands", commandsToRetry.size());
 
             // send out read requests
             for (int i = 0; i < commands.size(); i++)
@@ -947,7 +947,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 catch (DigestMismatchException ex)
                 {
-                    logger.debug("Digest mismatch: {}", ex.toString());
+                    Tracing.trace("Digest mismatch: {}", ex.toString());
                     
                     ReadRepairMetrics.repairedBlocking.mark();
                     
@@ -963,9 +963,10 @@ public class StorageProxy implements StorageProxyMBean
                     repairCommands.add(command);
                     repairResponseHandlers.add(repairHandler);
 
+                    MessageOut<ReadCommand> message = command.createMessage();
                     for (InetAddress endpoint : handler.endpoints)
                     {
-                        MessageOut<ReadCommand> message = command.createMessage();
+                        Tracing.trace("Enqueuing full data read to {}", endpoint);
                         MessagingService.instance().sendRR(message, endpoint, repairHandler);
                     }
                 }
@@ -1009,7 +1010,7 @@ public class StorageProxy implements StorageProxyMBean
                     ReadCommand retryCommand = command.maybeGenerateRetryCommand(resolver, row);
                     if (retryCommand != null)
                     {
-                        logger.debug("Issuing retry for read command");
+                        Tracing.trace("Issuing retry for read command");
                         if (commandsToRetry == Collections.EMPTY_LIST)
                             commandsToRetry = new ArrayList<ReadCommand>();
                         commandsToRetry.add(retryCommand);
@@ -1193,7 +1194,7 @@ public class StorageProxy implements StorageProxyMBean
                     MessageOut<RangeSliceCommand> message = nodeCmd.createMessage();
                     for (InetAddress endpoint : filteredEndpoints)
                     {
-                        logger.trace("Enqueuing request to {}", endpoint);
+                        Tracing.trace("Enqueuing request to {}", endpoint);
                         MessagingService.instance().sendRR(message, endpoint, handler);
                     }
                 }
