@@ -54,8 +54,6 @@ public class ReadVerbHandler implements IVerbHandler<ReadCommand>
     {
         if (command.isDigestQuery())
         {
-            if (logger.isTraceEnabled())
-                logger.trace("digest is " + ByteBufferUtil.bytesToHex(ColumnFamily.digest(row.cf)));
             return new ReadResponse(ColumnFamily.digest(row.cf));
         }
         else
