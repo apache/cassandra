@@ -84,10 +84,9 @@ public class UpdateStatement extends ModificationStatement
             }
             else
             {
-                // compact means we don't have a row marker, so don't accept to set only the PK (Note: we
-                // could accept it and use an empty value!?)
+                // compact means we don't have a row marker, so don't accept to set only the PK. See CASSANDRA-5648.
                 if (updates.isEmpty())
-                    throw new InvalidRequestException(String.format("Missing mandatory column %s", cfDef.value));
+                    throw new InvalidRequestException(String.format("Column %s is mandatory for this COMPACT STORAGE table", cfDef.value));
 
                 for (Operation update : updates)
                     update.execute(key, cf, builder.copy(), params);
