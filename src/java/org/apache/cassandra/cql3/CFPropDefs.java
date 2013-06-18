@@ -41,6 +41,7 @@ public class CFPropDefs extends PropertyDefinitions
     public static final String KW_REPLICATEONWRITE = "replicate_on_write";
     public static final String KW_CACHING = "caching";
     public static final String KW_DEFAULT_TIME_TO_LIVE = "default_time_to_live";
+    public static final String KW_INDEX_INTERVAL = "index_interval";
     public static final String KW_SPECULATIVE_RETRY = "speculative_retry";
     public static final String KW_POPULATE_IO_CACHE_ON_FLUSH = "populate_io_cache_on_flush";
     public static final String KW_BF_FP_CHANCE = "bloom_filter_fp_chance";
@@ -64,6 +65,7 @@ public class CFPropDefs extends PropertyDefinitions
         keywords.add(KW_REPLICATEONWRITE);
         keywords.add(KW_CACHING);
         keywords.add(KW_DEFAULT_TIME_TO_LIVE);
+        keywords.add(KW_INDEX_INTERVAL);
         keywords.add(KW_SPECULATIVE_RETRY);
         keywords.add(KW_POPULATE_IO_CACHE_ON_FLUSH);
         keywords.add(KW_BF_FP_CHANCE);
@@ -99,16 +101,8 @@ public class CFPropDefs extends PropertyDefinitions
             CFMetaData.validateCompactionOptions(compactionStrategyClass, compactionOptions);
         }
 
-        Integer defaultTimeToLive = getInt(KW_DEFAULT_TIME_TO_LIVE, null);
-
-        if (defaultTimeToLive != null)
-        {
-            if (defaultTimeToLive < 0)
-                throw new ConfigurationException(String.format("%s cannot be smaller than %s, (default %s)",
-                        KW_DEFAULT_TIME_TO_LIVE,
-                        0,
-                        CFMetaData.DEFAULT_DEFAULT_TIME_TO_LIVE));
-        }
+        validateMinimumInt(KW_DEFAULT_TIME_TO_LIVE, 0, CFMetaData.DEFAULT_DEFAULT_TIME_TO_LIVE);
+        validateMinimumInt(KW_INDEX_INTERVAL, 1, CFMetaData.DEFAULT_INDEX_INTERVAL);
     }
 
     public Class<? extends AbstractCompactionStrategy> getCompactionStrategy()
@@ -152,6 +146,7 @@ public class CFPropDefs extends PropertyDefinitions
         cfm.speculativeRetry(CFMetaData.SpeculativeRetry.fromString(getString(KW_SPECULATIVE_RETRY, cfm.getSpeculativeRetry().toString())));
         cfm.memtableFlushPeriod(getInt(KW_MEMTABLE_FLUSH_PERIOD, cfm.getMemtableFlushPeriod()));
         cfm.populateIoCacheOnFlush(getBoolean(KW_POPULATE_IO_CACHE_ON_FLUSH, cfm.populateIoCacheOnFlush()));
+        cfm.indexInterval(getInt(KW_INDEX_INTERVAL, cfm.getIndexInterval()));
 
         if (compactionStrategyClass != null)
         {
@@ -169,5 +164,14 @@ public class CFPropDefs extends PropertyDefinitions
     public String toString()
     {
         return String.format("CFPropDefs(%s)", properties.toString());
+    }
+
+    private void validateMinimumInt(String field, int minimumValue, int defaultValue) throws SyntaxException, ConfigurationException
+    {
+        Integer val = getInt(field, null);
+        if (val != null && val < minimumValue)
+            throw new ConfigurationException(String.format("%s cannot be smaller than %s, (default %s)",
+                                                            field, minimumValue, defaultValue));
+
     }
 }

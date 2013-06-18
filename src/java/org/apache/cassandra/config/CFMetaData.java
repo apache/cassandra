@@ -140,6 +140,7 @@ public final class CFMetaData
                                                                        + "default_write_consistency text,"
                                                                        + "speculative_retry text,"
                                                                        + "populate_io_cache_on_flush boolean,"
+                                                                       + "index_interval int,"
                                                                        + "dropped_columns map<text, bigint>,"
                                                                        + "PRIMARY KEY (keyspace_name, columnfamily_name)"
                                                                        + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=8640");
