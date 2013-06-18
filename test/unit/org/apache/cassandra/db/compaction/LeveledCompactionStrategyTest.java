@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -173,10 +174,11 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
             cfs.forceBlockingFlush();
         }
         waitForLeveling(cfs);
+        cfs.forceBlockingFlush();
         LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) cfs.getCompactionStrategy();
         cfs.disableAutoCompaction();
 
-        while(CompactionManager.instance.getActiveCompactions() > 0)
+        while(CompactionManager.instance.isCompacting(Arrays.asList(cfs)))
             Thread.sleep(100);
 
         for (SSTableReader s : cfs.getSSTables())
