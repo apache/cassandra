@@ -17,13 +17,17 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.File;
+import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
+import org.apache.cassandra.io.compress.CompressionMetadata;
 
-public class BufferedSegmentedFile extends SegmentedFile
+public class CompressedPoolingSegmentedFile extends PoolingSegmentedFile
 {
-    public BufferedSegmentedFile(String path, long length)
+    public final CompressionMetadata metadata;
+
+    public CompressedPoolingSegmentedFile(String path, CompressionMetadata metadata)
     {
-        super(path, length);
+        super(path, metadata.dataLength, metadata.compressedFileLength);
+        this.metadata = metadata;
     }
 
     public static class Builder extends SegmentedFile.Builder
@@ -35,19 +39,19 @@ public class BufferedSegmentedFile extends SegmentedFile
 
         public SegmentedFile complete(String path)
         {
-            long length = new File(path).length();
-            return new BufferedSegmentedFile(path, length);
+            return new CompressedPoolingSegmentedFile(path, CompressionMetadata.create(path));
         }
     }
 
-    public FileDataInput getSegment(long position)
+    protected RandomAccessReader createReader(String path)
     {
-        RandomAccessReader reader = RandomAccessReader.open(new File(path));
-        reader.seek(position);
-        return reader;
+        return CompressedRandomAccessReader.open(path, metadata, this);
     }
 
+    @Override
     public void cleanup()
     {
+        super.cleanup();
+        metadata.close();
     }
 }

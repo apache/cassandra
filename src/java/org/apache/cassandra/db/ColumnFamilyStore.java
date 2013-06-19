@@ -232,7 +232,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (loadSSTables)
         {
             Directories.SSTableLister sstableFiles = directories.sstableLister().skipTemporary(true);
-            Collection<SSTableReader> sstables = SSTableReader.batchOpen(sstableFiles.list().entrySet(), metadata, this.partitioner);
+            Collection<SSTableReader> sstables = SSTableReader.openAll(sstableFiles.list().entrySet(), metadata, this.partitioner);
             if (metadata.getDefaultValidator().isCommutative())
             {
                 // Filter non-compacted sstables, remove compacted ones
