@@ -62,6 +62,11 @@ class HeartBeatState
     {
         generation += 1;
     }
+
+    public String toString()
+    {
+        return String.format("HeartBeat: generation = %d, version = %d", generation, version);
+    }
 }
 
 class HeartBeatStateSerializer implements IVersionedSerializer<HeartBeatState>
