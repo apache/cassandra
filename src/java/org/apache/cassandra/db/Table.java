@@ -363,10 +363,8 @@ public class Table
      */
     public void apply(RowMutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
-        if (!mutation.getTable().equals(Tracing.TRACE_KS))
-            Tracing.trace("Acquiring switchLock read lock");
-
         // write the mutation to the commitlog and memtables
+        Tracing.trace("Acquiring switchLock read lock");
         switchLock.readLock().lock();
         try
         {

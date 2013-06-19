@@ -37,13 +37,13 @@ public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
         try
         {
             RowMutation rm = message.payload;
-            logger.debug("Applying mutation");
 
             // Check if there were any forwarding headers in this message
-            InetAddress replyTo = message.from;
             byte[] from = message.parameters.get(RowMutation.FORWARD_FROM);
+            InetAddress replyTo;
             if (from == null)
             {
+                replyTo = message.from;
                 byte[] forwardBytes = message.parameters.get(RowMutation.FORWARD_TO);
                 if (forwardBytes != null && message.version >= MessagingService.VERSION_11)
                     forwardToLocalNodes(rm, message.verb, forwardBytes, message.from);
@@ -73,15 +73,14 @@ public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
         DataInputStream dis = new DataInputStream(new FastByteArrayInputStream(forwardBytes));
         int size = dis.readInt();
 
-        // remove fwds from message to avoid infinite loop
+        // tell the recipients who to send their ack to
         MessageOut<RowMutation> message = new MessageOut<RowMutation>(verb, rm, RowMutation.serializer).withParameter(RowMutation.FORWARD_FROM, from.getAddress());
+        // Send a message to each of the addresses on our Forward List
         for (int i = 0; i < size; i++)
         {
-            // Send a message to each of the addresses on our Forward List
             InetAddress address = CompactEndpointSerializationHelper.deserialize(dis);
             String id = dis.readUTF();
-            logger.debug("Forwarding message to {}@{}", id, address);
-            // Let the response go back to the coordinator
+            Tracing.trace("Enqueuing forwarded write to {}", address);
             MessagingService.instance().sendOneWay(message, id, address);
         }
     }

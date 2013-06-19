@@ -1,4 +1,5 @@
 1.2.6
+ * Fix cross-DC mutation forwarding (CASSANDRA-5632)
  * Reduce SSTableLoader memory usage (CASSANDRA-5555)
  * Scale hinted_handoff_throttle_in_kb to cluster size (CASSANDRA-5272)
  * (Hadoop) Add CQL3 input/output formats (CASSANDRA-4421, 5622)
