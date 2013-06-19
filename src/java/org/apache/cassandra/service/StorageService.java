@@ -395,16 +395,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         try
         {
             // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
-            boolean isUp = false;
-            while (!isUp)
+            outer:
+            while (true)
             {
                 Thread.sleep(1000);
                 for (InetAddress address : Gossiper.instance.getLiveMembers())
                 {
                     if (!Gossiper.instance.isFatClient(address))
-                    {
-                        isUp = true;
-                    }
+                        break outer;
                 }
             }
 
