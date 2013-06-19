@@ -65,10 +65,7 @@ import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.DynamicEndpointSnitch;
-import org.apache.cassandra.locator.IEndpointSnitch;
-import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -390,16 +387,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         initClient(0);
 
         // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
-        boolean isUp = false;
-        while (!isUp)
+        outer:
+        while (true)
         {
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
             for (InetAddress address : Gossiper.instance.getLiveMembers())
             {
                 if (!Gossiper.instance.isFatClient(address))
-                {
-                    isUp = true;
-                }
+                    break outer;
             }
         }
 
