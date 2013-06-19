@@ -108,6 +108,11 @@ public class EndpointState
     {
         isAlive = false;
     }
+
+    public String toString()
+    {
+        return "EndpointState: HeartBeatState = " + hbState + ", AppStateMap = " + applicationState;
+    }
 }
 
 class EndpointStateSerializer implements IVersionedSerializer<EndpointState>
