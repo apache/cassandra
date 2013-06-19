@@ -85,7 +85,7 @@ public class TokenMetadata
     private final Set<Pair<Token, InetAddress>> movingEndpoints = new HashSet<Pair<Token, InetAddress>>();
 
     // tokens which are migrating to new endpoints
-    private final Map<Token, InetAddress> relocatingTokens = new HashMap<Token, InetAddress>();
+    private final ConcurrentMap<Token, InetAddress> relocatingTokens = new ConcurrentHashMap<Token, InetAddress>();
 
     /* Use this lock for manipulating the token map */
     private final ReadWriteLock lock = new ReentrantReadWriteLock(true);
