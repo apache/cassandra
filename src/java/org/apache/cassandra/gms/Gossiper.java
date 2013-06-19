@@ -1074,7 +1074,19 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.debug("Attempt to add self as saved endpoint");
             return;
         }
-        EndpointState epState = new EndpointState(new HeartBeatState(0));
+
+        //preserve any previously known, in-memory data about the endpoint (such as DC, RACK, and so on)
+        EndpointState epState = endpointStateMap.get(ep);
+        if (epState != null)
+        {
+            logger.debug("not replacing a previous epState for {}, but reusing it: {}", ep, epState);
+            epState.setHeartBeatState(new HeartBeatState(0));
+        }
+        else
+        {
+            epState = new EndpointState(new HeartBeatState(0));
+        }
+
         epState.markDead();
         endpointStateMap.put(ep, epState);
         unreachableEndpoints.put(ep, System.currentTimeMillis());
