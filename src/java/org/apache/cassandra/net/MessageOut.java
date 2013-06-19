@@ -82,17 +82,6 @@ public class MessageOut<T>
         builder.putAll(parameters).put(key, value);
         return new MessageOut<T>(verb, payload, serializer, builder.build());
     }
-    
-    public MessageOut<T> withHeaderRemoved(String key)
-    {
-        ImmutableMap.Builder<String, byte[]> builder = ImmutableMap.builder();
-        for (Map.Entry<String, byte[]> entry : parameters.entrySet())
-        {
-            if (!entry.getKey().equals(key))
-                builder.put(entry.getKey(), entry.getValue());
-        }
-        return new MessageOut<T>(verb, payload, serializer, builder.build());
-    }
 
     public Stage getStage()
     {

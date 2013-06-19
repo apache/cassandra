@@ -459,14 +459,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             writeMetrics.timeouts.mark();
             ClientRequestMetrics.writeTimeouts.inc();
-            if (logger.isDebugEnabled())
-            {
-                List<String> mstrings = new ArrayList<String>(mutations.size());
-                for (IMutation mutation : mutations)
-                    mstrings.add(mutation.toString(true));
-                logger.debug("Write timeout {} for one (or more) of: {}", ex.toString(), mstrings);
-            }
-            Tracing.trace("Write timeout");
+            Tracing.trace("Write timeout; received {} of {} required replies", ex.received, ex.blockFor);
             throw ex;
         }
         catch (UnavailableException e)
@@ -817,12 +810,7 @@ public class StorageProxy implements StorageProxyMBean
                 message = rm.createMessage();
 
             for (Collection<InetAddress> dcTargets : dcGroups.values())
-            {
-                // clean out any forwards from previous loop iterations
-                message = message.withHeaderRemoved(RowMutation.FORWARD_TO);
-
                 sendMessagesToNonlocalDC(message, dcTargets, responseHandler);
-            }
         }
     }
 
