@@ -107,7 +107,7 @@ public class StandaloneUpgrader
                     Upgrader upgrader = new Upgrader(cfs, sstable, handler);
                     upgrader.upgrade();
 
-                    sstable.markCompacted();
+                    sstable.markObsolete();
                     sstable.releaseReference();
                 }
                 catch (Exception e)
