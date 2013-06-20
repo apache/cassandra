@@ -29,7 +29,6 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.MBeanServer;
@@ -37,12 +36,14 @@ import javax.management.ObjectName;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.concurrent.TracingAwareExecutorService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.*;
@@ -61,9 +62,9 @@ import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.streaming.compress.CompressedFileStreamTask;
+import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public final class MessagingService implements MessagingServiceMBean
 {
@@ -702,15 +703,16 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void receive(MessageIn message, String id, long timestamp)
     {
-        Tracing.instance().initializeFromMessage(message);
-        Tracing.trace("Message received from {}", message.from);
+        TraceState state = Tracing.instance().initializeFromMessage(message);
+        if (state != null)
+            state.trace("Message received from {}", message.from);
 
         message = SinkManager.processInboundMessage(message, id);
         if (message == null)
             return;
 
         Runnable runnable = new MessageDeliveryTask(message, id, timestamp);
-        ExecutorService stage = StageManager.getStage(message.getMessageType());
+        TracingAwareExecutorService stage = StageManager.getStage(message.getMessageType());
         assert stage != null : "No stage for message type " + message.verb;
 
         if (message.verb == Verb.REQUEST_RESPONSE && PBSPredictor.instance().isLoggingEnabled())
@@ -727,7 +729,7 @@ public final class MessagingService implements MessagingServiceMBean
             }
         }
 
-        stage.execute(runnable);
+        stage.execute(runnable, state);
     }
 
     public void setCallbackForTests(String messageId, CallbackInfo callback)
