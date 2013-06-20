@@ -626,7 +626,7 @@ h4(#selectWhere). @<where-clause>@
 
 The @<where-clause>@ specifies which rows must be queried. It is composed of relations on the columns that are part of the @PRIMARY KEY@ and/or have a "secondary index":#createIndexStmt defined on them.
 
-Not all relations are allowed in a query. For instance, non-equal relations (where @IN@ is considered as an equal relation) on a partition key is only supported if the partitioner for the keyspace is an ordered one. Moreover, for a given partition key, the clustering keys induce an ordering of rows and relations on them is restricted to the relations that allow to select a *contiguous* (for the ordering) set of rows. For instance, given
+Not all relations are allowed in a query. For instance, non-equal relations (where @IN@ is considered as an equal relation) on a partition key are not supported (but see the use of the @TOKEN@ method below to do non-equal queries on the partition key). Moreover, for a given partition key, the clustering keys induce an ordering of rows and relations on them is restricted to the relations that allow to select a *contiguous* (for the ordering) set of rows. For instance, given
 
 bc(sample). 
 CREATE TABLE posts (
@@ -650,7 +650,7 @@ bc(sample).
 // Needs a blog_title to be set to select ranges of posted_at
 SELECT entry_title, content FROM posts WHERE userid='john doe' AND posted_at >= 2012-01-01 AND posted_at < 2012-01-31
 
-When specifying relations, the @TOKEN@ function can be used on the @PARTITION KEY@ column to query. In that case, rows will be selected based on the token of their @PARTITION_KEY@ rather than on the value (note that the token of a key depends on the partitioner in use, and that in particular the RandomPartitioner won't yeld a meaningful order). Example:
+When specifying relations, the @TOKEN@ function can be used on the @PARTITION KEY@ column to query. In that case, rows will be selected based on the token of their @PARTITION_KEY@ rather than on the value. Note that the token of a key depends on the partitioner in use, and that in particular the RandomPartitioner won't yeld a meaningful order. Also note that ordering partitioners always order token values by bytes (so even if the partition key is of type int, @token(-1) > token(0)@ in particular). Example:
 
 bc(sample). 
 SELECT * FROM posts WHERE token(userid) > token('tom') AND token(userid) < token('bob')
@@ -1051,6 +1051,7 @@ The following describes the addition/changes brought for each version of CQL.
 h3. 3.0.4
 
 * Updated the syntax for custom "secondary indexes":#createIndexStmt.
+* Non-equal condition on the partition key are now never supported, even for ordering partitioner as this was not correct (the order was *not* the one of the type of the partition key). Instead, the @token@ method should always be used for range queries on the partition key (see "WHERE clauses":#selectWhere).
 
 h3. 3.0.3
 

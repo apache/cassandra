@@ -1046,11 +1046,7 @@ public class SelectStatement implements CQLStatement
                 }
                 else
                 {
-                    if (!partitioner.preservesOrder())
-                        throw new InvalidRequestException("Only EQ and IN relation are supported on the partition key for random partitioners (unless you use the token() function)");
-
-                    stmt.isKeyRange = true;
-                    shouldBeDone = true;
+                    throw new InvalidRequestException("Only EQ and IN relation are supported on the partition key (you will need to use the token() function for non equality based relation)");
                 }
                 previous = cname;
             }
