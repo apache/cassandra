@@ -130,7 +130,7 @@ public class OutboundTcpConnectionPool
         }
     }
 
-    InetAddress endPoint()
+    public InetAddress endPoint()
     {
         if (id.equals(FBUtilities.getBroadcastAddress()))
             return FBUtilities.getLocalAddress();
