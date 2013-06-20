@@ -49,35 +49,35 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch implements IEndpointStateCha
 {
     private static final String PUBLIC_IP_QUERY_URL = "http://169.254.169.254/latest/meta-data/public-ipv4";
     private static final String PRIVATE_IP_QUERY_URL = "http://169.254.169.254/latest/meta-data/local-ipv4";
-    private final InetAddress public_ip;
-    private final String private_ip;
+    private final InetAddress localPublicAddress;
+    private final String localPrivateAddress;
 
     public Ec2MultiRegionSnitch() throws IOException, ConfigurationException
     {
         super();
-        public_ip = InetAddress.getByName(awsApiCall(PUBLIC_IP_QUERY_URL));
-        logger.info("EC2Snitch using publicIP as identifier: " + public_ip);
-        private_ip = awsApiCall(PRIVATE_IP_QUERY_URL);
+        localPublicAddress = InetAddress.getByName(awsApiCall(PUBLIC_IP_QUERY_URL));
+        logger.info("EC2Snitch using publicIP as identifier: " + localPublicAddress);
+        localPrivateAddress = awsApiCall(PRIVATE_IP_QUERY_URL);
         // use the Public IP to broadcast Address to other nodes.
-        DatabaseDescriptor.setBroadcastAddress(public_ip);
+        DatabaseDescriptor.setBroadcastAddress(localPublicAddress);
     }
 
     public void onJoin(InetAddress endpoint, EndpointState epState)
     {
         if (epState.getApplicationState(ApplicationState.INTERNAL_IP) != null)
-            reConnect(endpoint, epState.getApplicationState(ApplicationState.INTERNAL_IP));
+            reconnect(endpoint, epState.getApplicationState(ApplicationState.INTERNAL_IP));
     }
 
     public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
     {
         if (state == ApplicationState.INTERNAL_IP)
-            reConnect(endpoint, value);
+            reconnect(endpoint, value);
     }
 
     public void onAlive(InetAddress endpoint, EndpointState state)
     {
         if (state.getApplicationState(ApplicationState.INTERNAL_IP) != null)
-            reConnect(endpoint, state.getApplicationState(ApplicationState.INTERNAL_IP));
+            reconnect(endpoint, state.getApplicationState(ApplicationState.INTERNAL_IP));
     }
 
     public void onDead(InetAddress endpoint, EndpointState state)
@@ -95,18 +95,11 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch implements IEndpointStateCha
         // do nothing.
     }
 
-    private void reConnect(InetAddress endpoint, VersionedValue versionedValue)
+    private void reconnect(InetAddress publicAddress, VersionedValue localAddressValue)
     {
         try
         {
-            InetAddress localEc2IP = InetAddress.getByName(versionedValue.value);
-            if (getDatacenter(endpoint).equals(getDatacenter(public_ip))
-                && MessagingService.instance().getVersion(endpoint) == MessagingService.current_version
-                && !MessagingService.instance().getConnectionPool(endpoint).endPoint().equals(localEc2IP))
-            {
-                MessagingService.instance().getConnectionPool(endpoint).reset(localEc2IP);
-                logger.debug(String.format("Intiated reconnect to an Internal IP %s for the %s", localEc2IP, endpoint));
-            }
+            reconnect(publicAddress, InetAddress.getByName(localAddressValue.value));
         }
         catch (UnknownHostException e)
         {
@@ -114,11 +107,22 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch implements IEndpointStateCha
         }
     }
 
+    private void reconnect(InetAddress publicAddress, InetAddress localAddress)
+    {
+        if (getDatacenter(publicAddress).equals(getDatacenter(localPublicAddress))
+            && MessagingService.instance().getVersion(publicAddress) == MessagingService.current_version
+            && !MessagingService.instance().getConnectionPool(publicAddress).endPoint().equals(localAddress))
+        {
+            MessagingService.instance().getConnectionPool(publicAddress).reset(localAddress);
+            logger.debug(String.format("Intiated reconnect to an Internal IP %s for the %s", localAddress, publicAddress));
+        }
+    }
+
     @Override
     public void gossiperStarting()
     {
         super.gossiperStarting();
-        Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_IP, StorageService.instance.valueFactory.internalIP(private_ip));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_IP, StorageService.instance.valueFactory.internalIP(localPrivateAddress));
         Gossiper.instance.register(this);
     }
 }
