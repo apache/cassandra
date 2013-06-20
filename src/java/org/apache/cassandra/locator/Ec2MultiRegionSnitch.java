@@ -97,19 +97,20 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch implements IEndpointStateCha
 
     private void reConnect(InetAddress endpoint, VersionedValue versionedValue)
     {
-        if (getDatacenter(endpoint).equals(getDatacenter(public_ip))
-            && MessagingService.instance().getVersion(endpoint) == MessagingService.current_version)
+        try
         {
-            try
+            InetAddress localEc2IP = InetAddress.getByName(versionedValue.value);
+            if (getDatacenter(endpoint).equals(getDatacenter(public_ip))
+                && MessagingService.instance().getVersion(endpoint) == MessagingService.current_version
+                && !MessagingService.instance().getConnectionPool(endpoint).endPoint().equals(localEc2IP))
             {
-                InetAddress remoteIP = InetAddress.getByName(versionedValue.value);
-                MessagingService.instance().getConnectionPool(endpoint).reset(remoteIP);
-                logger.debug(String.format("Intiated reconnect to an Internal IP %s for the %s", remoteIP, endpoint));
+                MessagingService.instance().getConnectionPool(endpoint).reset(localEc2IP);
+                logger.debug(String.format("Intiated reconnect to an Internal IP %s for the %s", localEc2IP, endpoint));
             }
-            catch (UnknownHostException e)
-            {
-                logger.error("Error in getting the IP address resolved: ", e);
-            }
+        }
+        catch (UnknownHostException e)
+        {
+            logger.error("Error in getting the IP address resolved: ", e);
         }
     }
 
