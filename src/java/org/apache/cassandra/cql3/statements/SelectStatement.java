@@ -1025,10 +1025,6 @@ public class SelectStatement implements CQLStatement
                         break;
                     }
                     throw new InvalidRequestException("Only EQ and IN relation are supported on the partition key for random partitioners (unless you use the token() function)");
-
-                    stmt.isKeyRange = true;
-                    lastRestrictedPartitionKey = i;
-                    shouldBeDone = true;
                 }
                 previous = cname;
             }
