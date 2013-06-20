@@ -8,6 +8,11 @@ upgrade, just in case you need to roll back to the previous version.
 (Cassandra version X + 1 will always be able to read data files created
 by version X, but the inverse is not necessarily the case.)
 
+When upgrading major versions of Cassandra, you will be unable to
+restore snapshots created with the previous major version using the
+'sstableloader' tool. You can upgrade the file format of your snapshots
+using the provided 'sstableupgrade' tool.
+
 1.2.6
 =====
 
@@ -217,7 +222,7 @@ Features
     - num_tokens can now be specified in cassandra.yaml. This defines the
       number of tokens assigned to the host on the ring (default: 1).
       Also specifying initial_token will override any num_tokens setting.
-    - disk_failure_policy allows blacklisting failed disks in JBOD 
+    - disk_failure_policy allows blacklisting failed disks in JBOD
       configuration instead of erroring out indefinitely
     - event tracing can be configured per-connection ("trace_next_query")
       or globally/probabilistically ("nodetool settraceprobability")
@@ -314,7 +319,7 @@ Upgrading
       throw an InvalidRequestException when used for reads.  (Previous
       versions would silently perform a ONE read for range queries;
       single-row and multiget reads already rejected ANY.)
-    - The largest mutation batch accepted by the commitlog is now 128MB.  
+    - The largest mutation batch accepted by the commitlog is now 128MB.
       (In practice, batches larger than ~10MB always caused poor
       performance due to load volatility and GC promotion failures.)
       Larger batches will continue to be accepted but will not be
@@ -514,7 +519,7 @@ Upgrading
     - Upgrading from version 0.7.1+ or 0.8.2+ can be done with a rolling
       restart, one node at a time.  (0.8.0 or 0.8.1 are NOT network-compatible
       with 1.0: upgrade to the most recent 0.8 release first.)
-      You do not need to bring down the whole cluster at once. 
+      You do not need to bring down the whole cluster at once.
     - After upgrading, run nodetool scrub against each node before running
       repair, moving nodes, or adding new ones.
     - CQL inserts/updates now generate microsecond resolution timestamps
@@ -695,7 +700,7 @@ Upgrading
 ---------
     - Upgrading from version 0.7.1 or later can be done with a rolling
       restart, one node at a time.  You do not need to bring down the
-      whole cluster at once. 
+      whole cluster at once.
     - After upgrading, run nodetool scrub against each node before running
       repair, moving nodes, or adding new ones.
     - Running nodetool drain before shutting down the 0.7 node is
@@ -706,8 +711,8 @@ Upgrading
       to use your 0.7 clients.
     - Avro record classes used in map/reduce and Hadoop streaming code have
       been removed. Map/reduce can be switched to Thrift by changing
-      org.apache.cassandra.avro in import statements to 
-      org.apache.cassandra.thrift (no class names change). Streaming support 
+      org.apache.cassandra.avro in import statements to
+      org.apache.cassandra.thrift (no class names change). Streaming support
       has been removed for the time being.
     - The loadbalance command has been removed from nodetool.  For similar
       behavior, decommission then rebootstrap with empty initial_token.
@@ -721,15 +726,15 @@ Features
 --------
     - added CQL client API and JDBC/DBAPI2-compliant drivers for Java and
       Python, respectively (see: drivers/ subdirectory and doc/cql)
-    - added distributed Counters feature; 
+    - added distributed Counters feature;
       see http://wiki.apache.org/cassandra/Counters
     - optional intranode encryption; see comments around 'encryption_options'
       in cassandra.yaml
-    - compaction multithreading and rate-limiting; see 
+    - compaction multithreading and rate-limiting; see
       'concurrent_compactors' and 'compaction_throughput_mb_per_sec' in
       cassandra.yaml
     - cassandra will limit total memtable memory usage to 1/3 of the heap
-      by default.  This can be ajusted or disabled with the 
+      by default.  This can be ajusted or disabled with the
       memtable_total_space_in_mb option.  The old per-ColumnFamily
       throughput, operations, and age settings are still respected but
       will be removed in a future major release once we are satisfied that
@@ -738,7 +743,7 @@ Features
 Tools
 -----
     - stress and py_stress moved from contrib/ to tools/
-    - clustertool was removed (see 
+    - clustertool was removed (see
       https://issues.apache.org/jira/browse/CASSANDRA-2607 for examples
       of how to script nodetool across the cluster instead)
 
@@ -814,7 +819,7 @@ Upgrading
     - 0.7.1 and 0.7.2 shipped with a bug that caused incorrect row-level
       bloom filters to be generated when compacting sstables generated
       with earlier versions.  This would manifest in IOExceptions during
-      column name-based queries.  0.7.3 provides "nodetool scrub" to 
+      column name-based queries.  0.7.3 provides "nodetool scrub" to
       rebuild sstables with correct bloom filters, with no data lost.
       (If your cluster was never on 0.7.0 or earlier, you don't have to
       worry about this.)  Note that nodetool scrub will snapshot your
@@ -862,10 +867,10 @@ Features
     - Row size limit increased from 2GB to 2 billion columns.  rows
       are no longer read into memory during compaction.
     - Keyspace and ColumnFamily definitions may be added and modified live
-    - Streaming data for repair or node movement no longer requires 
+    - Streaming data for repair or node movement no longer requires
       anticompaction step first
-    - NetworkTopologyStrategy (formerly DatacenterShardStrategy) is ready for 
-      use, enabling ConsistencyLevel.DCQUORUM and DCQUORUMSYNC.  See comments 
+    - NetworkTopologyStrategy (formerly DatacenterShardStrategy) is ready for
+      use, enabling ConsistencyLevel.DCQUORUM and DCQUORUMSYNC.  See comments
       in `cassandra.yaml.`
     - Optional per-Column time-to-live field allows expiring data without
       have to issue explicit remove commands
@@ -879,9 +884,9 @@ Features
     - Optional round-robin scheduling between keyspaces for multitenant
       clusters
     - Dynamic endpoint snitch mitigates the impact of impaired nodes
-    - New `IntegerType`, faster than LongType and allows integers of 
+    - New `IntegerType`, faster than LongType and allows integers of
       both less and more bits than Long's 64
-    - A revamped authentication system that decouples authorization and 
+    - A revamped authentication system that decouples authorization and
       allows finer-grained control of resources.
 
 Upgrading
@@ -893,9 +898,9 @@ Upgrading
     The Cassandra inter-node protocol is incompatible with 0.6.x
     releases (and with 0.7 beta1), meaning you will have to bring your
     cluster down prior to upgrading: you cannot mix 0.6 and 0.7 nodes.
-    
+
     The hints schema was changed from 0.6 to 0.7. Cassandra automatically
-    snapshots and then truncates the hints column family as part of 
+    snapshots and then truncates the hints column family as part of
     starting up 0.7 for the first time.
 
     Keyspace and ColumnFamily definitions are stored in the system
@@ -904,13 +909,13 @@ Upgrading
     The process to upgrade is:
     1) run "nodetool drain" on _each_ 0.6 node.  When drain finishes (log
        message "Node is drained" appears), stop the process.
-    2) Convert your storage-conf.xml to the new cassandra.yaml using 
-       "bin/config-converter".  
+    2) Convert your storage-conf.xml to the new cassandra.yaml using
+       "bin/config-converter".
     3) Rename any of your keyspace or column family names that do not adhere
        to the '^\w+' regex convention.
     4) Start up your cluster with the 0.7 version.
-    5) Initialize your Keyspace and ColumnFamily definitions using 
-       "bin/schematool <host> <jmxport> import".  _You only need to do 
+    5) Initialize your Keyspace and ColumnFamily definitions using
+       "bin/schematool <host> <jmxport> import".  _You only need to do
        this to one node_.
 
 Thrift API
@@ -935,7 +940,7 @@ Configuraton
 ------------
     - Configuration file renamed to cassandra.yaml and log4j.properties to
       log4j-server.properties
-    - PropertyFileSnitch configuration file renamed to 
+    - PropertyFileSnitch configuration file renamed to
       cassandra-topology.properties
     - The ThriftAddress and ThriftPort directives have been renamed to
       RPCAddress and RPCPort respectively.
@@ -952,7 +957,7 @@ Configuraton
       one node_.
     - In addition to an authenticator, an authority must be configured as
       well. Users of SimpleAuthenticator should use SimpleAuthority for this
-      value (the default is AllowAllAuthority, which corresponds with 
+      value (the default is AllowAllAuthority, which corresponds with
       AllowAllAuthenticator).
     - The format of access.properties has changed, see the sample configuration
       conf/access.properties for documentation on the new format.
@@ -1011,7 +1016,7 @@ Features
 Configuraton
 ------------
     - MemtableSizeInMB has been replaced by MemtableThroughputInMB which
-      triggers a memtable flush when the specified amount of data has 
+      triggers a memtable flush when the specified amount of data has
       been written, including overwrites.
     - MemtableObjectCountInMillions has been replaced by the
       MemtableOperationsInMillions directive which causes a memtable flush
@@ -1047,7 +1052,7 @@ JMX metrics
       progress of the current compaction has been added.
     - commitlog JMX metrics are moved to org.apache.cassandra.db.Commitlog
     - progress of data streaming during bootstrap, loadbalance, or other
-      data migration, is available under 
+      data migration, is available under
       org.apache.cassandra.streaming.StreamingService.
       See http://wiki.apache.org/cassandra/Streaming for details.
 
@@ -1061,8 +1066,8 @@ Installation/Upgrade
 0.5.0
 =====
 
-0. The commitlog format has changed (but sstable format has not). 
-   When upgrading from 0.4, empty the commitlog either by running 
+0. The commitlog format has changed (but sstable format has not).
+   When upgrading from 0.4, empty the commitlog either by running
    bin/nodeprobe flush on each machine and waiting for the flush to finish,
    or simply remove the commitlog directory if you only have test data.
    (If more writes come in after the flush command, starting 0.5 will error
@@ -1083,7 +1088,7 @@ Installation/Upgrade
 
 3. Configuration:
      - Added "comment" field to ColumnFamily definition.
-     - Added MemtableFlushAfterMinutes, a global replacement for the 
+     - Added MemtableFlushAfterMinutes, a global replacement for the
        old per-CF FlushPeriodInMinutes setting
      - Key cache settings
 
@@ -1121,7 +1126,7 @@ Installation/Upgrade
    create and modify ColumnFamilies at will without worrying about
    collisions with others in the same cluster.
 
-3. Many Thrift API changes and documentation.  See 
+3. Many Thrift API changes and documentation.  See
    http://wiki.apache.org/cassandra/API
 
 4. Removed the web interface in favor of JMX and bin/nodeprobe, which
@@ -1166,4 +1171,4 @@ key in a given ColumnFamily) is limited by available memory, because
 compaction deserializes each row before merging.
 
 See https://issues.apache.org/jira/browse/CASSANDRA-16
-   
+
