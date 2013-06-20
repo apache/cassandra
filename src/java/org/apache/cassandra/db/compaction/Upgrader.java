@@ -69,14 +69,14 @@ public class Upgrader
         this.controller = new UpgradeController(cfs);
 
         this.strategy = cfs.getCompactionStrategy();
-        long estimatedTotalKeys = Math.max(DatabaseDescriptor.getIndexInterval(), SSTableReader.getApproximateKeyCount(toUpgrade));
+        long estimatedTotalKeys = Math.max(cfs.metadata.getIndexInterval(), SSTableReader.getApproximateKeyCount(toUpgrade, cfs.metadata));
         long estimatedSSTables = Math.max(1, SSTable.getTotalBytes(this.toUpgrade) / strategy.getMaxSSTableSize());
         this.estimatedRows = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
     }
 
     private SSTableWriter createCompactionWriter()
     {
-        SSTableMetadata.Collector sstableMetadataCollector = SSTableMetadata.createCollector();
+        SSTableMetadata.Collector sstableMetadataCollector = SSTableMetadata.createCollector(cfs.getComparator());
 
         // Get the max timestamp of the precompacted sstables
         // and adds generation of live ancestors
@@ -130,7 +130,7 @@ public class Upgrader
             // also remove already completed SSTables
             for (SSTableReader sstable : sstables)
             {
-                sstable.markCompacted();
+                sstable.markObsolete();
                 sstable.releaseReference();
             }
             throw Throwables.propagate(t);
