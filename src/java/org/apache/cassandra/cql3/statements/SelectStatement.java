@@ -1019,15 +1019,12 @@ public class SelectStatement implements CQLStatement
                 }
                 else
                 {
-                    if (!partitioner.preservesOrder())
+                    if (hasQueriableIndex)
                     {
-                        if (hasQueriableIndex)
-                        {
-                            stmt.usesSecondaryIndexing = true;
-                            break;
-                        }
-                        throw new InvalidRequestException("Only EQ and IN relation are supported on the partition key for random partitioners (unless you use the token() function)");
+                        stmt.usesSecondaryIndexing = true;
+                        break;
                     }
+                    throw new InvalidRequestException("Only EQ and IN relation are supported on the partition key for random partitioners (unless you use the token() function)");
 
                     stmt.isKeyRange = true;
                     lastRestrictedPartitionKey = i;
