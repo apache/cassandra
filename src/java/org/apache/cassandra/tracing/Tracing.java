@@ -36,6 +36,7 @@ import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -224,31 +225,34 @@ public class Tracing
     }
 
     /**
-     * Updates the threads query context from a message
+     * Determines the tracing context from a message.  Does NOT set the threadlocal state.
      * 
-     * @param message
-     *            The internode message
+     * @param message The internode message
      */
-    public void initializeFromMessage(final MessageIn<?> message)
+    public TraceState initializeFromMessage(final MessageIn<?> message)
     {
         final byte[] sessionBytes = message.parameters.get(Tracing.TRACE_HEADER);
 
-        // if the message has no session context header don't do tracing
         if (sessionBytes == null)
-        {
-            state.set(null);
-            return;
-        }
+            return null;
 
         assert sessionBytes.length == 16;
         UUID sessionId = UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes));
         TraceState ts = sessions.get(sessionId);
-        if (ts == null)
+        if (ts != null)
+            return ts;
+
+        if (message.verb == MessagingService.Verb.REQUEST_RESPONSE)
+        {
+            // received a message for a session we've already closed out.  see CASSANDRA-5668
+            return new ExpiredTraceState(sessionId);
+        }
+        else
         {
             ts = new TraceState(message.from, sessionId, false);
             sessions.put(sessionId, ts);
+            return ts;
         }
-        state.set(ts);
     }
 
     public static void trace(String message)

@@ -79,11 +79,14 @@ public class TraceState
         trace(MessageFormatter.arrayFormat(format, args).getMessage());
     }
 
-    public void trace(final String message)
+    public void trace(String message)
     {
-        final int elapsed = elapsed();
-        final ByteBuffer eventId = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
+        TraceState.trace(sessionIdBytes, message, elapsed());
+    }
 
+    public static void trace(final ByteBuffer sessionIdBytes, final String message, final int elapsed)
+    {
+        final ByteBuffer eventId = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
         final String threadName = Thread.currentThread().getName();
 
         StageManager.getStage(Stage.TRACING).execute(new WrappedRunnable()
@@ -94,7 +97,8 @@ public class TraceState
                 ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfMeta);
                 Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("activity")), message);
                 Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("source")), FBUtilities.getBroadcastAddress());
-                Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("source_elapsed")), elapsed);
+                if (elapsed >= 0)
+                    Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("source_elapsed")), elapsed);
                 Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("thread")), threadName);
                 RowMutation mutation = new RowMutation(Tracing.TRACE_KS, sessionIdBytes, cf);
                 StorageProxy.mutate(Arrays.asList(mutation), ConsistencyLevel.ANY);
