@@ -918,7 +918,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             ApplicationState key = fromEntry.getKey();
             VersionedValue value = fromEntry.getValue();
-            assert fromState.getHeartBeatState().getGeneration() == toState.getHeartBeatState().getGeneration();
 
             if ( (toState.applicationState.containsKey(key) && toState.applicationState.get(key).compareTo(value) < 0)
                 || !toState.applicationState.containsKey(key) )
