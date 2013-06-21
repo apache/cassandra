@@ -364,14 +364,9 @@
           </dependency>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3"/>
           <dependency groupId="org.apache.pig" artifactId="pig" version="0.10.0"/>
-          <dependency groupId="net.sf.jopt-simple" artifactId="jopt-simple" version="3.2"/>
           <dependency groupId="net.java.dev.jna" artifactId="jna" version="3.2.7"/>
 
           <dependency groupId="net.sourceforge.cobertura" artifactId="cobertura" version="${cobertura.version}"/>
-
-          <dependency groupId="org.apache.whirr" artifactId="whirr-core" version="0.4.0-incubating"/>
-          <dependency groupId="org.apache.whirr" artifactId="whirr-cli" version="0.4.0-incubating"/>
-          <dependency groupId="org.jclouds.provider" artifactId="aws-s3" version="1.0-beta-9b" />
 
           <dependency groupId="log4j" artifactId="log4j" version="1.2.16" />
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
@@ -408,7 +403,6 @@
         <dependency groupId="org.apache.rat" artifactId="apache-rat"/>
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core"/>
         <dependency groupId="org.apache.pig" artifactId="pig"/>
-        <dependency groupId="net.sf.jopt-simple" artifactId="jopt-simple"/>
 
         <dependency groupId="net.java.dev.jna" artifactId="jna"/>
       </artifact:pom>
@@ -426,9 +420,6 @@
         <parent groupId="org.apache.cassandra"
                 artifactId="cassandra-parent"
                 version="${version}"/>
-        <dependency groupId="org.apache.whirr" artifactId="whirr-core"/>
-        <dependency groupId="org.apache.whirr" artifactId="whirr-cli"/>
-        <dependency groupId="org.jclouds.provider" artifactId="aws-s3"/>
       </artifact:pom>
 
       <!-- now the pom's for artifacts being deployed to Maven Central -->
@@ -548,7 +539,6 @@
                              dependencyRefsBuildFile="${build.dir}/test-dependencies.xml">
         <remoteRepository refid="apache"/>
         <remoteRepository refid="central"/>
-        <remoteRepository refid="jclouds"/>
         <remoteRepository refid="oauth"/>
       </artifact:dependencies>
       <copy todir="${test.lib}/jars">
