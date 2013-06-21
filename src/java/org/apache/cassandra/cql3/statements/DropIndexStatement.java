@@ -31,16 +31,22 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 public class DropIndexStatement extends SchemaAlteringStatement
 {
     public final String indexName;
+    public final boolean ifExists;
 
-    public DropIndexStatement(String indexName)
+    public DropIndexStatement(String indexName, boolean ifExists)
     {
         super(new CFName());
         this.indexName = indexName;
+        this.ifExists = ifExists;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
-        state.hasColumnFamilyAccess(keyspace(), findIndexedCF().cfName, Permission.ALTER);
+        CFMetaData cfm = findIndexedCF();
+        if (cfm == null)
+            return;
+
+        state.hasColumnFamilyAccess(cfm.ksName, cfm.cfName, Permission.ALTER);
     }
 
     public ResultMessage.SchemaChange.Change changeType()
@@ -51,7 +57,11 @@ public class DropIndexStatement extends SchemaAlteringStatement
 
     public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
-        CFMetaData updatedCfm = updateCFMetadata(findIndexedCF());
+        CFMetaData cfm = findIndexedCF();
+        if (cfm == null)
+            return;
+
+        CFMetaData updatedCfm = updateCFMetadata(cfm);
         MigrationManager.announceColumnFamilyUpdate(updatedCfm, false);
     }
 
@@ -75,7 +85,11 @@ public class DropIndexStatement extends SchemaAlteringStatement
             if (findIndexedColumn(cfm) != null)
                 return cfm;
         }
-        throw new InvalidRequestException("Index '" + indexName + "' could not be found in any of the column families of keyspace '" + keyspace() + "'");
+
+        if (ifExists)
+            return null;
+        else
+            throw new InvalidRequestException("Index '" + indexName + "' could not be found in any of the column families of keyspace '" + keyspace() + "'");
     }
 
     private ColumnDefinition findIndexedColumn(CFMetaData cfm)

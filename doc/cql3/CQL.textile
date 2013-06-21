@@ -134,7 +134,7 @@ h3(#createKeyspaceStmt). CREATE KEYSPACE
 __Syntax:__
 
 bc(syntax).. 
-<create-keyspace-stmt> ::= CREATE KEYSPACE <identifier> WITH <properties>
+<create-keyspace-stmt> ::= CREATE KEYSPACE (IF NOT EXISTS)? <identifier> WITH <properties>
 p. 
 __Sample:__
 
@@ -158,6 +158,8 @@ The @replication@ @<property>@ is mandatory. It must at least contains the @'cla
 * @'SimpleStrategy'@: A simple strategy that defines a simple replication factor for the whole cluster. The only sub-options supported is @'replication_factor'@ to define that replication factor and is mandatory.
 * @'NetworkTopologyStrategy'@: A replication strategy that allows to set the replication factor independently for each data-center. The rest of the sub-options are key-value pairs where each time the key is the name of a datacenter and the value the replication factor for that data-center.
 * @'OldNetworkTopologyStrategy'@: A legacy replication strategy. You should avoid this strategy for new keyspaces and prefer @'NetworkTopologyStrategy'@.
+
+Attempting to create an already existing keyspace will return an error unless the @IF NOT EXISTS@ option is used. If it is used, the statement will be a no-op if the keyspace already exists.
 
 h3(#useStmt). USE
 
@@ -192,7 +194,7 @@ h3(#dropKeyspaceStmt). DROP KEYSPACE
 
 __Syntax:__
 
-bc(syntax).  <drop-keyspace-stmt> ::= DROP KEYSPACE <identifier>
+bc(syntax).  <drop-keyspace-stmt> ::= DROP KEYSPACE ( IF EXISTS )? <identifier>
 
 __Sample:__
 
@@ -200,13 +202,15 @@ bc(sample). DROP KEYSPACE myApp;
 
 A @DROP KEYSPACE@ statement results in the immediate, irreversible removal of an existing keyspace, including all column families in it, and all data contained in those column families.
 
+If the keyspace does not exists, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
+
 
 h3(#createTableStmt). CREATE TABLE
 
 __Syntax:__
 
 bc(syntax).. 
-<create-table-stmt> ::= CREATE (TABLE | COLUMNFAMILY) <tablename>
+<create-table-stmt> ::= CREATE ( TABLE | COLUMNFAMILY ) ( IF NOT EXISTS )? <tablename>
                           '(' <definition> ( ',' <definition> )* ')'
                           ( WITH <option> ( AND <option>)* )?
 
@@ -244,6 +248,8 @@ CREATE TABLE timeline (
 ) WITH compaction = { 'class' : 'LeveledCompactionStrategy' };
 p. 
 The @CREATE TABLE@ statement creates a new table. Each such table is a set of _rows_ (usually representing related entities) for which it defines a number of properties. A table is defined by a "name":#createTableName, it defines the <a href="#createTableColumn"><it>columns</it></a> composing rows of the table and have a number of "options":#createTableOptions. Note that the @CREATE COLUMNFAMILY@ syntax is supported as an alias for @CREATE TABLE@ (for historical reasons).
+
+Attempting to create an already existing table will return an error unless the @IF NOT EXISTS@ option is used. If it is used, the statement will be a no-op if the table already exists.
 
 h4(#createTableName). @<tablename>@
 
@@ -366,13 +372,15 @@ h3(#dropTableStmt). DROP TABLE
 
 __Syntax:__
 
-bc(syntax). <drop-table-stmt> ::= DROP TABLE <tablename>
+bc(syntax). <drop-table-stmt> ::= DROP TABLE ( IF EXISTS )? <tablename>
 
 __Sample:__
 
 bc(sample). DROP TABLE worldSeriesAttendees;
 
 The @DROP TABLE@ statement results in the immediate, irreversible removal of a table, including all data contained in it. As for table creation, @DROP COLUMNFAMILY@ is allowed as an alias for @DROP TABLE@.
+
+If the table does not exists, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 
 h3(#truncateStmt). TRUNCATE
 
@@ -391,7 +399,7 @@ h3(#createIndexStmt). CREATE INDEX
 
 __Syntax:__
 
-bc(syntax). <create-index-stmt> ::= CREATE ( CUSTOM )? INDEX <identifier>? ON <tablename> '(' <identifier> ')'
+bc(syntax). <create-index-stmt> ::= CREATE ( CUSTOM )? INDEX ( IF NOT EXISTS )? <identifier>? ON <tablename> '(' <identifier> ')'
                                         ( USING <string> )?
 
 __Sample:__
@@ -403,11 +411,13 @@ CREATE CUSTOM INDEX ON users (email) USING 'path.to.the.IndexClass';
 
 The @CREATE INDEX@ statement is used to create a new (automatic) secondary index for a given (existing) column in a given table. A name for the index itself can be specified before the @ON@ keyword, if desired. If data already exists for the column, it will be indexed during the execution of this statement. After the index is created, new data for the column is indexed automatically at insertion time.
 
+Attempting to create an already existing index will return an error unless the @IF NOT EXISTS@ option is used. If it is used, the statement will be a no-op if the index already exists.
+
 h3(#dropIndexStmt). DROP INDEX
 
 __Syntax:__
 
-bc(syntax).  <drop-index-stmt> ::= DROP INDEX <identifier>
+bc(syntax).  <drop-index-stmt> ::= DROP INDEX ( IF EXISTS )? <identifier>
 
 __Sample:__
 
@@ -415,6 +425,7 @@ bc(sample). DROP INDEX userIndex;
 
 The @DROP INDEX@ statement is used to drop an existing secondary index. The argument of the statement is the index name.
 
+If the index does not exists, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 
 h2(#dataManipulation). Data Manipulation
 
@@ -1059,7 +1070,8 @@ The following describes the addition/changes brought for each version of CQL.
 h3. 3.1.0
 
 * "ALTER TABLE":#alterTableStmt @DROP@ option has been reenabled for CQL3 tables and has new semantics now: the space formerly used by dropped columns will now be eventually reclaimed (post-compaction). You should not readd previously dropped columns unless you use timestamps with microsecond precision (see "CASSANDRA-3919":https://issues.apache.org/jira/browse/CASSANDRA-3919 for more details).
-* SELECT statement now supports aliases in select clause. Aliases in WHERE and ORDER BY clauses are not supported. See the "section on select"#selectStmt for details.
+* @SELECT@ statement now supports aliases in select clause. Aliases in WHERE and ORDER BY clauses are not supported. See the "section on select"#selectStmt for details.
+* @CREATE@ statements for @KEYSPACE@, @TABLE@ and @INDEX@ now supports an @IF NOT EXISTS@ condition. Similarly, @DROP@ statements support a @IF EXISTS@ condition.
 
 h3. 3.0.4
 

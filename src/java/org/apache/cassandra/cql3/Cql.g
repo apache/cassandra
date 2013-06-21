@@ -430,23 +430,28 @@ batchStatementObjective returns [ModificationStatement.Parsed statement]
     ;
 
 /**
- * CREATE KEYSPACE <KEYSPACE> WITH attr1 = value1 AND attr2 = value2;
+ * CREATE KEYSPACE [IF NOT EXISTS] <KEYSPACE> WITH attr1 = value1 AND attr2 = value2;
  */
 createKeyspaceStatement returns [CreateKeyspaceStatement expr]
-    @init { KSPropDefs attrs = new KSPropDefs(); }
-    : K_CREATE K_KEYSPACE ks=keyspaceName
-      K_WITH properties[attrs] { $expr = new CreateKeyspaceStatement(ks, attrs); }
+    @init {
+        KSPropDefs attrs = new KSPropDefs();
+        boolean ifNotExists = false;
+    }
+    : K_CREATE K_KEYSPACE (K_IF K_NOT K_EXISTS { ifNotExists = true; } )? ks=keyspaceName
+      K_WITH properties[attrs] { $expr = new CreateKeyspaceStatement(ks, attrs, ifNotExists); }
     ;
 
 /**
- * CREATE COLUMNFAMILY <CF> (
+ * CREATE COLUMNFAMILY [IF NOT EXISTS] <CF> (
  *     <name1> <type>,
  *     <name2> <type>,
  *     <name3> <type>
  * ) WITH <property> = <value> AND ...;
  */
 createColumnFamilyStatement returns [CreateColumnFamilyStatement.RawStatement expr]
-    : K_CREATE K_COLUMNFAMILY cf=columnFamilyName { $expr = new CreateColumnFamilyStatement.RawStatement(cf); }
+    @init { boolean ifNotExists = false; }
+    : K_CREATE K_COLUMNFAMILY (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
+      cf=columnFamilyName { $expr = new CreateColumnFamilyStatement.RawStatement(cf, ifNotExists); }
       cfamDefinition[expr]
     ;
 
@@ -477,16 +482,18 @@ cfamOrdering[CreateColumnFamilyStatement.RawStatement expr]
     ;
 
 /**
- * CREATE INDEX [indexName] ON <columnFamily> (<columnName>);
- * CREATE CUSTOM INDEX [indexName] ON <columnFamily> (<columnName>) USING <indexClass>;
+ * CREATE INDEX [IF NOT EXISTS] [indexName] ON <columnFamily> (<columnName>);
+ * CREATE CUSTOM INDEX [IF NOT EXISTS] [indexName] ON <columnFamily> (<columnName>) USING <indexClass>;
  */
 createIndexStatement returns [CreateIndexStatement expr]
     @init {
         boolean isCustom = false;
+        boolean ifNotExists = false;
     }
-    : K_CREATE (K_CUSTOM { isCustom = true; })? K_INDEX (idxName=IDENT)? K_ON cf=columnFamilyName '(' id=cident ')'
+    : K_CREATE (K_CUSTOM { isCustom = true; })? K_INDEX (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
+        (idxName=IDENT)? K_ON cf=columnFamilyName '(' id=cident ')'
         ( K_USING cls=STRING_LITERAL )?
-      { $expr = new CreateIndexStatement(cf, $idxName.text, id, isCustom, $cls.text); }
+      { $expr = new CreateIndexStatement(cf, $idxName.text, id, ifNotExists, isCustom, $cls.text); }
     ;
 
 /**
@@ -543,26 +550,28 @@ alterTableStatement returns [AlterTableStatement expr]
     ;
 
 /**
- * DROP KEYSPACE <KSP>;
+ * DROP KEYSPACE [IF EXISTS] <KSP>;
  */
 dropKeyspaceStatement returns [DropKeyspaceStatement ksp]
-    : K_DROP K_KEYSPACE ks=keyspaceName { $ksp = new DropKeyspaceStatement(ks); }
+    @init { boolean ifExists = false; }
+    : K_DROP K_KEYSPACE (K_IF K_EXISTS { ifExists = true; } )? ks=keyspaceName { $ksp = new DropKeyspaceStatement(ks, ifExists); }
     ;
 
 /**
- * DROP COLUMNFAMILY <CF>;
+ * DROP COLUMNFAMILY [IF EXISTS] <CF>;
  */
 dropColumnFamilyStatement returns [DropColumnFamilyStatement stmt]
-    : K_DROP K_COLUMNFAMILY cf=columnFamilyName { $stmt = new DropColumnFamilyStatement(cf); }
+    @init { boolean ifExists = false; }
+    : K_DROP K_COLUMNFAMILY (K_IF K_EXISTS { ifExists = true; } )? cf=columnFamilyName { $stmt = new DropColumnFamilyStatement(cf, ifExists); }
     ;
 
 /**
- * DROP INDEX <INDEX_NAME>
+ * DROP INDEX [IF EXISTS] <INDEX_NAME>
  */
 dropIndexStatement returns [DropIndexStatement expr]
-    :
-      K_DROP K_INDEX index=IDENT
-      { $expr = new DropIndexStatement($index.text); }
+    @init { boolean ifExists = false; }
+    : K_DROP K_INDEX (K_IF K_EXISTS { ifExists = true; } )? index=IDENT
+      { $expr = new DropIndexStatement($index.text, ifExists); }
     ;
 
 /**

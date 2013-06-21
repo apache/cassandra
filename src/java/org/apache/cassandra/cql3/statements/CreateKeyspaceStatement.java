@@ -22,6 +22,7 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.KSPropDefs;
+import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -37,6 +38,7 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
 {
     private final String name;
     private final KSPropDefs attrs;
+    private final boolean ifNotExists;
 
     /**
      * Creates a new <code>CreateKeyspaceStatement</code> instance for a given
@@ -45,11 +47,12 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
      * @param name the name of the keyspace to create
      * @param attrs map of the raw keyword arguments that followed the <code>WITH</code> keyword.
      */
-    public CreateKeyspaceStatement(String name, KSPropDefs attrs)
+    public CreateKeyspaceStatement(String name, KSPropDefs attrs, boolean ifNotExists)
     {
         super();
         this.name = name;
         this.attrs = attrs;
+        this.ifNotExists = ifNotExists;
     }
 
     @Override
@@ -99,7 +102,15 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
 
     public void announceMigration() throws RequestValidationException
     {
-        MigrationManager.announceNewKeyspace(attrs.asKSMetadata(name));
+        try
+        {
+            MigrationManager.announceNewKeyspace(attrs.asKSMetadata(name));
+        }
+        catch (AlreadyExistsException e)
+        {
+            if (!ifNotExists)
+                throw e;
+        }
     }
 
     public ResultMessage.SchemaChange.Change changeType()

@@ -32,6 +32,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
@@ -52,11 +53,13 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
     private final Map<ColumnIdentifier, AbstractType> columns = new HashMap<ColumnIdentifier, AbstractType>();
     private final CFPropDefs properties;
+    private final boolean ifNotExists;
 
-    public CreateColumnFamilyStatement(CFName name, CFPropDefs properties)
+    public CreateColumnFamilyStatement(CFName name, CFPropDefs properties, boolean ifNotExists)
     {
         super(name);
         this.properties = properties;
+        this.ifNotExists = ifNotExists;
 
         try
         {
@@ -101,7 +104,15 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
     public void announceMigration() throws RequestValidationException
     {
-        MigrationManager.announceNewColumnFamily(getCFMetaData());
+        try
+        {
+           MigrationManager.announceNewColumnFamily(getCFMetaData());
+        }
+        catch (AlreadyExistsException e)
+        {
+            if (!ifNotExists)
+                throw e;
+        }
     }
 
     public ResultMessage.SchemaChange.Change changeType()
@@ -154,9 +165,12 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         private boolean useCompactStorage;
         private final Multiset<ColumnIdentifier> definedNames = HashMultiset.create(1);
 
-        public RawStatement(CFName name)
+        private final boolean ifNotExists;
+
+        public RawStatement(CFName name, boolean ifNotExists)
         {
             super(name);
+            this.ifNotExists = ifNotExists;
         }
 
         /**
@@ -176,7 +190,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
             properties.validate();
 
-            CreateColumnFamilyStatement stmt = new CreateColumnFamilyStatement(cfName, properties);
+            CreateColumnFamilyStatement stmt = new CreateColumnFamilyStatement(cfName, properties, ifNotExists);
             stmt.setBoundTerms(getBoundsTerms());
 
             Map<ByteBuffer, CollectionType> definedCollections = null;

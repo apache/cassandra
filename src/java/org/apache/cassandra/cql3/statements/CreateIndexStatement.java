@@ -42,14 +42,16 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
     private final String indexName;
     private final ColumnIdentifier columnName;
+    private final boolean ifNotExists;
     private final boolean isCustom;
     private final String indexClass;
 
-    public CreateIndexStatement(CFName name, String indexName, ColumnIdentifier columnName, boolean isCustom, String indexClass)
+    public CreateIndexStatement(CFName name, String indexName, ColumnIdentifier columnName, boolean ifNotExists, boolean isCustom, String indexClass)
     {
         super(name);
         this.indexName = indexName;
         this.columnName = columnName;
+        this.ifNotExists = ifNotExists;
         this.isCustom = isCustom;
         this.indexClass = indexClass;
     }
@@ -69,7 +71,12 @@ public class CreateIndexStatement extends SchemaAlteringStatement
             throw new InvalidRequestException("No column definition found for column " + columnName);
 
         if (cd.getIndexType() != null)
-            throw new InvalidRequestException("Index already exists");
+        {
+            if (ifNotExists)
+                return;
+            else
+                throw new InvalidRequestException("Index already exists");
+        }
 
         if (isCustom && indexClass == null)
             throw new InvalidRequestException("CUSTOM index requires specifiying the index class");
@@ -93,6 +100,9 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         logger.debug("Updating column {} definition for index {}", columnName, indexName);
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).clone();
         ColumnDefinition cd = cfm.getColumnDefinition(columnName.key);
+
+        if (cd.getIndexType() != null && ifNotExists)
+            return;
 
         if (isCustom)
             cd.setIndexType(IndexType.CUSTOM, Collections.singletonMap(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, indexClass));

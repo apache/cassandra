@@ -49,11 +49,11 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'keyspace', 'schema', 'columnfamily', 'table', 'index', 'on', 'drop',
         'primary', 'into', 'values', 'timestamp', 'ttl', 'alter', 'add', 'type',
         'compact', 'storage', 'order', 'by', 'asc', 'desc', 'clustering',
-        'token', 'writetime', 'map', 'list', 'to', 'custom'
+        'token', 'writetime', 'map', 'list', 'to', 'custom', 'if', 'not'
     ))
 
     unreserved_keywords = set((
-        'key', 'clustering', 'ttl', 'compact', 'storage', 'type', 'values', 'custom'
+        'key', 'clustering', 'ttl', 'compact', 'storage', 'type', 'values', 'custom', 'exists'
     ))
 
     columnfamily_layout_options = (
@@ -834,7 +834,7 @@ syntax_rules += r'''
 '''
 
 syntax_rules += r'''
-<createKeyspaceStatement> ::= "CREATE" wat=( "KEYSPACE" | "SCHEMA" ) ksname=<cfOrKsName>
+<createKeyspaceStatement> ::= "CREATE" wat=( "KEYSPACE" | "SCHEMA" ) ("IF" "NOT" "EXISTS")?  ksname=<cfOrKsName>
                                 "WITH" <property> ( "AND" <property> )*
                             ;
 '''
@@ -913,7 +913,7 @@ def keyspace_properties_map_ender_completer(ctxt, cass):
     return ['}']
 
 syntax_rules += r'''
-<createColumnFamilyStatement> ::= "CREATE" wat=( "COLUMNFAMILY" | "TABLE" )
+<createColumnFamilyStatement> ::= "CREATE" wat=( "COLUMNFAMILY" | "TABLE" ) ("IF" "NOT" "EXISTS")?
                                     ( ks=<nonSystemKeyspaceName> dot="." )? cf=<cfOrKsName>
                                     "(" ( <singleKeyCfSpec> | <compositeKeyCfSpec> ) ")"
                                    ( "WITH" <cfamProperty> ( "AND" <cfamProperty> )* )?
@@ -1007,7 +1007,7 @@ def create_cf_composite_primary_key_comma_completer(ctxt, cass):
     return [',']
 
 syntax_rules += r'''
-<createIndexStatement> ::= "CREATE" "CUSTOM"? "INDEX" indexname=<identifier>? "ON"
+<createIndexStatement> ::= "CREATE" "CUSTOM"? "INDEX" ("IF" "NOT" "EXISTS")? indexname=<identifier>? "ON"
                                cf=<columnFamilyName> "(" col=<cident> ")"
                                ( "USING" <stringLiteral> )?
                          ;
@@ -1022,13 +1022,13 @@ def create_index_col_completer(ctxt, cass):
     return map(maybe_escape_name, colnames)
 
 syntax_rules += r'''
-<dropKeyspaceStatement> ::= "DROP" "KEYSPACE" ksname=<nonSystemKeyspaceName>
+<dropKeyspaceStatement> ::= "DROP" "KEYSPACE" ("IF" "EXISTS")? ksname=<nonSystemKeyspaceName>
                           ;
 
-<dropColumnFamilyStatement> ::= "DROP" ( "COLUMNFAMILY" | "TABLE" ) cf=<columnFamilyName>
+<dropColumnFamilyStatement> ::= "DROP" ( "COLUMNFAMILY" | "TABLE" ) ("IF" "EXISTS")? cf=<columnFamilyName>
                               ;
 
-<dropIndexStatement> ::= "DROP" "INDEX" indexname=<identifier>
+<dropIndexStatement> ::= "DROP" "INDEX" ("IF" "EXISTS")? indexname=<identifier>
                        ;
 '''
 
