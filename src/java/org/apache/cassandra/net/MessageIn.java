@@ -112,7 +112,7 @@ public class MessageIn<T>
 
     public String toString()
     {
-        StringBuilder sbuf = new StringBuilder("");
+        StringBuilder sbuf = new StringBuilder();
         sbuf.append("FROM:").append(from).append(" TYPE:").append(getMessageType()).append(" VERB:").append(verb);
         return sbuf.toString();
     }

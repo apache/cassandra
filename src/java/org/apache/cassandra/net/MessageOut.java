@@ -95,7 +95,7 @@ public class MessageOut<T>
 
     public String toString()
     {
-        StringBuilder sbuf = new StringBuilder("");
+        StringBuilder sbuf = new StringBuilder();
         sbuf.append("TYPE:").append(getStage()).append(" VERB:").append(verb);
         return sbuf.toString();
     }
