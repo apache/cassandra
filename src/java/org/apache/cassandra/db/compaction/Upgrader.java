@@ -53,8 +53,6 @@ public class Upgrader
     private final AbstractCompactionStrategy strategy;
     private final long estimatedRows;
 
-    private final int gcBefore = CompactionManager.NO_GC;
-
     private final OutputHandler outputHandler;
 
     public Upgrader(ColumnFamilyStore cfs, SSTableReader sstable, OutputHandler outputHandler)
