@@ -179,7 +179,8 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         try
         {
-            replaySerializedMutations(result.one().getBytes("data"), result.one().getLong("written_at"));
+            UntypedResultSet.Row batch = result.one();
+            replaySerializedMutations(batch.getBytes("data"), batch.getLong("written_at"));
         }
         catch (IOException e)
         {
