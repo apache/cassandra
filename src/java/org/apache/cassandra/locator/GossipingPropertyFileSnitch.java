@@ -19,7 +19,6 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Map;
 
 import org.apache.cassandra.db.SystemTable;
@@ -30,14 +29,11 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
-import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.service.StorageService;
 
 
-public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch implements IEndpointStateChangeSubscriber
+public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch// implements IEndpointStateChangeSubscriber
 {
     private static final Logger logger = LoggerFactory.getLogger(GossipingPropertyFileSnitch.class);
 
@@ -47,7 +43,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch i
     private Map<InetAddress, Map<String, String>> savedEndpoints;
     private String DEFAULT_DC = "UNKNOWN_DC";
     private String DEFAULT_RACK = "UNKNOWN_RACK";
-    private boolean preferLocal;
+    private final boolean preferLocal;
 
     public GossipingPropertyFileSnitch() throws ConfigurationException
     {
@@ -126,64 +122,11 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch i
         return epState.getApplicationState(ApplicationState.RACK).value;
     }
 
-    // IEndpointStateChangeSubscriber methods
-
-    public void onJoin(InetAddress endpoint, EndpointState epState)
-    {
-        if (preferLocal && epState.getApplicationState(ApplicationState.INTERNAL_IP) != null)
-            reConnect(endpoint, epState.getApplicationState(ApplicationState.INTERNAL_IP));
-    }
-
-    public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
-    {
-        if (preferLocal && state == ApplicationState.INTERNAL_IP)
-            reConnect(endpoint, value);
-    }
-
-    public void onAlive(InetAddress endpoint, EndpointState state)
-    {
-        if (preferLocal && state.getApplicationState(ApplicationState.INTERNAL_IP) != null)
-            reConnect(endpoint, state.getApplicationState(ApplicationState.INTERNAL_IP));
-    }
-
-    public void onDead(InetAddress endpoint, EndpointState state)
-    {
-        // do nothing
-    }
-
-    public void onRestart(InetAddress endpoint, EndpointState state)
-    {
-        // do nothing
-    }
-
-    public void onRemove(InetAddress endpoint)
-    {
-        // do nothing.
-    }
-
-    private void reConnect(InetAddress endpoint, VersionedValue versionedValue)
-    {
-        if (!getDatacenter(endpoint).equals(myDC))
-            return; // do nothing return back...
-
-        try
-        {
-            InetAddress remoteIP = InetAddress.getByName(versionedValue.value);
-            MessagingService.instance().getConnectionPool(endpoint).reset(remoteIP);
-            logger.debug(String.format("Intiated reconnect to an Internal IP %s for the endpoint %s", remoteIP, endpoint));
-        }
-        catch (UnknownHostException e)
-        {
-            logger.error("Error in getting the IP address resolved", e);
-        }
-    }
-
-    @Override
     public void gossiperStarting()
     {
         super.gossiperStarting();
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_IP,
                                                    StorageService.instance.valueFactory.internalIP(FBUtilities.getLocalAddress().getHostAddress()));
-        Gossiper.instance.register(this);
+        Gossiper.instance.register(new ReconnectableSnitchHelper(this, myDC, preferLocal));
     }
 }
