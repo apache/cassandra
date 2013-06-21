@@ -144,17 +144,16 @@ public class Tracing
     {
         assert state.get() == null;
 
-        TraceState ts = new TraceState(localAddress, sessionId, true);
+        TraceState ts = new TraceState(localAddress, sessionId);
         state.set(ts);
         sessions.put(sessionId, ts);
 
         return sessionId;
     }
 
-    public void stopIfNonLocal(TraceState state)
+    public void stopNonLocal(TraceState state)
     {
-        if (!state.isLocallyOwned)
-            sessions.remove(state.sessionId);
+        sessions.remove(state.sessionId);
     }
 
     /**
@@ -254,7 +253,7 @@ public class Tracing
         }
         else
         {
-            ts = new TraceState(message.from, sessionId, false);
+            ts = new TraceState(message.from, sessionId);
             sessions.put(sessionId, ts);
             return ts;
         }

@@ -188,7 +188,8 @@ public class OutboundTcpConnection extends Thread
                 else
                 {
                     state.trace(message);
-                    Tracing.instance().stopIfNonLocal(state);
+                    if (qm.message.verb == MessagingService.Verb.REQUEST_RESPONSE)
+                        Tracing.instance().stopNonLocal(state);
                 }
             }
 
