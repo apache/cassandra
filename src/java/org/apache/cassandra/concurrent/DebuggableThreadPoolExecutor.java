@@ -133,7 +133,9 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
 
     public void execute(Runnable command, TraceState state)
     {
-        super.execute(state == null ? command : new TraceSessionWrapper<Object>(command, state));
+        super.execute(state == null || command instanceof TraceSessionWrapper
+                      ? command
+                      : new TraceSessionWrapper<Object>(command, state));
     }
 
     // execute does not call newTaskFor
@@ -141,7 +143,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     public void execute(Runnable command)
     {
         super.execute(isTracing() && !(command instanceof TraceSessionWrapper)
-                      ? new TraceSessionWrapper<Object>(command)
+                      ? new TraceSessionWrapper<Object>(Executors.callable(command, null))
                       : command);
     }
 
@@ -260,11 +262,6 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
     private static class TraceSessionWrapper<T> extends FutureTask<T>
     {
         private final TraceState state;
-
-        public TraceSessionWrapper(Runnable command)
-        {
-            this(command, null);
-        }
 
         public TraceSessionWrapper(Callable<T> callable)
         {
