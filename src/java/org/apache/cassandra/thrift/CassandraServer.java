@@ -160,6 +160,19 @@ public class CassandraServer implements Cassandra.Iface
         return thrift_column;
     }
 
+    private List<Column> thriftifyColumnsAsColumns(Collection<org.apache.cassandra.db.Column> columns, long now)
+    {
+        List<Column> thriftColumns = new ArrayList<Column>(columns.size());
+        for (org.apache.cassandra.db.Column column : columns)
+        {
+            if (column.isMarkedForDelete(now))
+                continue;
+
+            thriftColumns.add(thriftifySubColumn(column));
+        }
+        return thriftColumns;
+    }
+
     private CounterColumn thriftifySubCounter(org.apache.cassandra.db.Column column)
     {
         assert column instanceof org.apache.cassandra.db.CounterColumn;
@@ -690,7 +703,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public boolean cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates, ConsistencyLevel consistency_level)
+    public List<Column> cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (startSessionIfRequested())
@@ -746,7 +759,10 @@ public class CassandraServer implements Cassandra.Iface
             }
 
             schedule(DatabaseDescriptor.getWriteRpcTimeout());
-            return StorageProxy.cas(cState.getKeyspace(), column_family, key, cfExpected, cfUpdates, ThriftConversion.fromThrift(consistency_level));
+            ColumnFamily result = StorageProxy.cas(cState.getKeyspace(), column_family, key, null, cfExpected, cfUpdates, ThriftConversion.fromThrift(consistency_level));
+            return result == null
+                 ? null
+                 : thriftifyColumnsAsColumns(result.getSortedColumns(), System.currentTimeMillis());
         }
         catch (RequestTimeoutException e)
         {
@@ -759,7 +775,7 @@ public class CassandraServer implements Cassandra.Iface
         catch (RequestExecutionException e)
         {
             ThriftConversion.rethrow(e);
-            return false; // makes javac happy -- it can't tell that rethrow always throws
+            return null; // makes javac happy -- it can't tell that rethrow always throws
         }
         finally
         {

@@ -869,7 +869,7 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
                 struct.cf_defs = new ArrayList<CfDef>(_list144.size);
                 for (int _i145 = 0; _i145 < _list144.size; ++_i145)
                 {
-                  CfDef _elem146; // optional
+                  CfDef _elem146; // required
                   _elem146 = new CfDef();
                   _elem146.read(iprot);
                   struct.cf_defs.add(_elem146);
@@ -1018,7 +1018,7 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
         struct.cf_defs = new ArrayList<CfDef>(_list151.size);
         for (int _i152 = 0; _i152 < _list151.size; ++_i152)
         {
-          CfDef _elem153; // optional
+          CfDef _elem153; // required
           _elem153 = new CfDef();
           _elem153.read(iprot);
           struct.cf_defs.add(_elem153);

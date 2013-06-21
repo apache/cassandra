@@ -479,7 +479,7 @@ public class CounterSuperColumn implements org.apache.thrift.TBase<CounterSuperC
                 struct.columns = new ArrayList<CounterColumn>(_list8.size);
                 for (int _i9 = 0; _i9 < _list8.size; ++_i9)
                 {
-                  CounterColumn _elem10; // optional
+                  CounterColumn _elem10; // required
                   _elem10 = new CounterColumn();
                   _elem10.read(iprot);
                   struct.columns.add(_elem10);
@@ -560,7 +560,7 @@ public class CounterSuperColumn implements org.apache.thrift.TBase<CounterSuperC
         struct.columns = new ArrayList<CounterColumn>(_list13.size);
         for (int _i14 = 0; _i14 < _list13.size; ++_i14)
         {
-          CounterColumn _elem15; // optional
+          CounterColumn _elem15; // required
           _elem15 = new CounterColumn();
           _elem15.read(iprot);
           struct.columns.add(_elem15);

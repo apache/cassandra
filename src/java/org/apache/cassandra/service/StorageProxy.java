@@ -40,6 +40,7 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.filter.ColumnSlice;
@@ -159,7 +160,7 @@ public class StorageProxy implements StorageProxyMBean
 
     /**
      * Apply @param updates if and only if the current values in the row for @param key
-     * match the ones given by @param old.  The algorithm is "raw" Paxos: that is, Paxos
+     * match the ones given by @param expected.  The algorithm is "raw" Paxos: that is, Paxos
      * minus leader election -- any node in the cluster may propose changes for any row,
      * which (that is, the row) is the unit of values being proposed, not single columns.
      *
@@ -188,9 +189,21 @@ public class StorageProxy implements StorageProxyMBean
      *  values) between the prepare and accept phases.  This gives us a slightly longer window for another
      *  coordinator to come along and trump our own promise with a newer one but is otherwise safe.
      *
-     * @return true if the operation succeeds in updating the row
+     * @param table the table for the CAS
+     * @param cfName the column family for the CAS
+     * @param key the row key for the row to CAS
+     * @param prefix a column name prefix that selects the CQL3 row to check if {@code expected} is null. If {@code expected}
+     * is not null, this is ignored. If {@code expected} is null and this is null, the full row existing is checked (by querying
+     * the first live column of the row).
+     * @param expected the expected column values. This can be null to check for existence (see {@code prefix}).
+     * @param updates the value to insert if {@code expected matches the current values}.
+     * @param consistencyLevel the consistency for the operation.
+     *
+     * @return null if the operation succeeds in updating the row, or the current values for the columns contained in
+     * expected (since, if the CAS doesn't succeed, it means the current value do not match the one in expected). If
+     * expected == null and the CAS is unsuccessfull, the first live column of the CF is returned.
      */
-    public static boolean cas(String table, String cfName, ByteBuffer key, ColumnFamily expected, ColumnFamily updates, ConsistencyLevel consistencyLevel)
+    public static ColumnFamily cas(String table, String cfName, ByteBuffer key, ColumnNameBuilder prefix, ColumnFamily expected, ColumnFamily updates, ConsistencyLevel consistencyLevel)
     throws UnavailableException, IsBootstrappingException, ReadTimeoutException, WriteTimeoutException, InvalidRequestException
     {
         consistencyLevel.validateForCas(table);
@@ -213,18 +226,24 @@ public class StorageProxy implements StorageProxyMBean
             // read the current value and compare with expected
             Tracing.trace("Reading existing values for CAS precondition");
             long timestamp = System.currentTimeMillis();
-            IDiskAtomFilter filter = expected == null
-                                   ? new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1)
-                                   : new NamesQueryFilter(ImmutableSortedSet.copyOf(expected.getColumnNames()));
-            ReadCommand readCommand = filter instanceof SliceQueryFilter
-                                    ? new SliceFromReadCommand(table, key, cfName, timestamp, (SliceQueryFilter) filter)
-                                    : new SliceByNamesReadCommand(table, key, cfName, timestamp, (NamesQueryFilter) filter);
+            ReadCommand readCommand;
+            if (expected == null)
+            {
+                SliceQueryFilter filter = prefix == null
+                                        ? new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1)
+                                        : new SliceQueryFilter(prefix.build(), prefix.buildAsEndOfRange(), false, 1, prefix.componentCount());
+                readCommand = new SliceFromReadCommand(table, key, cfName, timestamp, filter);
+            }
+            else
+            {
+                readCommand = new SliceByNamesReadCommand(table, key, cfName, timestamp, new NamesQueryFilter(ImmutableSortedSet.copyOf(expected.getColumnNames())));
+            }
             List<Row> rows = read(Arrays.asList(readCommand), ConsistencyLevel.QUORUM);
             ColumnFamily current = rows.get(0).cf;
             if (!casApplies(expected, current))
             {
                 Tracing.trace("CAS precondition {} does not match current values {}", expected, current);
-                return false;
+                return current;
             }
 
             // finish the paxos round w/ the desired updates
@@ -238,7 +257,7 @@ public class StorageProxy implements StorageProxyMBean
                 else
                     commitPaxos(proposal, consistencyLevel);
                 Tracing.trace("CAS successful");
-                return true;
+                return null;
             }
 
             Tracing.trace("Paxos proposal not accepted (pre-empted by a higher ballot)");

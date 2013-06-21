@@ -559,7 +559,7 @@ public class IndexClause implements org.apache.thrift.TBase<IndexClause, IndexCl
                 struct.expressions = new ArrayList<IndexExpression>(_list24.size);
                 for (int _i25 = 0; _i25 < _list24.size; ++_i25)
                 {
-                  IndexExpression _elem26; // optional
+                  IndexExpression _elem26; // required
                   _elem26 = new IndexExpression();
                   _elem26.read(iprot);
                   struct.expressions.add(_elem26);
@@ -661,7 +661,7 @@ public class IndexClause implements org.apache.thrift.TBase<IndexClause, IndexCl
         struct.expressions = new ArrayList<IndexExpression>(_list29.size);
         for (int _i30 = 0; _i30 < _list29.size; ++_i30)
         {
-          IndexExpression _elem31; // optional
+          IndexExpression _elem31; // required
           _elem31 = new IndexExpression();
           _elem31.read(iprot);
           struct.expressions.add(_elem31);

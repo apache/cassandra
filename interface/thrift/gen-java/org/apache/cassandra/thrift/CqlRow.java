@@ -482,7 +482,7 @@ public class CqlRow implements org.apache.thrift.TBase<CqlRow, CqlRow._Fields>, 
                 struct.columns = new ArrayList<Column>(_list158.size);
                 for (int _i159 = 0; _i159 < _list158.size; ++_i159)
                 {
-                  Column _elem160; // optional
+                  Column _elem160; // required
                   _elem160 = new Column();
                   _elem160.read(iprot);
                   struct.columns.add(_elem160);
@@ -563,7 +563,7 @@ public class CqlRow implements org.apache.thrift.TBase<CqlRow, CqlRow._Fields>, 
         struct.columns = new ArrayList<Column>(_list163.size);
         for (int _i164 = 0; _i164 < _list163.size; ++_i164)
         {
-          Column _elem165; // optional
+          Column _elem165; // required
           _elem165 = new Column();
           _elem165.read(iprot);
           struct.columns.add(_elem165);

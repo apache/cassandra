@@ -653,7 +653,7 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
                 struct.variable_types = new ArrayList<String>(_list194.size);
                 for (int _i195 = 0; _i195 < _list194.size; ++_i195)
                 {
-                  String _elem196; // optional
+                  String _elem196; // required
                   _elem196 = iprot.readString();
                   struct.variable_types.add(_elem196);
                 }
@@ -671,7 +671,7 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
                 struct.variable_names = new ArrayList<String>(_list197.size);
                 for (int _i198 = 0; _i198 < _list197.size; ++_i198)
                 {
-                  String _elem199; // optional
+                  String _elem199; // required
                   _elem199 = iprot.readString();
                   struct.variable_names.add(_elem199);
                 }
@@ -798,7 +798,7 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
           struct.variable_types = new ArrayList<String>(_list204.size);
           for (int _i205 = 0; _i205 < _list204.size; ++_i205)
           {
-            String _elem206; // optional
+            String _elem206; // required
             _elem206 = iprot.readString();
             struct.variable_types.add(_elem206);
           }
@@ -811,7 +811,7 @@ public class CqlPreparedResult implements org.apache.thrift.TBase<CqlPreparedRes
           struct.variable_names = new ArrayList<String>(_list207.size);
           for (int _i208 = 0; _i208 < _list207.size; ++_i208)
           {
-            String _elem209; // optional
+            String _elem209; // required
             _elem209 = iprot.readString();
             struct.variable_names.add(_elem209);
           }

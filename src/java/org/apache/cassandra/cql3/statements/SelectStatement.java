@@ -76,6 +76,9 @@ public class SelectStatement implements CQLStatement
 
     private Map<CFDefinition.Name, Integer> orderingIndexes;
 
+    // Used by forSelection below
+    private static final Parameters defaultParameters = new Parameters(Collections.<ColumnIdentifier, Boolean>emptyMap(), false, null, false);
+
     private static enum Bound
     {
         START(0), END(1);
@@ -102,6 +105,14 @@ public class SelectStatement implements CQLStatement
         this.columnRestrictions = new Restriction[cfDef.columns.size()];
         this.parameters = parameters;
         this.limit = limit;
+    }
+
+    // Creates a simple select based on the given selection.
+    // Note that the results select statement should not be used for actual queries, but only for processing already
+    // queried data through processColumnFamily.
+    static SelectStatement forSelection(CFDefinition cfDef, Selection selection)
+    {
+        return new SelectStatement(cfDef, 0, defaultParameters, selection, null);
     }
 
     public int getBoundsTerms()
@@ -618,6 +629,9 @@ public class SelectStatement implements CQLStatement
 
     private Iterable<Column> columnsInOrder(final ColumnFamily cf, final List<ByteBuffer> variables) throws InvalidRequestException
     {
+        if (columnRestrictions.length == 0)
+            return cf.getSortedColumns();
+
         // If the restriction for the last column alias is an IN, respect
         // requested order
         Restriction last = columnRestrictions[columnRestrictions.length - 1];
@@ -665,92 +679,7 @@ public class SelectStatement implements CQLStatement
             if (row.cf == null)
                 continue;
 
-            ByteBuffer[] keyComponents = cfDef.hasCompositeKey
-                                       ? ((CompositeType)cfDef.cfm.getKeyValidator()).split(row.key.key)
-                                       : new ByteBuffer[]{ row.key.key };
-
-            if (cfDef.isCompact)
-            {
-                // One cqlRow per column
-                for (Column c : columnsInOrder(row.cf, variables))
-                {
-                    if (c.isMarkedForDelete(now))
-                        continue;
-
-                    ByteBuffer[] components = null;
-                    if (cfDef.isComposite)
-                    {
-                        components = ((CompositeType)cfDef.cfm.comparator).split(c.name());
-                    }
-                    else if (sliceRestriction != null)
-                    {
-                        // For dynamic CF, the column could be out of the requested bounds, filter here
-                        if (!sliceRestriction.isInclusive(Bound.START) && c.name().equals(sliceRestriction.bound(Bound.START).bindAndGet(variables)))
-                            continue;
-                        if (!sliceRestriction.isInclusive(Bound.END) && c.name().equals(sliceRestriction.bound(Bound.END).bindAndGet(variables)))
-                            continue;
-                    }
-
-                    result.newRow();
-                    // Respect selection order
-                    for (CFDefinition.Name name : selection.getColumnsList())
-                    {
-                        switch (name.kind)
-                        {
-                            case KEY_ALIAS:
-                                result.add(keyComponents[name.position]);
-                                break;
-                            case COLUMN_ALIAS:
-                                ByteBuffer val = cfDef.isComposite
-                                               ? (name.position < components.length ? components[name.position] : null)
-                                               : c.name();
-                                result.add(val);
-                                break;
-                            case VALUE_ALIAS:
-                                result.add(c);
-                                break;
-                            case COLUMN_METADATA:
-                                // This should not happen for compact CF
-                                throw new AssertionError();
-                            default:
-                                throw new AssertionError();
-                        }
-                    }
-                }
-            }
-            else if (cfDef.isComposite)
-            {
-                // Sparse case: group column in cqlRow when composite prefix is equal
-                CompositeType composite = (CompositeType)cfDef.cfm.comparator;
-
-                ColumnGroupMap.Builder builder = new ColumnGroupMap.Builder(composite, cfDef.hasCollections, now);
-
-                for (Column c : row.cf)
-                {
-                    if (c.isMarkedForDelete(now))
-                        continue;
-
-                    builder.add(c);
-                }
-
-                for (ColumnGroupMap group : builder.groups())
-                    handleGroup(selection, result, keyComponents, group);
-            }
-            else
-            {
-                if (row.cf.hasOnlyTombstones(now))
-                    continue;
-
-                // Static case: One cqlRow for all columns
-                result.newRow();
-                for (CFDefinition.Name name : selection.getColumnsList())
-                {
-                    if (name.kind == CFDefinition.Name.Kind.KEY_ALIAS)
-                        result.add(keyComponents[name.position]);
-                    else
-                        result.add(row.cf.getColumn(name.name.key));
-                }
-            }
+            processColumnFamily(row.key.key, row.cf, variables, limit, now, result);
         }
 
         ResultSet cqlRows = result.build();
@@ -764,6 +693,97 @@ public class SelectStatement implements CQLStatement
         // Trim result if needed to respect the limit
         cqlRows.trim(limit);
         return cqlRows;
+    }
+
+    // Used by ModificationStatement for CAS operations
+    void processColumnFamily(ByteBuffer key, ColumnFamily cf, List<ByteBuffer> variables, int limit, long now, Selection.ResultSetBuilder result) throws InvalidRequestException
+    {
+        ByteBuffer[] keyComponents = cfDef.hasCompositeKey
+                                   ? ((CompositeType)cfDef.cfm.getKeyValidator()).split(key)
+                                   : new ByteBuffer[]{ key };
+
+        if (cfDef.isCompact)
+        {
+            // One cqlRow per column
+            for (Column c : columnsInOrder(cf, variables))
+            {
+                if (c.isMarkedForDelete(now))
+                    continue;
+
+                ByteBuffer[] components = null;
+                if (cfDef.isComposite)
+                {
+                    components = ((CompositeType)cfDef.cfm.comparator).split(c.name());
+                }
+                else if (sliceRestriction != null)
+                {
+                    // For dynamic CF, the column could be out of the requested bounds, filter here
+                    if (!sliceRestriction.isInclusive(Bound.START) && c.name().equals(sliceRestriction.bound(Bound.START).bindAndGet(variables)))
+                        continue;
+                    if (!sliceRestriction.isInclusive(Bound.END) && c.name().equals(sliceRestriction.bound(Bound.END).bindAndGet(variables)))
+                        continue;
+                }
+
+                result.newRow();
+                // Respect selection order
+                for (CFDefinition.Name name : selection.getColumnsList())
+                {
+                    switch (name.kind)
+                    {
+                        case KEY_ALIAS:
+                            result.add(keyComponents[name.position]);
+                            break;
+                        case COLUMN_ALIAS:
+                            ByteBuffer val = cfDef.isComposite
+                                           ? (name.position < components.length ? components[name.position] : null)
+                                           : c.name();
+                            result.add(val);
+                            break;
+                        case VALUE_ALIAS:
+                            result.add(c);
+                            break;
+                        case COLUMN_METADATA:
+                            // This should not happen for compact CF
+                            throw new AssertionError();
+                        default:
+                            throw new AssertionError();
+                    }
+                }
+            }
+        }
+        else if (cfDef.isComposite)
+        {
+            // Sparse case: group column in cqlRow when composite prefix is equal
+            CompositeType composite = (CompositeType)cfDef.cfm.comparator;
+
+            ColumnGroupMap.Builder builder = new ColumnGroupMap.Builder(composite, cfDef.hasCollections, now);
+
+            for (Column c : cf)
+            {
+                if (c.isMarkedForDelete(now))
+                    continue;
+
+                builder.add(c);
+            }
+
+            for (ColumnGroupMap group : builder.groups())
+                handleGroup(selection, result, keyComponents, group);
+        }
+        else
+        {
+            if (cf.hasOnlyTombstones(now))
+                return;
+
+            // Static case: One cqlRow for all columns
+            result.newRow();
+            for (CFDefinition.Name name : selection.getColumnsList())
+            {
+                if (name.kind == CFDefinition.Name.Kind.KEY_ALIAS)
+                    result.add(keyComponents[name.position]);
+                else
+                    result.add(cf.getColumn(name.name.key));
+            }
+        }
     }
 
     /**

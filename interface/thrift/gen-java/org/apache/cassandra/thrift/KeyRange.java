@@ -848,7 +848,7 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
                 struct.row_filter = new ArrayList<IndexExpression>(_list32.size);
                 for (int _i33 = 0; _i33 < _list32.size; ++_i33)
                 {
-                  IndexExpression _elem34; // optional
+                  IndexExpression _elem34; // required
                   _elem34 = new IndexExpression();
                   _elem34.read(iprot);
                   struct.row_filter.add(_elem34);
@@ -1017,7 +1017,7 @@ public class KeyRange implements org.apache.thrift.TBase<KeyRange, KeyRange._Fie
           struct.row_filter = new ArrayList<IndexExpression>(_list37.size);
           for (int _i38 = 0; _i38 < _list37.size; ++_i38)
           {
-            IndexExpression _elem39; // optional
+            IndexExpression _elem39; // required
             _elem39 = new IndexExpression();
             _elem39.read(iprot);
             struct.row_filter.add(_elem39);

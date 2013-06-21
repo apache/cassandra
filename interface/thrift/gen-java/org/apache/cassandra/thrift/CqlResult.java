@@ -648,7 +648,7 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
                 struct.rows = new ArrayList<CqlRow>(_list186.size);
                 for (int _i187 = 0; _i187 < _list186.size; ++_i187)
                 {
-                  CqlRow _elem188; // optional
+                  CqlRow _elem188; // required
                   _elem188 = new CqlRow();
                   _elem188.read(iprot);
                   struct.rows.add(_elem188);
@@ -781,7 +781,7 @@ public class CqlResult implements org.apache.thrift.TBase<CqlResult, CqlResult._
           struct.rows = new ArrayList<CqlRow>(_list191.size);
           for (int _i192 = 0; _i192 < _list191.size; ++_i192)
           {
-            CqlRow _elem193; // optional
+            CqlRow _elem193; // required
             _elem193 = new CqlRow();
             _elem193.read(iprot);
             struct.rows.add(_elem193);

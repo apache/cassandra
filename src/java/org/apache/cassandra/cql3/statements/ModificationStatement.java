@@ -372,11 +372,34 @@ public abstract class ModificationStatement implements CQLStatement
         ColumnFamily updates = updateForKey(key, clusteringPrefix, params);
         ColumnFamily expected = buildConditions(key, clusteringPrefix, params);
 
-        boolean result = StorageProxy.cas(keyspace(), columnFamily(), key, expected, updates, cl);
+        ColumnFamily result = StorageProxy.cas(keyspace(), columnFamily(), key, clusteringPrefix, expected, updates, cl);
+        return result == null
+             ? new ResultMessage.Void()
+             : new ResultMessage.Rows(buildCasFailureResultSet(key, result));
+    }
 
-        ResultSet.Metadata metadata = new ResultSet.Metadata(Collections.singletonList(new ColumnSpecification(keyspace(), columnFamily(), RESULT_COLUMN, BooleanType.instance)));
-        List<List<ByteBuffer>> newRows = Collections.singletonList(Collections.singletonList(BooleanType.instance.decompose(result)));
-        return new ResultMessage.Rows(new ResultSet(metadata, newRows));
+    private ResultSet buildCasFailureResultSet(ByteBuffer key, ColumnFamily cf) throws InvalidRequestException
+    {
+        CFDefinition cfDef = cfm.getCfDef();
+
+        Selection selection;
+        if (ifNotExists)
+        {
+            selection = Selection.wildcard(cfDef);
+        }
+        else
+        {
+            List<CFDefinition.Name> names = new ArrayList<CFDefinition.Name>(columnConditions.size());
+            for (Operation condition : columnConditions)
+                names.add(cfDef.get(condition.columnName));
+            selection = Selection.forColumns(names);
+        }
+
+        long now = System.currentTimeMillis();
+        Selection.ResultSetBuilder builder = selection.resultSetBuilder(now);
+        SelectStatement.forSelection(cfDef, selection).processColumnFamily(key, cf, Collections.<ByteBuffer>emptyList(), Integer.MAX_VALUE, now, builder);
+
+        return builder.build();
     }
 
     public ResultMessage executeInternal(QueryState queryState) throws RequestValidationException, RequestExecutionException

@@ -646,12 +646,15 @@ service Cassandra {
 
   /**
    * Atomic compare and set
+   *
+   * The returned list of columns will be null if the cas succeed. Otherwise, it will contain the current
+   * values for the columns in {@param expected}.
    */
-  bool cas(1:required binary key, 
-           2:required string column_family,
-           3:list<Column> expected,
-           4:list<Column> updates,
-           5:required ConsistencyLevel consistency_level=ConsistencyLevel.QUORUM)
+  list<Column> cas(1:required binary key,
+                   2:required string column_family,
+                   3:list<Column> expected,
+                   4:list<Column> updates,
+                   5:required ConsistencyLevel consistency_level=ConsistencyLevel.QUORUM)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**

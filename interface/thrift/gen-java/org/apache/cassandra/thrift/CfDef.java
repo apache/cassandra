@@ -3601,7 +3601,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
                 struct.column_metadata = new ArrayList<ColumnDef>(_list92.size);
                 for (int _i93 = 0; _i93 < _list92.size; ++_i93)
                 {
-                  ColumnDef _elem94; // optional
+                  ColumnDef _elem94; // required
                   _elem94 = new ColumnDef();
                   _elem94.read(iprot);
                   struct.column_metadata.add(_elem94);
@@ -4482,7 +4482,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           struct.column_metadata = new ArrayList<ColumnDef>(_list121.size);
           for (int _i122 = 0; _i122 < _list121.size; ++_i122)
           {
-            ColumnDef _elem123; // optional
+            ColumnDef _elem123; // required
             _elem123 = new ColumnDef();
             _elem123.read(iprot);
             struct.column_metadata.add(_elem123);

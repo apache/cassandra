@@ -486,7 +486,7 @@ public class KeySlice implements org.apache.thrift.TBase<KeySlice, KeySlice._Fie
                 struct.columns = new ArrayList<ColumnOrSuperColumn>(_list40.size);
                 for (int _i41 = 0; _i41 < _list40.size; ++_i41)
                 {
-                  ColumnOrSuperColumn _elem42; // optional
+                  ColumnOrSuperColumn _elem42; // required
                   _elem42 = new ColumnOrSuperColumn();
                   _elem42.read(iprot);
                   struct.columns.add(_elem42);
@@ -567,7 +567,7 @@ public class KeySlice implements org.apache.thrift.TBase<KeySlice, KeySlice._Fie
         struct.columns = new ArrayList<ColumnOrSuperColumn>(_list45.size);
         for (int _i46 = 0; _i46 < _list45.size; ++_i46)
         {
-          ColumnOrSuperColumn _elem47; // optional
+          ColumnOrSuperColumn _elem47; // required
           _elem47 = new ColumnOrSuperColumn();
           _elem47.read(iprot);
           struct.columns.add(_elem47);

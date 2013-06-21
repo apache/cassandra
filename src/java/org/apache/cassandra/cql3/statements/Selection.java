@@ -57,6 +57,11 @@ public abstract class Selection
         return new SimpleSelection(all);
     }
 
+    public static Selection forColumns(List<CFDefinition.Name> columnsList)
+    {
+        return new SimpleSelection(columnsList);
+    }
+
     private static boolean isUsingFunction(List<RawSelector> rawSelectors)
     {
         for (RawSelector rawSelector : rawSelectors)
