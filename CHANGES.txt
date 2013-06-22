@@ -63,6 +63,11 @@
  * Streaming 2.0 (CASSANDRA-5286)
  * Conditional create/drop ks/table/index statements in CQL3 (CASSANDRA-2737)
 
+
+1.2.7
+ * Fix ReadResponseSerializer.serializedSize() for digest reads (CASSANDRA-5476)
+
+
 1.2.6
  * Fix tracing when operation completes before all responses arrive (CASSANDRA-5668)
  * Fix cross-DC mutation forwarding (CASSANDRA-5632)

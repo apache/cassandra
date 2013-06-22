@@ -104,6 +104,7 @@ class ReadResponseSerializer implements IVersionedSerializer<ReadResponse>
         TypeSizes typeSizes = TypeSizes.NATIVE;
         ByteBuffer buffer = response.isDigestQuery() ? response.digest() : ByteBufferUtil.EMPTY_BYTE_BUFFER;
         int size = typeSizes.sizeof(buffer.remaining());
+        size += buffer.remaining();
         size += typeSizes.sizeof(response.isDigestQuery());
         if (!response.isDigestQuery())
             size += Row.serializer.serializedSize(response.row(), version);
