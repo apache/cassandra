@@ -1,3 +1,7 @@
+1.2.7
+ * Fix ReadResponseSerializer.serializedSize() for digest reads (CASSANDRA-5476)
+
+
 1.2.6
  * Fix tracing when operation completes before all responses arrive (CASSANDRA-5668)
  * Fix cross-DC mutation forwarding (CASSANDRA-5632)
