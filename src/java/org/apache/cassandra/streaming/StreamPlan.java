@@ -139,7 +139,7 @@ public class StreamPlan
      */
     public StreamResultFuture execute()
     {
-        return StreamResultFuture.startStreamingAsync(planId, description, sessions.values());
+        return StreamResultFuture.init(planId, description, sessions.values());
     }
 
     /**

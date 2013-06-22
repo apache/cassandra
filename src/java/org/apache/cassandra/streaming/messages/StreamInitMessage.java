@@ -20,12 +20,14 @@ package org.apache.cassandra.streaming.messages;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.UUIDSerializer;
 
@@ -37,13 +39,19 @@ public class StreamInitMessage
 {
     public static IVersionedSerializer<StreamInitMessage> serializer = new StreamInitMessageSerializer();
 
+    public final InetAddress from;
     public final UUID planId;
     public final String description;
 
-    public StreamInitMessage(UUID planId, String description)
+    // Whether the sender of this message is the stream initiator
+    public final boolean sentByInitiator;
+
+    public StreamInitMessage(InetAddress from, UUID planId, String description, boolean sentByInitiator)
     {
+        this.from = from;
         this.planId = planId;
         this.description = description;
+        this.sentByInitiator = sentByInitiator;
     }
 
     /**
@@ -95,20 +103,27 @@ public class StreamInitMessage
     {
         public void serialize(StreamInitMessage message, DataOutput out, int version) throws IOException
         {
+            CompactEndpointSerializationHelper.serialize(message.from, out);
             UUIDSerializer.serializer.serialize(message.planId, out, MessagingService.current_version);
             out.writeUTF(message.description);
+            out.writeBoolean(message.sentByInitiator);
         }
 
         public StreamInitMessage deserialize(DataInput in, int version) throws IOException
         {
+            InetAddress from = CompactEndpointSerializationHelper.deserialize(in);
             UUID planId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
-            return new StreamInitMessage(planId, in.readUTF());
+            String description = in.readUTF();
+            boolean sentByInitiator = in.readBoolean();
+            return new StreamInitMessage(from, planId, description, sentByInitiator);
         }
 
         public long serializedSize(StreamInitMessage message, int version)
         {
-            long size = UUIDSerializer.serializer.serializedSize(message.planId, MessagingService.current_version);
+            long size = CompactEndpointSerializationHelper.serializedSize(message.from);
+            size += UUIDSerializer.serializer.serializedSize(message.planId, MessagingService.current_version);
             size += TypeSizes.NATIVE.sizeof(message.description);
+            size += TypeSizes.NATIVE.sizeof(message.sentByInitiator);
             return size;
         }
     }

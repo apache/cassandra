@@ -103,4 +103,10 @@ public class FileMessage extends StreamMessage
                                             sections,
                                             compressionInfo);
     }
+
+    @Override
+    public String toString()
+    {
+        return "FileMessage(" + sstable + ")";
+    }
 }

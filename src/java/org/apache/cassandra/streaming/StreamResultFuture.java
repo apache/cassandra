@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.streaming;
 
+import java.io.IOException;
 import java.net.InetAddress;
+import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -29,29 +31,34 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.utils.FBUtilities;
 
+
 /**
- * StreamResultFuture asynchronously returns the final {@link StreamState} of execution of {@link StreamPlan}.
+ * A future on the result ({@link StreamState}) of a streaming plan.
+ *
+ * In practice, this object also groups all the {@link StreamSession} for the streaming job
+ * involved. One StreamSession will be created for every peer involved and said session will
+ * handle every streaming (outgoing and incoming) to that peer for this job.
  * <p>
- * You can attach {@link StreamEventHandler} to this object to listen on {@link StreamEvent}s to track progress of the streaming.
+ * The future will return a result once every session is completed (successfully or not). If
+ * any session ended up with an error, the future will throw a StreamException.
+ * <p>
+ * You can attach {@link StreamEventHandler} to this object to listen on {@link StreamEvent}s to
+ * track progress of the streaming.
  */
 public final class StreamResultFuture extends AbstractFuture<StreamState>
 {
-    // Executor that establish the streaming connection. Once we're connected to the other end, the rest of the streaming
-    // is directly handled by the ConnectionHandler incoming and outgoing threads.
-    private static final DebuggableThreadPoolExecutor streamExecutor = DebuggableThreadPoolExecutor.createWithFixedPoolSize("StreamConnectionEstablisher",
-                                                                                                                            FBUtilities.getAvailableProcessors());
+    private static final Logger logger = LoggerFactory.getLogger(StreamResultFuture.class);
 
     public final UUID planId;
     public final String description;
     private final List<StreamEventHandler> eventListeners = Collections.synchronizedList(new ArrayList<StreamEventHandler>());
-    private final Set<UUID> ongoingSessions;
+
+    private final Map<InetAddress, StreamSession> ongoingSessions;
     private final Map<InetAddress, SessionInfo> sessionStates = new NonBlockingHashMap<>();
 
     /**
@@ -63,37 +70,61 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
      * @param description Stream description
      * @param numberOfSessions number of sessions to wait for complete
      */
-    private StreamResultFuture(UUID planId, String description, Set<UUID> sessions)
+    private StreamResultFuture(UUID planId, String description, Collection<StreamSession> sessions)
     {
         this.planId = planId;
         this.description = description;
-        this.ongoingSessions = sessions;
+        this.ongoingSessions = new HashMap<>(sessions.size());
+        for (StreamSession session : sessions)
+            this.ongoingSessions.put(session.peer, session);;
 
         // if there is no session to listen to, we immediately set result for returning
         if (sessions.isEmpty())
             set(getCurrentState());
     }
 
-    static StreamResultFuture startStreamingAsync(UUID planId, String description, Collection<StreamSession> sessions)
+    static StreamResultFuture init(UUID planId, String description, Collection<StreamSession> sessions)
     {
-        Set<UUID> sessionsIds = new HashSet<>(sessions.size());
-        for (StreamSession session : sessions)
-            sessionsIds.add(session.id);
-
-        StreamResultFuture future = new StreamResultFuture(planId, description, sessionsIds);
-
-        StreamManager.instance.register(future);
+        StreamResultFuture future = createAndRegister(planId, description, sessions);
 
         // start sessions
-        for (StreamSession session : sessions)
+        for (final StreamSession session : sessions)
         {
-            session.register(future);
-            // register to gossiper/FD to fail on node failure
-            Gossiper.instance.register(session);
-            FailureDetector.instance.registerFailureDetectionEventListener(session);
-            streamExecutor.submit(session);
+            session.init(future);
+            session.start();
         }
+
         return future;
+    }
+
+    public static StreamResultFuture initReceivingSide(UUID planId, String description, InetAddress from, Socket socket, int version)
+    {
+        final StreamSession session = new StreamSession(from);
+
+        // The main reason we create a StreamResultFuture on the receiving side is for JMX exposure.
+        StreamResultFuture future = createAndRegister(planId, description, Collections.singleton(session));
+
+        session.init(future);
+        session.start(socket, version);
+
+        return future;
+    }
+
+    private static StreamResultFuture createAndRegister(UUID planId, String description, Collection<StreamSession> sessions)
+    {
+        StreamResultFuture future = new StreamResultFuture(planId, description, sessions);
+        StreamManager.instance.register(future);
+        return future;
+    }
+
+    public void startStreaming(InetAddress from, Socket socket, int version) throws IOException
+    {
+        StreamSession session = ongoingSessions.get(from);
+        if (session == null)
+            throw new RuntimeException(String.format("Got connection from %s for stream session %s but no such session locally", from, planId));
+
+        session.handler.attachIncomingSocket(socket, version);
+        session.onInitializationComplete();
     }
 
     public void addEventListener(StreamEventHandler listener)
@@ -135,13 +166,12 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
 
     void handleSessionComplete(StreamSession session)
     {
-        Gossiper.instance.unregister(session);
-        FailureDetector.instance.unregisterFailureDetectionEventListener(session);
+        logger.debug("Session with {} is complete", session.peer);
 
         SessionInfo sessionInfo = session.getSessionInfo();
         sessionStates.put(sessionInfo.peer, sessionInfo);
         fireStreamEvent(new StreamEvent.SessionCompleteEvent(session));
-        maybeComplete(session.id);
+        maybeComplete(session);
     }
 
     public void handleProgress(ProgressInfo progress)
@@ -157,9 +187,9 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
             listener.handleStreamEvent(event);
     }
 
-    private synchronized void maybeComplete(UUID sessionId)
+    private synchronized void maybeComplete(StreamSession session)
     {
-        ongoingSessions.remove(sessionId);
+        ongoingSessions.remove(session.peer);
         if (ongoingSessions.isEmpty())
         {
             StreamState finalState = getCurrentState();

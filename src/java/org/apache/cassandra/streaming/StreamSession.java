@@ -27,6 +27,7 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.RowPosition;
@@ -45,40 +46,79 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 
 /**
- * StreamSession is the center of Cassandra Streaming API.
+ * Handles the streaming a one or more section of one of more sstables to and from a specific
+ * remote node.
  *
- * StreamSession on the both endpoints exchange messages and files until complete.
+ * Both this node and the remote one will create a similar symmetrical StreamSession. A streaming
+ * session has the following life-cycle:
  *
- * It is created through {@link StreamPlan} on the initiator node,
- * and also is created directly from connected socket on the other end when received init message.
+ * 1. Connections Initialization
  *
- * <p>
- * StreamSession goes through several stages:
- * <ol>
- *  <li>
- *    Init
- *    <p>StreamSession in one end send init message to the other end.</p>
- *  </li>
- *  <li>
- *    Prepare
- *    <p>StreamSession in both endpoints are created, so in this phase, they exchange
- *    request and summary messages to prepare receiving/streaming files in next phase.</p>
- *  </li>
- *  <li>
- *    Stream
- *    <p>StreamSessions in both ends stream and receive files.</p>
- *  </li>
- *  <li>
- *    Complete
- *    <p>Session completes if both endpoints completed by exchanging complete message.</p>
- *  </li>
- * </ol>
+ *   (a) A node (the initiator in the following) create a new StreamSession, initialize it (init())
+ *       and then start it (start()). Start will create a {@link ConnectionHandler} that will create
+ *       a connection to the remote node (the follower in the following) with whom to stream and send
+ *       a StreamInit message. This first connection will be the outgoing connection for the
+ *       initiator.
+ *   (b) Upon reception of that StreamInit message, the follower creates its own StreamSession,
+ *       initialize it and start it using start(Socket, int). This creates the follower
+ *       ConnectionHandler, which will use the just opened connection as incoming connection. It
+ *       will then connect back to the initiator and send its own StreamInit message on that new
+ *       connection. This new connection will be the outgoing connection for the follower.
+ *   (c) On receiving the follower StreamInit message, the initiator will record that new connection
+ *       as it's own incoming connection and call the Session onInitializationComplete() method to start
+ *       the streaming prepare phase (StreamResultFuture.startStreaming()).
+ *
+ * 2. Streaming preparation phase
+ *
+ *   (a) This phase is started when the initiator onInitializationComplete() method is called. This method sends a
+ *       PrepareMessage that includes what files/sections this node will stream to the follower
+ *       (stored in a StreamTranferTask, each column family has it's own transfer task) and what
+ *       the follower needs to stream back (StreamReceiveTask, same as above). If the initiator has
+ *       nothing to receive from the follower, it goes directly to its Streaming phase. Otherwise,
+ *       it waits for the follower PrepareMessage.
+ *   (b) Upon reception of the PrepareMessage, the follower records which files/sections it will receive
+ *       and send back its own PrepareMessage with a summary of the files/sections that will be sent to
+ *       the initiator (prepare()). After having sent that message, the follower goes to its Streamning
+ *       phase.
+ *   (c) When the initiator receives the follower PrepareMessage, it records which files/sections it will
+ *       receive and then goes to his own Streaming phase.
+ *
+ * 3. Streaming phase
+ *
+ *   (a) The streaming phase is started by each node (the sender in the follower, but note that each side
+ *       of the StreamSession may be sender for some of the files) involved by calling startStreamingFiles().
+ *       This will sequentially send a FileMessage for each file of each SteamTransferTask. Each FileMessage
+ *       consists of a FileMessageHeader that indicates which file is coming and then start streaming the
+ *       content for that file (StreamWriter in FileMessage.serialize()). When a file is fully sent, the
+ *       fileSent() method is called for that file. If all the files for a StreamTransferTask are sent
+ *       (StreamTransferTask.complete()), the task is marked complete (taskCompleted()).
+ *   (b) On the receiving side, a SSTable will be written for the incoming file (StreamReader in
+ *       FileMessage.deserialize()) and once the FileMessage is fully received, the file will be marked as
+ *       complete (received()). When all files for the StreamReceiveTask have been received, the sstables
+ *       are added to the CFS (and 2ndary index are built, StreamReceiveTask.complete()) and the task
+ *       is marked complete (taskCompleted())
+ *   (b) If during the streaming of a particular file an I/O error occurs on the receiving end of a stream
+ *       (FileMessage.deserialize), the node will retry the file (up to DatabaseDescriptor.getMaxStreamingRetries())
+ *       by sending a RetryMessage to the sender. On receiving a RetryMessage, the sender simply issue a new
+ *       FileMessage for that file.
+ *   (c) When all transfer and receive tasks for a session are complete, the move to the Completion phase
+ *       (maybeCompleted()).
+ *
+ * 4. Completion phase
+ *
+ *   (a) When a node has finished all transfer and receive task, it enter the completion phase (maybeCompleted()).
+ *       If it had already received a CompleteMessage from the other side (it is in the WAIT_COMPLETE state), that
+ *       session is done is is closed (closeSession()). Otherwise, the node switch to the WAIT_COMPLETE state and
+ *       send a CompleteMessage to the other side.
  */
-public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, IFailureDetectionEventListener
+public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamSession.class);
 
-    public final UUID id = UUIDGen.getTimeUUID();
+    // Executor that establish the streaming connection. Once we're connected to the other end, the rest of the streaming
+    // is directly handled by the ConnectionHandler incoming and outgoing threads.
+    private static final DebuggableThreadPoolExecutor streamExecutor = DebuggableThreadPoolExecutor.createWithFixedPoolSize("StreamConnectionEstablisher",
+                                                                                                                            FBUtilities.getAvailableProcessors());
     public final InetAddress peer;
 
     // should not be null when session is started
@@ -98,7 +138,7 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
 
     public static enum State
     {
-        INITIALIZING,
+        INITIALIZED,
         PREPARING,
         STREAMING,
         WAIT_COMPLETE,
@@ -106,7 +146,7 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
         FAILED,
     }
 
-    private volatile State state = State.INITIALIZING;
+    private volatile State state = State.INITIALIZED;
 
     /**
      * Create new streaming session with the peer.
@@ -120,19 +160,6 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
         this.metrics = StreamingMetrics.get(peer);
     }
 
-    /**
-     * Create streaming session from established connection.
-     *
-     * @param socket established connection
-     * @param protocolVersion Streaming protocol verison
-     */
-    public StreamSession(Socket socket, int protocolVersion)
-    {
-        this.peer = socket.getInetAddress();
-        this.handler = new ConnectionHandler(this, socket, protocolVersion);
-        this.metrics = StreamingMetrics.get(peer);
-    }
-
     public UUID planId()
     {
         return streamResult == null ? null : streamResult.planId;
@@ -143,24 +170,66 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
         return streamResult == null ? null : streamResult.description;
     }
 
-    public static StreamSession startReceivingStreamAsync(UUID planId, String description, Socket socket, int version)
-    {
-        StreamSession session = new StreamSession(socket, version);
-        StreamResultFuture.startStreamingAsync(planId, description, Collections.singleton(session));
-        return session;
-    }
-
     /**
-     * Bind this session to report to specific {@link StreamResultFuture}.
+     * Bind this session to report to specific {@link StreamResultFuture} and
+     * perform pre-streaming initialization.
      *
      * @param streamResult result to report to
      * @return this object for chaining
      */
-    public StreamSession register(StreamResultFuture streamResult)
+    public void init(StreamResultFuture streamResult)
     {
         this.streamResult = streamResult;
-        return this;
+
+        // register to gossiper/FD to fail on node failure
+        Gossiper.instance.register(this);
+        FailureDetector.instance.registerFailureDetectionEventListener(this);
+
     }
+
+    public void start()
+    {
+        if (requests.isEmpty() && transfers.isEmpty())
+        {
+            logger.debug("Session does not have any tasks.");
+            closeSession(State.COMPLETE);
+            return;
+        }
+
+        streamExecutor.execute(new Runnable()
+        {
+            public void run()
+            {
+                try
+                {
+                    handler.initiate();
+                }
+                catch (IOException e)
+                {
+                    onError(e);
+                }
+            }
+        });
+    }
+
+    public void start(final Socket socket, final int version)
+    {
+        streamExecutor.execute(new Runnable()
+        {
+            public void run()
+            {
+                try
+                {
+                    handler.initiateOnReceivingSide(socket, version);
+                }
+                catch (IOException e)
+                {
+                    onError(e);
+                }
+            }
+        });
+    }
+
 
     /**
      * Request data fetch task to this session.
@@ -240,38 +309,17 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
         }
     }
 
-    /**
-     * Start this stream session.
-     */
-    public void run()
+    private void closeSession(State finalState)
     {
-        assert streamResult != null : "No result is associated with this session";
+        state(finalState);
 
-        try
-        {
-            if (handler.isConnected())
-            {
-                // if this session is created from remote...
-                handler.start();
-            }
-            else
-            {
-                if (requests.isEmpty() && transfers.isEmpty())
-                {
-                    logger.debug("Session does not have any tasks.");
-                    state(State.COMPLETE);
-                    streamResult.handleSessionComplete(this);
-                }
-                else
-                {
-                    handler.connect();
-                }
-            }
-        }
-        catch (IOException e)
-        {
-            onError(e);
-        }
+        // Note that we shouldn't block on this close because this method is called on the handler
+        // incoming thread (so we would deadlock).
+        handler.close();
+
+        Gossiper.instance.unregister(this);
+        FailureDetector.instance.unregisterFailureDetectionEventListener(this);
+        streamResult.handleSessionComplete(this);
     }
 
     /**
@@ -312,7 +360,7 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
                 break;
 
             case FILE:
-                receive((FileMessage) message);
+                received((FileMessage) message);
                 break;
 
             case RETRY:
@@ -331,11 +379,9 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
     }
 
     /**
-     * Call back for connection success.
-     *
-     * When connected, session moves to preparing phase and sends prepare message.
+     * Call back when connection initialization is complete to start the prepare phase.
      */
-    public void onConnect()
+    public void onInitializationComplete()
     {
         logger.debug("Connected. Sending prepare...");
 
@@ -362,13 +408,11 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
      */
     public void onError(Throwable e)
     {
-        state(State.FAILED);
-
         logger.error("Streaming error occurred", e);
         // send session failure message
         handler.sendMessage(new SessionFailedMessage());
         // fail session
-        streamResult.handleSessionComplete(this);
+        closeSession(State.FAILED);
     }
 
     /**
@@ -376,7 +420,8 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
      */
     public void prepare(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
     {
-        logger.debug("Start preparing this session (" + requests.size() + " requests, " + summaries.size() + " columnfamilies receiving)");
+        logger.debug("Start preparing this session (" + requests.size() + " to send, " + summaries.size() + " to receive)");
+
         // prepare tasks
         state(State.PREPARING);
         for (StreamRequest request : requests)
@@ -418,11 +463,11 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
      *
      * @param message received file
      */
-    public void receive(FileMessage message)
+    public void received(FileMessage message)
     {
         StreamingMetrics.totalIncomingBytes.inc(message.header.size());
         metrics.incomingBytes.inc(message.header.size());
-        receivers.get(message.header.cfId).receive(message.sstable);
+        receivers.get(message.header.cfId).received(message.sstable);
     }
 
     public void progress(Descriptor desc, ProgressInfo.Direction direction, long bytes, long total)
@@ -450,9 +495,7 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
     {
         if (state == State.WAIT_COMPLETE)
         {
-            state(State.COMPLETE);
-            handler.close();
-            streamResult.handleSessionComplete(this);
+            closeSession(State.COMPLETE);
         }
         else
         {
@@ -465,8 +508,7 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
      */
     public synchronized void sessionFailed()
     {
-        handler.close();
-        streamResult.handleSessionComplete(this);
+        closeSession(State.FAILED);
     }
 
     public void doRetry(FileMessageHeader header, Throwable e)
@@ -529,8 +571,7 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
         if (phi < 2 * DatabaseDescriptor.getPhiConvictThreshold())
             return;
 
-        state(State.FAILED);
-        streamResult.handleSessionComplete(this);
+        closeSession(State.FAILED);
     }
 
     private boolean maybeCompleted()
@@ -540,9 +581,7 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
         {
             if (state == State.WAIT_COMPLETE)
             {
-                state(State.COMPLETE);
-                handler.close();
-                streamResult.handleSessionComplete(this);
+                closeSession(State.COMPLETE);
             }
             else
             {
@@ -553,7 +592,6 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
         }
         return completed;
     }
-
 
     /**
      * Flushes matching column families from the given keyspace, or all columnFamilies
@@ -570,7 +608,7 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
 
     private void prepareReceiving(StreamSummary summary)
     {
-        logger.debug("prepare receiving " + summary);
+        logger.debug("Prepare for receiving " + summary);
         if (summary.files > 0)
             receivers.put(summary.cfId, new StreamReceiveTask(this, summary.cfId, summary.files, summary.totalSize));
     }

@@ -53,7 +53,7 @@ public class StreamReceiveTask extends StreamTask
      *
      * @param sstable SSTable file received.
      */
-    public void receive(SSTableReader sstable)
+    public void received(SSTableReader sstable)
     {
         assert cfId.equals(sstable.metadata.cfId);
 

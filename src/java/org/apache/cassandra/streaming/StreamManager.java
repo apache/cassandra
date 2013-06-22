@@ -55,7 +55,7 @@ public class StreamManager implements StreamManagerMBean
      */
     public static RateLimiter getRateLimiter()
     {
-        double currentThroughput = ((double) DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec()) * 1024 * 1024 / 8 / 1000;
+        double currentThroughput = ((double) DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec()) * 1024 * 1024;
         // if throughput is set to 0, throttling is disabled
         if (currentThroughput == 0)
             currentThroughput = Double.MAX_VALUE;
@@ -90,5 +90,10 @@ public class StreamManager implements StreamManagerMBean
         }, MoreExecutors.sameThreadExecutor());
 
         currentStreams.put(result.planId, result);
+    }
+
+    public StreamResultFuture getStream(UUID planId)
+    {
+        return currentStreams.get(planId);
     }
 }
