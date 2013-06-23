@@ -46,7 +46,6 @@ public class CFPropDefs extends PropertyDefinitions
     public static final String KW_POPULATE_IO_CACHE_ON_FLUSH = "populate_io_cache_on_flush";
     public static final String KW_BF_FP_CHANCE = "bloom_filter_fp_chance";
     public static final String KW_MEMTABLE_FLUSH_PERIOD = "memtable_flush_period_in_ms";
-    public static final String KW_TRIGGER_CLASS = "trigger_class";
 
     public static final String KW_COMPACTION = "compaction";
     public static final String KW_COMPRESSION = "compression";
@@ -72,7 +71,6 @@ public class CFPropDefs extends PropertyDefinitions
         keywords.add(KW_COMPACTION);
         keywords.add(KW_COMPRESSION);
         keywords.add(KW_MEMTABLE_FLUSH_PERIOD);
-        keywords.add(KW_TRIGGER_CLASS);
 
         obsoleteKeywords.add("compaction_strategy_class");
         obsoleteKeywords.add("compaction_strategy_options");
