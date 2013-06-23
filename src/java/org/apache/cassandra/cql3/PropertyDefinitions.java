@@ -62,7 +62,7 @@ public class PropertyDefinitions
         if (val == null)
             return null;
         if (!(val instanceof String))
-            throw new SyntaxException(String.format("Invalid value for property '%s'", name));
+            throw new SyntaxException(String.format("Invalid value for property '%s'. It should be a string", name));
         return (String)val;
     }
 
@@ -72,7 +72,7 @@ public class PropertyDefinitions
         if (val == null)
             return null;
         if (!(val instanceof Map))
-            throw new SyntaxException(String.format("Invalid value for property '%s'", name));
+            throw new SyntaxException(String.format("Invalid value for property '%s'. It should be a map.", name));
         return (Map<String, String>)val;
     }
 
