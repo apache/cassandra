@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.CFMetaData.SpeculativeRetry;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -98,9 +99,29 @@ public class CFPropDefs extends PropertyDefinitions
 
             CFMetaData.validateCompactionOptions(compactionStrategyClass, compactionOptions);
         }
+        
+        Map<String, String> compressionOptions = getCompressionOptions();
+        if (!compressionOptions.isEmpty())
+        {
+            String sstableCompressionClass = compressionOptions.get(CompressionParameters.SSTABLE_COMPRESSION);
+            if (sstableCompressionClass == null)
+                throw new ConfigurationException("Missing sub-option '" + CompressionParameters.SSTABLE_COMPRESSION + "' for the '" + KW_COMPRESSION + "' option.");
+                
+            String chunkLength = compressionOptions.get(CompressionParameters.CHUNK_LENGTH_KB);
+            if (chunkLength == null)
+                throw new ConfigurationException("Missing sub-option '" + CompressionParameters.CHUNK_LENGTH_KB + "' for the '" + KW_COMPRESSION + "' option.");
+                
+            Map<String, String> remainingOptions = new HashMap<String, String>(compressionOptions);
+            remainingOptions.remove(CompressionParameters.SSTABLE_COMPRESSION);
+            remainingOptions.remove(CompressionParameters.CHUNK_LENGTH_KB);
+            CompressionParameters cp = new CompressionParameters(sstableCompressionClass, CompressionParameters.parseChunkLength(chunkLength), remainingOptions);
+            cp.validate();
+        }
 
         validateMinimumInt(KW_DEFAULT_TIME_TO_LIVE, 0, CFMetaData.DEFAULT_DEFAULT_TIME_TO_LIVE);
         validateMinimumInt(KW_INDEX_INTERVAL, 1, CFMetaData.DEFAULT_INDEX_INTERVAL);
+        
+        SpeculativeRetry.fromString(getString(KW_SPECULATIVE_RETRY, SpeculativeRetry.RetryType.NONE.name()));
     }
 
     public Class<? extends AbstractCompactionStrategy> getCompactionStrategy()

@@ -203,7 +203,7 @@ public class CompressionParameters
     /**
      * Parse the chunk length (in KB) and returns it as bytes.
      */
-    private static Integer parseChunkLength(String chLengthKB) throws ConfigurationException
+    public static Integer parseChunkLength(String chLengthKB) throws ConfigurationException
     {
         if (chLengthKB == null)
             return null;
@@ -224,7 +224,7 @@ public class CompressionParameters
     // chunkLength must be a power of 2 because we assume so when
     // computing the chunk number from an uncompressed file offset (see
     // CompressedRandomAccessReader.decompresseChunk())
-    private void validate() throws ConfigurationException
+    public void validate() throws ConfigurationException
     {
         // if chunk length was not set (chunkLength == null), this is fine, default will be used
         if (chunkLength != null)
