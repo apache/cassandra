@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.google.common.primitives.Ints;
+
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
@@ -181,8 +183,7 @@ public class RowIndexEntry implements IMeasurableMemory
             for (IndexHelper.IndexInfo info : columnsIndex)
                 size += info.serializedSize(typeSizes);
 
-            assert size <= Integer.MAX_VALUE;
-            return (int)size;
+            return Ints.checkedCast(size);
         }
 
         @Override
