@@ -71,7 +71,7 @@ public class PrepareMessage extends Message.Request
             if (state.traceNextQuery())
             {
                 state.createTracingSession();
-                Tracing.instance().begin("Preparing CQL3 query", ImmutableMap.of("query", query));
+                Tracing.instance.begin("Preparing CQL3 query", ImmutableMap.of("query", query));
             }
 
             Message.Response response = QueryProcessor.prepare(query, state.getClientState(), false);
@@ -87,7 +87,7 @@ public class PrepareMessage extends Message.Request
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 

@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,23 +59,15 @@ public class Tracing
 
     private static final int TTL = 24 * 3600;
 
-    private static Tracing instance = new Tracing();
+    private static final Logger logger = LoggerFactory.getLogger(Tracing.class);
 
-    public static final Logger logger = LoggerFactory.getLogger(Tracing.class);
-
-    /**
-     * Fetches and lazy initializes the trace context.
-     */
-    public static Tracing instance()
-    {
-        return instance;
-    }
-
-    private InetAddress localAddress = FBUtilities.getLocalAddress();
+    private final InetAddress localAddress = FBUtilities.getLocalAddress();
 
     private final ThreadLocal<TraceState> state = new ThreadLocal<TraceState>();
 
-    private final Map<UUID, TraceState> sessions = new ConcurrentHashMap<UUID, TraceState>();
+    private final ConcurrentMap<UUID, TraceState> sessions = new ConcurrentHashMap<UUID, TraceState>();
+
+    public static final Tracing instance = new Tracing();
 
     public static void addColumn(ColumnFamily cf, ByteBuffer name, InetAddress address)
     {
@@ -129,7 +122,7 @@ public class Tracing
      */
     public static boolean isTracing()
     {
-        return instance != null && instance.state.get() != null;
+        return instance.state.get() != null;
     }
 
     public UUID newSession()
@@ -256,10 +249,7 @@ public class Tracing
 
     public static void trace(String message)
     {
-        if (Tracing.instance() == null) // instance might not be built at the time this is called
-            return;
-
-        final TraceState state = Tracing.instance().get();
+        final TraceState state = instance.get();
         if (state == null) // inline isTracing to avoid implicit two calls to state.get()
             return;
 
@@ -268,10 +258,7 @@ public class Tracing
 
     public static void trace(String format, Object arg)
     {
-        if (Tracing.instance() == null) // instance might not be built at the time this is called
-            return;
-
-        final TraceState state = Tracing.instance().get();
+        final TraceState state = instance.get();
         if (state == null) // inline isTracing to avoid implicit two calls to state.get()
             return;
 
@@ -280,10 +267,7 @@ public class Tracing
 
     public static void trace(String format, Object arg1, Object arg2)
     {
-        if (Tracing.instance() == null) // instance might not be built at the time this is called
-            return;
-
-        final TraceState state = Tracing.instance().get();
+        final TraceState state = instance.get();
         if (state == null) // inline isTracing to avoid implicit two calls to state.get()
             return;
 
@@ -292,10 +276,7 @@ public class Tracing
 
     public static void trace(String format, Object[] args)
     {
-        if (Tracing.instance() == null) // instance might not be built at the time this is called
-            return;
-
-        final TraceState state = Tracing.instance().get();
+        final TraceState state = instance.get();
         if (state == null) // inline isTracing to avoid implicit two calls to state.get()
             return;
 

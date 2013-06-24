@@ -178,7 +178,7 @@ public class BatchMessage extends Message.Request
             {
                 state.createTracingSession();
                 // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
-                Tracing.instance().begin("Execute batch of CQL3 queries", Collections.<String, String>emptyMap());
+                Tracing.instance.begin("Execute batch of CQL3 queries", Collections.<String, String>emptyMap());
             }
 
             List<ModificationStatement> statements = new ArrayList<ModificationStatement>(queryOrIdList.size());
@@ -235,7 +235,7 @@ public class BatchMessage extends Message.Request
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 

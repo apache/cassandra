@@ -72,13 +72,13 @@ public class QueryState
     {
         if (this.preparedTracingSession == null)
         {
-            Tracing.instance().newSession();
+            Tracing.instance.newSession();
         }
         else
         {
             UUID session = this.preparedTracingSession;
             this.preparedTracingSession = null;
-            Tracing.instance().newSession(session);
+            Tracing.instance.newSession(session);
         }
     }
 }

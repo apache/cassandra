@@ -266,7 +266,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
         public TraceSessionWrapper(Callable<T> callable)
         {
             super(callable);
-            state = Tracing.instance().get();
+            state = Tracing.instance.get();
         }
 
         public TraceSessionWrapper(Runnable command, TraceState state)
@@ -277,12 +277,12 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
 
         private void setupContext()
         {
-            Tracing.instance().set(state);
+            Tracing.instance.set(state);
         }
 
         private void reset()
         {
-            Tracing.instance().set(null);
+            Tracing.instance.set(null);
         }
     }
 }

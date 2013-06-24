@@ -117,7 +117,7 @@ public class QueryMessage extends Message.Request
             if (state.traceNextQuery())
             {
                 state.createTracingSession();
-                Tracing.instance().begin("Execute CQL3 query", ImmutableMap.of("query", query));
+                Tracing.instance.begin("Execute CQL3 query", ImmutableMap.of("query", query));
             }
 
             Message.Response response = QueryProcessor.process(query, values, consistency, state);
@@ -135,7 +135,7 @@ public class QueryMessage extends Message.Request
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 

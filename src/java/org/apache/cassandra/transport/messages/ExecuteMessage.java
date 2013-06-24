@@ -115,7 +115,7 @@ public class ExecuteMessage extends Message.Request
             {
                 state.createTracingSession();
                 // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
-                Tracing.instance().begin("Execute CQL3 prepared query", Collections.<String, String>emptyMap());
+                Tracing.instance.begin("Execute CQL3 prepared query", Collections.<String, String>emptyMap());
             }
 
             Message.Response response = QueryProcessor.processPrepared(statement, consistency, state, values);
@@ -131,7 +131,7 @@ public class ExecuteMessage extends Message.Request
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 

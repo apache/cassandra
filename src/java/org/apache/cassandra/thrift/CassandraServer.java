@@ -297,7 +297,7 @@ public class CassandraServer implements Cassandra.Iface
                                                                   "column_parent", column_parent.toString(),
                                                                   "predicate", predicate.toString(),
                                                                   "consistency_level", consistency_level.name());
-            Tracing.instance().begin("get_slice", traceParameters);
+            Tracing.instance.begin("get_slice", traceParameters);
         }
         else
         {
@@ -317,7 +317,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -344,7 +344,7 @@ public class CassandraServer implements Cassandra.Iface
                                                                   "column_parent", column_parent.toString(),
                                                                   "predicate", predicate.toString(),
                                                                   "consistency_level", consistency_level.name());
-            Tracing.instance().begin("multiget_slice", traceParameters);
+            Tracing.instance.begin("multiget_slice", traceParameters);
         }
         else
         {
@@ -364,7 +364,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -428,7 +428,7 @@ public class CassandraServer implements Cassandra.Iface
             Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
                                                                   "column_path", column_path.toString(),
                                                                   "consistency_level", consistency_level.name());
-            Tracing.instance().begin("get", traceParameters);
+            Tracing.instance.begin("get", traceParameters);
         }
         else
         {
@@ -484,7 +484,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -497,7 +497,7 @@ public class CassandraServer implements Cassandra.Iface
                                                                   "column_parent", column_parent.toString(),
                                                                   "predicate", predicate.toString(),
                                                                   "consistency_level", consistency_level.name());
-            Tracing.instance().begin("get_count", traceParameters);
+            Tracing.instance.begin("get_count", traceParameters);
         }
         else
         {
@@ -577,7 +577,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -602,7 +602,7 @@ public class CassandraServer implements Cassandra.Iface
                                                                   "column_parent", column_parent.toString(),
                                                                   "predicate", predicate.toString(),
                                                                   "consistency_level", consistency_level.name());
-            Tracing.instance().begin("multiget_count", traceParameters);
+            Tracing.instance.begin("multiget_count", traceParameters);
         }
         else
         {
@@ -633,7 +633,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -682,7 +682,7 @@ public class CassandraServer implements Cassandra.Iface
                                                                   "column_parent", column_parent.toString(),
                                                                   "column", column.toString(),
                                                                   "consistency_level", consistency_level.name());
-            Tracing.instance().begin("insert", traceParameters);
+            Tracing.instance.begin("insert", traceParameters);
         }
         else
         {
@@ -699,7 +699,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -712,7 +712,7 @@ public class CassandraServer implements Cassandra.Iface
                                                                   "column_family", column_family,
                                                                   "old", expected.toString(),
                                                                   "updates", updates.toString());
-            Tracing.instance().begin("cas", traceParameters);
+            Tracing.instance.begin("cas", traceParameters);
         }
         else
         {
@@ -779,7 +779,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -914,7 +914,7 @@ public class CassandraServer implements Cassandra.Iface
                                     Joiner.on(";").withKeyValueSeparator(":").join(mutationEntry.getValue()));
             }
             traceParameters.put("consistency_level", consistency_level.name());
-            Tracing.instance().begin("batch_mutate", traceParameters);
+            Tracing.instance.begin("batch_mutate", traceParameters);
         }
         else
         {
@@ -931,7 +931,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -947,7 +947,7 @@ public class CassandraServer implements Cassandra.Iface
                                     Joiner.on(";").withKeyValueSeparator(":").join(mutationEntry.getValue()));
             }
             traceParameters.put("consistency_level", consistency_level.name());
-            Tracing.instance().begin("atomic_batch_mutate", traceParameters);
+            Tracing.instance.begin("atomic_batch_mutate", traceParameters);
         }
         else
         {
@@ -964,7 +964,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -1006,7 +1006,7 @@ public class CassandraServer implements Cassandra.Iface
                                                                   "column_path", column_path.toString(),
                                                                   "timestamp", timestamp + "",
                                                                   "consistency_level", consistency_level.name());
-            Tracing.instance().begin("remove", traceParameters);
+            Tracing.instance.begin("remove", traceParameters);
         }
         else
         {
@@ -1023,7 +1023,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -1089,7 +1089,7 @@ public class CassandraServer implements Cassandra.Iface
                     "predicate", predicate.toString(),
                     "range", range.toString(),
                     "consistency_level", consistency_level.name());
-            Tracing.instance().begin("get_range_slices", traceParameters);
+            Tracing.instance.begin("get_range_slices", traceParameters);
         }
         else
         {
@@ -1165,7 +1165,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -1178,7 +1178,7 @@ public class CassandraServer implements Cassandra.Iface
                                                                   "range", range.toString(),
                                                                   "start_column", ByteBufferUtil.bytesToHex(start_column),
                                                                   "consistency_level", consistency_level.name());
-            Tracing.instance().begin("get_paged_slice", traceParameters);
+            Tracing.instance.begin("get_paged_slice", traceParameters);
         }
         else
         {
@@ -1258,7 +1258,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -1284,7 +1284,7 @@ public class CassandraServer implements Cassandra.Iface
                                                                   "index_clause", index_clause.toString(),
                                                                   "slice_predicate", column_predicate.toString(),
                                                                   "consistency_level", consistency_level.name());
-            Tracing.instance().begin("get_indexed_slices", traceParameters);
+            Tracing.instance.begin("get_indexed_slices", traceParameters);
         }
         else
         {
@@ -1335,7 +1335,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -1632,7 +1632,7 @@ public class CassandraServer implements Cassandra.Iface
 
             if (startSessionIfRequested())
             {
-                Tracing.instance().begin("truncate", ImmutableMap.of("cf", cfname, "ks", keyspace));
+                Tracing.instance.begin("truncate", ImmutableMap.of("cf", cfname, "ks", keyspace));
             }
             else
             {
@@ -1668,7 +1668,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -1700,7 +1700,7 @@ public class CassandraServer implements Cassandra.Iface
             Map<String, String> traceParameters = ImmutableMap.of("column_parent", column_parent.toString(),
                                                                   "column", column.toString(),
                                                                   "consistency_level", consistency_level.name());
-            Tracing.instance().begin("add", traceParameters);
+            Tracing.instance.begin("add", traceParameters);
         }
         else
         {
@@ -1744,7 +1744,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -1756,7 +1756,7 @@ public class CassandraServer implements Cassandra.Iface
             Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
                                                                   "column_path", path.toString(),
                                                                   "consistency_level", consistency_level.name());
-            Tracing.instance().begin("remove_counter", traceParameters);
+            Tracing.instance.begin("remove_counter", traceParameters);
         }
         else
         {
@@ -1773,7 +1773,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -1866,8 +1866,8 @@ public class CassandraServer implements Cassandra.Iface
             String queryString = uncompress(query, compression);
             if (startSessionIfRequested())
             {
-                Tracing.instance().begin("execute_cql_query",
-                                         ImmutableMap.of("query", queryString));
+                Tracing.instance.begin("execute_cql_query",
+                                       ImmutableMap.of("query", queryString));
             }
             else
             {
@@ -1887,7 +1887,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -1900,8 +1900,8 @@ public class CassandraServer implements Cassandra.Iface
             String queryString = uncompress(query, compression);
             if (startSessionIfRequested())
             {
-                Tracing.instance().begin("execute_cql3_query",
-                                         ImmutableMap.of("query", queryString));
+                Tracing.instance.begin("execute_cql3_query",
+                                       ImmutableMap.of("query", queryString));
             }
             else
             {
@@ -1922,7 +1922,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -1974,7 +1974,7 @@ public class CassandraServer implements Cassandra.Iface
         if (startSessionIfRequested())
         {
             // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
-            Tracing.instance().begin("execute_prepared_cql_query", Collections.<String, String>emptyMap());
+            Tracing.instance.begin("execute_prepared_cql_query", Collections.<String, String>emptyMap());
         }
         else
         {
@@ -2003,7 +2003,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 
@@ -2015,7 +2015,7 @@ public class CassandraServer implements Cassandra.Iface
         if (startSessionIfRequested())
         {
             // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
-            Tracing.instance().begin("execute_prepared_cql3_query", Collections.<String, String>emptyMap());
+            Tracing.instance.begin("execute_prepared_cql3_query", Collections.<String, String>emptyMap());
         }
         else
         {
@@ -2047,7 +2047,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         finally
         {
-            Tracing.instance().stopSession();
+            Tracing.instance.stopSession();
         }
     }
 

@@ -680,7 +680,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void receive(MessageIn message, int id, long timestamp)
     {
-        TraceState state = Tracing.instance().initializeFromMessage(message);
+        TraceState state = Tracing.instance.initializeFromMessage(message);
         if (state != null)
             state.trace("Message received from {}", message.from);
 
