@@ -63,6 +63,7 @@
  * Streaming 2.0 (CASSANDRA-5286)
  * Conditional create/drop ks/table/index statements in CQL3 (CASSANDRA-2737)
  * more pre-table creation property validation (CASSANDRA-5693)
+ * Redesign repair messages (CASSANDRA-5426)
 
 
 1.2.7
