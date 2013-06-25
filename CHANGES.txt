@@ -67,6 +67,7 @@
 
 1.2.7
  * Fix ReadResponseSerializer.serializedSize() for digest reads (CASSANDRA-5476)
+ * allow sstable2json on 2i CFs (CASSANDRA-5694)
 
 
 1.2.6
