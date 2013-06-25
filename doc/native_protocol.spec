@@ -273,7 +273,7 @@ Table of Contents
   Prepare a query for later execution (through EXECUTE). The body consists of
   the CQL query to prepare as a [long string].
 
-  The server will respond with a RESULT message with a `prepared` kind (0x00003,
+  The server will respond with a RESULT message with a `prepared` kind (0x0004,
   see Section 4.2.5).
 
 
