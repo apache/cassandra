@@ -503,9 +503,32 @@ public class SSTableExport
 
         DatabaseDescriptor.loadSchemas();
         Descriptor descriptor = Descriptor.fromFilename(ssTableFileName);
-        if (Schema.instance.getCFMetaData(descriptor) == null)
+
+        // Start by validating keyspace name
+        if (Schema.instance.getKSMetaData(descriptor.ksname) == null)
         {
-            System.err.println(String.format("The provided column family is not part of this cassandra database: keyspace = %s, column family = %s",
+            System.err.println(String.format("Filename %s references to nonexistent keyspace: %s!",
+                                             ssTableFileName, descriptor.ksname));
+            System.exit(1);
+        }
+        Table table = Table.open(descriptor.ksname);
+
+        // Make it work for indexes too - find parent cf if necessary
+        String baseName = descriptor.cfname;
+        if (descriptor.cfname.contains("."))
+        {
+            String[] parts = descriptor.cfname.split("\\.", 2);
+            baseName = parts[0];
+        }
+
+        // IllegalArgumentException will be thrown here if ks/cf pair does not exist
+        try
+        {
+            table.getColumnFamilyStore(baseName);
+        }
+        catch (IllegalArgumentException e)
+        {
+            System.err.println(String.format("The provided column family is not part of this cassandra keyspace: keyspace = %s, column family = %s",
                                              descriptor.ksname, descriptor.cfname));
             System.exit(1);
         }
