@@ -871,7 +871,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     if (logger.isTraceEnabled())
                         logger.trace("Updating heartbeat state generation to " + remoteGeneration + " from " + localGeneration + " for " + ep);
                     // major state change will handle the update by inserting the remote state directly
-                    copyNewerApplicationStates(remoteState, localEpStatePtr);
                     handleMajorStateChange(ep, remoteState);
                 }
                 else if ( remoteGeneration == localGeneration ) // generation has not changed, apply new states
@@ -881,18 +880,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     int remoteMaxVersion = getMaxEndpointStateVersion(remoteState);
                     if ( remoteMaxVersion > localMaxVersion )
                     {
-                        if (logger.isTraceEnabled())
-                        {
-                            logger.trace("Updating heartbeat state version to " + remoteState.getHeartBeatState().getHeartBeatVersion() +
-                                    " from " + localEpStatePtr.getHeartBeatState().getHeartBeatVersion() + " for " + ep);
-                        }
-                        localEpStatePtr.setHeartBeatState(remoteState.getHeartBeatState());
-                        Map<ApplicationState, VersionedValue> merged = copyNewerApplicationStates(localEpStatePtr, remoteState);
-                        for (Entry<ApplicationState, VersionedValue> appState : merged.entrySet())
-                            doNotifications(ep, appState.getKey(), appState.getValue());
+                        // apply states, but do not notify since there is no major change
+                        applyNewStates(ep, localEpStatePtr, remoteState);
                     }
                     else if (logger.isTraceEnabled())
-                        logger.trace("Ignoring remote version " + remoteMaxVersion + " <= " + localMaxVersion + " for " + ep);
+                            logger.trace("Ignoring remote version " + remoteMaxVersion + " <= " + localMaxVersion + " for " + ep);
                     if (!localEpStatePtr.isAlive() && !isDeadState(localEpStatePtr)) // unless of course, it was dead
                         markAlive(ep, localEpStatePtr);
                 }
@@ -911,24 +903,28 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
     }
 
-    private Map<ApplicationState, VersionedValue> copyNewerApplicationStates(EndpointState toState, EndpointState fromState)
+    private void applyNewStates(InetAddress addr, EndpointState localState, EndpointState remoteState)
     {
-        Map<ApplicationState, VersionedValue> merged = new HashMap<ApplicationState, VersionedValue>();
-        for (Entry<ApplicationState, VersionedValue> fromEntry : fromState.getApplicationStateMap().entrySet())
-        {
-            ApplicationState key = fromEntry.getKey();
-            VersionedValue value = fromEntry.getValue();
+        // don't assert here, since if the node restarts the version will go back to zero
+        int oldVersion = localState.getHeartBeatState().getHeartBeatVersion();
 
-            if ( (toState.applicationState.containsKey(key) && toState.applicationState.get(key).compareTo(value) < 0)
-                || !toState.applicationState.containsKey(key) )
-            {
-                if (logger.isTraceEnabled())
-                    logger.trace("merging {}:{} into ApplicationState", key, value);
-                toState.addApplicationState(key, value);
-                merged.put(key, value);
-            }
+        localState.setHeartBeatState(remoteState.getHeartBeatState());
+        if (logger.isTraceEnabled())
+            logger.trace("Updating heartbeat state version to " + localState.getHeartBeatState().getHeartBeatVersion() + " from " + oldVersion + " for " + addr + " ...");
+
+        // we need to make two loops here, one to apply, then another to notify, this way all states in an update are present and current when the notifications are received
+        for (Entry<ApplicationState, VersionedValue> remoteEntry : remoteState.getApplicationStateMap().entrySet())
+        {
+            ApplicationState remoteKey = remoteEntry.getKey();
+            VersionedValue remoteValue = remoteEntry.getValue();
+
+            assert remoteState.getHeartBeatState().getGeneration() == localState.getHeartBeatState().getGeneration();
+            localState.addApplicationState(remoteKey, remoteValue);
         }
-        return merged;
+        for (Entry<ApplicationState, VersionedValue> remoteEntry : remoteState.getApplicationStateMap().entrySet())
+        {
+            doNotifications(addr, remoteEntry.getKey(), remoteEntry.getValue());
+        }
     }
 
     // notify that an application state has changed
