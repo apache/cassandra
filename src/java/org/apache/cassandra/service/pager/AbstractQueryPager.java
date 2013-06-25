@@ -109,7 +109,6 @@ abstract class AbstractQueryPager implements QueryPager
 
     private List<Row> filterEmpty(List<Row> result)
     {
-        boolean doCopy = false;
         for (Row row : result)
         {
             if (row.cf == null || row.cf.getColumnCount() == 0)

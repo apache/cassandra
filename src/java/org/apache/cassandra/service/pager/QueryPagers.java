@@ -162,12 +162,12 @@ public class QueryPagers
      * Convenience method that count (live) cells/rows for a given slice of a row, but page underneath.
      */
     public static int countPaged(String keyspace,
-                                String columnFamily,
-                                ByteBuffer key,
-                                SliceQueryFilter filter,
-                                ConsistencyLevel consistencyLevel,
-                                final int pageSize,
-                                long now) throws RequestValidationException, RequestExecutionException
+                                 String columnFamily,
+                                 ByteBuffer key,
+                                 SliceQueryFilter filter,
+                                 ConsistencyLevel consistencyLevel,
+                                 final int pageSize,
+                                 long now) throws RequestValidationException, RequestExecutionException
     {
         SliceFromReadCommand command = new SliceFromReadCommand(keyspace, key, columnFamily, now, filter);
         final SliceQueryPager pager = new SliceQueryPager(command, consistencyLevel, false);
