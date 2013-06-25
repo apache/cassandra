@@ -107,6 +107,8 @@
  * Gossiper incorrectly drops AppState for an upgrading node (CASSANDRA-5660)
  * Connection thrashing during multi-region ec2 during upgrade, due to messaging version (CASSANDRA-5669)
  * Avoid over reconnecting in EC2MRS (CASSANDRA-5678)
+ * Fix ReadResponseSerializer.serializedSize() for digest reads (CASSANDRA-5476)
+ * allow sstable2json on 2i CFs (CASSANDRA-5694)
 Merged from 1.1:
  * Remove buggy thrift max message length option (CASSANDRA-5529)
  * Fix NPE in Pig's widerow mode (CASSANDRA-5488)
