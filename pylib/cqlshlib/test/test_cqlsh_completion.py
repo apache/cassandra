@@ -125,7 +125,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         pass
 
     def test_complete_in_create_keyspace(self):
-        self.trycompletions('create keyspace ', '', choices=('<identifier>', '<quotedName>'))
+        self.trycompletions('create keyspace ', '', choices=('<identifier>', '<quotedName>', 'IF'))
         self.trycompletions('create keyspace moo ',
                             "WITH replication = {'class': '")
         self.trycompletions('create keyspace "12SomeName" with ',

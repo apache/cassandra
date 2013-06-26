@@ -528,6 +528,17 @@ class Shell(cmd.Cmd):
     def myformat_colname(self, name, nametype):
         return self.myformat_value(name, nametype, colormap=COLUMN_NAME_COLORS)
 
+    # cql/cursor.py:Cursor.decode_row() function, modified to not turn '' into None.
+    def decode_row(self, cursor, row):
+        values = []
+        bytevals = cursor.columnvalues(row)
+        for val, vtype, nameinfo in zip(bytevals, cursor.column_types, cursor.name_info):
+            if val == '':
+                values.append(val)
+            else:
+                values.append(cursor.decoder.decode_value(val, vtype, nameinfo[0]))
+        return values
+
     def report_connection(self):
         self.show_host()
         self.show_version()
@@ -941,7 +952,7 @@ class Shell(cmd.Cmd):
         colnames = [d[0] for d in cursor.description]
         colnames_t = [(name, self.get_nametype(cursor, n)) for (n, name) in enumerate(colnames)]
         formatted_names = [self.myformat_colname(name, nametype) for (name, nametype) in colnames_t]
-        formatted_values = [map(self.myformat_value, row, cursor.column_types) for row in cursor]
+        formatted_values = [map(self.myformat_value, self.decode_row(cursor, row), cursor.column_types) for row in cursor.result]
         if self.expand_enabled:
             self.print_formatted_result_vertically(formatted_names, formatted_values)
         else:
@@ -1418,14 +1429,18 @@ class Shell(cmd.Cmd):
     def do_import_row(self, columns, nullval, layout, row):
         rowmap = {}
         for name, value in zip(columns, row):
+            type = layout.get_column(name).cqltype
+            if issubclass(type, ReversedType):
+                type = type.subtypes[0]
+            cqltype = type.cql_parameterized_type()
+
             if value != nullval:
-                type = layout.get_column(name).cqltype
-                if issubclass(type, ReversedType):
-                    type = type.subtypes[0]
-                if type.cql_parameterized_type() in ('ascii', 'text', 'timestamp', 'inet'):
+                if cqltype in ('ascii', 'text', 'timestamp', 'inet'):
                     rowmap[name] = self.cql_protect_value(value)
                 else:
                     rowmap[name] = value
+            elif name in layout.column_aliases and not type.empty_binary_ok:
+                rowmap[name] = 'blobAs%s(0x)' % cqltype.title()
             else:
                 rowmap[name] = 'null'
         return self.do_import_insert(layout, rowmap)

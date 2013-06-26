@@ -141,7 +141,7 @@ class TestCqlshOutput(BaseTestCase):
              MMMMM
             -------
 
-                 4
+                 5
                  G
 
 
@@ -301,7 +301,7 @@ class TestCqlshOutput(BaseTestCase):
         self.assertCqlverQueriesGiveColoredOutput((
             ('''select intcol, bigintcol, varintcol \
                   from has_all_types \
-                 where num in (0, 1, 2, 3);''', """
+                 where num in (0, 1, 2, 3, 4);''', """
              intcol      | bigintcol            | varintcol
              MMMMMM        MMMMMMMMM              MMMMMMMMM
             -------------+----------------------+-----------------------------
@@ -314,15 +314,17 @@ class TestCqlshOutput(BaseTestCase):
              GGGGGGGGGGG   GGGGGGGGGGGGGGGGGGGG   GGGGGGGGGGGGGGGGGGGGGGGGGGG
              -2147483648 | -9223372036854775808 | -10000000000000000000000000
              GGGGGGGGGGG   GGGGGGGGGGGGGGGGGGGG   GGGGGGGGGGGGGGGGGGGGGGGGGGG
+                         |                      |
+             nnnnnnnnnnn   nnnnnnnnnnnnnnnnnnnn   nnnnnnnnnnnnnnnnnnnnnnnnnnn
 
 
-            (4 rows)
+            (5 rows)
             nnnnnnnn
             """),
 
             ('''select decimalcol, doublecol, floatcol \
                   from has_all_types \
-                 where num in (0, 1, 2, 3);''', """
+                 where num in (0, 1, 2, 3, 4);''', """
              decimalcol       | doublecol | floatcol
              MMMMMMMMMM         MMMMMMMMM   MMMMMMMM
             ------------------+-----------+----------
@@ -335,9 +337,11 @@ class TestCqlshOutput(BaseTestCase):
              GGGGGGGGGGGGGGGG     GGGGGGG      GGGGG
              10.0000000000000 |   -1004.1 |    1e+08
              GGGGGGGGGGGGGGGG     GGGGGGG      GGGGG
+                              |           |
+             nnnnnnnnnnnnnnnn     nnnnnnn      nnnnn
 
 
-            (4 rows)
+            (5 rows)
             nnnnnnnn
             """),
         ), cqlver=3)
@@ -654,6 +658,7 @@ class TestCqlshOutput(BaseTestCase):
               comment='' AND
               dclocal_read_repair_chance=0.000000 AND
               gc_grace_seconds=864000 AND
+              index_interval=128 AND
               read_repair_chance=0.100000 AND
               replicate_on_write='true' AND
               populate_io_cache_on_flush='false' AND
