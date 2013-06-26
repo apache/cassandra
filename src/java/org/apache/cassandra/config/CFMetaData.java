@@ -1794,7 +1794,13 @@ public final class CFMetaData
             throw new InvalidRequestException(String.format("Cannot rename column %s to %s in table %s; another column of that name already exist", strFrom, strTo, cfName));
 
         if (def.type == ColumnDefinition.Type.REGULAR)
+        {
             throw new InvalidRequestException(String.format("Cannot rename non PRIMARY KEY part %s", strFrom));
+        }
+        else if (def.isIndexed())
+        {
+            throw new InvalidRequestException(String.format("Cannot rename column %s because it is secondary indexed", strFrom));
+        }
 
         ColumnDefinition newDef = def.cloneWithNewName(to);
         // don't call addColumnDefinition/removeColumnDefition because we want to avoid recomputing

@@ -65,6 +65,7 @@
  * more pre-table creation property validation (CASSANDRA-5693)
  * Redesign repair messages (CASSANDRA-5426)
  * Fix ALTER RENAME post-5125 (CASSANDRA-5702)
+ * Disallow renaming a 2ndary indexed column (CASSANDRA-5705)
 
 
 1.2.7
