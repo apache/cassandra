@@ -69,8 +69,6 @@
 
 
 1.2.7
- * Fix ReadResponseSerializer.serializedSize() for digest reads (CASSANDRA-5476)
- * allow sstable2json on 2i CFs (CASSANDRA-5694)
  * Fix serialization of the LEFT gossip value (CASSANDRA-5696)
 
 1.2.6
