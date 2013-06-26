@@ -1239,6 +1239,8 @@ syntax_rules += r'''
                       | "ADD" newcol=<cident> <storageType>
                       | "DROP" existcol=<cident>
                       | "WITH" <cfamProperty> ( "AND" <cfamProperty> )*
+                      | "RENAME" existcol=<cident> "TO" newcol=<cident>
+                         ( "AND" existcol=<cident> "TO" newcol=<cident> )*
                       ;
 '''
 

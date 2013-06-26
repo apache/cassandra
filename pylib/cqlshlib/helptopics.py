@@ -902,8 +902,37 @@ class CQL3HelpTopics(CQLHelpTopics):
         print "          HELP CREATE_USER;"
 
     def help_alter(self):
-        super(CQL3HelpTopics, self).help_alter()
-        print "          HELP ALTER_USER;"
+        print """
+        ALTER TABLE <tablename> ALTER <columnname> TYPE <type>;
+        ALTER TABLE <tablename> ADD <columnname> <type>;
+        ALTER TABLE <tablename> RENAME <columnname> TO <columnname>
+            [AND <columnname> TO <columnname>]
+        ALTER TABLE <tablename> WITH <optionname> = <val> [AND <optionname> = <val> [...]];
+
+        An ALTER statement is used to manipulate table metadata. It allows you
+        to add new typed columns, drop existing columns, change the data
+        storage type of existing columns, or change table properties.
+        No results are returned.
+
+        See one of the following for more information:
+
+          HELP ALTER_ALTER;
+          HELP ALTER_ADD;
+          HELP ALTER_DROP;
+          HELP ALTER_RENAME;
+          HELP ALTER_WITH;
+        """
+
+    def help_alter_rename(self):
+        print """
+        ALTER TABLE: renaming a column
+
+          ALTER TABLE <tablename> RENAME <columnname> TO <columnname>
+              [AND <columnname> TO <columnname>]
+
+        The ALTER TABLE ... RENAME variant renames a typed column in a column
+        family.
+        """
 
     def help_drop(self):
         super(CQL3HelpTopics, self).help_drop()
