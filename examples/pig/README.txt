@@ -32,7 +32,10 @@ for input and output:
 * PIG_OUTPUT_RPC_PORT : the port thrift is listening on for writing
 * PIG_OUTPUT_PARTITIONER : cluster partitioner for writing
 
-Then you can run it like this:
+CassandraStorage
+================
+
+The CassandraStorage class is for any non-CQL3 ColumnFamilies you may have.  For CQL3 support, refer to the CqlStorage section.
 
 examples/pig$ bin/pig_cassandra -x local example-script.pig
 
@@ -71,8 +74,8 @@ already exist for this to work.
 
 See the example in test/ to see how schema is inferred.
 
-Advanced Options
-================
+Advanced Options for CassandraStorage
+=====================================
 
 The following environment variables default to false but can be set to true to enable them:
 
@@ -92,3 +95,15 @@ PIG_INPUT_SPLIT_SIZE: this sets the split size passed to Hadoop, controlling
                       the amount of mapper tasks created.  This can also be set in the LOAD url by
                       adding the 'split_size=X' parameter, where X is an integer amount for the size.
 
+CqlStorage
+==========
+
+The CqlStorage class is somewhat similar to CassandraStorage, but it can work with CQL3-defined ColumnFamilies.  The main difference is in the URL format:
+
+cql://[username:password@]<keyspace>/<columnfamily>[?[page_size=<size>][&columns=<col1,col2>][&output_query=<prepared_statement>][&where_clause=<clause>][&split_size=<size>][&partitioner=<partitioner>]]
+
+Which in grunt, the simplest example would look like:
+
+grunt> rows = LOAD 'cql://MyKeyspace/MyColumnFamily' USING CqlStorage();
+
+CqlStorage handles wide rows automatically and thus has no separate flag for this.

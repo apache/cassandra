@@ -1,4 +1,4 @@
-rows = LOAD 'cassandra://PigTest/SomeApp?widerows=true' USING CassandraStorage();
+rows = LOAD 'cassandra://PigTest/SomeApp' USING CassandraStorage();
 -- full copy
 STORE rows INTO 'cassandra://PigTest/CopyOfSomeApp' USING CassandraStorage();
 -- single tuple

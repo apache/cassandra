@@ -18,34 +18,25 @@
 package org.apache.cassandra.hadoop.pig;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.auth.IAuthenticator;
-import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.db.marshal.AbstractCompositeType.CompositeComponent;
 import org.apache.cassandra.hadoop.*;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
-import org.apache.cassandra.utils.UUIDGen;
-
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.*;
-import org.apache.pig.*;
-import org.apache.pig.backend.executionengine.ExecException;
+import org.apache.pig.Expression;
+import org.apache.pig.ResourceSchema;
+import org.apache.pig.ResourceSchema.ResourceFieldSchema;
 import org.apache.pig.backend.hadoop.executionengine.mapReduceLayer.PigSplit;
 import org.apache.pig.data.*;
 import org.apache.pig.impl.util.UDFContext;
-import org.apache.pig.ResourceSchema.ResourceFieldSchema;
 import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
@@ -57,30 +48,11 @@ import org.slf4j.LoggerFactory;
  *
  * A row from a standard CF will be returned as nested tuples: (key, ((name1, val1), (name2, val2))).
  */
-public class CassandraStorage extends LoadFunc implements StoreFuncInterface, LoadMetadata
+public class CassandraStorage extends AbstractCassandraStorage
 {
-    private enum MarshallerType { COMPARATOR, DEFAULT_VALIDATOR, KEY_VALIDATOR, SUBCOMPARATOR };
-
-    // system environment variables that can be set to configure connection info:
-    // alternatively, Hadoop JobConf variables can be set using keys from ConfigHelper
-    public final static String PIG_INPUT_RPC_PORT = "PIG_INPUT_RPC_PORT";
-    public final static String PIG_INPUT_INITIAL_ADDRESS = "PIG_INPUT_INITIAL_ADDRESS";
-    public final static String PIG_INPUT_PARTITIONER = "PIG_INPUT_PARTITIONER";
-    public final static String PIG_OUTPUT_RPC_PORT = "PIG_OUTPUT_RPC_PORT";
-    public final static String PIG_OUTPUT_INITIAL_ADDRESS = "PIG_OUTPUT_INITIAL_ADDRESS";
-    public final static String PIG_OUTPUT_PARTITIONER = "PIG_OUTPUT_PARTITIONER";
-    public final static String PIG_RPC_PORT = "PIG_RPC_PORT";
-    public final static String PIG_INITIAL_ADDRESS = "PIG_INITIAL_ADDRESS";
-    public final static String PIG_PARTITIONER = "PIG_PARTITIONER";
-    public final static String PIG_INPUT_FORMAT = "PIG_INPUT_FORMAT";
-    public final static String PIG_OUTPUT_FORMAT = "PIG_OUTPUT_FORMAT";
     public final static String PIG_ALLOW_DELETES = "PIG_ALLOW_DELETES";
     public final static String PIG_WIDEROW_INPUT = "PIG_WIDEROW_INPUT";
     public final static String PIG_USE_SECONDARY = "PIG_USE_SECONDARY";
-    public final static String PIG_INPUT_SPLIT_SIZE = "PIG_INPUT_SPLIT_SIZE";
-
-    private final static String DEFAULT_INPUT_FORMAT = "org.apache.cassandra.hadoop.ColumnFamilyInputFormat";
-    private final static String DEFAULT_OUTPUT_FORMAT = "org.apache.cassandra.hadoop.ColumnFamilyOutputFormat";
 
     private final static String PARTITION_FILTER_SIGNATURE = "cassandra.partition.filter";
 
@@ -91,22 +63,14 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     private ByteBuffer slice_end = BOUND;
     private boolean slice_reverse = false;
     private boolean allow_deletes = false;
-    private String username;
-    private String password;
-    private String keyspace;
-    private String column_family;
-    private String loadSignature;
-    private String storeSignature;
 
-    private Configuration conf;
     private RecordReader<ByteBuffer, Map<ByteBuffer, IColumn>> reader;
     private RecordWriter<ByteBuffer, List<Mutation>> writer;
-    private String inputFormatClass;
-    private String outputFormatClass;
-    private int limit;
+
     private boolean widerows = false;
     private boolean usePartitionFilter = false;
-    private int splitSize = 64 * 1024;
+    private int limit;
+    
     // wide row hacks
     private ByteBuffer lastKey;
     private Map<ByteBuffer,IColumn> lastRow;
@@ -117,13 +81,13 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         this(1024);
     }
 
-    /**
-     * @param limit number of columns to fetch in a slice
-     */
+    /**@param limit number of columns to fetch in a slice */
     public CassandraStorage(int limit)
     {
         super();
         this.limit = limit;
+        DEFAULT_INPUT_FORMAT = "org.apache.cassandra.hadoop.ColumnFamilyInputFormat";
+        DEFAULT_OUTPUT_FORMAT = "org.apache.cassandra.hadoop.ColumnFamilyOutputFormat";
     }
 
     public int getLimit()
@@ -131,6 +95,12 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         return limit;
     }
 
+    public void prepareToRead(RecordReader reader, PigSplit split)
+    {
+        this.reader = reader;
+    }
+
+    /** read wide row*/
     public Tuple getNextWide() throws IOException
     {
         CfDef cfDef = getCfDef(loadSignature);
@@ -229,6 +199,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     }
 
     @Override
+    /** read next row */
     public Tuple getNext() throws IOException
     {
         if (widerows)
@@ -289,315 +260,18 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         }
     }
 
-    /**
-     *  Deconstructs a composite type to a Tuple.
-     */
-    private Tuple composeComposite( AbstractCompositeType comparator, ByteBuffer name ) throws IOException
+    /** set hadoop cassandra connection settings */
+    protected void setConnectionInformation() throws IOException
     {
-        List<CompositeComponent> result = comparator.deconstruct( name );
-
-        Tuple t = TupleFactory.getInstance().newTuple( result.size() );
-
-        for( int i = 0; i < result.size(); i++ )
-        {
-            setTupleValue( t, i, result.get(i).comparator.compose( result.get(i).value ) );
-        }
-
-        return t;
-    }
-
-    private Tuple keyToTuple(ByteBuffer key, CfDef cfDef, AbstractType comparator) throws IOException
-    {
-        Tuple tuple = TupleFactory.getInstance().newTuple(1);
-        addKeyToTuple(tuple, key, cfDef, comparator);
-        return tuple;
-    }
-
-    private void addKeyToTuple(Tuple tuple, ByteBuffer key, CfDef cfDef, AbstractType comparator) throws IOException
-    {
-        if( comparator instanceof AbstractCompositeType )
-        {
-            setTupleValue(tuple, 0, composeComposite((AbstractCompositeType)comparator,key));
-        }
-        else
-        {
-            setTupleValue(tuple, 0, getDefaultMarshallers(cfDef).get(MarshallerType.KEY_VALIDATOR).compose(key));
-        }
-
-    }
-
-    private Tuple columnToTuple(IColumn col, CfDef cfDef, AbstractType comparator) throws IOException
-    {
-        Tuple pair = TupleFactory.getInstance().newTuple(2);
-
-        if( comparator instanceof AbstractCompositeType )
-        {
-            setTupleValue(pair, 0, composeComposite((AbstractCompositeType)comparator,col.name()));
-        }
-        else
-        {
-            setTupleValue(pair, 0, comparator.compose(col.name()));
-        }
-        if (col instanceof Column)
-        {
-            // standard
-            Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
-
-            if (validators.get(col.name()) == null)
-            {
-                Map<MarshallerType, AbstractType> marshallers = getDefaultMarshallers(cfDef);
-                setTupleValue(pair, 1, marshallers.get(MarshallerType.DEFAULT_VALIDATOR).compose(col.value()));
-            }
-            else
-                setTupleValue(pair, 1, validators.get(col.name()).compose(col.value()));
-            return pair;
-        }
-        else
-        {
-            // super
-            ArrayList<Tuple> subcols = new ArrayList<Tuple>();
-            for (IColumn subcol : col.getSubColumns())
-                subcols.add(columnToTuple(subcol, cfDef, parseType(cfDef.getSubcomparator_type())));
-
-            pair.set(1, new DefaultDataBag(subcols));
-        }
-        return pair;
-    }
-
-    private void setTupleValue(Tuple pair, int position, Object value) throws ExecException
-    {
-       if (value instanceof BigInteger)
-           pair.set(position, ((BigInteger) value).intValue());
-       else if (value instanceof ByteBuffer)
-           pair.set(position, new DataByteArray(ByteBufferUtil.getArray((ByteBuffer) value)));
-       else if (value instanceof UUID)
-           pair.set(position, new DataByteArray(UUIDGen.decompose((java.util.UUID) value)));
-       else if (value instanceof Date)
-           pair.set(position, DateType.instance.decompose((Date) value).getLong());
-       else
-           pair.set(position, value);
-    }
-
-    private CfDef getCfDef(String signature)
-    {
-        UDFContext context = UDFContext.getUDFContext();
-        Properties property = context.getUDFProperties(CassandraStorage.class);
-        return cfdefFromString(property.getProperty(signature));
-    }
-
-    private List<IndexExpression> getIndexExpressions()
-    {
-        UDFContext context = UDFContext.getUDFContext();
-        Properties property = context.getUDFProperties(CassandraStorage.class);
-        if (property.getProperty(PARTITION_FILTER_SIGNATURE) != null)
-            return indexExpressionsFromString(property.getProperty(PARTITION_FILTER_SIGNATURE));
-        else
-            return null;
-    }
-
-    private Map<MarshallerType, AbstractType> getDefaultMarshallers(CfDef cfDef) throws IOException
-    {
-        Map<MarshallerType, AbstractType> marshallers = new EnumMap<MarshallerType, AbstractType>(MarshallerType.class);
-        AbstractType comparator;
-        AbstractType subcomparator;
-        AbstractType default_validator;
-        AbstractType key_validator;
-
-        comparator = parseType(cfDef.getComparator_type());
-        subcomparator = parseType(cfDef.getSubcomparator_type());
-        default_validator = parseType(cfDef.getDefault_validation_class());
-        key_validator = parseType(cfDef.getKey_validation_class());
-
-        marshallers.put(MarshallerType.COMPARATOR, comparator);
-        marshallers.put(MarshallerType.DEFAULT_VALIDATOR, default_validator);
-        marshallers.put(MarshallerType.KEY_VALIDATOR, key_validator);
-        marshallers.put(MarshallerType.SUBCOMPARATOR, subcomparator);
-        return marshallers;
-    }
-
-    private Map<ByteBuffer, AbstractType> getValidatorMap(CfDef cfDef) throws IOException
-    {
-        Map<ByteBuffer, AbstractType> validators = new HashMap<ByteBuffer, AbstractType>();
-        for (ColumnDef cd : cfDef.getColumn_metadata())
-        {
-            if (cd.getValidation_class() != null && !cd.getValidation_class().isEmpty())
-            {
-                AbstractType validator = null;
-                try
-                {
-                    validator = TypeParser.parse(cd.getValidation_class());
-                    validators.put(cd.name, validator);
-                }
-                catch (ConfigurationException e)
-                {
-                    throw new IOException(e);
-                }
-                catch (SyntaxException e)
-                {
-                    throw new IOException(e);
-                }
-            }
-        }
-        return validators;
-    }
-
-    private AbstractType parseType(String type) throws IOException
-    {
-        try
-        {
-            // always treat counters like longs, specifically CCT.compose is not what we need
-            if (type != null && type.equals("org.apache.cassandra.db.marshal.CounterColumnType"))
-                    return LongType.instance;
-            return TypeParser.parse(type);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new IOException(e);
-        }
-        catch (SyntaxException e)
-        {
-            throw new IOException(e);
-        }
-    }
-
-    @Override
-    public InputFormat getInputFormat()
-    {
-        try
-        {
-            return FBUtilities.construct(inputFormatClass, "inputformat");
-        }
-        catch (ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public void prepareToRead(RecordReader reader, PigSplit split)
-    {
-        this.reader = reader;
-    }
-
-    public static Map<String, String> getQueryMap(String query)
-    {
-        String[] params = query.split("&");
-        Map<String, String> map = new HashMap<String, String>();
-        for (String param : params)
-        {
-            String[] keyValue = param.split("=");
-            map.put(keyValue[0], keyValue[1]);
-        }
-        return map;
-    }
-
-    private void setLocationFromUri(String location) throws IOException
-    {
-        try
-        {
-            if (!location.startsWith("cassandra://"))
-                throw new Exception("Bad scheme.");
-            String[] urlParts = location.split("\\?");
-            if (urlParts.length > 1)
-            {
-                Map<String, String> urlQuery = getQueryMap(urlParts[1]);
-                AbstractType comparator = BytesType.instance;
-                if (urlQuery.containsKey("comparator"))
-                    comparator = TypeParser.parse(urlQuery.get("comparator"));
-                if (urlQuery.containsKey("slice_start"))
-                    slice_start = comparator.fromString(urlQuery.get("slice_start"));
-                if (urlQuery.containsKey("slice_end"))
-                    slice_end = comparator.fromString(urlQuery.get("slice_end"));
-                if (urlQuery.containsKey("reversed"))
-                    slice_reverse = Boolean.parseBoolean(urlQuery.get("reversed"));
-                if (urlQuery.containsKey("limit"))
-                    limit = Integer.parseInt(urlQuery.get("limit"));
-                if (urlQuery.containsKey("allow_deletes"))
-                    allow_deletes = Boolean.parseBoolean(urlQuery.get("allow_deletes"));
-                if (urlQuery.containsKey("widerows"))
-                    widerows = Boolean.parseBoolean(urlQuery.get("widerows"));
-                if (urlQuery.containsKey("use_secondary"))
-                    usePartitionFilter = Boolean.parseBoolean(urlQuery.get("use_secondary"));
-                if (urlQuery.containsKey("split_size"))
-                    splitSize = Integer.parseInt(urlQuery.get("split_size"));
-            }
-            String[] parts = urlParts[0].split("/+");
-            String[] credentialsAndKeyspace = parts[1].split("@");
-            if (credentialsAndKeyspace.length > 1)
-            {
-                String[] credentials = credentialsAndKeyspace[0].split(":");
-                username = credentials[0];
-                password = credentials[1];
-                keyspace = credentialsAndKeyspace[1];
-            }
-            else
-            {
-                keyspace = parts[1];
-            }
-            column_family = parts[2];
-        }
-        catch (Exception e)
-        {
-            throw new IOException("Expected 'cassandra://[username:password@]<keyspace>/<columnfamily>[?slice_start=<start>&slice_end=<end>[&reversed=true][&limit=1][&allow_deletes=true][widerows=true][use_secondary=true]]': " + e.getMessage());
-        }
-    }
-
-    private void setConnectionInformation() throws IOException
-    {
-        if (System.getenv(PIG_RPC_PORT) != null)
-        {
-            ConfigHelper.setInputRpcPort(conf, System.getenv(PIG_RPC_PORT));
-            ConfigHelper.setOutputRpcPort(conf, System.getenv(PIG_RPC_PORT));
-        }
-
-        if (System.getenv(PIG_INPUT_RPC_PORT) != null)
-            ConfigHelper.setInputRpcPort(conf, System.getenv(PIG_INPUT_RPC_PORT));
-        if (System.getenv(PIG_OUTPUT_RPC_PORT) != null)
-            ConfigHelper.setOutputRpcPort(conf, System.getenv(PIG_OUTPUT_RPC_PORT));
-
-        if (System.getenv(PIG_INITIAL_ADDRESS) != null)
-        {
-            ConfigHelper.setInputInitialAddress(conf, System.getenv(PIG_INITIAL_ADDRESS));
-            ConfigHelper.setOutputInitialAddress(conf, System.getenv(PIG_INITIAL_ADDRESS));
-        }
-        if (System.getenv(PIG_INPUT_INITIAL_ADDRESS) != null)
-            ConfigHelper.setInputInitialAddress(conf, System.getenv(PIG_INPUT_INITIAL_ADDRESS));
-        if (System.getenv(PIG_OUTPUT_INITIAL_ADDRESS) != null)
-            ConfigHelper.setOutputInitialAddress(conf, System.getenv(PIG_OUTPUT_INITIAL_ADDRESS));
-
-        if (System.getenv(PIG_PARTITIONER) != null)
-        {
-            ConfigHelper.setInputPartitioner(conf, System.getenv(PIG_PARTITIONER));
-            ConfigHelper.setOutputPartitioner(conf, System.getenv(PIG_PARTITIONER));
-        }
-        if(System.getenv(PIG_INPUT_PARTITIONER) != null)
-            ConfigHelper.setInputPartitioner(conf, System.getenv(PIG_INPUT_PARTITIONER));
-        if(System.getenv(PIG_OUTPUT_PARTITIONER) != null)
-            ConfigHelper.setOutputPartitioner(conf, System.getenv(PIG_OUTPUT_PARTITIONER));
-        if (System.getenv(PIG_INPUT_FORMAT) != null)
-            inputFormatClass = getFullyQualifiedClassName(System.getenv(PIG_INPUT_FORMAT));
-        else
-            inputFormatClass = DEFAULT_INPUT_FORMAT;
-        if (System.getenv(PIG_OUTPUT_FORMAT) != null)
-            outputFormatClass = getFullyQualifiedClassName(System.getenv(PIG_OUTPUT_FORMAT));
-        else
-            outputFormatClass = DEFAULT_OUTPUT_FORMAT;
+        super.setConnectionInformation();
         if (System.getenv(PIG_ALLOW_DELETES) != null)
             allow_deletes = Boolean.parseBoolean(System.getenv(PIG_ALLOW_DELETES));
     }
 
-    private String getFullyQualifiedClassName(String classname)
-    {
-        return classname.contains(".") ? classname : "org.apache.cassandra.hadoop." + classname;
-    }
-
-    @Override
+    /** set read configuration settings */
     public void setLocation(String location, Job job) throws IOException
     {
         conf = job.getConfiguration();
-        
-        // don't combine mappers to a single mapper per node
-        conf.setBoolean("pig.noSplitCombination", true);
         setLocationFromUri(location);
 
         if (ConfigHelper.getInputSlicePredicate(conf) == null)
@@ -616,20 +290,22 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             {
                 ConfigHelper.setInputSplitSize(conf, Integer.valueOf(System.getenv(PIG_INPUT_SPLIT_SIZE)));
             }
-            catch(NumberFormatException e)
+            catch (NumberFormatException e)
             {
                 throw new RuntimeException("PIG_INPUT_SPLIT_SIZE is not a number", e);
             }           
-        }
+        } 
 
         if (usePartitionFilter && getIndexExpressions() != null)
             ConfigHelper.setInputRange(conf, getIndexExpressions());
 
         if (username != null && password != null)
             ConfigHelper.setInputKeyspaceUserNameAndPassword(conf, username, password);
-        
+
         if (splitSize > 0)
             ConfigHelper.setInputSplitSize(conf, splitSize);
+        if (partitionerClass!= null)
+            ConfigHelper.setInputPartitioner(conf, partitionerClass);
 
         ConfigHelper.setInputColumnFamily(conf, keyspace, column_family, widerows);
         setConnectionInformation();
@@ -645,6 +321,40 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         initSchema(loadSignature);
     }
 
+    /** set store configuration settings */
+    public void setStoreLocation(String location, Job job) throws IOException
+    {
+        conf = job.getConfiguration();
+        
+        // don't combine mappers to a single mapper per node
+        conf.setBoolean("pig.noSplitCombination", true);
+        setLocationFromUri(location);
+
+        if (username != null && password != null)
+            ConfigHelper.setOutputKeyspaceUserNameAndPassword(conf, username, password);
+        if (splitSize > 0)
+            ConfigHelper.setInputSplitSize(conf, splitSize);
+        if (partitionerClass!= null)
+            ConfigHelper.setOutputPartitioner(conf, partitionerClass);
+
+        ConfigHelper.setOutputColumnFamily(conf, keyspace, column_family);
+        setConnectionInformation();
+
+        if (ConfigHelper.getOutputRpcPort(conf) == 0)
+            throw new IOException("PIG_OUTPUT_RPC_PORT or PIG_RPC_PORT environment variable not set");
+        if (ConfigHelper.getOutputInitialAddress(conf) == null)
+            throw new IOException("PIG_OUTPUT_INITIAL_ADDRESS or PIG_INITIAL_ADDRESS environment variable not set");
+        if (ConfigHelper.getOutputPartitioner(conf) == null)
+            throw new IOException("PIG_OUTPUT_PARTITIONER or PIG_PARTITIONER environment variable not set");
+
+        // we have to do this again here for the check in writeColumnsFromTuple
+        if (System.getenv(PIG_USE_SECONDARY) != null)
+            usePartitionFilter = Boolean.valueOf(System.getenv(PIG_USE_SECONDARY));
+
+        initSchema(storeSignature);
+    }
+
+    /** define the schema */
     public ResourceSchema getSchema(String location, Job job) throws IOException
     {
         setLocation(location, job);
@@ -695,30 +405,34 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         // add the key first, then the indexed columns, and finally the bag
         allSchemaFields.add(keyFieldSchema);
 
-        // defined validators/indexes
-        for (ColumnDef cdef : cfDef.column_metadata)
+        if (!widerows)
         {
-            // make a new tuple for each col/val pair
-            ResourceSchema innerTupleSchema = new ResourceSchema();
-            ResourceFieldSchema innerTupleField = new ResourceFieldSchema();
-            innerTupleField.setType(DataType.TUPLE);
-            innerTupleField.setSchema(innerTupleSchema);
-            innerTupleField.setName(new String(cdef.getName()));
+            // defined validators/indexes
+            for (ColumnDef cdef : cfDef.column_metadata)
+            {
+                // make a new tuple for each col/val pair
+                ResourceSchema innerTupleSchema = new ResourceSchema();
+                ResourceFieldSchema innerTupleField = new ResourceFieldSchema();
+                innerTupleField.setType(DataType.TUPLE);
+                innerTupleField.setSchema(innerTupleSchema);
+                innerTupleField.setName(new String(cdef.getName()));
 
-            ResourceFieldSchema idxColSchema = new ResourceFieldSchema();
-            idxColSchema.setName("name");
-            idxColSchema.setType(getPigType(marshallers.get(MarshallerType.COMPARATOR)));
+                ResourceFieldSchema idxColSchema = new ResourceFieldSchema();
+                idxColSchema.setName("name");
+                idxColSchema.setType(getPigType(marshallers.get(MarshallerType.COMPARATOR)));
 
-            ResourceFieldSchema valSchema = new ResourceFieldSchema();
-            AbstractType validator = validators.get(cdef.name);
-            if (validator == null)
-                validator = marshallers.get(MarshallerType.DEFAULT_VALIDATOR);
-            valSchema.setName("value");
-            valSchema.setType(getPigType(validator));
+                ResourceFieldSchema valSchema = new ResourceFieldSchema();
+                AbstractType validator = validators.get(cdef.name);
+                if (validator == null)
+                    validator = marshallers.get(MarshallerType.DEFAULT_VALIDATOR);
+                valSchema.setName("value");
+                valSchema.setType(getPigType(validator));
 
-            innerTupleSchema.setFields(new ResourceFieldSchema[] { idxColSchema, valSchema });
-            allSchemaFields.add(innerTupleField);
+                innerTupleSchema.setFields(new ResourceFieldSchema[] { idxColSchema, valSchema });
+                allSchemaFields.add(innerTupleField);
+            }   
         }
+
         // bag at the end for unknown columns
         allSchemaFields.add(bagField);
 
@@ -741,31 +455,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         return schema;
     }
 
-    private byte getPigType(AbstractType type)
-    {
-        if (type instanceof LongType || type instanceof DateType) // DateType is bad and it should feel bad
-            return DataType.LONG;
-        else if (type instanceof IntegerType || type instanceof Int32Type) // IntegerType will overflow at 2**31, but is kept for compatibility until pig has a BigInteger
-            return DataType.INTEGER;
-        else if (type instanceof AsciiType)
-            return DataType.CHARARRAY;
-        else if (type instanceof UTF8Type)
-            return DataType.CHARARRAY;
-        else if (type instanceof FloatType)
-            return DataType.FLOAT;
-        else if (type instanceof DoubleType)
-            return DataType.DOUBLE;
-        else if (type instanceof AbstractCompositeType )
-            return DataType.TUPLE;
-
-        return DataType.BYTEARRAY;
-    }
-
-    public ResourceStatistics getStatistics(String location, Job job)
-    {
-        return null;
-    }
-
+    /** return partition keys */
     public String[] getPartitionKeys(String location, Job job)
     {
         if (!usePartitionFilter)
@@ -779,170 +469,21 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         return partitionKeys;
     }
 
+    /** set partition filter */
     public void setPartitionFilter(Expression partitionFilter)
     {
         UDFContext context = UDFContext.getUDFContext();
-        Properties property = context.getUDFProperties(CassandraStorage.class);
+        Properties property = context.getUDFProperties(AbstractCassandraStorage.class);
         property.setProperty(PARTITION_FILTER_SIGNATURE, indexExpressionsToString(filterToIndexExpressions(partitionFilter)));
     }
 
-    private List<IndexExpression> filterToIndexExpressions(Expression expression)
-    {
-        List<IndexExpression> indexExpressions = new ArrayList<IndexExpression>();
-        Expression.BinaryExpression be = (Expression.BinaryExpression)expression;
-        ByteBuffer name = ByteBuffer.wrap(be.getLhs().toString().getBytes());
-        ByteBuffer value = ByteBuffer.wrap(be.getRhs().toString().getBytes());
-        switch (expression.getOpType())
-        {
-            case OP_EQ:
-                indexExpressions.add(new IndexExpression(name, IndexOperator.EQ, value));
-                break;
-            case OP_GE:
-                indexExpressions.add(new IndexExpression(name, IndexOperator.GTE, value));
-                break;
-            case OP_GT:
-                indexExpressions.add(new IndexExpression(name, IndexOperator.GT, value));
-                break;
-            case OP_LE:
-                indexExpressions.add(new IndexExpression(name, IndexOperator.LTE, value));
-                break;
-            case OP_LT:
-                indexExpressions.add(new IndexExpression(name, IndexOperator.LT, value));
-                break;
-            case OP_AND:
-                indexExpressions.addAll(filterToIndexExpressions(be.getLhs()));
-                indexExpressions.addAll(filterToIndexExpressions(be.getRhs()));
-                break;
-            default:
-                throw new RuntimeException("Unsupported expression type: " + expression.getOpType().name());
-        }
-        return indexExpressions;
-    }
-
-    private List<ColumnDef> getIndexes()
-    {
-        CfDef cfdef = getCfDef(loadSignature);
-        List<ColumnDef> indexes = new ArrayList<ColumnDef>();
-        for (ColumnDef cdef : cfdef.column_metadata)
-        {
-            if (cdef.index_type != null)
-                indexes.add(cdef);
-        }
-        return indexes;
-    }
-
-    @Override
-    public String relativeToAbsolutePath(String location, Path curDir) throws IOException
-    {
-        return location;
-    }
-
-    @Override
-    public void setUDFContextSignature(String signature)
-    {
-        this.loadSignature = signature;
-    }
-
-    /* StoreFunc methods */
-    public void setStoreFuncUDFContextSignature(String signature)
-    {
-        this.storeSignature = signature;
-    }
-
-    public String relToAbsPathForStoreLocation(String location, Path curDir) throws IOException
-    {
-        return relativeToAbsolutePath(location, curDir);
-    }
-
-    public void setStoreLocation(String location, Job job) throws IOException
-    {
-        conf = job.getConfiguration();
-        setLocationFromUri(location);
-
-        if (username != null && password != null)
-            ConfigHelper.setOutputKeyspaceUserNameAndPassword(conf, username, password);
-
-        ConfigHelper.setOutputColumnFamily(conf, keyspace, column_family);
-        setConnectionInformation();
-
-        if (ConfigHelper.getOutputRpcPort(conf) == 0)
-            throw new IOException("PIG_OUTPUT_RPC_PORT or PIG_RPC_PORT environment variable not set");
-        if (ConfigHelper.getOutputInitialAddress(conf) == null)
-            throw new IOException("PIG_OUTPUT_INITIAL_ADDRESS or PIG_INITIAL_ADDRESS environment variable not set");
-        if (ConfigHelper.getOutputPartitioner(conf) == null)
-            throw new IOException("PIG_OUTPUT_PARTITIONER or PIG_PARTITIONER environment variable not set");
-
-        // we have to do this again here for the check in writeColumnsFromTuple
-        if (System.getenv(PIG_USE_SECONDARY) != null)
-            usePartitionFilter = Boolean.valueOf(System.getenv(PIG_USE_SECONDARY));
-
-        initSchema(storeSignature);
-    }
-
-    public OutputFormat getOutputFormat()
-    {
-        try
-        {
-            return FBUtilities.construct(outputFormatClass, "outputformat");
-        }
-        catch (ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public void checkSchema(ResourceSchema schema) throws IOException
-    {
-        // we don't care about types, they all get casted to ByteBuffers
-    }
-
+    /** prepare writer */
     public void prepareToWrite(RecordWriter writer)
     {
         this.writer = writer;
     }
 
-    private ByteBuffer objToBB(Object o)
-    {
-        if (o == null)
-            return (ByteBuffer)o;
-        if (o instanceof java.lang.String)
-            return ByteBuffer.wrap(new DataByteArray((String)o).get());
-        if (o instanceof Integer)
-            return Int32Type.instance.decompose((Integer)o);
-        if (o instanceof Long)
-            return LongType.instance.decompose((Long)o);
-        if (o instanceof Float)
-            return FloatType.instance.decompose((Float)o);
-        if (o instanceof Double)
-            return DoubleType.instance.decompose((Double)o);
-        if (o instanceof UUID)
-            return ByteBuffer.wrap(UUIDGen.decompose((UUID) o));
-        if(o instanceof Tuple) {
-            List<Object> objects = ((Tuple)o).getAll();
-            List<ByteBuffer> serialized = new ArrayList<ByteBuffer>(objects.size());
-            int totalLength = 0;
-            for(Object sub : objects)
-            {
-                ByteBuffer buffer = objToBB(sub);
-                serialized.add(buffer);
-                totalLength += 2 + buffer.remaining() + 1;
-            }
-            ByteBuffer out = ByteBuffer.allocate(totalLength);
-            for (ByteBuffer bb : serialized)
-            {
-                int length = bb.remaining();
-                out.put((byte) ((length >> 8) & 0xFF));
-                out.put((byte) (length & 0xFF));
-                out.put(bb);
-                out.put((byte) 0);
-            }
-            out.flip();
-            return out;
-        }
-
-        return ByteBuffer.wrap(((DataByteArray) o).get());
-    }
-
+    /** write next row */
     public void putNext(Tuple t) throws IOException
     {
         /*
@@ -971,6 +512,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             throw new IOException("Second argument in output must be a tuple or bag");
     }
 
+    /** write tuple data to cassandra */
     private void writeColumnsFromTuple(ByteBuffer key, Tuple t, int offset) throws IOException
     {
         ArrayList<Mutation> mutationList = new ArrayList<Mutation>();
@@ -993,6 +535,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             writeMutations(key, mutationList);
     }
 
+    /** compose Cassandra mutation from tuple */
     private Mutation mutationFromTuple(Tuple t) throws IOException
     {
         Mutation mutation = new Mutation();
@@ -1021,6 +564,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         return mutation;
     }
 
+    /** write bag data to Cassandra */
     private void writeColumnsFromBag(ByteBuffer key, DefaultDataBag bag) throws IOException
     {
         List<Mutation> mutationList = new ArrayList<Mutation>();
@@ -1074,6 +618,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
             writeMutations(key, mutationList);
     }
 
+    /** write mutation to Cassandra */
     private void writeMutations(ByteBuffer key, List<Mutation> mutations) throws IOException
     {
         try
@@ -1086,113 +631,54 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         }
     }
 
-    public void cleanupOnFailure(String failure, Job job)
+    /** get a list of Cassandra IndexExpression from Pig expression */
+    private List<IndexExpression> filterToIndexExpressions(Expression expression)
     {
+        List<IndexExpression> indexExpressions = new ArrayList<IndexExpression>();
+        Expression.BinaryExpression be = (Expression.BinaryExpression)expression;
+        ByteBuffer name = ByteBuffer.wrap(be.getLhs().toString().getBytes());
+        ByteBuffer value = ByteBuffer.wrap(be.getRhs().toString().getBytes());
+        switch (expression.getOpType())
+        {
+            case OP_EQ:
+                indexExpressions.add(new IndexExpression(name, IndexOperator.EQ, value));
+                break;
+            case OP_GE:
+                indexExpressions.add(new IndexExpression(name, IndexOperator.GTE, value));
+                break;
+            case OP_GT:
+                indexExpressions.add(new IndexExpression(name, IndexOperator.GT, value));
+                break;
+            case OP_LE:
+                indexExpressions.add(new IndexExpression(name, IndexOperator.LTE, value));
+                break;
+            case OP_LT:
+                indexExpressions.add(new IndexExpression(name, IndexOperator.LT, value));
+                break;
+            case OP_AND:
+                indexExpressions.addAll(filterToIndexExpressions(be.getLhs()));
+                indexExpressions.addAll(filterToIndexExpressions(be.getRhs()));
+                break;
+            default:
+                throw new RuntimeException("Unsupported expression type: " + expression.getOpType().name());
+        }
+        return indexExpressions;
     }
 
-    /* Methods to get the column family schema from Cassandra */
-
-    private void initSchema(String signature)
+    /** get a list of columns with defined index*/
+    private List<ColumnDef> getIndexes()
     {
-        Properties properties = UDFContext.getUDFContext().getUDFProperties(CassandraStorage.class);
-
-        // Only get the schema if we haven't already gotten it
-        if (!properties.containsKey(signature))
+        CfDef cfdef = getCfDef(loadSignature);
+        List<ColumnDef> indexes = new ArrayList<ColumnDef>();
+        for (ColumnDef cdef : cfdef.column_metadata)
         {
-            try
-            {
-                Cassandra.Client client = ConfigHelper.getClientFromInputAddressList(conf);
-                client.set_keyspace(keyspace);
-
-                if (username != null && password != null)
-                {
-                    Map<String, String> credentials = new HashMap<String, String>(2);
-                    credentials.put(IAuthenticator.USERNAME_KEY, username);
-                    credentials.put(IAuthenticator.PASSWORD_KEY, password);
-
-                    try
-                    {
-                        client.login(new AuthenticationRequest(credentials));
-                    }
-                    catch (AuthenticationException e)
-                    {
-                        logger.error("Authentication exception: invalid username and/or password");
-                        throw new RuntimeException(e);
-                    }
-                    catch (AuthorizationException e)
-                    {
-                        throw new AssertionError(e); // never actually throws AuthorizationException.
-                    }
-                }
-
-                CfDef cfDef = null;
-                KsDef ksDef = client.describe_keyspace(keyspace);
-                List<CfDef> defs = ksDef.getCf_defs();
-                for (CfDef def : defs)
-                {
-                    if (column_family.equalsIgnoreCase(def.getName()))
-                    {
-                        cfDef = def;
-                        break;
-                    }
-                }
-                if (cfDef != null)
-                    properties.setProperty(signature, cfdefToString(cfDef));
-                else
-                    throw new RuntimeException(String.format("Column family '%s' not found in keyspace '%s'",
-                                                             column_family,
-                                                             keyspace));
-            }
-            catch (TException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (InvalidRequestException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (NotFoundException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+            if (cdef.index_type != null)
+                indexes.add(cdef);
         }
+        return indexes;
     }
 
-    private static String cfdefToString(CfDef cfDef)
-    {
-        assert cfDef != null;
-        // this is so awful it's kind of cool!
-        TSerializer serializer = new TSerializer(new TBinaryProtocol.Factory());
-        try
-        {
-            return Hex.bytesToHex(serializer.serialize(cfDef));
-        }
-        catch (TException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static CfDef cfdefFromString(String st)
-    {
-        assert st != null;
-        TDeserializer deserializer = new TDeserializer(new TBinaryProtocol.Factory());
-        CfDef cfDef = new CfDef();
-        try
-        {
-            deserializer.deserialize(cfDef, Hex.hexToBytes(st));
-        }
-        catch (TException e)
-        {
-            throw new RuntimeException(e);
-        }
-        return cfDef;
-    }
-
+    /** convert a list of index expression to string */
     private static String indexExpressionsToString(List<IndexExpression> indexExpressions)
     {
         assert indexExpressions != null;
@@ -1211,6 +697,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         }
     }
 
+    /** convert string to a list of index expression */
     private static List<IndexExpression> indexExpressionsFromString(String ie)
     {
         assert ie != null;
@@ -1226,5 +713,114 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         }
         return indexClause.getExpressions();
     }
+
+    /** get a list of index expression */
+    private List<IndexExpression> getIndexExpressions()
+    {
+        UDFContext context = UDFContext.getUDFContext();
+        Properties property = context.getUDFProperties(AbstractCassandraStorage.class);
+        if (property.getProperty(PARTITION_FILTER_SIGNATURE) != null)
+            return indexExpressionsFromString(property.getProperty(PARTITION_FILTER_SIGNATURE));
+        else
+            return null;
+    }
+
+    /** get a list of column for the column family */
+    protected List<ColumnDef> getColumnMetadata(Cassandra.Client client, boolean cql3Table) 
+            throws InvalidRequestException, 
+            UnavailableException, 
+            TimedOutException, 
+            SchemaDisagreementException, 
+            TException,
+            CharacterCodingException
+    {
+        if (cql3Table)
+            return new ArrayList<ColumnDef>();
+        
+        return getColumnMeta(client);
+    }
+
+    /** convert key to a tuple */
+    private Tuple keyToTuple(ByteBuffer key, CfDef cfDef, AbstractType comparator) throws IOException
+    {
+        Tuple tuple = TupleFactory.getInstance().newTuple(1);
+        addKeyToTuple(tuple, key, cfDef, comparator);
+        return tuple;
+    }
+
+    /** add key to a tuple */
+    private void addKeyToTuple(Tuple tuple, ByteBuffer key, CfDef cfDef, AbstractType comparator) throws IOException
+    {
+        if( comparator instanceof AbstractCompositeType )
+        {
+            setTupleValue(tuple, 0, composeComposite((AbstractCompositeType)comparator,key));
+        }
+        else
+        {
+            setTupleValue(tuple, 0, getDefaultMarshallers(cfDef).get(MarshallerType.KEY_VALIDATOR).compose(key));
+        }
+
+    }
+
+    /** cassandra://[username:password@]<keyspace>/<columnfamily>[?slice_start=<start>&slice_end=<end>
+     * [&reversed=true][&limit=1][&allow_deletes=true][&widerows=true]
+     * [&use_secondary=true][&comparator=<comparator>][&partitioner=<partitioner>]]*/
+    private void setLocationFromUri(String location) throws IOException
+    {
+        try
+        {
+            if (!location.startsWith("cassandra://"))
+                throw new Exception("Bad scheme." + location);
+            
+            String[] urlParts = location.split("\\?");
+            if (urlParts.length > 1)
+            {
+                Map<String, String> urlQuery = getQueryMap(urlParts[1]);
+                AbstractType comparator = BytesType.instance;
+                if (urlQuery.containsKey("comparator"))
+                    comparator = TypeParser.parse(urlQuery.get("comparator"));
+                if (urlQuery.containsKey("slice_start"))
+                    slice_start = comparator.fromString(urlQuery.get("slice_start"));
+                if (urlQuery.containsKey("slice_end"))
+                    slice_end = comparator.fromString(urlQuery.get("slice_end"));
+                if (urlQuery.containsKey("reversed"))
+                    slice_reverse = Boolean.parseBoolean(urlQuery.get("reversed"));
+                if (urlQuery.containsKey("limit"))
+                    limit = Integer.parseInt(urlQuery.get("limit"));
+                if (urlQuery.containsKey("allow_deletes"))
+                    allow_deletes = Boolean.parseBoolean(urlQuery.get("allow_deletes"));
+                if (urlQuery.containsKey("widerows"))
+                    widerows = Boolean.parseBoolean(urlQuery.get("widerows"));
+                if (urlQuery.containsKey("use_secondary"))
+                    usePartitionFilter = Boolean.parseBoolean(urlQuery.get("use_secondary"));
+                if (urlQuery.containsKey("split_size"))
+                    splitSize = Integer.parseInt(urlQuery.get("split_size"));
+                if (urlQuery.containsKey("partitioner"))
+                    partitionerClass = urlQuery.get("partitioner");
+            }
+            String[] parts = urlParts[0].split("/+");
+            String[] credentialsAndKeyspace = parts[1].split("@");
+            if (credentialsAndKeyspace.length > 1)
+            {
+                String[] credentials = credentialsAndKeyspace[0].split(":");
+                username = credentials[0];
+                password = credentials[1];
+                keyspace = credentialsAndKeyspace[1];
+            }
+            else
+            {
+                keyspace = parts[1];
+            }
+            column_family = parts[2];
+        }
+        catch (Exception e)
+        {
+            throw new IOException("Expected 'cassandra://[username:password@]<keyspace>/<columnfamily>" +
+            		                        "[?slice_start=<start>&slice_end=<end>[&reversed=true][&limit=1]" +
+            		                        "[&allow_deletes=true][&widerows=true][&use_secondary=true]" +
+            		                        "[&comparator=<comparator>][&split_size=<size>][&partitioner=<partitioner>]]': " + e.getMessage());
+        }
+    }
+
 }
 
