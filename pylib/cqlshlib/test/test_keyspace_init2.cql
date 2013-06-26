@@ -44,6 +44,10 @@ VALUES (3, -2147483648, '''''''', -9223372036854775808, '80', 'false',
         10.0000000000000, -1004.10, 100000000.9, '龍馭鬱', '2038-01-19T03:14-1200',
         ffffffff-ffff-1fff-8fff-ffffffffffff, '''', -10000000000000000000000000);
 
+INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
+                           decimalcol, doublecol, floatcol, textcol,
+                           timestampcol, uuidcol, varcharcol, varintcol)
+VALUES (4, '', '', '', '', '', '', '', '', '', '', '', '', '');
 
 
 CREATE TABLE has_value_encoding_errors (

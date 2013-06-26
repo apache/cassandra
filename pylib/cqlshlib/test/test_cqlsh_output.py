@@ -153,7 +153,7 @@ class TestCqlshOutput(BaseTestCase):
              MMMMM
             -------
 
-                 4
+                 5
                  G
 
             """),
@@ -371,7 +371,7 @@ class TestCqlshOutput(BaseTestCase):
         self.assertCqlverQueriesGiveColoredOutput((
             ('''select intcol, bigintcol, varintcol \
                   from has_all_types \
-                 where num in (0, 1, 2, 3);''', """
+                 where num in (0, 1, 2, 3, 4);''', """
              intcol      | bigintcol            | varintcol
              MMMMMM        MMMMMMMMM              MMMMMMMMM
             -------------+----------------------+-----------------------------
@@ -384,12 +384,12 @@ class TestCqlshOutput(BaseTestCase):
              GGGGGGGGGGG   GGGGGGGGGGGGGGGGGGGG   GGGGGGGGGGGGGGGGGGGGGGGGGGG
              -2147483648 | -9223372036854775808 | -10000000000000000000000000
              GGGGGGGGGGG   GGGGGGGGGGGGGGGGGGGG   GGGGGGGGGGGGGGGGGGGGGGGGGGG
-
+                         |                      |
             """),
 
             ('''select decimalcol, doublecol, floatcol \
                   from has_all_types \
-                 where num in (0, 1, 2, 3);''', """
+                 where num in (0, 1, 2, 3, 4);''', """
              decimalcol       | doublecol | floatcol
              MMMMMMMMMM         MMMMMMMMM   MMMMMMMM
             ------------------+-----------+----------
@@ -402,7 +402,7 @@ class TestCqlshOutput(BaseTestCase):
              GGGGGGGGGGGGGGGG     GGGGGGG      GGGGG
              10.0000000000000 |   -1004.1 |    1e+08
              GGGGGGGGGGGGGGGG     GGGGGGG      GGGGG
-
+                              |           |
             """),
         ), cqlver=(2, 3))
 
