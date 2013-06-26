@@ -127,8 +127,11 @@ public class Scrubber implements Closeable
                 try
                 {
                     key = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(dataFile));
-                    dataSize = dataFile.readLong();
-                    outputHandler.debug(String.format("row %s is %s bytes", ByteBufferUtil.bytesToHex(key.key), dataSize));
+                    if (sstable.descriptor.version.hasRowSizeAndColumnCount)
+                    {
+                        dataSize = dataFile.readLong();
+                        outputHandler.debug(String.format("row %s is %s bytes", ByteBufferUtil.bytesToHex(key.key), dataSize));
+                    }
                 }
                 catch (Throwable th)
                 {
@@ -155,11 +158,23 @@ public class Scrubber implements Closeable
                 long dataStart = dataFile.getFilePointer();
                 long dataStartFromIndex = currentIndexKey == null
                                         ? -1
-                                        : rowStart + 2 + currentIndexKey.remaining() + 8;
+                                        : rowStart + 2 + currentIndexKey.remaining();
+                if (sstable.descriptor.version.hasRowSizeAndColumnCount)
+                    dataStartFromIndex += 8;
                 long dataSizeFromIndex = nextRowPositionFromIndex - dataStartFromIndex;
+
+                if (!sstable.descriptor.version.hasRowSizeAndColumnCount)
+                {
+                    dataSize = dataSizeFromIndex;
+                    outputHandler.debug(String.format("row %s is %s bytes", ByteBufferUtil.bytesToHex(key.key), dataSize));
+                }
+                else
+                {
+                    if (currentIndexKey != null)
+                        outputHandler.debug(String.format("Index doublecheck: row %s is %s bytes", ByteBufferUtil.bytesToHex(currentIndexKey),  dataSizeFromIndex));
+                }
+
                 assert currentIndexKey != null || indexFile.isEOF();
-                if (currentIndexKey != null)
-                    outputHandler.debug(String.format("Index doublecheck: row %s is %s bytes", ByteBufferUtil.bytesToHex(currentIndexKey),  dataSizeFromIndex));
 
                 writer.mark();
                 try
