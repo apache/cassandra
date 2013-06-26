@@ -45,18 +45,20 @@ public class QueryMessage extends Message.Request
         {
             String query = CBUtil.readLongString(body);
             ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
-            int resultPageSize = body.readInt();
-            List<ByteBuffer> values;
-            if (body.readable())
+
+            int resultPageSize = -1;
+            List<ByteBuffer> values = Collections.emptyList();
+
+            if (version >= 2)
             {
-                int paramCount = body.readUnsignedShort();
-                values = paramCount == 0 ? Collections.<ByteBuffer>emptyList() : new ArrayList<ByteBuffer>(paramCount);
-                for (int i = 0; i < paramCount; i++)
-                     values.add(CBUtil.readValue(body));
-            }
-            else
-            {
-                values = Collections.emptyList();
+                resultPageSize = body.readInt();
+                if (body.readable())
+                {
+                    int paramCount = body.readUnsignedShort();
+                    values = paramCount == 0 ? Collections.<ByteBuffer>emptyList() : new ArrayList<ByteBuffer>(paramCount);
+                    for (int i = 0; i < paramCount; i++)
+                        values.add(CBUtil.readValue(body));
+                }
             }
             return new QueryMessage(query, values, consistency, resultPageSize);
         }
@@ -70,16 +72,20 @@ public class QueryMessage extends Message.Request
             //   - Number of values
             //   - The values
             int vs = msg.values.size();
-            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(3 + (vs > 0 ? 1 : 0), 0, vs);
+            assert (msg.resultPageSize == -1 && vs == 0) || version >= 2 : "Version 1 of the protocol support neither a page size nor values";
+
+            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(2 + (version == 1 ? 0 : 1 + (vs > 0 ? 1 : 0)), 0, vs);
             builder.add(CBUtil.longStringToCB(msg.query));
             builder.add(CBUtil.consistencyLevelToCB(msg.consistency));
-            builder.add(CBUtil.intToCB(msg.resultPageSize));
-            if (vs > 0)
+            if (version >= 2)
             {
-                assert version > 1 : "Version 1 of the protocol do not allow values";
-                builder.add(CBUtil.shortToCB(vs));
-                for (ByteBuffer value : msg.values)
-                    builder.addValue(value);
+                builder.add(CBUtil.intToCB(msg.resultPageSize));
+                if (vs > 0)
+                {
+                    builder.add(CBUtil.shortToCB(vs));
+                    for (ByteBuffer value : msg.values)
+                        builder.addValue(value);
+                }
             }
             return builder.build();
         }

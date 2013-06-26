@@ -50,7 +50,10 @@ public class ExecuteMessage extends Message.Request
                 values.add(CBUtil.readValue(body));
 
             ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
-            int resultPageSize = body.readInt();
+
+            int resultPageSize = -1;
+            if (version >= 2)
+                resultPageSize = body.readInt();
             return new ExecuteMessage(id, values, consistency, resultPageSize);
         }
 
@@ -71,7 +74,10 @@ public class ExecuteMessage extends Message.Request
                 builder.addValue(value);
 
             builder.add(CBUtil.consistencyLevelToCB(msg.consistency));
-            builder.add(CBUtil.intToCB(msg.resultPageSize));
+
+            assert msg.resultPageSize == -1 || version >= 2;
+            if (version >= 2)
+                builder.add(CBUtil.intToCB(msg.resultPageSize));
             return builder.build();
         }
     };
