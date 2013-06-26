@@ -515,7 +515,7 @@ public class DefsTest extends SchemaLoader
         CFMetaData meta = cfs.metadata.clone();
         ColumnDefinition cdOld = meta.regularColumns().iterator().next();
         ColumnDefinition cdNew = ColumnDefinition.regularDef(cdOld.name, cdOld.getValidator(), null);
-        meta.columnMetadata(Collections.singletonMap(cdOld.name, cdNew));
+        meta.addOrReplaceColumnDefinition(cdNew);
         MigrationManager.announceColumnFamilyUpdate(meta, false);
 
         // check

@@ -80,7 +80,7 @@ public class AlterTableStatement
             case ALTER:
                 // We only look for the first key alias which is ok for CQL2
                 ColumnDefinition partionKeyDef = cfm.partitionKeyColumns().get(0);
-                if (partionKeyDef != null && partionKeyDef.name.equals(columnName))
+                if (partionKeyDef.name.equals(columnName))
                 {
                     cfm.keyValidator(TypeParser.parse(validator));
                 }

@@ -39,9 +39,6 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
 {
     public static final AbstractType<?> definitionType = UTF8Type.instance;
 
-    private static final String DEFAULT_KEY_ALIAS = "key";
-    private static final String DEFAULT_COLUMN_ALIAS = "column";
-    private static final String DEFAULT_VALUE_ALIAS = "value";
 
     public final CFMetaData cfm;
     // LinkedHashMap because the order does matter (it is the order in the composite type)
@@ -67,7 +64,7 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
         this.hasCompositeKey = cfm.getKeyValidator() instanceof CompositeType;
         for (int i = 0; i < cfm.partitionKeyColumns().size(); ++i)
         {
-            ColumnIdentifier id = getKeyId(cfm, i);
+            ColumnIdentifier id = new ColumnIdentifier(cfm.partitionKeyColumns().get(i).name, definitionType);
             this.keys.put(id, new Name(cfm.ksName, cfm.cfName, id, Name.Kind.KEY_ALIAS, i, cfm.getKeyValidator().getComponents().get(i)));
         }
 
@@ -76,7 +73,7 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
         this.isCompact = cfm.clusteringKeyColumns().size() == cfm.comparator.componentsCount();
         for (int i = 0; i < cfm.clusteringKeyColumns().size(); ++i)
         {
-            ColumnIdentifier id = getColumnId(cfm, i);
+            ColumnIdentifier id = new ColumnIdentifier(cfm.clusteringKeyColumns().get(i).name, definitionType);
             this.columns.put(id, new Name(cfm.ksName, cfm.cfName, id, Name.Kind.COLUMN_ALIAS, i, cfm.comparator.getComponents().get(i)));
         }
 
@@ -95,30 +92,6 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
         }
     }
 
-    private static ColumnIdentifier getKeyId(CFMetaData cfm, int i)
-    {
-        List<ColumnDefinition> definedNames = cfm.partitionKeyColumns();
-        // For compatibility sake, non-composite key default alias is 'key', not 'key1'.
-        return definedNames == null || i >= definedNames.size() || definedNames.get(i) == null
-             ? new ColumnIdentifier(i == 0 ? DEFAULT_KEY_ALIAS : DEFAULT_KEY_ALIAS + (i + 1), false)
-             : new ColumnIdentifier(definedNames.get(i).name, definitionType);
-    }
-
-    private static ColumnIdentifier getColumnId(CFMetaData cfm, int i)
-    {
-        List<ColumnDefinition> definedNames = cfm.clusteringKeyColumns();
-        return definedNames == null || i >= definedNames.size() || definedNames.get(i) == null
-             ? new ColumnIdentifier(DEFAULT_COLUMN_ALIAS + (i + 1), false)
-             : new ColumnIdentifier(definedNames.get(i).name, definitionType);
-    }
-
-    private static ColumnIdentifier getValueId(CFMetaData cfm)
-    {
-        return cfm.compactValueColumn() == null
-             ? new ColumnIdentifier(DEFAULT_VALUE_ALIAS, false)
-             : new ColumnIdentifier(cfm.compactValueColumn().name, definitionType);
-    }
-
     public ColumnToCollectionType getCollectionType()
     {
         if (!hasCollections)
@@ -130,7 +103,7 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
 
     private static Name createValue(CFMetaData cfm)
     {
-        ColumnIdentifier alias = getValueId(cfm);
+        ColumnIdentifier alias = new ColumnIdentifier(cfm.compactValueColumn().name, definitionType);
         // That's how we distinguish between 'no value alias because coming from thrift' and 'I explicitely did not
         // define a value' (see CreateColumnFamilyStatement)
         return alias.key.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER)

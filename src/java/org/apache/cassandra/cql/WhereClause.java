@@ -139,16 +139,7 @@ public class WhereClause
 
     public void extractKeysFromColumns(CFMetaData cfm)
     {
-        String realKeyAlias = null;
-        try
-        {
-            // ThriftValidation ensures that key_alias is ascii
-            realKeyAlias = ByteBufferUtil.string(cfm.getKeyName()).toUpperCase();
-        }
-        catch (CharacterCodingException e)
-        {
-            throw new RuntimeException(e);
-        }
+        String realKeyAlias = cfm.getCQL2KeyName();
 
         if (!keys.isEmpty())
             return; // we already have key(s) set (<key> IN (.., ...) construction used)

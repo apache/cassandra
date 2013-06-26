@@ -315,6 +315,7 @@ public final class KSMetaData
                 // value aliases. But that's what we want (see CFMetaData.fromSchemaNoColumns).
                 cfm.addOrReplaceColumnDefinition(cd);
             }
+            cfm.rebuild();
         }
 
         return cfms;

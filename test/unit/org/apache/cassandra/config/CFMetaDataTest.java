@@ -19,6 +19,7 @@
 package org.apache.cassandra.config;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.HashMap;
 
@@ -118,23 +119,32 @@ public class CFMetaDataTest extends SchemaLoader
         }
     }
 
+    private static CFMetaData withoutThriftIncompatible(CFMetaData cfm)
+    {
+        CFMetaData result = cfm.clone();
+
+        // This is a nasty hack to work around the fact that in thrift we exposes:
+        //   - neither definition with a non-nulll componentIndex
+        //   - nor non REGULAR definitions.
+        Iterator<ColumnDefinition> iter = result.allColumns().iterator();
+        while (iter.hasNext())
+        {
+            ColumnDefinition def = iter.next();
+            // Remove what we know is not thrift compatible
+            if (!def.isThriftCompatible())
+                iter.remove();
+        }
+        return result;
+    }
+
     private void checkInverses(CFMetaData cfm) throws Exception
     {
         DecoratedKey k = StorageService.getPartitioner().decorateKey(ByteBufferUtil.bytes(cfm.ksName));
 
-        // This is a nasty hack to work around the fact that non-null componentIndex
-        // are only used by CQL (so far) so we don't expose them through thrift
-        // There is a CFM with componentIndex defined in Keyspace2 which is used by
-        // ColumnFamilyStoreTest to verify index repair (CASSANDRA-2897)
-        for (ColumnDefinition def: cfm.allColumns())
-        {
-            // Remove what we know is not thrift compatible
-            if (!def.isThriftCompatible())
-                cfm.removeColumnDefinition(def);
-        }
-
         // Test thrift conversion
-        assert cfm.equals(CFMetaData.fromThrift(cfm.toThrift())) : String.format("\n%s\n!=\n%s", cfm, CFMetaData.fromThrift(cfm.toThrift()));
+        CFMetaData before = withoutThriftIncompatible(cfm);
+        CFMetaData after = withoutThriftIncompatible(CFMetaData.fromThrift(before.toThrift()));
+        assert before.equals(after) : String.format("\n%s\n!=\n%s", before, after);
 
         // Test schema conversion
         RowMutation rm = cfm.toSchema(System.currentTimeMillis());

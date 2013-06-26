@@ -24,6 +24,8 @@ import java.util.*;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -105,6 +107,8 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class DefsTable
 {
+    private static final Logger logger = LoggerFactory.getLogger(DefsTable.class);
+
     /* saves keyspace definitions to system schema columnfamilies */
     public static synchronized void save(Collection<KSMetaData> keyspaces)
     {
@@ -341,6 +345,8 @@ public class DefsTable
         assert Schema.instance.getCFMetaData(cfm.ksName, cfm.cfName) == null;
         KSMetaData ksm = Schema.instance.getKSMetaData(cfm.ksName);
         ksm = KSMetaData.cloneWith(ksm, Iterables.concat(ksm.cfMetaData().values(), Collections.singleton(cfm)));
+
+        logger.info("Loading " + cfm);
 
         Schema.instance.load(cfm);
 

@@ -22,6 +22,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -80,7 +81,6 @@ public final class CFMetaData
     public final static int DEFAULT_MIN_COMPACTION_THRESHOLD = 4;
     public final static int DEFAULT_MAX_COMPACTION_THRESHOLD = 32;
     public final static Class<? extends AbstractCompactionStrategy> DEFAULT_COMPACTION_STRATEGY_CLASS = SizeTieredCompactionStrategy.class;
-    public final static ByteBuffer DEFAULT_KEY_NAME = ByteBufferUtil.bytes("KEY");
     public final static Caching DEFAULT_CACHING_STRATEGY = Caching.KEYS_ONLY;
     public final static int DEFAULT_DEFAULT_TIME_TO_LIVE = 0;
     public final static SpeculativeRetry DEFAULT_SPECULATIVE_RETRY = new SpeculativeRetry(SpeculativeRetry.RetryType.NONE, 0);
@@ -381,6 +381,10 @@ public final class CFMetaData
      * clustering key ones, those list are ordered by the "component index" of the
      * elements.
      */
+    public static final String DEFAULT_KEY_ALIAS = "key";
+    public static final String DEFAULT_COLUMN_ALIAS = "column";
+    public static final String DEFAULT_VALUE_ALIAS = "value";
+
     private volatile Map<ByteBuffer, ColumnDefinition> column_metadata = new HashMap<ByteBuffer,ColumnDefinition>();
     private volatile List<ColumnDefinition> partitionKeyColumns;  // Always of size keyValidator.componentsCount, null padded if necessary
     private volatile List<ColumnDefinition> clusteringKeyColumns; // Of size comparator.componentsCount or comparator.componentsCount -1, null padded if necessary
@@ -402,11 +406,11 @@ public final class CFMetaData
     public CFMetaData dcLocalReadRepairChance(double prop) {dcLocalReadRepairChance = prop; return this;}
     public CFMetaData replicateOnWrite(boolean prop) {replicateOnWrite = prop; return this;}
     public CFMetaData gcGraceSeconds(int prop) {gcGraceSeconds = prop; return this;}
-    public CFMetaData defaultValidator(AbstractType<?> prop) {defaultValidator = prop; updateCfDef(); return this;}
-    public CFMetaData keyValidator(AbstractType<?> prop) {keyValidator = prop; updateCfDef(); return this;}
+    public CFMetaData defaultValidator(AbstractType<?> prop) {defaultValidator = prop; return this;}
+    public CFMetaData keyValidator(AbstractType<?> prop) {keyValidator = prop; return this;}
     public CFMetaData minCompactionThreshold(int prop) {minCompactionThreshold = prop; return this;}
     public CFMetaData maxCompactionThreshold(int prop) {maxCompactionThreshold = prop; return this;}
-    public CFMetaData columnMetadata(Map<ByteBuffer,ColumnDefinition> prop) {column_metadata = prop; updateCfDef(); return this;}
+    public CFMetaData columnMetadata(Map<ByteBuffer,ColumnDefinition> prop) {column_metadata = prop; return this;}
     public CFMetaData compactionStrategyClass(Class<? extends AbstractCompactionStrategy> prop) {compactionStrategyClass = prop; return this;}
     public CFMetaData compactionStrategyOptions(Map<String, String> prop) {compactionStrategyOptions = prop; return this;}
     public CFMetaData compressionParameters(CompressionParameters prop) {compressionParameters = prop; return this;}
@@ -439,8 +443,6 @@ public final class CFMetaData
         cfType = type;
         comparator = comp;
         cfId = id;
-
-        updateCfDef(); // init cqlCfDef
     }
 
     public Map<String, Map<String, String>> getTriggers()
@@ -460,7 +462,7 @@ public final class CFMetaData
             CreateColumnFamilyStatement statement = (CreateColumnFamilyStatement) QueryProcessor.parseStatement(cql).prepare().statement;
             CFMetaData cfmd = newSystemMetadata(keyspace, statement.columnFamily(), "", statement.comparator, null);
             statement.applyPropertiesTo(cfmd);
-            return cfmd;
+            return cfmd.rebuild();
         }
         catch (RequestValidationException e)
         {
@@ -524,7 +526,8 @@ public final class CFMetaData
                              .triggers(parent.triggers)
                              .compactionStrategyClass(parent.compactionStrategyClass)
                              .compactionStrategyOptions(parent.compactionStrategyOptions)
-                             .reloadSecondaryIndexMetadata(parent);
+                             .reloadSecondaryIndexMetadata(parent)
+                             .rebuild();
     }
 
     public CFMetaData reloadSecondaryIndexMetadata(CFMetaData parent)
@@ -577,7 +580,8 @@ public final class CFMetaData
                       .memtableFlushPeriod(oldCFMD.memtableFlushPeriod)
                       .populateIoCacheOnFlush(oldCFMD.populateIoCacheOnFlush)
                       .droppedColumns(oldCFMD.droppedColumns)
-                      .triggers(oldCFMD.getTriggers());
+                      .triggers(oldCFMD.getTriggers())
+                      .rebuild();
     }
 
     /**
@@ -662,12 +666,21 @@ public final class CFMetaData
     }
 
     // Used by CQL2 only.
-    public ByteBuffer getKeyName()
+    public String getCQL2KeyName()
     {
         if (partitionKeyColumns.size() > 1)
             throw new IllegalStateException("Cannot acces column family with composite key from CQL < 3.0.0");
 
-        return partitionKeyColumns.get(0) == null ? DEFAULT_KEY_NAME : partitionKeyColumns.get(0).name;
+        try
+        {
+            // For compatibility sake, we uppercase if it's the default alias as we used to return it that way in resultsets.
+            String str = ByteBufferUtil.string(partitionKeyColumns.get(0).name);
+            return str.equalsIgnoreCase(DEFAULT_KEY_ALIAS) ? str.toUpperCase() : str;
+        }
+        catch (CharacterCodingException e)
+        {
+            throw new RuntimeException(e.getMessage(), e);
+        }
     }
 
     public CompressionParameters compressionParameters()
@@ -921,7 +934,7 @@ public final class CFMetaData
                           .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
                           .columnMetadata(ColumnDefinition.fromThrift(cf_def.column_metadata, newCFMD.isSuper()))
                           .compressionParameters(cp)
-                          .updateCfDef();
+                          .rebuild();
         }
         catch (SyntaxException e)
         {
@@ -1012,7 +1025,7 @@ public final class CFMetaData
 
         compressionParameters = cfm.compressionParameters();
 
-        updateCfDef();
+        rebuild();
         logger.debug("application result is {}", this);
     }
 
@@ -1130,7 +1143,7 @@ public final class CFMetaData
         def.setMin_compaction_threshold(minCompactionThreshold);
         def.setMax_compaction_threshold(maxCompactionThreshold);
         // We only return the alias if only one is set since thrift don't know about multiple key aliases
-        if (partitionKeyColumns.size() == 1 && partitionKeyColumns.get(0) != null)
+        if (partitionKeyColumns.size() == 1)
             def.setKey_alias(partitionKeyColumns.get(0).name);
         List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.thrift.ColumnDef>(column_metadata.size());
         for (ColumnDefinition cd : column_metadata.values())
@@ -1273,6 +1286,8 @@ public final class CFMetaData
 
     public CFMetaData validate() throws ConfigurationException
     {
+        rebuild();
+
         if (!isNameValid(ksName))
             throw new ConfigurationException(String.format("Keyspace name must not be empty, more than %s characters long, or contain non-alphanumeric-underscore characters (got \"%s\")", Schema.NAME_LENGTH, ksName));
         if (!isNameValid(cfName))
@@ -1372,16 +1387,13 @@ public final class CFMetaData
 
     private static void validateAlias(ColumnDefinition alias, String msg) throws ConfigurationException
     {
-        if (alias != null)
+        try
         {
-            try
-            {
-                UTF8Type.instance.validate(alias.name);
-            }
-            catch (MarshalException e)
-            {
-                throw new ConfigurationException(msg + " alias must be UTF8");
-            }
+            UTF8Type.instance.validate(alias.name);
+        }
+        catch (MarshalException e)
+        {
+            throw new ConfigurationException(msg + " alias must be UTF8");
         }
     }
 
@@ -1632,7 +1644,6 @@ public final class CFMetaData
             if (!aliases.isEmpty() && aliases.get(0) != null)
                 column_metadata.put(aliases.get(0), new ColumnDefinition(aliases.get(0), comparator, null, type));
         }
-        updateCfDef();
     }
 
     /**
@@ -1661,7 +1672,7 @@ public final class CFMetaData
     {
         List<String> aliases = new ArrayList<String>(rawAliases.size());
         for (ColumnDefinition rawAlias : rawAliases)
-            aliases.add(rawAlias == null ? null : UTF8Type.instance.compose(rawAlias.name));
+            aliases.add(UTF8Type.instance.compose(rawAlias.name));
         return json(aliases);
     }
 
@@ -1669,7 +1680,7 @@ public final class CFMetaData
     {
         List<ByteBuffer> rawAliases = new ArrayList<ByteBuffer>(aliases.size());
         for (String alias : aliases)
-            rawAliases.add(alias == null ? null : UTF8Type.instance.decompose(alias));
+            rawAliases.add(UTF8Type.instance.decompose(alias));
         return rawAliases;
     }
 
@@ -1743,7 +1754,7 @@ public final class CFMetaData
     {
         for (ColumnDefinition cd : ColumnDefinition.fromSchema(serializedColumnDefinitions, cfDef))
             cfDef.column_metadata.put(cd.name, cd);
-        return cfDef.updateCfDef();
+        return cfDef.rebuild();
     }
 
     public void addColumnDefinition(ColumnDefinition def) throws ConfigurationException
@@ -1759,13 +1770,11 @@ public final class CFMetaData
     public void addOrReplaceColumnDefinition(ColumnDefinition def)
     {
         column_metadata.put(def.name, def);
-        updateCfDef();
     }
 
     public boolean removeColumnDefinition(ColumnDefinition def)
     {
         boolean removed = column_metadata.remove(def.name) != null;
-        updateCfDef();
         return removed;
     }
 
@@ -1794,7 +1803,7 @@ public final class CFMetaData
         column_metadata.remove(def.name);
     }
 
-    private CFMetaData updateCfDef()
+    public CFMetaData rebuild()
     {
         /*
          * TODO: There is definitively some repetition between the CQL3  metadata stored in this
@@ -1816,7 +1825,8 @@ public final class CFMetaData
     private void rebuildCQL3Metadata()
     {
         List<ColumnDefinition> pkCols = nullInitializedList(keyValidator.componentsCount());
-        int nbCkCols = isDense(comparator, column_metadata.values())
+        boolean isDense = isDense(comparator, column_metadata.values());
+        int nbCkCols = isDense
                      ? comparator.componentsCount()
                      : comparator.componentsCount() - (hasCollection() ? 2 : 1);
         List<ColumnDefinition> ckCols = nullInitializedList(nbCkCols);
@@ -1839,17 +1849,81 @@ public final class CFMetaData
                     regCols.add(def);
                     break;
                 case COMPACT_VALUE:
-                    assert compactCol == null : "There shouldn't be more than one compact value defined";
+                    assert compactCol == null : "There shouldn't be more than one compact value defined: got " + compactCol + " and " + def;
                     compactCol = def;
                     break;
             }
         }
 
         // Now actually assign the correct value. This is not atomic, but then again, updating CFMetaData is never atomic anyway.
-        partitionKeyColumns = pkCols;
-        clusteringKeyColumns = ckCols;
+        partitionKeyColumns = addDefaultKeyAliases(pkCols);
+        clusteringKeyColumns = addDefaultColumnAliases(ckCols);
         regularColumns = regCols;
-        compactValueColumn = compactCol;
+        compactValueColumn = addDefaultValueAlias(compactCol, isDense);
+    }
+
+    private List<ColumnDefinition> addDefaultKeyAliases(List<ColumnDefinition> pkCols)
+    {
+        for (int i = 0; i < pkCols.size(); i++)
+        {
+            if (pkCols.get(i) == null)
+            {
+                Integer idx = null;
+                AbstractType<?> type = keyValidator;
+                if (keyValidator instanceof CompositeType)
+                {
+                    idx = i;
+                    type = ((CompositeType)keyValidator).types.get(i);
+                }
+                // For compatibility sake, we call the first alias 'key' rather than 'key1'. This
+                // is inconsistent with column alias, but it's probably not worth risking breaking compatibility now.
+                ByteBuffer name = ByteBufferUtil.bytes(i == 0 ? DEFAULT_KEY_ALIAS : DEFAULT_KEY_ALIAS + (i + 1));
+                ColumnDefinition newDef = ColumnDefinition.partitionKeyDef(name, type, idx);
+                column_metadata.put(newDef.name, newDef);
+                pkCols.set(i, newDef);
+            }
+        }
+        return pkCols;
+    }
+
+    private List<ColumnDefinition> addDefaultColumnAliases(List<ColumnDefinition> ckCols)
+    {
+        for (int i = 0; i < ckCols.size(); i++)
+        {
+            if (ckCols.get(i) == null)
+            {
+                Integer idx = null;
+                AbstractType<?> type = comparator;
+                if (comparator instanceof CompositeType)
+                {
+                    idx = i;
+                    type = ((CompositeType)comparator).types.get(i);
+                }
+                ByteBuffer name = ByteBufferUtil.bytes(DEFAULT_COLUMN_ALIAS + (i + 1));
+                ColumnDefinition newDef = ColumnDefinition.clusteringKeyDef(name, type, idx);
+                column_metadata.put(newDef.name, newDef);
+                ckCols.set(i, newDef);
+            }
+        }
+        return ckCols;
+    }
+
+    private ColumnDefinition addDefaultValueAlias(ColumnDefinition compactValueDef, boolean isDense)
+    {
+        if (isDense)
+        {
+            if (compactValueDef != null)
+                return compactValueDef;
+
+            ColumnDefinition newDef = ColumnDefinition.compactValueDef(ByteBufferUtil.bytes(DEFAULT_VALUE_ALIAS), defaultValidator);
+            column_metadata.put(newDef.name, newDef);
+            return newDef;
+        }
+        else
+        {
+            assert compactValueDef == null;
+            return null;
+        }
     }
 
     private boolean hasCollection()
@@ -1871,74 +1945,53 @@ public final class CFMetaData
     private static boolean isDense(AbstractType<?> comparator, Collection<ColumnDefinition> defs)
     {
         /*
-         * This is a bit subtle to compute because of thrift upgrades. A CQL3
-         * CF will have all it's column metadata set up from creation, so
-         * checking isDense should just be looking the ColumnDefinition of
-         * type CLUSTERING_KEY having the biggest componentIndex and comparing that
-         * to comparator.componentsCount.
-         * However, thrift CF will have no or only some (through ALTER RENAME)
-         * metadata set and we still need to make our best effort at finding whether
-         * it is intended as a dense CF or not.
+         * As said above, this method is only here because we need to deal with thrift upgrades.
+         * Once a CF has been "upgraded", i.e. we've rebuilt and save its CQL3 metadata at least once,
+         * then checking for isDense amounts to looking whether the maximum componentIndex for the
+         * CLUSTERING_KEY ColumnDefinitions is equal to comparator.componentsCount() - 1 or not.
+         *
+         * But non-upgraded thrift CF will have no such CLUSTERING_KEY column definitions, so we need
+         * to infer that information without relying on them in that case. And for the most part this is
+         * easy, a CF that has at least one REGULAR definition is not dense. But the subtlety is that not
+         * having a REGULAR definition may not mean dense because of CQL3 definitions that have only the
+         * PRIMARY KEY defined.
+         *
+         * So we need to recognize those special case CQL3 table with only a primary key. If we have some
+         * clustering columns, we're fine as said above. So the only problem is that we cannot decide for
+         * sure if a CF without REGULAR columns nor CLUSTERING_KEY definition is meant to be dense, or if it
+         * has been created in CQL3 by say:
+         *    CREATE TABLE test (k int PRIMARY KEY)
+         * in which case it should not be dense. However, we can limit our margin of error by assuming we are
+         * in the latter case only if the comparator is exactly CompositeType(UTF8Type).
          */
-
-        // First, we compute the number of clustering columns metadata actually defined (and
-        // whether there is some "hole" in the metadata)
-        boolean[] definedClusteringKeys = new boolean[comparator.componentsCount()];
         boolean hasRegular = false;
+        int maxClusteringIdx = -1;
         for (ColumnDefinition def : defs)
         {
             switch (def.type)
             {
                 case CLUSTERING_KEY:
-                    definedClusteringKeys[def.componentIndex == null ? 0 : def.componentIndex] = true;
+                    maxClusteringIdx = Math.max(maxClusteringIdx, def.componentIndex == null ? 0 : def.componentIndex);
                     break;
                 case REGULAR:
                     hasRegular = true;
                     break;
             }
         }
-        boolean hasNulls = false;
-        int maxIdx = -1;
-        for (int i = definedClusteringKeys.length - 1; i >= 0; i--)
-        {
-            if (maxIdx == -1)
-            {
-                if (definedClusteringKeys[i])
-                    maxIdx = i;
-            }
-            else
-            {
-                if (!definedClusteringKeys[i])
-                    hasNulls = true;
-            }
-        }
 
-        if (comparator instanceof CompositeType)
-        {
-            List<AbstractType<?>> types = ((CompositeType)comparator).types;
-            /*
-             * There was no real way to define a non-dense composite CF in thrift (the ColumnDefinition.componentIndex
-             * is not exposed), so consider dense anything that don't look like a CQL3 created CF.
-             *
-             * Note that this is not perfect: if someone upgrading from thrift "renames" all but
-             * the last column alias, the cf will be considered "sparse" and he will be stuck with
-             * that even though that might not be what he wants. But the simple workaround is
-             * for that user to rename all the aliases at the same time in the first place.
-             */
-            AbstractType<?> lastType = types.get(types.size() - 1);
-            if (lastType instanceof ColumnToCollectionType)
-                return false;
+        return maxClusteringIdx >= 0
+             ? maxClusteringIdx == comparator.componentsCount() - 1
+             : !hasRegular && !isCQL3OnlyPKComparator(comparator);
 
-            return !(maxIdx == types.size() - 2 && lastType instanceof UTF8Type && !hasNulls);
-        }
-        else
-        {
-            /*
-             * For non-composite, we only need to "detect" case where the CF is clearly used as static.
-             * For that, just check if we have regular columns metadata sets up and no defined clustering key.
-             */
-            return !(hasRegular && maxIdx == -1);
-        }
+    }
+
+    private static boolean isCQL3OnlyPKComparator(AbstractType<?> comparator)
+    {
+        if (!(comparator instanceof CompositeType))
+            return false;
+
+        CompositeType ct = (CompositeType)comparator;
+        return ct.types.size() == 1 && ct.types.get(0) instanceof UTF8Type;
     }
 
     private static <T> List<T> nullInitializedList(int size)
@@ -1950,9 +2003,7 @@ public final class CFMetaData
     }
 
     /**
-     * Returns whether this CFMetaData can be fully translated to a thrift
-     * definition, i.e. if it doesn't store information that have an equivalent
-     * in thrift CfDef.
+     * Returns whether this CFMetaData can be returned to thrift.
      */
     public boolean isThriftCompatible()
     {
@@ -1963,7 +2014,9 @@ public final class CFMetaData
 
         for (ColumnDefinition def : column_metadata.values())
         {
-            if (!def.isThriftCompatible())
+            // Non-REGULAR ColumnDefinition are not "thrift compatible" per-se, but it's ok because they hold metadata
+            // this is only of use to CQL3, so we will just skip them in toThrift.
+            if (def.type == ColumnDefinition.Type.REGULAR && !def.isThriftCompatible())
                 return false;
         }
         return true;

@@ -51,7 +51,6 @@ public class ColumnDefinition
      * Note that thrift/CQL2 only know about definitions of type REGULAR (and
      * the ones whose componentIndex == null).
      */
-
     public enum Type
     {
         PARTITION_KEY,
@@ -265,6 +264,10 @@ public class ColumnDefinition
                 String index_name = null;
                 Integer componentIndex = null;
 
+                Type type = result.has("type")
+                          ? Enum.valueOf(Type.class, result.getString("type").toUpperCase())
+                          : Type.REGULAR;
+
                 if (result.has("index_type"))
                     index_type = IndexType.valueOf(result.getString("index_type"));
                 if (result.has("index_options"))
@@ -274,12 +277,9 @@ public class ColumnDefinition
                 if (result.has("component_index"))
                     componentIndex = result.getInt("component_index");
                 // A ColumnDefinition for super columns applies to the column component
-                else if (cfm.isSuper())
+                else if (type == Type.CLUSTERING_KEY && cfm.isSuper())
                     componentIndex = 1;
 
-                Type type = result.has("type")
-                          ? Enum.valueOf(Type.class, result.getString("type").toUpperCase())
-                          : Type.REGULAR;
 
                 cds.add(new ColumnDefinition(cfm.getComponentComparator(componentIndex, type).fromString(result.getString("column_name")),
                                              TypeParser.parse(result.getString("validator")),

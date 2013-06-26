@@ -64,6 +64,7 @@
  * Conditional create/drop ks/table/index statements in CQL3 (CASSANDRA-2737)
  * more pre-table creation property validation (CASSANDRA-5693)
  * Redesign repair messages (CASSANDRA-5426)
+ * Fix ALTER RENAME post-5125 (CASSANDRA-5702)
 
 
 1.2.7

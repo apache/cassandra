@@ -69,7 +69,7 @@ public class QueryProcessor
 
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
 
-    public static final String DEFAULT_KEY_NAME = bufferToString(CFMetaData.DEFAULT_KEY_NAME);
+    public static final String DEFAULT_KEY_NAME = CFMetaData.DEFAULT_KEY_ALIAS.toUpperCase();
 
     private static List<org.apache.cassandra.db.Row> getSlice(CFMetaData metadata, SelectStatement select, List<ByteBuffer> variables, long now)
     throws InvalidRequestException, ReadTimeoutException, UnavailableException, IsBootstrappingException, WriteTimeoutException
@@ -117,7 +117,7 @@ public class QueryProcessor
     private static SortedSet<ByteBuffer> getColumnNames(SelectStatement select, CFMetaData metadata, List<ByteBuffer> variables)
     throws InvalidRequestException
     {
-        String keyString = getKeyString(metadata);
+        String keyString = metadata.getCQL2KeyName();
         List<Term> selectColumnNames = select.getColumnNames();
         SortedSet<ByteBuffer> columnNames = new TreeSet<ByteBuffer>(metadata.comparator);
         for (Term column : selectColumnNames)
@@ -270,7 +270,7 @@ public class QueryProcessor
     public static void validateKeyAlias(CFMetaData cfm, String key) throws InvalidRequestException
     {
         assert key.toUpperCase().equals(key); // should always be uppercased by caller
-        String realKeyAlias = bufferToString(cfm.getKeyName()).toUpperCase();
+        String realKeyAlias = cfm.getCQL2KeyName();
         if (!realKeyAlias.equals(key))
             throw new InvalidRequestException(String.format("Expected key '%s' to be present in WHERE clause for '%s'", realKeyAlias, cfm.cfName));
     }
@@ -422,9 +422,10 @@ public class QueryProcessor
                         if (select.isFullWildcard())
                         {
                             // prepend key
-                            thriftColumns.add(new Column(metadata.getKeyName()).setValue(row.key.key).setTimestamp(-1));
-                            result.schema.name_types.put(metadata.getKeyName(), TypeParser.getShortName(AsciiType.instance));
-                            result.schema.value_types.put(metadata.getKeyName(), TypeParser.getShortName(metadata.getKeyValidator()));
+                            ByteBuffer keyName = ByteBufferUtil.bytes(metadata.getCQL2KeyName());
+                            thriftColumns.add(new Column(keyName).setValue(row.key.key).setTimestamp(-1));
+                            result.schema.name_types.put(keyName, TypeParser.getShortName(AsciiType.instance));
+                            result.schema.value_types.put(keyName, TypeParser.getShortName(metadata.getKeyValidator()));
                         }
 
                         // preserve comparator order
@@ -445,7 +446,7 @@ public class QueryProcessor
                     }
                     else
                     {
-                        String keyString = getKeyString(metadata);
+                        String keyString = metadata.getCQL2KeyName();
 
                         // order columns in the order they were asked for
                         for (Term term : select.getColumnNames())
@@ -814,20 +815,6 @@ public class QueryProcessor
                            ? ByteBufferUtil.bytes(CounterContext.instance().total(c.value()))
                            : c.value();
         return new Column(c.name()).setValue(value).setTimestamp(c.timestamp());
-    }
-
-    private static String getKeyString(CFMetaData metadata)
-    {
-        String keyString;
-        try
-        {
-            keyString = ByteBufferUtil.string(metadata.getKeyName());
-        }
-        catch (CharacterCodingException e)
-        {
-            throw new AssertionError(e);
-        }
-        return keyString;
     }
 
     private static CQLStatement getStatement(String queryStr) throws SyntaxException
