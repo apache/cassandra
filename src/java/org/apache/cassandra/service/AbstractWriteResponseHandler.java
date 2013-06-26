@@ -100,7 +100,7 @@ public abstract class AbstractWriteResponseHandler implements IAsyncCallback
 
     protected void signal()
     {
-        condition.signal();
+        condition.signalAll();
         if (callback != null)
             callback.run();
     }

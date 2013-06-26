@@ -117,7 +117,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
               : received.get();
         if (n >= blockfor && resolver.isDataPresent())
         {
-            condition.signal();
+            condition.signalAll();
             maybeResolveForRepair();
         }
     }

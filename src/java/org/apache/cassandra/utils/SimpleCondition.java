@@ -51,10 +51,9 @@ public class SimpleCondition implements Condition
         return set;
     }
 
-    public synchronized void signal()
+    public void signal()
     {
-        set = true;
-        notify();
+        throw new UnsupportedOperationException();
     }
 
     public synchronized void signalAll()

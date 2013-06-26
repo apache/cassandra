@@ -195,7 +195,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
         private class DeserializedColumnIterator implements OnDiskAtomIterator
         {
             private final Row row;
-            private Iterator<Column> iter;
+            private final Iterator<Column> iter;
 
             public DeserializedColumnIterator(Row row)
             {
@@ -236,7 +236,6 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
     {
         private final LinkedBlockingQueue<RowContainer> queue = new LinkedBlockingQueue<RowContainer>(1);
         private static final RowContainer finished = new RowContainer((Row) null);
-        private Condition condition;
         private final ICompactionScanner scanner;
 
         public Deserializer(ICompactionScanner ssts, final int maxInMemorySize)
@@ -246,11 +245,14 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
             {
                 protected void runMayThrow() throws Exception
                 {
+                    SimpleCondition condition = null;
                     while (true)
                     {
                         if (condition != null)
+                        {
                             condition.await();
-
+                            condition = null;
+                        }
                         if (!scanner.hasNext())
                         {
                             queue.put(finished);
@@ -260,13 +262,13 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
                         SSTableIdentityIterator iter = (SSTableIdentityIterator) scanner.next();
                         if (iter.dataSize > maxInMemorySize)
                         {
-                            logger.debug("parallel lazy deserialize from " + iter.getPath());
+                            logger.debug("parallel lazy deserialize from {}", iter.getPath());
                             condition = new SimpleCondition();
                             queue.put(new RowContainer(new NotifyingSSTableIdentityIterator(iter, condition)));
                         }
                         else
                         {
-                            logger.debug("parallel eager deserialize from " + iter.getPath());
+                            logger.debug("parallel eager deserialize from {}", iter.getPath());
                             queue.put(new RowContainer(new Row(iter.getKey(), iter.getColumnFamilyWithColumns(ArrayBackedSortedColumns.factory))));
                         }
                     }
@@ -301,9 +303,9 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
     private static class NotifyingSSTableIdentityIterator implements OnDiskAtomIterator
     {
         private final SSTableIdentityIterator wrapped;
-        private final Condition condition;
+        private final SimpleCondition condition;
 
-        public NotifyingSSTableIdentityIterator(SSTableIdentityIterator wrapped, Condition condition)
+        public NotifyingSSTableIdentityIterator(SSTableIdentityIterator wrapped, SimpleCondition condition)
         {
             this.wrapped = wrapped;
             this.condition = condition;
@@ -321,8 +323,14 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
         public void close() throws IOException
         {
-            wrapped.close();
-            condition.signal();
+            try
+            {
+                wrapped.close();
+            }
+            finally
+            {
+                condition.signalAll();
+            }
         }
 
         public boolean hasNext()

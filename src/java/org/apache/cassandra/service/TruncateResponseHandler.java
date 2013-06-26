@@ -70,7 +70,7 @@ public class TruncateResponseHandler implements IAsyncCallback
     {
         responses.incrementAndGet();
         if (responses.get() >= responseCount)
-            condition.signal();
+            condition.signalAll();
     }
 
     public boolean isLatencyForSnitch()
