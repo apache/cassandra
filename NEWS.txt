@@ -8,7 +8,11 @@ upgrade, just in case you need to roll back to the previous version.
 (Cassandra version X + 1 will always be able to read data files created
 by version X, but the inverse is not necessarily the case.)
 
-<<<<<<< HEAD
+When upgrading major versions of Cassandra, you will be unable to
+restore snapshots created with the previous major version using the
+'sstableloader' tool. You can upgrade the file format of your snapshots
+using the provided 'sstableupgrade' tool.
+
 2.0.0
 =====
 
@@ -67,14 +71,6 @@ Features
       API."
 
 
-||||||| merged common ancestors
-=======
-When upgrading major versions of Cassandra, you will be unable to
-restore snapshots created with the previous major version using the
-'sstableloader' tool. You can upgrade the file format of your snapshots
-using the provided 'sstableupgrade' tool.
-
->>>>>>> cassandra-1.2
 1.2.6
 =====
 
