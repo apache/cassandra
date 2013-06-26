@@ -150,8 +150,8 @@ public class VersionedValue implements Comparable<VersionedValue>
         public VersionedValue left(Collection<Token> tokens, long expireTime)
         {
             return new VersionedValue(versionString(VersionedValue.STATUS_LEFT,
-                                                    Long.toString(expireTime),
-                                                    makeTokenString(tokens)));
+                                                    makeTokenString(tokens),
+                                                    Long.toString(expireTime)));
         }
 
         public VersionedValue moving(Token token)
