@@ -218,22 +218,40 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
 
         private RowIterator()
         {
+            CfDef cfDef = new CfDef();
             try
             {
-                partitioner = FBUtilities.newPartitioner(client.describe_partitioner());
+                partitioner = FBUtilities.newPartitioner(client.describe_partitioner());           
+                // get CF meta data
+                String query = "SELECT comparator," +
+                               "       subcomparator," +
+                               "       type " +
+                               "FROM system.schema_columnfamilies " +
+                               "WHERE keyspace_name = '%s' " +
+                               "  AND columnfamily_name = '%s' ";
 
-                // Get the Keyspace metadata, then get the specific CF metadata
-                // in order to populate the sub/comparator.
-                KsDef ks_def = client.describe_keyspace(keyspace);
-                List<String> cfnames = new ArrayList<String>(ks_def.cf_defs.size());
-                for (CfDef cfd : ks_def.cf_defs)
-                    cfnames.add(cfd.name);
-                int idx = cfnames.indexOf(cfName);
-                CfDef cf_def = ks_def.cf_defs.get(idx);
+                CqlResult result = client.execute_cql3_query(
+                                        ByteBufferUtil.bytes(String.format(query, keyspace, cfName)),
+                                        Compression.NONE,
+                                        ConsistencyLevel.ONE);
 
-                isSuper = cf_def.column_type.equals("Super");
-                comparator = TypeParser.parse(cf_def.comparator_type);
-                subComparator = cf_def.subcomparator_type == null ? null : TypeParser.parse(cf_def.subcomparator_type);
+                Iterator<CqlRow> iteraRow = result.rows.iterator();
+
+                if (iteraRow.hasNext())
+                {
+                    CqlRow cqlRow = iteraRow.next();
+                    cfDef.comparator_type = ByteBufferUtil.string(cqlRow.columns.get(0).value);
+                    ByteBuffer subComparator = cqlRow.columns.get(1).value;
+                    if (subComparator != null)
+                        cfDef.subcomparator_type = ByteBufferUtil.string(subComparator);
+                    
+                    ByteBuffer type = cqlRow.columns.get(2).value;
+                    if (type != null)
+                        cfDef.column_type = ByteBufferUtil.string(type);
+                }
+
+                comparator = TypeParser.parse(cfDef.comparator_type);
+                subComparator = cfDef.subcomparator_type == null ? null : TypeParser.parse(cfDef.subcomparator_type);
             }
             catch (ConfigurationException e)
             {
@@ -247,6 +265,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             {
                 throw new RuntimeException("unable to load keyspace " + keyspace, e);
             }
+            isSuper = "Super".equalsIgnoreCase(cfDef.column_type);
         }
 
         /**
