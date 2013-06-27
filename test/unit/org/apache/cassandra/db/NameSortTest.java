@@ -56,7 +56,7 @@ public class NameSortTest extends SchemaLoader
 
     private void testNameSort(int N) throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open("Keyspace1");
+        Keyspace keyspace = Keyspace.open("Keyspace1");
 
         for (int i = 0; i < N; ++i)
         {
@@ -85,21 +85,21 @@ public class NameSortTest extends SchemaLoader
             }
         }
 
-        validateNameSort(table, N);
+        validateNameSort(keyspace, N);
 
-        table.getColumnFamilyStore("Standard1").forceBlockingFlush();
-        table.getColumnFamilyStore("Super1").forceBlockingFlush();
-        validateNameSort(table, N);
+        keyspace.getColumnFamilyStore("Standard1").forceBlockingFlush();
+        keyspace.getColumnFamilyStore("Super1").forceBlockingFlush();
+        validateNameSort(keyspace, N);
     }
 
-    private void validateNameSort(Table table, int N) throws IOException
+    private void validateNameSort(Keyspace keyspace, int N) throws IOException
     {
         for (int i = 0; i < N; ++i)
         {
             DecoratedKey key = Util.dk(Integer.toString(i));
             ColumnFamily cf;
 
-            cf = Util.getColumnFamily(table, key, "Standard1");
+            cf = Util.getColumnFamily(keyspace, key, "Standard1");
             Collection<Column> columns = cf.getSortedColumns();
             for (Column column : columns)
             {

@@ -30,7 +30,7 @@ public class AntiEntropyServiceStandardTest extends AntiEntropyServiceTestAbstra
 {
     public void init()
     {
-        tablename = "Keyspace5";
+        keyspaceName = "Keyspace5";
         cfname    = "Standard1";
     }
 
@@ -38,7 +38,7 @@ public class AntiEntropyServiceStandardTest extends AntiEntropyServiceTestAbstra
     {
         List<IMutation> rms = new LinkedList<IMutation>();
         RowMutation rm;
-        rm = new RowMutation(tablename, ByteBufferUtil.bytes("key1"));
+        rm = new RowMutation(keyspaceName, ByteBufferUtil.bytes("key1"));
         rm.add(cfname, ByteBufferUtil.bytes("Column1"), ByteBufferUtil.bytes("asdfasdf"), 0);
         rms.add(rm);
         return rms;

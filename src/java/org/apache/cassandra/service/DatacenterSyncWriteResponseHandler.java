@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.net.MessageIn;
@@ -44,15 +44,15 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
     public DatacenterSyncWriteResponseHandler(Collection<InetAddress> naturalEndpoints,
                                               Collection<InetAddress> pendingEndpoints,
                                               ConsistencyLevel consistencyLevel,
-                                              Table table,
+                                              Keyspace keyspace,
                                               Runnable callback,
                                               WriteType writeType)
     {
         // Response is been managed by the map so make it 1 for the superclass.
-        super(table, naturalEndpoints, pendingEndpoints, consistencyLevel, callback, writeType);
+        super(keyspace, naturalEndpoints, pendingEndpoints, consistencyLevel, callback, writeType);
         assert consistencyLevel == ConsistencyLevel.EACH_QUORUM;
 
-        strategy = (NetworkTopologyStrategy) table.getReplicationStrategy();
+        strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
 
         for (String dc : strategy.getDatacenters())
         {

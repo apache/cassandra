@@ -197,7 +197,7 @@ public class ColumnDefinition
      */
     public void deleteFromSchema(RowMutation rm, String cfName, AbstractType<?> comparator, long timestamp)
     {
-        ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_COLUMNS_CF);
+        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_COLUMNS_CF);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
         ColumnNameBuilder builder = CFMetaData.SchemaColumnsCf.getCfDef().getColumnNameBuilder();
@@ -207,7 +207,7 @@ public class ColumnDefinition
 
     public void toSchema(RowMutation rm, String cfName, AbstractType<?> comparator, long timestamp)
     {
-        ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_COLUMNS_CF);
+        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_COLUMNS_CF);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
         cf.addColumn(Column.create("", timestamp, cfName, comparator.getString(name), ""));
@@ -300,11 +300,11 @@ public class ColumnDefinition
 
     public static Row readSchema(String ksName, String cfName)
     {
-        DecoratedKey key = StorageService.getPartitioner().decorateKey(SystemTable.getSchemaKSKey(ksName));
-        ColumnFamilyStore columnsStore = SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNS_CF);
+        DecoratedKey key = StorageService.getPartitioner().decorateKey(SystemKeyspace.getSchemaKSKey(ksName));
+        ColumnFamilyStore columnsStore = SystemKeyspace.schemaCFS(SystemKeyspace.SCHEMA_COLUMNS_CF);
         ColumnFamily cf = columnsStore.getColumnFamily(key,
-                                                       DefsTable.searchComposite(cfName, true),
-                                                       DefsTable.searchComposite(cfName, false),
+                                                       DefsTables.searchComposite(cfName, true),
+                                                       DefsTables.searchComposite(cfName, false),
                                                        false,
                                                        Integer.MAX_VALUE,
                                                        System.currentTimeMillis());

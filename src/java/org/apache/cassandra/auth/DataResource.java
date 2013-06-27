@@ -202,7 +202,7 @@ public class DataResource implements IResource
             case ROOT:
                 return true;
             case KEYSPACE:
-                return Schema.instance.getTables().contains(keyspace);
+                return Schema.instance.getKeyspaces().contains(keyspace);
             case COLUMN_FAMILY:
                 return Schema.instance.getCFMetaData(keyspace, columnFamily) != null;
         }

@@ -39,15 +39,15 @@ public class SSTableSimpleWriterTest extends SchemaLoader
         final int INC = 5;
         final int NBCOL = 10;
 
-        String tablename = "Keyspace1";
+        String keyspaceName = "Keyspace1";
         String cfname = "StandardInteger1";
 
-        Table t = Table.open(tablename); // make sure we create the directory
-        File dir = Directories.create(tablename, cfname).getDirectoryForNewSSTables(0);
+        Keyspace t = Keyspace.open(keyspaceName); // make sure we create the directory
+        File dir = Directories.create(keyspaceName, cfname).getDirectoryForNewSSTables(0);
         assert dir.exists();
 
         IPartitioner partitioner = StorageService.getPartitioner();
-        SSTableSimpleUnsortedWriter writer = new SSTableSimpleUnsortedWriter(dir, partitioner, tablename, cfname, IntegerType.instance, null, 16);
+        SSTableSimpleUnsortedWriter writer = new SSTableSimpleUnsortedWriter(dir, partitioner, keyspaceName, cfname, IntegerType.instance, null, 16);
 
         int k = 0;
 

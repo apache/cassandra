@@ -75,7 +75,7 @@ public class NamesQueryPager implements SinglePartitionPager
 
         queried = true;
         return localQuery
-             ? Collections.singletonList(command.getRow(Table.open(command.table)))
+             ? Collections.singletonList(command.getRow(Keyspace.open(command.ksName)))
              : StorageProxy.read(Collections.<ReadCommand>singletonList(command), consistencyLevel);
     }
 

@@ -18,7 +18,7 @@
 package org.apache.cassandra.repair;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
@@ -43,7 +43,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
             case VALIDATION_REQUEST:
                 ValidationRequest validationRequest = (ValidationRequest) message.payload;
                 // trigger read-only compaction
-                ColumnFamilyStore store = Table.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily);
+                ColumnFamilyStore store = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily);
                 Validator validator = new Validator(desc, message.from, validationRequest.gcBefore);
                 CompactionManager.instance.submitValidation(store, validator);
                 break;

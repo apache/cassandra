@@ -38,7 +38,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionInfo.Holder;
 import org.apache.cassandra.db.index.SecondaryIndexBuilder;
 import org.apache.cassandra.dht.Bounds;
@@ -137,12 +137,12 @@ public class CompactionManager implements CompactionManagerMBean
         if (count > 0 && executor.getActiveCount() >= executor.getMaximumPoolSize())
         {
             logger.debug("Background compaction is still running for {}.{} ({} remaining). Skipping",
-                         cfs.table.getName(), cfs.name, count);
+                         cfs.keyspace.getName(), cfs.name, count);
             return Collections.emptyList();
         }
 
         logger.debug("Scheduling a background task check for {}.{} with {}",
-                     cfs.table.getName(),
+                     cfs.keyspace.getName(),
                      cfs.name,
                      cfs.getCompactionStrategy().getClass().getSimpleName());
         List<Future<?>> futures = new ArrayList<Future<?>>();
@@ -180,7 +180,7 @@ public class CompactionManager implements CompactionManagerMBean
         {
             try
             {
-                logger.debug("Checking {}.{}", cfs.table.getName(), cfs.name);
+                logger.debug("Checking {}.{}", cfs.keyspace.getName(), cfs.name);
                 if (!cfs.isValid())
                 {
                     logger.debug("Aborting compaction for dropped CF");
@@ -322,7 +322,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         for (Pair<String, String> key : descriptors.keySet())
         {
-            ColumnFamilyStore cfs = Table.open(key.left).getColumnFamilyStore(key.right);
+            ColumnFamilyStore cfs = Keyspace.open(key.left).getColumnFamilyStore(key.right);
             submitUserDefined(cfs, descriptors.get(key), getDefaultGcBefore(cfs));
         }
     }
@@ -409,9 +409,9 @@ public class CompactionManager implements CompactionManagerMBean
     /* Used in tests. */
     public void disableAutoCompaction()
     {
-        for (String ksname : Schema.instance.getNonSystemTables())
+        for (String ksname : Schema.instance.getNonSystemKeyspaces())
         {
-            for (ColumnFamilyStore cfs : Table.open(ksname).getColumnFamilyStores())
+            for (ColumnFamilyStore cfs : Keyspace.open(ksname).getColumnFamilyStores())
                 cfs.disableAutoCompaction();
         }
     }
@@ -464,8 +464,8 @@ public class CompactionManager implements CompactionManagerMBean
     private void doCleanupCompaction(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, CounterId.OneShotRenewer renewer) throws IOException
     {
         assert !cfs.isIndex();
-        Table table = cfs.table;
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(table.getName());
+        Keyspace keyspace = cfs.keyspace;
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspace.getName());
         if (ranges.isEmpty())
         {
             logger.info("Cleanup cannot run before a node has joined the ring");
@@ -549,14 +549,14 @@ public class CompactionManager implements CompactionManagerMBean
                             if (indexedColumnsInRow != null && !indexedColumnsInRow.isEmpty())
                             {
                                 // acquire memtable lock here because secondary index deletion may cause a race. See CASSANDRA-3712
-                                Table.switchLock.readLock().lock();
+                                Keyspace.switchLock.readLock().lock();
                                 try
                                 {
                                     cfs.indexManager.deleteFromIndexes(row.getKey(), indexedColumnsInRow);
                                 }
                                 finally
                                 {
-                                    Table.switchLock.readLock().unlock();
+                                    Keyspace.switchLock.readLock().unlock();
                                 }
                             }
                         }
@@ -643,7 +643,7 @@ public class CompactionManager implements CompactionManagerMBean
         else
         {
             // flush first so everyone is validating data that is as similar as possible
-            StorageService.instance.forceTableFlush(cfs.table.getName(), cfs.name);
+            StorageService.instance.forceKeyspaceFlush(cfs.keyspace.getName(), cfs.name);
 
             // we don't mark validating sstables as compacting in DataTracker, so we have to mark them referenced
             // instead so they won't be cleaned up if they do get compacted during the validation
@@ -674,8 +674,8 @@ public class CompactionManager implements CompactionManagerMBean
         {
             SSTableReader.releaseReferences(sstables);
             iter.close();
-            if (cfs.table.snapshotExists(snapshotName))
-                cfs.table.clearSnapshot(snapshotName);
+            if (cfs.keyspace.snapshotExists(snapshotName))
+                cfs.keyspace.clearSnapshot(snapshotName);
 
             metrics.finishCompaction(ci);
         }

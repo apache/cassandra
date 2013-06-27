@@ -40,8 +40,8 @@ public class ReadVerbHandler implements IVerbHandler<ReadCommand>
         }
 
         ReadCommand command = message.payload;
-        Table table = Table.open(command.table);
-        Row row = command.getRow(table);
+        Keyspace keyspace = Keyspace.open(command.ksName);
+        Row row = command.getRow(keyspace);
 
         MessageOut<ReadResponse> reply = new MessageOut<ReadResponse>(MessagingService.Verb.REQUEST_RESPONSE,
                                                                       getResponse(command, row),

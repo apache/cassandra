@@ -35,7 +35,7 @@ public class SnappyCompressor implements ICompressor
     static
     {
         if (!isAvailable())
-            logger.warn("Cannot initialize native Snappy library. Compression on new tables will be disabled.");
+            logger.warn("Cannot initialize native Snappy library. Compression on new sstables will be disabled.");
     }
 
     public static SnappyCompressor create(Map<String, String> compressionOptions)

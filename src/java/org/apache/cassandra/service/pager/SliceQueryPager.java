@@ -42,7 +42,7 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
     // Don't use directly, use QueryPagers method instead
     SliceQueryPager(SliceFromReadCommand command, ConsistencyLevel consistencyLevel, boolean localQuery)
     {
-        super(consistencyLevel, command.filter.count, localQuery, command.table, command.cfName, command.filter, command.timestamp);
+        super(consistencyLevel, command.filter.count, localQuery, command.ksName, command.cfName, command.filter, command.timestamp);
         this.command = command;
     }
 
@@ -55,7 +55,7 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
 
         ReadCommand pageCmd = command.withUpdatedFilter(filter);
         return localQuery
-             ? Collections.singletonList(pageCmd.getRow(Table.open(command.table)))
+             ? Collections.singletonList(pageCmd.getRow(Keyspace.open(command.ksName)))
              : StorageProxy.read(Collections.singletonList(pageCmd), consistencyLevel);
     }
 

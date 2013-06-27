@@ -72,7 +72,7 @@ public class LegacyLeveledManifest
     /**
      * We need to migrate if there is a legacy leveledmanifest json-file
      * <p/>
-     * If there is no jsonfile, we can just start as normally, sstable level will be at 0 for all tables.
+     * If there is no jsonfile, we can just start as normally, sstable level will be at 0 for all sstables.
      *
      * @param keyspace
      * @param columnFamily

@@ -30,7 +30,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.RowPosition;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -187,12 +187,12 @@ public class StreamSession implements Runnable, IEndpointStateChangeSubscriber, 
         // if columnfamilies are not specified, we add all cf under the keyspace
         if (columnFamilies.isEmpty())
         {
-            stores.addAll(Table.open(keyspace).getColumnFamilyStores());
+            stores.addAll(Keyspace.open(keyspace).getColumnFamilyStores());
         }
         else
         {
             for (String cf : columnFamilies)
-                stores.add(Table.open(keyspace).getColumnFamilyStore(cf));
+                stores.add(Keyspace.open(keyspace).getColumnFamilyStore(cf));
         }
 
         if (flushTables)

@@ -86,7 +86,7 @@ public class QueryPagerTest extends SchemaLoader
 
     private static ColumnFamilyStore cfs()
     {
-        return Table.open(KS).getColumnFamilyStore(CF);
+        return Keyspace.open(KS).getColumnFamilyStore(CF);
     }
 
     private static String toString(List<Row> rows)

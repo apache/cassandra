@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
@@ -74,7 +74,7 @@ class RangeTransfer implements Runnable
 
     public void run()
     {
-        UntypedResultSet res = processInternal("SELECT * FROM system." + SystemTable.RANGE_XFERS_CF);
+        UntypedResultSet res = processInternal("SELECT * FROM system." + SystemKeyspace.RANGE_XFERS_CF);
 
         if (res.size() < 1)
         {
@@ -104,7 +104,7 @@ class RangeTransfer implements Runnable
         {
             LOG.debug("Removing queued entry for transfer of {}", token);
             processInternal(String.format("DELETE FROM system.%s WHERE token_bytes = '%s'",
-                                          SystemTable.RANGE_XFERS_CF,
+                                          SystemKeyspace.RANGE_XFERS_CF,
                                           ByteBufferUtil.bytesToHex(tokenBytes)));
         }
     }

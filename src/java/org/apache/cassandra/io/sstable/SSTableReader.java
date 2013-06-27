@@ -61,7 +61,7 @@ import org.apache.cassandra.utils.*;
 import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR;
 
 /**
- * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
+ * SSTableReaders are open()ed by Keyspace.onStart; after that they are created by SSTableWriter.renameAndOpen.
  * Do not re-call open() on existing SSTable files; use the references kept by ColumnFamilyStore post-start instead.
  */
 public class SSTableReader extends SSTable
@@ -79,7 +79,7 @@ public class SSTableReader extends SSTable
      * The field is not serialized to disk, so relying on it for more than what truncate does is not advised.
      *
      * When a new sstable is flushed, maxDataAge is set to the time of creation.
-     * When a sstable is created from compaction, maxDataAge is set to max of all merged tables.
+     * When a sstable is created from compaction, maxDataAge is set to max of all merged sstables.
      *
      * The age is in milliseconds since epoc and is local to this host.
      */

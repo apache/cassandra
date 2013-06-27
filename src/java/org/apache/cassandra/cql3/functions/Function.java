@@ -36,7 +36,7 @@ public interface Function
 
     public interface Factory
     {
-        // We allow the function to be parametered by the table it is part of because the
+        // We allow the function to be parametered by the keyspace it is part of because the
         // "token" function needs it (the argument depends on the keyValidator). However,
         // for most function, the factory will just always the same function object (see
         // AbstractFunction).

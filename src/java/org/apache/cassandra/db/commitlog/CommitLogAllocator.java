@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
@@ -132,7 +132,7 @@ public class CommitLogAllocator
         assert !activeSegments.contains(next);
         activeSegments.add(next);
         if (isCapExceeded())
-            flushOldestTables();
+            flushOldestKeyspaces();
 
         return next;
     }
@@ -288,7 +288,7 @@ public class CommitLogAllocator
     /**
      * Force a flush on all dirty CFs represented in the oldest commitlog segment
      */
-    private void flushOldestTables()
+    private void flushOldestKeyspaces()
     {
         CommitLogSegment oldestSegment = activeSegments.peek();
 
@@ -297,8 +297,8 @@ public class CommitLogAllocator
             for (UUID dirtyCFId : oldestSegment.getDirtyCFIDs())
             {
                 String keypace = Schema.instance.getCF(dirtyCFId).left;
-                final ColumnFamilyStore cfs = Table.open(keypace).getColumnFamilyStore(dirtyCFId);
-                // flush shouldn't run on the commitlog executor, since it acquires Table.switchLock,
+                final ColumnFamilyStore cfs = Keyspace.open(keypace).getColumnFamilyStore(dirtyCFId);
+                // flush shouldn't run on the commitlog executor, since it acquires Keyspace.switchLock,
                 // which may already be held by a thread waiting for the CL executor (via getContext),
                 // causing deadlock
                 Runnable runnable = new Runnable()

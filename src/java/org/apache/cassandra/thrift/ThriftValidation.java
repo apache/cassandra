@@ -44,7 +44,7 @@ import org.apache.cassandra.utils.FBUtilities;
  *
  * The methods here mostly try to do just one part of the validation so they can be combined
  * for different needs -- supercolumns vs regular, range slices vs named, batch vs single-column.
- * (ValidateColumnPath is the main exception in that it includes table and CF validation.)
+ * (ValidateColumnPath is the main exception in that it includes keyspace and CF validation.)
  */
 public class ThriftValidation
 {
@@ -75,17 +75,17 @@ public class ThriftValidation
         }
     }
 
-    public static void validateTable(String tablename) throws KeyspaceNotDefinedException
+    public static void validateKeyspace(String keyspaceName) throws KeyspaceNotDefinedException
     {
-        if (!Schema.instance.getTables().contains(tablename))
+        if (!Schema.instance.getKeyspaces().contains(keyspaceName))
         {
-            throw new KeyspaceNotDefinedException("Keyspace " + tablename + " does not exist");
+            throw new KeyspaceNotDefinedException("Keyspace " + keyspaceName + " does not exist");
         }
     }
 
-    public static CFMetaData validateColumnFamily(String tablename, String cfName, boolean isCommutativeOp) throws org.apache.cassandra.exceptions.InvalidRequestException
+    public static CFMetaData validateColumnFamily(String keyspaceName, String cfName, boolean isCommutativeOp) throws org.apache.cassandra.exceptions.InvalidRequestException
     {
-        CFMetaData metadata = validateColumnFamily(tablename, cfName);
+        CFMetaData metadata = validateColumnFamily(keyspaceName, cfName);
 
         if (isCommutativeOp)
         {
@@ -101,13 +101,13 @@ public class ThriftValidation
     }
 
     // To be used when the operation should be authorized whether this is a counter CF or not
-    public static CFMetaData validateColumnFamily(String tablename, String cfName) throws org.apache.cassandra.exceptions.InvalidRequestException
+    public static CFMetaData validateColumnFamily(String keyspaceName, String cfName) throws org.apache.cassandra.exceptions.InvalidRequestException
     {
-        validateTable(tablename);
+        validateKeyspace(keyspaceName);
         if (cfName.isEmpty())
             throw new org.apache.cassandra.exceptions.InvalidRequestException("non-empty columnfamily is required");
 
-        CFMetaData metadata = Schema.instance.getCFMetaData(tablename, cfName);
+        CFMetaData metadata = Schema.instance.getCFMetaData(keyspaceName, cfName);
         if (metadata == null)
             throw new org.apache.cassandra.exceptions.InvalidRequestException("unconfigured columnfamily " + cfName);
 
@@ -423,7 +423,7 @@ public class ThriftValidation
         }
 
         // Indexed column values cannot be larger than 64K.  See CASSANDRA-3057/4240 for more details
-        if (!Table.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validate(asDBColumn(column)))
+        if (!Keyspace.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validate(asDBColumn(column)))
                     throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Can't index column value of size %d for index %s in CF %s of KS %s",
                                                                               column.value.remaining(),
                                                                               columnDef.getIndexName(),
@@ -536,7 +536,7 @@ public class ThriftValidation
             // no filter to apply
             return false;
 
-        SecondaryIndexManager idxManager = Table.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager;
+        SecondaryIndexManager idxManager = Keyspace.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager;
         AbstractType<?> nameValidator = SuperColumns.getComparatorFor(metadata, null);
 
         boolean isIndexed = false;
@@ -581,7 +581,7 @@ public class ThriftValidation
         // keyspace names must be unique case-insensitively because the keyspace name becomes the directory
         // where we store CF sstables.  Names that differ only in case would thus cause problems on
         // case-insensitive filesystems (NTFS, most installations of HFS+).
-        for (String ksName : Schema.instance.getTables())
+        for (String ksName : Schema.instance.getKeyspaces())
         {
             if (ksName.equalsIgnoreCase(newKsName))
                 throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Keyspace names must be case-insensitively unique (\"%s\" conflicts with \"%s\")",
@@ -592,7 +592,7 @@ public class ThriftValidation
 
     public static void validateKeyspaceNotSystem(String modifiedKeyspace) throws org.apache.cassandra.exceptions.InvalidRequestException
     {
-        if (modifiedKeyspace.equalsIgnoreCase(Table.SYSTEM_KS))
+        if (modifiedKeyspace.equalsIgnoreCase(Keyspace.SYSTEM_KS))
             throw new org.apache.cassandra.exceptions.InvalidRequestException("system keyspace is not user-modifiable");
     }
 

@@ -35,7 +35,7 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.IMutation;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
@@ -50,10 +50,10 @@ import static org.junit.Assert.assertEquals;
 
 public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
 {
-    // table and column family to test against
+    // keyspace and column family to test against
     public ActiveRepairService aes;
 
-    public String tablename;
+    public String keyspaceName;
     public String cfname;
     public RepairJobDesc desc;
     public ColumnFamilyStore store;
@@ -80,7 +80,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
             // generate a fake endpoint for which we can spoof receiving/sending trees
             REMOTE = InetAddress.getByName("127.0.0.2");
             store = null;
-            for (ColumnFamilyStore cfs : Table.open(tablename).getColumnFamilyStores())
+            for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
             {
                 if (cfs.name.equals(cfname))
                 {
@@ -101,9 +101,9 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         MessagingService.instance().setVersion(REMOTE, MessagingService.current_version);
         Gossiper.instance.initializeNodeUnsafe(REMOTE, UUID.randomUUID(), 1);
 
-        local_range = StorageService.instance.getPrimaryRangesForEndpoint(tablename, LOCAL).iterator().next();
+        local_range = StorageService.instance.getPrimaryRangesForEndpoint(keyspaceName, LOCAL).iterator().next();
 
-        desc = new RepairJobDesc(UUID.randomUUID(), tablename, cfname, local_range);
+        desc = new RepairJobDesc(UUID.randomUUID(), keyspaceName, cfname, local_range);
         // Set a fake session corresponding to this fake request
         ActiveRepairService.instance.submitArtificialRepairSession(desc);
     }
@@ -118,13 +118,13 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
     public void testGetNeighborsPlusOne() throws Throwable
     {
         // generate rf+1 nodes, and ensure that all nodes are returned
-        Set<InetAddress> expected = addTokens(1 + Table.open(tablename).getReplicationStrategy().getReplicationFactor());
+        Set<InetAddress> expected = addTokens(1 + Keyspace.open(keyspaceName).getReplicationStrategy().getReplicationFactor());
         expected.remove(FBUtilities.getBroadcastAddress());
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(tablename);
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspaceName);
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(ActiveRepairService.getNeighbors(tablename, range, false));
+            neighbors.addAll(ActiveRepairService.getNeighbors(keyspaceName, range, false));
         }
         assertEquals(expected, neighbors);
     }
@@ -135,19 +135,19 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
 
         // generate rf*2 nodes, and ensure that only neighbors specified by the ARS are returned
-        addTokens(2 * Table.open(tablename).getReplicationStrategy().getReplicationFactor());
-        AbstractReplicationStrategy ars = Table.open(tablename).getReplicationStrategy();
+        addTokens(2 * Keyspace.open(keyspaceName).getReplicationStrategy().getReplicationFactor());
+        AbstractReplicationStrategy ars = Keyspace.open(keyspaceName).getReplicationStrategy();
         Set<InetAddress> expected = new HashSet<InetAddress>();
         for (Range<Token> replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddress()))
         {
             expected.addAll(ars.getRangeAddresses(tmd.cloneOnlyTokenMap()).get(replicaRange));
         }
         expected.remove(FBUtilities.getBroadcastAddress());
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(tablename);
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspaceName);
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(ActiveRepairService.getNeighbors(tablename, range, false));
+            neighbors.addAll(ActiveRepairService.getNeighbors(keyspaceName, range, false));
         }
         assertEquals(expected, neighbors);
     }
@@ -158,18 +158,18 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         
         // generate rf+1 nodes, and ensure that all nodes are returned
-        Set<InetAddress> expected = addTokens(1 + Table.open(tablename).getReplicationStrategy().getReplicationFactor());
+        Set<InetAddress> expected = addTokens(1 + Keyspace.open(keyspaceName).getReplicationStrategy().getReplicationFactor());
         expected.remove(FBUtilities.getBroadcastAddress());
         // remove remote endpoints
         TokenMetadata.Topology topology = tmd.cloneOnlyTokenMap().getTopology();
         HashSet<InetAddress> localEndpoints = Sets.newHashSet(topology.getDatacenterEndpoints().get(DatabaseDescriptor.getLocalDataCenter()));
         expected = Sets.intersection(expected, localEndpoints);
 
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(tablename);
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspaceName);
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(ActiveRepairService.getNeighbors(tablename, range, true));
+            neighbors.addAll(ActiveRepairService.getNeighbors(keyspaceName, range, true));
         }
         assertEquals(expected, neighbors);
     }
@@ -180,8 +180,8 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
 
         // generate rf*2 nodes, and ensure that only neighbors specified by the ARS are returned
-        addTokens(2 * Table.open(tablename).getReplicationStrategy().getReplicationFactor());
-        AbstractReplicationStrategy ars = Table.open(tablename).getReplicationStrategy();
+        addTokens(2 * Keyspace.open(keyspaceName).getReplicationStrategy().getReplicationFactor());
+        AbstractReplicationStrategy ars = Keyspace.open(keyspaceName).getReplicationStrategy();
         Set<InetAddress> expected = new HashSet<InetAddress>();
         for (Range<Token> replicaRange : ars.getAddressRanges().get(FBUtilities.getBroadcastAddress()))
         {
@@ -193,11 +193,11 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         HashSet<InetAddress> localEndpoints = Sets.newHashSet(topology.getDatacenterEndpoints().get(DatabaseDescriptor.getLocalDataCenter()));
         expected = Sets.intersection(expected, localEndpoints);
         
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(tablename);
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspaceName);
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(ActiveRepairService.getNeighbors(tablename, range, true));
+            neighbors.addAll(ActiveRepairService.getNeighbors(keyspaceName, range, true));
         }
         assertEquals(expected, neighbors);
     }

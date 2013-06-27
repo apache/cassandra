@@ -160,7 +160,7 @@ public class QueryProcessor
         {
             ClientState state = new ClientState(true);
             QueryState qState = new QueryState(state);
-            state.setKeyspace(Table.SYSTEM_KS);
+            state.setKeyspace(Keyspace.SYSTEM_KS);
             CQLStatement statement = getStatement(query, state).statement;
             statement.validate(state);
             ResultMessage result = statement.executeInternal(qState);

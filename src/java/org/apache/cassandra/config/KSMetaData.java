@@ -91,7 +91,7 @@ public final class KSMetaData
                                                 CFMetaData.SchemaColumnsCf,
                                                 CFMetaData.CompactionLogCf,
                                                 CFMetaData.PaxosCf);
-        return new KSMetaData(Table.SYSTEM_KS, LocalStrategy.class, Collections.<String, String>emptyMap(), true, cfDefs);
+        return new KSMetaData(Keyspace.SYSTEM_KS, LocalStrategy.class, Collections.<String, String>emptyMap(), true, cfDefs);
     }
 
     public static KSMetaData traceKeyspace()
@@ -215,29 +215,29 @@ public final class KSMetaData
 
     public KSMetaData reloadAttributes()
     {
-        Row ksDefRow = SystemTable.readSchemaRow(name);
+        Row ksDefRow = SystemKeyspace.readSchemaRow(name);
 
         if (ksDefRow.cf == null)
-            throw new RuntimeException(String.format("%s not found in the schema definitions table (%s).", name, SystemTable.SCHEMA_KEYSPACES_CF));
+            throw new RuntimeException(String.format("%s not found in the schema definitions keyspaceName (%s).", name, SystemKeyspace.SCHEMA_KEYSPACES_CF));
 
         return fromSchema(ksDefRow, Collections.<CFMetaData>emptyList());
     }
 
     public RowMutation dropFromSchema(long timestamp)
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_KS, SystemTable.getSchemaKSKey(name));
-        rm.delete(SystemTable.SCHEMA_KEYSPACES_CF, timestamp);
-        rm.delete(SystemTable.SCHEMA_COLUMNFAMILIES_CF, timestamp);
-        rm.delete(SystemTable.SCHEMA_COLUMNS_CF, timestamp);
-        rm.delete(SystemTable.SCHEMA_TRIGGERS_CF, timestamp);
+        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(name));
+        rm.delete(SystemKeyspace.SCHEMA_KEYSPACES_CF, timestamp);
+        rm.delete(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF, timestamp);
+        rm.delete(SystemKeyspace.SCHEMA_COLUMNS_CF, timestamp);
+        rm.delete(SystemKeyspace.SCHEMA_TRIGGERS_CF, timestamp);
 
         return rm;
     }
 
     public RowMutation toSchema(long timestamp)
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_KS, SystemTable.getSchemaKSKey(name));
-        ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_KEYSPACES_CF);
+        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(name));
+        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_KEYSPACES_CF);
 
         cf.addColumn(Column.create(durableWrites, timestamp, "durable_writes"));
         cf.addColumn(Column.create(strategyClass.getName(), timestamp, "strategy_class"));

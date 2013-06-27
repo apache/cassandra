@@ -34,15 +34,15 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.io.util.FileUtils;
 
 import static org.apache.cassandra.Util.column;
-import static org.apache.cassandra.db.TableTest.assertColumns;
+import static org.apache.cassandra.db.KeyspaceTest.assertColumns;
 
 public class RecoveryManager3Test extends SchemaLoader
 {
     @Test
     public void testMissingHeader() throws IOException, ExecutionException, InterruptedException
     {
-        Table table1 = Table.open("Keyspace1");
-        Table table2 = Table.open("Keyspace2");
+        Keyspace keyspace1 = Keyspace.open("Keyspace1");
+        Keyspace keyspace2 = Keyspace.open("Keyspace2");
 
         RowMutation rm;
         DecoratedKey dk = Util.dk("keymulti");
@@ -58,8 +58,8 @@ public class RecoveryManager3Test extends SchemaLoader
         rm = new RowMutation("Keyspace2", dk.key, cf);
         rm.apply();
 
-        table1.getColumnFamilyStore("Standard1").clearUnsafe();
-        table2.getColumnFamilyStore("Standard3").clearUnsafe();
+        keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();
+        keyspace2.getColumnFamilyStore("Standard3").clearUnsafe();
 
         // nuke the header
         for (File file : new File(DatabaseDescriptor.getCommitLogLocation()).listFiles())
@@ -71,7 +71,7 @@ public class RecoveryManager3Test extends SchemaLoader
         CommitLog.instance.resetUnsafe(); // disassociate segments from live CL
         CommitLog.instance.recover();
 
-        assertColumns(Util.getColumnFamily(table1, dk, "Standard1"), "col1");
-        assertColumns(Util.getColumnFamily(table2, dk, "Standard3"), "col2");
+        assertColumns(Util.getColumnFamily(keyspace1, dk, "Standard1"), "col1");
+        assertColumns(Util.getColumnFamily(keyspace2, dk, "Standard3"), "col2");
     }
 }

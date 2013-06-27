@@ -35,7 +35,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
@@ -60,8 +60,8 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
     {
         String ksname = "Keyspace1";
         String cfname = "StandardLeveled";
-        Table table = Table.open(ksname);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfname);
+        Keyspace keyspace = Keyspace.open(ksname);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
 
         ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
 
@@ -89,7 +89,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
         assert strategy.getLevelSize(2) > 0;
 
         Range<Token> range = new Range<Token>(Util.token(""), Util.token(""));
-        int gcBefore = table.getColumnFamilyStore(cfname).gcBefore(System.currentTimeMillis());
+        int gcBefore = keyspace.getColumnFamilyStore(cfname).gcBefore(System.currentTimeMillis());
         RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), ksname, cfname, range);
         Validator validator = new Validator(desc, FBUtilities.getBroadcastAddress(), gcBefore);
         CompactionManager.instance.submitValidation(cfs, validator).get();
@@ -111,8 +111,8 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
     {
         String ksname = "Keyspace1";
         String cfname = "StandardLeveled";
-        Table table = Table.open(ksname);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfname);
+        Keyspace keyspace = Keyspace.open(ksname);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
 
         // make sure we have SSTables in L1
         ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]);
@@ -152,8 +152,8 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
     {
         String ksname = "Keyspace1";
         String cfname = "StandardLeveled";
-        Table table = Table.open(ksname);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfname);
+        Keyspace keyspace = Keyspace.open(ksname);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
 
         ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
 

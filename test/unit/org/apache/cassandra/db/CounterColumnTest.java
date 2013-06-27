@@ -60,7 +60,7 @@ public class CounterColumnTest extends SchemaLoader
     {
         long delta = 3L;
         CounterUpdateColumn cuc = new CounterUpdateColumn(ByteBufferUtil.bytes("x"), delta, 1L);
-        CounterColumn column = cuc.localCopy(Table.open("Keyspace5").getColumnFamilyStore("Counter1"));
+        CounterColumn column = cuc.localCopy(Keyspace.open("Keyspace5").getColumnFamilyStore("Counter1"));
 
         assert delta == column.total();
         assert 1 == column.value().getShort(0);

@@ -292,7 +292,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         {
             protected void runMayThrow() throws IOException, ConfigurationException
             {
-                DefsTable.mergeSchema(schema);
+                DefsTables.mergeSchema(schema);
             }
         });
 
@@ -332,9 +332,9 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
             logger.debug("Truncating schema tables...");
 
         // truncate schema tables
-        SystemTable.schemaCFS(SystemTable.SCHEMA_KEYSPACES_CF).truncateBlocking();
-        SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNFAMILIES_CF).truncateBlocking();
-        SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNS_CF).truncateBlocking();
+        SystemKeyspace.schemaCFS(SystemKeyspace.SCHEMA_KEYSPACES_CF).truncateBlocking();
+        SystemKeyspace.schemaCFS(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF).truncateBlocking();
+        SystemKeyspace.schemaCFS(SystemKeyspace.SCHEMA_COLUMNS_CF).truncateBlocking();
 
         if (logger.isDebugEnabled())
             logger.debug("Clearing local schema keyspace definitions...");

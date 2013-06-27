@@ -27,7 +27,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.compaction.Scrubber;
 import org.apache.cassandra.io.sstable.*;
@@ -57,14 +57,14 @@ public class StandaloneScrubber
             // load keyspace descriptions.
             DatabaseDescriptor.loadSchemas();
 
-            if (Schema.instance.getCFMetaData(options.tableName, options.cfName) == null)
+            if (Schema.instance.getCFMetaData(options.keyspaceName, options.cfName) == null)
                 throw new IllegalArgumentException(String.format("Unknown keyspace/columnFamily %s.%s",
-                                                                 options.tableName,
+                                                                 options.keyspaceName,
                                                                  options.cfName));
 
             // Do not load sstables since they might be broken
-            Table table = Table.openWithoutSSTables(options.tableName);
-            ColumnFamilyStore cfs = table.getColumnFamilyStore(options.cfName);
+            Keyspace keyspace = Keyspace.openWithoutSSTables(options.keyspaceName);
+            ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(options.cfName);
             String snapshotName = "pre-scrub-" + System.currentTimeMillis();
 
             OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
@@ -173,16 +173,16 @@ public class StandaloneScrubber
 
     private static class Options
     {
-        public final String tableName;
+        public final String keyspaceName;
         public final String cfName;
 
         public boolean debug;
         public boolean verbose;
         public boolean manifestCheckOnly;
 
-        private Options(String tableName, String cfName)
+        private Options(String keyspaceName, String cfName)
         {
-            this.tableName = tableName;
+            this.keyspaceName = keyspaceName;
             this.cfName = cfName;
         }
 
@@ -209,10 +209,10 @@ public class StandaloneScrubber
                     System.exit(1);
                 }
 
-                String tableName = args[0];
+                String keyspaceName = args[0];
                 String cfName = args[1];
 
-                Options opts = new Options(tableName, cfName);
+                Options opts = new Options(keyspaceName, cfName);
 
                 opts.debug = cmd.hasOption(DEBUG_OPTION);
                 opts.verbose = cmd.hasOption(VERBOSE_OPTION);

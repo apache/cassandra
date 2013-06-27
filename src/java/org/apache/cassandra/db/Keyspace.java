@@ -35,7 +35,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
@@ -48,12 +47,12 @@ import org.apache.cassandra.tracing.Tracing;
 /**
  * It represents a Keyspace.
  */
-public class Table
+public class Keyspace
 {
     public static final String SYSTEM_KS = "system";
     private static final int DEFAULT_PAGE_SIZE = 10000;
 
-    private static final Logger logger = LoggerFactory.getLogger(Table.class);
+    private static final Logger logger = LoggerFactory.getLogger(Keyspace.class);
 
     /**
      * accesses to CFS.memtable should acquire this for thread safety.
@@ -63,7 +62,7 @@ public class Table
      */
     public static final ReentrantReadWriteLock switchLock = new ReentrantReadWriteLock();
 
-    // It is possible to call Table.open without a running daemon, so it makes sense to ensure
+    // It is possible to call Keyspace.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
     static
     {
@@ -76,60 +75,60 @@ public class Table
     /* ColumnFamilyStore per column family */
     private final ConcurrentMap<UUID, ColumnFamilyStore> columnFamilyStores = new ConcurrentHashMap<UUID, ColumnFamilyStore>();
     private volatile AbstractReplicationStrategy replicationStrategy;
-    public static final Function<String,Table> tableTransformer = new Function<String, Table>()
+    public static final Function<String,Keyspace> keyspaceTransformer = new Function<String, Keyspace>()
     {
-        public Table apply(String tableName)
+        public Keyspace apply(String keyspaceName)
         {
-            return Table.open(tableName);
+            return Keyspace.open(keyspaceName);
         }
     };
 
-    public static Table open(String table)
+    public static Keyspace open(String keyspaceName)
     {
-        return open(table, Schema.instance, true);
+        return open(keyspaceName, Schema.instance, true);
     }
 
-    public static Table openWithoutSSTables(String table)
+    public static Keyspace openWithoutSSTables(String keyspaceName)
     {
-        return open(table, Schema.instance, false);
+        return open(keyspaceName, Schema.instance, false);
     }
 
-    private static Table open(String table, Schema schema, boolean loadSSTables)
+    private static Keyspace open(String keyspaceName, Schema schema, boolean loadSSTables)
     {
-        Table tableInstance = schema.getTableInstance(table);
+        Keyspace keyspaceInstance = schema.getKeyspaceInstance(keyspaceName);
 
-        if (tableInstance == null)
+        if (keyspaceInstance == null)
         {
-            // instantiate the Table.  we could use putIfAbsent but it's important to making sure it is only done once
+            // instantiate the Keyspace.  we could use putIfAbsent but it's important to making sure it is only done once
             // per keyspace, so we synchronize and re-check before doing it.
-            synchronized (Table.class)
+            synchronized (Keyspace.class)
             {
-                tableInstance = schema.getTableInstance(table);
-                if (tableInstance == null)
+                keyspaceInstance = schema.getKeyspaceInstance(keyspaceName);
+                if (keyspaceInstance == null)
                 {
-                    // open and store the table
-                    tableInstance = new Table(table, loadSSTables);
-                    schema.storeTableInstance(tableInstance);
+                    // open and store the keyspace
+                    keyspaceInstance = new Keyspace(keyspaceName, loadSSTables);
+                    schema.storeKeyspaceInstance(keyspaceInstance);
 
-                    // table has to be constructed and in the cache before cacheRow can be called
-                    for (ColumnFamilyStore cfs : tableInstance.getColumnFamilyStores())
+                    // keyspace has to be constructed and in the cache before cacheRow can be called
+                    for (ColumnFamilyStore cfs : keyspaceInstance.getColumnFamilyStores())
                         cfs.initRowCache();
                 }
             }
         }
-        return tableInstance;
+        return keyspaceInstance;
     }
 
-    public static Table clear(String table)
+    public static Keyspace clear(String keyspaceName)
     {
-        return clear(table, Schema.instance);
+        return clear(keyspaceName, Schema.instance);
     }
 
-    public static Table clear(String table, Schema schema)
+    public static Keyspace clear(String keyspaceName, Schema schema)
     {
-        synchronized (Table.class)
+        synchronized (Keyspace.class)
         {
-            Table t = schema.removeTableInstance(table);
+            Keyspace t = schema.removeKeyspaceInstance(keyspaceName);
             if (t != null)
             {
                 for (ColumnFamilyStore cfs : t.getColumnFamilyStores())
@@ -145,9 +144,9 @@ public class Table
      */
     public static void removeUnreadableSSTables(File directory)
     {
-        for (Table table : Table.all())
+        for (Keyspace keyspace : Keyspace.all())
         {
-            for (ColumnFamilyStore baseCfs : table.getColumnFamilyStores())
+            for (ColumnFamilyStore baseCfs : keyspace.getColumnFamilyStores())
             {
                 for (ColumnFamilyStore cfs : baseCfs.concatWithIndexes())
                     cfs.maybeRemoveUnreadableSSTables(directory);
@@ -164,7 +163,7 @@ public class Table
     {
         UUID id = Schema.instance.getId(getName(), cfName);
         if (id == null)
-            throw new IllegalArgumentException(String.format("Unknown table/cf pair (%s.%s)", getName(), cfName));
+            throw new IllegalArgumentException(String.format("Unknown keyspace/cf pair (%s.%s)", getName(), cfName));
         return getColumnFamilyStore(id);
     }
 
@@ -233,7 +232,7 @@ public class Table
     }
 
     /**
-     * Clear all the snapshots for a given table.
+     * Clear all the snapshots for a given keyspace.
      *
      * @param snapshotName the user supplied snapshot name. It empty or null,
      *                     all the snapshots will be cleaned
@@ -257,10 +256,10 @@ public class Table
         return list;
     }
 
-    private Table(String table, boolean loadSSTables)
+    private Keyspace(String keyspaceName, boolean loadSSTables)
     {
-        metadata = Schema.instance.getKSMetaData(table);
-        assert metadata != null : "Unknown keyspace " + table;
+        metadata = Schema.instance.getKSMetaData(keyspaceName);
+        assert metadata != null : "Unknown keyspace " + keyspaceName;
         createReplicationStrategy(metadata);
 
         for (CFMetaData cfm : new ArrayList<CFMetaData>(metadata.cfMetaData().values()))
@@ -293,7 +292,7 @@ public class Table
         unloadCf(cfs);
     }
 
-    // disassociate a cfs from this table instance.
+    // disassociate a cfs from this keyspace instance.
     private void unloadCf(ColumnFamilyStore cfs)
     {
         cfs.forceBlockingFlush();
@@ -427,19 +426,19 @@ public class Table
         return futures;
     }
 
-    public static Iterable<Table> all()
+    public static Iterable<Keyspace> all()
     {
-        return Iterables.transform(Schema.instance.getTables(), tableTransformer);
+        return Iterables.transform(Schema.instance.getKeyspaces(), keyspaceTransformer);
     }
 
-    public static Iterable<Table> nonSystem()
+    public static Iterable<Keyspace> nonSystem()
     {
-        return Iterables.transform(Schema.instance.getNonSystemTables(), tableTransformer);
+        return Iterables.transform(Schema.instance.getNonSystemKeyspaces(), keyspaceTransformer);
     }
 
-    public static Iterable<Table> system()
+    public static Iterable<Keyspace> system()
     {
-        return Iterables.transform(Schema.systemKeyspaceNames, tableTransformer);
+        return Iterables.transform(Schema.systemKeyspaceNames, keyspaceTransformer);
     }
 
     @Override

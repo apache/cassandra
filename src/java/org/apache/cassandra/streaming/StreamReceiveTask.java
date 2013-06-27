@@ -23,7 +23,7 @@ import java.util.UUID;
 
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.Pair;
 
@@ -80,7 +80,7 @@ public class StreamReceiveTask extends StreamTask
         try
         {
             Pair<String, String> kscf = Schema.instance.getCF(cfId);
-            ColumnFamilyStore cfs = Table.open(kscf.left).getColumnFamilyStore(kscf.right);
+            ColumnFamilyStore cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
             // add sstables and build secondary indexes
             cfs.addSSTables(sstables);
             cfs.indexManager.maybeBuildSecondaryIndexes(sstables, cfs.indexManager.allIndexesNames());

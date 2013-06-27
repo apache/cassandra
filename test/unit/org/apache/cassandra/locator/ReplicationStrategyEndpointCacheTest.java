@@ -22,7 +22,7 @@ package org.apache.cassandra.locator;
 import java.net.InetAddress;
 import java.util.*;
 
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 
 import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
@@ -43,7 +43,7 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
         tmd = new TokenMetadata();
         searchToken = new BigIntegerToken(String.valueOf(15));
 
-        strategy = getStrategyWithNewTokenMetadata(Table.open("Keyspace3").getReplicationStrategy(), tmd);
+        strategy = getStrategyWithNewTokenMetadata(Keyspace.open("Keyspace3").getReplicationStrategy(), tmd);
 
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(10)), InetAddress.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BigIntegerToken(String.valueOf(20)), InetAddress.getByName("127.0.0.2"));
@@ -114,9 +114,9 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
     {
         private boolean called = false;
 
-        public FakeSimpleStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+        public FakeSimpleStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
         {
-            super(table, tokenMetadata, snitch, configOptions);
+            super(keyspaceName, tokenMetadata, snitch, configOptions);
         }
 
         public List<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
@@ -131,9 +131,9 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
     {
         private boolean called = false;
 
-        public FakeOldNetworkTopologyStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+        public FakeOldNetworkTopologyStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
         {
-            super(table, tokenMetadata, snitch, configOptions);
+            super(keyspaceName, tokenMetadata, snitch, configOptions);
         }
 
         public List<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
@@ -148,9 +148,9 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
     {
         private boolean called = false;
 
-        public FakeNetworkTopologyStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
+        public FakeNetworkTopologyStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
         {
-            super(table, tokenMetadata, snitch, configOptions);
+            super(keyspaceName, tokenMetadata, snitch, configOptions);
         }
 
         public List<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
@@ -164,7 +164,7 @@ public class ReplicationStrategyEndpointCacheTest extends SchemaLoader
     private AbstractReplicationStrategy getStrategyWithNewTokenMetadata(AbstractReplicationStrategy strategy, TokenMetadata newTmd) throws ConfigurationException
     {
         return AbstractReplicationStrategy.createReplicationStrategy(
-                strategy.tableName,
+                strategy.keyspaceName,
                 AbstractReplicationStrategy.getClass(strategy.getClass().getName()),
                 newTmd,
                 strategy.snitch,

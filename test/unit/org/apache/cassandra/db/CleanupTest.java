@@ -50,7 +50,7 @@ import org.junit.Test;
 public class CleanupTest extends SchemaLoader
 {
     public static final int LOOPS = 200;
-    public static final String TABLE1 = "Keyspace1";
+    public static final String KEYSPACE1 = "Keyspace1";
     public static final String CF1 = "Indexed1";
     public static final String CF2 = "Standard1";
     public static final ByteBuffer COLUMN = ByteBufferUtil.bytes("birthdate");
@@ -66,8 +66,8 @@ public class CleanupTest extends SchemaLoader
     {
         StorageService.instance.initServer(0);
 
-        Table table = Table.open(TABLE1);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(CF2);
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF2);
 
         List<Row> rows;
 
@@ -94,8 +94,8 @@ public class CleanupTest extends SchemaLoader
     @Test
     public void testCleanupWithIndexes() throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open(TABLE1);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(CF1);
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF1);
 
         List<Row> rows;
 
@@ -115,7 +115,7 @@ public class CleanupTest extends SchemaLoader
         IDiskAtomFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range<RowPosition> range = Util.range("", "");
-        rows = table.getColumnFamilyStore(CF1).search(range, clause, filter, Integer.MAX_VALUE);
+        rows = keyspace.getColumnFamilyStore(CF1).search(range, clause, filter, Integer.MAX_VALUE);
         assertEquals(LOOPS, rows.size());
 
         // we don't allow cleanup when the local host has no range to avoid wipping up all data when a node has not join the ring.
@@ -150,7 +150,7 @@ public class CleanupTest extends SchemaLoader
             String key = String.valueOf(i);
             // create a row and update the birthdate value, test that the index query fetches the new version
             RowMutation rm;
-            rm = new RowMutation(TABLE1, ByteBufferUtil.bytes(key));
+            rm = new RowMutation(KEYSPACE1, ByteBufferUtil.bytes(key));
             rm.add(cfs.name, COLUMN, VALUE, System.currentTimeMillis());
             rm.applyUnsafe();
         }

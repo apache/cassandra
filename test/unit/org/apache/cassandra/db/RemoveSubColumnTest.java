@@ -41,8 +41,8 @@ public class RemoveSubColumnTest extends SchemaLoader
     @Test
     public void testRemoveSubColumn() throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open("Keyspace1");
-        ColumnFamilyStore store = table.getColumnFamilyStore("Super1");
+        Keyspace keyspace = Keyspace.open("Keyspace1");
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore("Super1");
         RowMutation rm;
         DecoratedKey dk = Util.dk("key1");
 
@@ -66,8 +66,8 @@ public class RemoveSubColumnTest extends SchemaLoader
     @Test
     public void testRemoveSubColumnAndContainer()
     {
-        Table table = Table.open("Keyspace1");
-        ColumnFamilyStore store = table.getColumnFamilyStore("Super1");
+        Keyspace keyspace = Keyspace.open("Keyspace1");
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore("Super1");
         RowMutation rm;
         DecoratedKey dk = Util.dk("key2");
 

@@ -33,12 +33,12 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.StringToken;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -94,7 +94,7 @@ public class StorageServiceServerTest
     public void testColumnFamilySnapshot() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
-        StorageService.instance.takeColumnFamilySnapshot(Table.SYSTEM_KS, SystemTable.SCHEMA_KEYSPACES_CF, "cf_snapshot");
+        StorageService.instance.takeColumnFamilySnapshot(Keyspace.SYSTEM_KS, SystemKeyspace.SCHEMA_KEYSPACES_CF, "cf_snapshot");
     }
 
     @Test
@@ -113,9 +113,9 @@ public class StorageServiceServerTest
         configOptions.put("DC1", "1");
         configOptions.put("DC2", "1");
 
-        Table.clear("Keyspace1");
+        Keyspace.clear("Keyspace1");
         KSMetaData meta = KSMetaData.newKeyspace("Keyspace1", "NetworkTopologyStrategy", configOptions, false);
-        Schema.instance.setTableDefinition(meta);
+        Schema.instance.setKeyspaceDefinition(meta);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddress.getByName("127.0.0.1"));
         assert primaryRanges.size() == 1;
@@ -149,9 +149,9 @@ public class StorageServiceServerTest
         Map<String, String> configOptions = new HashMap<String, String>();
         configOptions.put("DC2", "2");
 
-        Table.clear("Keyspace1");
+        Keyspace.clear("Keyspace1");
         KSMetaData meta = KSMetaData.newKeyspace("Keyspace1", "NetworkTopologyStrategy", configOptions, false);
-        Schema.instance.setTableDefinition(meta);
+        Schema.instance.setKeyspaceDefinition(meta);
 
         // endpoints in DC1 should not have primary range
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddress.getByName("127.0.0.1"));
@@ -199,9 +199,9 @@ public class StorageServiceServerTest
         Map<String, String> configOptions = new HashMap<String, String>();
         configOptions.put("DC2", "2");
 
-        Table.clear("Keyspace1");
+        Keyspace.clear("Keyspace1");
         KSMetaData meta = KSMetaData.newKeyspace("Keyspace1", "NetworkTopologyStrategy", configOptions, false);
-        Schema.instance.setTableDefinition(meta);
+        Schema.instance.setKeyspaceDefinition(meta);
 
         // endpoints in DC1 should not have primary range
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddress.getByName("127.0.0.1"));
@@ -247,9 +247,9 @@ public class StorageServiceServerTest
         Map<String, String> configOptions = new HashMap<String, String>();
         configOptions.put("replication_factor", "2");
 
-        Table.clear("Keyspace1");
+        Keyspace.clear("Keyspace1");
         KSMetaData meta = KSMetaData.newKeyspace("Keyspace1", "SimpleStrategy", configOptions, false);
-        Schema.instance.setTableDefinition(meta);
+        Schema.instance.setKeyspaceDefinition(meta);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddress.getByName("127.0.0.1"));
         assert primaryRanges.size() == 1;

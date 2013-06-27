@@ -90,27 +90,27 @@ public final class CFMetaData
     // Note that this is the default only for user created tables
     public final static String DEFAULT_COMPRESSOR = LZ4Compressor.class.getCanonicalName();
 
-    public static final CFMetaData IndexCf = compile(5, "CREATE TABLE \"" + SystemTable.INDEX_CF + "\" ("
+    public static final CFMetaData IndexCf = compile(5, "CREATE TABLE \"" + SystemKeyspace.INDEX_CF + "\" ("
                                                         + "table_name text,"
                                                         + "index_name text,"
                                                         + "PRIMARY KEY (table_name, index_name)"
                                                         + ") WITH COMPACT STORAGE AND COMMENT='indexes that have been completed'");
 
-    public static final CFMetaData CounterIdCf = compile(6, "CREATE TABLE \"" + SystemTable.COUNTER_ID_CF + "\" ("
+    public static final CFMetaData CounterIdCf = compile(6, "CREATE TABLE \"" + SystemKeyspace.COUNTER_ID_CF + "\" ("
                                                             + "key text,"
                                                             + "id timeuuid,"
                                                             + "PRIMARY KEY (key, id)"
                                                             + ") WITH COMPACT STORAGE AND COMMENT='counter node IDs'");
 
     // new-style schema
-    public static final CFMetaData SchemaKeyspacesCf = compile(8, "CREATE TABLE " + SystemTable.SCHEMA_KEYSPACES_CF + "("
+    public static final CFMetaData SchemaKeyspacesCf = compile(8, "CREATE TABLE " + SystemKeyspace.SCHEMA_KEYSPACES_CF + "("
                                                                   + "keyspace_name text PRIMARY KEY,"
                                                                   + "durable_writes boolean,"
                                                                   + "strategy_class text,"
                                                                   + "strategy_options text"
                                                                   + ") WITH COMPACT STORAGE AND COMMENT='keyspace definitions' AND gc_grace_seconds=8640");
 
-    public static final CFMetaData SchemaColumnFamiliesCf = compile(9, "CREATE TABLE " + SystemTable.SCHEMA_COLUMNFAMILIES_CF + "("
+    public static final CFMetaData SchemaColumnFamiliesCf = compile(9, "CREATE TABLE " + SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF + "("
                                                                        + "keyspace_name text,"
                                                                        + "columnfamily_name text,"
                                                                        + "type text,"
@@ -145,7 +145,7 @@ public final class CFMetaData
                                                                        + "PRIMARY KEY (keyspace_name, columnfamily_name)"
                                                                        + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=8640");
 
-    public static final CFMetaData SchemaColumnsCf = compile(10, "CREATE TABLE " + SystemTable.SCHEMA_COLUMNS_CF + "("
+    public static final CFMetaData SchemaColumnsCf = compile(10, "CREATE TABLE " + SystemKeyspace.SCHEMA_COLUMNS_CF + "("
                                                                  + "keyspace_name text,"
                                                                  + "columnfamily_name text,"
                                                                  + "column_name text,"
@@ -158,7 +158,7 @@ public final class CFMetaData
                                                                  + "PRIMARY KEY(keyspace_name, columnfamily_name, column_name)"
                                                                  + ") WITH COMMENT='ColumnFamily column attributes' AND gc_grace_seconds=8640");
 
-    public static final CFMetaData SchemaTriggerCf = compile("CREATE TABLE \"" + SystemTable.SCHEMA_TRIGGERS_CF + "\" ("
+    public static final CFMetaData SchemaTriggerCf = compile("CREATE TABLE \"" + SystemKeyspace.SCHEMA_TRIGGERS_CF + "\" ("
                                                                 + "keyspace_name text,"
                                                                 + "column_family text,"
                                                                 + "trigger_name text,"
@@ -166,7 +166,7 @@ public final class CFMetaData
                                                                 + "PRIMARY KEY (keyspace_name, column_family, trigger_name)"
                                                                 + ") WITH COMMENT='triggers metadata table'");
 
-    public static final CFMetaData HintsCf = compile("CREATE TABLE " + SystemTable.HINTS_CF + " ("
+    public static final CFMetaData HintsCf = compile("CREATE TABLE " + SystemKeyspace.HINTS_CF + " ("
                                                      + "target_id uuid,"
                                                      + "hint_id timeuuid,"
                                                      + "message_version int,"
@@ -177,7 +177,7 @@ public final class CFMetaData
                                                      + "AND COMMENT='hints awaiting delivery'"
                                                      + "AND gc_grace_seconds=0");
 
-    public static final CFMetaData PeersCf = compile("CREATE TABLE " + SystemTable.PEERS_CF + " ("
+    public static final CFMetaData PeersCf = compile("CREATE TABLE " + SystemKeyspace.PEERS_CF + " ("
                                                      + "peer inet PRIMARY KEY,"
                                                      + "host_id uuid,"
                                                      + "tokens set<varchar>,"
@@ -188,12 +188,12 @@ public final class CFMetaData
                                                      + "rack text"
                                                      + ") WITH COMMENT='known peers in the cluster'");
 
-    public static final CFMetaData PeerEventsCf = compile("CREATE TABLE " + SystemTable.PEER_EVENTS_CF + " ("
+    public static final CFMetaData PeerEventsCf = compile("CREATE TABLE " + SystemKeyspace.PEER_EVENTS_CF + " ("
                                                           + "peer inet PRIMARY KEY,"
                                                           + "hints_dropped map<uuid, int>"
                                                           + ") WITH COMMENT='cf contains events related to peers'");
 
-    public static final CFMetaData LocalCf = compile("CREATE TABLE " + SystemTable.LOCAL_CF + " ("
+    public static final CFMetaData LocalCf = compile("CREATE TABLE " + SystemKeyspace.LOCAL_CF + " ("
                                                      + "key text PRIMARY KEY,"
                                                      + "tokens set<varchar>,"
                                                      + "cluster_name text,"
@@ -231,26 +231,26 @@ public final class CFMetaData
                                                            + ")",
                                                            Tracing.TRACE_KS);
 
-    public static final CFMetaData BatchlogCf = compile("CREATE TABLE " + SystemTable.BATCHLOG_CF + " ("
+    public static final CFMetaData BatchlogCf = compile("CREATE TABLE " + SystemKeyspace.BATCHLOG_CF + " ("
                                                         + "id uuid PRIMARY KEY,"
                                                         + "written_at timestamp,"
                                                         + "data blob"
                                                         + ") WITH COMMENT='uncommited batches' AND gc_grace_seconds=0 "
                                                         + "AND COMPACTION={'class' : 'SizeTieredCompactionStrategy', 'min_threshold' : 2}");
 
-    public static final CFMetaData RangeXfersCf = compile("CREATE TABLE " + SystemTable.RANGE_XFERS_CF + " ("
+    public static final CFMetaData RangeXfersCf = compile("CREATE TABLE " + SystemKeyspace.RANGE_XFERS_CF + " ("
                                                           + "token_bytes blob PRIMARY KEY,"
                                                           + "requested_at timestamp"
                                                           + ") WITH COMMENT='ranges requested for transfer here'");
 
-    public static final CFMetaData CompactionLogCf = compile("CREATE TABLE " + SystemTable.COMPACTION_LOG + " ("
+    public static final CFMetaData CompactionLogCf = compile("CREATE TABLE " + SystemKeyspace.COMPACTION_LOG + " ("
                                                              + "id uuid PRIMARY KEY,"
                                                              + "keyspace_name text,"
                                                              + "columnfamily_name text,"
                                                              + "inputs set<int>"
                                                              + ") WITH COMMENT='unfinished compactions'");
 
-    public static final CFMetaData PaxosCf = compile("CREATE TABLE " + SystemTable.PAXOS_CF + " ("
+    public static final CFMetaData PaxosCf = compile("CREATE TABLE " + SystemKeyspace.PAXOS_CF + " ("
                                                      + "row_key blob,"
                                                      + "cf_id UUID,"
                                                      + "in_progress_ballot timeuuid,"
@@ -472,12 +472,12 @@ public final class CFMetaData
 
     private static CFMetaData compile(String cql)
     {
-        return compile(null, cql, Table.SYSTEM_KS);
+        return compile(null, cql, Keyspace.SYSTEM_KS);
     }
 
     private static CFMetaData compile(int id, String cql)
     {
-        return compile(id, cql, Table.SYSTEM_KS);
+        return compile(id, cql, Keyspace.SYSTEM_KS);
     }
 
     private static AbstractType<?> makeComparator(ColumnFamilyType cftype, AbstractType<?> comp, AbstractType<?> subcc)
@@ -948,10 +948,10 @@ public final class CFMetaData
 
     public void reload()
     {
-        Row cfDefRow = SystemTable.readSchemaRow(ksName, cfName);
+        Row cfDefRow = SystemKeyspace.readSchemaRow(ksName, cfName);
 
         if (cfDefRow.cf == null || cfDefRow.cf.getColumnCount() == 0)
-            throw new RuntimeException(String.format("%s not found in the schema definitions table.", ksName + ":" + cfName));
+            throw new RuntimeException(String.format("%s not found in the schema definitions keyspace.", ksName + ":" + cfName));
 
         try
         {
@@ -1425,7 +1425,7 @@ public final class CFMetaData
      */
     public RowMutation toSchemaUpdate(CFMetaData newState, long modificationTimestamp, boolean fromThrift)
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_KS, SystemTable.getSchemaKSKey(ksName));
+        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(ksName));
 
         newState.toSchemaNoColumns(rm, modificationTimestamp);
 
@@ -1471,15 +1471,15 @@ public final class CFMetaData
      */
     public RowMutation dropFromSchema(long timestamp)
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_KS, SystemTable.getSchemaKSKey(ksName));
-        ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
+        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(ksName));
+        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
         ColumnNameBuilder builder = SchemaColumnFamiliesCf.getCfDef().getColumnNameBuilder();
         builder.add(ByteBufferUtil.bytes(cfName));
         cf.addAtom(new RangeTombstone(builder.build(), builder.buildAsEndOfRange(), timestamp, ldt));
 
-        ColumnFamily tcf = rm.addOrGet(SystemTable.SCHEMA_TRIGGERS_CF);
+        ColumnFamily tcf = rm.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
         ColumnNameBuilder tbuilder = SchemaTriggerCf.getCfDef().getColumnNameBuilder();
         tbuilder.add(ByteBufferUtil.bytes(cfName));
         tcf.addAtom(new RangeTombstone(tbuilder.build(), tbuilder.buildAsEndOfRange(), timestamp, ldt));
@@ -1502,7 +1502,7 @@ public final class CFMetaData
     {
         // For property that can be null (and can be changed), we insert tombstones, to make sure
         // we don't keep a property the user has removed
-        ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
+        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
         cf.addColumn(Column.create("", timestamp, cfName, ""));
@@ -1711,7 +1711,7 @@ public final class CFMetaData
      */
     public RowMutation toSchema(long timestamp) throws ConfigurationException
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_KS, SystemTable.getSchemaKSKey(ksName));
+        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(ksName));
         toSchema(rm, timestamp);
         return rm;
     }
@@ -1788,10 +1788,10 @@ public final class CFMetaData
     {
         ColumnDefinition def = column_metadata.get(from);
         if (def == null)
-            throw new InvalidRequestException(String.format("Cannot rename unknown column %s in table %s", strFrom, cfName));
+            throw new InvalidRequestException(String.format("Cannot rename unknown column %s in keyspace %s", strFrom, cfName));
 
         if (column_metadata.get(to) != null)
-            throw new InvalidRequestException(String.format("Cannot rename column %s to %s in table %s; another column of that name already exist", strFrom, strTo, cfName));
+            throw new InvalidRequestException(String.format("Cannot rename column %s to %s in keyspace %s; another column of that name already exist", strFrom, strTo, cfName));
 
         if (def.type == ColumnDefinition.Type.REGULAR)
         {

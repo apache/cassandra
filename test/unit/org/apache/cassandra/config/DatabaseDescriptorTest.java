@@ -41,9 +41,9 @@ public class DatabaseDescriptorTest
     public void testCFMetaDataSerialization() throws IOException, ConfigurationException, InvalidRequestException
     {
         // test serialization of all defined test CFs.
-        for (String table : Schema.instance.getNonSystemTables())
+        for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
         {
-            for (CFMetaData cfm : Schema.instance.getTableMetaData(table).values())
+            for (CFMetaData cfm : Schema.instance.getKeyspaceMetaData(keyspaceName).values())
             {
                 CFMetaData cfmDupe = CFMetaData.fromThrift(cfm.toThrift());
                 assert cfmDupe != null;
@@ -55,7 +55,7 @@ public class DatabaseDescriptorTest
     @Test
     public void testKSMetaDataSerialization() throws IOException, ConfigurationException
     {
-        for (KSMetaData ksm : Schema.instance.getTableDefinitions())
+        for (KSMetaData ksm : Schema.instance.getKeyspaceDefinitions())
         {
             // Not testing round-trip on the KsDef via serDe() because maps
             KSMetaData ksmDupe = KSMetaData.fromThrift(ksm.toThrift());
@@ -70,7 +70,7 @@ public class DatabaseDescriptorTest
     {
         SchemaLoader.cleanupAndLeaveDirs();
         DatabaseDescriptor.loadSchemas();
-        assert Schema.instance.getNonSystemTables().size() == 0;
+        assert Schema.instance.getNonSystemKeyspaces().size() == 0;
 
         Gossiper.instance.start((int)(System.currentTimeMillis() / 1000));
 
@@ -83,8 +83,8 @@ public class DatabaseDescriptorTest
             assert Schema.instance.getKSMetaData("ks0") != null;
             assert Schema.instance.getKSMetaData("ks1") != null;
 
-            Schema.instance.clearTableDefinition(Schema.instance.getKSMetaData("ks0"));
-            Schema.instance.clearTableDefinition(Schema.instance.getKSMetaData("ks1"));
+            Schema.instance.clearKeyspaceDefinition(Schema.instance.getKSMetaData("ks0"));
+            Schema.instance.clearKeyspaceDefinition(Schema.instance.getKSMetaData("ks1"));
 
             assert Schema.instance.getKSMetaData("ks0") == null;
             assert Schema.instance.getKSMetaData("ks1") == null;

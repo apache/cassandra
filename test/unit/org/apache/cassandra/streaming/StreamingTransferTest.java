@@ -194,8 +194,8 @@ public class StreamingTransferTest extends SchemaLoader
     {
         String ks = "Keyspace1";
         String cfname = "StandardInteger1";
-        Table table = Table.open(ks);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfname);
+        Keyspace keyspace = Keyspace.open(ks);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
 
         String key = "key1";
         RowMutation rm = new RowMutation(ks, ByteBufferUtil.bytes(key));
@@ -223,15 +223,15 @@ public class StreamingTransferTest extends SchemaLoader
     @Test
     public void testTransferTable() throws Exception
     {
-        final Table table = Table.open("Keyspace1");
-        final ColumnFamilyStore cfs = table.getColumnFamilyStore("Indexed1");
+        final Keyspace keyspace = Keyspace.open("Keyspace1");
+        final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Indexed1");
 
         List<String> keys = createAndTransfer(cfs, new Mutator()
         {
             public void mutate(String key, String col, long timestamp) throws Exception
             {
                 long val = key.hashCode();
-                ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(table.getName(), cfs.name);
+                ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(keyspace.getName(), cfs.name);
                 cf.addColumn(column(col, "v", timestamp));
                 cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(val), timestamp));
                 RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key), cf);
@@ -259,8 +259,8 @@ public class StreamingTransferTest extends SchemaLoader
     @Test
     public void testTransferTableCounter() throws Exception
     {
-        final Table table = Table.open("Keyspace1");
-        final ColumnFamilyStore cfs = table.getColumnFamilyStore("Counter1");
+        final Keyspace keyspace = Keyspace.open("Keyspace1");
+        final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Counter1");
         final CounterContext cc = new CounterContext();
 
         final Map<String, ColumnFamily> cleanedEntries = new HashMap<>();
@@ -288,7 +288,7 @@ public class StreamingTransferTest extends SchemaLoader
                 entries.put(key, cf);
                 cleanedEntries.put(key, cfCleaned);
                 cfs.addSSTable(SSTableUtils.prepare()
-                    .ks(table.getName())
+                    .ks(keyspace.getName())
                     .cf(cfs.name)
                     .generation(0)
                     .write(entries));
@@ -298,7 +298,7 @@ public class StreamingTransferTest extends SchemaLoader
         // filter pre-cleaned entries locally, and ensure that the end result is equal
         cleanedEntries.keySet().retainAll(keys);
         SSTableReader cleaned = SSTableUtils.prepare()
-            .ks(table.getName())
+            .ks(keyspace.getName())
             .cf(cfs.name)
             .generation(0)
             .write(cleanedEntries);
@@ -321,7 +321,7 @@ public class StreamingTransferTest extends SchemaLoader
         content.add("test2");
         content.add("test3");
         SSTableReader sstable = SSTableUtils.prepare().write(content);
-        String tablename = sstable.getTableName();
+        String keyspaceName = sstable.getKeyspaceName();
         String cfname = sstable.getColumnFamilyName();
 
         content = new HashSet<>();
@@ -341,7 +341,7 @@ public class StreamingTransferTest extends SchemaLoader
         new StreamPlan("StreamingTransferTest").transferFiles(LOCAL, ranges, Arrays.asList(sstable, sstable2)).execute().get();
 
         // confirm that the sstables were transferred and registered and that 2 keys arrived
-        ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);
+        ColumnFamilyStore cfstore = Keyspace.open(keyspaceName).getColumnFamilyStore(cfname);
         List<Row> rows = Util.getRangeSlice(cfstore);
         assertEquals(2, rows.size());
         assert rows.get(0).key.key.equals(ByteBufferUtil.bytes("test"));
@@ -397,7 +397,7 @@ public class StreamingTransferTest extends SchemaLoader
         // check that only two keys were transferred
         for (Map.Entry<DecoratedKey,String> entry : Arrays.asList(first, last))
         {
-            ColumnFamilyStore store = Table.open(keyspace).getColumnFamilyStore(entry.getValue());
+            ColumnFamilyStore store = Keyspace.open(keyspace).getColumnFamilyStore(entry.getValue());
             List<Row> rows = Util.getRangeSlice(store);
             assertEquals(rows.toString(), 1, rows.size());
             assertEquals(entry.getKey(), rows.get(0).key);
@@ -407,13 +407,13 @@ public class StreamingTransferTest extends SchemaLoader
     @Test
     public void testRandomSSTableTransfer() throws Exception
     {
-        final Table table = Table.open("Keyspace1");
-        final ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
+        final Keyspace keyspace = Keyspace.open("Keyspace1");
+        final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
         Mutator mutator = new Mutator()
         {
             public void mutate(String key, String colName, long timestamp) throws Exception
             {
-                ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(table.getName(), cfs.name);
+                ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(keyspace.getName(), cfs.name);
                 cf.addColumn(column(colName, "value", timestamp));
                 cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(new Date(timestamp).toString()), timestamp));
                 RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key), cf);

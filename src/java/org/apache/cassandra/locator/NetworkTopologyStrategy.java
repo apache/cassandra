@@ -50,9 +50,9 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     private final Map<String, Integer> datacenters;
     private static final Logger logger = LoggerFactory.getLogger(NetworkTopologyStrategy.class);
 
-    public NetworkTopologyStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
+    public NetworkTopologyStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
     {
-        super(table, tokenMetadata, snitch, configOptions);
+        super(keyspaceName, tokenMetadata, snitch, configOptions);
         this.snitch = snitch;
 
         Map<String, Integer> newDatacenters = new HashMap<String, Integer>();

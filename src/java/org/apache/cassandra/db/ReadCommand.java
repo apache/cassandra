@@ -63,28 +63,28 @@ public abstract class ReadCommand implements IReadCommand, Pageable
         return new MessageOut<ReadCommand>(MessagingService.Verb.READ, this, serializer);
     }
 
-    public final String table;
+    public final String ksName;
     public final String cfName;
     public final ByteBuffer key;
     public final long timestamp;
     private boolean isDigestQuery = false;
     protected final Type commandType;
 
-    protected ReadCommand(String table, ByteBuffer key, String cfName, long timestamp, Type cmdType)
+    protected ReadCommand(String ksName, ByteBuffer key, String cfName, long timestamp, Type cmdType)
     {
-        this.table = table;
+        this.ksName = ksName;
         this.key = key;
         this.cfName = cfName;
         this.timestamp = timestamp;
         this.commandType = cmdType;
     }
 
-    public static ReadCommand create(String table, ByteBuffer key, String cfName, long timestamp, IDiskAtomFilter filter)
+    public static ReadCommand create(String ksName, ByteBuffer key, String cfName, long timestamp, IDiskAtomFilter filter)
     {
         if (filter instanceof SliceQueryFilter)
-            return new SliceFromReadCommand(table, key, cfName, timestamp, (SliceQueryFilter)filter);
+            return new SliceFromReadCommand(ksName, key, cfName, timestamp, (SliceQueryFilter)filter);
         else
-            return new SliceByNamesReadCommand(table, key, cfName, timestamp, (NamesQueryFilter)filter);
+            return new SliceByNamesReadCommand(ksName, key, cfName, timestamp, (NamesQueryFilter)filter);
     }
 
     public boolean isDigestQuery()
@@ -104,13 +104,13 @@ public abstract class ReadCommand implements IReadCommand, Pageable
 
     public abstract ReadCommand copy();
 
-    public abstract Row getRow(Table table);
+    public abstract Row getRow(Keyspace keyspace);
 
     public abstract IDiskAtomFilter filter();
 
     public String getKeyspace()
     {
-        return table;
+        return ksName;
     }
 
     // maybeGenerateRetryCommand is used to generate a retry for short reads
@@ -142,11 +142,11 @@ class ReadCommandSerializer implements IVersionedSerializer<ReadCommand>
         ByteBuffer superColumn = null;
         if (version < MessagingService.VERSION_20)
         {
-            CFMetaData metadata = Schema.instance.getCFMetaData(command.table, command.cfName);
+            CFMetaData metadata = Schema.instance.getCFMetaData(command.ksName, command.cfName);
             if (metadata.cfType == ColumnFamilyType.Super)
             {
                 SuperColumns.SCFilter scFilter = SuperColumns.filterToSC((CompositeType)metadata.comparator, command.filter());
-                newCommand = ReadCommand.create(command.table, command.key, command.cfName, command.timestamp, scFilter.updatedFilter);
+                newCommand = ReadCommand.create(command.ksName, command.key, command.cfName, command.timestamp, scFilter.updatedFilter);
                 newCommand.setDigestQuery(command.isDigestQuery());
                 superColumn = scFilter.scName;
             }
@@ -186,11 +186,11 @@ class ReadCommandSerializer implements IVersionedSerializer<ReadCommand>
         ByteBuffer superColumn = null;
         if (version < MessagingService.VERSION_20)
         {
-            CFMetaData metadata = Schema.instance.getCFMetaData(command.table, command.cfName);
+            CFMetaData metadata = Schema.instance.getCFMetaData(command.ksName, command.cfName);
             if (metadata.cfType == ColumnFamilyType.Super)
             {
                 SuperColumns.SCFilter scFilter = SuperColumns.filterToSC((CompositeType)metadata.comparator, command.filter());
-                newCommand = ReadCommand.create(command.table, command.key, command.cfName, command.timestamp, scFilter.updatedFilter);
+                newCommand = ReadCommand.create(command.ksName, command.key, command.cfName, command.timestamp, scFilter.updatedFilter);
                 newCommand.setDigestQuery(command.isDigestQuery());
                 superColumn = scFilter.scName;
             }

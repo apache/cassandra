@@ -48,7 +48,7 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 /**
  * A trace session context. Able to track and store trace sessions. A session is usually a user initiated query, and may
- * have multiple local and remote events before it is completed. All events and sessions are stored at table.
+ * have multiple local and remote events before it is completed. All events and sessions are stored at keyspace.
  */
 public class Tracing
 {

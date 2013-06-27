@@ -40,8 +40,8 @@ public class RecoveryManagerTruncateTest extends SchemaLoader
 	@Test
 	public void testTruncate() throws IOException, ExecutionException, InterruptedException
 	{
-		Table table = Table.open("Keyspace1");
-		ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
+		Keyspace keyspace = Keyspace.open("Keyspace1");
+		ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
 
 		RowMutation rm;
 		ColumnFamily cf;
@@ -53,7 +53,7 @@ public class RecoveryManagerTruncateTest extends SchemaLoader
 		rm.apply();
 
 		// Make sure data was written
-		assertNotNull(getFromTable(table, "Standard1", "keymulti", "col1"));
+		assertNotNull(getFromTable(keyspace, "Standard1", "keymulti", "col1"));
 
 		// and now truncate it
 		cfs.truncateBlocking();
@@ -61,13 +61,13 @@ public class RecoveryManagerTruncateTest extends SchemaLoader
 		CommitLog.instance.recover();
 
 		// and validate truncation.
-		assertNull(getFromTable(table, "Standard1", "keymulti", "col1"));
+		assertNull(getFromTable(keyspace, "Standard1", "keymulti", "col1"));
 	}
 
-	private Column getFromTable(Table table, String cfName, String keyName, String columnName)
+	private Column getFromTable(Keyspace keyspace, String cfName, String keyName, String columnName)
 	{
 		ColumnFamily cf;
-		ColumnFamilyStore cfStore = table.getColumnFamilyStore(cfName);
+		ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore(cfName);
 		if (cfStore == null)
 		{
 			return null;

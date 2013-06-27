@@ -47,15 +47,15 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
         }
     };
 
-    private final String table;
+    private final String keyspaceName;
     private final long timestamp;
     private List<InetAddress> sources;
     protected final Collection<MessageIn<RangeSliceReply>> responses = new ConcurrentLinkedQueue<MessageIn<RangeSliceReply>>();
     public final List<AsyncOneResponse> repairResults = new ArrayList<AsyncOneResponse>();
 
-    public RangeSliceResponseResolver(String table, long timestamp)
+    public RangeSliceResponseResolver(String keyspaceName, long timestamp)
     {
-        this.table = table;
+        this.keyspaceName = keyspaceName;
         this.timestamp = timestamp;
     }
 
@@ -160,7 +160,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
             }
             // resolved can be null even if versions doesn't have all nulls because of the call to removeDeleted in resolveSuperSet
             if (resolved != null)
-                repairResults.addAll(RowDataResolver.scheduleRepairs(resolved, table, key, versions, versionSources));
+                repairResults.addAll(RowDataResolver.scheduleRepairs(resolved, keyspaceName, key, versions, versionSources));
             versions.clear();
             versionSources.clear();
             return new Row(key, resolved);

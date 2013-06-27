@@ -33,14 +33,14 @@ public abstract class AbstractRowResolver implements IResponseResolver<ReadRespo
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractRowResolver.class);
 
-    protected final String table;
+    protected final String keyspaceName;
     protected final Set<MessageIn<ReadResponse>> replies = new NonBlockingHashSet<MessageIn<ReadResponse>>();
     protected final DecoratedKey key;
 
-    public AbstractRowResolver(ByteBuffer key, String table)
+    public AbstractRowResolver(ByteBuffer key, String keyspaceName)
     {
         this.key = StorageService.getPartitioner().decorateKey(key);
-        this.table = table;
+        this.keyspaceName = keyspaceName;
     }
 
     public boolean preprocess(MessageIn<ReadResponse> message)

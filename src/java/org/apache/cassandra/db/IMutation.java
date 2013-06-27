@@ -23,7 +23,7 @@ import java.util.UUID;
 
 public interface IMutation
 {
-    public String getTable();
+    public String getKeyspaceName();
     public Collection<UUID> getColumnFamilyIds();
     public ByteBuffer key();
     public void apply();

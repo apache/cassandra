@@ -34,7 +34,7 @@ class BloomCalculations {
     private static final int EXCESS = 20;
 
     /**
-     * In the following table, the row 'i' shows false positive rates if i buckets
+     * In the following keyspaceName, the row 'i' shows false positive rates if i buckets
      * per element are used.  Column 'j' shows false positive rates if j hash
      * functions are used.  The first row is 'i=0', the first column is 'j=0'.
      * Each cell (i,j) the false positive rate determined by using i buckets per

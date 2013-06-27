@@ -29,7 +29,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.Upgrader;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.service.CassandraDaemon;
@@ -61,8 +61,8 @@ public class StandaloneUpgrader
                                                                  options.keyspace,
                                                                  options.cf));
 
-            Table table = Table.openWithoutSSTables(options.keyspace);
-            ColumnFamilyStore cfs = table.getColumnFamilyStore(options.cf);
+            Keyspace keyspace = Keyspace.openWithoutSSTables(options.keyspace);
+            ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(options.cf);
 
             OutputHandler handler = new OutputHandler.SystemOutput(false, options.debug);
             Directories.SSTableLister lister = cfs.directories.sstableLister();

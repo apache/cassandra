@@ -52,7 +52,7 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
      */
     public abstract void update(ByteBuffer rowKey, Column col);
 
-    public String getNameForSystemTable(ByteBuffer column)
+    public String getNameForSystemKeyspace(ByteBuffer column)
     {
         return getIndexName();
     }

@@ -184,7 +184,7 @@ public class OrderPreservingPartitioner extends AbstractPartitioner<StringToken>
             lastToken = node;
         }
 
-        for (String ks : Schema.instance.getTables())
+        for (String ks : Schema.instance.getKeyspaces())
         {
             for (CFMetaData cfmd : Schema.instance.getKSMetaData(ks).cfMetaData().values())
             {

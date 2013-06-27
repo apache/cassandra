@@ -38,7 +38,7 @@ import org.junit.Test;
 
 public class EncodedStreamsTest extends SchemaLoader
 {
-    private String tableName = "Keyspace1";
+    private String keyspaceName = "Keyspace1";
     private String standardCFName = "Standard1";
     private String counterCFName = "Counter1";
     private String superCFName = "Super1";
@@ -97,7 +97,7 @@ public class EncodedStreamsTest extends SchemaLoader
 
     private ColumnFamily createCF()
     {
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(tableName, standardCFName);
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(keyspaceName, standardCFName);
         cf.addColumn(column("vijay", "try", 1));
         cf.addColumn(column("to", "be_nice", 1));
         return cf;
@@ -105,7 +105,7 @@ public class EncodedStreamsTest extends SchemaLoader
 
     private ColumnFamily createCounterCF()
     {
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(tableName, counterCFName);
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(keyspaceName, counterCFName);
         cf.addColumn(counterColumn("vijay", 1L, 1));
         cf.addColumn(counterColumn("wants", 1000000, 1));
         return cf;

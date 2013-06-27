@@ -522,8 +522,8 @@ public class CassandraServer implements Cassandra.Iface
             ThriftClientState cState = state();
             String keyspace = cState.getKeyspace();
             cState.hasColumnFamilyAccess(keyspace, column_parent.column_family, Permission.SELECT);
-            Table table = Table.open(keyspace);
-            ColumnFamilyStore cfs = table.getColumnFamilyStore(column_parent.column_family);
+            Keyspace keyspaceName = Keyspace.open(keyspace);
+            ColumnFamilyStore cfs = keyspaceName.getColumnFamilyStore(column_parent.column_family);
             long timestamp = System.currentTimeMillis();
 
             if (predicate.column_names != null)
@@ -873,7 +873,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             for(ByteBuffer c : del.predicate.column_names)
             {
-                if (del.super_column == null && Schema.instance.getColumnFamilyType(rm.getTable(), cfName) == ColumnFamilyType.Super)
+                if (del.super_column == null && Schema.instance.getColumnFamilyType(rm.getKeyspaceName(), cfName) == ColumnFamilyType.Super)
                     rm.deleteRange(cfName, SuperColumns.startOf(c), SuperColumns.endOf(c), del.timestamp);
                 else if (del.super_column != null)
                     rm.delete(cfName, CompositeType.build(del.super_column, c), del.timestamp);
@@ -1056,11 +1056,11 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public KsDef describe_keyspace(String table) throws NotFoundException, InvalidRequestException
+    public KsDef describe_keyspace(String keyspaceName) throws NotFoundException, InvalidRequestException
     {
         validateLogin();
 
-        KSMetaData ksm = Schema.instance.getKSMetaData(table);
+        KSMetaData ksm = Schema.instance.getKSMetaData(keyspaceName);
         if (ksm == null)
             throw new NotFoundException();
 
@@ -1325,7 +1325,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         validateLogin();
 
-        Set<String> keyspaces = Schema.instance.getTables();
+        Set<String> keyspaces = Schema.instance.getKeyspaces();
         List<KsDef> ksset = new ArrayList<KsDef>(keyspaces.size());
         for (String ks : keyspaces)
         {
@@ -1562,7 +1562,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             ThriftValidation.validateKeyspaceNotSystem(ks_def.name);
             state().hasKeyspaceAccess(ks_def.name, Permission.ALTER);
-            ThriftValidation.validateTable(ks_def.name);
+            ThriftValidation.validateKeyspace(ks_def.name);
             if (ks_def.getCf_defs() != null && ks_def.getCf_defs().size() > 0)
                 throw new InvalidRequestException("Keyspace update must not contain any column family definitions.");
 

@@ -34,8 +34,8 @@ import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DefsTable;
-import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.DefsTables;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSWriteError;
@@ -437,7 +437,7 @@ public class DatabaseDescriptor
             conf.server_encryption_options = conf.encryption_options;
         }
 
-        // Hardcoded system tables
+        // Hardcoded system keyspaces
         List<KSMetaData> systemKeyspaces = Arrays.asList(KSMetaData.systemKeyspace(), KSMetaData.traceKeyspace());
         assert systemKeyspaces.size() == Schema.systemKeyspaceNames.size();
         for (KSMetaData ksmd : systemKeyspaces)
@@ -445,7 +445,7 @@ public class DatabaseDescriptor
             // install the definition
             for (CFMetaData cfm : ksmd.cfMetaData().values())
                 Schema.instance.load(cfm);
-            Schema.instance.setTableDefinition(ksmd);
+            Schema.instance.setKeyspaceDefinition(ksmd);
         }
 
         /* Load the seeds for node contact points */
@@ -477,24 +477,24 @@ public class DatabaseDescriptor
         return conf.dynamic_snitch ? new DynamicEndpointSnitch(snitch) : snitch;
     }
 
-    /** load keyspace (table) definitions, but do not initialize the table instances. */
+    /** load keyspace (keyspace) definitions, but do not initialize the keyspace instances. */
     public static void loadSchemas()
     {
-        ColumnFamilyStore schemaCFS = SystemTable.schemaCFS(SystemTable.SCHEMA_KEYSPACES_CF);
+        ColumnFamilyStore schemaCFS = SystemKeyspace.schemaCFS(SystemKeyspace.SCHEMA_KEYSPACES_CF);
 
-        // if table with definitions is empty try loading the old way
+        // if keyspace with definitions is empty try loading the old way
         if (schemaCFS.estimateKeys() == 0)
         {
             logger.info("Couldn't detect any schema definitions in local storage.");
             // peek around the data directories to see if anything is there.
             if (hasExistingNoSystemTables())
-                logger.info("Found table data in data directories. Consider using cqlsh to define your schema.");
+                logger.info("Found keyspace data in data directories. Consider using cqlsh to define your schema.");
             else
-                logger.info("To create keyspaces and column families, see 'help create table' in cqlsh.");
+                logger.info("To create keyspaces and column families, see 'help create keyspace' in cqlsh.");
         }
         else
         {
-            Schema.instance.load(DefsTable.loadFromTable());
+            Schema.instance.load(DefsTables.loadFromKeyspace());
         }
 
         Schema.instance.updateVersion();

@@ -37,7 +37,7 @@ import org.yaml.snakeyaml.constructor.Constructor;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.util.FileUtils;
@@ -506,7 +506,7 @@ public class NodeCmd
         }
     }
 
-    /** Writes a table of cluster-wide node information to a PrintStream
+    /** Writes a keyspaceName of cluster-wide node information to a PrintStream
      * @throws UnknownHostException */
     public void printClusterStatus(PrintStream outs, String keyspace) throws UnknownHostException
     {
@@ -743,33 +743,33 @@ public class NodeCmd
         while (cfamilies.hasNext())
         {
             Entry<String, ColumnFamilyStoreMBean> entry = cfamilies.next();
-            String tableName = entry.getKey();
+            String keyspaceName = entry.getKey();
             ColumnFamilyStoreMBean cfsProxy = entry.getValue();
 
-            if (!cfstoreMap.containsKey(tableName))
+            if (!cfstoreMap.containsKey(keyspaceName))
             {
                 List<ColumnFamilyStoreMBean> columnFamilies = new ArrayList<ColumnFamilyStoreMBean>();
                 columnFamilies.add(cfsProxy);
-                cfstoreMap.put(tableName, columnFamilies);
+                cfstoreMap.put(keyspaceName, columnFamilies);
             }
             else
             {
-                cfstoreMap.get(tableName).add(cfsProxy);
+                cfstoreMap.get(keyspaceName).add(cfsProxy);
             }
         }
 
-        // print out the table statistics
+        // print out the keyspace statistics
         for (Entry<String, List<ColumnFamilyStoreMBean>> entry : cfstoreMap.entrySet())
         {
-            String tableName = entry.getKey();
+            String keyspaceName = entry.getKey();
             List<ColumnFamilyStoreMBean> columnFamilies = entry.getValue();
-            long tableReadCount = 0;
-            long tableWriteCount = 0;
-            int tablePendingTasks = 0;
-            double tableTotalReadTime = 0.0f;
-            double tableTotalWriteTime = 0.0f;
+            long keyspaceReadCount = 0;
+            long keyspaceWriteCount = 0;
+            int keyspacePendingTasks = 0;
+            double keyspaceTotalReadTime = 0.0f;
+            double keyspaceTotalWriteTime = 0.0f;
 
-            outs.println("Keyspace: " + tableName);
+            outs.println("Keyspace: " + keyspaceName);
             for (ColumnFamilyStoreMBean cfstore : columnFamilies)
             {
                 long writeCount = cfstore.getWriteCount();
@@ -777,27 +777,27 @@ public class NodeCmd
 
                 if (readCount > 0)
                 {
-                    tableReadCount += readCount;
-                    tableTotalReadTime += cfstore.getTotalReadLatencyMicros();
+                    keyspaceReadCount += readCount;
+                    keyspaceTotalReadTime += cfstore.getTotalReadLatencyMicros();
                 }
                 if (writeCount > 0)
                 {
-                    tableWriteCount += writeCount;
-                    tableTotalWriteTime += cfstore.getTotalWriteLatencyMicros();
+                    keyspaceWriteCount += writeCount;
+                    keyspaceTotalWriteTime += cfstore.getTotalWriteLatencyMicros();
                 }
-                tablePendingTasks += cfstore.getPendingTasks();
+                keyspacePendingTasks += cfstore.getPendingTasks();
             }
 
-            double tableReadLatency = tableReadCount > 0 ? tableTotalReadTime / tableReadCount / 1000 : Double.NaN;
-            double tableWriteLatency = tableWriteCount > 0 ? tableTotalWriteTime / tableWriteCount / 1000 : Double.NaN;
+            double keyspaceReadLatency = keyspaceReadCount > 0 ? keyspaceTotalReadTime / keyspaceReadCount / 1000 : Double.NaN;
+            double keyspaceWriteLatency = keyspaceWriteCount > 0 ? keyspaceTotalWriteTime / keyspaceWriteCount / 1000 : Double.NaN;
 
-            outs.println("\tRead Count: " + tableReadCount);
-            outs.println("\tRead Latency: " + String.format("%s", tableReadLatency) + " ms.");
-            outs.println("\tWrite Count: " + tableWriteCount);
-            outs.println("\tWrite Latency: " + String.format("%s", tableWriteLatency) + " ms.");
-            outs.println("\tPending Tasks: " + tablePendingTasks);
+            outs.println("\tRead Count: " + keyspaceReadCount);
+            outs.println("\tRead Latency: " + String.format("%s", keyspaceReadLatency) + " ms.");
+            outs.println("\tWrite Count: " + keyspaceWriteCount);
+            outs.println("\tWrite Latency: " + String.format("%s", keyspaceWriteLatency) + " ms.");
+            outs.println("\tPending Tasks: " + keyspacePendingTasks);
 
-            // print out column family statistics for this table
+            // print out column family statistics for this keyspace
             for (ColumnFamilyStoreMBean cfstore : columnFamilies)
             {
                 String cfName = cfstore.getColumnFamilyName();
@@ -1364,16 +1364,16 @@ public class NodeCmd
                         probe.forceRepairAsync(System.out, keyspace, snapshot, localDC, primaryRange, columnFamilies);
                     break;
                 case FLUSH   :
-                    try { probe.forceTableFlush(keyspace, columnFamilies); }
+                    try { probe.forceKeyspaceFlush(keyspace, columnFamilies); }
                     catch (ExecutionException ee) { err(ee, "Error occurred during flushing"); }
                     break;
                 case COMPACT :
-                    try { probe.forceTableCompaction(keyspace, columnFamilies); }
+                    try { probe.forceKeyspaceCompaction(keyspace, columnFamilies); }
                     catch (ExecutionException ee) { err(ee, "Error occurred during compaction"); }
                     break;
                 case CLEANUP :
-                    if (keyspace.equals(Table.SYSTEM_KS)) { break; } // Skip cleanup on system cfs.
-                    try { probe.forceTableCleanup(keyspace, columnFamilies); }
+                    if (keyspace.equals(Keyspace.SYSTEM_KS)) { break; } // Skip cleanup on system cfs.
+                    try { probe.forceKeyspaceCleanup(keyspace, columnFamilies); }
                     catch (ExecutionException ee) { err(ee, "Error occurred during cleanup"); }
                     break;
                 case SCRUB :

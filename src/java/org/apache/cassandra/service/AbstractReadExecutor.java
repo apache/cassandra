@@ -31,7 +31,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
@@ -61,7 +61,7 @@ public abstract class AbstractReadExecutor
     {
         unfiltered = allReplicas;
         this.endpoints = queryTargets;
-        this.resolver = new RowDigestResolver(command.table, command.key);
+        this.resolver = new RowDigestResolver(command.ksName, command.key);
         this.handler = new ReadCallback<ReadResponse, Row>(resolver, consistency_level, command, this.endpoints);
         this.command = command;
         this.cfs = cfs;
@@ -124,9 +124,9 @@ public abstract class AbstractReadExecutor
 
     public static AbstractReadExecutor getReadExecutor(ReadCommand command, ConsistencyLevel consistency_level) throws UnavailableException
     {
-        Table table = Table.open(command.table);
-        List<InetAddress> allReplicas = StorageProxy.getLiveSortedEndpoints(table, command.key);
-        CFMetaData metaData = Schema.instance.getCFMetaData(command.table, command.cfName);
+        Keyspace keyspace = Keyspace.open(command.ksName);
+        List<InetAddress> allReplicas = StorageProxy.getLiveSortedEndpoints(keyspace, command.key);
+        CFMetaData metaData = Schema.instance.getCFMetaData(command.ksName, command.cfName);
 
         ReadRepairDecision rrDecision = metaData.newReadRepairDecision();
          
@@ -134,14 +134,14 @@ public abstract class AbstractReadExecutor
             ReadRepairMetrics.attempted.mark();
         }
 
-        List<InetAddress> queryTargets = consistency_level.filterForQuery(table, allReplicas, rrDecision);
+        List<InetAddress> queryTargets = consistency_level.filterForQuery(keyspace, allReplicas, rrDecision);
 
         if (StorageService.instance.isClientMode())
         {
             return new DefaultReadExecutor(null, command, consistency_level, allReplicas, queryTargets);
         }
 
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(command.cfName);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.cfName);
 
         switch (metaData.getSpeculativeRetry().type)
         {

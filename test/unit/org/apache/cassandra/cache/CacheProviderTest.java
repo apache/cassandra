@@ -45,7 +45,7 @@ public class CacheProviderTest extends SchemaLoader
     MeasureableString key4 = new MeasureableString("key4");
     MeasureableString key5 = new MeasureableString("key5");
     private static final long CAPACITY = 4;
-    private String tableName = "Keyspace1";
+    private String keyspaceName = "Keyspace1";
     private String cfName = "Standard1";
 
     private void simpleCase(ColumnFamily cf, ICache<MeasureableString, IRowCacheEntry> cache)
@@ -100,7 +100,7 @@ public class CacheProviderTest extends SchemaLoader
 
     private ColumnFamily createCF()
     {
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(tableName, cfName);
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(keyspaceName, cfName);
         cf.addColumn(column("vijay", "great", 1));
         cf.addColumn(column("awesome", "vijay", 1));
         return cf;

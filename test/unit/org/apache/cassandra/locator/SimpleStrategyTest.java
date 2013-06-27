@@ -32,7 +32,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceAccessor;
@@ -43,9 +43,9 @@ import static org.junit.Assert.*;
 public class SimpleStrategyTest extends SchemaLoader
 {
     @Test
-    public void tryValidTable()
+    public void tryValidKeyspace()
     {
-        assert Table.open("Keyspace1").getReplicationStrategy() != null;
+        assert Keyspace.open("Keyspace1").getReplicationStrategy() != null;
     }
 
     @Test
@@ -80,10 +80,10 @@ public class SimpleStrategyTest extends SchemaLoader
     {
         TokenMetadata tmd;
         AbstractReplicationStrategy strategy;
-        for (String table : Schema.instance.getNonSystemTables())
+        for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
         {
             tmd = new TokenMetadata();
-            strategy = getStrategy(table, tmd);
+            strategy = getStrategy(keyspaceName, tmd);
             List<InetAddress> hosts = new ArrayList<InetAddress>();
             for (int i = 0; i < endpointTokens.length; i++)
             {
@@ -135,17 +135,17 @@ public class SimpleStrategyTest extends SchemaLoader
         tmd.addBootstrapToken(bsToken, bootstrapEndpoint);
 
         AbstractReplicationStrategy strategy = null;
-        for (String table : Schema.instance.getNonSystemTables())
+        for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
         {
-            strategy = getStrategy(table, tmd);
+            strategy = getStrategy(keyspaceName, tmd);
 
-            StorageService.calculatePendingRanges(strategy, table);
+            StorageService.calculatePendingRanges(strategy, keyspaceName);
 
             int replicationFactor = strategy.getReplicationFactor();
 
             for (int i = 0; i < keyTokens.length; i++)
             {
-                Collection<InetAddress> endpoints = tmd.getWriteEndpoints(keyTokens[i], table, strategy.getNaturalEndpoints(keyTokens[i]));
+                Collection<InetAddress> endpoints = tmd.getWriteEndpoints(keyTokens[i], keyspaceName, strategy.getNaturalEndpoints(keyTokens[i]));
                 assertTrue(endpoints.size() >= replicationFactor);
 
                 for (int j = 0; j < replicationFactor; j++)
@@ -165,11 +165,11 @@ public class SimpleStrategyTest extends SchemaLoader
         StorageServiceAccessor.setTokenMetadata(oldTmd);
     }
 
-    private AbstractReplicationStrategy getStrategy(String table, TokenMetadata tmd) throws ConfigurationException
+    private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd) throws ConfigurationException
     {
-        KSMetaData ksmd = Schema.instance.getKSMetaData(table);
+        KSMetaData ksmd = Schema.instance.getKSMetaData(keyspaceName);
         return AbstractReplicationStrategy.createReplicationStrategy(
-                table,
+                keyspaceName,
                 ksmd.strategyClass,
                 tmd,
                 new SimpleSnitch(),

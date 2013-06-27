@@ -31,8 +31,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.SystemTable;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -56,13 +56,13 @@ public class ClientState
     static
     {
         // We want these system cfs to be always readable since many tools rely on them (nodetool, cqlsh, bulkloader, etc.)
-        String[] cfs =  new String[] { SystemTable.LOCAL_CF,
-                                       SystemTable.PEERS_CF,
-                                       SystemTable.SCHEMA_KEYSPACES_CF,
-                                       SystemTable.SCHEMA_COLUMNFAMILIES_CF,
-                                       SystemTable.SCHEMA_COLUMNS_CF };
+        String[] cfs =  new String[] { SystemKeyspace.LOCAL_CF,
+                                       SystemKeyspace.PEERS_CF,
+                                       SystemKeyspace.SCHEMA_KEYSPACES_CF,
+                                       SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF,
+                                       SystemKeyspace.SCHEMA_COLUMNS_CF };
         for (String cf : cfs)
-            READABLE_SYSTEM_RESOURCES.add(DataResource.columnFamily(Table.SYSTEM_KS, cf));
+            READABLE_SYSTEM_RESOURCES.add(DataResource.columnFamily(Keyspace.SYSTEM_KS, cf));
 
         PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthenticator().protectedResources());
         PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthorizer().protectedResources());

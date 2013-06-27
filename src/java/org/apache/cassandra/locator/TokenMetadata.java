@@ -656,13 +656,13 @@ public class TokenMetadata
         return sortedTokens;
     }
 
-    private Multimap<Range<Token>, InetAddress> getPendingRangesMM(String table)
+    private Multimap<Range<Token>, InetAddress> getPendingRangesMM(String keyspaceName)
     {
-        Multimap<Range<Token>, InetAddress> map = pendingRanges.get(table);
+        Multimap<Range<Token>, InetAddress> map = pendingRanges.get(keyspaceName);
         if (map == null)
         {
             map = HashMultimap.create();
-            Multimap<Range<Token>, InetAddress> priorMap = pendingRanges.putIfAbsent(table, map);
+            Multimap<Range<Token>, InetAddress> priorMap = pendingRanges.putIfAbsent(keyspaceName, map);
             if (priorMap != null)
                 map = priorMap;
         }
@@ -670,15 +670,15 @@ public class TokenMetadata
     }
 
     /** a mutable map may be returned but caller should not modify it */
-    public Map<Range<Token>, Collection<InetAddress>> getPendingRanges(String table)
+    public Map<Range<Token>, Collection<InetAddress>> getPendingRanges(String keyspaceName)
     {
-        return getPendingRangesMM(table).asMap();
+        return getPendingRangesMM(keyspaceName).asMap();
     }
 
-    public List<Range<Token>> getPendingRanges(String table, InetAddress endpoint)
+    public List<Range<Token>> getPendingRanges(String keyspaceName, InetAddress endpoint)
     {
         List<Range<Token>> ranges = new ArrayList<Range<Token>>();
-        for (Map.Entry<Range<Token>, InetAddress> entry : getPendingRangesMM(table).entries())
+        for (Map.Entry<Range<Token>, InetAddress> entry : getPendingRangesMM(keyspaceName).entries())
         {
             if (entry.getValue().equals(endpoint))
             {
@@ -688,9 +688,9 @@ public class TokenMetadata
         return ranges;
     }
 
-    public void setPendingRanges(String table, Multimap<Range<Token>, InetAddress> rangeMap)
+    public void setPendingRanges(String keyspaceName, Multimap<Range<Token>, InetAddress> rangeMap)
     {
-        pendingRanges.put(table, rangeMap);
+        pendingRanges.put(keyspaceName, rangeMap);
     }
 
     public Token getPredecessor(Token token)
@@ -926,9 +926,9 @@ public class TokenMetadata
         subscribers.remove(subscriber);
     }
 
-    public Collection<InetAddress> pendingEndpointsFor(Token token, String table)
+    public Collection<InetAddress> pendingEndpointsFor(Token token, String keyspaceName)
     {
-        Map<Range<Token>, Collection<InetAddress>> ranges = getPendingRanges(table);
+        Map<Range<Token>, Collection<InetAddress>> ranges = getPendingRanges(keyspaceName);
         if (ranges.isEmpty())
             return Collections.emptyList();
 
@@ -945,10 +945,10 @@ public class TokenMetadata
     /**
      * @deprecated retained for benefit of old tests
      */
-    public Collection<InetAddress> getWriteEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
+    public Collection<InetAddress> getWriteEndpoints(Token token, String keyspaceName, Collection<InetAddress> naturalEndpoints)
     {
         ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>();
-        Iterables.addAll(endpoints, Iterables.concat(naturalEndpoints, pendingEndpointsFor(token, table)));
+        Iterables.addAll(endpoints, Iterables.concat(naturalEndpoints, pendingEndpointsFor(token, keyspaceName)));
         return endpoints;
     }
 

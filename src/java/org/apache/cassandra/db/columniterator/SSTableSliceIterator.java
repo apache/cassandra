@@ -44,7 +44,7 @@ public class SSTableSliceIterator implements OnDiskAtomIterator
 
     /**
      * An iterator for a slice within an SSTable
-     * @param sstable Table for the CFS we are reading from
+     * @param sstable Keyspace for the CFS we are reading from
      * @param file Optional parameter that input is read from.  If null is passed, this class creates an appropriate one automatically.
      * If this class creates, it will close the underlying file when #close() is called.
      * If a caller passes a non-null argument, this class will NOT close the underlying file when the iterator is closed (i.e. the caller is responsible for closing the file)

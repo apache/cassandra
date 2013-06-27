@@ -534,9 +534,9 @@ public class SSTableImport
         }
 
         DatabaseDescriptor.loadSchemas();
-        if (Schema.instance.getNonSystemTables().size() < 1)
+        if (Schema.instance.getNonSystemKeyspaces().size() < 1)
         {
-            String msg = "no non-system tables are defined";
+            String msg = "no non-system keyspaces are defined";
             System.err.println(msg);
             throw new ConfigurationException(msg);
         }

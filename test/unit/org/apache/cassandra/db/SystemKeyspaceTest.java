@@ -31,21 +31,20 @@ import java.util.UUID;
 
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class SystemTableTest
+public class SystemKeyspaceTest
 {
     @Test
     public void testLocalTokens()
     {
         // Remove all existing tokens
-        Collection<Token> current = SystemTable.loadTokens().asMap().get(FBUtilities.getLocalAddress());
+        Collection<Token> current = SystemKeyspace.loadTokens().asMap().get(FBUtilities.getLocalAddress());
         if (current != null && !current.isEmpty())
-            SystemTable.updateTokens(current);
+            SystemKeyspace.updateTokens(current);
 
         List<Token> tokens = new ArrayList<Token>()
         {{
@@ -53,10 +52,10 @@ public class SystemTableTest
                 add(new BytesToken(ByteBufferUtil.bytes(String.format("token%d", i))));
         }};
 
-        SystemTable.updateTokens(tokens);
+        SystemKeyspace.updateTokens(tokens);
         int count = 0;
 
-        for (Token tok : SystemTable.getSavedTokens())
+        for (Token tok : SystemKeyspace.getSavedTokens())
             assert tokens.get(count++).equals(tok);
     }
 
@@ -65,17 +64,17 @@ public class SystemTableTest
     {
         BytesToken token = new BytesToken(ByteBufferUtil.bytes("token3"));
         InetAddress address = InetAddress.getByName("127.0.0.2");
-        SystemTable.updateTokens(address, Collections.<Token>singletonList(token));
-        assert SystemTable.loadTokens().get(address).contains(token);
-        SystemTable.removeEndpoint(address);
-        assert !SystemTable.loadTokens().containsValue(token);
+        SystemKeyspace.updateTokens(address, Collections.<Token>singletonList(token));
+        assert SystemKeyspace.loadTokens().get(address).contains(token);
+        SystemKeyspace.removeEndpoint(address);
+        assert !SystemKeyspace.loadTokens().containsValue(token);
     }
 
     @Test
     public void testLocalHostID()
     {
-        UUID firstId = SystemTable.getLocalHostId();
-        UUID secondId = SystemTable.getLocalHostId();
+        UUID firstId = SystemKeyspace.getLocalHostId();
+        UUID secondId = SystemKeyspace.getLocalHostId();
         assert firstId.equals(secondId) : String.format("%s != %s%n", firstId.toString(), secondId.toString());
     }
 }

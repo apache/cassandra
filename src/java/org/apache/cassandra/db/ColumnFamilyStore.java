@@ -82,7 +82,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static final ExecutorService postFlushExecutor = new JMXEnabledThreadPoolExecutor("MemtablePostFlusher");
 
-    public final Table table;
+    public final Keyspace keyspace;
     public final String name;
     public final CFMetaData metadata;
     public final IPartitioner partitioner;
@@ -217,7 +217,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         try
         {
-            for (SSTableReader sstable : table.getAllSSTables())
+            for (SSTableReader sstable : keyspace.getAllSSTables())
                 if (sstable.compression)
                     sstable.getCompressionMetadata().parameters.setCrcCheckChance(crcCheckChance);
         }
@@ -227,7 +227,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    private ColumnFamilyStore(Table table,
+    private ColumnFamilyStore(Keyspace keyspace,
                               String columnFamilyName,
                               IPartitioner partitioner,
                               int generation,
@@ -235,9 +235,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                               Directories directories,
                               boolean loadSSTables)
     {
-        assert metadata != null : "null metadata for " + table + ":" + columnFamilyName;
+        assert metadata != null : "null metadata for " + keyspace + ":" + columnFamilyName;
 
-        this.table = table;
+        this.keyspace = keyspace;
         name = columnFamilyName;
         this.metadata = metadata;
         this.minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
@@ -284,7 +284,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // register the mbean
         String type = this.partitioner instanceof LocalPartitioner ? "IndexColumnFamilies" : "ColumnFamilies";
-        mbeanName = "org.apache.cassandra.db:type=" + type + ",keyspace=" + this.table.getName() + ",columnfamily=" + name;
+        mbeanName = "org.apache.cassandra.db:type=" + type + ",keyspace=" + this.keyspace.getName() + ",columnfamily=" + name;
         try
         {
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
@@ -326,7 +326,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             valid = false;
             unregisterMBean();
 
-            SystemTable.removeTruncationRecord(metadata.cfId);
+            SystemKeyspace.removeTruncationRecord(metadata.cfId);
             data.unreferenceSSTables();
             indexManager.invalidate();
         }
@@ -377,24 +377,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getMeanColumns();
     }
 
-    public static ColumnFamilyStore createColumnFamilyStore(Table table, String columnFamily, boolean loadSSTables)
+    public static ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace, String columnFamily, boolean loadSSTables)
     {
-        return createColumnFamilyStore(table, columnFamily, StorageService.getPartitioner(), Schema.instance.getCFMetaData(table.getName(), columnFamily), loadSSTables);
+        return createColumnFamilyStore(keyspace, columnFamily, StorageService.getPartitioner(), Schema.instance.getCFMetaData(keyspace.getName(), columnFamily), loadSSTables);
     }
 
-    public static ColumnFamilyStore createColumnFamilyStore(Table table, String columnFamily, IPartitioner partitioner, CFMetaData metadata)
+    public static ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace, String columnFamily, IPartitioner partitioner, CFMetaData metadata)
     {
-        return createColumnFamilyStore(table, columnFamily, partitioner, metadata, true);
+        return createColumnFamilyStore(keyspace, columnFamily, partitioner, metadata, true);
     }
 
-    private static synchronized ColumnFamilyStore createColumnFamilyStore(Table table,
+    private static synchronized ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace,
                                                                          String columnFamily,
                                                                          IPartitioner partitioner,
                                                                          CFMetaData metadata,
                                                                          boolean loadSSTables)
     {
         // get the max generation number, to prevent generation conflicts
-        Directories directories = Directories.create(table.getName(), columnFamily);
+        Directories directories = Directories.create(keyspace.getName(), columnFamily);
         Directories.SSTableLister lister = directories.sstableLister().includeBackups(true);
         List<Integer> generations = new ArrayList<Integer>();
         for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
@@ -407,18 +407,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Collections.sort(generations);
         int value = (generations.size() > 0) ? (generations.get(generations.size() - 1)) : 0;
 
-        return new ColumnFamilyStore(table, columnFamily, partitioner, value, metadata, directories, loadSSTables);
+        return new ColumnFamilyStore(keyspace, columnFamily, partitioner, value, metadata, directories, loadSSTables);
     }
 
     /**
      * Removes unnecessary files from the cf directory at startup: these include temp files, orphans, zero-length files
      * and compacted sstables. Files that cannot be recognized will be ignored.
      */
-    public static void scrubDataDirectories(String table, String columnFamily)
+    public static void scrubDataDirectories(String keyspaceName, String columnFamily)
     {
         logger.debug("Removing compacted SSTable files from {} (see http://wiki.apache.org/cassandra/MemtableSSTable)", columnFamily);
 
-        Directories directories = Directories.create(table, columnFamily);
+        Directories directories = Directories.create(keyspaceName, columnFamily);
         for (Map.Entry<Descriptor,Set<Component>> sstableFiles : directories.sstableLister().list().entrySet())
         {
             Descriptor desc = sstableFiles.getKey();
@@ -444,7 +444,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         // cleanup incomplete saved caches
-        Pattern tmpCacheFilePattern = Pattern.compile(table + "-" + columnFamily + "-(Key|Row)Cache.*\\.tmp$");
+        Pattern tmpCacheFilePattern = Pattern.compile(keyspaceName + "-" + columnFamily + "-(Key|Row)Cache.*\\.tmp$");
         File dir = new File(DatabaseDescriptor.getSavedCachesLocation());
 
         if (dir.exists())
@@ -457,11 +457,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         // also clean out any index leftovers.
-        CFMetaData cfm = Schema.instance.getCFMetaData(table, columnFamily);
+        CFMetaData cfm = Schema.instance.getCFMetaData(keyspaceName, columnFamily);
         if (cfm != null) // secondary indexes aren't stored in DD.
         {
             for (ColumnDefinition def : cfm.allColumns())
-                scrubDataDirectories(table, cfm.indexColumnFamilyName(def));
+                scrubDataDirectories(keyspaceName, cfm.indexColumnFamilyName(def));
         }
     }
 
@@ -544,7 +544,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logger.info("completed loading ({} ms; {} keys) row cache for {}.{}",
                         TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start),
                         cachedRowsRead,
-                        table.getName(),
+                        keyspace.getName(),
                         name);
     }
 
@@ -557,8 +557,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public static synchronized void loadNewSSTables(String ksName, String cfName)
     {
         /** ks/cf existence checks will be done by open and getCFS methods for us */
-        Table table = Table.open(ksName);
-        table.getColumnFamilyStore(cfName).loadNewSSTables();
+        Keyspace keyspace = Keyspace.open(ksName);
+        keyspace.getColumnFamilyStore(cfName).loadNewSSTables();
     }
 
     /**
@@ -566,7 +566,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public synchronized void loadNewSSTables()
     {
-        logger.info("Loading new SSTables for " + table.getName() + "/" + name + "...");
+        logger.info("Loading new SSTables for " + keyspace.getName() + "/" + name + "...");
 
         Set<Descriptor> currentDescriptors = new HashSet<Descriptor>();
         for (SSTableReader sstable : data.getView().sstables)
@@ -627,11 +627,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (newSSTables.isEmpty())
         {
-            logger.info("No new SSTables were found for " + table.getName() + "/" + name);
+            logger.info("No new SSTables were found for " + keyspace.getName() + "/" + name);
             return;
         }
 
-        logger.info("Loading new SSTables and building secondary indexes for " + table.getName() + "/" + name + ": " + newSSTables);
+        logger.info("Loading new SSTables and building secondary indexes for " + keyspace.getName() + "/" + name + ": " + newSSTables);
         SSTableReader.acquireReferences(newSSTables);
         data.addSSTables(newSSTables);
         try
@@ -643,12 +643,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SSTableReader.releaseReferences(newSSTables);
         }
 
-        logger.info("Done loading load new SSTables for " + table.getName() + "/" + name);
+        logger.info("Done loading load new SSTables for " + keyspace.getName() + "/" + name);
     }
 
     public static void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames)
     {
-        ColumnFamilyStore cfs = Table.open(ksName).getColumnFamilyStore(cfName);
+        ColumnFamilyStore cfs = Keyspace.open(ksName).getColumnFamilyStore(cfName);
 
         Set<String> indexes = new HashSet<String>(Arrays.asList(idxNames));
 
@@ -681,7 +681,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         Descriptor desc = new Descriptor(version,
                                          directory,
-                                         table.getName(),
+                                         keyspace.getName(),
                                          name,
                                          fileIndexGenerator.incrementAndGet(),
                                          true);
@@ -700,12 +700,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
          * all ongoing updates to memtables have completed. We can get the tail
          * of the log and use it as the starting position for log replay on recovery.
          *
-         * This is why we Table.switchLock needs to be global instead of per-Table:
+         * This is why we Keyspace.switchLock needs to be global instead of per-Keyspace:
          * we need to schedule discardCompletedSegments calls in the same order as their
          * contexts (commitlog position) were read, even though the flush executor
          * is multithreaded.
          */
-        Table.switchLock.writeLock().lock();
+        Keyspace.switchLock.writeLock().lock();
         try
         {
             final Future<ReplayPosition> ctx = writeCommitLog ? CommitLog.instance.getContext() : Futures.immediateFuture(ReplayPosition.NONE);
@@ -774,7 +774,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         finally
         {
-            Table.switchLock.writeLock().unlock();
+            Keyspace.switchLock.writeLock().unlock();
         }
     }
 
@@ -820,7 +820,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     /**
      * Insert/Update the column family for this key.
-     * Caller is responsible for acquiring Table.flusherLock!
+     * Caller is responsible for acquiring Keyspace.switchLock
      * param @ lock - lock that needs to be used.
      * param @ key - key for update/insert
      * param @ columnFamily - columnFamily changes
@@ -1005,7 +1005,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // cleanup size estimation only counts bytes for keys local to this node
         long expectedFileSize = 0;
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(table.getName());
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspace.getName());
         for (SSTableReader sstable : sstables)
         {
             List<Pair<Long, Long>> positions = sstable.getPositionsForRanges(ranges);
@@ -1262,10 +1262,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             int gcBefore = gcBefore(filter.timestamp);
             if (isRowCacheEnabled())
             {
-                UUID cfId = Schema.instance.getId(table.getName(), name);
+                UUID cfId = Schema.instance.getId(keyspace.getName(), name);
                 if (cfId == null)
                 {
-                    logger.trace("no id found for {}.{}", table.getName(), name);
+                    logger.trace("no id found for {}.{}", keyspace.getName(), name);
                     return null;
                 }
 
@@ -1710,7 +1710,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
                     ssTable.createLinks(snapshotDirectory.getPath()); // hard links
                     if (logger.isDebugEnabled())
-                        logger.debug("Snapshot for " + table + " keyspace data file " + ssTable.getFilename() +
+                        logger.debug("Snapshot for " + keyspace + " keyspace data file " + ssTable.getFilename() +
                                      " created in " + snapshotDirectory);
                 }
 
@@ -1811,7 +1811,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void invalidateCachedRow(DecoratedKey key)
     {
-        UUID cfId = Schema.instance.getId(table.getName(), this.name);
+        UUID cfId = Schema.instance.getId(keyspace.getName(), this.name);
         if (cfId == null)
             return; // secondary index
 
@@ -1825,10 +1825,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static Iterable<ColumnFamilyStore> all()
     {
-        List<Iterable<ColumnFamilyStore>> stores = new ArrayList<Iterable<ColumnFamilyStore>>(Schema.instance.getTables().size());
-        for (Table table : Table.all())
+        List<Iterable<ColumnFamilyStore>> stores = new ArrayList<Iterable<ColumnFamilyStore>>(Schema.instance.getKeyspaces().size());
+        for (Keyspace keyspace : Keyspace.all())
         {
-            stores.add(table.getColumnFamilyStores());
+            stores.add(keyspace.getColumnFamilyStores());
         }
         return Iterables.concat(stores);
     }
@@ -1896,7 +1896,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         else
         {
             // just nuke the memtable data w/o writing to disk first
-            Table.switchLock.writeLock().lock();
+            Keyspace.switchLock.writeLock().lock();
             try
             {
                 for (ColumnFamilyStore cfs : concatWithIndexes())
@@ -1910,7 +1910,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             finally
             {
-                Table.switchLock.writeLock().unlock();
+                Keyspace.switchLock.writeLock().unlock();
             }
         }
 
@@ -1922,14 +1922,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 final long truncatedAt = System.currentTimeMillis();
                 if (DatabaseDescriptor.isAutoSnapshot())
-                    snapshot(Table.getTimestampedSnapshotName(name));
+                    snapshot(Keyspace.getTimestampedSnapshotName(name));
 
                 ReplayPosition replayAfter = discardSSTables(truncatedAt);
 
                 for (SecondaryIndex index : indexManager.getIndexes())
                     index.truncateBlocking(truncatedAt);
 
-                SystemTable.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
+                SystemKeyspace.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
 
                 logger.debug("cleaning out row cache");
                 for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
@@ -2055,7 +2055,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public String toString()
     {
         return "CFS(" +
-               "Keyspace='" + table.getName() + '\'' +
+               "Keyspace='" + keyspace.getName() + '\'' +
                ", ColumnFamily='" + name + '\'' +
                ')';
     }
@@ -2309,7 +2309,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public long getTruncationTime()
     {
-        Pair<ReplayPosition, Long> truncationRecord = SystemTable.getTruncationRecords().get(metadata.cfId);
+        Pair<ReplayPosition, Long> truncationRecord = SystemKeyspace.getTruncationRecords().get(metadata.cfId);
         return truncationRecord == null ? Long.MIN_VALUE : truncationRecord.right;
     }
 }

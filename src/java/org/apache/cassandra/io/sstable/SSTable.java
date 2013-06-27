@@ -180,7 +180,7 @@ public abstract class SSTable
         return descriptor.cfname;
     }
 
-    public String getTableName()
+    public String getKeyspaceName()
     {
         return descriptor.ksname;
     }

@@ -41,7 +41,7 @@ import static junit.framework.Assert.assertEquals;
 
 public class KeyCacheTest extends SchemaLoader
 {
-    private static final String TABLE1 = "KeyCacheSpace";
+    private static final String KEYSPACE1 = "KeyCacheSpace";
     private static final String COLUMN_FAMILY1 = "Standard1";
     private static final String COLUMN_FAMILY2 = "Standard2";
 
@@ -56,18 +56,18 @@ public class KeyCacheTest extends SchemaLoader
     {
         CompactionManager.instance.disableAutoCompaction();
 
-        ColumnFamilyStore store = Table.open(TABLE1).getColumnFamilyStore(COLUMN_FAMILY2);
+        ColumnFamilyStore store = Keyspace.open(KEYSPACE1).getColumnFamilyStore(COLUMN_FAMILY2);
 
         // empty the cache
         CacheService.instance.invalidateKeyCache();
         assert CacheService.instance.keyCache.size() == 0;
 
         // insert data and force to disk
-        insertData(TABLE1, COLUMN_FAMILY2, 0, 100);
+        insertData(KEYSPACE1, COLUMN_FAMILY2, 0, 100);
         store.forceBlockingFlush();
 
         // populate the cache
-        readData(TABLE1, COLUMN_FAMILY2, 0, 100);
+        readData(KEYSPACE1, COLUMN_FAMILY2, 0, 100);
         assertEquals(100, CacheService.instance.keyCache.size());
 
         // really? our caches don't implement the map interface? (hence no .addAll)
@@ -89,8 +89,8 @@ public class KeyCacheTest extends SchemaLoader
     {
         CompactionManager.instance.disableAutoCompaction();
 
-        Table table = Table.open(TABLE1);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(COLUMN_FAMILY1);
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(COLUMN_FAMILY1);
 
         // just to make sure that everything is clean
         CacheService.instance.invalidateKeyCache();
@@ -103,10 +103,10 @@ public class KeyCacheTest extends SchemaLoader
         RowMutation rm;
 
         // inserts
-        rm = new RowMutation(TABLE1, key1.key);
+        rm = new RowMutation(KEYSPACE1, key1.key);
         rm.add(COLUMN_FAMILY1, ByteBufferUtil.bytes("1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
-        rm = new RowMutation(TABLE1, key2.key);
+        rm = new RowMutation(KEYSPACE1, key2.key);
         rm.add(COLUMN_FAMILY1, ByteBufferUtil.bytes("2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
 

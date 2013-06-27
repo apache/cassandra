@@ -33,7 +33,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
@@ -114,11 +114,11 @@ public class RelocateTest
     }
 
     // Copy-pasta from MoveTest.java
-    private AbstractReplicationStrategy getStrategy(String table, TokenMetadata tmd) throws ConfigurationException
+    private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd) throws ConfigurationException
     {
-        KSMetaData ksmd = Schema.instance.getKSMetaData(table);
+        KSMetaData ksmd = Schema.instance.getKSMetaData(keyspaceName);
         return AbstractReplicationStrategy.createReplicationStrategy(
-                table,
+                keyspaceName,
                 ksmd.strategyClass,
                 tmd,
                 new SimpleSnitch(),
@@ -156,14 +156,14 @@ public class RelocateTest
         assertTrue(tmd.isRelocating(relocateToken));
 
         AbstractReplicationStrategy strategy;
-        for (String table : Schema.instance.getNonSystemTables())
+        for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
         {
-            strategy = getStrategy(table, tmd);
+            strategy = getStrategy(keyspaceName, tmd);
             for (Token token : tokenMap.keySet())
             {
                 BigIntegerToken keyToken = new BigIntegerToken(((BigInteger)token.token).add(new BigInteger("5")));
 
-                HashSet<InetAddress> actual = new HashSet<InetAddress>(tmd.getWriteEndpoints(keyToken, table, strategy.calculateNaturalEndpoints(keyToken, tmd.cloneOnlyTokenMap())));
+                HashSet<InetAddress> actual = new HashSet<InetAddress>(tmd.getWriteEndpoints(keyToken, keyspaceName, strategy.calculateNaturalEndpoints(keyToken, tmd.cloneOnlyTokenMap())));
                 HashSet<InetAddress> expected = new HashSet<InetAddress>();
 
                 for (int i = 0; i < actual.size(); i++)
@@ -190,7 +190,7 @@ public class RelocateTest
 
         // Create a list of the endpoint's existing tokens, and add the relocatee to it.
         List<Token> tokens = new ArrayList<Token>(tmd.getTokens(relocator));
-        SystemTable.updateTokens(tokens);
+        SystemKeyspace.updateTokens(tokens);
         tokens.add(relocatee);
 
         // Send a normal status, then ensure all is copesetic.

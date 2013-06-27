@@ -136,18 +136,18 @@ public class ActiveRepairService
     /**
      * Return all of the neighbors with whom we share the provided range.
      *
-     * @param table table to repair
+     * @param keyspaceName keyspace to repair
      * @param toRepair token to repair
      * @param isLocal need to use only nodes from local datacenter
      *
      * @return neighbors with whom we share the provided range
      */
-    public static Set<InetAddress> getNeighbors(String table, Range<Token> toRepair, boolean isLocal)
+    public static Set<InetAddress> getNeighbors(String keyspaceName, Range<Token> toRepair, boolean isLocal)
     {
         StorageService ss = StorageService.instance;
-        Map<Range<Token>, List<InetAddress>> replicaSets = ss.getRangeToAddressMap(table);
+        Map<Range<Token>, List<InetAddress>> replicaSets = ss.getRangeToAddressMap(keyspaceName);
         Range<Token> rangeSuperSet = null;
-        for (Range<Token> range : ss.getLocalRanges(table))
+        for (Range<Token> range : ss.getLocalRanges(keyspaceName))
         {
             if (range.contains(toRepair))
             {

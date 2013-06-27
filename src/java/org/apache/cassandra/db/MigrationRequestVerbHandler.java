@@ -40,7 +40,7 @@ public class MigrationRequestVerbHandler implements IVerbHandler
     {
         logger.debug("Received migration request from {}.", message.from);
 
-        Collection<RowMutation> schema = SystemTable.serializeSchema();
+        Collection<RowMutation> schema = SystemKeyspace.serializeSchema();
 
         MessageOut<Collection<RowMutation>> response = new MessageOut<Collection<RowMutation>>(MessagingService.Verb.INTERNAL_RESPONSE,
                                                                                                schema,

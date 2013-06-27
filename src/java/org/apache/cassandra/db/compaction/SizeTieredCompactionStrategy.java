@@ -163,10 +163,10 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     public static List<Pair<SSTableReader, Long>> createSSTableAndLengthPairs(Iterable<SSTableReader> sstables)
     {
-        List<Pair<SSTableReader, Long>> tableLengthPairs = new ArrayList<Pair<SSTableReader, Long>>(Iterables.size(sstables));
-        for(SSTableReader table: sstables)
-            tableLengthPairs.add(Pair.create(table, table.onDiskLength()));
-        return tableLengthPairs;
+        List<Pair<SSTableReader, Long>> sstableLengthPairs = new ArrayList<Pair<SSTableReader, Long>>(Iterables.size(sstables));
+        for(SSTableReader sstable : sstables)
+            sstableLengthPairs.add(Pair.create(sstable, sstable.onDiskLength()));
+        return sstableLengthPairs;
     }
 
     /*

@@ -25,7 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.db.DefsTable;
+import org.apache.cassandra.db.DefsTables;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.IAsyncCallback;
@@ -63,7 +63,7 @@ class MigrationTask extends WrappedRunnable
             {
                 try
                 {
-                    DefsTable.mergeSchema(message.payload);
+                    DefsTables.mergeSchema(message.payload);
                 }
                 catch (IOException e)
                 {

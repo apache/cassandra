@@ -41,9 +41,9 @@ public class RowDataResolver extends AbstractRowResolver
     private final IDiskAtomFilter filter;
     private final long timestamp;
 
-    public RowDataResolver(String table, ByteBuffer key, IDiskAtomFilter qFilter, long timestamp)
+    public RowDataResolver(String keyspaceName, ByteBuffer key, IDiskAtomFilter qFilter, long timestamp)
     {
-        super(key, table);
+        super(key, keyspaceName);
         this.filter = qFilter;
         this.timestamp = timestamp;
     }
@@ -88,7 +88,7 @@ public class RowDataResolver extends AbstractRowResolver
             // send updates to any replica that was missing part of the full row
             // (resolved can be null even if versions doesn't have all nulls because of the call to removeDeleted in resolveSuperSet)
             if (resolved != null)
-                repairResults = scheduleRepairs(resolved, table, key, versions, endpoints);
+                repairResults = scheduleRepairs(resolved, keyspaceName, key, versions, endpoints);
         }
         else
         {
@@ -105,7 +105,7 @@ public class RowDataResolver extends AbstractRowResolver
      * For each row version, compare with resolved (the superset of all row versions);
      * if it is missing anything, send a mutation to the endpoint it come from.
      */
-    public static List<AsyncOneResponse> scheduleRepairs(ColumnFamily resolved, String table, DecoratedKey key, List<ColumnFamily> versions, List<InetAddress> endpoints)
+    public static List<AsyncOneResponse> scheduleRepairs(ColumnFamily resolved, String keyspaceName, DecoratedKey key, List<ColumnFamily> versions, List<InetAddress> endpoints)
     {
         List<AsyncOneResponse> results = new ArrayList<AsyncOneResponse>(versions.size());
 
@@ -116,7 +116,7 @@ public class RowDataResolver extends AbstractRowResolver
                 continue;
 
             // create and send the row mutation message based on the diff
-            RowMutation rowMutation = new RowMutation(table, key.key, diffCf);
+            RowMutation rowMutation = new RowMutation(keyspaceName, key.key, diffCf);
             MessageOut repairMessage;
             // use a separate verb here because we don't want these to be get the white glove hint-
             // on-timeout behavior that a "real" mutation gets

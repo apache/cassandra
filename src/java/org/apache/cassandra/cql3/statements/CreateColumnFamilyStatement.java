@@ -300,7 +300,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
                     stmt.defaultValidator = BytesType.instance;
                     // We need to distinguish between
                     //   * I'm upgrading from thrift so the valueAlias is null
-                    //   * I've define my table with only a PK (and the column value will be empty)
+                    //   * I've defined my table with only a PK (and the column value will be empty)
                     // So, we use an empty valueAlias (rather than null) for the second case
                     stmt.valueAlias = ByteBufferUtil.EMPTY_BYTE_BUFFER;
                 }

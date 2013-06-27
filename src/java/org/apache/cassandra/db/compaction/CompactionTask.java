@@ -104,7 +104,7 @@ public class CompactionTask extends AbstractCompactionTask
         for (SSTableReader sstable : toCompact)
             assert sstable.descriptor.cfname.equals(cfs.name);
 
-        UUID taskId = SystemTable.startCompaction(cfs, toCompact);
+        UUID taskId = SystemKeyspace.startCompaction(cfs, toCompact);
 
         CompactionController controller = new CompactionController(cfs, toCompact, gcBefore);
         Set<SSTableReader> actuallyCompact = Sets.difference(toCompact, controller.getFullyExpiredSSTables());
@@ -222,7 +222,7 @@ public class CompactionTask extends AbstractCompactionTask
             // point of no return -- the new sstables are live on disk; next we'll start deleting the old ones
             // (in replaceCompactedSSTables)
             if (taskId != null)
-                SystemTable.finishCompaction(taskId);
+                SystemKeyspace.finishCompaction(taskId);
 
             if (collector != null)
                 collector.finishCompaction(ci);

@@ -32,8 +32,8 @@ import org.apache.thrift.transport.TTransport;
 
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.SystemTable;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -188,8 +188,8 @@ public class BulkLoader
                     }
 
                     String query = String.format("SELECT columnfamily_name FROM %s.%s WHERE keyspace_name = '%s'",
-                                                 Table.SYSTEM_KS,
-                                                 SystemTable.SCHEMA_COLUMNFAMILIES_CF,
+                                                 Keyspace.SYSTEM_KS,
+                                                 SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF,
                                                  keyspace);
                     CqlResult result = client.execute_cql3_query(ByteBufferUtil.bytes(query), Compression.NONE, ConsistencyLevel.ONE);
                     for (CqlRow row : result.rows)

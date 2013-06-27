@@ -66,6 +66,7 @@
  * Redesign repair messages (CASSANDRA-5426)
  * Fix ALTER RENAME post-5125 (CASSANDRA-5702)
  * Disallow renaming a 2ndary indexed column (CASSANDRA-5705)
+ * Rename Table to Keyspace (CASSANDRA-5613)
 
 
 1.2.7

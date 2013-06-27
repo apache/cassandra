@@ -104,7 +104,7 @@ public class PagedRangeCommand extends AbstractRangeCommand
 
     public List<Row> executeLocally()
     {
-        ColumnFamilyStore cfs = Table.open(keyspace).getColumnFamilyStore(columnFamily);
+        ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
 
         ExtendedFilter exFilter = cfs.makeExtendedFilter(keyRange, (SliceQueryFilter)predicate, start, stop, rowFilter, limit, timestamp);
         if (cfs.indexManager.hasIndexFor(rowFilter))

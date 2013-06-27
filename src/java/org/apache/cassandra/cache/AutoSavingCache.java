@@ -31,12 +31,12 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.db.Table;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.LengthAvailableInputStream;
@@ -105,7 +105,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         long start = System.nanoTime();
 
         // old cache format that only saves keys
-        File path = getCachePath(cfs.table.getName(), cfs.name, null);
+        File path = getCachePath(cfs.keyspace.getName(), cfs.name, null);
         if (path.exists())
         {
             DataInputStream in = null;
@@ -133,7 +133,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         }
 
         // modern format, allows both key and value (so key cache load can be purely sequential)
-        path = getCachePath(cfs.table.getName(), cfs.name, CURRENT_VERSION);
+        path = getCachePath(cfs.keyspace.getName(), cfs.name, CURRENT_VERSION);
         if (path.exists())
         {
             DataInputStream in = null;
@@ -199,7 +199,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             else
                 type = OperationType.UNKNOWN;
 
-            info = new CompactionInfo(new CFMetaData(Table.SYSTEM_KS, cacheType.toString(), ColumnFamilyType.Standard, BytesType.instance, null),
+            info = new CompactionInfo(new CFMetaData(Keyspace.SYSTEM_KS, cacheType.toString(), ColumnFamilyType.Standard, BytesType.instance, null),
                                       type,
                                       0,
                                       keys.size(),

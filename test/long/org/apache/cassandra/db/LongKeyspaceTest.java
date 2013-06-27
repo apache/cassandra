@@ -29,13 +29,13 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class LongTableTest extends SchemaLoader
+public class LongKeyspaceTest extends SchemaLoader
 {
     @Test
     public void testGetRowMultiColumn() throws Throwable
     {
-        final Table table = Table.open("Keyspace1");
-        final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
+        final Keyspace keyspace = Keyspace.open("Keyspace1");
+        final ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("Standard1");
 
         for (int i = 1; i < 5000; i += 100)
         {
@@ -60,12 +60,12 @@ public class LongTableTest extends SchemaLoader
                                                                                 "Standard1",
                                                                                 ByteBufferUtil.bytes("c" + j),
                                                                                 System.currentTimeMillis()));
-                        TableTest.assertColumns(cf, "c" + j);
+                        KeyspaceTest.assertColumns(cf, "c" + j);
                     }
                 }
 
             }
         };
-        TableTest.reTest(table.getColumnFamilyStore("Standard1"), verify);
+        KeyspaceTest.reTest(keyspace.getColumnFamilyStore("Standard1"), verify);
     }
 }

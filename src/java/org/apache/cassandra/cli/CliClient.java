@@ -502,7 +502,7 @@ public class CliClient
             assert columnTree != null;
             assert subColumnTree != null;
 
-            // table.cf['key']['column']['column']
+            // keyspace.cf['key']['column']['column']
             superColumnName = (columnTree.getType() == CliParser.FUNCTION_CALL)
                                       ? convertValueByFunction(columnTree, null, null).array()
                                       : columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
@@ -679,13 +679,13 @@ public class CliClient
             }
         }
 
-        // table.cf['key'] -- row slice
+        // keyspace.cf['key'] -- row slice
         if (columnSpecCnt == 0)
         {
             doSlice(keySpace, key, columnFamily, superColumnName, limit);
             return;
         }
-        // table.cf['key']['column'] -- slice of a super, or get of a standard
+        // keyspace.cf['key']['column'] -- slice of a super, or get of a standard
         else if (columnSpecCnt == 1)
         {
             columnName = getColumnName(columnFamily, columnFamilySpec.getChild(2));
@@ -697,7 +697,7 @@ public class CliClient
                 return;
             }
         }
-        // table.cf['key']['column']['column'] -- get of a sub-column
+        // keyspace.cf['key']['column']['column'] -- get of a sub-column
         else if (columnSpecCnt == 2)
         {
             superColumnName = getColumnName(columnFamily, columnFamilySpec.getChild(2)).array();
@@ -916,13 +916,13 @@ public class CliClient
         byte[] superColumnName = null;
         ByteBuffer columnName;
 
-        // table.cf['key']
+        // keyspace.cf['key']
         if (columnSpecCnt == 0)
         {
             sessionState.err.println("No cell name specified, (type 'help;' or '?' for help on syntax).");
             return;
         }
-        // table.cf['key']['column'] = 'value'
+        // keyspace.cf['key']['column'] = 'value'
         else if (columnSpecCnt == 1)
         {
             // get the column name
@@ -933,7 +933,7 @@ public class CliClient
             }
             columnName = getColumnName(columnFamily, columnFamilySpec.getChild(2));
         }
-        // table.cf['key']['super_column']['column'] = 'value'
+        // keyspace.cf['key']['super_column']['column'] = 'value'
         else
         {
             assert (columnSpecCnt == 2) : "serious parsing error (this is a bug).";
@@ -1001,12 +1001,12 @@ public class CliClient
         byte[] superColumnName = null;
         ByteBuffer columnName;
 
-        // table.cf['key']['column'] -- incr standard
+        // keyspace.cf['key']['column'] -- incr standard
         if (columnSpecCnt == 1)
         {
             columnName = getColumnName(columnFamily, columnFamilySpec.getChild(2));
         }
-        // table.cf['key']['column']['column'] -- incr super
+        // keyspace.cf['key']['column']['column'] -- incr super
         else if (columnSpecCnt == 2)
         {
             superColumnName = getColumnName(columnFamily, columnFamilySpec.getChild(2)).array();

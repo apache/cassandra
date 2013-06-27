@@ -38,20 +38,20 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class RowIterationTest extends SchemaLoader
 {
-    public static final String TABLE1 = "Keyspace2";
+    public static final String KEYSPACE1 = "Keyspace2";
     public static final InetAddress LOCAL = FBUtilities.getBroadcastAddress();
 
     @Test
     public void testRowIteration() throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open(TABLE1);
-        ColumnFamilyStore store = table.getColumnFamilyStore("Super3");
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore("Super3");
 
         final int ROWS_PER_SSTABLE = 10;
         Set<DecoratedKey> inserted = new HashSet<DecoratedKey>();
         for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
             DecoratedKey key = Util.dk(String.valueOf(i));
-            RowMutation rm = new RowMutation(TABLE1, key.key);
+            RowMutation rm = new RowMutation(KEYSPACE1, key.key);
             rm.add("Super3", CompositeType.build(ByteBufferUtil.bytes("sc"), ByteBufferUtil.bytes(String.valueOf(i))), ByteBuffer.wrap(new byte[ROWS_PER_SSTABLE * 10 - i * 2]), i);
             rm.apply();
             inserted.add(key);
@@ -63,13 +63,13 @@ public class RowIterationTest extends SchemaLoader
     @Test
     public void testRowIterationDeletionTime() throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open(TABLE1);
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
         String CF_NAME = "Standard3";
-        ColumnFamilyStore store = table.getColumnFamilyStore(CF_NAME);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_NAME);
         DecoratedKey key = Util.dk("key");
 
         // Delete row in first sstable
-        RowMutation rm = new RowMutation(TABLE1, key.key);
+        RowMutation rm = new RowMutation(KEYSPACE1, key.key);
         rm.delete(CF_NAME, 0);
         rm.add(CF_NAME, ByteBufferUtil.bytes("c"), ByteBufferUtil.bytes("values"), 0L);
         DeletionInfo delInfo1 = rm.getColumnFamilies().iterator().next().deletionInfo();
@@ -77,7 +77,7 @@ public class RowIterationTest extends SchemaLoader
         store.forceBlockingFlush();
 
         // Delete row in second sstable with higher timestamp
-        rm = new RowMutation(TABLE1, key.key);
+        rm = new RowMutation(KEYSPACE1, key.key);
         rm.delete(CF_NAME, 1);
         rm.add(CF_NAME, ByteBufferUtil.bytes("c"), ByteBufferUtil.bytes("values"), 1L);
         DeletionInfo delInfo2 = rm.getColumnFamilies().iterator().next().deletionInfo();
@@ -92,13 +92,13 @@ public class RowIterationTest extends SchemaLoader
     @Test
     public void testRowIterationDeletion() throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open(TABLE1);
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
         String CF_NAME = "Standard3";
-        ColumnFamilyStore store = table.getColumnFamilyStore(CF_NAME);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_NAME);
         DecoratedKey key = Util.dk("key");
 
         // Delete a row in first sstable
-        RowMutation rm = new RowMutation(TABLE1, key.key);
+        RowMutation rm = new RowMutation(KEYSPACE1, key.key);
         rm.delete(CF_NAME, 0);
         rm.apply();
         store.forceBlockingFlush();

@@ -53,7 +53,7 @@ public abstract class PerRowSecondaryIndex extends SecondaryIndex
     public abstract void delete(DecoratedKey key);
 
     @Override
-    public String getNameForSystemTable(ByteBuffer columnName)
+    public String getNameForSystemKeyspace(ByteBuffer columnName)
     {
         try
         {

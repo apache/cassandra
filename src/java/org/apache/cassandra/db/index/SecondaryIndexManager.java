@@ -225,7 +225,7 @@ public class SecondaryIndexManager
         }
 
         index.removeIndex(column);
-        SystemTable.setIndexRemoved(baseCfs.metadata.ksName, index.getNameForSystemTable(column));
+        SystemKeyspace.setIndexRemoved(baseCfs.metadata.ksName, index.getNameForSystemKeyspace(column));
     }
 
     /**

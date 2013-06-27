@@ -25,7 +25,7 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.net.IAsyncCallback;
@@ -35,7 +35,7 @@ import org.apache.cassandra.utils.SimpleCondition;
 public abstract class AbstractWriteResponseHandler implements IAsyncCallback
 {
     private final SimpleCondition condition = new SimpleCondition();
-    protected final Table table;
+    protected final Keyspace keyspace;
     protected final long start;
     protected final Collection<InetAddress> naturalEndpoints;
     protected final ConsistencyLevel consistencyLevel;
@@ -47,14 +47,14 @@ public abstract class AbstractWriteResponseHandler implements IAsyncCallback
      * @param pendingEndpoints
      * @param callback A callback to be called when the write is successful.
      */
-    protected AbstractWriteResponseHandler(Table table,
+    protected AbstractWriteResponseHandler(Keyspace keyspace,
                                            Collection<InetAddress> naturalEndpoints,
                                            Collection<InetAddress> pendingEndpoints,
                                            ConsistencyLevel consistencyLevel,
                                            Runnable callback,
                                            WriteType writeType)
     {
-        this.table = table;
+        this.keyspace = keyspace;
         this.pendingEndpoints = pendingEndpoints;
         this.start = System.nanoTime();
         this.consistencyLevel = consistencyLevel;
@@ -85,7 +85,7 @@ public abstract class AbstractWriteResponseHandler implements IAsyncCallback
     {
         // During bootstrap, we have to include the pending endpoints or we may fail the consistency level
         // guarantees (see #833)
-        return consistencyLevel.blockFor(table) + pendingEndpoints.size();
+        return consistencyLevel.blockFor(keyspace) + pendingEndpoints.size();
     }
 
     protected abstract int ackCount();
@@ -95,7 +95,7 @@ public abstract class AbstractWriteResponseHandler implements IAsyncCallback
 
     public void assureSufficientLiveNodes() throws UnavailableException
     {
-        consistencyLevel.assureSufficientLiveNodes(table, Iterables.filter(Iterables.concat(naturalEndpoints, pendingEndpoints), isAlive));
+        consistencyLevel.assureSufficientLiveNodes(keyspace, Iterables.filter(Iterables.concat(naturalEndpoints, pendingEndpoints), isAlive));
     }
 
     protected void signal()

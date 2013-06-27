@@ -246,9 +246,9 @@ public class SerializationsTest extends AbstractSerializationsTester
     @Test
     public void testRowMutationRead() throws IOException
     {
-        // row mutation deserialization requires being able to look up the table in the schema,
+        // row mutation deserialization requires being able to look up the keyspace in the schema,
         // so we need to rewrite this each time.  We can go back to testing on-disk data
-        // once we pull RM.table field out.
+        // once we pull RM.keyspace field out.
         testRowMutationWrite();
 
         DataInputStream in = getInput("db.RowMutation.bin");

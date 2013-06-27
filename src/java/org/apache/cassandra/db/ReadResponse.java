@@ -25,8 +25,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 /*
  * The read response message is sent by the server when reading data
- * this encapsulates the tablename and the row that has been read.
- * The table name is needed so that we can use it to create repairs.
+ * this encapsulates the keyspacename and the row that has been read.
+ * The keyspace name is needed so that we can use it to create repairs.
  */
 public class ReadResponse
 {

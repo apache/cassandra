@@ -27,7 +27,7 @@ import java.util.concurrent.ExecutionException;
 import org.apache.cassandra.Util;
 import org.junit.Test;
 
-import static org.apache.cassandra.db.TableTest.assertColumns;
+import static org.apache.cassandra.db.KeyspaceTest.assertColumns;
 import org.apache.cassandra.SchemaLoader;
 import static org.apache.cassandra.Util.column;
 
@@ -36,8 +36,8 @@ public class MultitableTest extends SchemaLoader
     @Test
     public void testSameCFs() throws IOException, ExecutionException, InterruptedException
     {
-        Table table1 = Table.open("Keyspace1");
-        Table table2 = Table.open("Keyspace2");
+        Keyspace keyspace1 = Keyspace.open("Keyspace1");
+        Keyspace keyspace2 = Keyspace.open("Keyspace2");
 
         RowMutation rm;
         DecoratedKey dk = Util.dk("keymulti");
@@ -53,10 +53,10 @@ public class MultitableTest extends SchemaLoader
         rm = new RowMutation("Keyspace2", dk.key, cf);
         rm.apply();
 
-        table1.getColumnFamilyStore("Standard1").forceBlockingFlush();
-        table2.getColumnFamilyStore("Standard1").forceBlockingFlush();
+        keyspace1.getColumnFamilyStore("Standard1").forceBlockingFlush();
+        keyspace2.getColumnFamilyStore("Standard1").forceBlockingFlush();
 
-        assertColumns(Util.getColumnFamily(table1, dk, "Standard1"), "col1");
-        assertColumns(Util.getColumnFamily(table2, dk, "Standard1"), "col2");
+        assertColumns(Util.getColumnFamily(keyspace1, dk, "Standard1"), "col1");
+        assertColumns(Util.getColumnFamily(keyspace2, dk, "Standard1"), "col2");
     }
 }

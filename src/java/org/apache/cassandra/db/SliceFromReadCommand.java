@@ -46,23 +46,23 @@ public class SliceFromReadCommand extends ReadCommand
 
     public final SliceQueryFilter filter;
 
-    public SliceFromReadCommand(String table, ByteBuffer key, String cfName, long timestamp, SliceQueryFilter filter)
+    public SliceFromReadCommand(String keyspaceName, ByteBuffer key, String cfName, long timestamp, SliceQueryFilter filter)
     {
-        super(table, key, cfName, timestamp, Type.GET_SLICES);
+        super(keyspaceName, key, cfName, timestamp, Type.GET_SLICES);
         this.filter = filter;
     }
 
     public ReadCommand copy()
     {
-        ReadCommand readCommand = new SliceFromReadCommand(table, key, cfName, timestamp, filter);
+        ReadCommand readCommand = new SliceFromReadCommand(ksName, key, cfName, timestamp, filter);
         readCommand.setDigestQuery(isDigestQuery());
         return readCommand;
     }
 
-    public Row getRow(Table table)
+    public Row getRow(Keyspace keyspace)
     {
         DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
-        return table.getRow(new QueryFilter(dk, cfName, filter, timestamp));
+        return keyspace.getRow(new QueryFilter(dk, cfName, filter, timestamp));
     }
 
     @Override
@@ -86,7 +86,7 @@ public class SliceFromReadCommand extends ReadCommand
             // round we want to ask x column so that x * (l/t) == t, i.e. x = t^2/l.
             int retryCount = liveCountInRow == 0 ? count + 1 : ((count * count) / liveCountInRow) + 1;
             SliceQueryFilter newFilter = filter.withUpdatedCount(retryCount);
-            return new RetriedSliceFromReadCommand(table, key, cfName, timestamp, newFilter, getOriginalRequestedCount());
+            return new RetriedSliceFromReadCommand(ksName, key, cfName, timestamp, newFilter, getOriginalRequestedCount());
         }
 
         return null;
@@ -108,7 +108,7 @@ public class SliceFromReadCommand extends ReadCommand
 
     public SliceFromReadCommand withUpdatedFilter(SliceQueryFilter newFilter)
     {
-        return new SliceFromReadCommand(table, key, cfName, timestamp, newFilter);
+        return new SliceFromReadCommand(ksName, key, cfName, timestamp, newFilter);
     }
 
     /**
@@ -125,7 +125,7 @@ public class SliceFromReadCommand extends ReadCommand
     public String toString()
     {
         return "SliceFromReadCommand(" +
-               "table='" + table + '\'' +
+               "keyspace='" + ksName + '\'' +
                ", key='" + ByteBufferUtil.bytesToHex(key) + '\'' +
                ", cfName='" + cfName + '\'' +
                ", timestamp='" + timestamp + '\'' +
@@ -145,7 +145,7 @@ class SliceFromReadCommandSerializer implements IVersionedSerializer<ReadCommand
     {
         SliceFromReadCommand realRM = (SliceFromReadCommand)rm;
         out.writeBoolean(realRM.isDigestQuery());
-        out.writeUTF(realRM.table);
+        out.writeUTF(realRM.ksName);
         ByteBufferUtil.writeWithShortLength(realRM.key, out);
 
         if (version < MessagingService.VERSION_20)
@@ -162,7 +162,7 @@ class SliceFromReadCommandSerializer implements IVersionedSerializer<ReadCommand
     public ReadCommand deserialize(DataInput in, int version) throws IOException
     {
         boolean isDigest = in.readBoolean();
-        String table = in.readUTF();
+        String keyspaceName = in.readUTF();
         ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
 
         String cfName;
@@ -180,7 +180,7 @@ class SliceFromReadCommandSerializer implements IVersionedSerializer<ReadCommand
 
         long timestamp = version < MessagingService.VERSION_20 ? System.currentTimeMillis() : in.readLong();
 
-        CFMetaData metadata = Schema.instance.getCFMetaData(table, cfName);
+        CFMetaData metadata = Schema.instance.getCFMetaData(keyspaceName, cfName);
         SliceQueryFilter filter;
         if (version < MessagingService.VERSION_20)
         {
@@ -194,7 +194,7 @@ class SliceFromReadCommandSerializer implements IVersionedSerializer<ReadCommand
             filter = SliceQueryFilter.serializer.deserialize(in, version);
         }
 
-        ReadCommand command = new SliceFromReadCommand(table, key, cfName, timestamp, filter);
+        ReadCommand command = new SliceFromReadCommand(keyspaceName, key, cfName, timestamp, filter);
         command.setDigestQuery(isDigest);
         return command;
     }
@@ -211,7 +211,7 @@ class SliceFromReadCommandSerializer implements IVersionedSerializer<ReadCommand
         int keySize = command.key.remaining();
 
         int size = sizes.sizeof(cmd.isDigestQuery()); // boolean
-        size += sizes.sizeof(command.table);
+        size += sizes.sizeof(command.ksName);
         size += sizes.sizeof((short) keySize) + keySize;
 
         if (version < MessagingService.VERSION_20)

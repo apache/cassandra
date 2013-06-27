@@ -479,7 +479,7 @@ public class LeveledManifest
             }
         }
 
-        // look for a non-suspect table to compact with, starting with where we left off last time,
+        // look for a non-suspect keyspace to compact with, starting with where we left off last time,
         // and wrapping back to the beginning of the generation if necessary
         for (int i = 0; i < generations[level].size(); i++)
         {
@@ -541,7 +541,7 @@ public class LeveledManifest
         }
 
         logger.debug("Estimating {} compactions to do for {}.{}",
-                     Arrays.toString(estimated), cfs.table.getName(), cfs.name);
+                     Arrays.toString(estimated), cfs.keyspace.getName(), cfs.name);
         return Ints.checkedCast(tasks);
     }
 

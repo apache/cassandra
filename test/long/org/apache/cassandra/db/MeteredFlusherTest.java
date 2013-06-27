@@ -38,10 +38,10 @@ public class MeteredFlusherTest extends SchemaLoader
     @Test
     public void testManyMemtables() throws IOException, ConfigurationException
     {
-        Table table = Table.open("Keyspace1");
+        Keyspace keyspace = Keyspace.open("Keyspace1");
         for (int i = 0; i < 100; i++)
         {
-            CFMetaData metadata = new CFMetaData(table.getName(), "_CF" + i, ColumnFamilyType.Standard, UTF8Type.instance, null);
+            CFMetaData metadata = new CFMetaData(keyspace.getName(), "_CF" + i, ColumnFamilyType.Standard, UTF8Type.instance, null);
             MigrationManager.announceNewColumnFamily(metadata);
         }
 

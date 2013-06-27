@@ -28,7 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.service.MigrationManager;
@@ -51,11 +51,11 @@ public class Schema
      */
     public static final int NAME_LENGTH = 48;
 
-    /* metadata map for faster table lookup */
-    private final Map<String, KSMetaData> tables = new NonBlockingHashMap<String, KSMetaData>();
+    /* metadata map for faster keyspace lookup */
+    private final Map<String, KSMetaData> keyspaces = new NonBlockingHashMap<String, KSMetaData>();
 
-    /* Table objects, one per keyspace. Only one instance should ever exist for any given keyspace. */
-    private final Map<String, Table> tableInstances = new NonBlockingHashMap<String, Table>();
+    /* Keyspace objects, one per keyspace. Only one instance should ever exist for any given keyspace. */
+    private final Map<String, Keyspace> keyspaceInstances = new NonBlockingHashMap<String, Keyspace>();
 
     /* metadata map for faster ColumnFamily lookup */
     private final BiMap<Pair<String, String>, UUID> cfIdMap = HashBiMap.create();
@@ -64,7 +64,7 @@ public class Schema
 
     // 59adb24e-f3cd-3e02-97f0-5b395827453f
     public static final UUID emptyVersion;
-    public static final ImmutableSet<String> systemKeyspaceNames = ImmutableSet.of(Table.SYSTEM_KS, Tracing.TRACE_KS);
+    public static final ImmutableSet<String> systemKeyspaceNames = ImmutableSet.of(Keyspace.SYSTEM_KS, Tracing.TRACE_KS);
 
     static
     {
@@ -85,15 +85,15 @@ public class Schema
     {}
 
     /**
-     * Load up non-system tables
+     * Load up non-system keyspaces
      *
-     * @param tableDefs The non-system table definitions
+     * @param keyspaceDefs The non-system keyspace definitions
      *
      * @return self to support chaining calls
      */
-    public Schema load(Collection<KSMetaData> tableDefs)
+    public Schema load(Collection<KSMetaData> keyspaceDefs)
     {
-        for (KSMetaData def : tableDefs)
+        for (KSMetaData def : keyspaceDefs)
             load(def);
 
         return this;
@@ -111,74 +111,74 @@ public class Schema
         for (CFMetaData cfm : keyspaceDef.cfMetaData().values())
             load(cfm);
 
-        setTableDefinition(keyspaceDef);
+        setKeyspaceDefinition(keyspaceDef);
 
         return this;
     }
 
     /**
-     * Get table instance by name
+     * Get keyspace instance by name
      *
-     * @param tableName The name of the table
+     * @param keyspaceName The name of the keyspace
      *
-     * @return Table object or null if table was not found
+     * @return Keyspace object or null if keyspace was not found
      */
-    public Table getTableInstance(String tableName)
+    public Keyspace getKeyspaceInstance(String keyspaceName)
     {
-        return tableInstances.get(tableName);
+        return keyspaceInstances.get(keyspaceName);
     }
 
     /**
-     * Store given Table instance to the schema
+     * Store given Keyspace instance to the schema
      *
-     * @param table The Table instance to store
+     * @param keyspace The Keyspace instance to store
      *
-     * @throws IllegalArgumentException if Table is already stored
+     * @throws IllegalArgumentException if Keyspace is already stored
      */
-    public void storeTableInstance(Table table)
+    public void storeKeyspaceInstance(Keyspace keyspace)
     {
-        if (tableInstances.containsKey(table.getName()))
-            throw new IllegalArgumentException(String.format("Table %s was already initialized.", table.getName()));
+        if (keyspaceInstances.containsKey(keyspace.getName()))
+            throw new IllegalArgumentException(String.format("Keyspace %s was already initialized.", keyspace.getName()));
 
-        tableInstances.put(table.getName(), table);
+        keyspaceInstances.put(keyspace.getName(), keyspace);
     }
 
     /**
-     * Remove table from schema
+     * Remove keyspace from schema
      *
-     * @param tableName The name of the table to remove
+     * @param keyspaceName The name of the keyspace to remove
      *
-     * @return removed table instance or null if it wasn't found
+     * @return removed keyspace instance or null if it wasn't found
      */
-    public Table removeTableInstance(String tableName)
+    public Keyspace removeKeyspaceInstance(String keyspaceName)
     {
-        return tableInstances.remove(tableName);
+        return keyspaceInstances.remove(keyspaceName);
     }
 
     /**
-     * Remove table definition from system
+     * Remove keyspace definition from system
      *
-     * @param ksm The table definition to remove
+     * @param ksm The keyspace definition to remove
      */
-    public void clearTableDefinition(KSMetaData ksm)
+    public void clearKeyspaceDefinition(KSMetaData ksm)
     {
-        tables.remove(ksm.name);
+        keyspaces.remove(ksm.name);
     }
 
     /**
-     * Given a table name & column family name, get the column family
-     * meta data. If the table name or column family name is not valid
+     * Given a keyspace name & column family name, get the column family
+     * meta data. If the keyspace name or column family name is not valid
      * this function returns null.
      *
-     * @param tableName The table name
+     * @param keyspaceName The keyspace name
      * @param cfName The ColumnFamily name
      *
      * @return ColumnFamily Metadata object or null if it wasn't found
      */
-    public CFMetaData getCFMetaData(String tableName, String cfName)
+    public CFMetaData getCFMetaData(String keyspaceName, String cfName)
     {
-        assert tableName != null;
-        KSMetaData ksm = tables.get(tableName);
+        assert keyspaceName != null;
+        KSMetaData ksm = keyspaces.get(keyspaceName);
         return (ksm == null) ? null : ksm.cfMetaData().get(cfName);
     }
 
@@ -247,66 +247,66 @@ public class Schema
     }
 
     /**
-     * Get metadata about table by its name
+     * Get metadata about keyspace by its name
      *
-     * @param table The name of the table
+     * @param keyspaceName The name of the keyspace
      *
-     * @return The table metadata or null if it wasn't found
+     * @return The keyspace metadata or null if it wasn't found
      */
-    public KSMetaData getKSMetaData(String table)
+    public KSMetaData getKSMetaData(String keyspaceName)
     {
-        assert table != null;
-        return tables.get(table);
+        assert keyspaceName != null;
+        return keyspaces.get(keyspaceName);
     }
 
     /**
-     * @return collection of the non-system tables
+     * @return collection of the non-system keyspaces
      */
-    public List<String> getNonSystemTables()
+    public List<String> getNonSystemKeyspaces()
     {
-        return ImmutableList.copyOf(Sets.difference(tables.keySet(), systemKeyspaceNames));
+        return ImmutableList.copyOf(Sets.difference(keyspaces.keySet(), systemKeyspaceNames));
     }
 
     /**
-     * Get metadata about table inner ColumnFamilies
+     * Get metadata about keyspace inner ColumnFamilies
      *
-     * @param tableName The name of the table
+     * @param keyspaceName The name of the keyspace
      *
-     * @return metadata about ColumnFamilies the belong to the given table
+     * @return metadata about ColumnFamilies the belong to the given keyspace
      */
-    public Map<String, CFMetaData> getTableMetaData(String tableName)
+    public Map<String, CFMetaData> getKeyspaceMetaData(String keyspaceName)
     {
-        assert tableName != null;
-        KSMetaData ksm = tables.get(tableName);
+        assert keyspaceName != null;
+        KSMetaData ksm = keyspaces.get(keyspaceName);
         assert ksm != null;
         return ksm.cfMetaData();
     }
 
     /**
-     * @return collection of the all table names registered in the system (system and non-system)
+     * @return collection of the all keyspace names registered in the system (system and non-system)
      */
-    public Set<String> getTables()
+    public Set<String> getKeyspaces()
     {
-        return tables.keySet();
+        return keyspaces.keySet();
     }
 
     /**
-     * @return collection of the metadata about all tables registered in the system (system and non-system)
+     * @return collection of the metadata about all keyspaces registered in the system (system and non-system)
      */
-    public Collection<KSMetaData> getTableDefinitions()
+    public Collection<KSMetaData> getKeyspaceDefinitions()
     {
-        return tables.values();
+        return keyspaces.values();
     }
 
     /**
-     * Update (or insert) new table definition
+     * Update (or insert) new keyspace definition
      *
-     * @param ksm The metadata about table
+     * @param ksm The metadata about keyspace
      */
-    public void setTableDefinition(KSMetaData ksm)
+    public void setKeyspaceDefinition(KSMetaData ksm)
     {
         assert ksm != null;
-        tables.put(ksm.name, ksm);
+        keyspaces.put(ksm.name, ksm);
     }
 
     /* ColumnFamily query/control methods */
@@ -371,7 +371,7 @@ public class Schema
     }
 
     /**
-     * Read schema from system table and calculate MD5 digest of every row, resulting digest
+     * Read schema from system keyspace and calculate MD5 digest of every row, resulting digest
      * will be converted into UUID which would act as content-based version of the schema.
      */
     public void updateVersion()
@@ -380,7 +380,7 @@ public class Schema
         {
             MessageDigest versionDigest = MessageDigest.getInstance("MD5");
 
-            for (Row row : SystemTable.serializedSchema())
+            for (Row row : SystemKeyspace.serializedSchema())
             {
                 if (invalidSchemaRow(row) || ignoredSchemaRow(row))
                     continue;
@@ -389,7 +389,7 @@ public class Schema
             }
 
             version = UUID.nameUUIDFromBytes(versionDigest.digest());
-            SystemTable.updateSchemaVersion(version);
+            SystemKeyspace.updateSchemaVersion(version);
         }
         catch (Exception e)
         {
@@ -411,12 +411,12 @@ public class Schema
      */
     public synchronized void clear()
     {
-        for (String table : getNonSystemTables())
+        for (String keyspaceName : getNonSystemKeyspaces())
         {
-            KSMetaData ksm = getKSMetaData(table);
+            KSMetaData ksm = getKSMetaData(keyspaceName);
             for (CFMetaData cfm : ksm.cfMetaData().values())
                 purge(cfm);
-            clearTableDefinition(ksm);
+            clearKeyspaceDefinition(ksm);
         }
 
         updateVersionAndAnnounce();

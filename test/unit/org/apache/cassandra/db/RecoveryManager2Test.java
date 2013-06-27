@@ -43,7 +43,7 @@ public class RecoveryManager2Test extends SchemaLoader
     public void testWithFlush() throws Exception
     {
         // Flush everything that may be in the commit log now to start fresh
-        FBUtilities.waitOnFutures(Table.open(Table.SYSTEM_KS).flush());
+        FBUtilities.waitOnFutures(Keyspace.open(Keyspace.SYSTEM_KS).flush());
 
         CompactionManager.instance.disableAutoCompaction();
 
@@ -56,8 +56,8 @@ public class RecoveryManager2Test extends SchemaLoader
             insertRow("Standard1", key);
         }
 
-        Table table1 = Table.open("Keyspace1");
-        ColumnFamilyStore cfs = table1.getColumnFamilyStore("Standard1");
+        Keyspace keyspace1 = Keyspace.open("Keyspace1");
+        ColumnFamilyStore cfs = keyspace1.getColumnFamilyStore("Standard1");
         logger.debug("forcing flush");
         cfs.forceBlockingFlush();
 

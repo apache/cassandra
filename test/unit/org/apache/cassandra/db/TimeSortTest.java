@@ -40,8 +40,8 @@ public class TimeSortTest extends SchemaLoader
     @Test
     public void testMixedSources() throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open("Keyspace1");
-        ColumnFamilyStore cfStore = table.getColumnFamilyStore("StandardLong1");
+        Keyspace keyspace = Keyspace.open("Keyspace1");
+        ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("StandardLong1");
         RowMutation rm;
         DecoratedKey key = Util.dk("key0");
 
@@ -62,8 +62,8 @@ public class TimeSortTest extends SchemaLoader
     @Test
     public void testTimeSort() throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open("Keyspace1");
-        ColumnFamilyStore cfStore = table.getColumnFamilyStore("StandardLong1");
+        Keyspace keyspace = Keyspace.open("Keyspace1");
+        ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("StandardLong1");
 
         for (int i = 900; i < 1000; ++i)
         {
@@ -75,10 +75,10 @@ public class TimeSortTest extends SchemaLoader
             rm.apply();
         }
 
-        validateTimeSort(table);
+        validateTimeSort(keyspace);
 
         cfStore.forceBlockingFlush();
-        validateTimeSort(table);
+        validateTimeSort(keyspace);
 
         // interleave some new data to test memtable + sstable
         DecoratedKey key = Util.dk("900");
@@ -113,19 +113,19 @@ public class TimeSortTest extends SchemaLoader
         assert "c".equals(ByteBufferUtil.string(cf.getColumn(getBytes(10)).value()));
     }
 
-    private void validateTimeSort(Table table) throws IOException
+    private void validateTimeSort(Keyspace keyspace) throws IOException
     {
         for (int i = 900; i < 1000; ++i)
         {
             DecoratedKey key = Util.dk(Integer.toString(i));
             for (int j = 0; j < 8; j += 3)
             {
-                ColumnFamily cf = table.getColumnFamilyStore("StandardLong1").getColumnFamily(key,
-                                                                                              getBytes(j * 2),
-                                                                                              ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                                                              false,
-                                                                                              1000,
-                                                                                              System.currentTimeMillis());
+                ColumnFamily cf = keyspace.getColumnFamilyStore("StandardLong1").getColumnFamily(key,
+                                                                                                 getBytes(j * 2),
+                                                                                                 ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                                                                 false,
+                                                                                                 1000,
+                                                                                                 System.currentTimeMillis());
                 Collection<Column> columns = cf.getSortedColumns();
                 assert columns.size() == 8 - j;
                 int k = j;

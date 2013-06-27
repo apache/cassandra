@@ -56,9 +56,9 @@ import org.apache.cassandra.utils.*;
 
 import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
 
-public class SystemTable
+public class SystemKeyspace
 {
-    private static final Logger logger = LoggerFactory.getLogger(SystemTable.class);
+    private static final Logger logger = LoggerFactory.getLogger(SystemKeyspace.class);
 
     // see CFMetaData for schema definitions
     public static final String PEERS_CF = "peers";
@@ -69,7 +69,7 @@ public class SystemTable
     public static final String HINTS_CF = "hints";
     public static final String RANGE_XFERS_CF = "range_xfers";
     public static final String BATCHLOG_CF = "batchlog";
-    // see layout description in the DefsTable class header
+    // see layout description in the DefsTables class header
     public static final String SCHEMA_KEYSPACES_CF = "schema_keyspaces";
     public static final String SCHEMA_COLUMNFAMILIES_CF = "schema_columnfamilies";
     public static final String SCHEMA_COLUMNS_CF = "schema_columns";
@@ -102,7 +102,7 @@ public class SystemTable
             KSMetaData ksmd = Schema.instance.getKSMetaData(ksname);
 
             // delete old, possibly obsolete entries in schema columnfamilies
-            for (String cfname : Arrays.asList(SystemTable.SCHEMA_KEYSPACES_CF, SystemTable.SCHEMA_COLUMNFAMILIES_CF, SystemTable.SCHEMA_COLUMNS_CF))
+            for (String cfname : Arrays.asList(SystemKeyspace.SCHEMA_KEYSPACES_CF, SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF, SystemKeyspace.SCHEMA_COLUMNS_CF))
             {
                 String req = String.format("DELETE FROM system.%s WHERE keyspace_name = '%s'", cfname, ksmd.name);
                 processInternal(req);
@@ -136,7 +136,7 @@ public class SystemTable
      */
     public static UUID startCompaction(ColumnFamilyStore cfs, Iterable<SSTableReader> toCompact)
     {
-        if (Table.SYSTEM_KS.equals(cfs.table.getName()))
+        if (Keyspace.SYSTEM_KS.equals(cfs.keyspace.getName()))
             return null;
 
         UUID compactionId = UUIDGen.getTimeUUID();
@@ -148,7 +148,7 @@ public class SystemTable
                 return sstable.descriptor.generation;
             }
         });
-        processInternal(String.format(req, COMPACTION_LOG, compactionId, cfs.table.getName(), cfs.name, StringUtils.join(Sets.newHashSet(generations), ',')));
+        processInternal(String.format(req, COMPACTION_LOG, compactionId, cfs.keyspace.getName(), cfs.name, StringUtils.join(Sets.newHashSet(generations), ',')));
         forceBlockingFlush(COMPACTION_LOG);
         return compactionId;
     }
@@ -184,7 +184,7 @@ public class SystemTable
 
     public static void discardCompactionsInProgress()
     {
-        ColumnFamilyStore compactionLog = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(COMPACTION_LOG);
+        ColumnFamilyStore compactionLog = Keyspace.open(Keyspace.SYSTEM_KS).getColumnFamilyStore(COMPACTION_LOG);
         compactionLog.truncateBlocking();
     }
 
@@ -327,7 +327,7 @@ public class SystemTable
     }
 
     /**
-     * This method is used to update the System Table with the new tokens for this node
+     * This method is used to update the System Keyspace with the new tokens for this node
     */
     public static synchronized void updateTokens(Collection<Token> tokens)
     {
@@ -338,7 +338,7 @@ public class SystemTable
     }
 
     /**
-     * Convenience method to update the list of tokens in the local system table.
+     * Convenience method to update the list of tokens in the local system keyspace.
      *
      * @param addTokens tokens to add
      * @param rmTokens tokens to remove
@@ -355,7 +355,7 @@ public class SystemTable
 
     private static void forceBlockingFlush(String cfname)
     {
-        Table.open(Table.SYSTEM_KS).getColumnFamilyStore(cfname).forceBlockingFlush();
+        Keyspace.open(Keyspace.SYSTEM_KS).getColumnFamilyStore(cfname).forceBlockingFlush();
     }
 
     /**
@@ -414,7 +414,7 @@ public class SystemTable
     }
 
     /**
-     * One of three things will happen if you try to read the system table:
+     * One of three things will happen if you try to read the system keyspace:
      * 1. files are present and you can read them: great
      * 2. no files are there: great (new node is assumed)
      * 3. files are present but you can't read them: bad
@@ -422,19 +422,19 @@ public class SystemTable
      */
     public static void checkHealth() throws ConfigurationException
     {
-        Table table;
+        Keyspace keyspace;
         try
         {
-            table = Table.open(Table.SYSTEM_KS);
+            keyspace = Keyspace.open(Keyspace.SYSTEM_KS);
         }
         catch (AssertionError err)
         {
             // this happens when a user switches from OPP to RP.
-            ConfigurationException ex = new ConfigurationException("Could not read system table!");
+            ConfigurationException ex = new ConfigurationException("Could not read system keyspace!");
             ex.initCause(err);
             throw ex;
         }
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(LOCAL_CF);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(LOCAL_CF);
 
         String req = "SELECT cluster_name FROM system.%s WHERE key='%s'";
         UntypedResultSet result = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
@@ -443,7 +443,7 @@ public class SystemTable
         {
             // this is a brand new node
             if (!cfs.getSSTables().isEmpty())
-                throw new ConfigurationException("Found system table files, but they couldn't be loaded!");
+                throw new ConfigurationException("Found system keyspace files, but they couldn't be loaded!");
 
             // no system files.  this is a new node.
             req = "INSERT INTO system.%s (key, cluster_name) VALUES ('%s', '%s')";
@@ -530,35 +530,35 @@ public class SystemTable
         forceBlockingFlush(LOCAL_CF);
     }
 
-    public static boolean isIndexBuilt(String table, String indexName)
+    public static boolean isIndexBuilt(String keyspaceName, String indexName)
     {
-        ColumnFamilyStore cfs = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(INDEX_CF);
-        QueryFilter filter = QueryFilter.getNamesFilter(decorate(ByteBufferUtil.bytes(table)),
+        ColumnFamilyStore cfs = Keyspace.open(Keyspace.SYSTEM_KS).getColumnFamilyStore(INDEX_CF);
+        QueryFilter filter = QueryFilter.getNamesFilter(decorate(ByteBufferUtil.bytes(keyspaceName)),
                                                         INDEX_CF,
                                                         ByteBufferUtil.bytes(indexName),
                                                         System.currentTimeMillis());
         return ColumnFamilyStore.removeDeleted(cfs.getColumnFamily(filter), Integer.MAX_VALUE) != null;
     }
 
-    public static void setIndexBuilt(String table, String indexName)
+    public static void setIndexBuilt(String keyspaceName, String indexName)
     {
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Table.SYSTEM_KS, INDEX_CF);
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Keyspace.SYSTEM_KS, INDEX_CF);
         cf.addColumn(new Column(ByteBufferUtil.bytes(indexName), ByteBufferUtil.EMPTY_BYTE_BUFFER, FBUtilities.timestampMicros()));
-        RowMutation rm = new RowMutation(Table.SYSTEM_KS, ByteBufferUtil.bytes(table), cf);
+        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, ByteBufferUtil.bytes(keyspaceName), cf);
         rm.apply();
         forceBlockingFlush(INDEX_CF);
     }
 
-    public static void setIndexRemoved(String table, String indexName)
+    public static void setIndexRemoved(String keyspaceName, String indexName)
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_KS, ByteBufferUtil.bytes(table));
+        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, ByteBufferUtil.bytes(keyspaceName));
         rm.delete(INDEX_CF, ByteBufferUtil.bytes(indexName), FBUtilities.timestampMicros());
         rm.apply();
         forceBlockingFlush(INDEX_CF);
     }
 
     /**
-     * Read the host ID from the system table, creating (and storing) one if
+     * Read the host ID from the system keyspace, creating (and storing) one if
      * none exists.
      */
     public static UUID getLocalHostId()
@@ -584,12 +584,12 @@ public class SystemTable
     }
 
     /**
-     * Read the current local node id from the system table or null if no
+     * Read the current local node id from the system keyspace or null if no
      * such node id is recorded.
      */
     public static CounterId getCurrentLocalCounterId()
     {
-        Table table = Table.open(Table.SYSTEM_KS);
+        Keyspace keyspace = Keyspace.open(Keyspace.SYSTEM_KS);
 
         // Get the last CounterId (since CounterId are timeuuid is thus ordered from the older to the newer one)
         QueryFilter filter = QueryFilter.getSliceFilter(decorate(ALL_LOCAL_NODE_ID_KEY),
@@ -599,7 +599,7 @@ public class SystemTable
                                                         true,
                                                         1,
                                                         System.currentTimeMillis());
-        ColumnFamily cf = table.getColumnFamilyStore(COUNTER_ID_CF).getColumnFamily(filter);
+        ColumnFamily cf = keyspace.getColumnFamilyStore(COUNTER_ID_CF).getColumnFamily(filter);
         if (cf != null && cf.getColumnCount() != 0)
             return CounterId.wrap(cf.iterator().next().name());
         else
@@ -607,11 +607,11 @@ public class SystemTable
     }
 
     /**
-     * Write a new current local node id to the system table.
+     * Write a new current local node id to the system keyspace.
      *
      * @param oldCounterId the previous local node id (that {@code newCounterId}
      * replace) or null if no such node id exists (new node or removed system
-     * table)
+     * keyspace)
      * @param newCounterId the new current local node id to record
      * @param now microsecond time stamp.
      */
@@ -619,9 +619,9 @@ public class SystemTable
     {
         ByteBuffer ip = ByteBuffer.wrap(FBUtilities.getBroadcastAddress().getAddress());
 
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Table.SYSTEM_KS, COUNTER_ID_CF);
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Keyspace.SYSTEM_KS, COUNTER_ID_CF);
         cf.addColumn(new Column(newCounterId.bytes(), ip, now));
-        RowMutation rm = new RowMutation(Table.SYSTEM_KS, ALL_LOCAL_NODE_ID_KEY, cf);
+        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, ALL_LOCAL_NODE_ID_KEY, cf);
         rm.apply();
         forceBlockingFlush(COUNTER_ID_CF);
     }
@@ -630,9 +630,9 @@ public class SystemTable
     {
         List<CounterId.CounterIdRecord> l = new ArrayList<CounterId.CounterIdRecord>();
 
-        Table table = Table.open(Table.SYSTEM_KS);
+        Keyspace keyspace = Keyspace.open(Keyspace.SYSTEM_KS);
         QueryFilter filter = QueryFilter.getIdentityFilter(decorate(ALL_LOCAL_NODE_ID_KEY), COUNTER_ID_CF, System.currentTimeMillis());
-        ColumnFamily cf = table.getColumnFamilyStore(COUNTER_ID_CF).getColumnFamily(filter);
+        ColumnFamily cf = keyspace.getColumnFamilyStore(COUNTER_ID_CF).getColumnFamily(filter);
 
         CounterId previous = null;
         for (Column c : cf)
@@ -653,7 +653,7 @@ public class SystemTable
      */
     public static ColumnFamilyStore schemaCFS(String cfName)
     {
-        return Table.open(Table.SYSTEM_KS).getColumnFamilyStore(cfName);
+        return Keyspace.open(Keyspace.SYSTEM_KS).getColumnFamilyStore(cfName);
     }
 
     public static List<Row> serializedSchema()
@@ -703,7 +703,7 @@ public class SystemTable
             RowMutation mutation = mutationMap.get(schemaRow.key);
             if (mutation == null)
             {
-                mutation = new RowMutation(Table.SYSTEM_KS, schemaRow.key.key);
+                mutation = new RowMutation(Keyspace.SYSTEM_KS, schemaRow.key.key);
                 mutationMap.put(schemaRow.key, mutation);
             }
 
@@ -715,7 +715,7 @@ public class SystemTable
     {
         Map<DecoratedKey, ColumnFamily> schema = new HashMap<DecoratedKey, ColumnFamily>();
 
-        for (Row schemaEntity : SystemTable.serializedSchema(cfName))
+        for (Row schemaEntity : SystemKeyspace.serializedSchema(cfName))
             schema.put(schemaEntity.key, schemaEntity.cf);
 
         return schema;
@@ -730,7 +730,7 @@ public class SystemTable
     {
         DecoratedKey key = StorageService.getPartitioner().decorateKey(getSchemaKSKey(ksName));
 
-        ColumnFamilyStore schemaCFS = SystemTable.schemaCFS(SCHEMA_KEYSPACES_CF);
+        ColumnFamilyStore schemaCFS = SystemKeyspace.schemaCFS(SCHEMA_KEYSPACES_CF);
         ColumnFamily result = schemaCFS.getColumnFamily(QueryFilter.getIdentityFilter(key, SCHEMA_KEYSPACES_CF, System.currentTimeMillis()));
 
         return new Row(key, result);
@@ -740,10 +740,10 @@ public class SystemTable
     {
         DecoratedKey key = StorageService.getPartitioner().decorateKey(getSchemaKSKey(ksName));
 
-        ColumnFamilyStore schemaCFS = SystemTable.schemaCFS(SCHEMA_COLUMNFAMILIES_CF);
+        ColumnFamilyStore schemaCFS = SystemKeyspace.schemaCFS(SCHEMA_COLUMNFAMILIES_CF);
         ColumnFamily result = schemaCFS.getColumnFamily(key,
-                                                        DefsTable.searchComposite(cfName, true),
-                                                        DefsTable.searchComposite(cfName, false),
+                                                        DefsTables.searchComposite(cfName, true),
+                                                        DefsTables.searchComposite(cfName, false),
                                                         false,
                                                         Integer.MAX_VALUE,
                                                         System.currentTimeMillis());

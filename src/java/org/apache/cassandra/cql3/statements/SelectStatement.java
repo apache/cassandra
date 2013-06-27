@@ -214,12 +214,12 @@ public class SelectStatement implements CQLStatement
         return new ResultMessage.Rows(rset);
     }
 
-    static List<Row> readLocally(String keyspace, List<ReadCommand> cmds)
+    static List<Row> readLocally(String keyspaceName, List<ReadCommand> cmds)
     {
-        Table table = Table.open(keyspace);
+        Keyspace keyspace = Keyspace.open(keyspaceName);
         List<Row> rows = new ArrayList<Row>(cmds.size());
         for (ReadCommand cmd : cmds)
-            rows.add(cmd.getRow(table));
+            rows.add(cmd.getRow(keyspace));
         return rows;
     }
 

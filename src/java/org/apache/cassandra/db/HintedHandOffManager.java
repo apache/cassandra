@@ -113,7 +113,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                                                                                  new NamedThreadFactory("HintedHandoff", Thread.MIN_PRIORITY),
                                                                                  "internal");
 
-    private final ColumnFamilyStore hintStore = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(SystemTable.HINTS_CF);
+    private final ColumnFamilyStore hintStore = Keyspace.open(Keyspace.SYSTEM_KS).getColumnFamilyStore(SystemKeyspace.HINTS_CF);
 
     /**
      * Returns a mutation representing a Hint to be sent to <code>targetId</code>
@@ -126,9 +126,9 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         // serialize the hint with id and version as a composite column name
         ByteBuffer name = comparator.decompose(hintId, MessagingService.current_version);
         ByteBuffer value = ByteBuffer.wrap(FBUtilities.serialize(mutation, RowMutation.serializer, MessagingService.current_version));
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Schema.instance.getCFMetaData(Table.SYSTEM_KS, SystemTable.HINTS_CF));
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Schema.instance.getCFMetaData(Keyspace.SYSTEM_KS, SystemKeyspace.HINTS_CF));
         cf.addColumn(name, value, System.currentTimeMillis(), ttl);
-        return new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(targetId), cf);
+        return new RowMutation(Keyspace.SYSTEM_KS, UUIDType.instance.decompose(targetId), cf);
     }
 
     /*
@@ -171,8 +171,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     private static void deleteHint(ByteBuffer tokenBytes, ByteBuffer columnName, long timestamp)
     {
-        RowMutation rm = new RowMutation(Table.SYSTEM_KS, tokenBytes);
-        rm.delete(SystemTable.HINTS_CF, columnName, timestamp);
+        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, tokenBytes);
+        rm.delete(SystemKeyspace.HINTS_CF, columnName, timestamp);
         rm.applyUnsafe(); // don't bother with commitlog since we're going to flush as soon as we're done with delivery
     }
 
@@ -196,8 +196,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             return;
         UUID hostId = StorageService.instance.getTokenMetadata().getHostId(endpoint);
         ByteBuffer hostIdBytes = ByteBuffer.wrap(UUIDGen.decompose(hostId));
-        final RowMutation rm = new RowMutation(Table.SYSTEM_KS, hostIdBytes);
-        rm.delete(SystemTable.HINTS_CF, System.currentTimeMillis());
+        final RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, hostIdBytes);
+        rm.delete(SystemKeyspace.HINTS_CF, System.currentTimeMillis());
 
         // execute asynchronously to avoid blocking caller (which may be processing gossip)
         Runnable runnable = new Runnable()
@@ -250,7 +250,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         }
         waited = 0;
         // then wait for the correct schema version.
-        // usually we use DD.getDefsVersion, which checks the local schema uuid as stored in the system table.
+        // usually we use DD.getDefsVersion, which checks the local schema uuid as stored in the system keyspace.
         // here we check the one in gossip instead; this serves as a canary to warn us if we introduce a bug that
         // causes the two to diverge (see CASSANDRA-2946)
         while (!gossiper.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA).value.equals(
@@ -328,7 +328,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         {
             long now = System.currentTimeMillis();
             QueryFilter filter = QueryFilter.getSliceFilter(epkey,
-                                                            SystemTable.HINTS_CF,
+                                                            SystemKeyspace.HINTS_CF,
                                                             startColumn,
                                                             ByteBufferUtil.EMPTY_BYTE_BUFFER,
                                                             false,
@@ -393,7 +393,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                     Long truncatedAt = truncationTimesCache.get(cfId);
                     if (truncatedAt == null)
                     {
-                        ColumnFamilyStore cfs = Table.open(rm.getTable()).getColumnFamilyStore(cfId);
+                        ColumnFamilyStore cfs = Keyspace.open(rm.getKeyspaceName()).getColumnFamilyStore(cfId);
                         truncatedAt = cfs.getTruncationTime();
                         truncationTimesCache.put(cfId, truncatedAt);
                     }
@@ -579,8 +579,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         try
         {
-            RangeSliceCommand cmd = new RangeSliceCommand(Table.SYSTEM_KS,
-                                                          SystemTable.HINTS_CF,
+            RangeSliceCommand cmd = new RangeSliceCommand(Keyspace.SYSTEM_KS,
+                                                          SystemKeyspace.HINTS_CF,
                                                           System.currentTimeMillis(),
                                                           predicate,
                                                           range,

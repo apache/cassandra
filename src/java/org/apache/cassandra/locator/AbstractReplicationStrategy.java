@@ -28,7 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.RingPosition;
@@ -49,24 +49,24 @@ public abstract class AbstractReplicationStrategy
     private static final Logger logger = LoggerFactory.getLogger(AbstractReplicationStrategy.class);
 
     @VisibleForTesting
-    final String tableName;
-    private Table table;
+    final String keyspaceName;
+    private Keyspace keyspace;
     public final Map<String, String> configOptions;
     private final TokenMetadata tokenMetadata;
 
     public IEndpointSnitch snitch;
 
-    AbstractReplicationStrategy(String tableName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+    AbstractReplicationStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
-        assert tableName != null;
+        assert keyspaceName != null;
         assert snitch != null;
         assert tokenMetadata != null;
         this.tokenMetadata = tokenMetadata;
         this.snitch = snitch;
         this.tokenMetadata.register(this);
         this.configOptions = configOptions == null ? Collections.<String, String>emptyMap() : configOptions;
-        this.tableName = tableName;
-        // lazy-initialize table itself since we don't create them until after the replication strategies
+        this.keyspaceName = keyspaceName;
+        // lazy-initialize keyspace itself since we don't create them until after the replication strategies
     }
 
     private final Map<Token, ArrayList<InetAddress>> cachedEndpoints = new NonBlockingHashMap<Token, ArrayList<InetAddress>>();
@@ -125,20 +125,20 @@ public abstract class AbstractReplicationStrategy
         if (consistency_level == ConsistencyLevel.LOCAL_QUORUM)
         {
             // block for in this context will be localnodes block.
-            return new DatacenterWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, getTable(), callback, writeType);
+            return new DatacenterWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType);
         }
         else if (consistency_level == ConsistencyLevel.EACH_QUORUM)
         {
-            return new DatacenterSyncWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, getTable(), callback, writeType);
+            return new DatacenterSyncWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType);
         }
-        return new WriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, getTable(), callback, writeType);
+        return new WriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType);
     }
 
-    private Table getTable()
+    private Keyspace getKeyspace()
     {
-        if (table == null)
-            table = Table.open(tableName);
-        return table;
+        if (keyspace == null)
+            keyspace = Keyspace.open(keyspaceName);
+        return keyspace;
     }
 
     /**
@@ -222,7 +222,7 @@ public abstract class AbstractReplicationStrategy
         return null;
     }
 
-    private static AbstractReplicationStrategy createInternal(String table,
+    private static AbstractReplicationStrategy createInternal(String keyspaceName,
                                                               Class<? extends AbstractReplicationStrategy> strategyClass,
                                                               TokenMetadata tokenMetadata,
                                                               IEndpointSnitch snitch,
@@ -234,7 +234,7 @@ public abstract class AbstractReplicationStrategy
         try
         {
             Constructor<? extends AbstractReplicationStrategy> constructor = strategyClass.getConstructor(parameterTypes);
-            strategy = constructor.newInstance(table, tokenMetadata, snitch, strategyOptions);
+            strategy = constructor.newInstance(keyspaceName, tokenMetadata, snitch, strategyOptions);
         }
         catch (Exception e)
         {
@@ -243,7 +243,7 @@ public abstract class AbstractReplicationStrategy
         return strategy;
     }
 
-    public static AbstractReplicationStrategy createReplicationStrategy(String table,
+    public static AbstractReplicationStrategy createReplicationStrategy(String keyspaceName,
                                                                         Class<? extends AbstractReplicationStrategy> strategyClass,
                                                                         TokenMetadata tokenMetadata,
                                                                         IEndpointSnitch snitch,
@@ -251,7 +251,7 @@ public abstract class AbstractReplicationStrategy
     {
         try
         {
-            AbstractReplicationStrategy strategy = createInternal(table, strategyClass, tokenMetadata, snitch, strategyOptions);
+            AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, tokenMetadata, snitch, strategyOptions);
 
             // Because we used to not properly validate unrecognized options, we only log a warning if we find one.
             try
@@ -273,13 +273,13 @@ public abstract class AbstractReplicationStrategy
         }
     }
 
-    public static void validateReplicationStrategy(String table,
+    public static void validateReplicationStrategy(String keyspaceName,
                                                    Class<? extends AbstractReplicationStrategy> strategyClass,
                                                    TokenMetadata tokenMetadata,
                                                    IEndpointSnitch snitch,
                                                    Map<String, String> strategyOptions) throws ConfigurationException
     {
-        AbstractReplicationStrategy strategy = createInternal(table, strategyClass, tokenMetadata, snitch, strategyOptions);
+        AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, tokenMetadata, snitch, strategyOptions);
         strategy.validateExpectedOptions();
         strategy.validateOptions();
     }
@@ -319,7 +319,7 @@ public abstract class AbstractReplicationStrategy
         for (String key : configOptions.keySet())
         {
             if (!expectedOptions.contains(key))
-                throw new ConfigurationException(String.format("Unrecognized strategy option {%s} passed to %s for keyspace %s", key, getClass().getSimpleName(), tableName));
+                throw new ConfigurationException(String.format("Unrecognized strategy option {%s} passed to %s for keyspace %s", key, getClass().getSimpleName(), keyspaceName));
         }
     }
 }

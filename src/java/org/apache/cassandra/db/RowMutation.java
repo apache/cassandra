@@ -42,30 +42,30 @@ public class RowMutation implements IMutation
 
     // todo this is redundant
     // when we remove it, also restore SerializationsTest.testRowMutationRead to not regenerate new RowMutations each test
-    private final String table;
+    private final String keyspaceName;
 
     private final ByteBuffer key;
     // map of column family id to mutations for that column family.
     private final Map<UUID, ColumnFamily> modifications;
 
-    public RowMutation(String table, ByteBuffer key)
+    public RowMutation(String keyspaceName, ByteBuffer key)
     {
-        this(table, key, new HashMap<UUID, ColumnFamily>());
+        this(keyspaceName, key, new HashMap<UUID, ColumnFamily>());
     }
 
-    public RowMutation(String table, ByteBuffer key, ColumnFamily cf)
+    public RowMutation(String keyspaceName, ByteBuffer key, ColumnFamily cf)
     {
-        this(table, key, Collections.singletonMap(cf.id(), cf));
+        this(keyspaceName, key, Collections.singletonMap(cf.id(), cf));
     }
 
-    public RowMutation(String table, Row row)
+    public RowMutation(String keyspaceName, Row row)
     {
-        this(table, row.key.key, row.cf);
+        this(keyspaceName, row.key.key, row.cf);
     }
 
-    protected RowMutation(String table, ByteBuffer key, Map<UUID, ColumnFamily> modifications)
+    protected RowMutation(String keyspaceName, ByteBuffer key, Map<UUID, ColumnFamily> modifications)
     {
-        this.table = table;
+        this.keyspaceName = keyspaceName;
         this.key = key;
         this.modifications = modifications;
     }
@@ -75,9 +75,9 @@ public class RowMutation implements IMutation
         this(cf.metadata().ksName, key, cf);
     }
 
-    public String getTable()
+    public String getKeyspaceName()
     {
-        return table;
+        return keyspaceName;
     }
 
     public Collection<UUID> getColumnFamilyIds()
@@ -120,7 +120,7 @@ public class RowMutation implements IMutation
      */
     public ColumnFamily addOrGet(String cfName)
     {
-        CFMetaData cfm = Schema.instance.getCFMetaData(table, cfName);
+        CFMetaData cfm = Schema.instance.getCFMetaData(keyspaceName, cfName);
         ColumnFamily cf = modifications.get(cfm.cfId);
         if (cf == null)
         {
@@ -174,7 +174,7 @@ public class RowMutation implements IMutation
             throw new IllegalArgumentException();
 
         RowMutation rm = (RowMutation)m;
-        if (!table.equals(rm.table) || !key.equals(rm.key))
+        if (!keyspaceName.equals(rm.keyspaceName) || !key.equals(rm.key))
             throw new IllegalArgumentException();
 
         for (Map.Entry<UUID, ColumnFamily> entry : rm.modifications.entrySet())
@@ -189,17 +189,17 @@ public class RowMutation implements IMutation
 
     /*
      * This is equivalent to calling commit. Applies the changes to
-     * to the table that is obtained by calling Table.open().
+     * to the keyspace that is obtained by calling Keyspace.open().
      */
     public void apply()
     {
-        Table ks = Table.open(table);
+        Keyspace ks = Keyspace.open(keyspaceName);
         ks.apply(this, ks.metadata.durableWrites);
     }
 
     public void applyUnsafe()
     {
-        Table.open(table).apply(this, false);
+        Keyspace.open(keyspaceName).apply(this, false);
     }
 
     public MessageOut<RowMutation> createMessage()
@@ -220,7 +220,7 @@ public class RowMutation implements IMutation
     public String toString(boolean shallow)
     {
         StringBuilder buff = new StringBuilder("RowMutation(");
-        buff.append("keyspace='").append(table).append('\'');
+        buff.append("keyspace='").append(keyspaceName).append('\'');
         buff.append(", key='").append(ByteBufferUtil.bytesToHex(key)).append('\'');
         buff.append(", modifications=[");
         if (shallow)
@@ -240,7 +240,7 @@ public class RowMutation implements IMutation
 
     public RowMutation without(UUID cfId)
     {
-        RowMutation rm = new RowMutation(table, key);
+        RowMutation rm = new RowMutation(keyspaceName, key);
         for (Map.Entry<UUID, ColumnFamily> entry : modifications.entrySet())
             if (!entry.getKey().equals(cfId))
                 rm.add(entry.getValue());
@@ -252,7 +252,7 @@ public class RowMutation implements IMutation
         public void serialize(RowMutation rm, DataOutput out, int version) throws IOException
         {
             if (version < MessagingService.VERSION_20)
-                out.writeUTF(rm.getTable());
+                out.writeUTF(rm.getKeyspaceName());
 
             ByteBufferUtil.writeWithShortLength(rm.key(), out);
 
@@ -266,9 +266,9 @@ public class RowMutation implements IMutation
 
         public RowMutation deserialize(DataInput in, int version, ColumnSerializer.Flag flag) throws IOException
         {
-            String table = null; // will always be set from cf.metadata but javac isn't smart enough to see that
+            String keyspaceName = null; // will always be set from cf.metadata but javac isn't smart enough to see that
             if (version < MessagingService.VERSION_20)
-                table = in.readUTF();
+                keyspaceName = in.readUTF();
 
             ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
             int size = in.readInt();
@@ -279,7 +279,7 @@ public class RowMutation implements IMutation
             {
                 ColumnFamily cf = deserializeOneCf(in, version, flag);
                 modifications = Collections.singletonMap(cf.id(), cf);
-                table = cf.metadata().ksName;
+                keyspaceName = cf.metadata().ksName;
             }
             else
             {
@@ -288,11 +288,11 @@ public class RowMutation implements IMutation
                 {
                     ColumnFamily cf = deserializeOneCf(in, version, flag);
                     modifications.put(cf.id(), cf);
-                    table = cf.metadata().ksName;
+                    keyspaceName = cf.metadata().ksName;
                 }
             }
 
-            return new RowMutation(table, key, modifications);
+            return new RowMutation(keyspaceName, key, modifications);
         }
 
         private ColumnFamily deserializeOneCf(DataInput in, int version, ColumnSerializer.Flag flag) throws IOException
@@ -314,7 +314,7 @@ public class RowMutation implements IMutation
             int size = 0;
 
             if (version < MessagingService.VERSION_20)
-                size += sizes.sizeof(rm.getTable());
+                size += sizes.sizeof(rm.getKeyspaceName());
 
             int keySize = rm.key().remaining();
             size += sizes.sizeof((short) keySize) + keySize;

@@ -105,9 +105,9 @@ import org.apache.cassandra.utils.FBUtilities;
  *  => (column=cf:c:name, value="aGVsbG8=", timestamp=1327061105833119000)
  *  => (column=cf:c:validation_class, value="org.apache.cassandra.db.marshal.AsciiType", timestamp=1327061105833119000)
  */
-public class DefsTable
+public class DefsTables
 {
-    private static final Logger logger = LoggerFactory.getLogger(DefsTable.class);
+    private static final Logger logger = LoggerFactory.getLogger(DefsTables.class);
 
     /* saves keyspace definitions to system schema columnfamilies */
     public static synchronized void save(Collection<KSMetaData> keyspaces)
@@ -123,9 +123,9 @@ public class DefsTable
      *
      * @return Collection of found keyspace definitions
      */
-    public static Collection<KSMetaData> loadFromTable()
+    public static Collection<KSMetaData> loadFromKeyspace()
     {
-        List<Row> serializedSchema = SystemTable.serializedSchema(SystemTable.SCHEMA_KEYSPACES_CF);
+        List<Row> serializedSchema = SystemKeyspace.serializedSchema(SystemKeyspace.SCHEMA_KEYSPACES_CF);
 
         List<KSMetaData> keyspaces = new ArrayList<KSMetaData>(serializedSchema.size());
 
@@ -155,9 +155,9 @@ public class DefsTable
 
     private static Row serializedColumnFamilies(DecoratedKey ksNameKey)
     {
-        ColumnFamilyStore cfsStore = SystemTable.schemaCFS(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
+        ColumnFamilyStore cfsStore = SystemKeyspace.schemaCFS(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF);
         return new Row(ksNameKey, cfsStore.getColumnFamily(QueryFilter.getIdentityFilter(ksNameKey,
-                                                                                         SystemTable.SCHEMA_COLUMNFAMILIES_CF,
+                                                                                         SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF,
                                                                                          System.currentTimeMillis())));
     }
 
@@ -173,8 +173,8 @@ public class DefsTable
     public static synchronized void mergeSchema(Collection<RowMutation> mutations) throws ConfigurationException, IOException
     {
         // current state of the schema
-        Map<DecoratedKey, ColumnFamily> oldKeyspaces = SystemTable.getSchema(SystemTable.SCHEMA_KEYSPACES_CF);
-        Map<DecoratedKey, ColumnFamily> oldColumnFamilies = SystemTable.getSchema(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
+        Map<DecoratedKey, ColumnFamily> oldKeyspaces = SystemKeyspace.getSchema(SystemKeyspace.SCHEMA_KEYSPACES_CF);
+        Map<DecoratedKey, ColumnFamily> oldColumnFamilies = SystemKeyspace.getSchema(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF);
 
         for (RowMutation mutation : mutations)
             mutation.apply();
@@ -185,8 +185,8 @@ public class DefsTable
         Schema.instance.updateVersionAndAnnounce();
 
         // with new data applied
-        Map<DecoratedKey, ColumnFamily> newKeyspaces = SystemTable.getSchema(SystemTable.SCHEMA_KEYSPACES_CF);
-        Map<DecoratedKey, ColumnFamily> newColumnFamilies = SystemTable.getSchema(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
+        Map<DecoratedKey, ColumnFamily> newKeyspaces = SystemKeyspace.getSchema(SystemKeyspace.SCHEMA_KEYSPACES_CF);
+        Map<DecoratedKey, ColumnFamily> newColumnFamilies = SystemKeyspace.getSchema(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF);
 
         Set<String> keyspacesToDrop = mergeKeyspaces(oldKeyspaces, newKeyspaces);
         mergeColumnFamilies(oldColumnFamilies, newColumnFamilies);
@@ -335,7 +335,7 @@ public class DefsTable
 
         if (!StorageService.instance.isClientMode())
         {
-            Table.open(ksm.name);
+            Keyspace.open(ksm.name);
             MigrationManager.instance.notifyCreateKeyspace(ksm);
         }
     }
@@ -352,13 +352,13 @@ public class DefsTable
 
         // make sure it's init-ed w/ the old definitions first,
         // since we're going to call initCf on the new one manually
-        Table.open(cfm.ksName);
+        Keyspace.open(cfm.ksName);
 
-        Schema.instance.setTableDefinition(ksm);
+        Schema.instance.setKeyspaceDefinition(ksm);
 
         if (!StorageService.instance.isClientMode())
         {
-            Table.open(ksm.name).initCf(cfm.cfId, cfm.cfName, true);
+            Keyspace.open(ksm.name).initCf(cfm.cfId, cfm.cfName, true);
             MigrationManager.instance.notifyCreateColumnFamily(cfm);
         }
     }
@@ -369,11 +369,11 @@ public class DefsTable
         assert oldKsm != null;
         KSMetaData newKsm = KSMetaData.cloneWith(oldKsm.reloadAttributes(), oldKsm.cfMetaData().values());
 
-        Schema.instance.setTableDefinition(newKsm);
+        Schema.instance.setKeyspaceDefinition(newKsm);
 
         if (!StorageService.instance.isClientMode())
         {
-            Table.open(newState.name).createReplicationStrategy(newKsm);
+            Keyspace.open(newState.name).createReplicationStrategy(newKsm);
             MigrationManager.instance.notifyUpdateKeyspace(newKsm);
         }
     }
@@ -386,8 +386,8 @@ public class DefsTable
 
         if (!StorageService.instance.isClientMode())
         {
-            Table table = Table.open(cfm.ksName);
-            table.getColumnFamilyStore(cfm.cfName).reload();
+            Keyspace keyspace = Keyspace.open(cfm.ksName);
+            keyspace.getColumnFamilyStore(cfm.cfName).reload();
             MigrationManager.instance.notifyUpdateColumnFamily(cfm);
         }
     }
@@ -395,14 +395,14 @@ public class DefsTable
     private static void dropKeyspace(String ksName)
     {
         KSMetaData ksm = Schema.instance.getKSMetaData(ksName);
-        String snapshotName = Table.getTimestampedSnapshotName(ksName);
+        String snapshotName = Keyspace.getTimestampedSnapshotName(ksName);
 
         CompactionManager.instance.interruptCompactionFor(ksm.cfMetaData().values(), true);
 
-        // remove all cfs from the table instance.
+        // remove all cfs from the keyspace instance.
         for (CFMetaData cfm : ksm.cfMetaData().values())
         {
-            ColumnFamilyStore cfs = Table.open(ksm.name).getColumnFamilyStore(cfm.cfName);
+            ColumnFamilyStore cfs = Keyspace.open(ksm.name).getColumnFamilyStore(cfm.cfName);
 
             Schema.instance.purge(cfm);
 
@@ -410,13 +410,13 @@ public class DefsTable
             {
                 if (DatabaseDescriptor.isAutoSnapshot())
                     cfs.snapshot(snapshotName);
-                Table.open(ksm.name).dropCf(cfm.cfId);
+                Keyspace.open(ksm.name).dropCf(cfm.cfId);
             }
         }
 
-        // remove the table from the static instances.
-        Table.clear(ksm.name);
-        Schema.instance.clearTableDefinition(ksm);
+        // remove the keyspace from the static instances.
+        Keyspace.clear(ksm.name);
+        Schema.instance.clearKeyspaceDefinition(ksm);
         if (!StorageService.instance.isClientMode())
         {
             MigrationManager.instance.notifyDropKeyspace(ksm);
@@ -427,22 +427,22 @@ public class DefsTable
     {
         KSMetaData ksm = Schema.instance.getKSMetaData(ksName);
         assert ksm != null;
-        ColumnFamilyStore cfs = Table.open(ksName).getColumnFamilyStore(cfName);
+        ColumnFamilyStore cfs = Keyspace.open(ksName).getColumnFamilyStore(cfName);
         assert cfs != null;
 
-        // reinitialize the table.
+        // reinitialize the keyspace.
         CFMetaData cfm = ksm.cfMetaData().get(cfName);
 
         Schema.instance.purge(cfm);
-        Schema.instance.setTableDefinition(makeNewKeyspaceDefinition(ksm, cfm));
+        Schema.instance.setKeyspaceDefinition(makeNewKeyspaceDefinition(ksm, cfm));
 
         CompactionManager.instance.interruptCompactionFor(Arrays.asList(cfm), true);
 
         if (!StorageService.instance.isClientMode())
         {
             if (DatabaseDescriptor.isAutoSnapshot())
-                cfs.snapshot(Table.getTimestampedSnapshotName(cfs.name));
-            Table.open(ksm.name).dropCf(cfm.cfId);
+                cfs.snapshot(Keyspace.getTimestampedSnapshotName(cfs.name));
+            Keyspace.open(ksm.name).dropCf(cfm.cfId);
             MigrationManager.instance.notifyDropColumnFamily(cfm);
         }
     }
@@ -458,13 +458,13 @@ public class DefsTable
 
     private static void flushSchemaCFs()
     {
-        flushSchemaCF(SystemTable.SCHEMA_KEYSPACES_CF);
-        flushSchemaCF(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
-        flushSchemaCF(SystemTable.SCHEMA_COLUMNS_CF);
+        flushSchemaCF(SystemKeyspace.SCHEMA_KEYSPACES_CF);
+        flushSchemaCF(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF);
+        flushSchemaCF(SystemKeyspace.SCHEMA_COLUMNS_CF);
     }
 
     private static void flushSchemaCF(String cfName)
     {
-        FBUtilities.waitOnFuture(SystemTable.schemaCFS(cfName).forceFlush());
+        FBUtilities.waitOnFuture(SystemKeyspace.schemaCFS(cfName).forceFlush());
     }
 }

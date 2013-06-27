@@ -158,14 +158,14 @@ public class CliCompiler
 
     public static int numColumnSpecifiers(Tree astNode)
     {
-        // Skip over table, column family and rowKey
+        // Skip over keyspace, column family and rowKey
         return astNode.getChildCount() - 2;
     }
 
     // Returns the pos'th (0-based index) column specifier in the astNode
     public static String getColumn(Tree astNode, int pos)
     {
-        // Skip over table, column family and rowKey
+        // Skip over keyspace, column family and rowKey
         return CliUtils.unescapeSQLString(astNode.getChild(pos + 2).getText());
     }
 

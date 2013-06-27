@@ -32,7 +32,7 @@ import org.apache.cassandra.db.TreeMapBackedSortedColumns;
 
 import static junit.framework.Assert.*;
 import static org.apache.cassandra.Util.column;
-import static org.apache.cassandra.db.TableTest.*;
+import static org.apache.cassandra.db.KeyspaceTest.*;
 
 public class RowResolverTest extends SchemaLoader
 {

@@ -85,7 +85,7 @@ public class ReadMessageTest extends SchemaLoader
     @Test
     public void testGetColumn() throws IOException, ColumnFamilyNotDefinedException
     {
-        Table table = Table.open("Keyspace1");
+        Keyspace keyspace = Keyspace.open("Keyspace1");
         RowMutation rm;
         DecoratedKey dk = Util.dk("key1");
 
@@ -95,7 +95,7 @@ public class ReadMessageTest extends SchemaLoader
         rm.apply();
 
         ReadCommand command = new SliceByNamesReadCommand("Keyspace1", dk.key, "Standard1", System.currentTimeMillis(), new NamesQueryFilter(ByteBufferUtil.bytes("Column1")));
-        Row row = command.getRow(table);
+        Row row = command.getRow(keyspace);
         Column col = row.cf.getColumn(ByteBufferUtil.bytes("Column1"));
         assertEquals(col.value(), ByteBuffer.wrap("abcd".getBytes()));
     }

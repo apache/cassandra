@@ -271,7 +271,7 @@ public class SSTableExport
     /**
      * Export specific rows from an SSTable and write the resulting JSON to a PrintStream.
      *
-     * @param desc     the descriptor of the sstable table to read from
+     * @param desc     the descriptor of the sstable to read from
      * @param outs     PrintStream to write the output to
      * @param toExport the keys corresponding to the rows to export
      * @param excludes keys to exclude from export
@@ -373,7 +373,7 @@ public class SSTableExport
     /**
      * Export an SSTable and write the resulting JSON to a PrintStream.
      *
-     * @param desc     the descriptor of the sstable table to read from
+     * @param desc     the descriptor of the sstable to read from
      * @param outs     PrintStream to write the output to
      * @param excludes keys to exclude from export
      * @throws IOException on failure to read/write input/output
@@ -386,7 +386,7 @@ public class SSTableExport
     /**
      * Export an SSTable and write the resulting JSON to standard out.
      *
-     * @param desc     the descriptor of the sstable table to read from
+     * @param desc     the descriptor of the sstable to read from
      * @param excludes keys to exclude from export
      * @throws IOException on failure to read/write SSTable/standard out
      */
@@ -442,7 +442,7 @@ public class SSTableExport
                                              ssTableFileName, descriptor.ksname));
             System.exit(1);
         }
-        Table table = Table.open(descriptor.ksname);
+        Keyspace keyspace = Keyspace.open(descriptor.ksname);
 
         // Make it work for indexes too - find parent cf if necessary
         String baseName = descriptor.cfname;
@@ -455,7 +455,7 @@ public class SSTableExport
         // IllegalArgumentException will be thrown here if ks/cf pair does not exist
         try
         {
-            table.getColumnFamilyStore(baseName);
+            keyspace.getColumnFamilyStore(baseName);
         }
         catch (IllegalArgumentException e)
         {

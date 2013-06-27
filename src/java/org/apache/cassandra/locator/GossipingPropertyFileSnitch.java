@@ -21,10 +21,10 @@ package org.apache.cassandra.locator;
 import java.net.InetAddress;
 import java.util.Map;
 
-import org.apache.cassandra.db.SystemTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
@@ -83,7 +83,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
             if (psnitch == null)
             {
                 if (savedEndpoints == null)
-                    savedEndpoints = SystemTable.loadDcRackInfo();
+                    savedEndpoints = SystemKeyspace.loadDcRackInfo();
                 if (savedEndpoints.containsKey(endpoint))
                     return savedEndpoints.get(endpoint).get("data_center");
                 return DEFAULT_DC;
@@ -111,7 +111,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
             if (psnitch == null)
             {
                 if (savedEndpoints == null)
-                    savedEndpoints = SystemTable.loadDcRackInfo();
+                    savedEndpoints = SystemKeyspace.loadDcRackInfo();
                 if (savedEndpoints.containsKey(endpoint))
                     return savedEndpoints.get(endpoint).get("rack");
                 return DEFAULT_RACK;

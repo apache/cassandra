@@ -81,12 +81,12 @@ public enum ConsistencyLevel
         return codeIdx[code];
     }
 
-    private int localQuorumFor(Table table, String dc)
+    private int localQuorumFor(Keyspace keyspace, String dc)
     {
-        return (((NetworkTopologyStrategy) table.getReplicationStrategy()).getReplicationFactor(dc) / 2) + 1;
+        return (((NetworkTopologyStrategy) keyspace.getReplicationStrategy()).getReplicationFactor(dc) / 2) + 1;
     }
 
-    public int blockFor(Table table)
+    public int blockFor(Keyspace keyspace)
     {
         switch (this)
         {
@@ -99,16 +99,16 @@ public enum ConsistencyLevel
             case THREE:
                 return 3;
             case QUORUM:
-                return (table.getReplicationStrategy().getReplicationFactor() / 2) + 1;
+                return (keyspace.getReplicationStrategy().getReplicationFactor() / 2) + 1;
             case ALL:
-                return table.getReplicationStrategy().getReplicationFactor();
+                return keyspace.getReplicationStrategy().getReplicationFactor();
             case LOCAL_QUORUM:
-                return localQuorumFor(table, DatabaseDescriptor.getLocalDataCenter());
+                return localQuorumFor(keyspace, DatabaseDescriptor.getLocalDataCenter());
             case EACH_QUORUM:
-                NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) table.getReplicationStrategy();
+                NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
                 int n = 0;
                 for (String dc : strategy.getDatacenters())
-                    n += localQuorumFor(table, dc);
+                    n += localQuorumFor(keyspace, dc);
                 return n;
             default:
                 throw new UnsupportedOperationException("Invalid consistency level: " + toString());
@@ -129,9 +129,9 @@ public enum ConsistencyLevel
         return count;
     }
 
-    private Map<String, Integer> countPerDCEndpoints(Table table, Iterable<InetAddress> liveEndpoints)
+    private Map<String, Integer> countPerDCEndpoints(Keyspace keyspace, Iterable<InetAddress> liveEndpoints)
     {
-        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) table.getReplicationStrategy();
+        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
 
         Map<String, Integer> dcEndpoints = new HashMap<String, Integer>();
         for (String dc: strategy.getDatacenters())
@@ -145,12 +145,12 @@ public enum ConsistencyLevel
         return dcEndpoints;
     }
 
-    public List<InetAddress> filterForQuery(Table table, List<InetAddress> liveEndpoints)
+    public List<InetAddress> filterForQuery(Keyspace keyspace, List<InetAddress> liveEndpoints)
     {
-        return filterForQuery(table, liveEndpoints, ReadRepairDecision.NONE);
+        return filterForQuery(keyspace, liveEndpoints, ReadRepairDecision.NONE);
     }
 
-    public List<InetAddress> filterForQuery(Table table, List<InetAddress> liveEndpoints, ReadRepairDecision readRepair)
+    public List<InetAddress> filterForQuery(Keyspace keyspace, List<InetAddress> liveEndpoints, ReadRepairDecision readRepair)
     {
         /*
          * Endpoints are expected to be restricted to live replicas, sorted by snitch preference.
@@ -164,7 +164,7 @@ public enum ConsistencyLevel
         switch (readRepair)
         {
             case NONE:
-                return liveEndpoints.subList(0, Math.min(liveEndpoints.size(), blockFor(table)));
+                return liveEndpoints.subList(0, Math.min(liveEndpoints.size(), blockFor(keyspace)));
             case GLOBAL:
                 return liveEndpoints;
             case DC_LOCAL:
@@ -178,7 +178,7 @@ public enum ConsistencyLevel
                         other.add(add);
                 }
                 // check if blockfor more than we have localep's
-                int blockFor = blockFor(table);
+                int blockFor = blockFor(keyspace);
                 if (local.size() < blockFor)
                     local.addAll(other.subList(0, Math.min(blockFor - local.size(), other.size())));
                 return local;
@@ -187,7 +187,7 @@ public enum ConsistencyLevel
         }
     }
 
-    public boolean isSufficientLiveNodes(Table table, Iterable<InetAddress> liveEndpoints)
+    public boolean isSufficientLiveNodes(Keyspace keyspace, Iterable<InetAddress> liveEndpoints)
     {
         switch (this)
         {
@@ -195,22 +195,22 @@ public enum ConsistencyLevel
                 // local hint is acceptable, and local node is always live
                 return true;
             case LOCAL_QUORUM:
-                return countLocalEndpoints(liveEndpoints) >= blockFor(table);
+                return countLocalEndpoints(liveEndpoints) >= blockFor(keyspace);
             case EACH_QUORUM:
-                for (Map.Entry<String, Integer> entry : countPerDCEndpoints(table, liveEndpoints).entrySet())
+                for (Map.Entry<String, Integer> entry : countPerDCEndpoints(keyspace, liveEndpoints).entrySet())
                 {
-                    if (entry.getValue() < localQuorumFor(table, entry.getKey()))
+                    if (entry.getValue() < localQuorumFor(keyspace, entry.getKey()))
                         return false;
                 }
                 return true;
             default:
-                return Iterables.size(liveEndpoints) >= blockFor(table);
+                return Iterables.size(liveEndpoints) >= blockFor(keyspace);
         }
     }
 
-    public void assureSufficientLiveNodes(Table table, Iterable<InetAddress> liveEndpoints) throws UnavailableException
+    public void assureSufficientLiveNodes(Keyspace keyspace, Iterable<InetAddress> liveEndpoints) throws UnavailableException
     {
-        int blockFor = blockFor(table);
+        int blockFor = blockFor(keyspace);
         switch (this)
         {
             case ANY:
@@ -235,9 +235,9 @@ public enum ConsistencyLevel
                 }
                 break;
             case EACH_QUORUM:
-                for (Map.Entry<String, Integer> entry : countPerDCEndpoints(table, liveEndpoints).entrySet())
+                for (Map.Entry<String, Integer> entry : countPerDCEndpoints(keyspace, liveEndpoints).entrySet())
                 {
-                    int dcBlockFor = localQuorumFor(table, entry.getKey());
+                    int dcBlockFor = localQuorumFor(keyspace, entry.getKey());
                     int dcLive = entry.getValue();
                     if (dcLive < dcBlockFor)
                         throw new UnavailableException(this, dcBlockFor, dcLive);
@@ -254,12 +254,12 @@ public enum ConsistencyLevel
         }
     }
 
-    public void validateForRead(String table) throws InvalidRequestException
+    public void validateForRead(String keyspaceName) throws InvalidRequestException
     {
         switch (this)
         {
             case LOCAL_QUORUM:
-                requireNetworkTopologyStrategy(table);
+                requireNetworkTopologyStrategy(keyspaceName);
                 break;
             case ANY:
                 throw new InvalidRequestException("ANY ConsistencyLevel is only supported for writes");
@@ -268,26 +268,26 @@ public enum ConsistencyLevel
         }
     }
 
-    public void validateForWrite(String table) throws InvalidRequestException
+    public void validateForWrite(String keyspaceName) throws InvalidRequestException
     {
         switch (this)
         {
             case LOCAL_QUORUM:
             case EACH_QUORUM:
-                requireNetworkTopologyStrategy(table);
+                requireNetworkTopologyStrategy(keyspaceName);
                 break;
             case SERIAL:
                 throw new InvalidRequestException("You must use conditional updates for serializable writes");
         }
     }
 
-    public void validateForCas(String table) throws InvalidRequestException
+    public void validateForCas(String keyspaceName) throws InvalidRequestException
     {
         switch (this)
         {
             case LOCAL_QUORUM:
             case EACH_QUORUM:
-                requireNetworkTopologyStrategy(table);
+                requireNetworkTopologyStrategy(keyspaceName);
                 break;
             case ANY:
                 throw new InvalidRequestException("ANY is not supported with CAS. Use SERIAL if you mean, make sure it is accepted but I don't care how many replicas commit it for non-SERIAL reads");
@@ -310,9 +310,9 @@ public enum ConsistencyLevel
         }
     }
 
-    private void requireNetworkTopologyStrategy(String table) throws InvalidRequestException
+    private void requireNetworkTopologyStrategy(String keyspaceName) throws InvalidRequestException
     {
-        AbstractReplicationStrategy strategy = Table.open(table).getReplicationStrategy();
+        AbstractReplicationStrategy strategy = Keyspace.open(keyspaceName).getReplicationStrategy();
         if (!(strategy instanceof NetworkTopologyStrategy))
             throw new InvalidRequestException(String.format("consistency level %s not compatible with replication strategy (%s)", this, strategy.getClass().getName()));
     }

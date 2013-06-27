@@ -51,9 +51,9 @@ public class CounterMutation implements IMutation
         this.consistency = consistency;
     }
 
-    public String getTable()
+    public String getKeyspaceName()
     {
-        return rowMutation.getTable();
+        return rowMutation.getKeyspaceName();
     }
 
     public Collection<UUID> getColumnFamilyIds()
@@ -89,15 +89,15 @@ public class CounterMutation implements IMutation
         {
             if (!columnFamily.metadata().getReplicateOnWrite())
                 continue;
-            addReadCommandFromColumnFamily(rowMutation.getTable(), rowMutation.key(), columnFamily, timestamp, readCommands);
+            addReadCommandFromColumnFamily(rowMutation.getKeyspaceName(), rowMutation.key(), columnFamily, timestamp, readCommands);
         }
 
         // create a replication RowMutation
-        RowMutation replicationMutation = new RowMutation(rowMutation.getTable(), rowMutation.key());
+        RowMutation replicationMutation = new RowMutation(rowMutation.getKeyspaceName(), rowMutation.key());
         for (ReadCommand readCommand : readCommands)
         {
-            Table table = Table.open(readCommand.table);
-            Row row = readCommand.getRow(table);
+            Keyspace keyspace = Keyspace.open(readCommand.ksName);
+            Row row = readCommand.getRow(keyspace);
             if (row == null || row.cf == null)
                 continue;
 
@@ -107,11 +107,11 @@ public class CounterMutation implements IMutation
         return replicationMutation;
     }
 
-    private void addReadCommandFromColumnFamily(String table, ByteBuffer key, ColumnFamily columnFamily, long timestamp, List<ReadCommand> commands)
+    private void addReadCommandFromColumnFamily(String keyspaceName, ByteBuffer key, ColumnFamily columnFamily, long timestamp, List<ReadCommand> commands)
     {
         SortedSet<ByteBuffer> s = new TreeSet<ByteBuffer>(columnFamily.metadata().comparator);
         Iterables.addAll(s, columnFamily.getColumnNames());
-        commands.add(new SliceByNamesReadCommand(table, key, columnFamily.metadata().cfName, timestamp, new NamesQueryFilter(s)));
+        commands.add(new SliceByNamesReadCommand(keyspaceName, key, columnFamily.metadata().cfName, timestamp, new NamesQueryFilter(s)));
     }
 
     public MessageOut<CounterMutation> makeMutationMessage()
@@ -130,13 +130,13 @@ public class CounterMutation implements IMutation
     public void apply()
     {
         // transform all CounterUpdateColumn to CounterColumn: accomplished by localCopy
-        RowMutation rm = new RowMutation(rowMutation.getTable(), ByteBufferUtil.clone(rowMutation.key()));
-        Table table = Table.open(rm.getTable());
+        RowMutation rm = new RowMutation(rowMutation.getKeyspaceName(), ByteBufferUtil.clone(rowMutation.key()));
+        Keyspace keyspace = Keyspace.open(rm.getKeyspaceName());
 
         for (ColumnFamily cf_ : rowMutation.getColumnFamilies())
         {
             ColumnFamily cf = cf_.cloneMeShallow();
-            ColumnFamilyStore cfs = table.getColumnFamilyStore(cf.id());
+            ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cf.id());
             for (Column column : cf_)
             {
                 cf.addColumn(column.localCopy(cfs), HeapAllocator.instance);

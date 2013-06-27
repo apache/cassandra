@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BlacklistedDirectories;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
@@ -398,7 +398,7 @@ public class FileUtils
                 {
                     File directory = BlacklistedDirectories.maybeMarkUnreadable(e.path);
                     if (directory != null)
-                        Table.removeUnreadableSSTables(directory);
+                        Keyspace.removeUnreadableSSTables(directory);
                 }
                 break;
             case ignore:

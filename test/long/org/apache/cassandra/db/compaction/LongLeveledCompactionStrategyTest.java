@@ -30,7 +30,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -43,8 +43,8 @@ public class LongLeveledCompactionStrategyTest extends SchemaLoader
     {
         String ksname = "Keyspace1";
         String cfname = "StandardLeveled";
-        Table table = Table.open(ksname);
-        ColumnFamilyStore store = table.getColumnFamilyStore(cfname);
+        Keyspace keyspace = Keyspace.open(ksname);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(cfname);
         store.disableAutoCompaction();
 
         LeveledCompactionStrategy lcs = (LeveledCompactionStrategy)store.getCompactionStrategy();

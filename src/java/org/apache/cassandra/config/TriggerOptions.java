@@ -15,7 +15,7 @@ import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -27,7 +27,7 @@ public class TriggerOptions
     public static Map<String, Map<String, String>> getAllTriggers(String ksName, String cfName)
     {
         String req = "SELECT * FROM system.%s WHERE keyspace_name='%s' AND column_family='%s'";
-        UntypedResultSet result = processInternal(String.format(req, SystemTable.SCHEMA_TRIGGERS_CF, ksName, cfName));
+        UntypedResultSet result = processInternal(String.format(req, SystemKeyspace.SCHEMA_TRIGGERS_CF, ksName, cfName));
         Map<String, Map<String, String>> triggers = new HashMap<>();
         if (result.isEmpty())
             return triggers;
@@ -38,7 +38,7 @@ public class TriggerOptions
 
     public static void addColumns(RowMutation rm, String cfName, Entry<String, Map<String, String>> tentry, long modificationTimestamp)
     {
-        ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_TRIGGERS_CF);
+        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
         assert tentry.getValue().get(CLASS_KEY) != null;
         ColumnNameBuilder builder = CFMetaData.SchemaTriggerCf.getCfDef().getColumnNameBuilder();
         builder.add(ByteBufferUtil.bytes(cfName)).add(ByteBufferUtil.bytes(tentry.getKey())).add(ByteBufferUtil.bytes(OPTIONS_KEY));
@@ -52,7 +52,7 @@ public class TriggerOptions
 
     public static void deleteColumns(RowMutation rm, String cfName, Entry<String, Map<String, String>> tentry, long modificationTimestamp)
     {
-        ColumnFamily cf = rm.addOrGet(SystemTable.SCHEMA_TRIGGERS_CF);
+        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
         int ldt = (int) (System.currentTimeMillis() / 1000);
         ColumnNameBuilder builder = CFMetaData.SchemaTriggerCf.getCfDef().getColumnNameBuilder();
         builder.add(ByteBufferUtil.bytes(cfName)).add(ByteBufferUtil.bytes(tentry.getKey()));

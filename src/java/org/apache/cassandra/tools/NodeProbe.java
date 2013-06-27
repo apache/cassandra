@@ -179,39 +179,39 @@ public class NodeProbe
         jmxc.close();
     }
 
-    public void forceTableCleanup(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public void forceKeyspaceCleanup(String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        ssProxy.forceTableCleanup(tableName, columnFamilies);
+        ssProxy.forceKeyspaceCleanup(keyspaceName, columnFamilies);
     }
 
-    public void scrub(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public void scrub(String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        ssProxy.scrub(tableName, columnFamilies);
+        ssProxy.scrub(keyspaceName, columnFamilies);
     }
 
-    public void upgradeSSTables(String tableName, boolean excludeCurrentVersion, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public void upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        ssProxy.upgradeSSTables(tableName, excludeCurrentVersion, columnFamilies);
+        ssProxy.upgradeSSTables(keyspaceName, excludeCurrentVersion, columnFamilies);
     }
 
-    public void forceTableCompaction(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public void forceKeyspaceCompaction(String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        ssProxy.forceTableCompaction(tableName, columnFamilies);
+        ssProxy.forceKeyspaceCompaction(keyspaceName, columnFamilies);
     }
 
-    public void forceTableFlush(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public void forceKeyspaceFlush(String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        ssProxy.forceTableFlush(tableName, columnFamilies);
+        ssProxy.forceKeyspaceFlush(keyspaceName, columnFamilies);
     }
 
-    public void forceTableRepair(String tableName, boolean isSequential, boolean isLocal, String... columnFamilies) throws IOException
+    public void forceKeyspaceRepair(String keyspaceName, boolean isSequential, boolean isLocal, String... columnFamilies) throws IOException
     {
-        ssProxy.forceTableRepair(tableName, isSequential, isLocal, columnFamilies);
+        ssProxy.forceKeyspaceRepair(keyspaceName, isSequential, isLocal, columnFamilies);
     }
 
-    public void forceRepairAsync(final PrintStream out, final String tableName, boolean isSequential, boolean isLocal, boolean primaryRange, String... columnFamilies) throws IOException
+    public void forceRepairAsync(final PrintStream out, final String keyspaceName, boolean isSequential, boolean isLocal, boolean primaryRange, String... columnFamilies) throws IOException
     {
-        RepairRunner runner = new RepairRunner(out, tableName, columnFamilies);
+        RepairRunner runner = new RepairRunner(out, keyspaceName, columnFamilies);
         try
         {
             ssProxy.addNotificationListener(runner, null, null);
@@ -232,9 +232,9 @@ public class NodeProbe
         }
     }
 
-    public void forceRepairRangeAsync(final PrintStream out, final String tableName, boolean isSequential, boolean isLocal, final String startToken, final String endToken, String... columnFamilies) throws IOException
+    public void forceRepairRangeAsync(final PrintStream out, final String keyspaceName, boolean isSequential, boolean isLocal, final String startToken, final String endToken, String... columnFamilies) throws IOException
     {
-        RepairRunner runner = new RepairRunner(out, tableName, columnFamilies);
+        RepairRunner runner = new RepairRunner(out, keyspaceName, columnFamilies);
         try
         {
             ssProxy.addNotificationListener(runner, null, null);
@@ -255,14 +255,14 @@ public class NodeProbe
         }
     }
 
-    public void forceTableRepairPrimaryRange(String tableName, boolean isSequential, boolean isLocal, String... columnFamilies) throws IOException
+    public void forceKeyspaceRepairPrimaryRange(String keyspaceName, boolean isSequential, boolean isLocal, String... columnFamilies) throws IOException
     {
-        ssProxy.forceTableRepairPrimaryRange(tableName, isSequential, isLocal, columnFamilies);
+        ssProxy.forceKeyspaceRepairPrimaryRange(keyspaceName, isSequential, isLocal, columnFamilies);
     }
 
-    public void forceTableRepairRange(String beginToken, String endToken, String tableName, boolean isSequential, boolean isLocal, String... columnFamilies) throws IOException
+    public void forceKeyspaceRepairRange(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, String... columnFamilies) throws IOException
     {
-        ssProxy.forceTableRepairRange(beginToken, endToken, tableName, isSequential, isLocal, columnFamilies);
+        ssProxy.forceKeyspaceRepairRange(beginToken, endToken, keyspaceName, isSequential, isLocal, columnFamilies);
     }
 
     public void invalidateKeyCache()
@@ -413,7 +413,7 @@ public class NodeProbe
     }
 
     /**
-     * Take a snapshot of all the tables, optionally specifying only a specific column family.
+     * Take a snapshot of all the keyspaces, optionally specifying only a specific column family.
      *
      * @param snapshotName the name of the snapshot.
      * @param columnFamily the column family to snapshot or all on null
@@ -555,11 +555,11 @@ public class NodeProbe
         return ssProxy.getOperationMode();
     }
 
-    public void truncate(String tableName, String cfName)
+    public void truncate(String keyspaceName, String cfName)
     {
         try
         {
-            ssProxy.truncate(tableName, cfName);
+            ssProxy.truncate(keyspaceName, cfName);
         }
         catch (TimeoutException e)
         {
@@ -846,9 +846,9 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
             public int compare(Entry<String, ColumnFamilyStoreMBean> e1, Entry<String, ColumnFamilyStoreMBean> e2)
             {
                 //compare keyspace, then CF name, then normal vs. index
-                int tableCmp = e1.getKey().compareTo(e2.getKey());
-                if(tableCmp != 0)
-                    return tableCmp;
+                int keyspaceNameCmp = e1.getKey().compareTo(e2.getKey());
+                if(keyspaceNameCmp != 0)
+                    return keyspaceNameCmp;
 
                 // get CF name and split it for index name
                 String e1CF[] = e1.getValue().getColumnFamilyName().split("\\.");
@@ -883,9 +883,9 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
         List<Entry<String, ColumnFamilyStoreMBean>> mbeans = new ArrayList<Entry<String, ColumnFamilyStoreMBean>>(cfObjects.size());
         for(ObjectName n : cfObjects)
         {
-            String tableName = n.getKeyProperty("keyspace");
+            String keyspaceName = n.getKeyProperty("keyspace");
             ColumnFamilyStoreMBean cfsProxy = JMX.newMBeanProxy(mbeanServerConn, n, ColumnFamilyStoreMBean.class);
-            mbeans.add(new AbstractMap.SimpleImmutableEntry<String, ColumnFamilyStoreMBean>(tableName, cfsProxy));
+            mbeans.add(new AbstractMap.SimpleImmutableEntry<String, ColumnFamilyStoreMBean>(keyspaceName, cfsProxy));
         }
         return mbeans;
     }

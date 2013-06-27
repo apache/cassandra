@@ -32,34 +32,34 @@ import static org.junit.Assert.assertEquals;
 
 public class SSTableUtils
 {
-    // first configured table and cf
-    public static String TABLENAME = "Keyspace1";
+    // first configured keyspace and cf
+    public static String KEYSPACENAME = "Keyspace1";
     public static String CFNAME = "Standard1";
 
     public static ColumnFamily createCF(long mfda, int ldt, Column... cols)
     {
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(TABLENAME, CFNAME);
+        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(KEYSPACENAME, CFNAME);
         cf.delete(new DeletionInfo(mfda, ldt));
         for (Column col : cols)
             cf.addColumn(col);
         return cf;
     }
 
-    public static File tempSSTableFile(String tablename, String cfname) throws IOException
+    public static File tempSSTableFile(String keyspaceName, String cfname) throws IOException
     {
-        return tempSSTableFile(tablename, cfname, 0);
+        return tempSSTableFile(keyspaceName, cfname, 0);
     }
 
-    public static File tempSSTableFile(String tablename, String cfname, int generation) throws IOException
+    public static File tempSSTableFile(String keyspaceName, String cfname, int generation) throws IOException
     {
-        File tempdir = File.createTempFile(tablename, cfname);
+        File tempdir = File.createTempFile(keyspaceName, cfname);
         if(!tempdir.delete() || !tempdir.mkdir())
             throw new IOException("Temporary directory creation failed.");
         tempdir.deleteOnExit();
-        File tabledir = new File(tempdir, tablename);
-        tabledir.mkdir();
-        tabledir.deleteOnExit();
-        File datafile = new File(new Descriptor(tabledir, tablename, cfname, generation, false).filenameFor("Data.db"));
+        File keyspaceDir = new File(tempdir, keyspaceName);
+        keyspaceDir.mkdir();
+        keyspaceDir.deleteOnExit();
+        File datafile = new File(new Descriptor(keyspaceDir, keyspaceName, cfname, generation, false).filenameFor("Data.db"));
         if (!datafile.createNewFile())
             throw new IOException("unable to create file " + datafile);
         datafile.deleteOnExit();
@@ -117,7 +117,7 @@ public class SSTableUtils
 
     public static class Context
     {
-        private String ksname = TABLENAME;
+        private String ksname = KEYSPACENAME;
         private String cfname = CFNAME;
         private Descriptor dest = null;
         private boolean cleanup = true;

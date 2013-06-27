@@ -28,8 +28,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.SystemTable;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.tracing.Tracing;
 
 public class PaxosState
@@ -69,11 +69,11 @@ public class PaxosState
     {
         synchronized (lockFor(toPrepare.key))
         {
-            PaxosState state = SystemTable.loadPaxosState(toPrepare.key, toPrepare.update.metadata());
+            PaxosState state = SystemKeyspace.loadPaxosState(toPrepare.key, toPrepare.update.metadata());
             if (toPrepare.isAfter(state.inProgressCommit))
             {
                 Tracing.trace("promising ballot {}", toPrepare.ballot);
-                SystemTable.savePaxosPromise(toPrepare);
+                SystemKeyspace.savePaxosPromise(toPrepare);
                 // return the pre-promise ballot so coordinator can pick the most recent in-progress value to resume
                 return new PrepareResponse(true, state.inProgressCommit, state.mostRecentCommit);
             }
@@ -89,11 +89,11 @@ public class PaxosState
     {
         synchronized (lockFor(proposal.key))
         {
-            PaxosState state = SystemTable.loadPaxosState(proposal.key, proposal.update.metadata());
+            PaxosState state = SystemKeyspace.loadPaxosState(proposal.key, proposal.update.metadata());
             if (proposal.hasBallot(state.inProgressCommit.ballot) || proposal.isAfter(state.inProgressCommit))
             {
                 Tracing.trace("accepting proposal {}", proposal);
-                SystemTable.savePaxosProposal(proposal);
+                SystemKeyspace.savePaxosProposal(proposal);
                 return true;
             }
 
@@ -111,12 +111,12 @@ public class PaxosState
         // erase the in-progress update.
         Tracing.trace("committing proposal {}", proposal);
         RowMutation rm = proposal.makeMutation();
-        Table.open(rm.getTable()).apply(rm, true);
+        Keyspace.open(rm.getKeyspaceName()).apply(rm, true);
 
         synchronized (lockFor(proposal.key))
         {
-            PaxosState state = SystemTable.loadPaxosState(proposal.key, proposal.update.metadata());
-            SystemTable.savePaxosCommit(proposal, !state.inProgressCommit.isAfter(proposal));
+            PaxosState state = SystemKeyspace.loadPaxosState(proposal.key, proposal.update.metadata());
+            SystemKeyspace.savePaxosCommit(proposal, !state.inProgressCommit.isAfter(proposal));
         }
     }
 }

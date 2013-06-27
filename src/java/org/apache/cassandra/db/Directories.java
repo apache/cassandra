@@ -79,27 +79,27 @@ public class Directories
             dataFileLocations[i] = new DataDirectory(new File(locations[i]));
     }
 
-    private final String tablename;
+    private final String keyspacename;
     private final String cfname;
     private final File[] sstableDirectories;
 
-    public static Directories create(String tablename, String cfname)
+    public static Directories create(String keyspacename, String cfname)
     {
         int idx = cfname.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
         if (idx > 0)
             // secondary index, goes in the same directory than the base cf
-            return new Directories(tablename, cfname, cfname.substring(0, idx));
+            return new Directories(keyspacename, cfname, cfname.substring(0, idx));
         else
-            return new Directories(tablename, cfname, cfname);
+            return new Directories(keyspacename, cfname, cfname);
     }
 
-    private Directories(String tablename, String cfname, String directoryName)
+    private Directories(String keyspacename, String cfname, String directoryName)
     {
-        this.tablename = tablename;
+        this.keyspacename = keyspacename;
         this.cfname = cfname;
         this.sstableDirectories = new File[dataFileLocations.length];
         for (int i = 0; i < dataFileLocations.length; ++i)
-            sstableDirectories[i] = new File(dataFileLocations[i].location, join(tablename, directoryName));
+            sstableDirectories[i] = new File(dataFileLocations[i].location, join(keyspacename, directoryName));
 
         if (!StorageService.instance.isClientMode())
         {
@@ -362,7 +362,7 @@ public class Directories
         private FileFilter getFilter()
         {
             // Note: the prefix needs to include cfname + separator to distinguish between a cfs and it's secondary indexes
-            final String sstablePrefix = tablename + Component.separator + cfname + Component.separator;
+            final String sstablePrefix = keyspacename + Component.separator + cfname + Component.separator;
             return new FileFilter()
             {
                 // This function always return false since accepts adds to the components map

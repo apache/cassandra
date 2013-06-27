@@ -27,7 +27,7 @@ import com.google.common.base.Throwables;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -64,7 +64,7 @@ public class CompressedStreamReader extends StreamReader
         CompressedInputStream cis = new CompressedInputStream(Channels.newInputStream(channel), compressionInfo);
 
         Pair<String, String> kscf = Schema.instance.getCF(cfId);
-        ColumnFamilyStore cfs = Table.open(kscf.left).getColumnFamilyStore(kscf.right);
+        ColumnFamilyStore cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
         Directories.DataDirectory localDir = cfs.directories.getLocationCapableOfSize(totalSize);
         if (localDir == null)
             throw new IOException("Insufficient disk space to store " + totalSize + " bytes");

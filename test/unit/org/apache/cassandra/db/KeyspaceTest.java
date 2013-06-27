@@ -27,16 +27,12 @@ import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.Iterables;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
-
 import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
 
 import static junit.framework.Assert.*;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.Relation;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -52,7 +48,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class TableTest extends SchemaLoader
+public class KeyspaceTest extends SchemaLoader
 {
     private static final DecoratedKey TEST_KEY = Util.dk("key1");
     private static final DecoratedKey TEST_SLICE_KEY = Util.dk("key1-slicerange");
@@ -67,8 +63,8 @@ public class TableTest extends SchemaLoader
     @Test
     public void testGetRowNoColumns() throws Throwable
     {
-        final Table table = Table.open("Keyspace2");
-        final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard3");
+        final Keyspace keyspace = Keyspace.open("Keyspace2");
+        final ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("Standard3");
 
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace2", "Standard3");
         cf.addColumn(column("col1","val1", 1L));
@@ -103,14 +99,14 @@ public class TableTest extends SchemaLoader
                 assertColumns(cf);
             }
         };
-        reTest(table.getColumnFamilyStore("Standard3"), verify);
+        reTest(keyspace.getColumnFamilyStore("Standard3"), verify);
     }
 
     @Test
     public void testGetRowSingleColumn() throws Throwable
     {
-        final Table table = Table.open("Keyspace1");
-        final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
+        final Keyspace keyspace = Keyspace.open("Keyspace1");
+        final ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("Standard1");
 
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1","val1", 1L));
@@ -138,15 +134,15 @@ public class TableTest extends SchemaLoader
                 assertColumns(cf, "col3");
             }
         };
-        reTest(table.getColumnFamilyStore("Standard1"), verify);
+        reTest(keyspace.getColumnFamilyStore("Standard1"), verify);
     }
 
     @Test
     public void testGetRowSliceByRange() throws Throwable
     {
     	DecoratedKey key = TEST_SLICE_KEY;
-    	Table table = Table.open("Keyspace1");
-        ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
+    	Keyspace keyspace = Keyspace.open("Keyspace1");
+        ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("Standard1");
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         // First write "a", "b", "c"
         cf.addColumn(column("a", "val1", 1L));
@@ -168,28 +164,28 @@ public class TableTest extends SchemaLoader
     @Test
     public void testGetSliceNoMatch() throws Throwable
     {
-        Table table = Table.open("Keyspace1");
+        Keyspace keyspace = Keyspace.open("Keyspace1");
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard2");
         cf.addColumn(column("col1", "val1", 1));
         RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("row1000"), cf);
         rm.apply();
 
-        validateGetSliceNoMatch(table);
-        table.getColumnFamilyStore("Standard2").forceBlockingFlush();
-        validateGetSliceNoMatch(table);
+        validateGetSliceNoMatch(keyspace);
+        keyspace.getColumnFamilyStore("Standard2").forceBlockingFlush();
+        validateGetSliceNoMatch(keyspace);
 
-        Collection<SSTableReader> ssTables = table.getColumnFamilyStore("Standard2").getSSTables();
+        Collection<SSTableReader> ssTables = keyspace.getColumnFamilyStore("Standard2").getSSTables();
         assertEquals(1, ssTables.size());
         ssTables.iterator().next().forceFilterFailures();
-        validateGetSliceNoMatch(table);
+        validateGetSliceNoMatch(keyspace);
     }
 
     @Test
     public void testGetSliceWithCutoff() throws Throwable
     {
         // tests slicing against data from one row in a memtable and then flushed to an sstable
-        final Table table = Table.open("Keyspace1");
-        final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
+        final Keyspace keyspace = Keyspace.open("Keyspace1");
+        final ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("Standard1");
         final DecoratedKey ROW = Util.dk("row4");
         final NumberFormat fmt = new DecimalFormat("000");
 
@@ -239,14 +235,14 @@ public class TableTest extends SchemaLoader
             }
         };
 
-        reTest(table.getColumnFamilyStore("Standard1"), verify);
+        reTest(keyspace.getColumnFamilyStore("Standard1"), verify);
     }
 
     @Test
     public void testReversedWithFlushing() throws IOException, ExecutionException, InterruptedException
     {
-        final Table table = Table.open("Keyspace1");
-        final ColumnFamilyStore cfs = table.getColumnFamilyStore("StandardLong1");
+        final Keyspace keyspace = Keyspace.open("Keyspace1");
+        final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("StandardLong1");
         final DecoratedKey ROW = Util.dk("row4");
 
         for (int i = 0; i < 10; i++)
@@ -272,9 +268,9 @@ public class TableTest extends SchemaLoader
         }
     }
 
-    private void validateGetSliceNoMatch(Table table) throws IOException
+    private void validateGetSliceNoMatch(Keyspace keyspace) throws IOException
     {
-        ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard2");
+        ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("Standard2");
         ColumnFamily cf;
 
         // key before the rows that exists
@@ -290,8 +286,8 @@ public class TableTest extends SchemaLoader
     public void testGetSliceFromBasic() throws Throwable
     {
         // tests slicing against data from one row in a memtable and then flushed to an sstable
-        final Table table = Table.open("Keyspace1");
-        final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
+        final Keyspace keyspace = Keyspace.open("Keyspace1");
+        final ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("Standard1");
         final DecoratedKey ROW = Util.dk("row1");
 
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
@@ -338,15 +334,15 @@ public class TableTest extends SchemaLoader
             }
         };
 
-        reTest(table.getColumnFamilyStore("Standard1"), verify);
+        reTest(keyspace.getColumnFamilyStore("Standard1"), verify);
     }
 
     @Test
     public void testGetSliceWithExpiration() throws Throwable
     {
         // tests slicing against data from one row with expiring column in a memtable and then flushed to an sstable
-        final Table table = Table.open("Keyspace1");
-        final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
+        final Keyspace keyspace = Keyspace.open("Keyspace1");
+        final ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("Standard1");
         final DecoratedKey ROW = Util.dk("row5");
 
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
@@ -372,15 +368,15 @@ public class TableTest extends SchemaLoader
             }
         };
 
-        reTest(table.getColumnFamilyStore("Standard1"), verify);
+        reTest(keyspace.getColumnFamilyStore("Standard1"), verify);
     }
 
     @Test
     public void testGetSliceFromAdvanced() throws Throwable
     {
         // tests slicing against data from one row spread across two sstables
-        final Table table = Table.open("Keyspace1");
-        final ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
+        final Keyspace keyspace = Keyspace.open("Keyspace1");
+        final ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("Standard1");
         final DecoratedKey ROW = Util.dk("row2");
 
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
@@ -421,15 +417,15 @@ public class TableTest extends SchemaLoader
             }
         };
 
-        reTest(table.getColumnFamilyStore("Standard1"), verify);
+        reTest(keyspace.getColumnFamilyStore("Standard1"), verify);
     }
 
     @Test
     public void testGetSliceFromLarge() throws Throwable
     {
         // tests slicing against 1000 columns in an sstable
-        Table table = Table.open("Keyspace1");
-        ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
+        Keyspace keyspace = Keyspace.open("Keyspace1");
+        ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("Standard1");
         DecoratedKey key = Util.dk("row3");
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         for (int i = 1000; i < 2000; i++)
@@ -456,8 +452,8 @@ public class TableTest extends SchemaLoader
     @Test
     public void testLimitSSTables() throws CharacterCodingException, InterruptedException
     {
-        Table table = Table.open("Keyspace1");
-        ColumnFamilyStore cfStore = table.getColumnFamilyStore("Standard1");
+        Keyspace keyspace = Keyspace.open("Keyspace1");
+        ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("Standard1");
         cfStore.disableAutoCompaction();
         DecoratedKey key = Util.dk("row_maxmin");
         for (int j = 0; j < 10; j++)
@@ -520,9 +516,9 @@ public class TableTest extends SchemaLoader
         ---------------------
         then we slice out col1 = a5 and col2 > 85 -> which should let us just check 2 sstables and get 2 columns
          */
-        Table table = Table.open("Keyspace1");
+        Keyspace keyspace = Keyspace.open("Keyspace1");
 
-        ColumnFamilyStore cfs = table.getColumnFamilyStore("StandardComposite2");
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("StandardComposite2");
         cfs.disableAutoCompaction();
 
         CompositeType ct = CompositeType.getInstance(BytesType.instance, IntegerType.instance);

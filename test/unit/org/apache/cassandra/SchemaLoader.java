@@ -392,7 +392,7 @@ public class SchemaLoader
 
         cleanupSavedCaches();
 
-        // clean up data directory which are stored as data directory/table/data files
+        // clean up data directory which are stored as data directory/keyspace/data files
         for (String dirName : DatabaseDescriptor.getAllDataFileLocations())
         {
             File dir = new File(dirName);
@@ -421,7 +421,7 @@ public class SchemaLoader
     /* usually used to populate the cache */
     protected void readData(String keyspace, String columnFamily, int offset, int numberOfRows) throws IOException
     {
-        ColumnFamilyStore store = Table.open(keyspace).getColumnFamilyStore(columnFamily);
+        ColumnFamilyStore store = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
         for (int i = offset; i < offset + numberOfRows; i++)
         {
             DecoratedKey key = Util.dk("key" + i);

@@ -112,21 +112,21 @@ public class DefsTest extends SchemaLoader
         /*
         // verify dump and reload.
         UUID first = UUIDGen.makeType1UUIDFromHost(FBUtilities.getBroadcastAddress());
-        DefsTable.dumpToStorage(first);
-        List<KSMetaData> defs = new ArrayList<KSMetaData>(DefsTable.loadFromStorage(first));
+        DefsTables.dumpToStorage(first);
+        List<KSMetaData> defs = new ArrayList<KSMetaData>(DefsTables.loadFromStorage(first));
 
         assert defs.size() > 0;
-        assert defs.size() == Schema.instance.getNonSystemTables().size();
+        assert defs.size() == Schema.instance.getNonSystemKeyspaces().size();
         for (KSMetaData loaded : defs)
         {
-            KSMetaData defined = Schema.instance.getTableDefinition(loaded.name);
+            KSMetaData defined = Schema.instance.getKeyspaceDefinition(loaded.name);
             assert defined.equals(loaded) : String.format("%s != %s", loaded, defined);
         }
         */
     }
 
     @Test
-    public void addNewCfToBogusTable() throws InterruptedException
+    public void addNewCfToBogusKeyspace() throws InterruptedException
     {
         CFMetaData newCf = addTestCF("MadeUpKeyspace", "NewCF", "new cf");
         try
@@ -175,7 +175,7 @@ public class DefsTest extends SchemaLoader
         RowMutation rm = new RowMutation(ks, dk.key);
         rm.add(cf, ByteBufferUtil.bytes("col0"), ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
-        ColumnFamilyStore store = Table.open(ks).getColumnFamilyStore(cf);
+        ColumnFamilyStore store = Keyspace.open(ks).getColumnFamilyStore(cf);
         assert store != null;
         store.forceBlockingFlush();
 
@@ -200,7 +200,7 @@ public class DefsTest extends SchemaLoader
         for (int i = 0; i < 100; i++)
             rm.add(cfm.cfName, ByteBufferUtil.bytes(("col" + i)), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
-        ColumnFamilyStore store = Table.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
+        ColumnFamilyStore store = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
         store.forceBlockingFlush();
         assert store.directories.sstableLister().list().size() > 0;
@@ -248,7 +248,7 @@ public class DefsTest extends SchemaLoader
         RowMutation rm = new RowMutation(newCf.ksName, dk.key);
         rm.add(newCf.cfName, ByteBufferUtil.bytes("col0"), ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
-        ColumnFamilyStore store = Table.open(newCf.ksName).getColumnFamilyStore(newCf.cfName);
+        ColumnFamilyStore store = Keyspace.open(newCf.ksName).getColumnFamilyStore(newCf.cfName);
         assert store != null;
         store.forceBlockingFlush();
 
@@ -273,7 +273,7 @@ public class DefsTest extends SchemaLoader
         for (int i = 0; i < 100; i++)
             rm.add(cfm.cfName, ByteBufferUtil.bytes(("col" + i)), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
-        ColumnFamilyStore store = Table.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
+        ColumnFamilyStore store = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         assert store != null;
         store.forceBlockingFlush();
         assert store.directories.sstableLister().list().size() > 0;
@@ -300,7 +300,7 @@ public class DefsTest extends SchemaLoader
         boolean threw = false;
         try
         {
-            Table.open(ks.name);
+            Keyspace.open(ks.name);
         }
         catch (Throwable th)
         {
@@ -356,7 +356,7 @@ public class DefsTest extends SchemaLoader
         RowMutation rm = new RowMutation(newKs.name, dk.key);
         rm.add(newCf.cfName, ByteBufferUtil.bytes("col0"), ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
-        ColumnFamilyStore store = Table.open(newKs.name).getColumnFamilyStore(newCf.cfName);
+        ColumnFamilyStore store = Keyspace.open(newKs.name).getColumnFamilyStore(newCf.cfName);
         assert store != null;
         store.forceBlockingFlush();
 
@@ -498,7 +498,7 @@ public class DefsTest extends SchemaLoader
     @Test
     public void testDropIndex() throws IOException, ExecutionException, InterruptedException, ConfigurationException
     {
-        // persist keyspace definition in the system table
+        // persist keyspace definition in the system keyspace
         Schema.instance.getKSMetaData("Keyspace6").toSchema(System.currentTimeMillis()).apply();
 
         // insert some data.  save the sstable descriptor so we can make sure it's marked for delete after the drop
@@ -506,7 +506,7 @@ public class DefsTest extends SchemaLoader
         rm.add("Indexed1", ByteBufferUtil.bytes("notbirthdate"), ByteBufferUtil.bytes(1L), 0);
         rm.add("Indexed1", ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(1L), 0);
         rm.apply();
-        ColumnFamilyStore cfs = Table.open("Keyspace6").getColumnFamilyStore("Indexed1");
+        ColumnFamilyStore cfs = Keyspace.open("Keyspace6").getColumnFamilyStore("Indexed1");
         cfs.forceBlockingFlush();
         ColumnFamilyStore indexedCfs = cfs.indexManager.getIndexForColumn(ByteBufferUtil.bytes("birthdate")).getIndexCfs();
         Descriptor desc = indexedCfs.getSSTables().iterator().next().descriptor;

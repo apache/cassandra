@@ -28,7 +28,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.ColumnFamily;
@@ -38,29 +38,29 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.Util;
 
 import static junit.framework.Assert.assertEquals;
-import static org.apache.cassandra.db.TableTest.assertColumns;
+import static org.apache.cassandra.db.KeyspaceTest.assertColumns;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
 public class CompactionsPurgeTest extends SchemaLoader
 {
-    public static final String TABLE1 = "Keyspace1";
-    public static final String TABLE2 = "Keyspace2";
+    public static final String KEYSPACE1 = "Keyspace1";
+    public static final String KEYSPACE2 = "Keyspace2";
 
     @Test
     public void testMajorCompactionPurge() throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.instance.disableAutoCompaction();
 
-        Table table = Table.open(TABLE1);
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
         String cfName = "Standard1";
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
 
         DecoratedKey key = Util.dk("key1");
         RowMutation rm;
 
         // inserts
-        rm = new RowMutation(TABLE1, key.key);
+        rm = new RowMutation(KEYSPACE1, key.key);
         for (int i = 0; i < 10; i++)
         {
             rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
@@ -71,14 +71,14 @@ public class CompactionsPurgeTest extends SchemaLoader
         // deletes
         for (int i = 0; i < 10; i++)
         {
-            rm = new RowMutation(TABLE1, key.key);
+            rm = new RowMutation(KEYSPACE1, key.key);
             rm.delete(cfName, ByteBufferUtil.bytes(String.valueOf(i)), 1);
             rm.apply();
         }
         cfs.forceBlockingFlush();
 
         // resurrect one column
-        rm = new RowMutation(TABLE1, key.key);
+        rm = new RowMutation(KEYSPACE1, key.key);
         rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(5)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
         rm.apply();
         cfs.forceBlockingFlush();
@@ -96,16 +96,16 @@ public class CompactionsPurgeTest extends SchemaLoader
     {
         CompactionManager.instance.disableAutoCompaction();
 
-        Table table = Table.open(TABLE2);
+        Keyspace keyspace = Keyspace.open(KEYSPACE2);
         String cfName = "Standard1";
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
 
         RowMutation rm;
         for (int k = 1; k <= 2; ++k) {
             DecoratedKey key = Util.dk("key" + k);
 
             // inserts
-            rm = new RowMutation(TABLE2, key.key);
+            rm = new RowMutation(KEYSPACE2, key.key);
             for (int i = 0; i < 10; i++)
             {
                 rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
@@ -116,7 +116,7 @@ public class CompactionsPurgeTest extends SchemaLoader
             // deletes
             for (int i = 0; i < 10; i++)
             {
-                rm = new RowMutation(TABLE2, key.key);
+                rm = new RowMutation(KEYSPACE2, key.key);
                 rm.delete(cfName, ByteBufferUtil.bytes(String.valueOf(i)), 1);
                 rm.apply();
             }
@@ -130,7 +130,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         // for first key. Then submit minor compaction on remembered sstables.
         cfs.forceBlockingFlush();
         Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
-        rm = new RowMutation(TABLE2, key1.key);
+        rm = new RowMutation(KEYSPACE2, key1.key);
         rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(5)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
         rm.apply();
         cfs.forceBlockingFlush();
@@ -152,27 +152,27 @@ public class CompactionsPurgeTest extends SchemaLoader
     {
         // verify that we don't drop tombstones during a minor compaction that might still be relevant
         CompactionManager.instance.disableAutoCompaction();
-        Table table = Table.open(TABLE2);
+        Keyspace keyspace = Keyspace.open(KEYSPACE2);
         String cfName = "Standard1";
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
 
         RowMutation rm;
         DecoratedKey key3 = Util.dk("key3");
         // inserts
-        rm = new RowMutation(TABLE2, key3.key);
+        rm = new RowMutation(KEYSPACE2, key3.key);
         rm.add(cfName, ByteBufferUtil.bytes("c1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 8);
         rm.add(cfName, ByteBufferUtil.bytes("c2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 8);
         rm.apply();
         cfs.forceBlockingFlush();
         // deletes
-        rm = new RowMutation(TABLE2, key3.key);
+        rm = new RowMutation(KEYSPACE2, key3.key);
         rm.delete(cfName, ByteBufferUtil.bytes("c1"), 10);
         rm.apply();
         cfs.forceBlockingFlush();
         Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
 
         // delete so we have new delete in a diffrent SST.
-        rm = new RowMutation(TABLE2, key3.key);
+        rm = new RowMutation(KEYSPACE2, key3.key);
         rm.delete(cfName, ByteBufferUtil.bytes("c2"), 9);
         rm.apply();
         cfs.forceBlockingFlush();
@@ -190,15 +190,15 @@ public class CompactionsPurgeTest extends SchemaLoader
     {
         CompactionManager.instance.disableAutoCompaction();
 
-        Table table = Table.open(TABLE1);
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
         String cfName = "Standard2";
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
 
         DecoratedKey key = Util.dk("key1");
         RowMutation rm;
 
         // inserts
-        rm = new RowMutation(TABLE1, key.key);
+        rm = new RowMutation(KEYSPACE1, key.key);
         for (int i = 0; i < 5; i++)
         {
             rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
@@ -208,7 +208,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         // deletes
         for (int i = 0; i < 5; i++)
         {
-            rm = new RowMutation(TABLE1, key.key);
+            rm = new RowMutation(KEYSPACE1, key.key);
             rm.delete(cfName, ByteBufferUtil.bytes(String.valueOf(i)), 1);
             rm.apply();
         }
@@ -218,7 +218,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         // compact and test that the row is completely gone
         Util.compactAll(cfs).get();
         assert cfs.getSSTables().isEmpty();
-        ColumnFamily cf = table.getColumnFamilyStore(cfName).getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
+        ColumnFamily cf = keyspace.getColumnFamilyStore(cfName).getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
         assert cf == null : cf;
     }
 
@@ -227,16 +227,16 @@ public class CompactionsPurgeTest extends SchemaLoader
     {
         CompactionManager.instance.disableAutoCompaction();
 
-        String tableName = "RowCacheSpace";
+        String keyspaceName = "RowCacheSpace";
         String cfName = "CachedCF";
-        Table table = Table.open(tableName);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        Keyspace keyspace = Keyspace.open(keyspaceName);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
 
         DecoratedKey key = Util.dk("key3");
         RowMutation rm;
 
         // inserts
-        rm = new RowMutation(tableName, key.key);
+        rm = new RowMutation(keyspaceName, key.key);
         for (int i = 0; i < 10; i++)
         {
             rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
@@ -247,7 +247,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
 
         // deletes row
-        rm = new RowMutation(tableName, key.key);
+        rm = new RowMutation(keyspaceName, key.key);
         rm.delete(cfName, 1);
         rm.apply();
 
@@ -256,7 +256,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         Util.compactAll(cfs).get();
 
         // re-inserts with timestamp lower than delete
-        rm = new RowMutation(tableName, key.key);
+        rm = new RowMutation(keyspaceName, key.key);
         for (int i = 0; i < 10; i++)
         {
             rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
@@ -275,16 +275,16 @@ public class CompactionsPurgeTest extends SchemaLoader
     {
         CompactionManager.instance.disableAutoCompaction();
 
-        String tableName = "Keyspace1";
+        String keyspaceName = "Keyspace1";
         String cfName = "Standard1";
-        Table table = Table.open(tableName);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        Keyspace keyspace = Keyspace.open(keyspaceName);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
 
         DecoratedKey key = Util.dk("key3");
         RowMutation rm;
 
         // inserts
-        rm = new RowMutation(tableName, key.key);
+        rm = new RowMutation(keyspaceName, key.key);
         for (int i = 0; i < 10; i++)
         {
             rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
@@ -292,7 +292,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         rm.apply();
 
         // deletes row with timestamp such that not all columns are deleted
-        rm = new RowMutation(tableName, key.key);
+        rm = new RowMutation(keyspaceName, key.key);
         rm.delete(cfName, 4);
         rm.apply();
 
@@ -301,7 +301,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         Util.compactAll(cfs).get();
 
         // re-inserts with timestamp lower than delete
-        rm = new RowMutation(tableName, key.key);
+        rm = new RowMutation(keyspaceName, key.key);
         for (int i = 0; i < 5; i++)
         {
             rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);

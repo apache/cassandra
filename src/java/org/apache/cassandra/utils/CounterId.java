@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.db.CounterColumn;
-import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.SystemKeyspace;
 
 public class CounterId implements Comparable<CounterId>
 {
@@ -35,7 +35,7 @@ public class CounterId implements Comparable<CounterId>
 
     public static final int LENGTH = 16; // we assume a fixed length size for all CounterIds
 
-    // Lazy holder because this opens the system table and we want to avoid
+    // Lazy holder because this opens the system keyspace and we want to avoid
     // having this triggered during class initialization
     private static class LocalIds
     {
@@ -191,13 +191,13 @@ public class CounterId implements Comparable<CounterId>
 
         LocalCounterIdHistory()
         {
-            CounterId id = SystemTable.getCurrentLocalCounterId();
+            CounterId id = SystemKeyspace.getCurrentLocalCounterId();
             if (id == null)
             {
                 // no recorded local counter id, generating a new one and saving it
                 id = generate();
                 logger.info("No saved local counter id, using newly generated: {}", id);
-                SystemTable.writeCurrentLocalCounterId(null, id, FBUtilities.timestampMicros());
+                SystemKeyspace.writeCurrentLocalCounterId(null, id, FBUtilities.timestampMicros());
                 current = new AtomicReference<CounterId>(id);
                 olds = new CopyOnWriteArrayList<CounterIdRecord>();
             }
@@ -205,7 +205,7 @@ public class CounterId implements Comparable<CounterId>
             {
                 logger.info("Saved local counter id: {}", id);
                 current = new AtomicReference<CounterId>(id);
-                olds = new CopyOnWriteArrayList<CounterIdRecord>(SystemTable.getOldLocalCounterIds());
+                olds = new CopyOnWriteArrayList<CounterIdRecord>(SystemKeyspace.getOldLocalCounterIds());
             }
         }
 
@@ -213,7 +213,7 @@ public class CounterId implements Comparable<CounterId>
         {
             CounterId newCounterId = generate();
             CounterId old = current.get();
-            SystemTable.writeCurrentLocalCounterId(old, newCounterId, now);
+            SystemKeyspace.writeCurrentLocalCounterId(old, newCounterId, now);
             current.set(newCounterId);
             olds.add(new CounterIdRecord(old, now));
         }

@@ -241,7 +241,7 @@ public class QueryProcessor
         if (select.getColumnRelations().size() > 0)
         {
             AbstractType<?> comparator = select.getComparator(keyspace);
-            SecondaryIndexManager idxManager = Table.open(keyspace).getColumnFamilyStore(select.getColumnFamily()).indexManager;
+            SecondaryIndexManager idxManager = Keyspace.open(keyspace).getColumnFamilyStore(select.getColumnFamily()).indexManager;
             for (Relation relation : select.getColumnRelations())
             {
                 ByteBuffer name = relation.getEntity().getByteBuffer(comparator, variables);
@@ -361,7 +361,7 @@ public class QueryProcessor
                 if (select.isSetKeyspace())
                 {
                     keyspace = CliUtils.unescapeSQLString(select.getKeyspace());
-                    ThriftValidation.validateTable(keyspace);
+                    ThriftValidation.validateKeyspace(keyspace);
                 }
                 else if (oldKeyspace == null)
                     throw new InvalidRequestException("no keyspace has been specified");

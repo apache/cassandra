@@ -119,7 +119,7 @@ public class BatchStatement implements CQLStatement
         // Group mutation together, otherwise they won't get applied atomically
         for (IMutation m : statement.getMutations(variables, local, cl, attrs.getTimestamp(now, variables), true))
         {
-            Pair<String, ByteBuffer> key = Pair.create(m.getTable(), m.key());
+            Pair<String, ByteBuffer> key = Pair.create(m.getKeyspaceName(), m.key());
             IMutation existing = mutations.get(key);
 
             if (existing == null)

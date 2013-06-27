@@ -37,9 +37,9 @@ import org.apache.cassandra.dht.Token;
  */
 public class OldNetworkTopologyStrategy extends AbstractReplicationStrategy
 {
-    public OldNetworkTopologyStrategy(String table, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+    public OldNetworkTopologyStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
-        super(table, tokenMetadata, snitch, configOptions);
+        super(keyspaceName, tokenMetadata, snitch, configOptions);
     }
 
     public List<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)

@@ -307,7 +307,7 @@ public class SSTableWriter extends SSTable
                                                                                     metadata.getBloomFilterFpChance());
         writeMetadata(descriptor, sstableMetadata);
 
-        // save the table of components
+        // save the talbe of components
         SSTable.appendTOC(descriptor, components);
 
         // remove the 'tmp' marker from all components

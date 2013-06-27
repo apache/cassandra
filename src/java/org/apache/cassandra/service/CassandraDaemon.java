@@ -227,14 +227,14 @@ public class CassandraDaemon
         if (CacheService.instance == null) // should never happen
             throw new RuntimeException("Failed to initialize Cache Service.");
 
-        // check the system table to keep user from shooting self in foot by changing partitioner, cluster name, etc.
-        // we do a one-off scrub of the system table first; we can't load the list of the rest of the tables,
-        // until system table is opened.
-        for (CFMetaData cfm : Schema.instance.getTableMetaData(Table.SYSTEM_KS).values())
-            ColumnFamilyStore.scrubDataDirectories(Table.SYSTEM_KS, cfm.cfName);
+        // check the system keyspace to keep user from shooting self in foot by changing partitioner, cluster name, etc.
+        // we do a one-off scrub of the system keyspace first; we can't load the list of the rest of the keyspaces,
+        // until system keyspace is opened.
+        for (CFMetaData cfm : Schema.instance.getKeyspaceMetaData(Keyspace.SYSTEM_KS).values())
+            ColumnFamilyStore.scrubDataDirectories(Keyspace.SYSTEM_KS, cfm.cfName);
         try
         {
-            SystemTable.checkHealth();
+            SystemKeyspace.checkHealth();
         }
         catch (ConfigurationException e)
         {
@@ -245,16 +245,16 @@ public class CassandraDaemon
         // load keyspace descriptions.
         DatabaseDescriptor.loadSchemas();
 
-        // clean up debris in the rest of the tables
-        for (String table : Schema.instance.getTables())
+        // clean up debris in the rest of the keyspaces
+        for (String keyspaceName : Schema.instance.getKeyspaces())
         {
-            for (CFMetaData cfm : Schema.instance.getTableMetaData(table).values())
+            for (CFMetaData cfm : Schema.instance.getKeyspaceMetaData(keyspaceName).values())
             {
-                if (LegacyLeveledManifest.manifestNeedsMigration(table,cfm.cfName))
+                if (LegacyLeveledManifest.manifestNeedsMigration(keyspaceName,cfm.cfName))
                 {
                     try
                     {
-                        LegacyLeveledManifest.migrateManifests(table, cfm.cfName);
+                        LegacyLeveledManifest.migrateManifests(keyspaceName, cfm.cfName);
                     }
                     catch (IOException e)
                     {
@@ -263,24 +263,24 @@ public class CassandraDaemon
                     }
                 }
 
-                ColumnFamilyStore.scrubDataDirectories(table, cfm.cfName);
+                ColumnFamilyStore.scrubDataDirectories(keyspaceName, cfm.cfName);
             }
         }
         // clean up compaction leftovers
-        SetMultimap<Pair<String, String>, Integer> unfinishedCompactions = SystemTable.getUnfinishedCompactions();
+        SetMultimap<Pair<String, String>, Integer> unfinishedCompactions = SystemKeyspace.getUnfinishedCompactions();
         for (Pair<String, String> kscf : unfinishedCompactions.keySet())
         {
             ColumnFamilyStore.removeUnfinishedCompactionLeftovers(kscf.left, kscf.right, unfinishedCompactions.get(kscf));
         }
-        SystemTable.discardCompactionsInProgress();
+        SystemKeyspace.discardCompactionsInProgress();
 
         // initialize keyspaces
-        for (String table : Schema.instance.getTables())
+        for (String keyspaceName : Schema.instance.getKeyspaces())
         {
             if (logger.isDebugEnabled())
-                logger.debug("opening keyspace " + table);
+                logger.debug("opening keyspace " + keyspaceName);
             // disable auto compaction until commit log replay ends
-            for (ColumnFamilyStore cfs : Table.open(table).getColumnFamilyStores())
+            for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
             {
                 for (ColumnFamilyStore store : cfs.concatWithIndexes())
                 {
@@ -315,9 +315,9 @@ public class CassandraDaemon
         }
 
         // enable auto compaction
-        for (Table table : Table.all())
+        for (Keyspace keyspace : Keyspace.all())
         {
-            for (ColumnFamilyStore cfs : table.getColumnFamilyStores())
+            for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
             {
                 for (final ColumnFamilyStore store : cfs.concatWithIndexes())
                 {
@@ -330,9 +330,9 @@ public class CassandraDaemon
         {
             public void run()
             {
-                for (Table table : Table.all())
+                for (Keyspace keyspaceName : Keyspace.all())
                 {
-                    for (ColumnFamilyStore cf : table.getColumnFamilyStores())
+                    for (ColumnFamilyStore cf : keyspaceName.getColumnFamilyStores())
                     {
                         for (ColumnFamilyStore store : cf.concatWithIndexes())
                             CompactionManager.instance.submitBackground(store);
@@ -345,7 +345,7 @@ public class CassandraDaemon
         // MeteredFlusher can block if flush queue fills up, so don't put on scheduledTasks
         StorageService.optionalTasks.scheduleWithFixedDelay(new MeteredFlusher(), 1000, 1000, TimeUnit.MILLISECONDS);
 
-        SystemTable.finishStartup();
+        SystemKeyspace.finishStartup();
 
         // start server internals
         StorageService.instance.registerDaemon(this);

@@ -156,26 +156,26 @@ public class Util
     /**
      * Writes out a bunch of mutations for a single column family.
      *
-     * @param mutations A group of RowMutations for the same table and column family.
+     * @param mutations A group of RowMutations for the same keyspace and column family.
      * @return The ColumnFamilyStore that was used.
      */
     public static ColumnFamilyStore writeColumnFamily(List<IMutation> mutations) throws IOException, ExecutionException, InterruptedException
     {
         IMutation first = mutations.get(0);
-        String tablename = first.getTable();
+        String keyspaceName = first.getKeyspaceName();
         UUID cfid = first.getColumnFamilyIds().iterator().next();
 
         for (IMutation rm : mutations)
             rm.apply();
 
-        ColumnFamilyStore store = Table.open(tablename).getColumnFamilyStore(cfid);
+        ColumnFamilyStore store = Keyspace.open(keyspaceName).getColumnFamilyStore(cfid);
         store.forceBlockingFlush();
         return store;
     }
 
-    public static ColumnFamily getColumnFamily(Table table, DecoratedKey key, String cfName) throws IOException
+    public static ColumnFamily getColumnFamily(Keyspace keyspace, DecoratedKey key, String cfName) throws IOException
     {
-        ColumnFamilyStore cfStore = table.getColumnFamilyStore(cfName);
+        ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore(cfName);
         assert cfStore != null : "Column family " + cfName + " has not been defined";
         return cfStore.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
     }

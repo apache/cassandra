@@ -38,8 +38,8 @@ public class RangeTombstoneTest extends SchemaLoader
     @Test
     public void simpleQueryWithRangeTombstoneTest() throws Exception
     {
-        Table table = Table.open(KSNAME);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);
+        Keyspace keyspace = Keyspace.open(KSNAME);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CFNAME);
 
         // Inserting data
         String key = "k1";
@@ -98,8 +98,8 @@ public class RangeTombstoneTest extends SchemaLoader
     public void overlappingRangeTest() throws Exception
     {
         CompactionManager.instance.disableAutoCompaction();
-        Table table = Table.open(KSNAME);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);
+        Keyspace keyspace = Keyspace.open(KSNAME);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CFNAME);
 
         // Inserting data
         String key = "k2";

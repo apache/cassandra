@@ -94,7 +94,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     public int countAllBatches()
     {
-        return (int) process("SELECT count(*) FROM %s.%s", Table.SYSTEM_KS, SystemTable.BATCHLOG_CF).one().getLong("count");
+        return (int) process("SELECT count(*) FROM %s.%s", Keyspace.SYSTEM_KS, SystemKeyspace.BATCHLOG_CF).one().getLong("count");
     }
 
     public long getTotalBatchesReplayed()
@@ -125,7 +125,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         cf.addColumn(new Column(columnName("data"), data, timestamp));
         cf.addColumn(new Column(columnName("written_at"), writtenAt, timestamp));
 
-        return new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(uuid), cf);
+        return new RowMutation(Keyspace.SYSTEM_KS, UUIDType.instance.decompose(uuid), cf);
     }
 
     private static ByteBuffer serializeRowMutations(Collection<RowMutation> mutations)
@@ -156,7 +156,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         try
         {
-            for (UntypedResultSet.Row row : process("SELECT id, written_at FROM %s.%s", Table.SYSTEM_KS, SystemTable.BATCHLOG_CF))
+            for (UntypedResultSet.Row row : process("SELECT id, written_at FROM %s.%s", Keyspace.SYSTEM_KS, SystemKeyspace.BATCHLOG_CF))
                 if (System.currentTimeMillis() > row.getLong("written_at") + TIMEOUT)
                     replayBatch(row.getUUID("id"));
             cleanup();
@@ -173,7 +173,7 @@ public class BatchlogManager implements BatchlogManagerMBean
     {
         logger.debug("Replaying batch {}", id);
 
-        UntypedResultSet result = process("SELECT written_at, data FROM %s.%s WHERE id = %s", Table.SYSTEM_KS, SystemTable.BATCHLOG_CF, id);
+        UntypedResultSet result = process("SELECT written_at, data FROM %s.%s WHERE id = %s", Keyspace.SYSTEM_KS, SystemKeyspace.BATCHLOG_CF, id);
         if (result.isEmpty())
             return;
 
@@ -187,7 +187,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             logger.warn("Skipped batch replay of {} due to {}", id, e);
         }
 
-        process("DELETE FROM %s.%s WHERE id = %s", Table.SYSTEM_KS, SystemTable.BATCHLOG_CF, id);
+        process("DELETE FROM %s.%s WHERE id = %s", Keyspace.SYSTEM_KS, SystemKeyspace.BATCHLOG_CF, id);
 
         totalBatchesReplayed.incrementAndGet();
     }
@@ -211,7 +211,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             return; // the mutation isn't safe to replay.
 
         Set<InetAddress> liveEndpoints = new HashSet<InetAddress>();
-        String ks = mutation.getTable();
+        String ks = mutation.getKeyspaceName();
         Token<?> tk = StorageService.getPartitioner().getToken(mutation.key());
         for (InetAddress endpoint : Iterables.concat(StorageService.instance.getNaturalEndpoints(ks, tk),
                                                      StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, ks)))
@@ -283,7 +283,7 @@ public class BatchlogManager implements BatchlogManagerMBean
     // force flush + compaction to reclaim space from the replayed batches
     private void cleanup() throws ExecutionException, InterruptedException
     {
-        ColumnFamilyStore cfs = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(SystemTable.BATCHLOG_CF);
+        ColumnFamilyStore cfs = Keyspace.open(Keyspace.SYSTEM_KS).getColumnFamilyStore(SystemKeyspace.BATCHLOG_CF);
         cfs.forceBlockingFlush();
         Collection<Descriptor> descriptors = new ArrayList<Descriptor>();
         for (SSTableReader sstr : cfs.getSSTables())

@@ -49,7 +49,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
         AbstractType indexComparator = SecondaryIndex.getIndexComparator(baseCfs.metadata, columnDef);
         CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(baseCfs.metadata, columnDef, indexComparator);
-        indexCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.table,
+        indexCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.keyspace,
                                                              indexedCfMetadata.cfName,
                                                              new LocalPartitioner(columnDef.getValidator()),
                                                              indexedCfMetadata);
@@ -60,7 +60,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         {
             /*
              * # of index CF's key = cardinality of indexed column.
-             * if # of keys stored in index CF is more than average column counts (means tall table),
+             * if # of keys stored in index CF is more than average column counts (means tall keyspaceName),
              * then consider it as high cardinality.
              */
             double estimatedKeys = indexCfs.estimateKeys();

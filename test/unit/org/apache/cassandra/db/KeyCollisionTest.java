@@ -63,8 +63,8 @@ public class KeyCollisionTest extends SchemaLoader
     @Test
     public void testGetSliceWithCollision() throws Exception
     {
-        Table table = Table.open(KEYSPACE);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(CF);
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
         cfs.clearUnsafe();
 
         insert("k1", "k2", "k3");       // token = 2
@@ -181,7 +181,7 @@ public class KeyCollisionTest extends SchemaLoader
                 lastToken = node;
             }
 
-            for (String ks : Schema.instance.getTables())
+            for (String ks : Schema.instance.getKeyspaces())
             {
                 for (CFMetaData cfmd : Schema.instance.getKSMetaData(ks).cfMetaData().values())
                 {

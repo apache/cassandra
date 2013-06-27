@@ -344,7 +344,7 @@ public class DataTracker
         {
             if (logger.isDebugEnabled())
                 logger.debug(String.format("adding %s to list of files tracked for %s.%s",
-                            sstable.descriptor, cfstore.table.getName(), cfstore.name));
+                            sstable.descriptor, cfstore.keyspace.getName(), cfstore.name));
             long size = sstable.bytesOnDisk();
             StorageMetrics.load.inc(size);
             cfstore.metric.liveDiskSpaceUsed.inc(size);
@@ -359,7 +359,7 @@ public class DataTracker
         {
             if (logger.isDebugEnabled())
                 logger.debug(String.format("removing %s from list of files tracked for %s.%s",
-                            sstable.descriptor, cfstore.table.getName(), cfstore.name));
+                            sstable.descriptor, cfstore.keyspace.getName(), cfstore.name));
             long size = sstable.bytesOnDisk();
             StorageMetrics.load.dec(size);
             cfstore.metric.liveDiskSpaceUsed.dec(size);
