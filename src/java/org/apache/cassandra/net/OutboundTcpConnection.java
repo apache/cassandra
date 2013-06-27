@@ -27,8 +27,10 @@ import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
@@ -53,6 +55,8 @@ public class OutboundTcpConnection extends Thread
     private volatile boolean isStopped = false;
 
     private static final int OPEN_RETRY_DELAY = 100; // ms between retries
+    private static final int WAIT_FOR_VERSION_MAX_TIME = 5000;
+    private static final int NO_VERSION = Integer.MIN_VALUE;
 
     // sending thread reads from "active" (one of queue1, queue2) until it is empty.
     // then it swaps it with "backlog."
@@ -285,12 +289,11 @@ public class OutboundTcpConnection extends Thread
         if (logger.isDebugEnabled())
             logger.debug("attempting to connect to " + poolReference.endPoint());
 
-        targetVersion = MessagingService.instance().getVersion(poolReference.endPoint());
-
         long start = System.nanoTime();
         long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getRpcTimeout());
         while (System.nanoTime() - start < timeout)
         {
+            targetVersion = MessagingService.instance().getVersion(poolReference.endPoint());
             try
             {
                 socket = poolReference.newSocket();
@@ -321,7 +324,16 @@ public class OutboundTcpConnection extends Thread
                 out.flush();
 
                 DataInputStream in = new DataInputStream(socket.getInputStream());
-                int maxTargetVersion = in.readInt();
+                int maxTargetVersion = handshakeVersion(in);
+                if (maxTargetVersion == NO_VERSION)
+                {
+                    // no version is returned, so disconnect an try again: we will either get
+                    // a different target version (targetVersion < MessagingService.VERSION_12)
+                    // or if the same version the handshake will finally succeed
+                    logger.debug("Target max version is {}; no version information yet, will retry", maxTargetVersion);
+                    disconnect();
+                    continue;
+                }
                 if (targetVersion > maxTargetVersion)
                 {
                     logger.debug("Target max version is {}; will reconnect with that version", maxTargetVersion);
@@ -358,6 +370,47 @@ public class OutboundTcpConnection extends Thread
             }
         }
         return false;
+    }
+    
+    private int handshakeVersion(final DataInputStream inputStream)
+    {
+        final AtomicInteger version = new AtomicInteger(NO_VERSION);
+        final CountDownLatch versionLatch = new CountDownLatch(1);
+        new Thread("HANDSHAKE-" + poolReference.endPoint())
+        {
+            @Override
+            public void run()
+            {
+                try
+                {
+                    logger.info("Handshaking version with {}", poolReference.endPoint());
+                    version.set(inputStream.readInt());
+                }
+                catch (IOException ex) 
+                {
+                    final String msg = "Cannot handshake version with " + poolReference.endPoint();
+                    if (logger.isTraceEnabled())
+                        logger.trace(msg, ex);
+                    else
+                        logger.info(msg);
+                }
+                finally
+                {
+                    //unblock the waiting thread on either success or fail
+                    versionLatch.countDown();
+                }
+            }
+        }.start();
+
+        try
+        {
+            versionLatch.await(WAIT_FOR_VERSION_MAX_TIME, TimeUnit.MILLISECONDS);
+        }
+        catch (InterruptedException ex)
+        {
+            throw new AssertionError(ex);
+        }
+        return version.get();
     }
 
     private void expireMessages()
