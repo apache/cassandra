@@ -2,6 +2,7 @@
  * Fix serialization of the LEFT gossip value (CASSANDRA-5696)
  * Pig: support for cql3 tables (CASSANDRA-5234)
  * cqlsh: Don't show 'null' in place of empty values (CASSANDRA-5675)
+ * Race condition in detecting version on a mixed 1.1/1.2 cluster (CASSANDRA-5692)
 
 1.2.6
  * Fix tracing when operation completes before all responses arrive (CASSANDRA-5668)
