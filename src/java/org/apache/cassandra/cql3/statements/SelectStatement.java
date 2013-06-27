@@ -1015,7 +1015,7 @@ public class SelectStatement implements CQLStatement
                         stmt.columnRestrictions[name.position] = updateRestriction(name, stmt.columnRestrictions[name.position], rel, names);
                         break;
                     case VALUE_ALIAS:
-                        throw new InvalidRequestException(String.format("Restricting the value of a compact CF (%s) is not supported", name.name));
+                        throw new InvalidRequestException(String.format("Predicates on the non-primary-key column (%s) of a COMPACT table are not yet supported", name.name));
                     case COLUMN_METADATA:
                         stmt.metadataRestrictions.put(name, updateRestriction(name, stmt.metadataRestrictions.get(name), rel, names));
                         break;
