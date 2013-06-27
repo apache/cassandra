@@ -1852,8 +1852,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public void clearUnsafe()
     {
-        for (ColumnFamilyStore cfs : concatWithIndexes())
-            cfs.data.init();
+        for (final ColumnFamilyStore cfs : concatWithIndexes())
+        {
+            cfs.runWithCompactionsDisabled(new Callable<Void>()
+            {
+                public Void call()
+                {
+                    cfs.data.init();
+                    return null;
+                }
+            }, true);
+        }
     }
 
     /**
