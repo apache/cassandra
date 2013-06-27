@@ -42,7 +42,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 
 /**
- * A Strategy to handle building and validating a merkle tree for a column family.
+ * Handles the building of a merkle tree for a column family.
  *
  * Lifecycle:
  * 1. prepare() - Initialize tree with samples.

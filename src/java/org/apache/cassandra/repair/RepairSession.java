@@ -37,7 +37,37 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.*;
 
 /**
- * Triggers repairs with all neighbors for the given table, cfs and range.
+ * Coordinates the (active) repair of a token range.
+ *
+ * A given RepairSession repairs a set of replicas for a given range on a list
+ * of column families. For each of the column family to repair, RepairSession
+ * creates a RepairJob that handles the repair of that CF.
+ *
+ * A given RepairJob has the 2 main phases:
+ *   1. Validation phase: the job requests merkle trees from each of the replica involves
+ *      (RepairJob.sendTreeRequests()) and waits until all trees are received (in
+ *      validationComplete()).
+ *   2. Synchonization phase: once all trees are received, the job compares each tree with
+ *      all the other using a so-called Differencer (started by submitDifferencers()). If
+ *      differences there is between 2 trees, the concerned Differencer will start a streaming
+ *      of the difference between the 2 endpoint concerned (Differencer.performStreamingRepair).
+ * The job is done once all its Differencer are done (i.e. have either computed no differences
+ * or the streaming they started is done (syncComplete())).
+ *
+ * A given session will execute the first phase (validation phase) of each of it's job
+ * sequentially. In other words, it will start the first job and only start the next one
+ * once that first job validation phase is complete. This is done so that the replica only
+ * create one merkle tree at a time, which is our way to ensure that such creation starts
+ * roughly at the same time on every node (see CASSANDRA-2816). However the synchronization
+ * phases are allowed to run concurrently (with each other and with validation phases).
+ *
+ * A given RepairJob has 2 modes: either sequential or not (isSequential flag). If sequential,
+ * it will requests merkle tree creation from each replica in sequence (though in that case
+ * we still first send a message to each node to flush and snapshot data so each merkle tree
+ * creation is still done on similar data, even if the actual creation is not
+ * done simulatneously). If not sequential, all merkle tree are requested in parallel.
+ * Similarly, if a job is sequential, it will handle one Differencer at a time, but will handle
+ * all of them in parallel otherwise.
  */
 public class RepairSession extends WrappedRunnable implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener
 {
@@ -223,6 +253,7 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
                 throw new IOException(message);
             }
         }
+
         ActiveRepairService.instance.addToActiveSessions(this);
         try
         {

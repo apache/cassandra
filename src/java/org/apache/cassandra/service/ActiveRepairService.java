@@ -38,32 +38,18 @@ import org.apache.cassandra.repair.messages.ValidationComplete;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
- * ActiveRepairService encapsulates "validating" (hashing) individual column families,
- * exchanging MerkleTrees with remote nodes via a tree request/response conversation,
- * and then triggering repairs for disagreeing ranges.
+ * ActiveRepairService is the starting point for manual "active" repairs.
  *
- * The node where repair was invoked acts as the 'initiator,' where valid trees are sent after generation
- * and where the local and remote tree will rendezvous in rendezvous().
- * Once the trees rendezvous, a Differencer is executed and the service can trigger repairs
- * for disagreeing ranges.
+ * Each user triggered repair will correspond to one or multiple repair session,
+ * one for each token range to repair. On repair session might repair multiple
+ * column families. For each of those column families, the repair session will
+ * request merkle trees for each replica of the range being repaired, diff those
+ * trees upon receiving them, schedule the streaming ofthe parts to repair (based on
+ * the tree diffs) and wait for all those operation. See RepairSession for more
+ * details.
  *
- * Tree comparison and repair triggering occur in the single threaded Stage.ANTI_ENTROPY.
- *
- * The steps taken to enact a repair are as follows:
- * 1. A repair is requested via JMX/nodetool:
- *   * The initiator sends TreeRequest messages to all neighbors of the target node: when a node
- *     receives a TreeRequest, it will perform a validation (read-only) compaction to immediately validate
- *     the column family.  This is performed on the CompactionManager ExecutorService.
- * 2. The validation process builds the merkle tree by:
- *   * Calling Validator.prepare(), which samples the column family to determine key distribution,
- *   * Calling Validator.add() in order for rows in repair range in the column family,
- *   * Calling Validator.complete() to indicate that all rows have been added.
- *     * Calling complete() indicates that a valid MerkleTree has been created for the column family.
- *     * The valid tree is returned to the requesting node via a TreeResponse.
- * 3. When a node receives a tree response, it passes the tree to rendezvous() to see if all responses are
- *    received. Once the initiator receives all responses, it creates Differencers on every tree pair combination.
- * 4. Differencers are executed in Stage.ANTI_ENTROPY, to compare the given two trees, and perform repair via the
- *    streaming api.
+ * The creation of a repair session is done through the submitRepairSession that
+ * returns a future on the completion of that session.
  */
 public class ActiveRepairService
 {
