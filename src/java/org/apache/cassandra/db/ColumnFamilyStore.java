@@ -880,6 +880,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private static void removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore, SecondaryIndexManager.Updater indexer)
     {
         Iterator<Column> iter = cf.iterator();
+        DeletionInfo.InOrderTester tester = cf.inOrderDeletionTester();
         while (iter.hasNext())
         {
             Column c = iter.next();
@@ -887,7 +888,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // (a) the column itself is gcable or
             // (b) the column is shadowed by a CF tombstone
             // (c) the column has been dropped from the CF schema (CQL3 tables only)
-            if (c.getLocalDeletionTime() < gcBefore || cf.deletionInfo().isDeleted(c) || isDroppedColumn(c, cf.metadata()))
+            if (c.getLocalDeletionTime() < gcBefore || tester.isDeleted(c) || isDroppedColumn(c, cf.metadata()))
             {
                 iter.remove();
                 indexer.remove(c);

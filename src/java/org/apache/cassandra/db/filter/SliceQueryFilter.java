@@ -184,6 +184,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
     public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore, long now)
     {
         columnCounter = columnCounter(container.getComparator(), now);
+        DeletionInfo.InOrderTester tester = container.deletionInfo().inOrderTester(reversed);
 
         while (reducedColumns.hasNext())
         {
@@ -192,12 +193,12 @@ public class SliceQueryFilter implements IDiskAtomFilter
                 logger.trace(String.format("collecting %s of %s: %s",
                                            columnCounter.live(), count, column.getString(container.getComparator())));
 
-            columnCounter.count(column, container);
+            columnCounter.count(column, tester);
 
             if (columnCounter.live() > count)
                 break;
 
-            container.addIfRelevant(column, gcBefore);
+            container.addIfRelevant(column, tester, gcBefore);
         }
 
         Tracing.trace("Read {} live and {} tombstoned cells", columnCounter.live(), columnCounter.ignored());
@@ -226,10 +227,12 @@ public class SliceQueryFilter implements IDiskAtomFilter
                                    ? cf.getReverseSortedColumns()
                                    : cf.getSortedColumns();
 
+        DeletionInfo.InOrderTester tester = cf.deletionInfo().inOrderTester(reversed);
+
         for (Iterator<Column> iter = columns.iterator(); iter.hasNext(); )
         {
             Column column = iter.next();
-            counter.count(column, cf);
+            counter.count(column, tester);
 
             if (counter.live() > trimTo)
             {

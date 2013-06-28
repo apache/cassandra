@@ -124,7 +124,7 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
             try
             {
                 cf = ArrayBackedSortedColumns.factory.create(sstable.metadata);
-                cf.delete(DeletionInfo.serializer().deserializeFromSSTable(file, sstable.descriptor.version));
+                cf.delete(DeletionTime.serializer.deserialize(file));
             }
             catch (Exception e)
             {

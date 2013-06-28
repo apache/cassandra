@@ -84,7 +84,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             if (indexes.isEmpty())
             {
                 setToRowStart(indexEntry, input);
-                emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
+                emptyColumnFamily.delete(DeletionTime.serializer.deserialize(file));
                 fetcher = new SimpleBlockFetcher();
             }
             else

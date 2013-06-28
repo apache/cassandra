@@ -65,9 +65,8 @@ public class SuperColumns
         {
             ByteBufferUtil.writeWithShortLength(entry.getKey(), out);
 
-            List<DeletionTime> delTimes = delInfo.rangeCovering(entry.getKey());
-            assert delTimes.size() <= 1; // We're supposed to have either no deletion, or a full SC deletion.
-            DeletionInfo scDelInfo = delTimes.isEmpty() ? DeletionInfo.LIVE : new DeletionInfo(delTimes.get(0));
+            DeletionTime delTime = delInfo.rangeCovering(entry.getKey());
+            DeletionInfo scDelInfo = delTime == null ? DeletionInfo.live() : new DeletionInfo(delTime);
             DeletionTime.serializer.serialize(scDelInfo.getTopLevelDeletion(), out);
 
             out.writeInt(entry.getValue().size());
@@ -125,9 +124,8 @@ public class SuperColumns
             int nameSize = entry.getKey().remaining();
             size += typeSizes.sizeof((short) nameSize) + nameSize;
 
-            List<DeletionTime> delTimes = delInfo.rangeCovering(entry.getKey());
-            assert delTimes.size() <= 1; // We're supposed to have either no deletion, or a full SC deletion.
-            DeletionInfo scDelInfo = delTimes.isEmpty() ? DeletionInfo.LIVE : new DeletionInfo(delTimes.get(0));
+            DeletionTime delTime = delInfo.rangeCovering(entry.getKey());
+            DeletionInfo scDelInfo = delTime == null ? DeletionInfo.live() : new DeletionInfo(delTime);
             size += DeletionTime.serializer.serializedSize(scDelInfo.getTopLevelDeletion(), TypeSizes.NATIVE);
 
             size += typeSizes.sizeof(entry.getValue().size());

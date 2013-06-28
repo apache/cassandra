@@ -197,7 +197,7 @@ public class ColumnIndex
             if (lastColumn == null)
             {
                 ByteBufferUtil.writeWithShortLength(key, output);
-                DeletionInfo.serializer().serializeForSSTable(deletionInfo, output);
+                DeletionTime.serializer.serialize(deletionInfo.getTopLevelDeletion(), output);
             }
         }
 
@@ -221,7 +221,7 @@ public class ColumnIndex
 
         public void finish() throws IOException
         {
-            if (!deletionInfo.equals(DeletionInfo.LIVE))
+            if (!deletionInfo.isLive())
                 maybeWriteRowHeader();
         }
     }

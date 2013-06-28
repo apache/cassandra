@@ -166,7 +166,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         DataOutputBuffer buffer = new DataOutputBuffer();
         try
         {
-            DeletionInfo.serializer().serializeForSSTable(compactedCf.deletionInfo(), buffer);
+            DeletionTime.serializer.serialize(compactedCf.deletionInfo().getTopLevelDeletion(), buffer);
             digest.update(buffer.getData(), 0, buffer.getLength());
         }
         catch (IOException e)

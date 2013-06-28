@@ -204,11 +204,12 @@ abstract class AbstractQueryPager implements QueryPager
         ColumnCounter counter = columnCounter();
 
         Iterator<Column> iter = cf.iterator();
+        DeletionInfo.InOrderTester tester = cf.inOrderDeletionTester();
         // Discard the first live
         while (iter.hasNext())
         {
             Column c = iter.next();
-            counter.count(c, cf);
+            counter.count(c, tester);
             if (counter.live() > 1)
             {
                 copy.addColumn(c);
@@ -228,10 +229,11 @@ abstract class AbstractQueryPager implements QueryPager
         int liveCount = columnCounter().countAll(cf).live();
 
         ColumnCounter counter = columnCounter();
+        DeletionInfo.InOrderTester tester = cf.inOrderDeletionTester();
         // Discard the first live
         for (Column c : cf)
         {
-            counter.count(c, cf);
+            counter.count(c, tester);
             if (counter.live() < liveCount)
                 copy.addColumn(c);
         }

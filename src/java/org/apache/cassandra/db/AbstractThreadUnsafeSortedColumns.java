@@ -25,7 +25,7 @@ public abstract class AbstractThreadUnsafeSortedColumns extends ColumnFamily
 
     public AbstractThreadUnsafeSortedColumns(CFMetaData metadata)
     {
-        this(metadata, DeletionInfo.LIVE);
+        this(metadata, DeletionInfo.live());
     }
 
     protected AbstractThreadUnsafeSortedColumns(CFMetaData metadata, DeletionInfo deletionInfo)
@@ -39,9 +39,19 @@ public abstract class AbstractThreadUnsafeSortedColumns extends ColumnFamily
         return deletionInfo;
     }
 
+    public void delete(DeletionTime delTime)
+    {
+        deletionInfo.add(delTime);
+    }
+
     public void delete(DeletionInfo newInfo)
     {
-        deletionInfo = deletionInfo.add(newInfo);
+        deletionInfo.add(newInfo);
+    }
+
+    protected void delete(RangeTombstone tombstone)
+    {
+        deletionInfo.add(tombstone, getComparator());
     }
 
     public void setDeletionInfo(DeletionInfo newInfo)
@@ -51,6 +61,6 @@ public abstract class AbstractThreadUnsafeSortedColumns extends ColumnFamily
 
     public void maybeResetDeletionTimes(int gcBefore)
     {
-        deletionInfo = deletionInfo.purge(gcBefore);
+        deletionInfo.purge(gcBefore);
     }
 }

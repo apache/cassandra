@@ -112,7 +112,7 @@ public class SSTableImportTest extends SchemaLoader
         ColumnFamily cf = cloneForAdditions(qf.getSSTableColumnIterator(reader));
         qf.collateOnDiskAtom(cf, qf.getSSTableColumnIterator(reader), Integer.MIN_VALUE);
 
-        DeletionTime delTime = cf.deletionInfo().rangeCovering(CompositeType.build(ByteBufferUtil.bytes("superA"))).iterator().next();
+        DeletionTime delTime = cf.deletionInfo().rangeCovering(CompositeType.build(ByteBufferUtil.bytes("superA")));
         assertEquals("supercolumn deletion time did not match the expected time", new DeletionInfo(0, 0), new DeletionInfo(delTime));
         Column subColumn = cf.getColumn(CompositeType.build(ByteBufferUtil.bytes("superA"), ByteBufferUtil.bytes("636f6c4141")));
         assert subColumn.value().equals(hexToBytes("76616c75654141"));

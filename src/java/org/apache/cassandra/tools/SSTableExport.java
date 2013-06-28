@@ -108,7 +108,7 @@ public class SSTableExport
      */
     private static void writeMeta(PrintStream out, DeletionInfo deletionInfo)
     {
-        if (!deletionInfo.equals(DeletionInfo.LIVE))
+        if (!deletionInfo.isLive())
         {
             // begin meta
             writeKey(out, "metadata");
@@ -311,7 +311,7 @@ public class SSTableExport
             ByteBufferUtil.readWithShortLength(dfile); // row key
             if (sstable.descriptor.version.hasRowSizeAndColumnCount)
                 dfile.readLong(); // row size
-            DeletionInfo deletionInfo = DeletionInfo.serializer().deserializeFromSSTable(dfile, sstable.descriptor.version);
+            DeletionInfo deletionInfo = new DeletionInfo(DeletionTime.serializer.deserialize(dfile));
             int columnCount = sstable.descriptor.version.hasRowSizeAndColumnCount ? dfile.readInt() : Integer.MAX_VALUE;
 
             Iterator<OnDiskAtom> atomIterator = sstable.metadata.getOnDiskIterator(dfile, columnCount, sstable.descriptor.version);

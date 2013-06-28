@@ -88,14 +88,27 @@ public class AtomicSortedColumns extends ColumnFamily
         return ref.get().deletionInfo;
     }
 
+    public void delete(DeletionTime delTime)
+    {
+        delete(new DeletionInfo(delTime));
+    }
+
+    protected void delete(RangeTombstone tombstone)
+    {
+        delete(new DeletionInfo(tombstone, getComparator()));
+    }
+
     public void delete(DeletionInfo info)
     {
+        if (info.isLive())
+            return;
+
         // Keeping deletion info for max markedForDeleteAt value
         while (true)
         {
             Holder current = ref.get();
-            DeletionInfo newDelInfo = current.deletionInfo.add(info);
-            if (newDelInfo == current.deletionInfo || ref.compareAndSet(current, current.with(newDelInfo)))
+            DeletionInfo newDelInfo = current.deletionInfo.copy().add(info);
+            if (ref.compareAndSet(current, current.with(newDelInfo)))
                 break;
         }
     }
@@ -110,8 +123,12 @@ public class AtomicSortedColumns extends ColumnFamily
         while (true)
         {
             Holder current = ref.get();
-            DeletionInfo purgedInfo = current.deletionInfo.purge(gcBefore);
-            if (purgedInfo == current.deletionInfo || ref.compareAndSet(current, current.with(DeletionInfo.LIVE)))
+            if (!current.deletionInfo.hasIrrelevantData(gcBefore))
+                break;
+
+            DeletionInfo purgedInfo = current.deletionInfo.copy();
+            purgedInfo.purge(gcBefore);
+            if (ref.compareAndSet(current, current.with(purgedInfo)))
                 break;
         }
     }
@@ -159,7 +176,7 @@ public class AtomicSortedColumns extends ColumnFamily
         {
             sizeDelta = 0;
             current = ref.get();
-            DeletionInfo newDelInfo = current.deletionInfo.add(cm.deletionInfo());
+            DeletionInfo newDelInfo = current.deletionInfo.copy().add(cm.deletionInfo());
             modified = new Holder(current.map.clone(), newDelInfo);
 
             for (Column column : cm)
@@ -247,12 +264,16 @@ public class AtomicSortedColumns extends ColumnFamily
 
     private static class Holder
     {
+        // This is a small optimization: DeletionInfo is mutable, but we know that we will always copy it in that class,
+        // so we can safely alias one DeletionInfo.live() reference and avoid some allocations.
+        private static final DeletionInfo LIVE = DeletionInfo.live();
+
         final SnapTreeMap<ByteBuffer, Column> map;
         final DeletionInfo deletionInfo;
 
         Holder(AbstractType<?> comparator)
         {
-            this(new SnapTreeMap<ByteBuffer, Column>(comparator), DeletionInfo.LIVE);
+            this(new SnapTreeMap<ByteBuffer, Column>(comparator), LIVE);
         }
 
         Holder(SnapTreeMap<ByteBuffer, Column> map, DeletionInfo deletionInfo)
@@ -280,7 +301,7 @@ public class AtomicSortedColumns extends ColumnFamily
         // afterwards.
         Holder clear()
         {
-            return new Holder(new SnapTreeMap<ByteBuffer, Column>(map.comparator()), deletionInfo);
+            return new Holder(new SnapTreeMap<ByteBuffer, Column>(map.comparator()), LIVE);
         }
 
         long addColumn(Column column, Allocator allocator, SecondaryIndexManager.Updater indexer)

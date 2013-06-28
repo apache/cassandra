@@ -40,7 +40,7 @@ public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
         public EmptyColumns create(CFMetaData metadata, boolean insertReversed)
         {
             assert !insertReversed;
-            return new EmptyColumns(metadata, DeletionInfo.LIVE);
+            return new EmptyColumns(metadata, DeletionInfo.live());
         }
     };
 

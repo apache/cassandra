@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -38,17 +39,17 @@ public class ColumnCounter
         this.timestamp = timestamp;
     }
 
-    public void count(Column column, ColumnFamily container)
+    public void count(Column column, DeletionInfo.InOrderTester tester)
     {
-        if (!isLive(column, container, timestamp))
+        if (!isLive(column, tester, timestamp))
             ignored++;
         else
             live++;
     }
 
-    protected static boolean isLive(Column column, ColumnFamily container, long timestamp)
+    protected static boolean isLive(Column column, DeletionInfo.InOrderTester tester, long timestamp)
     {
-        return column.isLive(timestamp) && (!container.deletionInfo().isDeleted(column));
+        return column.isLive(timestamp) && (!tester.isDeleted(column));
     }
 
     public int live()
@@ -66,8 +67,9 @@ public class ColumnCounter
         if (container == null)
             return this;
 
+        DeletionInfo.InOrderTester tester = container.inOrderDeletionTester();
         for (Column c : container)
-            count(c, container);
+            count(c, tester);
         return this;
     }
 
@@ -96,9 +98,9 @@ public class ColumnCounter
             assert toGroup == 0 || type != null;
         }
 
-        public void count(Column column, ColumnFamily container)
+        public void count(Column column, DeletionInfo.InOrderTester tester)
         {
-            if (!isLive(column, container, timestamp))
+            if (!isLive(column, tester, timestamp))
             {
                 ignored++;
                 return;

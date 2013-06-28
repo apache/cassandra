@@ -209,8 +209,6 @@ public class SSTableWriter extends SSTable
     {
         long currentPosition = beforeAppend(key);
 
-        DeletionInfo deletionInfo = DeletionInfo.serializer().deserializeFromSSTable(in, descriptor.version);
-
         // deserialize each column to obtain maxTimestamp and immediately serialize it.
         long minTimestamp = Long.MAX_VALUE;
         long maxTimestamp = Long.MIN_VALUE;
@@ -219,7 +217,8 @@ public class SSTableWriter extends SSTable
         List<ByteBuffer> maxColumnNames = Collections.emptyList();
         StreamingHistogram tombstones = new StreamingHistogram(TOMBSTONE_HISTOGRAM_BIN_SIZE);
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(metadata);
-        cf.delete(deletionInfo);
+
+        cf.delete(DeletionTime.serializer.deserialize(in));
 
         ColumnIndex.Builder columnIndexer = new ColumnIndex.Builder(cf, key.key, dataFile.stream);
         OnDiskAtom.Serializer atomSerializer = Column.onDiskSerializer();
@@ -265,7 +264,7 @@ public class SSTableWriter extends SSTable
         sstableMetadataCollector.mergeTombstoneHistogram(tombstones);
         sstableMetadataCollector.updateMinColumnNames(minColumnNames);
         sstableMetadataCollector.updateMaxColumnNames(maxColumnNames);
-        afterAppend(key, currentPosition, RowIndexEntry.create(currentPosition, deletionInfo.getTopLevelDeletion(), columnIndexer.build()));
+        afterAppend(key, currentPosition, RowIndexEntry.create(currentPosition, cf.deletionInfo().getTopLevelDeletion(), columnIndexer.build()));
         return currentPosition;
     }
 

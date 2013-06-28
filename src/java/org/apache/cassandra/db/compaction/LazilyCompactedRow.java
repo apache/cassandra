@@ -132,7 +132,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
 
         try
         {
-            DeletionInfo.serializer().serializeForSSTable(emptyColumnFamily.deletionInfo(), out);
+            DeletionTime.serializer.serialize(emptyColumnFamily.deletionInfo().getTopLevelDeletion(), out);
             digest.update(out.getData(), 0, out.getLength());
         }
         catch (IOException e)

@@ -365,9 +365,6 @@ public class SSTableImport
             writer.append(row.getKey(), columnFamily);
             columnFamily.clear();
 
-            // ready the column family for the next row since we might have read deletionInfo metadata
-            columnFamily.delete(DeletionInfo.LIVE);
-
             importedKeys++;
 
             long current = System.nanoTime();
