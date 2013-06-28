@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.Sets;
 
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;

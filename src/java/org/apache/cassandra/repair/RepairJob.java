@@ -38,7 +38,6 @@ import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.ValidationRequest;
-import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.SimpleCondition;
@@ -48,7 +47,7 @@ import org.apache.cassandra.utils.SimpleCondition;
  */
 public class RepairJob
 {
-    private static Logger logger = LoggerFactory.getLogger(ActiveRepairService.class);
+    private static Logger logger = LoggerFactory.getLogger(RepairJob.class);
 
     public final RepairJobDesc desc;
     private final boolean isSequential;

@@ -29,10 +29,8 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.repair.RepairJobDesc;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Body part of SYNC_REQUEST repair message.

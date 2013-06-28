@@ -30,8 +30,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.SyncComplete;
 import org.apache.cassandra.repair.messages.SyncRequest;
-import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 
@@ -40,7 +38,7 @@ import org.apache.cassandra.utils.MerkleTree;
  */
 public class Differencer implements Runnable
 {
-    private static Logger logger = LoggerFactory.getLogger(ActiveRepairService.class);
+    private static Logger logger = LoggerFactory.getLogger(Differencer.class);
 
     private final RepairJobDesc desc;
     public final TreeResponse r1;

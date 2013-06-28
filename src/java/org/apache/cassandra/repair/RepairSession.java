@@ -71,7 +71,7 @@ import org.apache.cassandra.utils.*;
  */
 public class RepairSession extends WrappedRunnable implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener
 {
-    private static Logger logger = LoggerFactory.getLogger(ActiveRepairService.class);
+    private static Logger logger = LoggerFactory.getLogger(RepairSession.class);
 
     /** Repair session ID */
     private final UUID id;
