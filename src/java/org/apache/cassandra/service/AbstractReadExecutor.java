@@ -177,10 +177,10 @@ public abstract class AbstractReadExecutor
         void speculate()
         {
             // no latency information, or we're overloaded
-            if (cfs.sampleLatency > command.getTimeout())
+            if (cfs.sampleLatency > TimeUnit.MILLISECONDS.toNanos(command.getTimeout()))
                 return;
 
-            if (!handler.await(cfs.sampleLatency, TimeUnit.MILLISECONDS))
+            if (!handler.await(cfs.sampleLatency, TimeUnit.NANOSECONDS))
             {
                 InetAddress endpoint = unfiltered.get(handler.endpoints.size());
 

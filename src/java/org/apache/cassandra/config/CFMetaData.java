@@ -285,9 +285,9 @@ public final class CFMetaData
         }
 
         public final RetryType type;
-        public final long value;
+        public final double value;
 
-        private SpeculativeRetry(RetryType type, long value)
+        private SpeculativeRetry(RetryType type, double value)
         {
             this.type = type;
             this.value = value;
@@ -300,14 +300,14 @@ public final class CFMetaData
             {
                 if (name.endsWith(RetryType.PERCENTILE.toString()))
                 {
-                    long value = Long.parseLong(name.substring(0, name.length() - 10));
+                    double value = Double.parseDouble(name.substring(0, name.length() - 10));
                     if (value > 100 || value < 0)
                         throw new ConfigurationException("PERCENTILE should be between 0 and 100");
-                    return new SpeculativeRetry(RetryType.PERCENTILE, value);
+                    return new SpeculativeRetry(RetryType.PERCENTILE, (value / 100));
                 }
                 else if (name.endsWith("MS"))
                 {
-                    long value = Long.parseLong(name.substring(0, name.length() - 2));
+                    double value = Double.parseDouble(name.substring(0, name.length() - 2));
                     return new SpeculativeRetry(RetryType.CUSTOM, value);
                 }
                 else
@@ -339,7 +339,7 @@ public final class CFMetaData
             case PERCENTILE:
                 return value + "PERCENTILE";
             case CUSTOM:
-                return value + "MS";
+                return value + "ms";
             default:
                 return type.toString();
             }

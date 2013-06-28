@@ -303,12 +303,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 switch (retryPolicy.type)
                 {
                     case PERCENTILE:
-                        double percentile = retryPolicy.value / 100d;
-                        // get percentile and convert it to MS insted of dealing with micro
-                        sampleLatency = (long) (metric.readLatency.latency.getSnapshot().getValue(percentile) / 1000);
+                        // get percentile in nanos
+                        assert metric.readLatency.latency.durationUnit() == TimeUnit.MICROSECONDS;
+                        sampleLatency = (long) (metric.readLatency.latency.getSnapshot().getValue(retryPolicy.value) * 1000d);
                         break;
                     case CUSTOM:
-                        sampleLatency = retryPolicy.value;
+                        // convert to nanos, since configuration is in millisecond
+                        sampleLatency = (long) (retryPolicy.value * 1000d * 1000d);
                         break;
                     default:
                         sampleLatency = Long.MAX_VALUE;
