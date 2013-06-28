@@ -337,14 +337,13 @@ public class CacheService implements CacheServiceMBean
             ByteBuffer key = ByteBufferUtil.readWithLength(input);
             int generation = input.readInt();
             SSTableReader reader = findDesc(generation, cfs.getSSTables());
+            input.readBoolean(); // backwards compatibility for "promoted indexes" boolean
             if (reader == null)
             {
                 RowIndexEntry.serializer.skipPromotedIndex(input);
                 return null;
             }
-            RowIndexEntry entry;
-            input.readBoolean(); // backwards compatibility for "promoted indexes" boolean
-            entry = RowIndexEntry.serializer.deserialize(input, reader.descriptor.version);
+            RowIndexEntry entry = RowIndexEntry.serializer.deserialize(input, reader.descriptor.version);
             return Futures.immediateFuture(Pair.create(new KeyCacheKey(reader.descriptor, key), entry));
         }
 
