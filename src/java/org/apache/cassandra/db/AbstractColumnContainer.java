@@ -56,6 +56,11 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
         delete(new DeletionInfo(deletionTime));
     }
 
+    public void delete(RangeTombstone tombstone)
+    {
+        columns.delete(tombstone);
+    }
+
     // Contrarily to delete(), this will use the provided info even if those
     // are older that the current ones. Used for SuperColumn in QueryFilter.
     // delete() is probably the right method in all other cases.
@@ -197,7 +202,7 @@ public abstract class AbstractColumnContainer implements IColumnContainer, IIter
     public boolean hasIrrelevantData(int gcBefore)
     {
         // Do we have gcable deletion infos?
-        if (!deletionInfo().purge(gcBefore).equals(deletionInfo()))
+        if (deletionInfo().hasIrrelevantData(gcBefore))
             return true;
 
         // Do we have colums that are either deleted by the container or gcable tombstone?

@@ -151,7 +151,7 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
 
     public void deserializeFromSSTable(DataInput dis, ColumnFamily cf, IColumnSerializer.Flag flag, Descriptor.Version version) throws IOException
     {
-        cf.delete(DeletionInfo.serializer().deserializeFromSSTable(dis, version));
+        cf.delete(DeletionTime.serializer.deserialize(dis));
         int size = dis.readInt();
         int expireBefore = (int) (System.currentTimeMillis() / 1000);
         deserializeColumnsFromSSTable(dis, cf, size, flag, expireBefore, version);

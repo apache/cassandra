@@ -54,6 +54,8 @@ public interface ISortedColumns extends IIterableColumns
     public void setDeletionInfo(DeletionInfo info);
 
     public void delete(DeletionInfo info);
+    public void delete(RangeTombstone tombstone);
+
     public void maybeResetDeletionTimes(int gcBefore);
     public void retainAll(ISortedColumns columns);
 

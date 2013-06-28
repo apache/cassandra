@@ -116,7 +116,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         assert !closed;
 
         DataOutputBuffer clockOut = new DataOutputBuffer();
-        DeletionInfo.serializer().serializeForSSTable(emptyColumnFamily.deletionInfo(), clockOut);
+        DeletionTime.serializer.serialize(emptyColumnFamily.deletionInfo().getTopLevelDeletion(), clockOut);
 
         long dataSize = clockOut.getLength() + columnSerializedSize;
         if (logger.isDebugEnabled())
@@ -148,7 +148,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
 
         try
         {
-            DeletionInfo.serializer().serializeForSSTable(emptyColumnFamily.deletionInfo(), out);
+            DeletionTime.serializer.serialize(emptyColumnFamily.deletionInfo().getTopLevelDeletion(), out);
             out.writeInt(columnStats.columnCount);
             digest.update(out.getData(), 0, out.getLength());
         }

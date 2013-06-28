@@ -182,6 +182,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
 
     public void clear()
     {
+        setDeletionInfo(DeletionInfo.live());
         map.clear();
     }
 

@@ -27,7 +27,7 @@ import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.RowIndexEntry;
@@ -90,7 +90,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 {
                     setToRowStart(sstable, indexEntry, input);
                     this.emptyColumnFamily = ColumnFamily.create(sstable.metadata);
-                    emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
+                    emptyColumnFamily.delete(DeletionTime.serializer.deserialize(file));
                     fetcher = new SimpleBlockFetcher();
                 }
                 else
@@ -106,7 +106,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 IndexHelper.skipBloomFilter(file);
                 this.indexes = IndexHelper.deserializeIndex(file);
                 this.emptyColumnFamily = ColumnFamily.create(sstable.metadata);
-                emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
+                emptyColumnFamily.delete(indexEntry.deletionTime());
                 fetcher = indexes.isEmpty()
                         ? new SimpleBlockFetcher()
                         : new IndexedBlockFetcher(file.getFilePointer() + 4); // We still have the column count to

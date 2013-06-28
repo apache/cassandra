@@ -292,7 +292,7 @@ public class Util
         {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(baos);
-            DeletionInfo.serializer().serializeForSSTable(cf.deletionInfo(), dos);
+            DeletionTime.serializer.serialize(cf.deletionInfo().getTopLevelDeletion(), dos);
             dos.writeInt(cf.getColumnCount());
             new ColumnIndex.Builder(cf, ByteBufferUtil.EMPTY_BYTE_BUFFER, dos).build(cf);
             return ByteBuffer.wrap(baos.toByteArray());

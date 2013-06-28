@@ -137,7 +137,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
             try
             {
                 cf = ColumnFamily.create(sstable.metadata);
-                cf.delete(DeletionInfo.serializer().deserializeFromSSTable(file, sstable.descriptor.version));
+                cf.delete(DeletionTime.serializer.deserialize(file));
             }
             catch (Exception e)
             {

@@ -170,7 +170,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         long delSize = DeletionTime.serializer.serializedSize(compactedCf.deletionInfo().getTopLevelDeletion(), typeSizes);
         long dataSize = buffer.getLength() + delSize + typeSizes.sizeof(0);
         out.writeLong(dataSize);
-        DeletionInfo.serializer().serializeForSSTable(compactedCf.deletionInfo(), out);
+        DeletionTime.serializer.serialize(compactedCf.deletionInfo().getTopLevelDeletion(), out);
         out.writeInt(builder.writtenAtomCount());
         out.write(buffer.getData(), 0, buffer.getLength());
         return dataSize;
@@ -182,7 +182,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         DataOutputBuffer buffer = new DataOutputBuffer();
         try
         {
-            DeletionInfo.serializer().serializeForSSTable(compactedCf.deletionInfo(), buffer);
+            DeletionTime.serializer.serialize(compactedCf.deletionInfo().getTopLevelDeletion(), buffer);
             buffer.writeInt(compactedCf.getColumnCount());
             digest.update(buffer.getData(), 0, buffer.getLength());
         }

@@ -104,14 +104,22 @@ public class AtomicSortedColumns implements ISortedColumns
         return ref.get().deletionInfo;
     }
 
+    public void delete(RangeTombstone tombstone)
+    {
+        delete(new DeletionInfo(tombstone, getComparator()));
+    }
+
     public void delete(DeletionInfo info)
     {
+        if (info.isLive())
+            return;
+
         // Keeping deletion info for max markedForDeleteAt value
         while (true)
         {
             Holder current = ref.get();
-            DeletionInfo newDelInfo = current.deletionInfo.add(info);
-            if (newDelInfo == current.deletionInfo || ref.compareAndSet(current, current.with(newDelInfo)))
+            DeletionInfo newDelInfo = current.deletionInfo.copy().add(info);
+            if (ref.compareAndSet(current, current.with(newDelInfo)))
                 break;
         }
     }
@@ -126,8 +134,12 @@ public class AtomicSortedColumns implements ISortedColumns
         while (true)
         {
             Holder current = ref.get();
-            DeletionInfo purgedInfo = current.deletionInfo.purge(gcBefore);
-            if (purgedInfo == current.deletionInfo || ref.compareAndSet(current, current.with(DeletionInfo.LIVE)))
+            if (!current.deletionInfo.hasIrrelevantData(gcBefore))
+                break;
+
+            DeletionInfo purgedInfo = current.deletionInfo.copy();
+            purgedInfo.purge(gcBefore);
+            if (ref.compareAndSet(current, current.with(purgedInfo)))
                 break;
         }
     }
@@ -182,7 +194,7 @@ public class AtomicSortedColumns implements ISortedColumns
         {
             sizeDelta = 0;
             current = ref.get();
-            DeletionInfo newDelInfo = current.deletionInfo.add(cm.getDeletionInfo());
+            DeletionInfo newDelInfo = current.deletionInfo.copy().add(cm.getDeletionInfo());
             modified = new Holder(current.map.clone(), newDelInfo);
 
             for (IColumn column : cm.getSortedColumns())
@@ -297,17 +309,21 @@ public class AtomicSortedColumns implements ISortedColumns
 
     private static class Holder
     {
+        // This is a small optimization: DeletionInfo is mutable, but we know that we will always copy it in that class,
+        // so we can safely alias one DeletionInfo.live() reference and avoid some allocations.
+        private static final DeletionInfo LIVE = DeletionInfo.live();
+
         final SnapTreeMap<ByteBuffer, IColumn> map;
         final DeletionInfo deletionInfo;
 
         Holder(AbstractType<?> comparator)
         {
-            this(new SnapTreeMap<ByteBuffer, IColumn>(comparator), DeletionInfo.LIVE);
+            this(new SnapTreeMap<ByteBuffer, IColumn>(comparator), LIVE);
         }
 
         Holder(SortedMap<ByteBuffer, IColumn> columns)
         {
-            this(new SnapTreeMap<ByteBuffer, IColumn>(columns), DeletionInfo.LIVE);
+            this(new SnapTreeMap<ByteBuffer, IColumn>(columns), LIVE);
         }
 
         Holder(SnapTreeMap<ByteBuffer, IColumn> map, DeletionInfo deletionInfo)
@@ -335,7 +351,7 @@ public class AtomicSortedColumns implements ISortedColumns
         // afterwards.
         Holder clear()
         {
-            return new Holder(new SnapTreeMap<ByteBuffer, IColumn>(map.comparator()), deletionInfo);
+            return new Holder(new SnapTreeMap<ByteBuffer, IColumn>(map.comparator()), LIVE);
         }
 
         long addColumn(IColumn column, Allocator allocator, SecondaryIndexManager.Updater indexer)

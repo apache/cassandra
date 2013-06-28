@@ -24,7 +24,7 @@ import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -82,7 +82,7 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
             }
 
             emptyColumnFamily = ColumnFamily.create(sstable.metadata);
-            emptyColumnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(file, version));
+            emptyColumnFamily.delete(DeletionTime.serializer.deserialize(file));
             atomSerializer = emptyColumnFamily.getOnDiskSerializer();
             columns = file.readInt();
             mark = file.mark();

@@ -27,7 +27,7 @@ public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumn
 
     public AbstractThreadUnsafeSortedColumns()
     {
-        deletionInfo = DeletionInfo.LIVE;
+        deletionInfo = DeletionInfo.live();
     }
 
     public DeletionInfo getDeletionInfo()
@@ -37,7 +37,12 @@ public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumn
 
     public void delete(DeletionInfo newInfo)
     {
-        deletionInfo = deletionInfo.add(newInfo);
+        deletionInfo.add(newInfo);
+    }
+
+    public void delete(RangeTombstone tombstone)
+    {
+        deletionInfo.add(tombstone, getComparator());
     }
 
     public void setDeletionInfo(DeletionInfo newInfo)
@@ -47,7 +52,7 @@ public abstract class AbstractThreadUnsafeSortedColumns implements ISortedColumn
 
     public void maybeResetDeletionTimes(int gcBefore)
     {
-        deletionInfo = deletionInfo.purge(gcBefore);
+        deletionInfo.purge(gcBefore);
     }
 
     public void retainAll(ISortedColumns columns)

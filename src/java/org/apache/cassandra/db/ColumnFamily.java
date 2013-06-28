@@ -221,7 +221,7 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
         else
         {
             assert atom instanceof RangeTombstone;
-            delete(new DeletionInfo((RangeTombstone)atom, getComparator()));
+            delete((RangeTombstone)atom);
         }
     }
 
@@ -385,7 +385,7 @@ public class ColumnFamily extends AbstractColumnContainer implements IRowCacheEn
 
     public ColumnStats getColumnStats()
     {
-        long minTimestampSeen = deletionInfo() == DeletionInfo.LIVE ? Long.MAX_VALUE : deletionInfo().minTimestamp();
+        long minTimestampSeen = deletionInfo().isLive() ? Long.MAX_VALUE : deletionInfo().minTimestamp();
         long maxTimestampSeen = deletionInfo().maxTimestamp();
         StreamingHistogram tombstones = new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE);
 

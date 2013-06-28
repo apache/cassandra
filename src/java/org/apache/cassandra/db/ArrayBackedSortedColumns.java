@@ -298,6 +298,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns 
 
     public void clear()
     {
+        setDeletionInfo(DeletionInfo.live());
         columns.clear();
     }
 

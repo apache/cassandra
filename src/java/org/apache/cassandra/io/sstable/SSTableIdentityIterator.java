@@ -155,7 +155,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
                 IndexHelper.skipIndex(inputWithTracker);
             }
             columnFamily = ColumnFamily.create(metadata);
-            columnFamily.delete(DeletionInfo.serializer().deserializeFromSSTable(inputWithTracker, dataVersion));
+            columnFamily.delete(DeletionTime.serializer.deserialize(inputWithTracker));
             atomSerializer = columnFamily.getOnDiskSerializer();
             columnCount = inputWithTracker.readInt();
             columnPosition = dataStart + inputWithTracker.getBytesRead();
