@@ -379,16 +379,16 @@ public class CacheService implements CacheServiceMBean
             ByteBuffer key = ByteBufferUtil.readWithLength(input);
             int generation = input.readInt();
             SSTableReader reader = findDesc(generation, cfs.getSSTables());
+            boolean promotedIndexes = input.readBoolean();
             if (reader == null)
             {
-                RowIndexEntry.serializer.skipPromotedIndex(input);
+                if (promotedIndexes)
+                    RowIndexEntry.serializer.skip(input, Descriptor.Version.CURRENT);
                 return null;
             }
-            RowIndexEntry entry;
-            if (input.readBoolean())
-                entry = RowIndexEntry.serializer.deserialize(input, reader.descriptor.version);
-            else
-                entry = reader.getPosition(reader.partitioner.decorateKey(key), Operator.EQ);
+            RowIndexEntry entry = promotedIndexes
+                                ? RowIndexEntry.serializer.deserialize(input, reader.descriptor.version)
+                                : reader.getPosition(reader.partitioner.decorateKey(key), Operator.EQ);
             return Futures.immediateFuture(Pair.create(new KeyCacheKey(reader.descriptor, key), entry));
         }
 

@@ -1,11 +1,15 @@
 1.2.7
+ * Fix loading key cache when a saved entry is no longer valid (CASSANDRA-5706)
  * Fix serialization of the LEFT gossip value (CASSANDRA-5696)
  * Pig: support for cql3 tables (CASSANDRA-5234)
  * cqlsh: Don't show 'null' in place of empty values (CASSANDRA-5675)
- * Race condition in detecting version on a mixed 1.1/1.2 cluster (CASSANDRA-5692)
+ * Race condition in detecting version on a mixed 1.1/1.2 cluster 
+   (CASSANDRA-5692)
+
 
 1.2.6
- * Fix tracing when operation completes before all responses arrive (CASSANDRA-5668)
+ * Fix tracing when operation completes before all responses arrive 
+   (CASSANDRA-5668)
  * Fix cross-DC mutation forwarding (CASSANDRA-5632)
  * Scale hinted_handoff_throttle_in_kb to cluster size (CASSANDRA-5272)
  * (Hadoop) Add CQL3 input/output formats (CASSANDRA-4421, 5622)
@@ -31,14 +35,16 @@
  * Correct blob literal + ReversedType parsing (CASSANDRA-5629)
  * Allow GPFS to prefer the internal IP like EC2MRS (CASSANDRA-5630)
  * fix help text for -tspw cassandra-cli (CASSANDRA-5643)
- * don't throw away initial causes exceptions for internode encryption issues (CASSANDRA-5644)
+ * don't throw away initial causes exceptions for internode encryption issues 
+   (CASSANDRA-5644)
  * Fix message spelling errors for cql select statements (CASSANDRA-5647)
  * Suppress custom exceptions thru jmx (CASSANDRA-5652)
  * Update CREATE CUSTOM INDEX syntax (CASSANDRA-5639)
  * Fix PermissionDetails.equals() method (CASSANDRA-5655)
  * Never allow partition key ranges in CQL3 without token() (CASSANDRA-5666)
  * Gossiper incorrectly drops AppState for an upgrading node (CASSANDRA-5660)
- * Connection thrashing during multi-region ec2 during upgrade, due to messaging version (CASSANDRA-5669)
+ * Connection thrashing during multi-region ec2 during upgrade, due to 
+   messaging version (CASSANDRA-5669)
  * Avoid over reconnecting in EC2MRS (CASSANDRA-5678)
  * Fix ReadResponseSerializer.serializedSize() for digest reads (CASSANDRA-5476)
  * allow sstable2json on 2i CFs (CASSANDRA-5694)
