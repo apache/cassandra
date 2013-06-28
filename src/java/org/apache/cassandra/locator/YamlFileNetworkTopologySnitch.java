@@ -28,10 +28,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ResourceWatcher;
@@ -57,9 +55,7 @@ public class YamlFileNetworkTopologySnitch
         extends AbstractNetworkTopologySnitch
 {
 
-    /** Logger. */
-    private static final Logger logger = LoggerFactory
-            .getLogger(YamlFileNetworkTopologySnitch.class);
+    private static final Logger logger = LoggerFactory.getLogger(YamlFileNetworkTopologySnitch.class);
     
     /**
      * How often to check the topology configuration file, in milliseconds; defaults to one minute.
@@ -160,89 +156,6 @@ public class YamlFileNetworkTopologySnitch
         final NodeData nodeData = nodeDataMap.get(endpoint);
         return nodeData != null ? nodeData.datacenter
                 : defaultNodeData.datacenter;
-    }
-
-    /**
-     * Returns the preferred non-broadcast address for the endpoint, or null if none was specified.
-     * <p>
-     * Currently, the only preferred address that is considered is the data-center-local address.
-     * </p>
-     *
-     * @param endpoint
-     *            the broadcast address for the endpoint
-     * @return the preferred non-broadcast address for the endpoint, or null if none was specified
-     */
-    private InetAddress getPreferredAddress(final InetAddress endpoint)
-    {
-        return getDcLocalAddress(endpoint);
-    }
-
-    /**
-     * Returns the data-center-local address for the endpoint, or null if none was specified.
-     *
-     * @param endpoint
-     *            the broadcast address for the endpoint
-     * @return the data-center-local address for the endpoint, or null if none was specified
-     */
-    private InetAddress getDcLocalAddress(final InetAddress endpoint)
-    {
-        final NodeData nodeData = nodeDataMap.get(endpoint);
-        return nodeData != null ? nodeData.dcLocalAddress : null;
-    }
-
-    /**
-     * Reconnects to the endpoint through the preferred non-broadcast address if necessary.
-     * <p>
-     * A reconnect is performed if
-     * <ul>
-     * <li>the endpoint is not in the local data center and
-     * <li>
-     * <li>the endpoint has a configured preferred address as determined by {@link #getPreferredAddress(InetAddress)}.
-     * </ul>
-     * </p>
-     *
-     * @param endpoint
-     *            the endpoint's broadcast address
-     */
-    private void reconnectViaPreferredAddress(final InetAddress endpoint)
-    {
-        if (!localNodeData.datacenter.equals(getDatacenter(endpoint)))
-        {
-            return;
-        }
-
-        reconnectViaPreferredAddress(endpoint, getPreferredAddress(endpoint));
-    }
-
-    /**
-     * Reconnects to the endpoint through the preferred non-broadcast address if necessary.
-     * <p>
-     * A reconnect is performed to {@code preferredAddress} if the {@code preferredAddress} argument is not null.
-     * </p>
-     * <p>
-     * This method is only meant to be called by {@link #reconnectViaPreferredAddress(InetAddress)}, but is declared to
-     * have package-private scope in order to facilitate unit testing.
-     * </p>
-     *
-     * @param endpoint
-     *            the endpoint's broadcast address
-     * @param preferredAddress
-     *            the endpoint's preferred address to reconnect to
-     */
-    void reconnectViaPreferredAddress(final InetAddress endpoint,
-            final InetAddress preferredAddress)
-    {
-        if (preferredAddress == null)
-        {
-            return;
-        }
-
-        MessagingService.instance().getConnectionPool(endpoint)
-                .reset(preferredAddress);
-
-        logger.debug(
-                "Initiated reconnect to node with broadcast address {} using preferred address {}",
-                endpoint, preferredAddress);
     }
 
     /**
@@ -427,6 +340,7 @@ public class YamlFileNetworkTopologySnitch
         this.nodeDataMap = nodeDataMap;
         this.localNodeData = localNodeData;
         this.defaultNodeData = defaultNodeData;
+        maybeSetApplicationState();
 
         if (logger.isDebugEnabled())
         {
@@ -438,6 +352,26 @@ public class YamlFileNetworkTopologySnitch
         if (gossiperInitialized)
         {
             StorageService.instance.gossipSnitchInfo();
+        }
+    }
+
+    /**
+     * be careful about just blindly updating ApplicationState.INTERNAL_IP everytime we read the yaml file,
+     * as that can cause connections to get unnecessarily reset (via IESCS.onChange()).
+     */
+    private void maybeSetApplicationState()
+    {
+        if (localNodeData.dcLocalAddress == null)
+            return;
+        final EndpointState es = Gossiper.instance.getEndpointStateForEndpoint(FBUtilities.getBroadcastAddress());
+        if (es == null)
+            return;
+        final VersionedValue vv = es.getApplicationState(ApplicationState.INTERNAL_IP);
+        if ((vv != null && !vv.value.equals(localNodeData.dcLocalAddress.toString()))
+            || vv == null)
+        {
+            Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_IP,
+                StorageService.instance.valueFactory.internalIP(localNodeData.dcLocalAddress.toString()));
         }
     }
 
@@ -474,102 +408,7 @@ public class YamlFileNetworkTopologySnitch
     {
         gossiperInitialized = true;
         StorageService.instance.gossipSnitchInfo();
-
-        final IEndpointStateChangeSubscriber escs = new IEndpointStateChangeSubscriber()
-        {
-
-            /**
-             * Called upon a "restart" gossip event; does nothing.
-             *
-             * @param endpoint
-             *            the endpoint's broadcast address
-             * @param state
-             *            the endpoint's state
-             */
-            @Override
-            public void onRestart(final InetAddress endpoint,
-                    final EndpointState state)
-            {
-                // No-op
-            }
-
-            /**
-             * Called upon a "remove" gossip event; does nothing.
-             *
-             * @param endpoint
-             *            the endpoint's broadcast address
-             */
-            @Override
-            public void onRemove(final InetAddress endpoint)
-            {
-                // No-op
-            }
-
-            /**
-             * Called upon a "join" gossip event; attempts a reconnect to a preferred non-broadcast address if
-             * necessary.
-             *
-             * @param endpoint
-             *            the endpoint's broadcast address
-             * @param epState
-             *            the endpoint's state
-             */
-            @Override
-            public void onJoin(final InetAddress endpoint,
-                    final EndpointState epState)
-            {
-                reconnectViaPreferredAddress(endpoint);
-            }
-
-            /**
-             * Called upon a "dead" gossip event; does nothing.
-             *
-             * @param endpoint
-             *            the endpoint's broadcast address
-             * @param state
-             *            the endpoint's state
-             */
-            @Override
-            public void onDead(final InetAddress endpoint,
-                    final EndpointState state)
-            {
-                // No-op
-            }
-
-            /**
-             * Called upon a "change" gossip event; does nothing.
-             *
-             * @param endpoint
-             *            the endpoint's broadcast address
-             * @param state
-             *            the application state that has changed
-             * @param value
-             *            the new value of the state
-             */
-            @Override
-            public void onChange(final InetAddress endpoint,
-                    final ApplicationState state, final VersionedValue value)
-            {
-                reconnectViaPreferredAddress(endpoint);
-            }
-
-            /**
-             * Called upon an "alive" gossip event; attempts a reconnect to a preferred non-broadcast address if
-             * necessary.
-             *
-             * @param endpoint
-             *            the endpoint's broadcast address
-             * @param state
-             *            the endpoint's state
-             */
-            @Override
-            public void onAlive(final InetAddress endpoint,
-                    final EndpointState state)
-            {
-                reconnectViaPreferredAddress(endpoint);
-            }
-        };
-        Gossiper.instance.register(escs);
+        Gossiper.instance.register(new ReconnectableSnitchHelper(this, localNodeData.datacenter, true));
     }
 
 }

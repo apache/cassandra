@@ -52,23 +52,6 @@ public class YamlFileNetworkTopologySnitchTest
         {
             super(topologyConfigFilename);
         }
-
-        /**
-         * Overrides {@link YamlFileNetworkTopologySnitch#reconnectViaPreferredAddress(InetAddress, InetAddress)} to not
-         * perform a reconnect.
-         * 
-         * @param endpoint
-         *            the endpoint's broadcast address
-         * @param preferredAddress
-         *            the endpoint's preferred address to reconnect to
-         */
-        @Override
-        void reconnectViaPreferredAddress(final InetAddress endpoint,
-                final InetAddress preferredAddress)
-        {
-            // No-op
-        }
-
     }
 
     /**
