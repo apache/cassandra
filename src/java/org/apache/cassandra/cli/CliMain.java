@@ -266,14 +266,14 @@ public class CliMain
             try
             {
                 fileReader = new FileReader(sessionState.filename);
+                evaluateFileStatements(new BufferedReader(fileReader));
             }
             catch (IOException e)
             {
                 sessionState.err.println(e.getMessage());
-                return;
+                System.exit(1);
             }
 
-            evaluateFileStatements(new BufferedReader(fileReader));
             return;
         }
 
