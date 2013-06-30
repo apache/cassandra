@@ -1076,7 +1076,7 @@ public class StorageProxy implements StorageProxyMBean
             throw new IsBootstrappingException();
         }
 
-        long startTime = System.nanoTime();
+        long start = System.nanoTime();
         List<Row> rows = null;
         try
         {
@@ -1089,7 +1089,6 @@ public class StorageProxy implements StorageProxyMBean
                 ReadCommand command = commands.get(0);
                 CFMetaData metadata = Schema.instance.getCFMetaData(command.ksName, command.cfName);
 
-                long start = System.nanoTime();
                 long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getCasContentionTimeout());
                 while (true)
                 {
@@ -1125,7 +1124,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            readMetrics.addNano(System.nanoTime() - startTime);
+            readMetrics.addNano(System.nanoTime() - start);
         }
         return rows;
     }
