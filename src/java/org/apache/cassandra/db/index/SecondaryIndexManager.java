@@ -510,9 +510,7 @@ public class SecondaryIndexManager
      * Performs a search across a number of column indexes
      * TODO: add support for querying across index types
      *
-     * @param range the row range to restrict to
-     * @param clause the index query clause
-     * @param columnFilter the column range to restrict to
+     * @param filter the column range to restrict to
      * @return found indexed rows
      */
     public List<Row> search(ExtendedFilter filter)
