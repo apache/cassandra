@@ -73,8 +73,9 @@
  * Fix loading key cache when a saved entry is no longer valid (CASSANDRA-5706)
  * Fix serialization of the LEFT gossip value (CASSANDRA-5696)
  * cqlsh: Don't show 'null' in place of empty values (CASSANDRA-5675)
- * Race condition in detecting version on a mixed 1.1/1.2 cluster 
+ * Race condition in detecting version on a mixed 1.1/1.2 cluster
    (CASSANDRA-5692)
+ * Fix skipping range tombstones with reverse queries (CASSANDRA-5712)
 
 
 1.2.6
