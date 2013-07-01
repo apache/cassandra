@@ -126,7 +126,7 @@ public class Client extends SimpleClient
                     return null;
                 }
             }
-            return new QueryMessage(query, Collections.<ByteBuffer>emptyList(), ConsistencyLevel.ONE, pageSize);
+            return new QueryMessage(query, ConsistencyLevel.ONE, Collections.<ByteBuffer>emptyList(), pageSize);
         }
         else if (msgType.equals("NEXT"))
         {

@@ -279,15 +279,23 @@ Table of Contents
 4.1.4. QUERY
 
   Performs a CQL query. The body of the message must be:
-    <query><consistency><result_page_size>[<n><value_1>...<value_n>]
+    <query><consistency><flags>[<result_page_size>][<n><value_1>...<value_n>]
   where:
+    - <flags> is a [byte] whose bits define the options for this query and
+      in particular influence what the remainder of the message contains.
+      A flag is set if the bit corresponding to its `mask` is set. Supported
+      flags are, given there mask:
+        0x01: Page_size. In that case, <result_page_size> is an [int]
+              controlling the desired page size of the result (in CQL3 rows).
+              See the section on paging (Section 7) for more details.
+        0x02: Values. In that case, a [short] <n> followed by <n> [bytes]
+              values are provided. Those value are used for bound variables in
+              the query.
+        0x04: Skip_metadata. If present, the Result Set returned as a response
+              to that query (if any) will have the NO_METADATA flag (see
+              Section 4.2.5.2).
     - <query> the query, [long string].
     - <consistency> is the [consistency] level for the operation.
-    - <result_page_size> is an [int] controlling the desired page size of the
-      result (in CQL3 rows). A negative value disable paging of the result. See the
-      section on paging (Section 7) for more details.
-    - optional: <n> [short], the number of following values.
-    - optional: <value_1>...<value_n> are [bytes] to use for bound variables in the query.
 
   Note that the consistency is ignored by some queries (USE, CREATE, ALTER,
   TRUNCATE, ...).
@@ -308,7 +316,7 @@ Table of Contents
 4.1.6. EXECUTE
 
   Executes a prepared query. The body of the message must be:
-    <id><n><value_1>....<value_n><consistency><result_page_size>
+    <id><n><value_1>....<value_n><consistency><flags>[<result_page_size>]
   where:
     - <id> is the prepared query ID. It's the [short bytes] returned as a
       response to a PREPARE message.
@@ -316,9 +324,16 @@ Table of Contents
     - <value_1>...<value_n> are the [bytes] to use for bound variables in the
       prepared query.
     - <consistency> is the [consistency] level for the operation.
-    - <result_page_size> is an [int] controlling the desired page size of the
-      result (in CQL3 rows). A negative value disable paging of the result. See the
-      section on paging (Section 7) for more details.
+    - <flags> is a [byte] whose bits define the options for this query and
+      in particular influence what the remainder of the message contains.
+      A flag is set if the bit corresponding to its `mask` is set. Supported
+      flags are, given there mask:
+        0x01: Page size. In that case, <result_page_size> is an [int]
+              controlling the desired page size of the result (in CQL3 rows).
+              See the section on paging (Section 7) for more details.
+        0x02: Skip metadata. If present, the Result Set returned as a response
+              to that query (if any) will have the NO_METADATA flag (see
+              Section 4.2.5.2).
 
   Note that the consistency is ignored by some (prepared) queries (USE, CREATE,
   ALTER, TRUNCATE, ...).
@@ -461,7 +476,7 @@ Table of Contents
     <metadata><rows_count><rows_content>
   where:
     - <metadata> is composed of:
-        <flags><columns_count><global_table_spec>?<col_spec_1>...<col_spec_n>
+        <flags><columns_count>[<global_table_spec>?<col_spec_1>...<col_spec_n>]
       where:
         - <flags> is an [int]. The bits of <flags> provides information on the
           formatting of the remaining informations. A flag is set if the bit
@@ -476,6 +491,11 @@ Table of Contents
                       and NEXT cannot and should not be used. If no result
                       paging has been requested in the QUERY/EXECUTE/BATCH
                       message, this will never be set.
+            0x0003    No_metadata: if set, the <metadata> is only composed of
+                      these <flags> and the <column_count> but no other
+                      information (so no <global_table_spec> nor <col_spec_i>).
+                      This will only ever be the case if this was requested
+                      during the query (see QUERY and RESULT messages).
         - <columns_count> is an [int] representing the number of columns selected
           by the query this result is of. It defines the number of <col_spec_i>
           elements in and the number of element for each row in <rows_content>.
@@ -532,10 +552,21 @@ Table of Contents
 4.2.5.4. Prepared
 
   The result to a PREPARE message. The rest of the body of a Prepared result is:
-    <id><metadata>
+    <id><metadata><result_metadata>
   where:
     - <id> is [short bytes] representing the prepared query ID.
-    - <metadata> is defined exactly as for a Rows RESULT (See section 4.2.5.2).
+    - <metadata> is defined exactly as for a Rows RESULT (See section 4.2.5.2) and
+      is the specification for the variable bound in this prepare statement.
+    - <result_metadata> is defined exactly as <metadata> but correspond to the
+      metadata for the resultSet that execute this query will yield. Note that
+      <result_metadata> may be empty (have the No_metadata flag and 0 columns, See
+      section 4.2.5.2) and will be for any query that is not a Select. There is
+      in fact never a guarantee that this will non-empty so client should protect
+      themselves accordingly. The presence of this information is an
+      optimization that allows to later execute the statement that has been
+      prepared without requesting the metadata (Skip_metadata flag in EXECUTE).
+      Clients can safely discard this metadata if they do not want to take
+      advantage of that optimization.
 
   Note that prepared query ID return is global to the node on which the query
   has been prepared. It can be used on any connection to that node and this

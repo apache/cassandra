@@ -49,6 +49,11 @@ public abstract class Selection
         this.collectTTLs = collectTTLs;
     }
 
+    public ResultSet.Metadata getResultMetadata()
+    {
+        return new ResultSet.Metadata(metadata);
+    }
+
     public static Selection wildcard(CFDefinition cfDef)
     {
         List<CFDefinition.Name> all = new ArrayList<CFDefinition.Name>();

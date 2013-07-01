@@ -120,6 +120,11 @@ public class SelectStatement implements CQLStatement
         return new SelectStatement(cfDef, 0, defaultParameters, selection, null);
     }
 
+    public ResultSet.Metadata getResultMetadata()
+    {
+        return selection.getResultMetadata();
+    }
+
     public int getBoundsTerms()
     {
         return boundTerms;

@@ -20,6 +20,7 @@ package org.apache.cassandra.transport.messages;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,6 +40,34 @@ import org.apache.cassandra.utils.UUIDGen;
  */
 public class QueryMessage extends Message.Request
 {
+    public static enum Flag
+    {
+        // The order of that enum matters!!
+        PAGE_SIZE,
+        VALUES,
+        SKIP_METADATA;
+
+        public static EnumSet<Flag> deserialize(int flags)
+        {
+            EnumSet<Flag> set = EnumSet.noneOf(Flag.class);
+            Flag[] values = Flag.values();
+            for (int n = 0; n < values.length; n++)
+            {
+                if ((flags & (1 << n)) != 0)
+                    set.add(values[n]);
+            }
+            return set;
+        }
+
+        public static int serialize(EnumSet<Flag> flags)
+        {
+            int i = 0;
+            for (Flag flag : flags)
+                i |= 1 << flag.ordinal();
+            return i;
+        }
+    }
+
     public static final Message.Codec<QueryMessage> codec = new Message.Codec<QueryMessage>()
     {
         public QueryMessage decode(ChannelBuffer body, int version)
@@ -48,19 +77,25 @@ public class QueryMessage extends Message.Request
 
             int resultPageSize = -1;
             List<ByteBuffer> values = Collections.emptyList();
-
+            boolean skipMetadata = false;
             if (version >= 2)
             {
-                resultPageSize = body.readInt();
-                if (body.readable())
+                EnumSet<Flag> flags = Flag.deserialize((int)body.readByte());
+
+                if (flags.contains(Flag.PAGE_SIZE))
+                    resultPageSize = body.readInt();
+
+                if (flags.contains(Flag.VALUES))
                 {
                     int paramCount = body.readUnsignedShort();
                     values = paramCount == 0 ? Collections.<ByteBuffer>emptyList() : new ArrayList<ByteBuffer>(paramCount);
                     for (int i = 0; i < paramCount; i++)
                         values.add(CBUtil.readValue(body));
                 }
+
+                skipMetadata = flags.contains(Flag.SKIP_METADATA);
             }
-            return new QueryMessage(query, values, consistency, resultPageSize);
+            return new QueryMessage(query, consistency, values, resultPageSize, skipMetadata);
         }
 
         public ChannelBuffer encode(QueryMessage msg, int version)
@@ -72,15 +107,35 @@ public class QueryMessage extends Message.Request
             //   - Number of values
             //   - The values
             int vs = msg.values.size();
-            assert (msg.resultPageSize == -1 && vs == 0) || version >= 2 : "Version 1 of the protocol support neither a page size nor values";
 
-            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(2 + (version == 1 ? 0 : 1 + (vs > 0 ? 1 : 0)), 0, vs);
+            EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
+            if (msg.resultPageSize >= 0)
+                flags.add(Flag.PAGE_SIZE);
+            if (vs > 0)
+                flags.add(Flag.VALUES);
+            if (msg.skipMetadata)
+                flags.add(Flag.SKIP_METADATA);
+
+            assert flags.isEmpty() || version >= 2 : "Version 1 of the protocol supports no option after the consistency level";
+
+            int nbBuff = 2;
+            if (version >= 2)
+            {
+                nbBuff++; // the flags themselves
+                if (flags.contains(Flag.PAGE_SIZE))
+                    nbBuff++;
+                if (flags.contains(Flag.VALUES))
+                    nbBuff++;
+            }
+            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(nbBuff, 0, vs);
             builder.add(CBUtil.longStringToCB(msg.query));
             builder.add(CBUtil.consistencyLevelToCB(msg.consistency));
             if (version >= 2)
             {
-                builder.add(CBUtil.intToCB(msg.resultPageSize));
-                if (vs > 0)
+                builder.add(CBUtil.byteToCB((byte)Flag.serialize(flags)));
+                if (flags.contains(Flag.PAGE_SIZE))
+                    builder.add(CBUtil.intToCB(msg.resultPageSize));
+                if (flags.contains(Flag.VALUES))
                 {
                     builder.add(CBUtil.shortToCB(vs));
                     for (ByteBuffer value : msg.values)
@@ -95,19 +150,26 @@ public class QueryMessage extends Message.Request
     public final ConsistencyLevel consistency;
     public final int resultPageSize;
     public final List<ByteBuffer> values;
+    public final boolean skipMetadata;
 
     public QueryMessage(String query, ConsistencyLevel consistency)
     {
-        this(query, Collections.<ByteBuffer>emptyList(), consistency, -1);
+        this(query, consistency, Collections.<ByteBuffer>emptyList(), -1);
     }
 
-    public QueryMessage(String query, List<ByteBuffer> values, ConsistencyLevel consistency, int resultPageSize)
+    public QueryMessage(String query, ConsistencyLevel consistency, List<ByteBuffer> values, int resultPageSize)
+    {
+        this(query, consistency, values, resultPageSize, false);
+    }
+
+    public QueryMessage(String query, ConsistencyLevel consistency, List<ByteBuffer> values, int resultPageSize, boolean skipMetadata)
     {
         super(Type.QUERY);
         this.query = query;
-        this.resultPageSize = resultPageSize;
         this.consistency = consistency;
+        this.resultPageSize = resultPageSize;
         this.values = values;
+        this.skipMetadata = skipMetadata;
     }
 
     public ChannelBuffer encode()

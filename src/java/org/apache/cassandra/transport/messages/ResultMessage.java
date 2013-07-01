@@ -23,7 +23,10 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.thrift.CqlPreparedResult;
 import org.apache.cassandra.thrift.CqlResult;
@@ -240,7 +243,10 @@ public abstract class ResultMessage extends Message.Response
             public ResultMessage decode(ChannelBuffer body, int version)
             {
                 MD5Digest id = MD5Digest.wrap(CBUtil.readBytes(body));
-                return new Prepared(id, -1, ResultSet.Metadata.codec.decode(body, version));
+                ResultSet.Metadata metadata = ResultSet.Metadata.codec.decode(body, version);
+                ResultSet.Metadata resultMetadata = ResultSet.Metadata.codec.decode(body, version);
+
+                return new Prepared(id, -1, metadata, resultMetadata);
             }
 
             public ChannelBuffer encode(ResultMessage msg, int version)
@@ -248,32 +254,46 @@ public abstract class ResultMessage extends Message.Response
                 assert msg instanceof Prepared;
                 Prepared prepared = (Prepared)msg;
                 assert prepared.statementId != null;
-                return ChannelBuffers.wrappedBuffer(CBUtil.bytesToCB(prepared.statementId.bytes), ResultSet.Metadata.codec.encode(prepared.metadata, version));
+
+
+                return ChannelBuffers.wrappedBuffer(CBUtil.bytesToCB(prepared.statementId.bytes),
+                                                    ResultSet.Metadata.codec.encode(prepared.metadata, version),
+                                                    ResultSet.Metadata.codec.encode(prepared.resultMetadata, version));
             }
         };
 
         public final MD5Digest statementId;
         public final ResultSet.Metadata metadata;
+        public final ResultSet.Metadata resultMetadata;
 
         // statement id for CQL-over-thrift compatibility. The binary protocol ignore that.
         private final int thriftStatementId;
 
-        public Prepared(MD5Digest statementId, List<ColumnSpecification> names)
+        public Prepared(MD5Digest statementId, ParsedStatement.Prepared prepared)
         {
-            this(statementId, -1, new ResultSet.Metadata(names));
+            this(statementId, -1, new ResultSet.Metadata(prepared.boundNames), extractResultMetadata(prepared.statement));
         }
 
         public static Prepared forThrift(int statementId, List<ColumnSpecification> names)
         {
-            return new Prepared(null, statementId, new ResultSet.Metadata(names));
+            return new Prepared(null, statementId, new ResultSet.Metadata(names), ResultSet.Metadata.empty);
         }
 
-        private Prepared(MD5Digest statementId, int thriftStatementId, ResultSet.Metadata metadata)
+        private Prepared(MD5Digest statementId, int thriftStatementId, ResultSet.Metadata metadata, ResultSet.Metadata resultMetadata)
         {
             super(Kind.PREPARED);
             this.statementId = statementId;
             this.thriftStatementId = thriftStatementId;
             this.metadata = metadata;
+            this.resultMetadata = resultMetadata;
+        }
+
+        private static ResultSet.Metadata extractResultMetadata(CQLStatement statement)
+        {
+            if (!(statement instanceof SelectStatement))
+                return ResultSet.Metadata.empty;
+
+            return ((SelectStatement)statement).getResultMetadata();
         }
 
         protected ChannelBuffer encodeBody()

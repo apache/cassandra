@@ -69,6 +69,7 @@
  * Rename Table to Keyspace (CASSANDRA-5613)
  * Ensure changing column_index_size_in_kb on different nodes don't corrupt the
    sstable (CASSANDRA-5454)
+ * Move resultset type information into prepare, not execute (CASSANDRA-5649)
 
 
 1.2.7

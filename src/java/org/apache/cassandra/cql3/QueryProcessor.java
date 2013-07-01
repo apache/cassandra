@@ -224,7 +224,7 @@ public class QueryProcessor
                                        statementId,
                                        prepared.statement.getBoundsTerms()));
             preparedStatements.put(statementId, prepared.statement);
-            return new ResultMessage.Prepared(statementId, prepared.boundNames);
+            return new ResultMessage.Prepared(statementId, prepared);
         }
     }
 
