@@ -195,7 +195,13 @@ public class CassandraDaemon
                 {
                     // some code, like FileChannel.map, will wrap an OutOfMemoryError in another exception
                     if (e2 instanceof OutOfMemoryError)
-                        exitThread.start();
+                    {
+                        synchronized (exitThread)
+                        {
+                            if (!exitThread.isAlive())
+                                exitThread.start();
+                        }
+                    }
 
                     if (e2 instanceof FSError)
                     {
