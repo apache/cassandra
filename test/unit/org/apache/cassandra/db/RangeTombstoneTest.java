@@ -154,6 +154,38 @@ public class RangeTombstoneTest extends SchemaLoader
             assert !isLive(cf, cf.getColumn(b(i))) : "Column " + i + " shouldn't be live";
     }
 
+    @Test
+    public void reverseQueryTest() throws Exception
+    {
+        Table table = Table.open(KSNAME);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);
+
+        // Inserting data
+        String key = "k3";
+        RowMutation rm;
+        ColumnFamily cf;
+
+        rm = new RowMutation(KSNAME, ByteBufferUtil.bytes(key));
+        add(rm, 2, 0);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        rm = new RowMutation(KSNAME, ByteBufferUtil.bytes(key));
+        // Deletes everything but without being a row tombstone
+        delete(rm.addOrGet(CFNAME), 0, 10, 1);
+        add(rm, 1, 2);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        // Get the last value of the row
+        QueryPath path = new QueryPath(CFNAME);
+        cf = cfs.getColumnFamily(QueryFilter.getSliceFilter(dk(key), path, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 1));
+
+        assert !cf.isEmpty();
+        int last = i(cf.getSortedColumns().iterator().next().name());
+        assert last == 1 : "Last column should be column 1 since column 2 has been deleted";
+    }
+
     private static boolean isLive(ColumnFamily cf, IColumn c)
     {
         return c != null && !c.isMarkedForDelete() && !cf.deletionInfo().isDeleted(c);
@@ -162,6 +194,11 @@ public class RangeTombstoneTest extends SchemaLoader
     private static ByteBuffer b(int i)
     {
         return ByteBufferUtil.bytes(i);
+    }
+
+    private static int i(ByteBuffer i)
+    {
+        return ByteBufferUtil.toInt(i);
     }
 
     private static void add(RowMutation rm, int value, long timestamp)

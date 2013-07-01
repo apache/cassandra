@@ -29,6 +29,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.OnDiskAtom;
+import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -60,6 +61,9 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
     private final Deque<OnDiskAtom> blockColumns = new ArrayDeque<OnDiskAtom>();
     private final AbstractType<?> comparator;
 
+    // Holds range tombstone in reverse queries. See addColumn()
+    private final Deque<OnDiskAtom> rangeTombstonesReversed;
+
     /**
      * This slice reader assumes that slices are sorted correctly, e.g. that for forward lookup slices are in
      * lexicographic order of start elements and that for reverse lookup they are in reverse lexicographic order of
@@ -74,6 +78,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         this.reversed = reversed;
         this.slices = slices;
         this.comparator = sstable.metadata.comparator;
+        this.rangeTombstonesReversed = reversed ? new ArrayDeque<OnDiskAtom>() : null;
 
         try
         {
@@ -147,6 +152,14 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
     {
         while (true)
         {
+            if (reversed)
+            {
+                // Return all tombstone for the block first (see addColumn() below)
+                OnDiskAtom column = rangeTombstonesReversed.poll();
+                if (column != null)
+                    return column;
+            }
+
             OnDiskAtom column = blockColumns.poll();
             if (column == null)
             {
@@ -169,9 +182,22 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
     protected void addColumn(OnDiskAtom col)
     {
         if (reversed)
-            blockColumns.addFirst(col);
+        {
+            /*
+             * We put range tomstone markers at the beginning of the range they delete. But for reversed queries,
+             * the caller still need to know about a RangeTombstone before it sees any column that it covers.
+             * To make that simple, we keep said tombstones separate and return them all before any column for
+             * a given block.
+             */
+            if (col instanceof RangeTombstone)
+                rangeTombstonesReversed.addFirst(col);
+            else
+                blockColumns.addFirst(col);
+        }
         else
+        {
             blockColumns.addLast(col);
+        }
     }
 
     private abstract class BlockFetcher
