@@ -46,6 +46,24 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
         this.command = command;
     }
 
+    SliceQueryPager(SliceFromReadCommand command, ConsistencyLevel consistencyLevel, boolean localQuery, PagingState state)
+    {
+        this(command, consistencyLevel, localQuery);
+
+        if (state != null)
+        {
+            lastReturned = state.cellName;
+            restoreState(state.remaining, true);
+        }
+    }
+
+    public PagingState state()
+    {
+        return lastReturned == null
+             ? null
+             : new PagingState(null, lastReturned, maxRemaining());
+    }
+
     protected List<Row> queryNextPage(int pageSize, ConsistencyLevel consistencyLevel, boolean localQuery)
     throws RequestValidationException, RequestExecutionException
     {

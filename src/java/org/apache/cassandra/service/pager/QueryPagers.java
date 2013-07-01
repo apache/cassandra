@@ -77,47 +77,52 @@ public class QueryPagers
         }
     }
 
-    private static QueryPager pager(ReadCommand command, ConsistencyLevel consistencyLevel, boolean local)
+    private static QueryPager pager(ReadCommand command, ConsistencyLevel consistencyLevel, boolean local, PagingState state)
     {
         if (command instanceof SliceByNamesReadCommand)
-            return new NamesQueryPager((SliceByNamesReadCommand)command, consistencyLevel, local);
+            return new NamesQueryPager((SliceByNamesReadCommand)command, consistencyLevel, local, state);
         else
-            return new SliceQueryPager((SliceFromReadCommand)command, consistencyLevel, local);
+            return new SliceQueryPager((SliceFromReadCommand)command, consistencyLevel, local, state);
     }
 
-    private static QueryPager pager(Pageable command, ConsistencyLevel consistencyLevel, boolean local)
+    private static QueryPager pager(Pageable command, ConsistencyLevel consistencyLevel, boolean local, PagingState state)
     {
         if (command instanceof Pageable.ReadCommands)
         {
             List<ReadCommand> commands = ((Pageable.ReadCommands)command).commands;
             if (commands.size() == 1)
-                return pager(commands.get(0), consistencyLevel, local);
+                return pager(commands.get(0), consistencyLevel, local, state);
 
-            return new MultiPartitionPager(commands, consistencyLevel, local);
+            return new MultiPartitionPager(commands, consistencyLevel, local, state);
         }
         else if (command instanceof ReadCommand)
         {
-            return pager((ReadCommand)command, consistencyLevel, local);
+            return pager((ReadCommand)command, consistencyLevel, local, state);
         }
         else
         {
             assert command instanceof RangeSliceCommand;
             RangeSliceCommand rangeCommand = (RangeSliceCommand)command;
             if (rangeCommand.predicate instanceof NamesQueryFilter)
-                return new RangeNamesQueryPager(rangeCommand, consistencyLevel, local);
+                return new RangeNamesQueryPager(rangeCommand, consistencyLevel, local, state);
             else
-                return new RangeSliceQueryPager(rangeCommand, consistencyLevel, local);
+                return new RangeSliceQueryPager(rangeCommand, consistencyLevel, local, state);
         }
     }
 
     public static QueryPager pager(Pageable command, ConsistencyLevel consistencyLevel)
     {
-        return pager(command, consistencyLevel, false);
+        return pager(command, consistencyLevel, false, null);
+    }
+
+    public static QueryPager pager(Pageable command, ConsistencyLevel consistencyLevel, PagingState state)
+    {
+        return pager(command, consistencyLevel, false, state);
     }
 
     public static QueryPager localPager(Pageable command)
     {
-        return pager(command, null, true);
+        return pager(command, null, true, null);
     }
 
     /**

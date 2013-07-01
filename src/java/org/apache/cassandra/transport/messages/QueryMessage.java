@@ -31,6 +31,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.utils.UUIDGen;
@@ -45,7 +46,8 @@ public class QueryMessage extends Message.Request
         // The order of that enum matters!!
         PAGE_SIZE,
         VALUES,
-        SKIP_METADATA;
+        SKIP_METADATA,
+        PAGING_STATE;
 
         public static EnumSet<Flag> deserialize(int flags)
         {
@@ -78,6 +80,7 @@ public class QueryMessage extends Message.Request
             int resultPageSize = -1;
             List<ByteBuffer> values = Collections.emptyList();
             boolean skipMetadata = false;
+            PagingState pagingState = null;
             if (version >= 2)
             {
                 EnumSet<Flag> flags = Flag.deserialize((int)body.readByte());
@@ -94,8 +97,11 @@ public class QueryMessage extends Message.Request
                 }
 
                 skipMetadata = flags.contains(Flag.SKIP_METADATA);
+
+                if (flags.contains(Flag.PAGING_STATE))
+                    pagingState = PagingState.deserialize(CBUtil.readValue(body));
             }
-            return new QueryMessage(query, consistency, values, resultPageSize, skipMetadata);
+            return new QueryMessage(query, consistency, values, resultPageSize, skipMetadata, pagingState);
         }
 
         public ChannelBuffer encode(QueryMessage msg, int version)
@@ -115,6 +121,8 @@ public class QueryMessage extends Message.Request
                 flags.add(Flag.VALUES);
             if (msg.skipMetadata)
                 flags.add(Flag.SKIP_METADATA);
+            if (msg.pagingState != null)
+                flags.add(Flag.PAGING_STATE);
 
             assert flags.isEmpty() || version >= 2 : "Version 1 of the protocol supports no option after the consistency level";
 
@@ -127,7 +135,7 @@ public class QueryMessage extends Message.Request
                 if (flags.contains(Flag.VALUES))
                     nbBuff++;
             }
-            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(nbBuff, 0, vs);
+            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(nbBuff, 0, vs + (flags.contains(Flag.PAGING_STATE) ? 1 : 0));
             builder.add(CBUtil.longStringToCB(msg.query));
             builder.add(CBUtil.consistencyLevelToCB(msg.consistency));
             if (version >= 2)
@@ -141,6 +149,8 @@ public class QueryMessage extends Message.Request
                     for (ByteBuffer value : msg.values)
                         builder.addValue(value);
                 }
+                if (flags.contains(Flag.PAGING_STATE))
+                    builder.addValue(msg.pagingState == null ? null : msg.pagingState.serialize());
             }
             return builder.build();
         }
@@ -151,6 +161,7 @@ public class QueryMessage extends Message.Request
     public final int resultPageSize;
     public final List<ByteBuffer> values;
     public final boolean skipMetadata;
+    public final PagingState pagingState;
 
     public QueryMessage(String query, ConsistencyLevel consistency)
     {
@@ -159,10 +170,10 @@ public class QueryMessage extends Message.Request
 
     public QueryMessage(String query, ConsistencyLevel consistency, List<ByteBuffer> values, int resultPageSize)
     {
-        this(query, consistency, values, resultPageSize, false);
+        this(query, consistency, values, resultPageSize, false, null);
     }
 
-    public QueryMessage(String query, ConsistencyLevel consistency, List<ByteBuffer> values, int resultPageSize, boolean skipMetadata)
+    public QueryMessage(String query, ConsistencyLevel consistency, List<ByteBuffer> values, int resultPageSize, boolean skipMetadata, PagingState pagingState)
     {
         super(Type.QUERY);
         this.query = query;
@@ -170,6 +181,7 @@ public class QueryMessage extends Message.Request
         this.resultPageSize = resultPageSize;
         this.values = values;
         this.skipMetadata = skipMetadata;
+        this.pagingState = pagingState;
     }
 
     public ChannelBuffer encode()
@@ -203,7 +215,7 @@ public class QueryMessage extends Message.Request
                 Tracing.instance.begin("Execute CQL3 query", builder.build());
             }
 
-            Message.Response response = QueryProcessor.process(query, values, consistency, state, resultPageSize);
+            Message.Response response = QueryProcessor.process(query, values, consistency, state, resultPageSize, pagingState);
 
             if (tracingId != null)
                 response.setTracingId(tracingId);
@@ -219,9 +231,6 @@ public class QueryMessage extends Message.Request
         finally
         {
             Tracing.instance.stopSession();
-            // Trash the current session id if we won't need it anymore
-            if (!state.hasPager())
-                state.getAndResetCurrentTracingSession();
         }
     }
 

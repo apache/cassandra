@@ -128,19 +128,6 @@ public class Client extends SimpleClient
             }
             return new QueryMessage(query, ConsistencyLevel.ONE, Collections.<ByteBuffer>emptyList(), pageSize);
         }
-        else if (msgType.equals("NEXT"))
-        {
-            line = line.substring(5);
-            try
-            {
-                int pageSize = Integer.parseInt(line);
-                return new NextMessage(pageSize);
-            }
-            catch (NumberFormatException e)
-            {
-                return null;
-            }
-        }
         else if (msgType.equals("PREPARE"))
         {
             String query = line.substring(8);

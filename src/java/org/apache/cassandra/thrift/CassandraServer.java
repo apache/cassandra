@@ -2017,7 +2017,8 @@ public class CassandraServer implements Cassandra.Iface
                                                                             ThriftConversion.fromThrift(cLevel),
                                                                             cState.getQueryState(),
                                                                             bindVariables,
-                                                                            -1).toThriftResult();
+                                                                            -1,
+                                                                            null).toThriftResult();
         }
         catch (RequestExecutionException e)
         {

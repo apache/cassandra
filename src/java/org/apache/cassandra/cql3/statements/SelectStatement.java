@@ -39,9 +39,7 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.RangeSliceVerbHandler;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.pager.Pageable;
-import org.apache.cassandra.service.pager.QueryPager;
-import org.apache.cassandra.service.pager.QueryPagers;
+import org.apache.cassandra.service.pager.*;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
@@ -140,7 +138,7 @@ public class SelectStatement implements CQLStatement
         // Nothing to do, all validation has been done by RawStatement.prepare()
     }
 
-    public ResultMessage.Rows execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables, int pageSize) throws RequestExecutionException, RequestValidationException
+    public ResultMessage.Rows execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables, int pageSize, PagingState pagingState) throws RequestExecutionException, RequestValidationException
     {
         if (cl == null)
             throw new InvalidRequestException("Invalid empty consistency level");
@@ -165,10 +163,14 @@ public class SelectStatement implements CQLStatement
         }
         else
         {
-            QueryPager pager = QueryPagers.pager(command, cl);
-            return parameters.isCount
-                 ? pageCountQuery(pager, variables, pageSize)
-                 : setupPaging(pager, state, variables, limit, pageSize);
+            QueryPager pager = QueryPagers.pager(command, cl, pagingState);
+            if (parameters.isCount)
+                return pageCountQuery(pager, variables, pageSize, now);
+
+            List<Row> page = pager.fetchPage(pageSize);
+            ResultMessage.Rows msg = processResults(page, variables, limit, now);
+            msg.result.metadata.setHasMorePages(pager.state());
+            return msg;
         }
     }
 
@@ -181,29 +183,13 @@ public class SelectStatement implements CQLStatement
         return processResults(rows, variables, limit, now);
     }
 
-    // TODO: we could probably refactor processResults so it doesn't needs the variables, so we don't have to keep around. But that can wait.
-    private ResultMessage.Rows setupPaging(QueryPager pager, QueryState state, List<ByteBuffer> variables, int limit, int pageSize) throws RequestValidationException, RequestExecutionException
-    {
-        List<Row> page = pager.fetchPage(pageSize);
-
-        ResultMessage.Rows msg = processResults(page, variables, limit, pager.timestamp());
-
-        // Don't bother setting up the pager if we actually don't need to.
-        if (pager.isExhausted())
-            return msg;
-
-        state.attachPager(pager, this, variables);
-        msg.result.metadata.setHasMorePages();
-        return msg;
-    }
-
-    private ResultMessage.Rows pageCountQuery(QueryPager pager, List<ByteBuffer> variables, int pageSize) throws RequestValidationException, RequestExecutionException
+    private ResultMessage.Rows pageCountQuery(QueryPager pager, List<ByteBuffer> variables, int pageSize, long now) throws RequestValidationException, RequestExecutionException
     {
         int count = 0;
         while (!pager.isExhausted())
         {
             int maxLimit = pager.maxRemaining();
-            ResultSet rset = process(pager.fetchPage(pageSize), variables, maxLimit, pager.timestamp());
+            ResultSet rset = process(pager.fetchPage(pageSize), variables, maxLimit, now);
             count += rset.rows.size();
         }
 

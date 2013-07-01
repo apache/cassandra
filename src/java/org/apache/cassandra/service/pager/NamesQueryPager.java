@@ -55,10 +55,20 @@ public class NamesQueryPager implements SinglePartitionPager
         this.localQuery = localQuery;
     }
 
+    NamesQueryPager(SliceByNamesReadCommand command, ConsistencyLevel consistencyLevel, boolean localQuery, PagingState state)
+    {
+        this(command, consistencyLevel, localQuery);
+    }
+
     public ColumnCounter columnCounter()
     {
         // We know NamesQueryFilter.columnCounter don't care about his argument
         return command.filter.columnCounter(null, command.timestamp);
+    }
+
+    public PagingState state()
+    {
+        return null;
     }
 
     public boolean isExhausted()

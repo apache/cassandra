@@ -127,6 +127,12 @@ abstract class AbstractQueryPager implements QueryPager
         return result;
     }
 
+    protected void restoreState(int remaining, boolean lastWasRecorded)
+    {
+        this.remaining = remaining;
+        this.lastWasRecorded = lastWasRecorded;
+    }
+
     public boolean isExhausted()
     {
         return exhausted || remaining == 0;

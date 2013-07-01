@@ -22,7 +22,6 @@ Table of Contents
       4.1.6. EXECUTE
       4.1.7. BATCH
       4.1.8. REGISTER
-      4.1.9. NEXT
     4.2. Responses
       4.2.1. ERROR
       4.2.2. READY
@@ -167,7 +166,6 @@ Table of Contents
     0x0E    AUTH_CHALLENGE
     0x0F    AUTH_RESPONSE
     0x10    AUTH_SUCCESS
-    0x11    NEXT
 
   Messages are described in Section 4.
 
@@ -279,7 +277,7 @@ Table of Contents
 4.1.4. QUERY
 
   Performs a CQL query. The body of the message must be:
-    <query><consistency><flags>[<result_page_size>][<n><value_1>...<value_n>]
+    <query><consistency><flags>[<result_page_size>][<n><value_1>...<value_n>][<paging_state>]
   where:
     - <flags> is a [byte] whose bits define the options for this query and
       in particular influence what the remainder of the message contains.
@@ -294,6 +292,12 @@ Table of Contents
         0x04: Skip_metadata. If present, the Result Set returned as a response
               to that query (if any) will have the NO_METADATA flag (see
               Section 4.2.5.2).
+        0x04: With_paging_state. If present, <paging_state> should be present.
+              <paging_state> is a [bytes] value that should have been returned
+              in a result set (Section 4.2.5.2). If provided, the query will be
+              executed but starting from a given paging state. This also to
+              continue paging on a different node from the one it has been
+              started (See Section 7 for more details).
     - <query> the query, [long string].
     - <consistency> is the [consistency] level for the operation.
 
@@ -316,7 +320,7 @@ Table of Contents
 4.1.6. EXECUTE
 
   Executes a prepared query. The body of the message must be:
-    <id><n><value_1>....<value_n><consistency><flags>[<result_page_size>]
+    <id><n><value_1>....<value_n><consistency><flags>[<result_page_size>][<paging_state>]
   where:
     - <id> is the prepared query ID. It's the [short bytes] returned as a
       response to a PREPARE message.
@@ -334,6 +338,12 @@ Table of Contents
         0x02: Skip metadata. If present, the Result Set returned as a response
               to that query (if any) will have the NO_METADATA flag (see
               Section 4.2.5.2).
+        0x03: With_paging_state. If present, <paging_state> should be present.
+              <paging_state> is a [bytes] value that should have been returned
+              in a result set (Section 4.2.5.2). If provided, the query will be
+              executed but starting from a given paging state. This also to
+              continue paging on a different node from the one it has been
+              started (See Section 7 for more details).
 
   Note that the consistency is ignored by some (prepared) queries (USE, CREATE,
   ALTER, TRUNCATE, ...).
@@ -382,17 +392,6 @@ Table of Contents
   dedicate a handful of connections to receive events, but to *not* register
   for events on all connections, as this would only result in receiving
   multiple times the same event messages, wasting bandwidth.
-
-
-4.1.9. NEXT
-
-  Request the next page of result if paging was requested by a QUERY or EXECUTE
-  statement and there is more result to fetch (see Section 7 for more details).
-  The body of a NEXT message is a single [int] indicating the number of maximum
-  rows to return with the next page of results (it is equivalent to the
-  <result_page_size> in a QUERY or EXECUTE message).
-
-  The result to a NEXT message will be a RESULT message.
 
 
 4.2. Responses
@@ -476,7 +475,7 @@ Table of Contents
     <metadata><rows_count><rows_content>
   where:
     - <metadata> is composed of:
-        <flags><columns_count>[<global_table_spec>?<col_spec_1>...<col_spec_n>]
+        <flags><columns_count>[<paging_state>][<global_table_spec>?<col_spec_1>...<col_spec_n>]
       where:
         - <flags> is an [int]. The bits of <flags> provides information on the
           formatting of the remaining informations. A flag is set if the bit
@@ -486,14 +485,15 @@ Table of Contents
                       and table name) is provided as <global_table_spec>. If not
                       set, <global_table_spec> is not present.
             0x0002    Has_more_pages: indicates whether this is not the last
-                      page of results and more should be retrieve using a NEXT
-                      message. If not set, this is the laste "page" of result
-                      and NEXT cannot and should not be used. If no result
-                      paging has been requested in the QUERY/EXECUTE/BATCH
-                      message, this will never be set.
+                      page of results and more should be retrieve. If set, the
+                      <paging_state> will be present. The <paging_state> is a
+                      [bytes] value that should be used in QUERY/EXECUTE to
+                      continue paging and retrieve the remained of the result for
+                      this query (See Section 7 for more details).
             0x0003    No_metadata: if set, the <metadata> is only composed of
-                      these <flags> and the <column_count> but no other
-                      information (so no <global_table_spec> nor <col_spec_i>).
+                      these <flags>, the <column_count> and optionally the
+                      <paging_state> (depending on the Has_more_pages flage) but
+                      no other information (so no <global_table_spec> nor <col_spec_i>).
                       This will only ever be the case if this was requested
                       during the query (see QUERY and RESULT messages).
         - <columns_count> is an [int] representing the number of columns selected
@@ -555,7 +555,8 @@ Table of Contents
     <id><metadata><result_metadata>
   where:
     - <id> is [short bytes] representing the prepared query ID.
-    - <metadata> is defined exactly as for a Rows RESULT (See section 4.2.5.2) and
+    - <metadata> is defined exactly as for a Rows RESULT (See section 4.2.5.2; you
+      can however assume that the Has_more_pages flag is always off) and
       is the specification for the variable bound in this prepare statement.
     - <result_metadata> is defined exactly as <metadata> but correspond to the
       metadata for the resultSet that execute this query will yield. Note that
@@ -691,33 +692,22 @@ Table of Contents
   <result_page_size> first rows of the query result. If that first page of result
   contains the full result set for the query, the RESULT message (of kind `Rows`)
   will have the Has_more_pages flag *not* set. However, if some results are not
-  part of the first response, the Has_more_pages flag will be set. In that latter
-  case, more rows of the result can be retrieved by sending a NEXT message *with the
-  same stream id than the initial query*. The NEXT message also contains its own
-  <result_page_size> that control how many of the remaining result rows will be
-  sent in response. If the response to this NEXT message still does not contains
-  the full remainder of the query result set (the Has_more_pages is set once more),
-  another NEXT message can be send for more result, etc...
-
-  If a RESULT message has the Has_more_pages flag set and any other message than
-  a NEXT message is send on the same stream id, the query is cancelled and no more
-  of its result can be retrieved.
+  part of the first response, the Has_more_pages flag will be set and the result
+  will contain a <paging_state> value. In that case, the <paging_state> value
+  should be used in a QUERY or EXECUTE message (that has the *same* query than
+  the original one or the behavior is undefined) to retrieve the next page of
+  results.
 
   Only CQL3 queries that return a result set (RESULT message with a Rows `kind`)
   support paging. For other type of queries, the <result_page_size> value is
   ignored.
-
-  The <result_page_size> can be set to a negative value to disable paging (in
-  which case the whole result set will be retuned in the first RESULT message,
-  message that will not have the Has_more_pages flag set). The
-  <result_page_size> value cannot be 0.
 
   Note to client implementors:
   - While <result_page_size> can be as low as 1, it will likely be detrimental
     to performance to pick a value too low. A value below 100 is probably too
     low for most use cases.
   - Clients should not rely on the actual size of the result set returned to
-    decide if a NEXT message should be issued. Instead, they should always
+    decide if there is more result to fetch or not. Instead, they should always
     check the Has_more_pages flag (unless they did not enabled paging for the query
     obviously). Clients should also not assert that no result will have more than
     <result_page_size> results. While the current implementation always respect
@@ -830,7 +820,8 @@ Table of Contents
     through the new AUTH_RESPONSE/AUTH_CHALLENGE messages). See Section 4.2.3 for
     details.
   * Query paging has been added (Section 7): QUERY and EXECUTE message have an
-    additional <result_page_size> [int], a new NEXT message has been added and
-    the Rows kind of RESULT message has an additional flag. Note that paging is
-    optional, and a client that don't want to handle it can always pass -1 for
-    the <result_page_size> in QUERY and EXECUTE.
+    additional <result_page_size> [int] and <paging_state> [bytes], and
+    the Rows kind of RESULT message has an additional flag and <paging_state> 
+    value. Note that paging is optional, and a client that do not want to handle
+    can simply avoid including the Page_size flag and parameter in QUERY and
+    EXECUTE.

@@ -75,7 +75,8 @@ public class CassandraAuthorizer implements IAuthorizer
                                                                  new QueryState(new ClientState(true)),
                                                                  Lists.newArrayList(ByteBufferUtil.bytes(user.getName()),
                                                                                     ByteBufferUtil.bytes(resource.getName())),
-                                                                 -1);
+                                                                 -1,
+                                                                 null);
             result = new UntypedResultSet(rows.result);
         }
         catch (RequestValidationException e)

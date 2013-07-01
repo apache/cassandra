@@ -26,6 +26,7 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.StorageService;
 
 /**
  * Pages a RangeSliceCommand whose predicate is a slice query.
@@ -36,7 +37,7 @@ import org.apache.cassandra.service.StorageProxy;
 public class RangeSliceQueryPager extends AbstractQueryPager
 {
     private final RangeSliceCommand command;
-    private volatile RowPosition lastReturnedKey;
+    private volatile DecoratedKey lastReturnedKey;
     private volatile ByteBuffer lastReturnedName;
 
     // Don't use directly, use QueryPagers method instead
@@ -45,6 +46,25 @@ public class RangeSliceQueryPager extends AbstractQueryPager
         super(consistencyLevel, command.maxResults, localQuery, command.keyspace, command.columnFamily, command.predicate, command.timestamp);
         this.command = command;
         assert columnFilter instanceof SliceQueryFilter;
+    }
+
+    RangeSliceQueryPager(RangeSliceCommand command, ConsistencyLevel consistencyLevel, boolean localQuery, PagingState state)
+    {
+        this(command, consistencyLevel, localQuery);
+
+        if (state != null)
+        {
+            lastReturnedKey = StorageService.getPartitioner().decorateKey(state.partitionKey);
+            lastReturnedName = state.cellName;
+            restoreState(state.remaining, true);
+        }
+    }
+
+    public PagingState state()
+    {
+        return lastReturnedKey == null
+             ? null
+             : new PagingState(lastReturnedKey.key, lastReturnedName, maxRemaining());
     }
 
     protected List<Row> queryNextPage(int pageSize, ConsistencyLevel consistencyLevel, boolean localQuery)

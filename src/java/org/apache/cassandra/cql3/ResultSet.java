@@ -33,6 +33,7 @@ import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlResultType;
 import org.apache.cassandra.thrift.CqlRow;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.service.pager.PagingState;
 
 public class ResultSet
 {
@@ -222,6 +223,7 @@ public class ResultSet
         public final EnumSet<Flag> flags;
         public final List<ColumnSpecification> names;
         public final int columnCount;
+        public PagingState pagingState;
 
         public Metadata(List<ColumnSpecification> names)
         {
@@ -262,9 +264,11 @@ public class ResultSet
             return true;
         }
 
-        public void setHasMorePages()
+        public Metadata setHasMorePages(PagingState pagingState)
         {
             flags.add(Flag.HAS_MORE_PAGES);
+            this.pagingState = pagingState;
+            return this;
         }
 
         @Override
@@ -299,8 +303,13 @@ public class ResultSet
                 int columnCount = body.readInt();
 
                 EnumSet<Flag> flags = Flag.deserialize(iflags);
+
+                PagingState state = null;
+                if (flags.contains(Flag.HAS_MORE_PAGES))
+                    state = PagingState.deserialize(CBUtil.readValue(body));
+
                 if (flags.contains(Flag.NO_METADATA))
-                    return new Metadata(flags, columnCount);
+                    return new Metadata(flags, columnCount).setHasMorePages(state);
 
                 boolean globalTablesSpec = flags.contains(Flag.GLOBAL_TABLES_SPEC);
 
@@ -322,25 +331,29 @@ public class ResultSet
                     AbstractType type = DataType.toType(DataType.codec.decodeOne(body));
                     names.add(new ColumnSpecification(ksName, cfName, colName, type));
                 }
-                return new Metadata(flags, names);
+                return new Metadata(flags, names).setHasMorePages(state);
             }
 
             public ChannelBuffer encode(Metadata m, int version)
             {
                 boolean noMetadata = m.flags.contains(Flag.NO_METADATA);
                 boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);
+                boolean hasMorePages = m.flags.contains(Flag.HAS_MORE_PAGES);
 
-                int stringCount = noMetadata ? 0 : (globalTablesSpec ? 2 + columnCount : 3 * columnCount);
-                CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(1 + (noMetadata : 0 ? columnCount), stringCount, 0);
+                int stringCount = noMetadata ? 0 : (globalTablesSpec ? 2 + m.columnCount : 3 * m.columnCount);
+                CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(1 + (noMetadata ? 0 : m.columnCount), stringCount, hasMorePages ? 1 : 0);
 
                 ChannelBuffer header = ChannelBuffers.buffer(8);
 
                 assert version > 1 || (!m.flags.contains(Flag.HAS_MORE_PAGES) && !noMetadata);
 
                 header.writeInt(Flag.serialize(m.flags));
-                header.writeInt(columnCount);
+                header.writeInt(m.columnCount);
 
                 builder.add(header);
+
+                if (hasMorePages)
+                    builder.addValue(m.pagingState == null ? null : m.pagingState.serialize());
 
                 if (!noMetadata)
                 {

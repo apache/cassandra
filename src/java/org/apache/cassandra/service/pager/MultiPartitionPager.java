@@ -47,7 +47,12 @@ class MultiPartitionPager implements QueryPager
 
     private volatile int current;
 
-    MultiPartitionPager(List<ReadCommand> commands, final ConsistencyLevel consistencyLevel, final boolean localQuery)
+    MultiPartitionPager(List<ReadCommand> commands, ConsistencyLevel consistencyLevel, boolean localQuery)
+    {
+        this(commands, consistencyLevel, localQuery, null);
+    }
+
+    MultiPartitionPager(List<ReadCommand> commands, ConsistencyLevel consistencyLevel, boolean localQuery, PagingState state)
     {
         this.pagers = new SinglePartitionPager[commands.size()];
 
@@ -60,11 +65,20 @@ class MultiPartitionPager implements QueryPager
             else if (tstamp != command.timestamp)
                 throw new IllegalArgumentException("All commands must have the same timestamp or weird results may happen.");
 
+            PagingState tmpState = state != null && command.key.equals(state.partitionKey) ? state : null;
             pagers[i] = command instanceof SliceFromReadCommand
-                      ? new SliceQueryPager((SliceFromReadCommand)command, consistencyLevel, localQuery)
-                      : new NamesQueryPager((SliceByNamesReadCommand)command, consistencyLevel, localQuery);
+                      ? new SliceQueryPager((SliceFromReadCommand)command, consistencyLevel, localQuery, tmpState)
+                      : new NamesQueryPager((SliceByNamesReadCommand)command, consistencyLevel, localQuery, tmpState);
         }
         timestamp = tstamp;
+    }
+
+    public PagingState state()
+    {
+        PagingState state = pagers[current].state();
+        return state == null
+             ? null
+             : new PagingState(state.partitionKey, state.cellName, maxRemaining());
     }
 
     public boolean isExhausted()

@@ -86,20 +86,7 @@ public class ServerConnection extends Connection
             default:
                 throw new AssertionError();
         }
-
-        QueryState qstate = getQueryState(streamId);
-        if (qstate.hasPager())
-        {
-            if (type != Message.Type.NEXT)
-                qstate.dropPager();
-        }
-        else
-        {
-            if (type == Message.Type.NEXT)
-                throw new ProtocolException("Unexpected NEXT message, paging is not set (or is done)");
-        }
-
-        return qstate;
+        return getQueryState(streamId);
     }
 
     public void applyStateTransition(Message.Type requestType, Message.Type responseType)

@@ -24,6 +24,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.exceptions.*;
 
 public interface CQLStatement
@@ -57,8 +58,10 @@ public interface CQLStatement
      * can assume that each bound term have a corresponding value.
      * @param pageSize the initial page size for the result set potentially returned. A negative value
      * means no paging needs to be done. Statements that do not return result sets can ignore this value.
+     * @param pageState the paging state for paged query. All statement except Select should ignore
+     * that value.
      */
-    public ResultMessage execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables, int pageSize) throws RequestValidationException, RequestExecutionException;
+    public ResultMessage execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables, int pageSize, PagingState pageState) throws RequestValidationException, RequestExecutionException;
 
     /**
      * Variante of execute used for internal query against the system tables, and thus only query the local node.
