@@ -797,15 +797,17 @@ public class SystemKeyspace
         return Math.max(3 * 3600, metadata.getGcGraceSeconds());
     }
 
-    public static void savePaxosCommit(Commit commit, boolean eraseInProgressProposal)
+    public static void savePaxosCommit(Commit commit, UUID inProgressBallot)
     {
-        String preserveCql = "UPDATE %s USING TIMESTAMP %d AND TTL %d SET most_recent_commit_at = %s, most_recent_commit = 0x%s WHERE row_key = 0x%s AND cf_id = %s";
+        String preserveCql = "UPDATE %s USING TIMESTAMP %d AND TTL %d SET in_progress_ballot = %s, most_recent_commit_at = %s, most_recent_commit = 0x%s WHERE row_key = 0x%s AND cf_id = %s";
         // identical except adds proposal = null
-        String eraseCql = "UPDATE %s USING TIMESTAMP %d AND TTL %d SET proposal = null, most_recent_commit_at = %s, most_recent_commit = 0x%s WHERE row_key = 0x%s AND cf_id = %s";
-        processInternal(String.format(eraseInProgressProposal ? eraseCql : preserveCql,
+        String eraseCql = "UPDATE %s USING TIMESTAMP %d AND TTL %d SET proposal = null, in_progress_ballot = %s, most_recent_commit_at = %s, most_recent_commit = 0x%s WHERE row_key = 0x%s AND cf_id = %s";
+        boolean proposalAfterCommit = inProgressBallot.timestamp() > commit.ballot.timestamp();
+        processInternal(String.format(proposalAfterCommit ? preserveCql : eraseCql,
                                       PAXOS_CF,
                                       UUIDGen.microsTimestamp(commit.ballot),
                                       paxosTtl(commit.update.metadata),
+                                      proposalAfterCommit ? inProgressBallot : commit.ballot,
                                       commit.ballot,
                                       ByteBufferUtil.bytesToHex(commit.update.toBytes()),
                                       ByteBufferUtil.bytesToHex(commit.key),

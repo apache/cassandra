@@ -43,8 +43,6 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.UUIDType;
@@ -219,9 +217,7 @@ public class StorageProxy implements StorageProxyMBean
             List<InetAddress> liveEndpoints = p.left;
             int requiredParticipants = p.right;
 
-            UUID ballot = beginAndRepairPaxos(key, metadata, liveEndpoints, requiredParticipants);
-            if (ballot == null)
-                continue;
+            UUID ballot = beginAndRepairPaxos(start, key, metadata, liveEndpoints, requiredParticipants);
 
             // read the current value and compare with expected
             Tracing.trace("Reading existing values for CAS precondition");
@@ -323,63 +319,64 @@ public class StorageProxy implements StorageProxyMBean
      * @return the Paxos ballot promised by the replicas if no in-progress requests were seen and a quorum of
      * nodes have seen the mostRecentCommit.  Otherwise, return null.
      */
-    private static UUID beginAndRepairPaxos(ByteBuffer key, CFMetaData metadata, List<InetAddress> liveEndpoints, int requiredParticipants)
+    private static UUID beginAndRepairPaxos(long start, ByteBuffer key, CFMetaData metadata, List<InetAddress> liveEndpoints, int requiredParticipants)
     throws WriteTimeoutException
     {
-        UUID ballot = UUIDGen.getTimeUUID();
+        long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getCasContentionTimeout());
 
-        // prepare
-        Tracing.trace("Preparing {}", ballot);
-        Commit toPrepare = Commit.newPrepare(key, metadata, ballot);
-        PrepareCallback summary = preparePaxos(toPrepare, liveEndpoints, requiredParticipants);
-        if (!summary.promised)
+        PrepareCallback summary = null;
+        while (start - System.nanoTime() < timeout)
         {
-            Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
-            // sleep a random amount to give the other proposer a chance to finish
-            Uninterruptibles.sleepUninterruptibly(FBUtilities.threadLocalRandom().nextInt(100), TimeUnit.MILLISECONDS);
-            return null;
-        }
+            long ballotMillis = summary == null
+                              ? System.currentTimeMillis()
+                              : Math.max(System.currentTimeMillis(), 1 + UUIDGen.unixTimestamp(summary.inProgressCommit.ballot));
+            UUID ballot = UUIDGen.getTimeUUID(ballotMillis);
 
-        Commit inProgress = summary.inProgressCommit;
-        Commit mostRecent = summary.mostRecentCommit;
-
-        // If we have an in-progress ballot greater than the MRC we know, then it's an in-progress round that
-        // needs to be completed, so do it.
-        if (!inProgress.update.isEmpty() && inProgress.isAfter(mostRecent))
-        {
-            Tracing.trace("Finishing incomplete paxos round {}", inProgress);
-            if (proposePaxos(inProgress, liveEndpoints, requiredParticipants))
+            // prepare
+            Tracing.trace("Preparing {}", ballot);
+            Commit toPrepare = Commit.newPrepare(key, metadata, ballot);
+            summary = preparePaxos(toPrepare, liveEndpoints, requiredParticipants);
+            if (!summary.promised)
             {
-                try
-                {
-                    commitPaxos(inProgress, ConsistencyLevel.QUORUM);
-                }
-                catch (WriteTimeoutException e)
-                {
-                    // let caller retry or turn it into a cas timeout, since it's someone elses' write we're applying
-                    return null;
-                }
+                Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
+                // sleep a random amount to give the other proposer a chance to finish
+                Uninterruptibles.sleepUninterruptibly(FBUtilities.threadLocalRandom().nextInt(100), TimeUnit.MILLISECONDS);
+                continue;
             }
-            return null;
+
+            Commit inProgress = summary.inProgressCommit;
+            Commit mostRecent = summary.mostRecentCommit;
+
+            // If we have an in-progress ballot greater than the MRC we know, then it's an in-progress round that
+            // needs to be completed, so do it.
+            if (!inProgress.update.isEmpty() && inProgress.isAfter(mostRecent))
+            {
+                Tracing.trace("Finishing incomplete paxos round {}", inProgress);
+                if (proposePaxos(inProgress, liveEndpoints, requiredParticipants))
+                    commitPaxos(inProgress, ConsistencyLevel.QUORUM);
+                continue;
+            }
+
+            // To be able to propose our value on a new round, we need a quorum of replica to have learn the previous one. Why is explained at:
+            // https://issues.apache.org/jira/browse/CASSANDRA-5062?focusedCommentId=13619810&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13619810)
+            // Since we waited for quorum nodes, if some of them haven't seen the last commit (which may just be a timing issue, but may also
+            // mean we lost messages), we pro-actively "repair" those nodes, and retry.
+            Iterable<InetAddress> missingMRC = summary.replicasMissingMostRecentCommit();
+            if (Iterables.size(missingMRC) > 0)
+            {
+                Tracing.trace("Repairing replicas that missed the most recent commit");
+                sendCommit(mostRecent, missingMRC);
+                // TODO: provided commits don't invalid the prepare we just did above (which they don't), we could just wait
+                // for all the missingMRC to acknowledge this commit and then move on with proposing our value. But that means
+                // adding the ability to have commitPaxos block, which is exactly CASSANDRA-5442 will do. So once we have that
+                // latter ticket, we can pass CL.ALL to the commit above and remove the 'continue'.
+                continue;
+            }
+
+            return ballot;
         }
 
-        // To be able to propose our value on a new round, we need a quorum of replica to have learn the previous one. Why is explained at:
-        // https://issues.apache.org/jira/browse/CASSANDRA-5062?focusedCommentId=13619810&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13619810)
-        // Since we waited for quorum nodes, if some of them haven't seen the last commit (which may just be a timing issue, but may also
-        // mean we lost messages), we pro-actively "repair" those nodes, and retry.
-        Iterable<InetAddress> missingMRC = summary.replicasMissingMostRecentCommit();
-        if (Iterables.size(missingMRC) > 0)
-        {
-            Tracing.trace("Repairing replicas that missed the most recent commit");
-            sendCommit(mostRecent, missingMRC);
-            // TODO: provided commits don't invalid the prepare we just did above (which they don't), we could just wait
-            // for all the missingMRC to acknowledge this commit and then move on with proposing our value. But that means
-            // adding the ability to have commitPaxos block, which is exactly CASSANDRA-5442 will do. So once we have that
-            // latter ticket, we can pass CL.ALL to the commit above and remove the 'continue'.
-            return null;
-        }
-
-        return ballot;
+        throw new WriteTimeoutException(WriteType.CAS, ConsistencyLevel.SERIAL, -1, -1);
     }
 
     /**
@@ -1069,7 +1066,7 @@ public class StorageProxy implements StorageProxyMBean
      * a specific set of column names from a given column family.
      */
     public static List<Row> read(List<ReadCommand> commands, ConsistencyLevel consistency_level)
-    throws UnavailableException, IsBootstrappingException, ReadTimeoutException, InvalidRequestException, WriteTimeoutException
+    throws UnavailableException, IsBootstrappingException, ReadTimeoutException, InvalidRequestException
     {
         if (StorageService.instance.isBootstrapMode() && !systemKeyspaceQuery(commands))
         {
@@ -1087,22 +1084,21 @@ public class StorageProxy implements StorageProxyMBean
                 // make sure any in-progress paxos writes are done (i.e., committed to a majority of replicas), before performing a quorum read
                 if (commands.size() > 1)
                     throw new InvalidRequestException("SERIAL consistency may only be requested for one row at a time");
-
                 ReadCommand command = commands.get(0);
+
                 CFMetaData metadata = Schema.instance.getCFMetaData(command.ksName, command.cfName);
+                Pair<List<InetAddress>, Integer> p = getPaxosParticipants(command.ksName, command.key);
+                List<InetAddress> liveEndpoints = p.left;
+                int requiredParticipants = p.right;
 
-                long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getCasContentionTimeout());
-                while (true)
+                // does the work of applying in-progress writes; throws UAE or timeout if it can't
+                try
                 {
-                    Pair<List<InetAddress>, Integer> p = getPaxosParticipants(command.ksName, command.key);
-                    List<InetAddress> liveEndpoints = p.left;
-                    int requiredParticipants = p.right;
-
-                    if (beginAndRepairPaxos(command.key, metadata, liveEndpoints, requiredParticipants) != null)
-                        break;
-
-                    if (System.nanoTime() - start >= timeout)
-                        throw new WriteTimeoutException(WriteType.CAS, ConsistencyLevel.SERIAL, -1, -1);
+                    beginAndRepairPaxos(start, command.key, metadata, liveEndpoints, requiredParticipants);
+                }
+                catch (WriteTimeoutException e)
+                {
+                    throw new ReadTimeoutException(ConsistencyLevel.SERIAL, -1, -1, false);
                 }
 
                 rows = fetchRows(commands, ConsistencyLevel.QUORUM);

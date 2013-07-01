@@ -70,6 +70,16 @@ public class UUIDGen
         return new UUID(instance.createTimeSafe(), clockSeqAndNode);
     }
 
+    /**
+     * Creates a type 1 UUID (time-based UUID) with the timestamp of @param when, in milliseconds.
+     *
+     * @return a UUID instance
+     */
+    public static UUID getTimeUUID(long when)
+    {
+        return new UUID(createTime(fromUnixTimestamp(when)), clockSeqAndNode);
+    }
+
     /** creates a type 1 uuid from raw bytes. */
     public static UUID getUUID(ByteBuffer raw)
     {
@@ -246,6 +256,7 @@ public class UUIDGen
         return createTime(nanosSince);
     }
 
+    /** @param when time in milliseconds */
     private long createTimeUnsafe(long when)
     {
         return createTimeUnsafe(when, 0);

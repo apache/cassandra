@@ -116,7 +116,7 @@ public class PaxosState
         synchronized (lockFor(proposal.key))
         {
             PaxosState state = SystemKeyspace.loadPaxosState(proposal.key, proposal.update.metadata());
-            SystemKeyspace.savePaxosCommit(proposal, !state.inProgressCommit.isAfter(proposal));
+            SystemKeyspace.savePaxosCommit(proposal, state.inProgressCommit.ballot);
         }
     }
 }
