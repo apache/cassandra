@@ -71,8 +71,7 @@ public class ColumnIndex
 
         public Builder(ColumnFamily cf,
                        ByteBuffer key,
-                       DataOutput output,
-                       boolean fromStream)
+                       DataOutput output)
         {
             assert cf != null;
             assert key != null;
@@ -83,14 +82,7 @@ public class ColumnIndex
             this.indexOffset = rowHeaderSize(key, deletionInfo);
             this.result = new ColumnIndex(new ArrayList<IndexHelper.IndexInfo>());
             this.output = output;
-            this.tombstoneTracker = fromStream ? null : new RangeTombstone.Tracker(cf.getComparator());
-        }
-
-        public Builder(ColumnFamily cf,
-                       ByteBuffer key,
-                       DataOutput output)
-        {
-            this(cf, key, output, false);
+            this.tombstoneTracker = new RangeTombstone.Tracker(cf.getComparator());
         }
 
         /**
@@ -113,7 +105,7 @@ public class ColumnIndex
 
         public int writtenAtomCount()
         {
-            return tombstoneTracker == null ? atomCount : atomCount + tombstoneTracker.writtenAtom();
+            return atomCount + tombstoneTracker.writtenAtom();
         }
 
         /**
@@ -173,8 +165,7 @@ public class ColumnIndex
                 firstColumn = column;
                 startPosition = endPosition;
                 // TODO: have that use the firstColumn as min + make sure we optimize that on read
-                if (tombstoneTracker != null)
-                    endPosition += tombstoneTracker.writeOpenedMarker(firstColumn, output, atomSerializer);
+                endPosition += tombstoneTracker.writeOpenedMarker(firstColumn, output, atomSerializer);
                 blockSize = 0; // We don't count repeated tombstone marker in the block size, to avoid a situation
                                // where we wouldn't make any progress because a block is filled by said marker
             }
@@ -196,8 +187,7 @@ public class ColumnIndex
             atomSerializer.serializeForSSTable(column, output);
 
             // TODO: Should deal with removing unneeded tombstones
-            if (tombstoneTracker != null)
-                tombstoneTracker.update(column);
+            tombstoneTracker.update(column);
 
             lastColumn = column;
         }

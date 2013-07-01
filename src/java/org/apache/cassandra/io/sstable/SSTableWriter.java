@@ -221,7 +221,7 @@ public class SSTableWriter extends SSTable
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(metadata);
         cf.delete(deletionInfo);
 
-        ColumnIndex.Builder columnIndexer = new ColumnIndex.Builder(cf, key.key, dataFile.stream, true);
+        ColumnIndex.Builder columnIndexer = new ColumnIndex.Builder(cf, key.key, dataFile.stream);
         OnDiskAtom.Serializer atomSerializer = Column.onDiskSerializer();
         try
         {
