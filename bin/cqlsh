@@ -566,7 +566,7 @@ class Shell(cmd.Cmd):
             'cql': result['cql_version'],
         }
         self.connection_versions = vers
-        self.cass_ver_tuple = tuple(map(int, vers['build'].split('-', 1)[0].split('.', 2)))
+        self.cass_ver_tuple = tuple(map(int, vers['build'].split('-', 1)[0].split('.')[:3]))
 
     def fetchdict(self):
         row = self.cursor.fetchone()
