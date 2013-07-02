@@ -635,7 +635,7 @@ class Shell(cmd.Cmd):
                 'cql': result['cql_version'],
             }
         self.connection_versions = vers
-        self.cass_ver_tuple = tuple(map(int, vers['build'].split('-', 1)[0].split('.', 2)))
+        self.cass_ver_tuple = tuple(map(int, vers['build'].split('-', 1)[0].split('.')[:3]))
 
     def get_connection_versions_fallback(self):
         if self.cqlver_atleast(3):
