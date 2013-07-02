@@ -62,7 +62,7 @@ public class CqlStorage extends AbstractCassandraStorage
         this(1000);
     }
 
-    /** @param limit number of CQL rows to fetch in a thrift request */
+    /** @param pageSize limit number of CQL rows to fetch in a thrift request */
     public CqlStorage(int pageSize)
     {
         super();
