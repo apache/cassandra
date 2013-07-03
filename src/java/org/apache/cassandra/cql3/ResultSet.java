@@ -218,7 +218,7 @@ public class ResultSet
     {
         public static final CBCodec<Metadata> codec = new Codec();
 
-        public static final Metadata empty = new Metadata(EnumSet.of(Flag.NO_METADATA), 0);
+        public static final Metadata EMPTY = new Metadata(EnumSet.of(Flag.NO_METADATA), 0);
 
         public final EnumSet<Flag> flags;
         public final List<ColumnSpecification> names;
@@ -345,7 +345,7 @@ public class ResultSet
 
                 ChannelBuffer header = ChannelBuffers.buffer(8);
 
-                assert version > 1 || (!m.flags.contains(Flag.HAS_MORE_PAGES) && !noMetadata);
+                assert version > 1 || (!m.flags.contains(Flag.HAS_MORE_PAGES) && !noMetadata): "version = " + version + ", flags = " + m.flags;
 
                 header.writeInt(Flag.serialize(m.flags));
                 header.writeInt(m.columnCount);

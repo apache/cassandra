@@ -244,7 +244,10 @@ public abstract class ResultMessage extends Message.Response
             {
                 MD5Digest id = MD5Digest.wrap(CBUtil.readBytes(body));
                 ResultSet.Metadata metadata = ResultSet.Metadata.codec.decode(body, version);
-                ResultSet.Metadata resultMetadata = ResultSet.Metadata.codec.decode(body, version);
+
+                ResultSet.Metadata resultMetadata = ResultSet.Metadata.EMPTY;
+                if (version > 1)
+                    resultMetadata = ResultSet.Metadata.codec.decode(body, version);
 
                 return new Prepared(id, -1, metadata, resultMetadata);
             }
@@ -258,7 +261,7 @@ public abstract class ResultMessage extends Message.Response
 
                 return ChannelBuffers.wrappedBuffer(CBUtil.bytesToCB(prepared.statementId.bytes),
                                                     ResultSet.Metadata.codec.encode(prepared.metadata, version),
-                                                    ResultSet.Metadata.codec.encode(prepared.resultMetadata, version));
+                                                    version > 1 ? ResultSet.Metadata.codec.encode(prepared.resultMetadata, version) : ChannelBuffers.EMPTY_BUFFER);
             }
         };
 
@@ -276,7 +279,7 @@ public abstract class ResultMessage extends Message.Response
 
         public static Prepared forThrift(int statementId, List<ColumnSpecification> names)
         {
-            return new Prepared(null, statementId, new ResultSet.Metadata(names), ResultSet.Metadata.empty);
+            return new Prepared(null, statementId, new ResultSet.Metadata(names), ResultSet.Metadata.EMPTY);
         }
 
         private Prepared(MD5Digest statementId, int thriftStatementId, ResultSet.Metadata metadata, ResultSet.Metadata resultMetadata)
@@ -291,7 +294,7 @@ public abstract class ResultMessage extends Message.Response
         private static ResultSet.Metadata extractResultMetadata(CQLStatement statement)
         {
             if (!(statement instanceof SelectStatement))
-                return ResultSet.Metadata.empty;
+                return ResultSet.Metadata.EMPTY;
 
             return ((SelectStatement)statement).getResultMetadata();
         }
