@@ -314,8 +314,12 @@ public class CustomTHsHaServer extends TNonblockingServer
         {
             FrameBuffer buffer = (FrameBuffer) key.attachment();
             if (buffer != null)
+            {
                 buffer.close();
-            // cancel the selection key
+                TNonblockingSocket socket = (TNonblockingSocket) buffer.trans_;
+                if (socket != null)
+                    ThriftSessionManager.instance.connectionComplete(socket.getSocketChannel().socket().getRemoteSocketAddress());
+            }
             key.cancel();
         }
 
