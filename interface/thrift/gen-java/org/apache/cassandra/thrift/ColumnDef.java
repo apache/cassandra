@@ -767,15 +767,15 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
           case 5: // INDEX_OPTIONS
             if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
               {
-                org.apache.thrift.protocol.TMap _map82 = iprot.readMapBegin();
-                struct.index_options = new HashMap<String,String>(2*_map82.size);
-                for (int _i83 = 0; _i83 < _map82.size; ++_i83)
+                org.apache.thrift.protocol.TMap _map90 = iprot.readMapBegin();
+                struct.index_options = new HashMap<String,String>(2*_map90.size);
+                for (int _i91 = 0; _i91 < _map90.size; ++_i91)
                 {
-                  String _key84; // required
-                  String _val85; // required
-                  _key84 = iprot.readString();
-                  _val85 = iprot.readString();
-                  struct.index_options.put(_key84, _val85);
+                  String _key92; // required
+                  String _val93; // required
+                  _key92 = iprot.readString();
+                  _val93 = iprot.readString();
+                  struct.index_options.put(_key92, _val93);
                 }
                 iprot.readMapEnd();
               }
@@ -828,10 +828,10 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
           oprot.writeFieldBegin(INDEX_OPTIONS_FIELD_DESC);
           {
             oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, struct.index_options.size()));
-            for (Map.Entry<String, String> _iter86 : struct.index_options.entrySet())
+            for (Map.Entry<String, String> _iter94 : struct.index_options.entrySet())
             {
-              oprot.writeString(_iter86.getKey());
-              oprot.writeString(_iter86.getValue());
+              oprot.writeString(_iter94.getKey());
+              oprot.writeString(_iter94.getValue());
             }
             oprot.writeMapEnd();
           }
@@ -877,10 +877,10 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
       if (struct.isSetIndex_options()) {
         {
           oprot.writeI32(struct.index_options.size());
-          for (Map.Entry<String, String> _iter87 : struct.index_options.entrySet())
+          for (Map.Entry<String, String> _iter95 : struct.index_options.entrySet())
           {
-            oprot.writeString(_iter87.getKey());
-            oprot.writeString(_iter87.getValue());
+            oprot.writeString(_iter95.getKey());
+            oprot.writeString(_iter95.getValue());
           }
         }
       }
@@ -904,15 +904,15 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
       }
       if (incoming.get(2)) {
         {
-          org.apache.thrift.protocol.TMap _map88 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, iprot.readI32());
-          struct.index_options = new HashMap<String,String>(2*_map88.size);
-          for (int _i89 = 0; _i89 < _map88.size; ++_i89)
+          org.apache.thrift.protocol.TMap _map96 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, iprot.readI32());
+          struct.index_options = new HashMap<String,String>(2*_map96.size);
+          for (int _i97 = 0; _i97 < _map96.size; ++_i97)
           {
-            String _key90; // required
-            String _val91; // required
-            _key90 = iprot.readString();
-            _val91 = iprot.readString();
-            struct.index_options.put(_key90, _val91);
+            String _key98; // required
+            String _val99; // required
+            _key98 = iprot.readString();
+            _val99 = iprot.readString();
+            struct.index_options.put(_key98, _val99);
           }
         }
         struct.setIndex_optionsIsSet(true);

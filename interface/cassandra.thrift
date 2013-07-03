@@ -387,6 +387,11 @@ struct EndpointDetails {
     3: optional string rack
 }
 
+struct CASResult {
+    1: required bool success,
+    2: optional list<Column> current_values,
+}
+
 /**
     A TokenRange describes part of the Cassandra ring, it is a mapping from a range to
     endpoints responsible for that range.
@@ -645,16 +650,17 @@ service Cassandra {
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
-   * Atomic compare and set
+   * Atomic compare and set.
    *
-   * The returned list of columns will be null if the cas succeed. Otherwise, it will contain the current
-   * values for the columns in {@param expected}.
+   * If the cas is successfull, the success boolean in CASResult will be true and there will be no current_values.
+   * Otherwise, success will be false and current_values will contain the current values for the columns in
+   * expected (that, by definition of compare-and-set, will differ from the values in expected).
    */
-  list<Column> cas(1:required binary key,
-                   2:required string column_family,
-                   3:list<Column> expected,
-                   4:list<Column> updates,
-                   5:required ConsistencyLevel consistency_level=ConsistencyLevel.QUORUM)
+  CASResult cas(1:required binary key,
+                2:required string column_family,
+                3:list<Column> expected,
+                4:list<Column> updates,
+                5:required ConsistencyLevel consistency_level=ConsistencyLevel.QUORUM)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**

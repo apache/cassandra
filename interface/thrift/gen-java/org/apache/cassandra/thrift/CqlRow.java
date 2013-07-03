@@ -478,14 +478,14 @@ public class CqlRow implements org.apache.thrift.TBase<CqlRow, CqlRow._Fields>, 
           case 2: // COLUMNS
             if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list158 = iprot.readListBegin();
-                struct.columns = new ArrayList<Column>(_list158.size);
-                for (int _i159 = 0; _i159 < _list158.size; ++_i159)
+                org.apache.thrift.protocol.TList _list166 = iprot.readListBegin();
+                struct.columns = new ArrayList<Column>(_list166.size);
+                for (int _i167 = 0; _i167 < _list166.size; ++_i167)
                 {
-                  Column _elem160; // required
-                  _elem160 = new Column();
-                  _elem160.read(iprot);
-                  struct.columns.add(_elem160);
+                  Column _elem168; // required
+                  _elem168 = new Column();
+                  _elem168.read(iprot);
+                  struct.columns.add(_elem168);
                 }
                 iprot.readListEnd();
               }
@@ -518,9 +518,9 @@ public class CqlRow implements org.apache.thrift.TBase<CqlRow, CqlRow._Fields>, 
         oprot.writeFieldBegin(COLUMNS_FIELD_DESC);
         {
           oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, struct.columns.size()));
-          for (Column _iter161 : struct.columns)
+          for (Column _iter169 : struct.columns)
           {
-            _iter161.write(oprot);
+            _iter169.write(oprot);
           }
           oprot.writeListEnd();
         }
@@ -546,9 +546,9 @@ public class CqlRow implements org.apache.thrift.TBase<CqlRow, CqlRow._Fields>, 
       oprot.writeBinary(struct.key);
       {
         oprot.writeI32(struct.columns.size());
-        for (Column _iter162 : struct.columns)
+        for (Column _iter170 : struct.columns)
         {
-          _iter162.write(oprot);
+          _iter170.write(oprot);
         }
       }
     }
@@ -559,14 +559,14 @@ public class CqlRow implements org.apache.thrift.TBase<CqlRow, CqlRow._Fields>, 
       struct.key = iprot.readBinary();
       struct.setKeyIsSet(true);
       {
-        org.apache.thrift.protocol.TList _list163 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
-        struct.columns = new ArrayList<Column>(_list163.size);
-        for (int _i164 = 0; _i164 < _list163.size; ++_i164)
+        org.apache.thrift.protocol.TList _list171 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
+        struct.columns = new ArrayList<Column>(_list171.size);
+        for (int _i172 = 0; _i172 < _list171.size; ++_i172)
         {
-          Column _elem165; // required
-          _elem165 = new Column();
-          _elem165.read(iprot);
-          struct.columns.add(_elem165);
+          Column _elem173; // required
+          _elem173 = new Column();
+          _elem173.read(iprot);
+          struct.columns.add(_elem173);
         }
       }
       struct.setColumnsIsSet(true);

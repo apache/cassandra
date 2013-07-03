@@ -227,7 +227,7 @@ public class StorageProxy implements StorageProxyMBean
             Tracing.trace("Reading existing values for CAS precondition");
             long timestamp = System.currentTimeMillis();
             ReadCommand readCommand;
-            if (expected == null)
+            if (expected == null || expected.isEmpty())
             {
                 SliceQueryFilter filter = prefix == null
                                         ? new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1)
@@ -236,6 +236,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             else
             {
+                assert !expected.isEmpty();
                 readCommand = new SliceByNamesReadCommand(keyspaceName, key, cfName, timestamp, new NamesQueryFilter(ImmutableSortedSet.copyOf(expected.getColumnNames())));
             }
             List<Row> rows = read(Arrays.asList(readCommand), ConsistencyLevel.QUORUM);
@@ -243,7 +244,8 @@ public class StorageProxy implements StorageProxyMBean
             if (!casApplies(expected, current))
             {
                 Tracing.trace("CAS precondition {} does not match current values {}", expected, current);
-                return current;
+                // We should not return null as this means success
+                return current == null ? EmptyColumns.factory.create(metadata) : current;
             }
 
             // finish the paxos round w/ the desired updates

@@ -469,6 +469,8 @@ public abstract class ModificationStatement implements CQLStatement
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfm);
         for (Operation condition : columnConditions)
             condition.execute(key, cf, clusteringPrefix.copy(), params);
+
+        assert !cf.isEmpty();
         return cf;
     }
 

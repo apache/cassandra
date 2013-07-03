@@ -235,15 +235,19 @@ class TestMutations(ThriftTester):
         def cas(expected, updates):
             return client.cas('key1', 'Standard1', expected, updates, ConsistencyLevel.ONE)
 
-        assert not cas(_SIMPLE_COLUMNS, _SIMPLE_COLUMNS)
+        cas_result = cas(_SIMPLE_COLUMNS, _SIMPLE_COLUMNS)
+        assert not cas_result.success
+        assert len(cas_result.current_values) == 0, cas_result
 
-        assert cas(None, _SIMPLE_COLUMNS)
+        assert cas([], _SIMPLE_COLUMNS).success
 
         result = [cosc.column for cosc in _big_slice('key1', ColumnParent('Standard1'))]
         # CAS will use its own timestamp, so we can't just compare result == _SIMPLE_COLUMNS
-        assert dict((c.name, c.value) for c in result) == dict((c.name, c.value) for c in _SIMPLE_COLUMNS), result
 
-        assert not cas(None, _SIMPLE_COLUMNS)
+        cas_result = cas([], _SIMPLE_COLUMNS)
+        assert not cas_result.success
+        # When we CAS for non-existence, current_values is the first live column of the row
+        assert dict((c.name, c.value) for c in cas_result.current_values) == { _SIMPLE_COLUMNS[0].name : _SIMPLE_COLUMNS[0].value }, cas_result
 
         # CL.SERIAL for reads
         assert client.get('key1', ColumnPath('Standard1', column='c1'), ConsistencyLevel.SERIAL).column.value == 'value1'

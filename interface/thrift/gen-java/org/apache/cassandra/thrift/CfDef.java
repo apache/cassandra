@@ -3597,14 +3597,14 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           case 13: // COLUMN_METADATA
             if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
               {
-                org.apache.thrift.protocol.TList _list92 = iprot.readListBegin();
-                struct.column_metadata = new ArrayList<ColumnDef>(_list92.size);
-                for (int _i93 = 0; _i93 < _list92.size; ++_i93)
+                org.apache.thrift.protocol.TList _list100 = iprot.readListBegin();
+                struct.column_metadata = new ArrayList<ColumnDef>(_list100.size);
+                for (int _i101 = 0; _i101 < _list100.size; ++_i101)
                 {
-                  ColumnDef _elem94; // required
-                  _elem94 = new ColumnDef();
-                  _elem94.read(iprot);
-                  struct.column_metadata.add(_elem94);
+                  ColumnDef _elem102; // required
+                  _elem102 = new ColumnDef();
+                  _elem102.read(iprot);
+                  struct.column_metadata.add(_elem102);
                 }
                 iprot.readListEnd();
               }
@@ -3688,15 +3688,15 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           case 30: // COMPACTION_STRATEGY_OPTIONS
             if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
               {
-                org.apache.thrift.protocol.TMap _map95 = iprot.readMapBegin();
-                struct.compaction_strategy_options = new HashMap<String,String>(2*_map95.size);
-                for (int _i96 = 0; _i96 < _map95.size; ++_i96)
+                org.apache.thrift.protocol.TMap _map103 = iprot.readMapBegin();
+                struct.compaction_strategy_options = new HashMap<String,String>(2*_map103.size);
+                for (int _i104 = 0; _i104 < _map103.size; ++_i104)
                 {
-                  String _key97; // required
-                  String _val98; // required
-                  _key97 = iprot.readString();
-                  _val98 = iprot.readString();
-                  struct.compaction_strategy_options.put(_key97, _val98);
+                  String _key105; // required
+                  String _val106; // required
+                  _key105 = iprot.readString();
+                  _val106 = iprot.readString();
+                  struct.compaction_strategy_options.put(_key105, _val106);
                 }
                 iprot.readMapEnd();
               }
@@ -3708,15 +3708,15 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           case 32: // COMPRESSION_OPTIONS
             if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
               {
-                org.apache.thrift.protocol.TMap _map99 = iprot.readMapBegin();
-                struct.compression_options = new HashMap<String,String>(2*_map99.size);
-                for (int _i100 = 0; _i100 < _map99.size; ++_i100)
+                org.apache.thrift.protocol.TMap _map107 = iprot.readMapBegin();
+                struct.compression_options = new HashMap<String,String>(2*_map107.size);
+                for (int _i108 = 0; _i108 < _map107.size; ++_i108)
                 {
-                  String _key101; // required
-                  String _val102; // required
-                  _key101 = iprot.readString();
-                  _val102 = iprot.readString();
-                  struct.compression_options.put(_key101, _val102);
+                  String _key109; // required
+                  String _val110; // required
+                  _key109 = iprot.readString();
+                  _val110 = iprot.readString();
+                  struct.compression_options.put(_key109, _val110);
                 }
                 iprot.readMapEnd();
               }
@@ -3792,27 +3792,27 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           case 43: // TRIGGERS
             if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
               {
-                org.apache.thrift.protocol.TMap _map103 = iprot.readMapBegin();
-                struct.triggers = new HashMap<String,Map<String,String>>(2*_map103.size);
-                for (int _i104 = 0; _i104 < _map103.size; ++_i104)
+                org.apache.thrift.protocol.TMap _map111 = iprot.readMapBegin();
+                struct.triggers = new HashMap<String,Map<String,String>>(2*_map111.size);
+                for (int _i112 = 0; _i112 < _map111.size; ++_i112)
                 {
-                  String _key105; // required
-                  Map<String,String> _val106; // required
-                  _key105 = iprot.readString();
+                  String _key113; // required
+                  Map<String,String> _val114; // required
+                  _key113 = iprot.readString();
                   {
-                    org.apache.thrift.protocol.TMap _map107 = iprot.readMapBegin();
-                    _val106 = new HashMap<String,String>(2*_map107.size);
-                    for (int _i108 = 0; _i108 < _map107.size; ++_i108)
+                    org.apache.thrift.protocol.TMap _map115 = iprot.readMapBegin();
+                    _val114 = new HashMap<String,String>(2*_map115.size);
+                    for (int _i116 = 0; _i116 < _map115.size; ++_i116)
                     {
-                      String _key109; // required
-                      String _val110; // required
-                      _key109 = iprot.readString();
-                      _val110 = iprot.readString();
-                      _val106.put(_key109, _val110);
+                      String _key117; // required
+                      String _val118; // required
+                      _key117 = iprot.readString();
+                      _val118 = iprot.readString();
+                      _val114.put(_key117, _val118);
                     }
                     iprot.readMapEnd();
                   }
-                  struct.triggers.put(_key105, _val106);
+                  struct.triggers.put(_key113, _val114);
                 }
                 iprot.readMapEnd();
               }
@@ -3974,9 +3974,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           oprot.writeFieldBegin(COLUMN_METADATA_FIELD_DESC);
           {
             oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, struct.column_metadata.size()));
-            for (ColumnDef _iter111 : struct.column_metadata)
+            for (ColumnDef _iter119 : struct.column_metadata)
             {
-              _iter111.write(oprot);
+              _iter119.write(oprot);
             }
             oprot.writeListEnd();
           }
@@ -4078,10 +4078,10 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           oprot.writeFieldBegin(COMPACTION_STRATEGY_OPTIONS_FIELD_DESC);
           {
             oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, struct.compaction_strategy_options.size()));
-            for (Map.Entry<String, String> _iter112 : struct.compaction_strategy_options.entrySet())
+            for (Map.Entry<String, String> _iter120 : struct.compaction_strategy_options.entrySet())
             {
-              oprot.writeString(_iter112.getKey());
-              oprot.writeString(_iter112.getValue());
+              oprot.writeString(_iter120.getKey());
+              oprot.writeString(_iter120.getValue());
             }
             oprot.writeMapEnd();
           }
@@ -4098,10 +4098,10 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           oprot.writeFieldBegin(COMPRESSION_OPTIONS_FIELD_DESC);
           {
             oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, struct.compression_options.size()));
-            for (Map.Entry<String, String> _iter113 : struct.compression_options.entrySet())
+            for (Map.Entry<String, String> _iter121 : struct.compression_options.entrySet())
             {
-              oprot.writeString(_iter113.getKey());
-              oprot.writeString(_iter113.getValue());
+              oprot.writeString(_iter121.getKey());
+              oprot.writeString(_iter121.getValue());
             }
             oprot.writeMapEnd();
           }
@@ -4157,15 +4157,15 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           oprot.writeFieldBegin(TRIGGERS_FIELD_DESC);
           {
             oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.MAP, struct.triggers.size()));
-            for (Map.Entry<String, Map<String,String>> _iter114 : struct.triggers.entrySet())
+            for (Map.Entry<String, Map<String,String>> _iter122 : struct.triggers.entrySet())
             {
-              oprot.writeString(_iter114.getKey());
+              oprot.writeString(_iter122.getKey());
               {
-                oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, _iter114.getValue().size()));
-                for (Map.Entry<String, String> _iter115 : _iter114.getValue().entrySet())
+                oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, _iter122.getValue().size()));
+                for (Map.Entry<String, String> _iter123 : _iter122.getValue().entrySet())
                 {
-                  oprot.writeString(_iter115.getKey());
-                  oprot.writeString(_iter115.getValue());
+                  oprot.writeString(_iter123.getKey());
+                  oprot.writeString(_iter123.getValue());
                 }
                 oprot.writeMapEnd();
               }
@@ -4322,9 +4322,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (struct.isSetColumn_metadata()) {
         {
           oprot.writeI32(struct.column_metadata.size());
-          for (ColumnDef _iter116 : struct.column_metadata)
+          for (ColumnDef _iter124 : struct.column_metadata)
           {
-            _iter116.write(oprot);
+            _iter124.write(oprot);
           }
         }
       }
@@ -4358,20 +4358,20 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (struct.isSetCompaction_strategy_options()) {
         {
           oprot.writeI32(struct.compaction_strategy_options.size());
-          for (Map.Entry<String, String> _iter117 : struct.compaction_strategy_options.entrySet())
+          for (Map.Entry<String, String> _iter125 : struct.compaction_strategy_options.entrySet())
           {
-            oprot.writeString(_iter117.getKey());
-            oprot.writeString(_iter117.getValue());
+            oprot.writeString(_iter125.getKey());
+            oprot.writeString(_iter125.getValue());
           }
         }
       }
       if (struct.isSetCompression_options()) {
         {
           oprot.writeI32(struct.compression_options.size());
-          for (Map.Entry<String, String> _iter118 : struct.compression_options.entrySet())
+          for (Map.Entry<String, String> _iter126 : struct.compression_options.entrySet())
           {
-            oprot.writeString(_iter118.getKey());
-            oprot.writeString(_iter118.getValue());
+            oprot.writeString(_iter126.getKey());
+            oprot.writeString(_iter126.getValue());
           }
         }
       }
@@ -4402,15 +4402,15 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (struct.isSetTriggers()) {
         {
           oprot.writeI32(struct.triggers.size());
-          for (Map.Entry<String, Map<String,String>> _iter119 : struct.triggers.entrySet())
+          for (Map.Entry<String, Map<String,String>> _iter127 : struct.triggers.entrySet())
           {
-            oprot.writeString(_iter119.getKey());
+            oprot.writeString(_iter127.getKey());
             {
-              oprot.writeI32(_iter119.getValue().size());
-              for (Map.Entry<String, String> _iter120 : _iter119.getValue().entrySet())
+              oprot.writeI32(_iter127.getValue().size());
+              for (Map.Entry<String, String> _iter128 : _iter127.getValue().entrySet())
               {
-                oprot.writeString(_iter120.getKey());
-                oprot.writeString(_iter120.getValue());
+                oprot.writeString(_iter128.getKey());
+                oprot.writeString(_iter128.getValue());
               }
             }
           }
@@ -4478,14 +4478,14 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       if (incoming.get(5)) {
         {
-          org.apache.thrift.protocol.TList _list121 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
-          struct.column_metadata = new ArrayList<ColumnDef>(_list121.size);
-          for (int _i122 = 0; _i122 < _list121.size; ++_i122)
+          org.apache.thrift.protocol.TList _list129 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
+          struct.column_metadata = new ArrayList<ColumnDef>(_list129.size);
+          for (int _i130 = 0; _i130 < _list129.size; ++_i130)
           {
-            ColumnDef _elem123; // required
-            _elem123 = new ColumnDef();
-            _elem123.read(iprot);
-            struct.column_metadata.add(_elem123);
+            ColumnDef _elem131; // required
+            _elem131 = new ColumnDef();
+            _elem131.read(iprot);
+            struct.column_metadata.add(_elem131);
           }
         }
         struct.setColumn_metadataIsSet(true);
@@ -4528,30 +4528,30 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       if (incoming.get(15)) {
         {
-          org.apache.thrift.protocol.TMap _map124 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, iprot.readI32());
-          struct.compaction_strategy_options = new HashMap<String,String>(2*_map124.size);
-          for (int _i125 = 0; _i125 < _map124.size; ++_i125)
+          org.apache.thrift.protocol.TMap _map132 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, iprot.readI32());
+          struct.compaction_strategy_options = new HashMap<String,String>(2*_map132.size);
+          for (int _i133 = 0; _i133 < _map132.size; ++_i133)
           {
-            String _key126; // required
-            String _val127; // required
-            _key126 = iprot.readString();
-            _val127 = iprot.readString();
-            struct.compaction_strategy_options.put(_key126, _val127);
+            String _key134; // required
+            String _val135; // required
+            _key134 = iprot.readString();
+            _val135 = iprot.readString();
+            struct.compaction_strategy_options.put(_key134, _val135);
           }
         }
         struct.setCompaction_strategy_optionsIsSet(true);
       }
       if (incoming.get(16)) {
         {
-          org.apache.thrift.protocol.TMap _map128 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, iprot.readI32());
-          struct.compression_options = new HashMap<String,String>(2*_map128.size);
-          for (int _i129 = 0; _i129 < _map128.size; ++_i129)
+          org.apache.thrift.protocol.TMap _map136 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, iprot.readI32());
+          struct.compression_options = new HashMap<String,String>(2*_map136.size);
+          for (int _i137 = 0; _i137 < _map136.size; ++_i137)
           {
-            String _key130; // required
-            String _val131; // required
-            _key130 = iprot.readString();
-            _val131 = iprot.readString();
-            struct.compression_options.put(_key130, _val131);
+            String _key138; // required
+            String _val139; // required
+            _key138 = iprot.readString();
+            _val139 = iprot.readString();
+            struct.compression_options.put(_key138, _val139);
           }
         }
         struct.setCompression_optionsIsSet(true);
@@ -4590,26 +4590,26 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       if (incoming.get(25)) {
         {
-          org.apache.thrift.protocol.TMap _map132 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.MAP, iprot.readI32());
-          struct.triggers = new HashMap<String,Map<String,String>>(2*_map132.size);
-          for (int _i133 = 0; _i133 < _map132.size; ++_i133)
+          org.apache.thrift.protocol.TMap _map140 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.MAP, iprot.readI32());
+          struct.triggers = new HashMap<String,Map<String,String>>(2*_map140.size);
+          for (int _i141 = 0; _i141 < _map140.size; ++_i141)
           {
-            String _key134; // required
-            Map<String,String> _val135; // required
-            _key134 = iprot.readString();
+            String _key142; // required
+            Map<String,String> _val143; // required
+            _key142 = iprot.readString();
             {
-              org.apache.thrift.protocol.TMap _map136 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, iprot.readI32());
-              _val135 = new HashMap<String,String>(2*_map136.size);
-              for (int _i137 = 0; _i137 < _map136.size; ++_i137)
+              org.apache.thrift.protocol.TMap _map144 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, iprot.readI32());
+              _val143 = new HashMap<String,String>(2*_map144.size);
+              for (int _i145 = 0; _i145 < _map144.size; ++_i145)
               {
-                String _key138; // required
-                String _val139; // required
-                _key138 = iprot.readString();
-                _val139 = iprot.readString();
-                _val135.put(_key138, _val139);
+                String _key146; // required
+                String _val147; // required
+                _key146 = iprot.readString();
+                _val147 = iprot.readString();
+                _val143.put(_key146, _val147);
               }
             }
-            struct.triggers.put(_key134, _val135);
+            struct.triggers.put(_key142, _val143);
           }
         }
         struct.setTriggersIsSet(true);

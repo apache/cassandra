@@ -692,7 +692,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public List<Column> cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates, ConsistencyLevel consistency_level)
+    public CASResult cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (startSessionIfRequested())
@@ -736,7 +736,7 @@ public class CassandraServer implements Cassandra.Iface
                 cfUpdates.addColumn(column.name, column.value, column.timestamp);
 
             ColumnFamily cfExpected;
-            if (expected == null)
+            if (expected.isEmpty())
             {
                 cfExpected = null;
             }
@@ -750,8 +750,8 @@ public class CassandraServer implements Cassandra.Iface
             schedule(DatabaseDescriptor.getWriteRpcTimeout());
             ColumnFamily result = StorageProxy.cas(cState.getKeyspace(), column_family, key, null, cfExpected, cfUpdates, ThriftConversion.fromThrift(consistency_level));
             return result == null
-                 ? null
-                 : thriftifyColumnsAsColumns(result.getSortedColumns(), System.currentTimeMillis());
+                 ? new CASResult(true)
+                 : new CASResult(false).setCurrent_values(thriftifyColumnsAsColumns(result.getSortedColumns(), System.currentTimeMillis()));
         }
         catch (RequestTimeoutException e)
         {

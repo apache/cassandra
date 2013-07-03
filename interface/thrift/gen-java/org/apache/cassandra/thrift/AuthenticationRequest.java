@@ -379,15 +379,15 @@ public class AuthenticationRequest implements org.apache.thrift.TBase<Authentica
           case 1: // CREDENTIALS
             if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
               {
-                org.apache.thrift.protocol.TMap _map72 = iprot.readMapBegin();
-                struct.credentials = new HashMap<String,String>(2*_map72.size);
-                for (int _i73 = 0; _i73 < _map72.size; ++_i73)
+                org.apache.thrift.protocol.TMap _map80 = iprot.readMapBegin();
+                struct.credentials = new HashMap<String,String>(2*_map80.size);
+                for (int _i81 = 0; _i81 < _map80.size; ++_i81)
                 {
-                  String _key74; // required
-                  String _val75; // required
-                  _key74 = iprot.readString();
-                  _val75 = iprot.readString();
-                  struct.credentials.put(_key74, _val75);
+                  String _key82; // required
+                  String _val83; // required
+                  _key82 = iprot.readString();
+                  _val83 = iprot.readString();
+                  struct.credentials.put(_key82, _val83);
                 }
                 iprot.readMapEnd();
               }
@@ -415,10 +415,10 @@ public class AuthenticationRequest implements org.apache.thrift.TBase<Authentica
         oprot.writeFieldBegin(CREDENTIALS_FIELD_DESC);
         {
           oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, struct.credentials.size()));
-          for (Map.Entry<String, String> _iter76 : struct.credentials.entrySet())
+          for (Map.Entry<String, String> _iter84 : struct.credentials.entrySet())
           {
-            oprot.writeString(_iter76.getKey());
-            oprot.writeString(_iter76.getValue());
+            oprot.writeString(_iter84.getKey());
+            oprot.writeString(_iter84.getValue());
           }
           oprot.writeMapEnd();
         }
@@ -443,10 +443,10 @@ public class AuthenticationRequest implements org.apache.thrift.TBase<Authentica
       TTupleProtocol oprot = (TTupleProtocol) prot;
       {
         oprot.writeI32(struct.credentials.size());
-        for (Map.Entry<String, String> _iter77 : struct.credentials.entrySet())
+        for (Map.Entry<String, String> _iter85 : struct.credentials.entrySet())
         {
-          oprot.writeString(_iter77.getKey());
-          oprot.writeString(_iter77.getValue());
+          oprot.writeString(_iter85.getKey());
+          oprot.writeString(_iter85.getValue());
         }
       }
     }
@@ -455,15 +455,15 @@ public class AuthenticationRequest implements org.apache.thrift.TBase<Authentica
     public void read(org.apache.thrift.protocol.TProtocol prot, AuthenticationRequest struct) throws org.apache.thrift.TException {
       TTupleProtocol iprot = (TTupleProtocol) prot;
       {
-        org.apache.thrift.protocol.TMap _map78 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, iprot.readI32());
-        struct.credentials = new HashMap<String,String>(2*_map78.size);
-        for (int _i79 = 0; _i79 < _map78.size; ++_i79)
+        org.apache.thrift.protocol.TMap _map86 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.STRING, iprot.readI32());
+        struct.credentials = new HashMap<String,String>(2*_map86.size);
+        for (int _i87 = 0; _i87 < _map86.size; ++_i87)
         {
-          String _key80; // required
-          String _val81; // required
-          _key80 = iprot.readString();
-          _val81 = iprot.readString();
-          struct.credentials.put(_key80, _val81);
+          String _key88; // required
+          String _val89; // required
+          _key88 = iprot.readString();
+          _val89 = iprot.readString();
+          struct.credentials.put(_key88, _val89);
         }
       }
       struct.setCredentialsIsSet(true);
