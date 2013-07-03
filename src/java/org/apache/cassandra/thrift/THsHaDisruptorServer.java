@@ -22,6 +22,7 @@ import java.net.InetSocketAddress;
 
 import com.thinkaurelius.thrift.Message;
 import com.thinkaurelius.thrift.TDisruptorServer;
+import org.apache.thrift.transport.TNonblockingTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +53,12 @@ public class THsHaDisruptorServer extends TDisruptorServer
     {
         TNonblockingSocket socket = (TNonblockingSocket) buffer.transport;
         ThriftSessionManager.instance.setCurrentSocket(socket.getSocketChannel().socket().getRemoteSocketAddress());
+    }
+
+    public void beforeClose(Message buffer)
+    {
+        TNonblockingSocket socket = (TNonblockingSocket) buffer.transport;
+        ThriftSessionManager.instance.connectionComplete(socket.getSocketChannel().socket().getRemoteSocketAddress());
     }
 
     public static class Factory implements TServerFactory
