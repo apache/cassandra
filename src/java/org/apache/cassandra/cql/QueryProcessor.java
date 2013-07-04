@@ -270,7 +270,7 @@ public class QueryProcessor
     public static void validateKeyAlias(CFMetaData cfm, String key) throws InvalidRequestException
     {
         assert key.toUpperCase().equals(key); // should always be uppercased by caller
-        String realKeyAlias = cfm.getCQL2KeyName();
+        String realKeyAlias = cfm.getCQL2KeyName().toUpperCase();
         if (!realKeyAlias.equals(key))
             throw new InvalidRequestException(String.format("Expected key '%s' to be present in WHERE clause for '%s'", realKeyAlias, cfm.cfName));
     }
