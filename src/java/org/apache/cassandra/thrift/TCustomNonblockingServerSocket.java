@@ -49,8 +49,6 @@ public class TCustomNonblockingServerSocket extends TNonblockingServerSocket
         if (tsocket == null || tsocket.getSocketChannel() == null)
             return tsocket;
         Socket socket = tsocket.getSocketChannel().socket();
-        // Any existing connection we had from this remote socket must be done now, so reset it
-        ThriftSessionManager.instance.connectionComplete(socket.getRemoteSocketAddress());
         try
         {
             socket.setKeepAlive(this.keepAlive);

@@ -21,6 +21,9 @@ import java.net.SocketAddress;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Encapsulates the current client state (session).
  *
@@ -29,6 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ThriftSessionManager
 {
+    private static final Logger logger = LoggerFactory.getLogger(ThriftSessionManager.class);
     public final static ThriftSessionManager instance = new ThriftSessionManager();
 
     private final ThreadLocal<SocketAddress> remoteSocket = new ThreadLocal<SocketAddress>();
@@ -66,5 +70,7 @@ public class ThriftSessionManager
     {
         assert socket != null;
         activeSocketSessions.remove(socket);
+        if (logger.isTraceEnabled())
+            logger.trace("ClientState removed for socket addr {}", socket);
     }
 }
