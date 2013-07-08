@@ -71,7 +71,7 @@ if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
                    /usr/local/share/cassandra/cassandra.in.sh \
                    /opt/cassandra/cassandra.in.sh \
                    "$HOME/.cassandra.in.sh" \
-                   "`dirname $0`/cassandra.in.sh"; do
+                   "`dirname "$0"`/cassandra.in.sh"; do
         if [ -r "$include" ]; then
             . "$include"
             break
@@ -120,10 +120,10 @@ esac
 
 launch_service()
 {
-    pidpath=$1
-    foreground=$2
-    props=$3
-    class=$4
+    pidpath="$1"
+    foreground="$2"
+    props="$3"
+    class="$4"
     cassandra_parms="-Dlog4j.configuration=log4j-server.properties -Dlog4j.defaultInitOverride=true"
 
     if [ "x$pidpath" != "x" ]; then

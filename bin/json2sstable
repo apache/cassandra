@@ -21,29 +21,29 @@ if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
                    /usr/local/share/cassandra/cassandra.in.sh \
                    /opt/cassandra/cassandra.in.sh \
                    ~/.cassandra.in.sh \
-                   `dirname $0`/cassandra.in.sh; do
-        if [ -r $include ]; then
-            . $include
+                   "`dirname "$0"`/cassandra.in.sh"; do
+        if [ -r "$include" ]; then
+            . "$include"
             break
         fi
     done
-elif [ -r $CASSANDRA_INCLUDE ]; then
-    . $CASSANDRA_INCLUDE
+elif [ -r "$CASSANDRA_INCLUDE" ]; then
+    . "$CASSANDRA_INCLUDE"
 fi
 
 # Use JAVA_HOME if set, otherwise look for java in PATH
-if [ -x $JAVA_HOME/bin/java ]; then
-    JAVA=$JAVA_HOME/bin/java
+if [ -x "$JAVA_HOME/bin/java" ]; then
+    JAVA="$JAVA_HOME/bin/java"
 else
-    JAVA=`which java`
+    JAVA="`which java`"
 fi
 
-if [ -z $CLASSPATH ]; then
+if [ -z "$CLASSPATH" ]; then
     echo "You must set the CLASSPATH var" >&2
     exit 1
 fi
 
-$JAVA -cp $CLASSPATH  -Dstorage-config=$CASSANDRA_CONF \
+"$JAVA" -cp "$CLASSPATH" -Dstorage-config="$CASSANDRA_CONF" \
         -Dlog4j.configuration=log4j-tools.properties \
         org.apache.cassandra.tools.SSTableImport "$@"
 
