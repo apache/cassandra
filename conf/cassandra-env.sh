@@ -184,14 +184,9 @@ fi
 
 startswith() { [ "${1#$2}" != "$1" ]; }
 
-if [ "`uname`" = "Linux" ] ; then
-    # reduce the per-thread stack size to minimize the impact of Thrift
-    # thread-per-client.  (Best practice is for client connections to
-    # be pooled anyway.) Only do so on Linux where it is known to be
-    # supported.
-    # u34 and greater need 180k
-    JVM_OPTS="$JVM_OPTS -Xss180k"
-fi
+# Per-thread stack size.
+JVM_OPTS="$JVM_OPTS -Xss256k"
+
 echo "xss = $JVM_OPTS"
 
 # GC tuning options
