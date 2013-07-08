@@ -1,4 +1,5 @@
 1.2.7
+ * make starting native protocol server idempotent (CASSANDRA-5728)
  * Fix loading key cache when a saved entry is no longer valid (CASSANDRA-5706)
  * Fix serialization of the LEFT gossip value (CASSANDRA-5696)
  * Pig: support for cql3 tables (CASSANDRA-5234)
@@ -8,6 +9,7 @@
  * Fix skipping range tombstones with reverse queries (CASSANDRA-5712)
  * Expire entries out of ThriftSessionManager (CASSANRDA-5719)
  * Don't keep ancestor information in memory (CASSANDRA-5342)
+
 
 1.2.6
  * Fix tracing when operation completes before all responses arrive 
