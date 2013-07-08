@@ -240,7 +240,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         return sb.toString();
     }
 
-    public static void main(String[] args) throws Throwable
+    public static void main(String[] args)
     {
     }
 }
