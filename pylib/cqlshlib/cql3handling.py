@@ -18,7 +18,7 @@ import re
 from warnings import warn
 from .cqlhandling import CqlParsingRuleSet, Hint
 from cql.cqltypes import (cql_types, lookup_casstype, CompositeType, UTF8Type,
-                          ColumnToCollectionType, CounterColumnType)
+                          ColumnToCollectionType, CounterColumnType, DateType)
 from . import helptopics
 
 simple_cql_types = set(cql_types)
@@ -30,6 +30,10 @@ try:
     import json
 except ImportError:
     import simplejson as json
+
+# temporarily have this here until a newer cassandra-dbapi2 is bundled with C*
+class TimestampType(DateType):
+    pass
 
 class UnexpectedTableStructure(UserWarning):
     def __init__(self, msg):

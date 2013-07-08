@@ -72,7 +72,7 @@
  * Move resultset type information into prepare, not execute (CASSANDRA-5649)
  * Auto paging in binary protocol (CASSANDRA-4415, 5714)
  * Don't tie client side use of AbstractType to JDBC (CASSANDRA-4495)
- * Adds new TimestampType to replace DateType (CASSANDRA-5723)
+ * Adds new TimestampType to replace DateType (CASSANDRA-5723, CASSANDRA-5729)
 
 
 1.2.7
