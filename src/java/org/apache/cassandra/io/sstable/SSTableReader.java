@@ -112,7 +112,7 @@ public class SSTableReader extends SSTable
         for (SSTableReader sstable : sstables)
         {
             int indexKeyCount = sstable.getKeySampleSize();
-            count = count + (indexKeyCount + 1) * metadata.getIndexInterval();
+            count = count + (indexKeyCount + 1) * sstable.indexSummary.getIndexInterval();
             if (logger.isDebugEnabled())
                 logger.debug("index size for bloom filter calc for file  : " + sstable.getFilename() + "   : " + count);
         }
@@ -556,7 +556,7 @@ public class SSTableReader extends SSTable
      */
     public long estimatedKeys()
     {
-        return indexSummary.size() * metadata.getIndexInterval();
+        return indexSummary.size() * indexSummary.getIndexInterval();
     }
 
     /**
@@ -569,7 +569,7 @@ public class SSTableReader extends SSTable
         List<Pair<Integer, Integer>> sampleIndexes = getSampleIndexesForRanges(indexSummary, ranges);
         for (Pair<Integer, Integer> sampleIndexRange : sampleIndexes)
             sampleKeyCount += (sampleIndexRange.right - sampleIndexRange.left + 1);
-        return Math.max(1, sampleKeyCount * metadata.getIndexInterval());
+        return Math.max(1, sampleKeyCount * indexSummary.getIndexInterval());
     }
 
     /**
@@ -825,12 +825,12 @@ public class SSTableReader extends SSTable
         // of the next interval).
         int i = 0;
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition, INDEX_FILE_BUFFER_BYTES);
-        while (segments.hasNext() && i <= metadata.getIndexInterval())
+        while (segments.hasNext() && i <= indexSummary.getIndexInterval())
         {
             FileDataInput in = segments.next();
             try
             {
-                while (!in.isEOF() && i <= metadata.getIndexInterval())
+                while (!in.isEOF() && i <= indexSummary.getIndexInterval())
                 {
                     i++;
 
