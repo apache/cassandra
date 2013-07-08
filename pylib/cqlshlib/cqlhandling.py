@@ -189,13 +189,11 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
                 output[-1].extend(stmt)
             else:
                 output.append(stmt)
-            if len(stmt) > 1 \
-            and stmt[0][0] == 'identifier' and stmt[1][0] == 'identifier' \
-            and stmt[1][1].lower() == 'batch':
-                if stmt[0][1].lower() == 'begin':
-                    in_batch = True
-                elif stmt[0][1].lower() == 'apply':
+            if len(stmt) > 2:
+                if stmt[-3][0] == 'K_APPLY':
                     in_batch = False
+                elif stmt[0][0] == 'K_BEGIN':
+                    in_batch = True
         return output, in_batch
 
     def cql_complete_single(self, text, partial, init_bindings={}, ignore_case=True,
