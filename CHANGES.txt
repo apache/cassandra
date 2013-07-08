@@ -85,6 +85,7 @@
  * Fix skipping range tombstones with reverse queries (CASSANDRA-5712)
  * Expire entries out of ThriftSessionManager (CASSANRDA-5719)
  * Don't keep ancestor information in memory (CASSANDRA-5342)
+ * cqlsh: fix handling of semicolons inside BATCH queries (CASSANDRA-5697)
 
 
 1.2.6

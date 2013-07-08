@@ -815,8 +815,8 @@ syntax_rules += r'''
 <batchStatement> ::= "BEGIN" ( "UNLOGGED" | "COUNTER" )? "BATCH"
                         ( "USING" [batchopt]=<usingOption>
                                   ( "AND" [batchopt]=<usingOption> )* )?
-                        [batchstmt]=<batchStatementMember> ";"
-                            ( [batchstmt]=<batchStatementMember> ";" )*
+                        [batchstmt]=<batchStatementMember> ";"?
+                            ( [batchstmt]=<batchStatementMember> ";"? )*
                      "APPLY" "BATCH"
                    ;
 <batchStatementMember> ::= <insertStatement>
