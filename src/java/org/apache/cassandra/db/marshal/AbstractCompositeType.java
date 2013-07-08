@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.db.marshal;
 
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.BytesSerializer;
+import org.apache.cassandra.type.MarshalException;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -323,6 +327,12 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     public ByteBuffer decompose(ByteBuffer value)
     {
         return value;
+    }
+
+    @Override
+    public AbstractSerializer<ByteBuffer> asComposer()
+    {
+        return BytesSerializer.instance;
     }
 
     /**

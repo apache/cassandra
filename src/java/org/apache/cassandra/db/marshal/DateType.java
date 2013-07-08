@@ -17,15 +17,17 @@
  */
 package org.apache.cassandra.db.marshal;
 
-import static org.apache.cassandra.cql.jdbc.JdbcDate.iso8601Patterns;
+import static org.apache.cassandra.type.DateSerializer.iso8601Patterns;
 
 import java.nio.ByteBuffer;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-import org.apache.cassandra.cql.jdbc.JdbcDate;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.DateSerializer;
+import org.apache.cassandra.type.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.time.DateUtils;
 
@@ -40,12 +42,12 @@ public class DateType extends AbstractType<Date>
 
     public Date compose(ByteBuffer bytes)
     {
-        return JdbcDate.instance.compose(bytes);
+        return DateSerializer.instance.serialize(bytes);
     }
 
     public ByteBuffer decompose(Date value)
     {
-        return JdbcDate.instance.decompose(value);
+        return DateSerializer.instance.deserialize(value);
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
@@ -64,14 +66,7 @@ public class DateType extends AbstractType<Date>
 
     public String getString(ByteBuffer bytes)
     {
-        try
-        {
-            return JdbcDate.instance.getString(bytes);
-        }
-        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
-        {
-            throw new MarshalException(e.getMessage());
-        }
+        return DateSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -121,12 +116,16 @@ public class DateType extends AbstractType<Date>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        if (bytes.remaining() != 8 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 8 or 0 byte long for date (%d)", bytes.remaining()));
+        DateSerializer.instance.validate(bytes);
     }
 
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.TIMESTAMP;
+    }
+
+    public AbstractSerializer<Date> asComposer()
+    {
+        return DateSerializer.instance;
     }
 }

@@ -20,7 +20,9 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import org.apache.cassandra.cql.jdbc.JdbcLexicalUUID;
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.type.UUIDSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -28,16 +30,18 @@ public class LexicalUUIDType extends AbstractType<UUID>
 {
     public static final LexicalUUIDType instance = new LexicalUUIDType();
 
-    LexicalUUIDType() {} // singleton
+    LexicalUUIDType()
+    {
+    } // singleton
 
     public UUID compose(ByteBuffer bytes)
     {
-        return JdbcLexicalUUID.instance.compose(bytes);
+        return UUIDSerializer.instance.serialize(bytes);
     }
 
     public ByteBuffer decompose(UUID value)
     {
-        return JdbcLexicalUUID.instance.decompose(value);
+        return UUIDSerializer.instance.deserialize(value);
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
@@ -56,14 +60,7 @@ public class LexicalUUIDType extends AbstractType<UUID>
 
     public String getString(ByteBuffer bytes)
     {
-        try
-        {
-            return JdbcLexicalUUID.instance.getString(bytes);
-        }
-        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
-        {
-            throw new MarshalException(e.getMessage());
-        }
+        return UUIDSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -84,8 +81,12 @@ public class LexicalUUIDType extends AbstractType<UUID>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        if (bytes.remaining() != 16 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("LexicalUUID should be 16 or 0 bytes (%d)", bytes.remaining()));
-        // not sure what the version should be for this.
+        UUIDSerializer.instance.validate(bytes);
+    }
+
+    @Override
+    public AbstractSerializer<UUID> asComposer()
+    {
+        return UUIDSerializer.instance;
     }
 }

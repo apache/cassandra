@@ -19,8 +19,10 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.cql.jdbc.JdbcLong;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.LongSerializer;
+import org.apache.cassandra.type.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class LongType extends AbstractType<Long>
@@ -31,12 +33,12 @@ public class LongType extends AbstractType<Long>
 
     public Long compose(ByteBuffer bytes)
     {
-        return JdbcLong.instance.compose(bytes);
+        return LongSerializer.instance.serialize(bytes);
     }
 
     public ByteBuffer decompose(Long value)
     {
-        return JdbcLong.instance.decompose(value);
+        return LongSerializer.instance.deserialize(value);
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
@@ -60,14 +62,7 @@ public class LongType extends AbstractType<Long>
 
     public String getString(ByteBuffer bytes)
     {
-        try
-        {
-            return JdbcLong.instance.getString(bytes);
-        }
-        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
-        {
-            throw new MarshalException(e.getMessage());
-        }
+        return LongSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -92,12 +87,17 @@ public class LongType extends AbstractType<Long>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        if (bytes.remaining() != 8 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 8 or 0 byte long (%d)", bytes.remaining()));
+
     }
 
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.BIGINT;
+    }
+
+    @Override
+    public AbstractSerializer<Long> asComposer()
+    {
+        return LongSerializer.instance;
     }
 }

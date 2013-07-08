@@ -15,30 +15,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql.jdbc;
 
-import java.nio.ByteBuffer;
-import java.sql.Types;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+package org.apache.cassandra.type;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class JdbcDate extends AbstractJdbcType<Date>
+import java.nio.ByteBuffer;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+public class DateSerializer extends AbstractSerializer<Date>
 {
     public static final String[] iso8601Patterns = new String[] {
-        "yyyy-MM-dd HH:mm",
-        "yyyy-MM-dd HH:mm:ss",
-        "yyyy-MM-dd HH:mmZ",
-        "yyyy-MM-dd HH:mm:ssZ",
-        "yyyy-MM-dd'T'HH:mm",
-        "yyyy-MM-dd'T'HH:mmZ",
-        "yyyy-MM-dd'T'HH:mm:ss",
-        "yyyy-MM-dd'T'HH:mm:ssZ",
-        "yyyy-MM-dd",
-        "yyyy-MM-ddZ"
+            "yyyy-MM-dd HH:mm",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd HH:mmZ",
+            "yyyy-MM-dd HH:mm:ssZ",
+            "yyyy-MM-dd'T'HH:mm",
+            "yyyy-MM-dd'T'HH:mmZ",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd'T'HH:mm:ssZ",
+            "yyyy-MM-dd",
+            "yyyy-MM-ddZ"
     };
+
     static final String DEFAULT_FORMAT = iso8601Patterns[3];
+
     static final ThreadLocal<SimpleDateFormat> FORMATTER = new ThreadLocal<SimpleDateFormat>()
     {
         protected SimpleDateFormat initialValue()
@@ -47,45 +49,32 @@ public class JdbcDate extends AbstractJdbcType<Date>
         }
     };
 
-    public static final JdbcDate instance = new JdbcDate();
+    public static final DateSerializer instance = new DateSerializer();
 
-    JdbcDate() {}
-
-    public boolean isCaseSensitive()
+    @Override
+    public Date serialize(ByteBuffer bytes)
     {
-        return false;
+        return bytes.remaining() > 0
+                ? new Date(ByteBufferUtil.toLong(bytes))
+                : null;
     }
 
-    public int getScale(Date obj)
+    @Override
+    public ByteBuffer deserialize(Date value)
     {
-        return -1;
+        return (value == null)
+                ? ByteBufferUtil.EMPTY_BYTE_BUFFER
+                : ByteBufferUtil.bytes(value.getTime());
     }
 
-    public int getPrecision(Date obj)
+    @Override
+    public void validate(ByteBuffer bytes) throws MarshalException
     {
-        return -1;
+        if (bytes.remaining() != 8 && bytes.remaining() != 0)
+            throw new MarshalException(String.format("Expected 8 or 0 byte long for date (%d)", bytes.remaining()));
     }
 
-    public boolean isCurrency()
-    {
-        return false;
-    }
-
-    public boolean isSigned()
-    {
-        return false;
-    }
-
-    public String toString(Date obj)
-    {
-        return FORMATTER.get().format(obj);
-    }
-
-    public boolean needsQuotes()
-    {
-        return false;
-    }
-
+    @Override
     public String getString(ByteBuffer bytes)
     {
         if (bytes.remaining() == 0)
@@ -98,30 +87,18 @@ public class JdbcDate extends AbstractJdbcType<Date>
         }
 
         // uses ISO-8601 formatted string
-        return FORMATTER.get().format(new Date(bytes.getLong(bytes.position())));
+        return FORMATTER.get().format(new Date(ByteBufferUtil.toLong(bytes)));
     }
 
+    @Override
+    public String toString(Date value)
+    {
+        return FORMATTER.get().format(value);
+    }
+
+    @Override
     public Class<Date> getType()
     {
         return Date.class;
     }
-
-    public int getJdbcType()
-    {
-        return Types.TIMESTAMP;
-    }
-
-    public Date compose(ByteBuffer bytes)
-    {
-        return bytes.remaining() > 0
-             ? new Date(ByteBufferUtil.toLong(bytes))
-             : null;
-    }
-
-    public ByteBuffer decompose(Date value)
-    {
-      return (value==null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER
-                           : ByteBufferUtil.bytes(value.getTime());
-    }
-
 }

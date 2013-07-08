@@ -1,6 +1,7 @@
 package org.apache.cassandra.db.marshal;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.type.MarshalException;
 import org.apache.cassandra.utils.UUIDGen;
 import org.junit.Test;
 

@@ -31,6 +31,8 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
@@ -159,6 +161,8 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     {
         return new CQL3Type.Custom(this);
     }
+
+    public abstract AbstractSerializer<T> asComposer();
 
     /** @deprecated use reverseComparator field instead */
     public Comparator<ByteBuffer> getReverseComparator()

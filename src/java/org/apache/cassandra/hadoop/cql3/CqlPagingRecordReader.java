@@ -414,7 +414,7 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
             return previousIndex - 1;
         }
 
-        /** compose the prepared query, pair.left is query id, pair.right is query */
+        /** serialize the prepared query, pair.left is query id, pair.right is query */
         private Pair<Integer, String> composeQuery(String columns)
         {
             Pair<Integer, String> clause = whereClause();
@@ -464,7 +464,7 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
             return result;
         }
 
-        /** compose the where clause */
+        /** serialize the where clause */
         private Pair<Integer, String> whereClause()
         {
             if (partitionKeyString == null)
@@ -488,7 +488,7 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
                                " WHERE token(" + partitionKeyString + ") = token(" + partitionKeyMarkers + ") " + clause.right);
         }
 
-        /** recursively compose the where clause */
+        /** recursively serialize the where clause */
         private Pair<Integer, String> whereClause(List<BoundColumn> column, int position)
         {
             if (position == column.size() - 1 || column.get(position + 1).value == null)
@@ -509,7 +509,7 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
             return true;
         }
 
-        /** compose the partition key string in format of <key1>, <key2>, <key3> */
+        /** serialize the partition key string in format of <key1>, <key2>, <key3> */
         private String keyString(List<BoundColumn> columns)
         {
             String result = null;
@@ -519,7 +519,7 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
             return result == null ? "" : result;
         }
 
-        /** compose the question marks for partition key string in format of ?, ? , ? */
+        /** serialize the question marks for partition key string in format of ?, ? , ? */
         private String partitionKeyMarkers()
         {
             String result = null;
@@ -529,7 +529,7 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
             return result;
         }
 
-        /** compose the query binding variables, pair.left is query id, pair.right is the binding variables */
+        /** serialize the query binding variables, pair.left is query id, pair.right is the binding variables */
         private Pair<Integer, List<ByteBuffer>> preparedQueryBindValues()
         {
             List<ByteBuffer> values = new LinkedList<ByteBuffer>();
@@ -561,7 +561,7 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
             }
         }
 
-        /** recursively compose the query binding variables */
+        /** recursively serialize the query binding variables */
         private int preparedQueryBindValues(List<BoundColumn> column, int position, List<ByteBuffer> bindValues)
         {
             if (position == column.size() - 1 || column.get(position + 1).value == null)
@@ -721,7 +721,7 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
     {
         try
         {
-            // always treat counters like longs, specifically CCT.compose is not what we need
+            // always treat counters like longs, specifically CCT.serialize is not what we need
             if (type != null && type.equals("org.apache.cassandra.db.marshal.CounterColumnType"))
                 return LongType.instance;
             return TypeParser.parse(type);

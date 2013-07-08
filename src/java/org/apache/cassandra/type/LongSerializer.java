@@ -15,56 +15,37 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql.jdbc;
 
-import java.nio.ByteBuffer;
-import java.sql.Types;
+package org.apache.cassandra.type;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class JdbcLong extends AbstractJdbcType<Long>
+import java.nio.ByteBuffer;
+
+public class LongSerializer extends AbstractSerializer<Long>
 {
-    public static final JdbcLong instance = new JdbcLong();
+    public static final LongSerializer instance = new LongSerializer();
 
-    JdbcLong()
+    @Override
+    public Long serialize(ByteBuffer bytes)
     {
+        return ByteBufferUtil.toLong(bytes);
     }
 
-    public boolean isCaseSensitive()
+    @Override
+    public ByteBuffer deserialize(Long value)
     {
-        return false;
+        return ByteBufferUtil.bytes(value);
     }
 
-    public int getScale(Long obj)
+    @Override
+    public void validate(ByteBuffer bytes) throws MarshalException
     {
-        return 0;
+        if (bytes.remaining() != 8 && bytes.remaining() != 0)
+            throw new MarshalException(String.format("Expected 8 or 0 byte long (%d)", bytes.remaining()));
     }
 
-    public int getPrecision(Long obj)
-    {
-        return obj.toString().length();
-    }
-
-    public boolean isCurrency()
-    {
-        return false;
-    }
-
-    public boolean isSigned()
-    {
-        return true;
-    }
-
-    public String toString(Long obj)
-    {
-        return obj.toString();
-    }
-
-    public boolean needsQuotes()
-    {
-        return false;
-    }
-
+    @Override
     public String getString(ByteBuffer bytes)
     {
         if (bytes.remaining() == 0)
@@ -76,26 +57,18 @@ public class JdbcLong extends AbstractJdbcType<Long>
             throw new MarshalException("A long is exactly 8 bytes: " + bytes.remaining());
         }
 
-        return String.valueOf(bytes.getLong(bytes.position()));
+        return String.valueOf(ByteBufferUtil.toLong(bytes));
     }
 
+    @Override
+    public String toString(Long value)
+    {
+        return String.valueOf(value);
+    }
+
+    @Override
     public Class<Long> getType()
     {
         return Long.class;
-    }
-
-    public int getJdbcType()
-    {
-        return Types.BIGINT;
-    }
-
-    public Long compose(ByteBuffer bytes)
-    {
-        return ByteBufferUtil.toLong(bytes);
-    }
-
-    public ByteBuffer decompose(Long value)
-    {
-        return ByteBufferUtil.bytes(value);
     }
 }

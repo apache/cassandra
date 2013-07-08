@@ -19,8 +19,10 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.cql.jdbc.JdbcBytes;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.BytesSerializer;
+import org.apache.cassandra.type.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Hex;
 
@@ -32,12 +34,12 @@ public class BytesType extends AbstractType<ByteBuffer>
 
     public ByteBuffer compose(ByteBuffer bytes)
     {
-        return JdbcBytes.instance.compose(bytes);
+        return BytesSerializer.instance.serialize(bytes);
     }
 
     public ByteBuffer decompose(ByteBuffer value)
     {
-        return JdbcBytes.instance.decompose(value);
+        return BytesSerializer.instance.deserialize(value);
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
@@ -55,7 +57,7 @@ public class BytesType extends AbstractType<ByteBuffer>
 
     public String getString(ByteBuffer bytes)
     {
-        return JdbcBytes.instance.getString(bytes);
+        return BytesSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source)
@@ -72,7 +74,7 @@ public class BytesType extends AbstractType<ByteBuffer>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        // all bytes are legal.
+        BytesSerializer.instance.validate(bytes);
     }
 
     @Override
@@ -86,5 +88,11 @@ public class BytesType extends AbstractType<ByteBuffer>
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.BLOB;
+    }
+
+    @Override
+    public AbstractSerializer<ByteBuffer> asComposer()
+    {
+        return BytesSerializer.instance;
     }
 }

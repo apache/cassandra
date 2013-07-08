@@ -15,19 +15,39 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql.jdbc;
+
+package org.apache.cassandra.type;
+
+import org.apache.cassandra.utils.UUIDGen;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import org.apache.cassandra.utils.UUIDGen;
-
-public class JdbcTimeUUID extends AbstractJdbcUUID
+public class UUIDSerializer extends AbstractSerializer<UUID>
 {
-    public static final JdbcTimeUUID instance = new JdbcTimeUUID();
+    public static final UUIDSerializer instance = new UUIDSerializer();
 
-    JdbcTimeUUID() {}
+    @Override
+    public UUID serialize(ByteBuffer bytes)
+    {
+        return UUIDGen.getUUID(bytes);
+    }
 
+    @Override
+    public ByteBuffer deserialize(UUID value)
+    {
+        return ByteBuffer.wrap(UUIDGen.decompose(value));
+    }
+
+    @Override
+    public void validate(ByteBuffer bytes) throws MarshalException
+    {
+        if (bytes.remaining() != 16 && bytes.remaining() != 0)
+            throw new MarshalException(String.format("UUID should be 16 or 0 bytes (%d)", bytes.remaining()));
+        // not sure what the version should be for this.
+    }
+
+    @Override
     public String getString(ByteBuffer bytes)
     {
         if (bytes.remaining() == 0)
@@ -39,20 +59,18 @@ public class JdbcTimeUUID extends AbstractJdbcUUID
             throw new MarshalException("UUIDs must be exactly 16 bytes");
         }
         UUID uuid = UUIDGen.getUUID(bytes);
-        if (uuid.version() != 1)
-        {
-            throw new MarshalException("TimeUUID only makes sense with version 1 UUIDs");
-        }
         return uuid.toString();
     }
 
-    public UUID compose(ByteBuffer bytes)
+    @Override
+    public String toString(UUID value)
     {
-        return UUIDGen.getUUID(bytes);
+        return value.toString();
     }
 
-    public ByteBuffer decompose(UUID value)
+    @Override
+    public Class<UUID> getType()
     {
-        return ByteBuffer.wrap(UUIDGen.decompose(value));
+        return UUID.class;
     }
 }

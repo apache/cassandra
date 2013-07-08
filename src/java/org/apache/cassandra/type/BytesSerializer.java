@@ -15,77 +15,52 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql.jdbc;
 
-import java.nio.ByteBuffer;
-import java.sql.Types;
+package org.apache.cassandra.type;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import java.nio.ByteBuffer;
 
-public class JdbcBytes extends AbstractJdbcType<ByteBuffer>
+public class BytesSerializer extends AbstractSerializer<ByteBuffer>
 {
-    public static final JdbcBytes instance = new JdbcBytes();
+    public static final BytesSerializer instance = new BytesSerializer();
 
-    JdbcBytes() {}
-
-    public boolean isCaseSensitive()
+    @Override
+    public ByteBuffer serialize(ByteBuffer bytes)
     {
-        return false;
+        // We make a copy in case the user modifies the input
+        return bytes.duplicate();
     }
 
-    public int getScale(ByteBuffer obj)
+    @Override
+    public ByteBuffer deserialize(ByteBuffer value)
     {
-        return -1;
+        // This is from the DB, so it is not shared with someone else
+        return value;
     }
 
-    public int getPrecision(ByteBuffer obj)
+    @Override
+    public void validate(ByteBuffer bytes) throws MarshalException
     {
-        return -1;
+        // all bytes are legal.
     }
 
-    public boolean isCurrency()
-    {
-        return false;
-    }
-
-    public boolean isSigned()
-    {
-        return false;
-    }
-
-    public String toString(ByteBuffer obj)
-    {
-        return getString(obj);
-    }
-
-    public boolean needsQuotes()
-    {
-        return true;
-    }
-
+    @Override
     public String getString(ByteBuffer bytes)
     {
         return ByteBufferUtil.bytesToHex(bytes);
     }
 
+    @Override
+    public String toString(ByteBuffer value)
+    {
+        return getString(value);
+    }
+
+    @Override
     public Class<ByteBuffer> getType()
     {
         return ByteBuffer.class;
-    }
-
-    public int getJdbcType()
-    {
-        return Types.BINARY;
-    }
-
-    public ByteBuffer compose(ByteBuffer bytes)
-    {
-        return bytes.duplicate();
-    }
-
-    public ByteBuffer decompose(ByteBuffer value)
-    {
-        return value;
     }
 }

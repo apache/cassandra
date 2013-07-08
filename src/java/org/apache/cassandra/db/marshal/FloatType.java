@@ -19,8 +19,10 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.cql.jdbc.JdbcFloat;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.FloatSerializer;
+import org.apache.cassandra.type.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
@@ -32,12 +34,12 @@ public class FloatType extends AbstractType<Float>
 
     public Float compose(ByteBuffer bytes)
     {
-        return JdbcFloat.instance.compose(bytes);
+        return FloatSerializer.instance.serialize(bytes);
     }
 
     public ByteBuffer decompose(Float value)
     {
-        return JdbcFloat.instance.decompose(value);
+        return FloatSerializer.instance.deserialize(value);
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
@@ -56,14 +58,7 @@ public class FloatType extends AbstractType<Float>
 
     public String getString(ByteBuffer bytes)
     {
-        try
-        {
-            return JdbcFloat.instance.getString(bytes);
-        }
-        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
-        {
-            throw new MarshalException(e.getMessage());
-        }
+        return FloatSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -85,12 +80,17 @@ public class FloatType extends AbstractType<Float>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        if (bytes.remaining() != 4 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 4 or 0 byte value for a float (%d)", bytes.remaining()));
+        FloatSerializer.instance.validate(bytes);
     }
 
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.FLOAT;
+    }
+
+    @Override
+    public AbstractSerializer<Float> asComposer()
+    {
+        return FloatSerializer.instance;
     }
 }

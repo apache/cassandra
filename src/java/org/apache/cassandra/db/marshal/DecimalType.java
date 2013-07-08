@@ -20,8 +20,10 @@ package org.apache.cassandra.db.marshal;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.cql.jdbc.JdbcDecimal;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.DecimalSerializer;
+import org.apache.cassandra.type.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DecimalType extends AbstractType<BigDecimal>
@@ -46,7 +48,7 @@ public class DecimalType extends AbstractType<BigDecimal>
 
     public BigDecimal compose(ByteBuffer bytes)
     {
-        return JdbcDecimal.instance.compose(bytes);
+        return DecimalSerializer.instance.serialize(bytes);
     }
 
     /**
@@ -55,12 +57,12 @@ public class DecimalType extends AbstractType<BigDecimal>
      */
     public ByteBuffer decompose(BigDecimal value)
     {
-        return JdbcDecimal.instance.decompose(value);
+        return DecimalSerializer.instance.deserialize(value);
     }
 
     public String getString(ByteBuffer bytes)
     {
-        return JdbcDecimal.instance.getString(bytes);
+        return DecimalSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -84,11 +86,17 @@ public class DecimalType extends AbstractType<BigDecimal>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        // no useful check for invalid decimals.
+        DecimalSerializer.instance.validate(bytes);
     }
 
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.DECIMAL;
+    }
+
+    @Override
+    public AbstractSerializer<BigDecimal> asComposer()
+    {
+        return DecimalSerializer.instance;
     }
 }

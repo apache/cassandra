@@ -19,8 +19,10 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.cql.jdbc.JdbcAscii;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.AsciiSerializer;
+import org.apache.cassandra.type.MarshalException;
 
 public class AsciiType extends AbstractType<String>
 {
@@ -30,14 +32,7 @@ public class AsciiType extends AbstractType<String>
 
     public String getString(ByteBuffer bytes)
     {
-        try
-        {
-            return JdbcAscii.instance.getString(bytes);
-        }
-        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
-        {
-            throw new MarshalException(e.getMessage());
-        }
+        return AsciiSerializer.instance.getString(bytes);
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
@@ -47,12 +42,12 @@ public class AsciiType extends AbstractType<String>
 
     public String compose(ByteBuffer bytes)
     {
-        return JdbcAscii.instance.getString(bytes);
+        return AsciiSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer decompose(String value)
     {
-        return JdbcAscii.instance.decompose(value);
+        return AsciiSerializer.instance.deserialize(value);
     }
 
     public ByteBuffer fromString(String source)
@@ -62,17 +57,16 @@ public class AsciiType extends AbstractType<String>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        // 0-127
-        for (int i = bytes.position(); i < bytes.limit(); i++)
-        {
-            byte b = bytes.get(i);
-            if (b < 0 || b > 127)
-                throw new MarshalException("Invalid byte for ascii: " + Byte.toString(b));
-        }
+        AsciiSerializer.instance.validate(bytes);
     }
 
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.ASCII;
+    }
+
+    public AbstractSerializer<String> asComposer()
+    {
+        return AsciiSerializer.instance;
     }
 }

@@ -21,6 +21,9 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.CounterSerializer;
+import org.apache.cassandra.type.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class CounterColumnType extends AbstractCommutativeType
@@ -64,5 +67,10 @@ public class CounterColumnType extends AbstractCommutativeType
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.COUNTER;
+    }
+
+    public AbstractSerializer<Long> asComposer()
+    {
+        return CounterSerializer.instance;
     }
 }

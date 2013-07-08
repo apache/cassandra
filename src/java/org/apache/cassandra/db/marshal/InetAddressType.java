@@ -18,11 +18,12 @@
 package org.apache.cassandra.db.marshal;
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.cql.jdbc.JdbcInetAddress;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.InetAddressSerializer;
+import org.apache.cassandra.type.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class InetAddressType extends AbstractType<InetAddress>
@@ -33,12 +34,12 @@ public class InetAddressType extends AbstractType<InetAddress>
 
     public InetAddress compose(ByteBuffer bytes)
     {
-        return JdbcInetAddress.instance.compose(bytes);
+        return InetAddressSerializer.instance.serialize(bytes);
     }
 
     public ByteBuffer decompose(InetAddress value)
     {
-        return JdbcInetAddress.instance.decompose(value);
+        return InetAddressSerializer.instance.deserialize(value);
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
@@ -48,7 +49,7 @@ public class InetAddressType extends AbstractType<InetAddress>
 
     public String getString(ByteBuffer bytes)
     {
-        return JdbcInetAddress.instance.getString(bytes);
+        return InetAddressSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -73,18 +74,17 @@ public class InetAddressType extends AbstractType<InetAddress>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        try
-        {
-            InetAddress.getByAddress(ByteBufferUtil.getArray(bytes));
-        }
-        catch (UnknownHostException e)
-        {
-            throw new MarshalException(String.format("Expected 4 or 16 byte inetaddress; got %s", ByteBufferUtil.bytesToHex(bytes)));
-        }
+        InetAddressSerializer.instance.validate(bytes);
     }
 
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.INET;
+    }
+
+    @Override
+    public AbstractSerializer<InetAddress> asComposer()
+    {
+        return InetAddressSerializer.instance;
     }
 }

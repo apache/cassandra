@@ -15,57 +15,45 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql.jdbc;
+
+package org.apache.cassandra.type;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
-import java.sql.Types;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
-
-public class JdbcAscii extends AbstractJdbcType<String>
+public class AsciiSerializer extends AbstractSerializer<String>
 {
+    public static final AsciiSerializer instance = new AsciiSerializer();
     private static final Charset US_ASCII = Charset.forName("US-ASCII");
-    public static final JdbcAscii instance = new JdbcAscii();
 
-    JdbcAscii() {}
-
-    public boolean isCaseSensitive()
+    @Override
+    public String serialize(ByteBuffer bytes)
     {
-        return true;
+        return getString(bytes);
     }
 
-    public int getScale(String obj)
+    @Override
+    public ByteBuffer deserialize(String value)
     {
-        return -1;
+        return ByteBufferUtil.bytes(value, US_ASCII);
     }
 
-    public int getPrecision(String obj)
+    @Override
+    public void validate(ByteBuffer bytes) throws MarshalException
     {
-        return -1;
+        // 0-127
+        for (int i = bytes.position(); i < bytes.limit(); i++)
+        {
+            byte b = bytes.get(i);
+            if (b < 0 || b > 127)
+                throw new MarshalException("Invalid byte for ascii: " + Byte.toString(b));
+        }
     }
 
-    public boolean isCurrency()
-    {
-        return false;
-    }
-
-    public boolean isSigned()
-    {
-        return false;
-    }
-
-    public String toString(String obj)
-    {
-        return obj;
-    }
-
-    public boolean needsQuotes()
-    {
-        return true;
-    }
-
+    @Override
     public String getString(ByteBuffer bytes)
     {
         try
@@ -78,23 +66,15 @@ public class JdbcAscii extends AbstractJdbcType<String>
         }
     }
 
+    @Override
+    public String toString(String value)
+    {
+        return value;
+    }
+
+    @Override
     public Class<String> getType()
     {
         return String.class;
-    }
-
-    public int getJdbcType()
-    {
-        return Types.VARCHAR;
-    }
-
-    public String compose(ByteBuffer bytes)
-    {
-        return getString(bytes);
-    }
-
-    public ByteBuffer decompose(String value)
-    {
-        return ByteBufferUtil.bytes(value, US_ASCII);
     }
 }

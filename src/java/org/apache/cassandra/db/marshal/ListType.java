@@ -17,13 +17,14 @@
  */
 package org.apache.cassandra.db.marshal;
 
-import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.ListSerializer;
 import org.apache.cassandra.utils.Pair;
 
 public class ListType<T> extends CollectionType<List<T>>
@@ -32,6 +33,7 @@ public class ListType<T> extends CollectionType<List<T>>
     private static final Map<AbstractType<?>, ListType> instances = new HashMap<AbstractType<?>, ListType>();
 
     public final AbstractType<T> elements;
+    public final ListSerializer<T> composer;
 
     public static ListType<?> getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
@@ -57,6 +59,7 @@ public class ListType<T> extends CollectionType<List<T>>
     {
         super(Kind.LIST);
         this.elements = elements;
+        this.composer = ListSerializer.getInstance(elements.asComposer());
     }
 
     public AbstractType<UUID> nameComparator()
@@ -71,26 +74,7 @@ public class ListType<T> extends CollectionType<List<T>>
 
     public List<T> compose(ByteBuffer bytes)
     {
-        try
-        {
-            ByteBuffer input = bytes.duplicate();
-            int n = getUnsignedShort(input);
-            List<T> l = new ArrayList<T>(n);
-            for (int i = 0; i < n; i++)
-            {
-                int s = getUnsignedShort(input);
-                byte[] data = new byte[s];
-                input.get(data);
-                ByteBuffer databb = ByteBuffer.wrap(data);
-                elements.validate(databb);
-                l.add(elements.compose(databb));
-            }
-            return l;
-        }
-        catch (BufferUnderflowException e)
-        {
-            throw new MarshalException("Not enough bytes to read a list");
-        }
+        return composer.serialize(bytes);
     }
 
     /**
@@ -102,15 +86,12 @@ public class ListType<T> extends CollectionType<List<T>>
      */
     public ByteBuffer decompose(List<T> value)
     {
-        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(value.size());
-        int size = 0;
-        for (T elt : value)
-        {
-            ByteBuffer bb = elements.decompose(elt);
-            bbs.add(bb);
-            size += 2 + bb.remaining();
-        }
-        return pack(bbs, value.size(), size);
+        return composer.deserialize(value);
+    }
+
+    public AbstractSerializer<List<T>> asComposer()
+    {
+        return composer;
     }
 
     protected void appendToStringBuilder(StringBuilder sb)

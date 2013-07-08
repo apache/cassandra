@@ -15,39 +15,56 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql.jdbc;
 
+package org.apache.cassandra.type;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
+
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.UUID;
 
-import org.apache.cassandra.utils.UUIDGen;
-
-public class JdbcLexicalUUID extends AbstractJdbcUUID
+public class IntegerSerializer extends AbstractSerializer<BigInteger>
 {
-    public static final JdbcLexicalUUID instance = new JdbcLexicalUUID();
+    public static final IntegerSerializer instance = new IntegerSerializer();
 
-    public JdbcLexicalUUID() {}
+    @Override
+    public BigInteger serialize(ByteBuffer bytes)
+    {
+        return new BigInteger(ByteBufferUtil.getArray(bytes));
+    }
 
+    @Override
+    public ByteBuffer deserialize(BigInteger value)
+    {
+        return ByteBuffer.wrap(value.toByteArray());
+    }
+
+    @Override
+    public void validate(ByteBuffer bytes) throws MarshalException
+    {
+        // no invalid integers.
+    }
+
+    @Override
     public String getString(ByteBuffer bytes)
     {
         if (bytes.remaining() == 0)
         {
             return "";
         }
-        if (bytes.remaining() != 16)
-        {
-            throw new MarshalException("UUIDs must be exactly 16 bytes");
-        }
-        return UUIDGen.getUUID(bytes).toString();
+
+        return new BigInteger(ByteBufferUtil.getArray(bytes)).toString(10);
     }
 
-    public UUID compose(ByteBuffer bytes)
+    @Override
+    public String toString(BigInteger value)
     {
-        return UUIDGen.getUUID(bytes);
+        return value.toString(10);
     }
 
-    public ByteBuffer decompose(UUID value)
+    @Override
+    public Class<BigInteger> getType()
     {
-        return ByteBuffer.wrap(UUIDGen.decompose(value));
+        return BigInteger.class;
     }
 }

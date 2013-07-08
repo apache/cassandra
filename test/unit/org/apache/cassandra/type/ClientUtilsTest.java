@@ -1,4 +1,4 @@
-package org.apache.cassandra.cql.jdbc;
+package org.apache.cassandra.type;
 /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -37,33 +37,31 @@ public class ClientUtilsTest
     @Test
     public void test() throws UnknownHostException
     {
-        JdbcAscii.instance.compose(JdbcAscii.instance.decompose("string"));
-        JdbcBoolean.instance.compose(JdbcBoolean.instance.decompose(true));
-        JdbcBytes.instance.compose(JdbcBytes.instance.decompose(ByteBuffer.wrap("string".getBytes())));
+        AsciiSerializer.instance.serialize(AsciiSerializer.instance.deserialize("string"));
+        BooleanSerializer.instance.serialize(BooleanSerializer.instance.deserialize(true));
+        BytesSerializer.instance.serialize(BytesSerializer.instance.deserialize(ByteBuffer.wrap("string".getBytes())));
 
         Date date = new Date(System.currentTimeMillis());
-        ByteBuffer dateBB = JdbcDate.instance.decompose(date);
-        JdbcDate.instance.compose(dateBB);
-        assert (JdbcDate.instance.toString(date).equals(JdbcDate.instance.getString(dateBB)));
+        ByteBuffer dateBB = DateSerializer.instance.deserialize(date);
+        DateSerializer.instance.serialize(dateBB);
+        assert (DateSerializer.instance.toString(date).equals(DateSerializer.instance.getString(dateBB)));
 
-        JdbcDecimal.instance.compose(JdbcDecimal.instance.decompose(new BigDecimal(1)));
-        JdbcDouble.instance.compose(JdbcDouble.instance.decompose(new Double(1.0d)));
-        JdbcFloat.instance.compose(JdbcFloat.instance.decompose(new Float(1.0f)));
-        JdbcInt32.instance.compose(JdbcInt32.instance.decompose(1));
-        JdbcInteger.instance.compose(JdbcInteger.instance.decompose(new BigInteger("1")));
-        JdbcLong.instance.compose(JdbcLong.instance.decompose(1L));
-        JdbcUTF8.instance.compose(JdbcUTF8.instance.decompose("string"));
+        DecimalSerializer.instance.serialize(DecimalSerializer.instance.deserialize(new BigDecimal(1)));
+        DoubleSerializer.instance.serialize(DoubleSerializer.instance.deserialize(new Double(1.0d)));
+        FloatSerializer.instance.serialize(FloatSerializer.instance.deserialize(new Float(1.0f)));
+        Int32Serializer.instance.serialize(Int32Serializer.instance.deserialize(1));
+        IntegerSerializer.instance.serialize(IntegerSerializer.instance.deserialize(new BigInteger("1")));
+        LongSerializer.instance.serialize(LongSerializer.instance.deserialize(1L));
+        UTF8Serializer.instance.serialize(UTF8Serializer.instance.deserialize("string"));
 
         // UUIDGen
         UUID uuid = UUIDGen.getTimeUUID();
-        JdbcTimeUUID.instance.compose(JdbcTimeUUID.instance.decompose(uuid));
-        JdbcUUID.instance.compose(JdbcUUID.instance.decompose(uuid));
-        JdbcLexicalUUID.instance.compose(JdbcLexicalUUID.instance.decompose(uuid));
+        UUIDSerializer.instance.serialize(UUIDSerializer.instance.deserialize(uuid));
 
         // Raise a MarshalException
         try
         {
-            JdbcLexicalUUID.instance.getString(ByteBuffer.wrap("notauuid".getBytes()));
+            UUIDSerializer.instance.getString(ByteBuffer.wrap("notauuid".getBytes()));
         }
         catch (MarshalException me)
         {

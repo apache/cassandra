@@ -19,24 +19,28 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.cql.jdbc.JdbcInt32;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.Int32Serializer;
+import org.apache.cassandra.type.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class Int32Type extends AbstractType<Integer>
 {
     public static final Int32Type instance = new Int32Type();
 
-    Int32Type() {} // singleton
+    Int32Type()
+    {
+    } // singleton
 
     public Integer compose(ByteBuffer bytes)
     {
-        return JdbcInt32.instance.compose(bytes);
+        return Int32Serializer.instance.serialize(bytes);
     }
 
     public ByteBuffer decompose(Integer value)
     {
-        return JdbcInt32.instance.decompose(value);
+        return Int32Serializer.instance.deserialize(value);
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
@@ -60,14 +64,7 @@ public class Int32Type extends AbstractType<Integer>
 
     public String getString(ByteBuffer bytes)
     {
-        try
-        {
-            return JdbcInt32.instance.getString(bytes);
-        }
-        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
-        {
-            throw new MarshalException(e.getMessage());
-        }
+        return Int32Serializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -92,12 +89,17 @@ public class Int32Type extends AbstractType<Integer>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        if (bytes.remaining() != 4 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 4 or 0 byte int (%d)", bytes.remaining()));
+        Int32Serializer.instance.validate(bytes);
     }
 
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.INT;
+    }
+
+    @Override
+    public AbstractSerializer<Integer> asComposer()
+    {
+        return Int32Serializer.instance;
     }
 }

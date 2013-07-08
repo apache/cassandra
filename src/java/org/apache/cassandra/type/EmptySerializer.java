@@ -15,43 +15,51 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql.jdbc;
+
+package org.apache.cassandra.type;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
-import java.util.UUID;
 
-import org.apache.cassandra.utils.UUIDGen;
-
-public class JdbcUUID extends AbstractJdbcUUID
+public class EmptySerializer extends AbstractSerializer<Void>
 {
-    public static final JdbcUUID instance = new JdbcUUID();
+    public static final EmptySerializer instance = new EmptySerializer();
 
-    JdbcUUID() {}
-
-    public UUID compose(ByteBuffer bytes)
+    @Override
+    public Void serialize(ByteBuffer bytes)
     {
-        bytes = bytes.slice();
-        if (bytes.remaining() < 16)
-            return new UUID(0, 0);
-        return new UUID(bytes.getLong(), bytes.getLong());
+        return null;
     }
 
+    @Override
+    public ByteBuffer deserialize(Void value)
+    {
+        return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+    }
+
+    @Override
+    public void validate(ByteBuffer bytes) throws MarshalException
+    {
+        if (bytes.remaining() > 0)
+            throw new MarshalException("EmptyType only accept empty values");
+    }
+
+    @Override
     public String getString(ByteBuffer bytes)
     {
-        if (bytes.remaining() == 0)
-        {
-            return "";
-        }
-        if (bytes.remaining() != 16)
-        {
-            throw new MarshalException("UUIDs must be exactly 16 bytes");
-        }
-
-        return compose(bytes).toString();
+        return "";
     }
 
-    public ByteBuffer decompose(UUID value)
+    @Override
+    public String toString(Void value)
     {
-        return ByteBuffer.wrap(UUIDGen.decompose(value));
+        return "";
+    }
+
+    @Override
+    public Class<Void> getType()
+    {
+        return Void.class;
     }
 }

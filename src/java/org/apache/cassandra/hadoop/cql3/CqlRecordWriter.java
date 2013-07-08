@@ -356,7 +356,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
     {
         try
         {
-            // always treat counters like longs, specifically CCT.compose is not what we need
+            // always treat counters like longs, specifically CCT.serialize is not what we need
             if (type != null && type.equals("org.apache.cassandra.db.marshal.CounterColumnType"))
                 return LongType.instance;
             return TypeParser.parse(type);

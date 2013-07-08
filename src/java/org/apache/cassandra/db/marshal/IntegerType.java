@@ -20,8 +20,10 @@ package org.apache.cassandra.db.marshal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.cql.jdbc.JdbcInteger;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.IntegerSerializer;
+import org.apache.cassandra.type.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public final class IntegerType extends AbstractType<BigInteger>
@@ -58,12 +60,12 @@ public final class IntegerType extends AbstractType<BigInteger>
 
     public BigInteger compose(ByteBuffer bytes)
     {
-        return JdbcInteger.instance.compose(bytes);
+        return IntegerSerializer.instance.serialize(bytes);
     }
 
     public ByteBuffer decompose(BigInteger value)
     {
-        return JdbcInteger.instance.decompose(value);
+        return IntegerSerializer.instance.deserialize(value);
     }
 
     public int compare(ByteBuffer lhs, ByteBuffer rhs)
@@ -126,7 +128,7 @@ public final class IntegerType extends AbstractType<BigInteger>
 
     public String getString(ByteBuffer bytes)
     {
-        return JdbcInteger.instance.getString(bytes);
+        return IntegerSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -151,11 +153,17 @@ public final class IntegerType extends AbstractType<BigInteger>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        // no invalid integers.
+        IntegerSerializer.instance.validate(bytes);
     }
 
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.VARINT;
+    }
+
+    @Override
+    public AbstractSerializer<BigInteger> asComposer()
+    {
+        return IntegerSerializer.instance;
     }
 }

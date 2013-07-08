@@ -15,56 +15,37 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql.jdbc;
 
-import java.nio.ByteBuffer;
-import java.sql.Types;
+package org.apache.cassandra.type;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class JdbcInt32 extends AbstractJdbcType<Integer>
+import java.nio.ByteBuffer;
+
+public class Int32Serializer extends AbstractSerializer<Integer>
 {
-    public static final JdbcInt32 instance = new JdbcInt32();
+    public static final Int32Serializer instance = new Int32Serializer();
 
-    JdbcInt32()
+    @Override
+    public Integer serialize(ByteBuffer bytes)
     {
+        return ByteBufferUtil.toInt(bytes);
     }
 
-    public boolean isCaseSensitive()
+    @Override
+    public ByteBuffer deserialize(Integer value)
     {
-        return false;
+        return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
     }
 
-    public int getScale(Integer obj)
+    @Override
+    public void validate(ByteBuffer bytes) throws MarshalException
     {
-        return 0;
+        if (bytes.remaining() != 4 && bytes.remaining() != 0)
+            throw new MarshalException(String.format("Expected 4 or 0 byte int (%d)", bytes.remaining()));
     }
 
-    public int getPrecision(Integer obj)
-    {
-        return obj.toString().length();
-    }
-
-    public boolean isCurrency()
-    {
-        return false;
-    }
-
-    public boolean isSigned()
-    {
-        return true;
-    }
-
-    public String toString(Integer obj)
-    {
-        return obj.toString();
-    }
-
-    public boolean needsQuotes()
-    {
-        return false;
-    }
-
+    @Override
     public String getString(ByteBuffer bytes)
     {
         if (bytes.remaining() == 0)
@@ -76,26 +57,18 @@ public class JdbcInt32 extends AbstractJdbcType<Integer>
             throw new MarshalException("A int is exactly 4 bytes: " + bytes.remaining());
         }
 
-        return String.valueOf(bytes.getInt(bytes.position()));
+        return String.valueOf(ByteBufferUtil.toInt(bytes));
     }
 
+    @Override
+    public String toString(Integer value)
+    {
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    @Override
     public Class<Integer> getType()
     {
         return Integer.class;
-    }
-
-    public int getJdbcType()
-    {
-        return Types.INTEGER;
-    }
-
-    public Integer compose(ByteBuffer bytes)
-    {
-        return ByteBufferUtil.toInt(bytes);
-    }
-
-    public ByteBuffer decompose(Integer value)
-    {
-        return ByteBufferUtil.bytes(value);
     }
 }

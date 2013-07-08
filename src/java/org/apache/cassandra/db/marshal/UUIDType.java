@@ -22,13 +22,15 @@ import java.nio.ByteBuffer;
 import java.text.ParseException;
 import java.util.UUID;
 
-import org.apache.cassandra.cql.jdbc.JdbcUUID;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.type.UUIDSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.commons.lang.time.DateUtils;
 
-import static org.apache.cassandra.cql.jdbc.JdbcDate.iso8601Patterns;
+import static org.apache.cassandra.type.DateSerializer.iso8601Patterns;
 
 /**
  * Compares UUIDs using the following criteria:<br>
@@ -159,32 +161,22 @@ public class UUIDType extends AbstractType<UUID>
     public UUID compose(ByteBuffer bytes)
     {
 
-        return JdbcUUID.instance.compose(bytes);
+        return UUIDSerializer.instance.serialize(bytes);
     }
 
     public void validate(ByteBuffer bytes)
     {
-        if ((bytes.remaining() != 0) && (bytes.remaining() != 16))
-        {
-            throw new MarshalException("UUIDs must be exactly 16 bytes");
-        }
+        UUIDSerializer.instance.validate(bytes);
     }
 
     public String getString(ByteBuffer bytes)
     {
-        try
-        {
-            return JdbcUUID.instance.getString(bytes);
-        }
-        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
-        {
-            throw new MarshalException(e.getMessage());
-        }
+        return UUIDSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer decompose(UUID value)
     {
-        return JdbcUUID.instance.decompose(value);
+        return UUIDSerializer.instance.deserialize(value);
     }
 
     @Override
@@ -209,8 +201,7 @@ public class UUIDType extends AbstractType<UUID>
             {
                 throw new MarshalException(String.format("unable to make UUID from '%s'", source), e);
             }
-        }
-        else if (source.toLowerCase().equals("now"))
+        } else if (source.toLowerCase().equals("now"))
         {
             idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
         }
@@ -246,5 +237,11 @@ public class UUIDType extends AbstractType<UUID>
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.UUID;
+    }
+
+    @Override
+    public AbstractSerializer<UUID> asComposer()
+    {
+        return UUIDSerializer.instance;
     }
 }

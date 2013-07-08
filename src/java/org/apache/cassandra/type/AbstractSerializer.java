@@ -15,55 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql.jdbc;
 
-import java.sql.Types;
-import java.util.UUID;
+package org.apache.cassandra.type;
 
-public abstract class AbstractJdbcUUID extends AbstractJdbcType<UUID>
+import java.nio.ByteBuffer;
+
+public abstract class AbstractSerializer<T>
 {
-    public String toString(UUID obj)
-    {
-        return obj.toString();
-    }
+    public abstract T serialize(ByteBuffer bytes);
+    public abstract ByteBuffer deserialize(T value);
 
-    public boolean isCaseSensitive()
-    {
-        return false;
-    }
 
-    public int getScale(UUID obj)
-    {
-        return -1;
-    }
+    /* validate that the byte array is a valid sequence for the type we are supposed to be comparing */
+    public abstract void validate(ByteBuffer bytes) throws MarshalException;
 
-    public int getPrecision(UUID obj)
-    {
-        return -1;
-    }
+    public abstract String getString(ByteBuffer bytes);
+    public abstract String toString(T value);
 
-    public boolean isCurrency()
-    {
-        return false;
-    }
-
-    public boolean isSigned()
-    {
-        return false;
-    }
-
-    public boolean needsQuotes()
-    {
-        return false;
-    }
-
-    public Class<UUID> getType()
-    {
-        return UUID.class;
-    }
-
-    public int getJdbcType()
-    {
-        return Types.OTHER;
-    }
+    public abstract Class<T> getType();
 }

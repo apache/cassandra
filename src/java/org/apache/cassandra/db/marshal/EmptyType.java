@@ -19,6 +19,9 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.type.AbstractSerializer;
+import org.apache.cassandra.type.EmptySerializer;
+import org.apache.cassandra.type.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -61,7 +64,11 @@ public class EmptyType extends AbstractType<Void>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        if (bytes.remaining() > 0)
-            throw new MarshalException("EmptyType only accept empty values");
+        EmptySerializer.instance.validate(bytes);
+    }
+
+    public AbstractSerializer<Void> asComposer()
+    {
+        return EmptySerializer.instance;
     }
 }

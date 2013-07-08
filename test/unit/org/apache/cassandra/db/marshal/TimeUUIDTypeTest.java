@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Random;
 import java.util.UUID;
 
+import org.apache.cassandra.type.MarshalException;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
