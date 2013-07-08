@@ -20,9 +20,9 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.FloatSerializer;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.FloatSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
@@ -89,7 +89,7 @@ public class FloatType extends AbstractType<Float>
     }
 
     @Override
-    public AbstractSerializer<Float> asComposer()
+    public TypeSerializer<Float> getSerializer()
     {
         return FloatSerializer.instance;
     }

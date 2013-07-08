@@ -15,8 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -24,24 +23,15 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 
-public class UTF8Serializer extends AbstractSerializer<String>
+public class UTF8Serializer extends AbstractTextSerializer
 {
     public static final UTF8Serializer instance = new UTF8Serializer();
-    private static final Charset UTF_8 = Charset.forName("UTF-8");
 
-    @Override
-    public String serialize(ByteBuffer bytes)
+    private UTF8Serializer()
     {
-        return getString(bytes);
+        super(Charset.forName("UTF-8"));
     }
 
-    @Override
-    public ByteBuffer deserialize(String value)
-    {
-        return ByteBufferUtil.bytes(value, UTF_8);
-    }
-
-    @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         if (!UTF8Validator.validate(bytes))
@@ -164,30 +154,5 @@ public class UTF8Serializer extends AbstractSerializer<String>
             // if state != start, we've got underflow. that's an error.
             return state == State.START;
         }
-    }
-
-    @Override
-    public String getString(ByteBuffer bytes)
-    {
-        try
-        {
-            return ByteBufferUtil.string(bytes, UTF_8);
-        }
-        catch (CharacterCodingException e)
-        {
-            throw new MarshalException("Invalid ascii bytes " + ByteBufferUtil.bytesToHex(bytes));
-        }
-    }
-
-    @Override
-    public String toString(String value)
-    {
-        return value;
-    }
-
-    @Override
-    public Class<String> getType()
-    {
-        return String.class;
     }
 }

@@ -16,55 +16,53 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
-public class IntegerSerializer extends AbstractSerializer<BigInteger>
+public class DoubleSerializer implements TypeSerializer<Double>
 {
-    public static final IntegerSerializer instance = new IntegerSerializer();
+    public static final DoubleSerializer instance = new DoubleSerializer();
 
-    @Override
-    public BigInteger serialize(ByteBuffer bytes)
+    public Double serialize(ByteBuffer bytes)
     {
-        return new BigInteger(ByteBufferUtil.getArray(bytes));
+        return ByteBufferUtil.toDouble(bytes);
     }
 
-    @Override
-    public ByteBuffer deserialize(BigInteger value)
+    public ByteBuffer deserialize(Double value)
     {
-        return ByteBuffer.wrap(value.toByteArray());
+        return (value == null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
     }
 
-    @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        // no invalid integers.
+        if (bytes.remaining() != 8 && bytes.remaining() != 0)
+            throw new MarshalException(String.format("Expected 8 or 0 byte value for a double (%d)", bytes.remaining()));
     }
 
-    @Override
     public String getString(ByteBuffer bytes)
     {
         if (bytes.remaining() == 0)
         {
             return "";
         }
+        if (bytes.remaining() != 8)
+        {
+            throw new MarshalException("A double is exactly 8 bytes : " + bytes.remaining());
+        }
 
-        return new BigInteger(ByteBufferUtil.getArray(bytes)).toString(10);
+        return String.valueOf(ByteBufferUtil.toDouble(bytes));
     }
 
-    @Override
-    public String toString(BigInteger value)
+    public String toString(Double value)
     {
-        return value.toString(10);
+        return value == null ? "" : value.toString();
     }
 
-    @Override
-    public Class<BigInteger> getType()
+    public Class<Double> getType()
     {
-        return BigInteger.class;
+        return Double.class;
     }
 }

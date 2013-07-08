@@ -20,9 +20,9 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.MarshalException;
-import org.apache.cassandra.type.UTF8Serializer;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.serializers.UTF8Serializer;
 
 public class UTF8Type extends AbstractType<String>
 {
@@ -74,7 +74,7 @@ public class UTF8Type extends AbstractType<String>
     }
 
     @Override
-    public AbstractSerializer<String> asComposer()
+    public TypeSerializer<String> getSerializer()
     {
         return UTF8Serializer.instance;
     }

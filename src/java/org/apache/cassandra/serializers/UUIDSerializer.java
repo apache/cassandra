@@ -15,60 +15,55 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.cassandra.serializers;
 
-package org.apache.cassandra.type;
-
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.UUIDGen;
 
 import java.nio.ByteBuffer;
+import java.util.UUID;
 
-public class FloatSerializer extends AbstractSerializer<Float>
+public class UUIDSerializer implements TypeSerializer<UUID>
 {
-    public static final FloatSerializer instance = new FloatSerializer();
+    public static final UUIDSerializer instance = new UUIDSerializer();
 
-    @Override
-    public Float serialize(ByteBuffer bytes)
+    public UUID serialize(ByteBuffer bytes)
     {
-        return ByteBufferUtil.toFloat(bytes);
+        return UUIDGen.getUUID(bytes);
     }
 
-    @Override
-    public ByteBuffer deserialize(Float value)
+    public ByteBuffer deserialize(UUID value)
     {
-        return (value == null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
+        return ByteBuffer.wrap(UUIDGen.decompose(value));
     }
 
-    @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        if (bytes.remaining() != 4 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 4 or 0 byte value for a float (%d)", bytes.remaining()));
+        if (bytes.remaining() != 16 && bytes.remaining() != 0)
+            throw new MarshalException(String.format("UUID should be 16 or 0 bytes (%d)", bytes.remaining()));
+        // not sure what the version should be for this.
     }
 
-    @Override
     public String getString(ByteBuffer bytes)
     {
         if (bytes.remaining() == 0)
         {
             return "";
         }
-        if (bytes.remaining() != 4)
+        if (bytes.remaining() != 16)
         {
-            throw new MarshalException("A float is exactly 4 bytes : " + bytes.remaining());
+            throw new MarshalException("UUIDs must be exactly 16 bytes");
         }
-
-        return String.valueOf(ByteBufferUtil.toFloat(bytes));
+        UUID uuid = UUIDGen.getUUID(bytes);
+        return uuid.toString();
     }
 
-    @Override
-    public String toString(Float value)
+    public String toString(UUID value)
     {
-        return value == null ? "" : String.valueOf(value);
+        return value.toString();
     }
 
-    @Override
-    public Class<Float> getType()
+    public Class<UUID> getType()
     {
-        return Float.class;
+        return UUID.class;
     }
 }

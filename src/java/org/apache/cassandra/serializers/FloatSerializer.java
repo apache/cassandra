@@ -16,36 +16,32 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 
-public class Int32Serializer extends AbstractSerializer<Integer>
+public class FloatSerializer implements TypeSerializer<Float>
 {
-    public static final Int32Serializer instance = new Int32Serializer();
+    public static final FloatSerializer instance = new FloatSerializer();
 
-    @Override
-    public Integer serialize(ByteBuffer bytes)
+    public Float serialize(ByteBuffer bytes)
     {
-        return ByteBufferUtil.toInt(bytes);
+        return ByteBufferUtil.toFloat(bytes);
     }
 
-    @Override
-    public ByteBuffer deserialize(Integer value)
+    public ByteBuffer deserialize(Float value)
     {
-        return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
+        return (value == null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
     }
 
-    @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         if (bytes.remaining() != 4 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 4 or 0 byte int (%d)", bytes.remaining()));
+            throw new MarshalException(String.format("Expected 4 or 0 byte value for a float (%d)", bytes.remaining()));
     }
 
-    @Override
     public String getString(ByteBuffer bytes)
     {
         if (bytes.remaining() == 0)
@@ -54,21 +50,19 @@ public class Int32Serializer extends AbstractSerializer<Integer>
         }
         if (bytes.remaining() != 4)
         {
-            throw new MarshalException("A int is exactly 4 bytes: " + bytes.remaining());
+            throw new MarshalException("A float is exactly 4 bytes : " + bytes.remaining());
         }
 
-        return String.valueOf(ByteBufferUtil.toInt(bytes));
+        return String.valueOf(ByteBufferUtil.toFloat(bytes));
     }
 
-    @Override
-    public String toString(Integer value)
+    public String toString(Float value)
     {
         return value == null ? "" : String.valueOf(value);
     }
 
-    @Override
-    public Class<Integer> getType()
+    public Class<Float> getType()
     {
-        return Integer.class;
+        return Float.class;
     }
 }

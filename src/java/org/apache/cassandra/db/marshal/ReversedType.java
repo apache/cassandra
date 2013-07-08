@@ -25,8 +25,8 @@ import java.util.List;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 
 public class ReversedType<T> extends AbstractType<T>
 {
@@ -106,9 +106,9 @@ public class ReversedType<T> extends AbstractType<T>
     }
 
     @Override
-    public AbstractSerializer<T> asComposer()
+    public TypeSerializer<T> getSerializer()
     {
-        return baseType.asComposer();
+        return baseType.getSerializer();
     }
 
     @Override

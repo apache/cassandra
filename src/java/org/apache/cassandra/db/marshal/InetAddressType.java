@@ -21,9 +21,9 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.InetAddressSerializer;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.InetAddressSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class InetAddressType extends AbstractType<InetAddress>
@@ -83,7 +83,7 @@ public class InetAddressType extends AbstractType<InetAddress>
     }
 
     @Override
-    public AbstractSerializer<InetAddress> asComposer()
+    public TypeSerializer<InetAddress> getSerializer()
     {
         return InetAddressSerializer.instance;
     }

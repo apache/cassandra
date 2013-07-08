@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
@@ -25,11 +25,11 @@ import java.util.*;
 public class ListSerializer<T> extends CollectionSerializer<List<T>>
 {
     // interning instances
-    private static final Map<AbstractSerializer<?>, ListSerializer> instances = new HashMap<AbstractSerializer<?>, ListSerializer>();
+    private static final Map<TypeSerializer<?>, ListSerializer> instances = new HashMap<TypeSerializer<?>, ListSerializer>();
 
-    public final AbstractSerializer<T> elements;
+    public final TypeSerializer<T> elements;
 
-    public static synchronized <T> ListSerializer<T> getInstance(AbstractSerializer<T> elements)
+    public static synchronized <T> ListSerializer<T> getInstance(TypeSerializer<T> elements)
     {
         ListSerializer<T> t = instances.get(elements);
         if (t == null)
@@ -40,7 +40,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
         return t;
     }
 
-    private ListSerializer(AbstractSerializer<T> elements)
+    private ListSerializer(TypeSerializer<T> elements)
     {
         this.elements = elements;
     }

@@ -20,9 +20,9 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.DoubleSerializer;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.DoubleSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DoubleType extends AbstractType<Double>
@@ -90,7 +90,7 @@ public class DoubleType extends AbstractType<Double>
     }
 
     @Override
-    public AbstractSerializer<Double> asComposer()
+    public TypeSerializer<Double> getSerializer()
     {
         return DoubleSerializer.instance;
     }

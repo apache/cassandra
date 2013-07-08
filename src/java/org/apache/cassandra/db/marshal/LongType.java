@@ -20,9 +20,9 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.LongSerializer;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.LongSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class LongType extends AbstractType<Long>
@@ -100,7 +100,7 @@ public class LongType extends AbstractType<Long>
     }
 
     @Override
-    public AbstractSerializer<Long> asComposer()
+    public TypeSerializer<Long> getSerializer()
     {
         return LongSerializer.instance;
     }

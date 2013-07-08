@@ -20,9 +20,9 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.Int32Serializer;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.Int32Serializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class Int32Type extends AbstractType<Integer>
@@ -98,7 +98,7 @@ public class Int32Type extends AbstractType<Integer>
     }
 
     @Override
-    public AbstractSerializer<Integer> asComposer()
+    public TypeSerializer<Integer> getSerializer()
     {
         return Int32Serializer.instance;
     }

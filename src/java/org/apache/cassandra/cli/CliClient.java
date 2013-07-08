@@ -32,7 +32,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.commons.lang.StringUtils;
 
 import org.antlr.runtime.tree.Tree;

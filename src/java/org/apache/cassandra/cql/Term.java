@@ -26,7 +26,7 @@ import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.MarshalException;
 
 /** A term parsed from a CQL statement. */
 public class Term

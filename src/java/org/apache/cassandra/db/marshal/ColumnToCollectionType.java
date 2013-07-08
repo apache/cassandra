@@ -25,9 +25,9 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.BytesSerializer;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.BytesSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnToCollectionType extends AbstractType<ByteBuffer>
@@ -106,7 +106,7 @@ public class ColumnToCollectionType extends AbstractType<ByteBuffer>
         throw new UnsupportedOperationException("ColumnToCollectionType should only be used in composite types, never alone");
     }
 
-    public AbstractSerializer<ByteBuffer> asComposer()
+    public TypeSerializer<ByteBuffer> getSerializer()
     {
         return BytesSerializer.instance;
     }

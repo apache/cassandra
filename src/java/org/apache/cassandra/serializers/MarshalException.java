@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 public class MarshalException extends RuntimeException
 {

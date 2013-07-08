@@ -1,4 +1,4 @@
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -42,9 +42,9 @@ public class ClientUtilsTest
         BytesSerializer.instance.serialize(BytesSerializer.instance.deserialize(ByteBuffer.wrap("string".getBytes())));
 
         Date date = new Date(System.currentTimeMillis());
-        ByteBuffer dateBB = DateSerializer.instance.deserialize(date);
-        DateSerializer.instance.serialize(dateBB);
-        assert (DateSerializer.instance.toString(date).equals(DateSerializer.instance.getString(dateBB)));
+        ByteBuffer dateBB = TimestampSerializer.instance.deserialize(date);
+        TimestampSerializer.instance.serialize(dateBB);
+        assert (TimestampSerializer.instance.toString(date).equals(TimestampSerializer.instance.getString(dateBB)));
 
         DecimalSerializer.instance.serialize(DecimalSerializer.instance.deserialize(new BigDecimal(1)));
         DoubleSerializer.instance.serialize(DoubleSerializer.instance.deserialize(new Double(1.0d)));

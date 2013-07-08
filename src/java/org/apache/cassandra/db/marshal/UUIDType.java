@@ -23,14 +23,14 @@ import java.text.ParseException;
 import java.util.UUID;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.MarshalException;
-import org.apache.cassandra.type.UUIDSerializer;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.serializers.UUIDSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.commons.lang.time.DateUtils;
 
-import static org.apache.cassandra.type.TimestampSerializer.iso8601Patterns;
+import static org.apache.cassandra.serializers.TimestampSerializer.iso8601Patterns;
 
 /**
  * Compares UUIDs using the following criteria:<br>
@@ -240,7 +240,7 @@ public class UUIDType extends AbstractType<UUID>
     }
 
     @Override
-    public AbstractSerializer<UUID> asComposer()
+    public TypeSerializer<UUID> getSerializer()
     {
         return UUIDSerializer.instance;
     }

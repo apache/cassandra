@@ -19,7 +19,7 @@
  */
 package org.apache.cassandra.db.marshal;
 
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.MarshalException;
 import org.junit.Test;
 
 public class BytesTypeTest

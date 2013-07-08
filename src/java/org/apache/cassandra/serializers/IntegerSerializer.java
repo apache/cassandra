@@ -16,61 +16,49 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.UUID;
 
-public class UUIDSerializer extends AbstractSerializer<UUID>
+public class IntegerSerializer implements TypeSerializer<BigInteger>
 {
-    public static final UUIDSerializer instance = new UUIDSerializer();
+    public static final IntegerSerializer instance = new IntegerSerializer();
 
-    @Override
-    public UUID serialize(ByteBuffer bytes)
+    public BigInteger serialize(ByteBuffer bytes)
     {
-        return UUIDGen.getUUID(bytes);
+        return new BigInteger(ByteBufferUtil.getArray(bytes));
     }
 
-    @Override
-    public ByteBuffer deserialize(UUID value)
+    public ByteBuffer deserialize(BigInteger value)
     {
-        return ByteBuffer.wrap(UUIDGen.decompose(value));
+        return ByteBuffer.wrap(value.toByteArray());
     }
 
-    @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        if (bytes.remaining() != 16 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("UUID should be 16 or 0 bytes (%d)", bytes.remaining()));
-        // not sure what the version should be for this.
+        // no invalid integers.
     }
 
-    @Override
     public String getString(ByteBuffer bytes)
     {
         if (bytes.remaining() == 0)
         {
             return "";
         }
-        if (bytes.remaining() != 16)
-        {
-            throw new MarshalException("UUIDs must be exactly 16 bytes");
-        }
-        UUID uuid = UUIDGen.getUUID(bytes);
-        return uuid.toString();
+
+        return new BigInteger(ByteBufferUtil.getArray(bytes)).toString(10);
     }
 
-    @Override
-    public String toString(UUID value)
+    public String toString(BigInteger value)
     {
-        return value.toString();
+        return value.toString(10);
     }
 
-    @Override
-    public Class<UUID> getType()
+    public Class<BigInteger> getType()
     {
-        return UUID.class;
+        return BigInteger.class;
     }
 }

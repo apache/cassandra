@@ -20,9 +20,9 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.AsciiSerializer;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.AsciiSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 
 public class AsciiType extends AbstractType<String>
 {
@@ -65,7 +65,7 @@ public class AsciiType extends AbstractType<String>
         return CQL3Type.Native.ASCII;
     }
 
-    public AbstractSerializer<String> asComposer()
+    public TypeSerializer<String> getSerializer()
     {
         return AsciiSerializer.instance;
     }

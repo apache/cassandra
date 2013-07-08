@@ -22,7 +22,7 @@ import java.util.List;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.Column;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 

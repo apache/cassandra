@@ -21,9 +21,9 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.DecimalSerializer;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.DecimalSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DecimalType extends AbstractType<BigDecimal>
@@ -95,7 +95,7 @@ public class DecimalType extends AbstractType<BigDecimal>
     }
 
     @Override
-    public AbstractSerializer<BigDecimal> asComposer()
+    public TypeSerializer<BigDecimal> getSerializer()
     {
         return DecimalSerializer.instance;
     }

@@ -23,8 +23,8 @@ import java.util.*;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.SetSerializer;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.SetSerializer;
 import org.apache.cassandra.utils.Pair;
 
 public class SetType<T> extends CollectionType<Set<T>>
@@ -59,7 +59,7 @@ public class SetType<T> extends CollectionType<Set<T>>
     {
         super(Kind.SET);
         this.elements = elements;
-        this.composer = SetSerializer.getInstance(elements.asComposer());
+        this.composer = SetSerializer.getInstance(elements.getSerializer());
     }
 
     public AbstractType<T> nameComparator()
@@ -82,7 +82,7 @@ public class SetType<T> extends CollectionType<Set<T>>
         return composer.deserialize(value);
     }
 
-    public AbstractSerializer<Set<T>> asComposer()
+    public TypeSerializer<Set<T>> getSerializer()
     {
         return composer;
     }

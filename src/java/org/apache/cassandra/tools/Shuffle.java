@@ -43,7 +43,7 @@ import javax.management.MBeanServerConnection;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.type.TimestampSerializer;
+import org.apache.cassandra.serializers.TimestampSerializer;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;

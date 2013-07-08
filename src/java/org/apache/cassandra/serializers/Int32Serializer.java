@@ -16,59 +16,53 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 
-public class DoubleSerializer extends AbstractSerializer<Double>
+public class Int32Serializer implements TypeSerializer<Integer>
 {
-    public static final DoubleSerializer instance = new DoubleSerializer();
+    public static final Int32Serializer instance = new Int32Serializer();
 
-    @Override
-    public Double serialize(ByteBuffer bytes)
+    public Integer serialize(ByteBuffer bytes)
     {
-        return ByteBufferUtil.toDouble(bytes);
+        return ByteBufferUtil.toInt(bytes);
     }
 
-    @Override
-    public ByteBuffer deserialize(Double value)
+    public ByteBuffer deserialize(Integer value)
     {
-        return (value == null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
+        return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
     }
 
-    @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        if (bytes.remaining() != 8 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 8 or 0 byte value for a double (%d)", bytes.remaining()));
+        if (bytes.remaining() != 4 && bytes.remaining() != 0)
+            throw new MarshalException(String.format("Expected 4 or 0 byte int (%d)", bytes.remaining()));
     }
 
-    @Override
     public String getString(ByteBuffer bytes)
     {
         if (bytes.remaining() == 0)
         {
             return "";
         }
-        if (bytes.remaining() != 8)
+        if (bytes.remaining() != 4)
         {
-            throw new MarshalException("A double is exactly 8 bytes : " + bytes.remaining());
+            throw new MarshalException("A int is exactly 4 bytes: " + bytes.remaining());
         }
 
-        return String.valueOf(ByteBufferUtil.toDouble(bytes));
+        return String.valueOf(ByteBufferUtil.toInt(bytes));
     }
 
-    @Override
-    public String toString(Double value)
+    public String toString(Integer value)
     {
-        return value == null ? "" : value.toString();
+        return value == null ? "" : String.valueOf(value);
     }
 
-    @Override
-    public Class<Double> getType()
+    public Class<Integer> getType()
     {
-        return Double.class;
+        return Integer.class;
     }
 }

@@ -23,7 +23,7 @@ import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.MarshalException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

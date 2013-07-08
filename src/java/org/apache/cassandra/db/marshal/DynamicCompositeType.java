@@ -24,8 +24,8 @@ import java.util.Map;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /*
@@ -362,7 +362,7 @@ public class DynamicCompositeType extends AbstractCompositeType
         }
 
         @Override
-        public AbstractSerializer<Void> asComposer()
+        public TypeSerializer<Void> getSerializer()
         {
             throw new UnsupportedOperationException();
         }

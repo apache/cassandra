@@ -16,21 +16,21 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 import java.nio.ByteBuffer;
 
-public abstract class AbstractSerializer<T>
+public interface TypeSerializer<T>
 {
-    public abstract T serialize(ByteBuffer bytes);
-    public abstract ByteBuffer deserialize(T value);
+    public T serialize(ByteBuffer bytes);
+    public ByteBuffer deserialize(T value);
 
 
     /* validate that the byte array is a valid sequence for the type we are supposed to be comparing */
-    public abstract void validate(ByteBuffer bytes) throws MarshalException;
+    public void validate(ByteBuffer bytes) throws MarshalException;
 
-    public abstract String getString(ByteBuffer bytes);
-    public abstract String toString(T value);
+    public String getString(ByteBuffer bytes);
+    public String toString(T value);
 
-    public abstract Class<T> getType();
+    public Class<T> getType();
 }

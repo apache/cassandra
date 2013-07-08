@@ -15,40 +15,37 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 
-public class BooleanSerializer extends AbstractSerializer<Boolean>
+public class BooleanSerializer implements TypeSerializer<Boolean>
 {
+    private static final ByteBuffer TRUE = ByteBuffer.wrap(new byte[] {1});
+    private static final ByteBuffer FALSE = ByteBuffer.wrap(new byte[] {0});
+
     public static final BooleanSerializer instance = new BooleanSerializer();
 
-    @Override
     public Boolean serialize(ByteBuffer bytes)
     {
         byte value = bytes.get(bytes.position());
         return value != 0;
     }
 
-    @Override
     public ByteBuffer deserialize(Boolean value)
     {
         return (value == null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER
-                : value ? ByteBuffer.wrap(new byte[] {1})  // true
-                : ByteBuffer.wrap(new byte[] {0}); // false
+                : value ? TRUE : FALSE; // false
     }
 
-    @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         if (bytes.remaining() != 1 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 1 or 0 byte value (%d)", bytes.remaining()));
     }
 
-    @Override
     public String getString(ByteBuffer bytes)
     {
         if (bytes.remaining() == 0)
@@ -64,16 +61,13 @@ public class BooleanSerializer extends AbstractSerializer<Boolean>
         return value == 0 ? Boolean.FALSE.toString() : Boolean.TRUE.toString();
     }
 
-    @Override
     public String toString(Boolean value)
     {
         return value == null ? "" : value.toString();
     }
 
-    @Override
     public Class<Boolean> getType()
     {
         return Boolean.class;
     }
-
 }

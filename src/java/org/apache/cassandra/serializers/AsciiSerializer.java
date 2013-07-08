@@ -15,8 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -24,24 +23,15 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 
-public class AsciiSerializer extends AbstractSerializer<String>
+public class AsciiSerializer extends AbstractTextSerializer
 {
     public static final AsciiSerializer instance = new AsciiSerializer();
-    private static final Charset US_ASCII = Charset.forName("US-ASCII");
 
-    @Override
-    public String serialize(ByteBuffer bytes)
+    private AsciiSerializer()
     {
-        return getString(bytes);
+        super(Charset.forName("US-ASCII"));
     }
 
-    @Override
-    public ByteBuffer deserialize(String value)
-    {
-        return ByteBufferUtil.bytes(value, US_ASCII);
-    }
-
-    @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         // 0-127
@@ -51,30 +41,5 @@ public class AsciiSerializer extends AbstractSerializer<String>
             if (b < 0 || b > 127)
                 throw new MarshalException("Invalid byte for ascii: " + Byte.toString(b));
         }
-    }
-
-    @Override
-    public String getString(ByteBuffer bytes)
-    {
-        try
-        {
-            return ByteBufferUtil.string(bytes, US_ASCII);
-        }
-        catch (CharacterCodingException e)
-        {
-            throw new MarshalException("Invalid ascii bytes " + ByteBufferUtil.bytesToHex(bytes));
-        }
-    }
-
-    @Override
-    public String toString(String value)
-    {
-        return value;
-    }
-
-    @Override
-    public Class<String> getType()
-    {
-        return String.class;
     }
 }

@@ -19,8 +19,8 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.commons.lang.NotImplementedException;
 
 import org.apache.cassandra.db.RowPosition;
@@ -70,7 +70,7 @@ public class LocalByPartionerType<T extends Token> extends AbstractType<ByteBuff
         throw new IllegalStateException("You shouldn't be validating this.");
     }
 
-    public AbstractSerializer<ByteBuffer> asComposer()
+    public TypeSerializer<ByteBuffer> getSerializer()
     {
         throw new UnsupportedOperationException("You can't do this with a local partitioner.");
     }

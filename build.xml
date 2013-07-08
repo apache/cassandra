@@ -736,7 +736,7 @@
       <!-- TODO: write maven pom here -->
       <jar jarfile="${build.dir}/${ant.project.name}-clientutil-${version}.jar">
         <fileset dir="${build.classes.main}">
-          <include name="org/apache/cassandra/type/*" />
+          <include name="org/apache/cassandra/serializers/*" />
           <include name="org/apache/cassandra/utils/ByteBufferUtil*.class" />
           <include name="org/apache/cassandra/utils/Hex.class" />
           <include name="org/apache/cassandra/utils/UUIDGen*.class" />
@@ -794,7 +794,7 @@
       <create-javadoc destdir="${javadoc.jars.dir}/clientutil">
         <filesets>
           <fileset dir="${build.src.java}" defaultexcludes="yes">
-            <include name="org/apache/cassandra/type/*" />
+            <include name="org/apache/cassandra/serializers/*" />
             <include name="org/apache/cassandra/utils/ByteBufferUtil*.java" />
             <include name="org/apache/cassandra/utils/Hex.java" />
             <include name="org/apache/cassandra/utils/UUIDGen*.java" />
@@ -827,7 +827,7 @@
       </jar>
       <jar jarfile="${build.dir}/${ant.project.name}-clientutil-${version}-sources.jar">
         <fileset dir="${build.src.java}" defaultexcludes="yes">
-          <include name="org/apache/cassandra/type/*" />
+          <include name="org/apache/cassandra/serializers/*" />
           <include name="org/apache/cassandra/utils/ByteBufferUtil*.java" />
           <include name="org/apache/cassandra/utils/Hex.java" />
           <include name="org/apache/cassandra/utils/UUIDGen*.java" />
@@ -1045,7 +1045,7 @@
   -->
   <target name="test-clientutil-jar" depends="build-test,jar" description="Test clientutil jar">
     <junit>
-      <test name="org.apache.cassandra.type.ClientUtilsTest" />
+      <test name="org.apache.cassandra.serializers.ClientUtilsTest" />
       <formatter type="brief" usefile="false" />
       <classpath>
         <pathelement location="${test.classes}" />

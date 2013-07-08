@@ -15,60 +15,52 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
 
-public class LongSerializer extends AbstractSerializer<Long>
+public abstract class AbstractTextSerializer implements TypeSerializer<String>
 {
-    public static final LongSerializer instance = new LongSerializer();
+    private final Charset charset;
 
-    @Override
-    public Long serialize(ByteBuffer bytes)
+    protected AbstractTextSerializer(Charset charset)
     {
-        return ByteBufferUtil.toLong(bytes);
+        this.charset = charset;
     }
 
-    @Override
-    public ByteBuffer deserialize(Long value)
+    public String serialize(ByteBuffer bytes)
     {
-        return ByteBufferUtil.bytes(value);
+        return getString(bytes);
     }
 
-    @Override
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public ByteBuffer deserialize(String value)
     {
-        if (bytes.remaining() != 8 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 8 or 0 byte long (%d)", bytes.remaining()));
+        return ByteBufferUtil.bytes(value, charset);
     }
 
-    @Override
     public String getString(ByteBuffer bytes)
     {
-        if (bytes.remaining() == 0)
+        try
         {
-            return "";
+            return ByteBufferUtil.string(bytes, charset);
         }
-        if (bytes.remaining() != 8)
+        catch (CharacterCodingException e)
         {
-            throw new MarshalException("A long is exactly 8 bytes: " + bytes.remaining());
+            throw new MarshalException("Invalid " + charset + " bytes " + ByteBufferUtil.bytesToHex(bytes));
         }
-
-        return String.valueOf(ByteBufferUtil.toLong(bytes));
     }
 
-    @Override
-    public String toString(Long value)
+    public String toString(String value)
     {
-        return String.valueOf(value);
+        return value;
     }
 
-    @Override
-    public Class<Long> getType()
+    public Class<String> getType()
     {
-        return Long.class;
+        return String.class;
     }
 }

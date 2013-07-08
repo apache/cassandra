@@ -15,8 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -24,11 +23,10 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
-public class DecimalSerializer extends AbstractSerializer<BigDecimal>
+public class DecimalSerializer implements TypeSerializer<BigDecimal>
 {
     public static final DecimalSerializer instance = new DecimalSerializer();
 
-    @Override
     public BigDecimal serialize(ByteBuffer bytes)
     {
         if (bytes == null)
@@ -44,7 +42,6 @@ public class DecimalSerializer extends AbstractSerializer<BigDecimal>
         return new BigDecimal(bi, scale);
     }
 
-    @Override
     public ByteBuffer deserialize(BigDecimal value)
     {
         if (value == null)
@@ -64,13 +61,11 @@ public class DecimalSerializer extends AbstractSerializer<BigDecimal>
         return ByteBuffer.wrap(bytes);
     }
 
-    @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         // no useful check for invalid decimals.
     }
 
-    @Override
     public String getString(ByteBuffer bytes)
     {
         if (bytes.remaining() == 0)
@@ -80,13 +75,11 @@ public class DecimalSerializer extends AbstractSerializer<BigDecimal>
         return serialize(bytes).toPlainString();
     }
 
-    @Override
     public String toString(BigDecimal value)
     {
         return value == null ? "" : value.toPlainString();
     }
 
-    @Override
     public Class<BigDecimal> getType()
     {
         return BigDecimal.class;

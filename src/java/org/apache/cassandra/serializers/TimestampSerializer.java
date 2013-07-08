@@ -15,8 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -24,7 +23,7 @@ import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class TimestampSerializer extends AbstractSerializer<Date>
+public class TimestampSerializer implements TypeSerializer<Date>
 {
     public static final String[] iso8601Patterns = new String[] {
             "yyyy-MM-dd HH:mm",
@@ -51,7 +50,6 @@ public class TimestampSerializer extends AbstractSerializer<Date>
 
     public static final TimestampSerializer instance = new TimestampSerializer();
 
-    @Override
     public Date serialize(ByteBuffer bytes)
     {
         return bytes.remaining() > 0
@@ -59,7 +57,6 @@ public class TimestampSerializer extends AbstractSerializer<Date>
                 : null;
     }
 
-    @Override
     public ByteBuffer deserialize(Date value)
     {
         return (value == null)
@@ -67,14 +64,12 @@ public class TimestampSerializer extends AbstractSerializer<Date>
                 : ByteBufferUtil.bytes(value.getTime());
     }
 
-    @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         if (bytes.remaining() != 8 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 8 or 0 byte long for date (%d)", bytes.remaining()));
     }
 
-    @Override
     public String getString(ByteBuffer bytes)
     {
         if (bytes.remaining() == 0)
@@ -90,13 +85,11 @@ public class TimestampSerializer extends AbstractSerializer<Date>
         return FORMATTER.get().format(new Date(ByteBufferUtil.toLong(bytes)));
     }
 
-    @Override
     public String toString(Date value)
     {
         return FORMATTER.get().format(value);
     }
 
-    @Override
     public Class<Date> getType()
     {
         return Date.class;

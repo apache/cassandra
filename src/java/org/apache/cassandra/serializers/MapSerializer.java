@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 import org.apache.cassandra.utils.Pair;
 
@@ -27,14 +27,14 @@ import java.util.*;
 public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
 {
     // interning instances
-    private static final Map<Pair<AbstractSerializer<?>, AbstractSerializer<?>>, MapSerializer> instances = new HashMap<Pair<AbstractSerializer<?>, AbstractSerializer<?>>, MapSerializer>();
+    private static final Map<Pair<TypeSerializer<?>, TypeSerializer<?>>, MapSerializer> instances = new HashMap<Pair<TypeSerializer<?>, TypeSerializer<?>>, MapSerializer>();
 
-    public final AbstractSerializer<K> keys;
-    public final AbstractSerializer<V> values;
+    public final TypeSerializer<K> keys;
+    public final TypeSerializer<V> values;
 
-    public static synchronized <K, V> MapSerializer<K, V> getInstance(AbstractSerializer<K> keys, AbstractSerializer<V> values)
+    public static synchronized <K, V> MapSerializer<K, V> getInstance(TypeSerializer<K> keys, TypeSerializer<V> values)
     {
-        Pair<AbstractSerializer<?>, AbstractSerializer<?>> p = Pair.<AbstractSerializer<?>, AbstractSerializer<?>>create(keys, values);
+        Pair<TypeSerializer<?>, TypeSerializer<?>> p = Pair.<TypeSerializer<?>, TypeSerializer<?>>create(keys, values);
         MapSerializer<K, V> t = instances.get(p);
         if (t == null)
         {
@@ -44,13 +44,12 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         return t;
     }
 
-    private MapSerializer(AbstractSerializer<K> keys, AbstractSerializer<V> values)
+    private MapSerializer(TypeSerializer<K> keys, TypeSerializer<V> values)
     {
         this.keys = keys;
         this.values = values;
     }
 
-    @Override
     public Map<K, V> serialize(ByteBuffer bytes)
     {
         try
@@ -82,7 +81,6 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         }
     }
 
-    @Override
     public ByteBuffer deserialize(Map<K, V> value)
     {
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(2 * value.size());
@@ -98,7 +96,6 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         return pack(bbs, value.size(), size);
     }
 
-    @Override
     public String toString(Map<K, V> value)
     {
         StringBuffer sb = new StringBuffer();
@@ -122,7 +119,6 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         return sb.toString();
     }
 
-    @Override
     public Class<Map<K, V>> getType()
     {
         return (Class)Map.class;

@@ -24,7 +24,7 @@ import org.apache.cassandra.db.ExpiringColumn;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.MarshalException;
 
 /**
  * Utility class for the Parser to gather attributes for modification

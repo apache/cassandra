@@ -20,9 +20,9 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.MarshalException;
-import org.apache.cassandra.type.UUIDSerializer;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.serializers.UUIDSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -85,7 +85,7 @@ public class LexicalUUIDType extends AbstractType<UUID>
     }
 
     @Override
-    public AbstractSerializer<UUID> asComposer()
+    public TypeSerializer<UUID> getSerializer()
     {
         return UUIDSerializer.instance;
     }

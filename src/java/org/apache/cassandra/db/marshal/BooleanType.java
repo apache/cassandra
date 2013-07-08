@@ -20,9 +20,9 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.BooleanSerializer;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.BooleanSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 
 public class BooleanType extends AbstractType<Boolean>
 {
@@ -79,7 +79,7 @@ public class BooleanType extends AbstractType<Boolean>
   }
 
     @Override
-    public AbstractSerializer<Boolean> asComposer()
+    public TypeSerializer<Boolean> getSerializer()
     {
         return BooleanSerializer.instance;
     }

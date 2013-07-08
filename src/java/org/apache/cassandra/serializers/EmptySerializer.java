@@ -16,48 +16,42 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 
-public class EmptySerializer extends AbstractSerializer<Void>
+public class EmptySerializer implements TypeSerializer<Void>
 {
     public static final EmptySerializer instance = new EmptySerializer();
 
-    @Override
     public Void serialize(ByteBuffer bytes)
     {
         return null;
     }
 
-    @Override
     public ByteBuffer deserialize(Void value)
     {
         return ByteBufferUtil.EMPTY_BYTE_BUFFER;
     }
 
-    @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         if (bytes.remaining() > 0)
             throw new MarshalException("EmptyType only accept empty values");
     }
 
-    @Override
     public String getString(ByteBuffer bytes)
     {
         return "";
     }
 
-    @Override
     public String toString(Void value)
     {
         return "";
     }
 
-    @Override
     public Class<Void> getType()
     {
         return Void.class;

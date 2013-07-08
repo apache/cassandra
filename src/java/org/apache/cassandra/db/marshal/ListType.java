@@ -23,8 +23,8 @@ import java.util.*;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.ListSerializer;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.ListSerializer;
 import org.apache.cassandra.utils.Pair;
 
 public class ListType<T> extends CollectionType<List<T>>
@@ -59,7 +59,7 @@ public class ListType<T> extends CollectionType<List<T>>
     {
         super(Kind.LIST);
         this.elements = elements;
-        this.composer = ListSerializer.getInstance(elements.asComposer());
+        this.composer = ListSerializer.getInstance(elements.getSerializer());
     }
 
     public AbstractType<UUID> nameComparator()
@@ -89,7 +89,7 @@ public class ListType<T> extends CollectionType<List<T>>
         return composer.deserialize(value);
     }
 
-    public AbstractSerializer<List<T>> asComposer()
+    public TypeSerializer<List<T>> getSerializer()
     {
         return composer;
     }

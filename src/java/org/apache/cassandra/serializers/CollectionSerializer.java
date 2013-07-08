@@ -16,14 +16,13 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 import java.nio.ByteBuffer;
 import java.util.List;
 
-public abstract class CollectionSerializer<T> extends AbstractSerializer<T>
+public abstract class CollectionSerializer<T> implements TypeSerializer<T>
 {
-    @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         // The collection is not currently being properly validated.

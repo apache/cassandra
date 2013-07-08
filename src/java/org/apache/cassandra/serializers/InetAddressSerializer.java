@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -24,11 +24,10 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 
-public class InetAddressSerializer extends AbstractSerializer<InetAddress>
+public class InetAddressSerializer implements TypeSerializer<InetAddress>
 {
     public static final InetAddressSerializer instance = new InetAddressSerializer();
 
-    @Override
     public InetAddress serialize(ByteBuffer bytes)
     {
         try
@@ -41,13 +40,11 @@ public class InetAddressSerializer extends AbstractSerializer<InetAddress>
         }
     }
 
-    @Override
     public ByteBuffer deserialize(InetAddress value)
     {
         return ByteBuffer.wrap(value.getAddress());
     }
 
-    @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         try
@@ -60,19 +57,16 @@ public class InetAddressSerializer extends AbstractSerializer<InetAddress>
         }
     }
 
-    @Override
     public String getString(ByteBuffer bytes)
     {
         return serialize(bytes).getHostAddress();
     }
 
-    @Override
     public String toString(InetAddress value)
     {
         return value.getHostAddress();
     }
 
-    @Override
     public Class<InetAddress> getType()
     {
         return InetAddress.class;

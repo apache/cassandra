@@ -16,25 +16,45 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.type;
+package org.apache.cassandra.serializers;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 
-public class TimeUUIDSerializer extends UUIDSerializer
+public class BytesSerializer implements TypeSerializer<ByteBuffer>
 {
-    @Override
+    public static final BytesSerializer instance = new BytesSerializer();
+
+    public ByteBuffer serialize(ByteBuffer bytes)
+    {
+        // We make a copy in case the user modifies the input
+        return bytes.duplicate();
+    }
+
+    public ByteBuffer deserialize(ByteBuffer value)
+    {
+        // This is from the DB, so it is not shared with someone else
+        return value;
+    }
+
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        super.validate(bytes);
+        // all bytes are legal.
+    }
 
-        // Super class only validates the Time UUID
-        ByteBuffer slice = bytes.slice();
-        // version is bits 4-7 of byte 6.
-        if (bytes.remaining() > 0)
-        {
-            slice.position(6);
-            if ((slice.get() & 0xf0) != 0x10)
-                throw new MarshalException("Invalid version for TimeUUID type.");
-        }
+    public String getString(ByteBuffer bytes)
+    {
+        return ByteBufferUtil.bytesToHex(bytes);
+    }
+
+    public String toString(ByteBuffer value)
+    {
+        return getString(value);
+    }
+
+    public Class<ByteBuffer> getType()
+    {
+        return ByteBuffer.class;
     }
 }

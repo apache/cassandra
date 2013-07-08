@@ -19,9 +19,9 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.EmptySerializer;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.EmptySerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -67,7 +67,7 @@ public class EmptyType extends AbstractType<Void>
         EmptySerializer.instance.validate(bytes);
     }
 
-    public AbstractSerializer<Void> asComposer()
+    public TypeSerializer<Void> getSerializer()
     {
         return EmptySerializer.instance;
     }

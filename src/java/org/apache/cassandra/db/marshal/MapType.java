@@ -24,9 +24,9 @@ import java.util.*;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.MapSerializer;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.MapSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.Pair;
 
 public class MapType<K, V> extends CollectionType<Map<K, V>>
@@ -64,7 +64,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         super(Kind.MAP);
         this.keys = keys;
         this.values = values;
-        this.composer = MapSerializer.getInstance(keys.asComposer(), values.asComposer());
+        this.composer = MapSerializer.getInstance(keys.getSerializer(), values.getSerializer());
     }
 
     public AbstractType<K> nameComparator()
@@ -133,7 +133,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     }
 
     @Override
-    public AbstractSerializer<Map<K, V>> asComposer()
+    public TypeSerializer<Map<K, V>> getSerializer()
     {
         return composer;
     }

@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.db.marshal;
 
-import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.BytesSerializer;
-import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.BytesSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -330,7 +330,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     }
 
     @Override
-    public AbstractSerializer<ByteBuffer> asComposer()
+    public TypeSerializer<ByteBuffer> getSerializer()
     {
         return BytesSerializer.instance;
     }
