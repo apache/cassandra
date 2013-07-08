@@ -97,8 +97,11 @@ public class Server implements CassandraDaemon.Server
 
     public void start()
     {
-        run();
-        isRunning.set(true);
+	    if(!isRunning())
+	    {
+                run();
+                isRunning.set(true);
+	    }
     }
 
     public void stop()
