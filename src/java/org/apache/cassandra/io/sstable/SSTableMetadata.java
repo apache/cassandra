@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable;
 import java.io.*;
 import java.util.*;
 
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.StreamingHistogram;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +56,6 @@ public class SSTableMetadata
     public final long maxTimestamp;
     public final double compressionRatio;
     public final String partitioner;
-    public final Set<Integer> ancestors;
     public final StreamingHistogram estimatedTombstoneDropTime;
 
     private SSTableMetadata()
@@ -67,7 +67,6 @@ public class SSTableMetadata
              Long.MAX_VALUE,
              NO_COMPRESSION_RATIO,
              null,
-             Collections.<Integer>emptySet(),
              defaultTombstoneDropTimeHistogram());
     }
 
@@ -78,7 +77,6 @@ public class SSTableMetadata
                             long maxTimestamp,
                             double cr,
                             String partitioner,
-                            Set<Integer> ancestors,
                             StreamingHistogram estimatedTombstoneDropTime)
     {
         this.estimatedRowSize = rowSizes;
@@ -88,7 +86,6 @@ public class SSTableMetadata
         this.maxTimestamp = maxTimestamp;
         this.compressionRatio = cr;
         this.partitioner = partitioner;
-        this.ancestors = ancestors;
         this.estimatedTombstoneDropTime = estimatedTombstoneDropTime;
     }
 
@@ -193,7 +190,6 @@ public class SSTableMetadata
                                        maxTimestamp,
                                        compressionRatio,
                                        partitioner,
-                                       ancestors,
                                        estimatedTombstoneDropTime);
         }
 
@@ -242,7 +238,7 @@ public class SSTableMetadata
     {
         private static final Logger logger = LoggerFactory.getLogger(SSTableMetadataSerializer.class);
 
-        public void serialize(SSTableMetadata sstableStats, DataOutput dos) throws IOException
+        public void serialize(SSTableMetadata sstableStats, Set<Integer> ancestors, DataOutput dos) throws IOException
         {
             assert sstableStats.partitioner != null;
 
@@ -253,20 +249,31 @@ public class SSTableMetadata
             dos.writeLong(sstableStats.maxTimestamp);
             dos.writeDouble(sstableStats.compressionRatio);
             dos.writeUTF(sstableStats.partitioner);
-            dos.writeInt(sstableStats.ancestors.size());
-            for (Integer g : sstableStats.ancestors)
+            dos.writeInt(ancestors.size());
+            for (Integer g : ancestors)
                 dos.writeInt(g);
             StreamingHistogram.serializer.serialize(sstableStats.estimatedTombstoneDropTime, dos);
         }
 
-        public SSTableMetadata deserialize(Descriptor descriptor) throws IOException
+        /**
+         * deserializes the metadata
+         *
+         * returns a pair containing the part of the metadata meant to be kept-in memory and the part
+         * that should not.
+         *
+         * @param descriptor the descriptor
+         * @return a pair containing data that needs to be in memory and data that is potentially big and is not needed
+         *         in memory
+         * @throws IOException
+         */
+        public Pair<SSTableMetadata, Set<Integer>> deserialize(Descriptor descriptor) throws IOException
         {
             logger.debug("Load metadata for {}", descriptor);
             File statsFile = new File(descriptor.filenameFor(SSTable.COMPONENT_STATS));
             if (!statsFile.exists())
             {
                 logger.debug("No sstable stats for {}", descriptor);
-                return new SSTableMetadata();
+                return Pair.create(new SSTableMetadata(), Collections.<Integer>emptySet());
             }
 
             DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(statsFile)));
@@ -280,7 +287,7 @@ public class SSTableMetadata
             }
         }
 
-        public SSTableMetadata deserialize(DataInputStream dis, Descriptor desc) throws IOException
+        public Pair<SSTableMetadata, Set<Integer>> deserialize(DataInputStream dis, Descriptor desc) throws IOException
         {
             EstimatedHistogram rowSizes = EstimatedHistogram.serializer.deserialize(dis);
             EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(dis);
@@ -308,7 +315,15 @@ public class SSTableMetadata
             StreamingHistogram tombstoneHistogram = desc.version.tracksTombstones
                                                    ? StreamingHistogram.serializer.deserialize(dis)
                                                    : defaultTombstoneDropTimeHistogram();
-            return new SSTableMetadata(rowSizes, columnCounts, replayPosition, minTimestamp, maxTimestamp, compressionRatio, partitioner, ancestors, tombstoneHistogram);
+            return Pair.create(new SSTableMetadata(rowSizes,
+                                                   columnCounts,
+                                                   replayPosition,
+                                                   minTimestamp,
+                                                   maxTimestamp,
+                                                   compressionRatio,
+                                                   partitioner,
+                                                   tombstoneHistogram),
+                                                   ancestors);
         }
     }
 }
