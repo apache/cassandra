@@ -67,7 +67,7 @@
 # If an include wasn't specified in the environment, then search for one...
 if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
     # Locations (in order) to use when searching for an include file.
-    for include in "`dirname $0`/cassandra.in.sh" \
+    for include in "`dirname "$0"`/cassandra.in.sh" \
                    "$HOME/.cassandra.in.sh" \
                    /usr/share/cassandra/cassandra.in.sh \
                    /usr/local/share/cassandra/cassandra.in.sh \
@@ -120,10 +120,10 @@ esac
 
 launch_service()
 {
-    pidpath=$1
-    foreground=$2
-    props=$3
-    class=$4
+    pidpath="$1"
+    foreground="$2"
+    props="$3"
+    class="$4"
     cassandra_parms="-Dlog4j.configuration=log4j-server.properties -Dlog4j.defaultInitOverride=true"
 
     if [ "x$pidpath" != "x" ]; then
