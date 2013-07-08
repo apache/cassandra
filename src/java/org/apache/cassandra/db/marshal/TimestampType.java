@@ -19,7 +19,6 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import org.slf4j.Logger;
@@ -27,21 +26,25 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.type.AbstractSerializer;
-import org.apache.cassandra.type.TimestampSerializer;
 import org.apache.cassandra.type.MarshalException;
+import org.apache.cassandra.type.TimestampSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang.time.DateUtils;
 
-public class DateType extends AbstractType<Date>
+/**
+ * Type for date-time values.
+ *
+ * This is meant as a replacement for DateType, as DateType wrongly compare
+ * pre-unix-epoch dates, sorting them *after* post-unix-epoch ones (due to it's
+ * use of unsigned bytes comparison).
+ */
+public class TimestampType extends AbstractType<Date>
 {
-    private static final Logger logger = LoggerFactory.getLogger(DateType.class);
+    private static final Logger logger = LoggerFactory.getLogger(TimestampType.class);
 
-    public static final DateType instance = new DateType();
+    public static final TimestampType instance = new TimestampType();
 
-    static final String DEFAULT_FORMAT = TimestampSerializer.iso8601Patterns[3];
-    static final SimpleDateFormat FORMATTER = new SimpleDateFormat(DEFAULT_FORMAT);
-
-    DateType() {} // singleton
+    private TimestampType() {} // singleton
 
     public Date compose(ByteBuffer bytes)
     {
@@ -55,16 +58,7 @@ public class DateType extends AbstractType<Date>
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
-        if (o1.remaining() == 0)
-        {
-            return o2.remaining() == 0 ? 0 : -1;
-        }
-        if (o2.remaining() == 0)
-        {
-            return 1;
-        }
-
-        return ByteBufferUtil.compareUnsigned(o1, o2);
+        return LongType.compareLongs(o1, o2);
     }
 
     public String getString(ByteBuffer bytes)
@@ -117,27 +111,31 @@ public class DateType extends AbstractType<Date>
       return millis;
     }
 
+    public void validate(ByteBuffer bytes) throws MarshalException
+    {
+        TimestampSerializer.instance.validate(bytes);
+    }
+
     @Override
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
         if (super.isCompatibleWith(previous))
             return true;
 
-        if (previous instanceof TimestampType)
+        if (previous instanceof DateType)
         {
-            logger.warn("Changing from TimestampType to DateType is allowed, but be wary that they sort differently for pre-unix-epoch timestamps "
-                      + "(negative timestamp values) and thus this change will corrupt your data if you have such negative timestamp. There is no "
-                      + "reason to switch from DateType to TimestampType except if you were using DateType in the first place and switched to "
-                      + "TimestampType by mistake.");
+            logger.warn("Changing from DateType to TimestampType is allowed, but be wary that they sort differently for pre-unix-epoch timestamps "
+                      + "(negative timestamp values) and thus this change will corrupt your data if you have such negative timestamp. So unless you "
+                      + "know that you don't have *any* pre-unix-epoch timestamp you should change back to DateType");
             return true;
         }
 
         return false;
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public CQL3Type asCQL3Type()
     {
-        TimestampSerializer.instance.validate(bytes);
+        return CQL3Type.Native.TIMESTAMP;
     }
 
     public AbstractSerializer<Date> asComposer()

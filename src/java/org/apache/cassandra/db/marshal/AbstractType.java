@@ -306,4 +306,3 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         return false;
     }
 }
-

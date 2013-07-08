@@ -30,7 +30,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.commons.lang.time.DateUtils;
 
-import static org.apache.cassandra.type.DateSerializer.iso8601Patterns;
+import static org.apache.cassandra.type.TimestampSerializer.iso8601Patterns;
 
 /**
  * Compares UUIDs using the following criteria:<br>

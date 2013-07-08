@@ -43,7 +43,7 @@ import javax.management.MBeanServerConnection;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.type.DateSerializer;
+import org.apache.cassandra.type.TimestampSerializer;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
@@ -389,7 +389,7 @@ public class Shuffle extends AbstractJmxClient
 
                 ByteBuffer tokenBytes = ByteBuffer.wrap(row.getColumns().get(0).getValue());
                 ByteBuffer requestedAt = ByteBuffer.wrap(row.getColumns().get(1).getValue());
-                Date time = DateSerializer.instance.serialize(requestedAt);
+                Date time = TimestampSerializer.instance.serialize(requestedAt);
                 Token<?> token = partitioner.getTokenFactory().fromByteArray(tokenBytes);
 
                 writeln("%-42s %-15s %s", token.toString(), host, time.toString());

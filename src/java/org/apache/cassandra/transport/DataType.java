@@ -43,7 +43,7 @@ public enum DataType implements OptionCodec.Codecable<DataType>
     FLOAT    (8,  FloatType.instance),
     INT      (9,  Int32Type.instance),
     TEXT     (10, UTF8Type.instance),
-    TIMESTAMP(11, DateType.instance),
+    TIMESTAMP(11, TimestampType.instance),
     UUID     (12, UUIDType.instance),
     VARCHAR  (13, UTF8Type.instance),
     VARINT   (14, IntegerType.instance),
@@ -146,6 +146,9 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         // shouldn't have to care about it.
         if (type instanceof ReversedType)
             type = ((ReversedType)type).baseType;
+        // For compatibility sake, we still return DateType as the timestamp type in resultSet metadata (#5723)
+        else if (type instanceof DateType)
+            type = TimestampType.instance;
 
         DataType dt = dataTypeMap.get(type);
         if (dt == null)

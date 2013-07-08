@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class DateSerializer extends AbstractSerializer<Date>
+public class TimestampSerializer extends AbstractSerializer<Date>
 {
     public static final String[] iso8601Patterns = new String[] {
             "yyyy-MM-dd HH:mm",
@@ -49,7 +49,7 @@ public class DateSerializer extends AbstractSerializer<Date>
         }
     };
 
-    public static final DateSerializer instance = new DateSerializer();
+    public static final TimestampSerializer instance = new TimestampSerializer();
 
     @Override
     public Date serialize(ByteBuffer bytes)

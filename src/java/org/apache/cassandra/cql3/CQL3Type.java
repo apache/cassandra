@@ -41,7 +41,7 @@ public interface CQL3Type
         INET     (InetAddressType.instance),
         INT      (Int32Type.instance),
         TEXT     (UTF8Type.instance),
-        TIMESTAMP(DateType.instance),
+        TIMESTAMP(TimestampType.instance),
         UUID     (UUIDType.instance),
         VARCHAR  (UTF8Type.instance),
         VARINT   (IntegerType.instance),

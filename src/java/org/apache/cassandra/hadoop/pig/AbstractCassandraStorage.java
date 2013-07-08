@@ -140,7 +140,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
        else if (value instanceof UUID)
            pair.set(position, new DataByteArray(UUIDGen.decompose((java.util.UUID) value)));
        else if (value instanceof Date)
-           pair.set(position, DateType.instance.decompose((Date) value).getLong());
+           pair.set(position, TimestampType.instance.decompose((Date) value).getLong());
        else
            pair.set(position, value);
     }
@@ -299,7 +299,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     /** get pig type for the cassandra data type*/
     protected byte getPigType(AbstractType type)
     {
-        if (type instanceof LongType || type instanceof DateType) // DateType is bad and it should feel bad
+        if (type instanceof LongType || type instanceof DateType || type instanceof TimestampType) // DateType is bad and it should feel bad
             return DataType.LONG;
         else if (type instanceof IntegerType || type instanceof Int32Type) // IntegerType will overflow at 2**31, but is kept for compatibility until pig has a BigInteger
             return DataType.INTEGER;

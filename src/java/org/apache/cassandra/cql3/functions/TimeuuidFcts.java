@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Date;
 import java.util.List;
 
-import org.apache.cassandra.db.marshal.DateType;
+import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -43,27 +43,27 @@ public abstract class TimeuuidFcts
         }
     };
 
-    public static final Function minTimeuuidFct = new AbstractFunction("mintimeuuid", TimeUUIDType.instance, DateType.instance)
+    public static final Function minTimeuuidFct = new AbstractFunction("mintimeuuid", TimeUUIDType.instance, TimestampType.instance)
     {
         public ByteBuffer execute(List<ByteBuffer> parameters)
         {
-            return ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.minTimeUUID(DateType.instance.compose(parameters.get(0)).getTime())));
+            return ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.minTimeUUID(TimestampType.instance.compose(parameters.get(0)).getTime())));
         }
     };
 
-    public static final Function maxTimeuuidFct = new AbstractFunction("maxtimeuuid", TimeUUIDType.instance, DateType.instance)
+    public static final Function maxTimeuuidFct = new AbstractFunction("maxtimeuuid", TimeUUIDType.instance, TimestampType.instance)
     {
         public ByteBuffer execute(List<ByteBuffer> parameters)
         {
-            return ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.maxTimeUUID(DateType.instance.compose(parameters.get(0)).getTime())));
+            return ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.maxTimeUUID(TimestampType.instance.compose(parameters.get(0)).getTime())));
         }
     };
 
-    public static final Function dateOfFct = new AbstractFunction("dateof", DateType.instance, TimeUUIDType.instance)
+    public static final Function dateOfFct = new AbstractFunction("dateof", TimestampType.instance, TimeUUIDType.instance)
     {
         public ByteBuffer execute(List<ByteBuffer> parameters)
         {
-            return DateType.instance.decompose(new Date(UUIDGen.unixTimestamp(UUIDGen.getUUID(parameters.get(0)))));
+            return TimestampType.instance.decompose(new Date(UUIDGen.unixTimestamp(UUIDGen.getUUID(parameters.get(0)))));
         }
     };
 

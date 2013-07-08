@@ -43,6 +43,11 @@ public class LongType extends AbstractType<Long>
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
+        return compareLongs(o1, o2);
+    }
+
+    public static int compareLongs(ByteBuffer o1, ByteBuffer o2)
+    {
         if (o1.remaining() == 0)
         {
             return o2.remaining() == 0 ? 0 : -1;
@@ -52,10 +57,9 @@ public class LongType extends AbstractType<Long>
             return 1;
         }
 
-        int diff = o1.get(o1.position()) - o2.get(o2.position());
+        int diff = o1.get(o1.position() + o1.arrayOffset()) - o2.get(o2.position() + o2.arrayOffset());
         if (diff != 0)
             return diff;
-
 
         return ByteBufferUtil.compareUnsigned(o1, o2);
     }
