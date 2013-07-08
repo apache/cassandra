@@ -27,6 +27,7 @@ import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * Reset level to 0 on a given set of sstables
@@ -64,8 +65,8 @@ public class SSTableLevelResetter
             {
                 foundSSTable = true;
                 Descriptor descriptor = sstable.getKey();
-                SSTableMetadata metadata = SSTableMetadata.serializer.deserialize(descriptor);
-                out.println("Changing level from " + metadata.sstableLevel + " to 0 on " + descriptor.filenameFor(Component.DATA));
+                Pair<SSTableMetadata, Set<Integer>> metadata = SSTableMetadata.serializer.deserialize(descriptor);
+                out.println("Changing level from " + metadata.left.sstableLevel + " to 0 on " + descriptor.filenameFor(Component.DATA));
                 LeveledManifest.mutateLevel(metadata, descriptor, descriptor.filenameFor(Component.STATS), 0);
             }
         }

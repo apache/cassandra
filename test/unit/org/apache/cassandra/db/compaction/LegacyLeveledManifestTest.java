@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,6 +34,7 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Pair;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.apache.cassandra.db.compaction.LegacyLeveledManifestTestHelper.*;
@@ -74,7 +76,7 @@ public class LegacyLeveledManifestTest
         for (int i = 0; i <= 2; i++)
         {
             Descriptor descriptor = Descriptor.fromFilename(destDir+File.separator+KS+"-"+CF+"-"+LEGACY_VERSION+"-"+i+"-Statistics.db");
-            SSTableMetadata metadata = SSTableMetadata.serializer.deserialize(descriptor);
+            SSTableMetadata metadata = SSTableMetadata.serializer.deserialize(descriptor).left;
             assertEquals(metadata.sstableLevel, i);
         }
     }
@@ -86,7 +88,7 @@ public class LegacyLeveledManifestTest
     @Test
     public void validateSSTableMetadataTest() throws IOException
     {
-        Map<Descriptor, SSTableMetadata> beforeMigration = new HashMap<Descriptor, SSTableMetadata>();
+        Map<Descriptor, Pair<SSTableMetadata, Set<Integer>>> beforeMigration = new HashMap<>();
         for (int i = 0; i <= 2; i++)
         {
             Descriptor descriptor = Descriptor.fromFilename(destDir+File.separator+KS+"-"+CF+"-"+LEGACY_VERSION+"-"+i+"-Statistics.db");
@@ -95,10 +97,11 @@ public class LegacyLeveledManifestTest
 
         LegacyLeveledManifest.migrateManifests(KS, CF);
 
-        for (Map.Entry<Descriptor, SSTableMetadata> entry : beforeMigration.entrySet())
+        for (Map.Entry<Descriptor, Pair<SSTableMetadata, Set<Integer>>> entry : beforeMigration.entrySet())
         {
-            SSTableMetadata newMetadata = SSTableMetadata.serializer.deserialize(entry.getKey());
-            SSTableMetadata oldMetadata = entry.getValue();
+            Pair<SSTableMetadata, Set<Integer>> newMetaPair = SSTableMetadata.serializer.deserialize(entry.getKey());
+            SSTableMetadata newMetadata = newMetaPair.left;
+            SSTableMetadata oldMetadata = entry.getValue().left;
             assertEquals(newMetadata.estimatedRowSize, oldMetadata.estimatedRowSize);
             assertEquals(newMetadata.estimatedColumnCount, oldMetadata.estimatedColumnCount);
             assertEquals(newMetadata.replayPosition, oldMetadata.replayPosition);
@@ -106,8 +109,8 @@ public class LegacyLeveledManifestTest
             assertEquals(newMetadata.maxTimestamp, oldMetadata.maxTimestamp);
             assertEquals(newMetadata.compressionRatio, oldMetadata.compressionRatio, 0.01);
             assertEquals(newMetadata.partitioner, oldMetadata.partitioner);
-            assertEquals(newMetadata.ancestors, oldMetadata.ancestors);
             assertEquals(newMetadata.estimatedTombstoneDropTime, oldMetadata.estimatedTombstoneDropTime);
+            assertEquals(entry.getValue().right, newMetaPair.right);
         }
     }
 

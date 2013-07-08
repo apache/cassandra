@@ -31,6 +31,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Pair;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 
@@ -97,7 +98,7 @@ public class LegacyLeveledManifest
         for (Map.Entry<Descriptor, Set<Component>> entry : directories.sstableLister().includeBackups(false).skipTemporary(true).list().entrySet())
         {
             Descriptor d = entry.getKey();
-            SSTableMetadata oldMetadata = SSTableMetadata.serializer.deserialize(d, false);
+            Pair<SSTableMetadata, Set<Integer>> oldMetadata = SSTableMetadata.serializer.deserialize(d, false);
             String metadataFilename = d.filenameFor(Component.STATS);
             LeveledManifest.mutateLevel(oldMetadata, d, metadataFilename, legacyManifest.levelOf(d.generation));
         }

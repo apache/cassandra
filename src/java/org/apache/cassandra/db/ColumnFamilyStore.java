@@ -500,17 +500,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             Descriptor desc = sstableFiles.getKey();
             Set<Component> components = sstableFiles.getValue();
 
-            SSTableMetadata meta;
+            Set<Integer> ancestors;
             try
             {
-                meta = SSTableMetadata.serializer.deserialize(desc);
+                ancestors = SSTableMetadata.serializer.deserialize(desc).right;
             }
             catch (IOException e)
             {
                 throw new FSReadError(e, desc.filenameFor(Component.STATS));
             }
 
-            Set<Integer> ancestors = meta.ancestors;
             if (!ancestors.isEmpty() && unfinishedGenerations.containsAll(ancestors))
             {
                 SSTable.delete(desc, components);
@@ -594,7 +593,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 if (new File(descriptor.filenameFor(Component.STATS)).exists())
                 {
-                    SSTableMetadata oldMetadata = SSTableMetadata.serializer.deserialize(descriptor);
+                    Pair<SSTableMetadata, Set<Integer>> oldMetadata = SSTableMetadata.serializer.deserialize(descriptor);
                     LeveledManifest.mutateLevel(oldMetadata, descriptor, descriptor.filenameFor(Component.STATS), 0);
                 }
             }

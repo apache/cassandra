@@ -43,7 +43,7 @@ public class SSTableMetadataViewer
         for (String fname : args)
         {
             Descriptor descriptor = Descriptor.fromFilename(fname);
-            SSTableMetadata metadata = SSTableMetadata.serializer.deserialize(descriptor);
+            SSTableMetadata metadata = SSTableMetadata.serializer.deserialize(descriptor).left;
 
             out.printf("SSTable: %s%n", descriptor);
             out.printf("Partitioner: %s%n", metadata.partitioner);

@@ -170,7 +170,7 @@ public class SSTableReader extends SSTable
         long start = System.nanoTime();
         logger.info("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(COMPONENT_DATA)).length());
 
-        SSTableMetadata sstableMetadata = SSTableMetadata.serializer.deserialize(descriptor);
+        SSTableMetadata sstableMetadata = SSTableMetadata.serializer.deserialize(descriptor).left;
 
         // Check if sstable is created using same partitioner.
         // Partitioner can be null, which indicates older version of sstable or no stats available.
@@ -1159,7 +1159,15 @@ public class SSTableReader extends SSTable
 
     public Set<Integer> getAncestors()
     {
-        return sstableMetadata.ancestors;
+        try
+        {
+            return SSTableMetadata.serializer.deserialize(descriptor).right;
+        }
+        catch (IOException e)
+        {
+            SSTableReader.logOpenException(descriptor, e);
+            return Collections.emptySet();
+        }
     }
 
     public int getSSTableLevel()
@@ -1178,7 +1186,7 @@ public class SSTableReader extends SSTable
      */
     public void reloadSSTableMetadata() throws IOException
     {
-        this.sstableMetadata = SSTableMetadata.serializer.deserialize(descriptor);
+        this.sstableMetadata = SSTableMetadata.serializer.deserialize(descriptor).left;
     }
 
     public SSTableMetadata getSSTableMetadata()

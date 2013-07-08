@@ -305,7 +305,7 @@ public class SSTableWriter extends SSTable
         // write sstable statistics
         SSTableMetadata sstableMetadata = sstableMetadataCollector.finalizeMetadata(partitioner.getClass().getCanonicalName(),
                                                                                     metadata.getBloomFilterFpChance());
-        writeMetadata(descriptor, sstableMetadata);
+        writeMetadata(descriptor, sstableMetadata, sstableMetadataCollector.ancestors);
 
         // save the table of components
         SSTable.appendTOC(descriptor, components);
@@ -335,12 +335,12 @@ public class SSTableWriter extends SSTable
         return sstable;
     }
 
-    private static void writeMetadata(Descriptor desc, SSTableMetadata sstableMetadata)
+    private static void writeMetadata(Descriptor desc, SSTableMetadata sstableMetadata,  Set<Integer> ancestors)
     {
         SequentialWriter out = SequentialWriter.open(new File(desc.filenameFor(SSTable.COMPONENT_STATS)), true);
         try
         {
-            SSTableMetadata.serializer.serialize(sstableMetadata, out.stream);
+            SSTableMetadata.serializer.serialize(sstableMetadata, ancestors, out.stream);
         }
         catch (IOException e)
         {

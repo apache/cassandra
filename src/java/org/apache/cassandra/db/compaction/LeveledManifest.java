@@ -187,7 +187,7 @@ public class LeveledManifest
         String metaDataFile = sstable.descriptor.filenameFor(Component.STATS);
         try
         {
-            mutateLevel(sstable.getSSTableMetadata(), sstable.descriptor, metaDataFile, 0);
+            mutateLevel(Pair.create(sstable.getSSTableMetadata(), sstable.getAncestors()), sstable.descriptor, metaDataFile, 0);
             sstable.reloadSSTableMetadata();
             add(sstable);
         }
@@ -585,12 +585,12 @@ public class LeveledManifest
      * @param level
      * @throws IOException
      */
-    public static synchronized void mutateLevel(SSTableMetadata oldMetadata, Descriptor descriptor, String filename, int level) throws IOException
+    public static synchronized void mutateLevel(Pair<SSTableMetadata, Set<Integer>> oldMetadata, Descriptor descriptor, String filename, int level) throws IOException
     {
         logger.debug("Mutating {} to level {}", descriptor.filenameFor(Component.STATS), level);
-        SSTableMetadata metadata = SSTableMetadata.copyWithNewSSTableLevel(oldMetadata, level);
+        SSTableMetadata metadata = SSTableMetadata.copyWithNewSSTableLevel(oldMetadata.left, level);
         DataOutputStream out = new DataOutputStream(new FileOutputStream(filename + "-tmp"));
-        SSTableMetadata.serializer.legacySerialize(metadata, descriptor, out);
+        SSTableMetadata.serializer.legacySerialize(metadata, oldMetadata.right, descriptor, out);
         out.flush();
         out.close();
         FileUtils.renameWithConfirm(filename + "-tmp", filename);

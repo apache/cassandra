@@ -23,6 +23,7 @@ import java.util.*;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.StreamingHistogram;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,7 +64,6 @@ public class SSTableMetadata
     public final double bloomFilterFPChance;
     public final double compressionRatio;
     public final String partitioner;
-    public final Set<Integer> ancestors;
     public final StreamingHistogram estimatedTombstoneDropTime;
     public final int sstableLevel;
     public final List<ByteBuffer> maxColumnNames;
@@ -80,7 +80,6 @@ public class SSTableMetadata
              NO_BLOOM_FLITER_FP_CHANCE,
              NO_COMPRESSION_RATIO,
              null,
-             Collections.<Integer>emptySet(),
              defaultTombstoneDropTimeHistogram(),
              0,
              Collections.<ByteBuffer>emptyList(),
@@ -96,7 +95,6 @@ public class SSTableMetadata
                             double bloomFilterFPChance,
                             double compressionRatio,
                             String partitioner,
-                            Set<Integer> ancestors,
                             StreamingHistogram estimatedTombstoneDropTime,
                             int sstableLevel,
                             List<ByteBuffer> minColumnNames,
@@ -111,7 +109,6 @@ public class SSTableMetadata
         this.bloomFilterFPChance = bloomFilterFPChance;
         this.compressionRatio = compressionRatio;
         this.partitioner = partitioner;
-        this.ancestors = ancestors;
         this.estimatedTombstoneDropTime = estimatedTombstoneDropTime;
         this.sstableLevel = sstableLevel;
         this.minColumnNames = minColumnNames;
@@ -162,7 +159,6 @@ public class SSTableMetadata
                                    metadata.bloomFilterFPChance,
                                    metadata.compressionRatio,
                                    metadata.partitioner,
-                                   metadata.ancestors,
                                    metadata.estimatedTombstoneDropTime,
                                    sstableLevel,
                                    metadata.minColumnNames,
@@ -282,7 +278,6 @@ public class SSTableMetadata
                                        bloomFilterFPChance,
                                        compressionRatio,
                                        partitioner,
-                                       ancestors,
                                        estimatedTombstoneDropTime,
                                        sstableLevel,
                                        minColumnNames,
@@ -357,7 +352,7 @@ public class SSTableMetadata
     {
         private static final Logger logger = LoggerFactory.getLogger(SSTableMetadataSerializer.class);
 
-        public void serialize(SSTableMetadata sstableStats, DataOutput out) throws IOException
+        public void serialize(SSTableMetadata sstableStats, Set<Integer> ancestors, DataOutput out) throws IOException
         {
             assert sstableStats.partitioner != null;
 
@@ -370,8 +365,8 @@ public class SSTableMetadata
             out.writeDouble(sstableStats.bloomFilterFPChance);
             out.writeDouble(sstableStats.compressionRatio);
             out.writeUTF(sstableStats.partitioner);
-            out.writeInt(sstableStats.ancestors.size());
-            for (Integer g : sstableStats.ancestors)
+            out.writeInt(ancestors.size());
+            for (Integer g : ancestors)
                 out.writeInt(g);
             StreamingHistogram.serializer.serialize(sstableStats.estimatedTombstoneDropTime, out);
             out.writeInt(sstableStats.sstableLevel);
@@ -399,7 +394,7 @@ public class SSTableMetadata
          * @throws IOException
          */
         @Deprecated
-        public void legacySerialize(SSTableMetadata sstableStats, Descriptor legacyDesc, DataOutput out) throws IOException
+        public void legacySerialize(SSTableMetadata sstableStats, Set<Integer> ancestors, Descriptor legacyDesc, DataOutput out) throws IOException
         {
             EstimatedHistogram.serializer.serialize(sstableStats.estimatedRowSize, out);
             EstimatedHistogram.serializer.serialize(sstableStats.estimatedColumnCount, out);
@@ -412,8 +407,8 @@ public class SSTableMetadata
                 out.writeDouble(sstableStats.bloomFilterFPChance);
             out.writeDouble(sstableStats.compressionRatio);
             out.writeUTF(sstableStats.partitioner);
-            out.writeInt(sstableStats.ancestors.size());
-            for (Integer g : sstableStats.ancestors)
+            out.writeInt(ancestors.size());
+            for (Integer g : ancestors)
                 out.writeInt(g);
             StreamingHistogram.serializer.serialize(sstableStats.estimatedTombstoneDropTime, out);
             out.writeInt(sstableStats.sstableLevel);
@@ -421,19 +416,30 @@ public class SSTableMetadata
                 serializeMinMaxColumnNames(sstableStats.minColumnNames, sstableStats.maxColumnNames, out);
         }
 
-        public SSTableMetadata deserialize(Descriptor descriptor) throws IOException
+        /**
+         * deserializes the metadata
+         *
+         * returns a pair containing the part of the metadata meant to be kept-in memory and the part
+         * that should not.
+         *
+         * @param descriptor the descriptor
+         * @return a pair containing data that needs to be in memory and data that is potentially big and is not needed
+         *         in memory
+         * @throws IOException
+         */
+        public Pair<SSTableMetadata, Set<Integer>> deserialize(Descriptor descriptor) throws IOException
         {
             return deserialize(descriptor, true);
         }
 
-        public SSTableMetadata deserialize(Descriptor descriptor, boolean loadSSTableLevel) throws IOException
+        public Pair<SSTableMetadata, Set<Integer>> deserialize(Descriptor descriptor, boolean loadSSTableLevel) throws IOException
         {
             logger.debug("Load metadata for {}", descriptor);
             File statsFile = new File(descriptor.filenameFor(SSTable.COMPONENT_STATS));
             if (!statsFile.exists())
             {
                 logger.debug("No sstable stats for {}", descriptor);
-                return new SSTableMetadata();
+                return Pair.create(new SSTableMetadata(), Collections.<Integer>emptySet());
             }
 
             DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(statsFile)));
@@ -446,12 +452,12 @@ public class SSTableMetadata
                 FileUtils.closeQuietly(in);
             }
         }
-        public SSTableMetadata deserialize(DataInputStream in, Descriptor desc) throws IOException
+        public Pair<SSTableMetadata, Set<Integer>> deserialize(DataInputStream in, Descriptor desc) throws IOException
         {
             return deserialize(in, desc, true);
         }
 
-        public SSTableMetadata deserialize(DataInputStream in, Descriptor desc, boolean loadSSTableLevel) throws IOException
+        public Pair<SSTableMetadata, Set<Integer>> deserialize(DataInputStream in, Descriptor desc, boolean loadSSTableLevel) throws IOException
         {
             EstimatedHistogram rowSizes = EstimatedHistogram.serializer.deserialize(in);
             EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(in);
@@ -494,7 +500,7 @@ public class SSTableMetadata
                 minColumnNames = Collections.emptyList();
                 maxColumnNames = Collections.emptyList();
             }
-            return new SSTableMetadata(rowSizes,
+            return Pair.create(new SSTableMetadata(rowSizes,
                                        columnCounts,
                                        replayPosition,
                                        minTimestamp,
@@ -503,11 +509,10 @@ public class SSTableMetadata
                                        bloomFilterFPChance,
                                        compressionRatio,
                                        partitioner,
-                                       ancestors,
                                        tombstoneHistogram,
                                        sstableLevel,
                                        minColumnNames,
-                                       maxColumnNames);
+                                       maxColumnNames), ancestors);
         }
     }
 }

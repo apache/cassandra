@@ -24,6 +24,9 @@ import java.io.DataOutputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.junit.Test;
 
@@ -31,6 +34,7 @@ import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.Pair;
 
 public class SSTableMetadataSerializerTest
 {
@@ -57,13 +61,17 @@ public class SSTableMetadataSerializerTest
 
         ByteArrayOutputStream byteOutput = new ByteArrayOutputStream();
         DataOutputStream out = new DataOutputStream(byteOutput);
+        
+        Set<Integer> ancestors = new HashSet<Integer>();
+        ancestors.addAll(Arrays.asList(1,2,3,4));
 
-        SSTableMetadata.serializer.serialize(originalMetadata, out);
+        SSTableMetadata.serializer.serialize(originalMetadata, ancestors, out);
 
         ByteArrayInputStream byteInput = new ByteArrayInputStream(byteOutput.toByteArray());
         DataInputStream in = new DataInputStream(byteInput);
         Descriptor desc = new Descriptor(Descriptor.Version.CURRENT, new File("."), "", "", 0, false);
-        SSTableMetadata stats = SSTableMetadata.serializer.deserialize(in, desc);
+        Pair<SSTableMetadata, Set<Integer>> statsPair = SSTableMetadata.serializer.deserialize(in, desc);
+        SSTableMetadata stats = statsPair.left;
 
         assert stats.estimatedRowSize.equals(originalMetadata.estimatedRowSize);
         assert stats.estimatedRowSize.equals(rowSizes);
@@ -77,5 +85,6 @@ public class SSTableMetadataSerializerTest
         assert stats.maxTimestamp == originalMetadata.maxTimestamp;
         assert stats.bloomFilterFPChance == originalMetadata.bloomFilterFPChance;
         assert RandomPartitioner.class.getCanonicalName().equals(stats.partitioner);
+        assert ancestors.equals(statsPair.right);
     }
 }
