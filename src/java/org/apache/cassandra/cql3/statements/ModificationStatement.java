@@ -38,13 +38,14 @@ import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /*
  * Abstract parent class of individual modifications, i.e. INSERT, UPDATE and DELETE.
  */
 public abstract class ModificationStatement implements CQLStatement
 {
-    private static final ColumnIdentifier RESULT_COLUMN = new ColumnIdentifier("result", false);
+    private static final ColumnIdentifier CAS_RESULT_COLUMN = new ColumnIdentifier("[applied]", false);
 
     private final int boundTerms;
     public final CFMetaData cfm;
@@ -374,9 +375,37 @@ public abstract class ModificationStatement implements CQLStatement
         ColumnFamily expected = buildConditions(key, clusteringPrefix, params);
 
         ColumnFamily result = StorageProxy.cas(keyspace(), columnFamily(), key, clusteringPrefix, expected, updates, cl);
-        return result == null
-             ? new ResultMessage.Void()
-             : new ResultMessage.Rows(buildCasFailureResultSet(key, result));
+        return new ResultMessage.Rows(buildCasResultSet(key, result));
+    }
+
+    private ResultSet buildCasResultSet(ByteBuffer key, ColumnFamily cf) throws InvalidRequestException
+    {
+        boolean success = cf == null;
+
+        ColumnSpecification spec = new ColumnSpecification(keyspace(), columnFamily(), CAS_RESULT_COLUMN, BooleanType.instance);
+        ResultSet.Metadata metadata = new ResultSet.Metadata(Collections.singletonList(spec));
+        List<List<ByteBuffer>> rows = Collections.singletonList(Collections.singletonList(BooleanType.instance.decompose(success)));
+
+        ResultSet rs = new ResultSet(metadata, rows);
+        return success ? rs : merge(rs, buildCasFailureResultSet(key, cf));
+    }
+
+    private static ResultSet merge(ResultSet left, ResultSet right)
+    {
+        if (left.size() == 0)
+            return right;
+        else if (right.size() == 0)
+            return left;
+
+        assert left.size() == 1 && right.size() == 1;
+        int size = left.metadata.names.size() + right.metadata.names.size();
+        List<ColumnSpecification> specs = new ArrayList<ColumnSpecification>(size);
+        specs.addAll(left.metadata.names);
+        specs.addAll(right.metadata.names);
+        List<ByteBuffer> row = new ArrayList<ByteBuffer>(size);
+        row.addAll(left.rows.get(0));
+        row.addAll(right.rows.get(0));
+        return new ResultSet(new ResultSet.Metadata(specs), Collections.singletonList(row));
     }
 
     private ResultSet buildCasFailureResultSet(ByteBuffer key, ColumnFamily cf) throws InvalidRequestException
@@ -467,6 +496,16 @@ public abstract class ModificationStatement implements CQLStatement
             return null;
 
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfm);
+
+        // CQL row marker
+        CFDefinition cfDef = cfm.getCfDef();
+        if (cfDef.isComposite && !cfDef.isCompact && !cfm.isSuper())
+        {
+            ByteBuffer name = clusteringPrefix.copy().add(ByteBufferUtil.EMPTY_BYTE_BUFFER).build();
+            cf.addColumn(params.makeColumn(name, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        }
+
+        // Conditions
         for (Operation condition : columnConditions)
             condition.execute(key, cf, clusteringPrefix.copy(), params);
 
