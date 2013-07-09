@@ -16,7 +16,7 @@ For more information see http://cassandra.apache.org/
 
 Requirements
 ------------
-  * Java >= 1.6 (OpenJDK and Sun have been tested)
+  * Java >= 1.7 (OpenJDK and Sun have been tested)
 
 Getting started
 ---------------
