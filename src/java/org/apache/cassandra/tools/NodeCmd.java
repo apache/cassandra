@@ -557,6 +557,7 @@ public class NodeCmd
         outs.printf("%-17s: %s%n", "ID", probe.getLocalHostId());
         outs.printf("%-17s: %s%n", "Gossip active", gossipInitialized);
         outs.printf("%-17s: %s%n", "Thrift active", probe.isThriftServerRunning());
+        outs.printf("%-17s: %s%n", "Native Transport active", probe.isNativeTransportRunning());
         outs.printf("%-17s: %s%n", "Load", probe.getLoadString());
         if (gossipInitialized)
             outs.printf("%-17s: %s%n", "Generation No", probe.getCurrentGenerationNumber());
