@@ -121,9 +121,17 @@ public class SelectStatement implements CQLStatement
 
         cl.validateForRead(keyspace());
 
-        List<Row> rows = isKeyRange
-                       ? StorageProxy.getRangeSlice(getRangeCommand(variables), cl)
-                       : StorageProxy.read(getSliceCommands(variables), cl);
+        List<Row> rows;
+        if (isKeyRange)
+        {
+            RangeSliceCommand command = getRangeCommand(variables);
+            rows = command == null ? Collections.<Row>emptyList() : StorageProxy.getRangeSlice(command, cl);
+        }
+        else
+        {
+            List<ReadCommand> commands = getSliceCommands(variables);
+            rows = commands == null ? Collections.<Row>emptyList() : StorageProxy.read(commands, cl);
+        }
 
         return processResults(rows, variables);
     }
@@ -149,11 +157,20 @@ public class SelectStatement implements CQLStatement
     {
         try
         {
-            List<Row> rows = isKeyRange
-                           ? RangeSliceVerbHandler.executeLocally(getRangeCommand(Collections.<ByteBuffer>emptyList()))
-                           : readLocally(keyspace(), getSliceCommands(Collections.<ByteBuffer>emptyList()));
+            List<ByteBuffer> variables = Collections.<ByteBuffer>emptyList();
+            List<Row> rows;
+            if (isKeyRange)
+            {
+                RangeSliceCommand command = getRangeCommand(variables);
+                rows = command == null ? Collections.<Row>emptyList() : RangeSliceVerbHandler.executeLocally(command);
+            }
+            else
+            {
+                List<ReadCommand> commands = getSliceCommands(variables);
+                rows = commands == null ? Collections.<Row>emptyList() : readLocally(keyspace(), commands);
+            }
 
-            return processResults(rows, Collections.<ByteBuffer>emptyList());
+            return processResults(rows, variables);
         }
         catch (ExecutionException e)
         {
@@ -199,14 +216,18 @@ public class SelectStatement implements CQLStatement
                 // Note that we should not share the slice filter amongst the command, due to SliceQueryFilter not
                 // being immutable due to its columnCounter used by the lastCounted() method
                 // (this is fairly ugly and we should change that but that's probably not a tiny refactor to do that cleanly)
-                commands.add(new SliceFromReadCommand(keyspace(), key, queryPath, (SliceQueryFilter)makeFilter(variables)));
+                SliceQueryFilter filter = (SliceQueryFilter)makeFilter(variables);
+                if (filter == null)
+                    return null;
+
+                commands.add(new SliceFromReadCommand(keyspace(), key, queryPath, filter));
             }
         }
         // ...of a list of column names
         else
         {
             // ByNames commands can share the filter
-            IDiskAtomFilter filter = makeFilter(variables);
+            IDiskAtomFilter filter = makeFilter(variables); // names filter are never null
             for (ByteBuffer key: keys)
             {
                 QueryProcessor.validateKey(key);
@@ -219,14 +240,20 @@ public class SelectStatement implements CQLStatement
     private RangeSliceCommand getRangeCommand(List<ByteBuffer> variables) throws RequestValidationException
     {
         IDiskAtomFilter filter = makeFilter(variables);
+        if (filter == null)
+            return null;
+
         List<IndexExpression> expressions = getIndexExpressions(variables);
         // The LIMIT provided by the user is the number of CQL row he wants returned.
         // We want to have getRangeSlice to count the number of columns, not the number of keys.
-        return new RangeSliceCommand(keyspace(),
+        AbstractBounds<RowPosition> keyBounds = getKeyBounds(variables);
+        return keyBounds == null
+             ? null
+             : new RangeSliceCommand(keyspace(),
                                      columnFamily(),
                                      null,
                                      filter,
-                                     getKeyBounds(variables),
+                                     keyBounds,
                                      expressions,
                                      getLimit(),
                                      true,
@@ -236,16 +263,33 @@ public class SelectStatement implements CQLStatement
     private AbstractBounds<RowPosition> getKeyBounds(List<ByteBuffer> variables) throws InvalidRequestException
     {
         IPartitioner<?> p = StorageService.getPartitioner();
-        AbstractBounds<RowPosition> bounds;
 
         if (onToken)
         {
             Token startToken = getTokenBound(Bound.START, variables, p);
             Token endToken = getTokenBound(Bound.END, variables, p);
 
-            RowPosition start = includeKeyBound(Bound.START) ? startToken.minKeyBound() : startToken.maxKeyBound();
-            RowPosition end = includeKeyBound(Bound.END) ? endToken.maxKeyBound() : endToken.minKeyBound();
-            bounds = new Range<RowPosition>(start, end);
+            boolean includeStart = includeKeyBound(Bound.START);
+            boolean includeEnd = includeKeyBound(Bound.END);
+
+            /*
+             * If we ask SP.getRangeSlice() for (token(200), token(200)], it will happily return the whole ring.
+             * However, wrapping range doesn't really make sense for CQL, and we want to return an empty result
+             * in that case (CASSANDRA-5573). So special case to create a range that is guaranteed to be empty.
+             *
+             * In practice, we want to return an empty result set if either startToken > endToken, or both are
+             * equal but one of the bound is excluded (since [a, a] can contains something, but not (a, a], [a, a)
+             * or (a, a)). Note though that in the case where startToken or endToken is the minimum token, then
+             * this special case rule should not apply.
+             */
+            int cmp = startToken.compareTo(endToken);
+            if (!startToken.isMinimum() && !endToken.isMinimum() && (cmp > 0 || (cmp == 0 && (!includeStart || !includeEnd))))
+                return null;
+
+            RowPosition start = includeStart ? startToken.minKeyBound() : startToken.maxKeyBound();
+            RowPosition end = includeEnd ? endToken.maxKeyBound() : endToken.minKeyBound();
+
+            return new Range<RowPosition>(start, end);
         }
         else
         {
@@ -255,26 +299,21 @@ public class SelectStatement implements CQLStatement
             RowPosition startKey = RowPosition.forKey(startKeyBytes, p);
             RowPosition finishKey = RowPosition.forKey(finishKeyBytes, p);
             if (startKey.compareTo(finishKey) > 0 && !finishKey.isMinimum(p))
-            {
-                if (p.preservesOrder())
-                    throw new InvalidRequestException("Start key must sort before (or equal to) finish key in your partitioner!");
-                else
-                    throw new InvalidRequestException("Start key sorts after end key. This is not allowed; you probably should not specify end key at all under random partitioner");
-            }
+                return null;
+
             if (includeKeyBound(Bound.START))
             {
-                bounds = includeKeyBound(Bound.END)
-                    ? new Bounds<RowPosition>(startKey, finishKey)
-                    : new IncludingExcludingBounds<RowPosition>(startKey, finishKey);
+                return includeKeyBound(Bound.END)
+                     ? new Bounds<RowPosition>(startKey, finishKey)
+                     : new IncludingExcludingBounds<RowPosition>(startKey, finishKey);
             }
             else
             {
-                bounds = includeKeyBound(Bound.END)
-                    ? new Range<RowPosition>(startKey, finishKey)
-                    : new ExcludingBounds<RowPosition>(startKey, finishKey);
+                return includeKeyBound(Bound.END)
+                     ? new Range<RowPosition>(startKey, finishKey)
+                     : new ExcludingBounds<RowPosition>(startKey, finishKey);
             }
         }
-        return bounds;
     }
 
     private IDiskAtomFilter makeFilter(List<ByteBuffer> variables)
@@ -290,12 +329,15 @@ public class SelectStatement implements CQLStatement
             int toGroup = cfDef.isCompact ? -1 : cfDef.columns.size();
             ColumnSlice slice = new ColumnSlice(getRequestedBound(Bound.START, variables),
                                                 getRequestedBound(Bound.END, variables));
+
+            if (slice.isAlwaysEmpty(cfDef.cfm.comparator, isReversed))
+                return null;
+
             SliceQueryFilter filter = new SliceQueryFilter(new ColumnSlice[]{slice},
                                                            isReversed,
                                                            getLimit(),
                                                            toGroup,
                                                            multiplier);
-            QueryProcessor.validateSliceFilter(cfDef.cfm, filter);
             return filter;
         }
         else
@@ -1010,8 +1052,8 @@ public class SelectStatement implements CQLStatement
                     if (stmt.onToken)
                         throw new InvalidRequestException("The token() function must be applied to all partition key components or none of them");
 
-                    // Under a non order perserving partitioner, the only time not restricting a key part is allowed is if none are restricted
-                    if (!partitioner.preservesOrder() && i > 0 && stmt.keyRestrictions[i-1] != null)
+                    // The only time not restricting a key part is allowed is if none are restricted
+                    if (i > 0 && stmt.keyRestrictions[i-1] != null)
                         throw new InvalidRequestException(String.format("Partition key part %s must be restricted since preceding part is", cname));
 
                     stmt.isKeyRange = true;
