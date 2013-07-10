@@ -185,6 +185,7 @@ public final class CFMetaData
                                                      + "schema_version uuid,"
                                                      + "release_version text,"
                                                      + "rpc_address inet,"
+                                                     + "preferred_ip inet,"
                                                      + "data_center text,"
                                                      + "rack text"
                                                      + ") WITH COMMENT='known peers in the cluster'");

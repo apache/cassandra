@@ -269,6 +269,13 @@ public class SystemKeyspace
         forceBlockingFlush(PEERS_CF);
     }
 
+    public static synchronized void updatePreferredIP(InetAddress ep, InetAddress preferred_ip)
+    {
+        String req = "INSERT INTO system.%s (peer, preferred_ip) VALUES ('%s', '%s')";
+        processInternal(String.format(req, PEERS_CF, ep.getHostAddress(), preferred_ip.getHostAddress()));
+        forceBlockingFlush(PEERS_CF);
+    }
+
     public static synchronized void updatePeerInfo(InetAddress ep, String columnName, String value)
     {
         if (ep.equals(FBUtilities.getBroadcastAddress()))
@@ -391,6 +398,15 @@ public class SystemKeyspace
             }
         }
         return hostIdMap;
+    }
+
+    public static InetAddress getPreferredIP(InetAddress ep)
+    {
+        String req = "SELECT preferred_ip FROM system.%s WHERE peer='%s'";
+        UntypedResultSet result = processInternal(String.format(req, PEERS_CF, ep.getHostAddress()));
+        if (!result.isEmpty() && result.one().has("preferred_ip"))
+            return result.one().getInetAddress("preferred_ip");
+        return null;
     }
 
     /**

@@ -26,6 +26,7 @@ import java.nio.channels.SocketChannel;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.metrics.ConnectionMetrics;
 import org.apache.cassandra.security.SSLFactory;
@@ -45,6 +46,8 @@ public class OutboundTcpConnectionPool
     OutboundTcpConnectionPool(InetAddress remoteEp)
     {
         id = remoteEp;
+        resetedEndpoint = SystemKeyspace.getPreferredIP(remoteEp);
+
         cmdCon = new OutboundTcpConnection(this);
         cmdCon.start();
         ackCon = new OutboundTcpConnection(this);
@@ -87,6 +90,7 @@ public class OutboundTcpConnectionPool
      */
     public void reset(InetAddress remoteEP)
     {
+        SystemKeyspace.updatePreferredIP(id, remoteEP);
         resetedEndpoint = remoteEP;
         for (OutboundTcpConnection conn : new OutboundTcpConnection[] { cmdCon, ackCon })
             conn.softCloseSocket();
