@@ -969,45 +969,52 @@ public class NodeCmd
             }
         }
 
-        String username = cmd.getOptionValue(USERNAME_OPT.left);
-        String password = cmd.getOptionValue(PASSWORD_OPT.left);
+        NodeCommand command = null;
+
+        try
+        {
+            command = cmd.getCommand();
+        }
+        catch (IllegalArgumentException e)
+        {
+            badUse(e.getMessage());
+        }
+
+        if(NodeCommand.HELP.equals(command))
+        {
+            printUsage();
+            System.exit(0);
+        }
 
         NodeProbe probe = null;
+
         try
         {
-            probe = username == null ? new NodeProbe(host, port) : new NodeProbe(host, port, username, password);
-        }
-        catch (IOException ioe)
-        {
-            Throwable inner = findInnermostThrowable(ioe);
-            if (inner instanceof ConnectException)
-            {
-                System.err.printf("Failed to connect to '%s:%d': %s%n", host, port, inner.getMessage());
-                System.exit(1);
-            }
-            else if (inner instanceof UnknownHostException)
-            {
-                System.err.printf("Cannot resolve '%s': unknown host%n", host);
-                System.exit(1);
-            }
-            else
-            {
-                err(ioe, "Error connecting to remote JMX agent!");
-            }
-        }
-        try
-        {
-            NodeCommand command = null;
+            String username = cmd.getOptionValue(USERNAME_OPT.left);
+            String password = cmd.getOptionValue(PASSWORD_OPT.left);
 
             try
             {
-                command = cmd.getCommand();
+                probe = username == null ? new NodeProbe(host, port) : new NodeProbe(host, port, username, password);
             }
-            catch (IllegalArgumentException e)
+            catch (IOException ioe)
             {
-                badUse(e.getMessage());
+                Throwable inner = findInnermostThrowable(ioe);
+                if (inner instanceof ConnectException)
+                {
+                    System.err.printf("Failed to connect to '%s:%d': %s%n", host, port, inner.getMessage());
+                    System.exit(1);
+                }
+                else if (inner instanceof UnknownHostException)
+                {
+                    System.err.printf("Cannot resolve '%s': unknown host%n", host);
+                    System.exit(1);
+                }
+                else
+                {
+                    err(ioe, "Error connecting to remote JMX agent!");
+                }
             }
-
 
             NodeCmd nodeCmd = new NodeCmd(probe);
 
@@ -1018,7 +1025,6 @@ public class NodeCmd
 
             switch (command)
             {
-                case HELP : printUsage(); break;
                 case RING :
                     if (arguments.length > 0) { nodeCmd.printRing(System.out, arguments[0]); }
                     else                      { nodeCmd.printRing(System.out, null); };

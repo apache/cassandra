@@ -73,7 +73,7 @@
  * Auto paging in binary protocol (CASSANDRA-4415, 5714)
  * Don't tie client side use of AbstractType to JDBC (CASSANDRA-4495)
  * Adds new TimestampType to replace DateType (CASSANDRA-5723, CASSANDRA-5729)
-
+ * Allow nodetool with no args, and with help to run without a server (CASSANDRA-5734)
 
 1.2.7
  * make starting native protocol server idempotent (CASSANDRA-5728)
