@@ -1,4 +1,5 @@
 1.2.7
+ * Add timeout events to query traces (CASSANDRA-5520)
  * make starting native protocol server idempotent (CASSANDRA-5728)
  * Fix loading key cache when a saved entry is no longer valid (CASSANDRA-5706)
  * Fix serialization of the LEFT gossip value (CASSANDRA-5696)
@@ -11,6 +12,7 @@
  * Don't keep ancestor information in memory (CASSANDRA-5342)
  * cqlsh: fix handling of semicolons inside BATCH queries (CASSANDRA-5697)
  * Expose native protocol server status in nodetool info (CASSANDRA-5735)
+
 
 1.2.6
  * Fix tracing when operation completes before all responses arrive 

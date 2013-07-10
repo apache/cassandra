@@ -125,6 +125,14 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
              : true;
     }
 
+    /**
+     * @return the current number of received responses
+     */
+    public int getReceivedCount()
+    {
+        return received.get();
+    }
+
     public void response(TMessage result)
     {
         MessageIn<TMessage> message = MessageIn.create(FBUtilities.getBroadcastAddress(),

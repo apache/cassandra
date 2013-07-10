@@ -282,7 +282,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             writeMetrics.timeouts.mark();
             ClientRequestMetrics.writeTimeouts.inc();
-            Tracing.trace("Write timeout");
+            Tracing.trace("Write timeout; received {} of {} required replies", e.received, e.blockFor);
             throw e;
         }
         finally
@@ -898,7 +898,7 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     else
                     {
-                        Tracing.trace("Enqueuing digest request to {}", dataPoint);
+                        Tracing.trace("Enqueuing digest request to {}", digestPoint);
                         // (We lazy-construct the digest Message object since it may not be necessary if we
                         // are doing a local digest read, or no digest reads at all.)
                         if (message == null)
@@ -926,8 +926,21 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 catch (ReadTimeoutException ex)
                 {
-                    if (logger.isDebugEnabled())
-                        logger.debug("Read timeout: {}", ex.toString());
+                    int blockFor = consistency_level.blockFor(Table.open(command.getKeyspace()));
+                    int responseCount = handler.getReceivedCount();
+                    String gotData = responseCount > 0 ?
+                                     gotData = handler.resolver.isDataPresent() ? " (including data)" : " (only digests)" :
+                                     "";
+
+                    if (Tracing.isTracing())
+                    {
+                        Tracing.trace("Timed out; received {} of {} responses{}",
+                                      new Object[]{ responseCount, blockFor, gotData });
+                    }
+                    else if (logger.isDebugEnabled())
+                    {
+                        logger.debug("Read timeout; received {} of {} responses{}", responseCount, blockFor, gotData);
+                    }
                     throw ex;
                 }
                 catch (DigestMismatchException ex)
@@ -987,6 +1000,7 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     catch (TimeoutException e)
                     {
+                        Tracing.trace("Timed out on digest mismatch retries");
                         int blockFor = consistency_level.blockFor(Table.open(command.getKeyspace()));
                         throw new ReadTimeoutException(consistency_level, blockFor, blockFor, true);
                     }
@@ -1194,11 +1208,35 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getWriteRpcTimeout());
                 }
+                catch (ReadTimeoutException ex)
+                {
+                    // we timed out waiting for responses
+                    int blockFor = consistency_level.blockFor(table);
+                    int responseCount = resolver.responses.size();
+                    String gotData = responseCount > 0 ?
+                                     resolver.isDataPresent() ? " (including data)" : " (only digests)" :
+                                     "";
+
+                    if (Tracing.isTracing())
+                    {
+                        Tracing.trace("Timed out; received {} of {} responses{} for range {} of {}",
+                                      new Object[]{ responseCount, blockFor, gotData, i, ranges.size() });
+                    }
+                    else if (logger.isDebugEnabled())
+                    {
+                        logger.debug("Range slice timeout; received {} of {} responses{} for range {} of {}",
+                                     responseCount, blockFor, gotData, i, ranges.size());
+                    }
+                    throw ex;
+                }
                 catch (TimeoutException ex)
                 {
-                    logger.debug("Range slice timeout: {}", ex.toString());
-                    // We actually got all response at that point
+                    // We got all responses, but timed out while repairing
                     int blockFor = consistency_level.blockFor(table);
+                    if (Tracing.isTracing())
+                        Tracing.trace("Timed out while read-repairing after receiving all {} data and digest responses", blockFor);
+                    else
+                        logger.debug("Range slice timeout while read-repairing after receiving all {} data and digest responses", blockFor);
                     throw new ReadTimeoutException(consistency_level, blockFor, blockFor, true);
                 }
                 catch (DigestMismatchException e)
@@ -1504,7 +1542,15 @@ public class StorageProxy implements StorageProxyMBean
             MessagingService.instance().sendRR(message, endpoint, responseHandler);
 
         // Wait for all
-        responseHandler.get();
+        try
+        {
+            responseHandler.get();
+        }
+        catch (TimeoutException e)
+        {
+            Tracing.trace("Timed out");
+            throw e;
+        }
     }
 
     /**
