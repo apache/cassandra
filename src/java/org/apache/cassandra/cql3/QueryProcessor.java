@@ -94,19 +94,6 @@ public class QueryProcessor
         }
     }
 
-    public static void validateSliceFilter(CFMetaData metadata, SliceQueryFilter range)
-    throws InvalidRequestException
-    {
-        try
-        {
-            ColumnSlice.validate(range.slices, metadata.comparator, range.reversed);
-        }
-        catch (IllegalArgumentException e)
-        {
-            throw new InvalidRequestException(e.getMessage());
-        }
-    }
-
     private static ResultMessage processStatement(CQLStatement statement, ConsistencyLevel cl, QueryState queryState, List<ByteBuffer> variables, int pageSize, PagingState pageState)
     throws RequestExecutionException, RequestValidationException
     {

@@ -47,41 +47,10 @@ public class ColumnSlice
         this.finish = finish;
     }
 
-    /**
-     * Validate an array of column slices.
-     * To be valid, the slices must be sorted and non-overlapping and each slice must be valid.
-     *
-     * @throws IllegalArgumentException if the input slices are not valid.
-     */
-    public static void validate(ColumnSlice[] slices, AbstractType<?> comparator, boolean reversed)
-    {
-        for (int i = 0; i < slices.length; i++)
-        {
-            ColumnSlice slice = slices[i];
-            validate(slice, comparator, reversed);
-            if (i > 0)
-            {
-                if (slices[i - 1].finish.remaining() == 0 || slice.start.remaining() == 0)
-                    throw new IllegalArgumentException("Invalid column slices: slices must be sorted and non-overlapping");
-
-                int cmp = comparator.compare(slices[i -1].finish, slice.start);
-                if (reversed ? cmp <= 0 : cmp >= 0)
-                    throw new IllegalArgumentException("Invalid column slices: slices must be sorted and non-overlapping");
-            }
-        }
-    }
-
-    /**
-     * Validate a column slices.
-     * To be valid, the slice start must sort before the slice end.
-     *
-     * @throws IllegalArgumentException if the slice is not valid.
-     */
-    public static void validate(ColumnSlice slice, AbstractType<?> comparator, boolean reversed)
+    public boolean isAlwaysEmpty(AbstractType<?> comparator, boolean reversed)
     {
         Comparator<ByteBuffer> orderedComparator = reversed ? comparator.reverseComparator : comparator;
-        if (slice.start.remaining() > 0 && slice.finish.remaining() > 0 && orderedComparator.compare(slice.start, slice.finish) > 0)
-            throw new IllegalArgumentException("Slice finish must come after start in traversal order");
+        return (start.remaining() > 0 && finish.remaining() > 0 && orderedComparator.compare(start, finish) > 0);
     }
 
     public boolean includes(Comparator<ByteBuffer> cmp, ByteBuffer name)

@@ -93,6 +93,8 @@
  * Don't keep ancestor information in memory (CASSANDRA-5342)
  * cqlsh: fix handling of semicolons inside BATCH queries (CASSANDRA-5697)
  * Expose native protocol server status in nodetool info (CASSANDRA-5735)
+ * Fix pathetic performance of range tombstones (CASSANDRA-5677)
+ * Fix querying with an empty (impossible) range (CASSANDRA-5573)
 
 
 1.2.6
