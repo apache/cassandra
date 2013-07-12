@@ -46,24 +46,9 @@ public class TimestampType extends AbstractType<Date>
 
     private TimestampType() {} // singleton
 
-    public Date compose(ByteBuffer bytes)
-    {
-        return TimestampSerializer.instance.serialize(bytes);
-    }
-
-    public ByteBuffer decompose(Date value)
-    {
-        return TimestampSerializer.instance.deserialize(value);
-    }
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         return LongType.compareLongs(o1, o2);
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        return TimestampSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -109,11 +94,6 @@ public class TimestampType extends AbstractType<Date>
       }
 
       return millis;
-    }
-
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        TimestampSerializer.instance.validate(bytes);
     }
 
     @Override

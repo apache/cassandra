@@ -50,39 +50,20 @@ public class TimestampSerializer implements TypeSerializer<Date>
 
     public static final TimestampSerializer instance = new TimestampSerializer();
 
-    public Date serialize(ByteBuffer bytes)
+    public Date deserialize(ByteBuffer bytes)
     {
-        return bytes.remaining() > 0
-                ? new Date(ByteBufferUtil.toLong(bytes))
-                : null;
+        return bytes.remaining() == 0 ? null : new Date(ByteBufferUtil.toLong(bytes));
     }
 
-    public ByteBuffer deserialize(Date value)
+    public ByteBuffer serialize(Date value)
     {
-        return (value == null)
-                ? ByteBufferUtil.EMPTY_BYTE_BUFFER
-                : ByteBufferUtil.bytes(value.getTime());
+        return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value.getTime());
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         if (bytes.remaining() != 8 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 8 or 0 byte long for date (%d)", bytes.remaining()));
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        if (bytes.remaining() == 0)
-        {
-            return "";
-        }
-        if (bytes.remaining() != 8)
-        {
-            throw new MarshalException("A date is exactly 8 bytes (stored as a long): " + bytes.remaining());
-        }
-
-        // uses ISO-8601 formatted string
-        return FORMATTER.get().format(new Date(ByteBufferUtil.toLong(bytes)));
     }
 
     public String toString(Date value)

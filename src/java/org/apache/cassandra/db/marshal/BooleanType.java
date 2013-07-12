@@ -26,59 +26,37 @@ import org.apache.cassandra.serializers.MarshalException;
 
 public class BooleanType extends AbstractType<Boolean>
 {
-  public static final BooleanType instance = new BooleanType();
+    public static final BooleanType instance = new BooleanType();
 
-  BooleanType() {} // singleton
+    BooleanType() {} // singleton
 
-  public Boolean compose(ByteBuffer bytes)
-  {
-      return BooleanSerializer.instance.serialize(bytes);
-  }
+    public int compare(ByteBuffer o1, ByteBuffer o2)
+    {
+        if ((o1 == null) || (o1.remaining() != 1))
+            return ((o2 == null) || (o2.remaining() != 1)) ? 0 : -1;
+        if ((o2 == null) || (o2.remaining() != 1))
+            return 1;
 
-  public ByteBuffer decompose(Boolean value)
-  {
-      return BooleanSerializer.instance.deserialize(value);
-  }
+        return o1.compareTo(o2);
+    }
 
-  public int compare(ByteBuffer o1, ByteBuffer o2)
-  {
-      if ((o1 == null) || (o1.remaining() != 1))
-        return ((o2 == null) || (o2.remaining() != 1)) ? 0 : -1;
-      if ((o2 == null) || (o2.remaining() != 1))
-        return 1;
+    public ByteBuffer fromString(String source) throws MarshalException
+    {
 
-      return o1.compareTo(o2);
-  }
+        if (source.isEmpty()|| source.equalsIgnoreCase(Boolean.FALSE.toString()))
+            return decompose(false);
 
-  public String getString(ByteBuffer bytes)
-  {
-      return BooleanSerializer.instance.getString(bytes);
-  }
+        if (source.equalsIgnoreCase(Boolean.TRUE.toString()))
+            return decompose(true);
 
-  public ByteBuffer fromString(String source) throws MarshalException
-  {
+        throw new MarshalException(String.format("unable to make boolean from '%s'", source));
+    }
 
-      if (source.isEmpty()|| source.equalsIgnoreCase(Boolean.FALSE.toString()))
-          return decompose(false);
+    public CQL3Type asCQL3Type()
+    {
+        return CQL3Type.Native.BOOLEAN;
+    }
 
-      if (source.equalsIgnoreCase(Boolean.TRUE.toString()))
-          return decompose(true);
-
-      throw new MarshalException(String.format("unable to make boolean from '%s'", source));
-
- }
-
-  public void validate(ByteBuffer bytes) throws MarshalException
-  {
-      BooleanSerializer.instance.validate(bytes);
-  }
-
-  public CQL3Type asCQL3Type()
-  {
-      return CQL3Type.Native.BOOLEAN;
-  }
-
-    @Override
     public TypeSerializer<Boolean> getSerializer()
     {
         return BooleanSerializer.instance;

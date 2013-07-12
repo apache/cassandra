@@ -43,14 +43,9 @@ public class BytesSerializer implements TypeSerializer<ByteBuffer>
         // all bytes are legal.
     }
 
-    public String getString(ByteBuffer bytes)
-    {
-        return ByteBufferUtil.bytesToHex(bytes);
-    }
-
     public String toString(ByteBuffer value)
     {
-        return getString(value);
+        return ByteBufferUtil.bytesToHex(value);
     }
 
     public Class<ByteBuffer> getType()

@@ -58,16 +58,6 @@ public final class IntegerType extends AbstractType<BigInteger>
 
     IntegerType() {/* singleton */}
 
-    public BigInteger compose(ByteBuffer bytes)
-    {
-        return IntegerSerializer.instance.serialize(bytes);
-    }
-
-    public ByteBuffer decompose(BigInteger value)
-    {
-        return IntegerSerializer.instance.deserialize(value);
-    }
-
     public int compare(ByteBuffer lhs, ByteBuffer rhs)
     {
         int lhsLen = lhs.remaining();
@@ -126,11 +116,6 @@ public final class IntegerType extends AbstractType<BigInteger>
         return 0;
     }
 
-    public String getString(ByteBuffer bytes)
-    {
-        return IntegerSerializer.instance.getString(bytes);
-    }
-
     public ByteBuffer fromString(String source) throws MarshalException
     {
         // Return an empty ByteBuffer for an empty string.
@@ -151,17 +136,11 @@ public final class IntegerType extends AbstractType<BigInteger>
         return decompose(integerType);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        IntegerSerializer.instance.validate(bytes);
-    }
-
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.VARINT;
     }
 
-    @Override
     public TypeSerializer<BigInteger> getSerializer()
     {
         return IntegerSerializer.instance;

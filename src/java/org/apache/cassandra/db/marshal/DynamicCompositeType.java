@@ -336,11 +336,13 @@ public class DynamicCompositeType extends AbstractCompositeType
             return cmp;
         }
 
+        @Override
         public Void compose(ByteBuffer bytes)
         {
             throw new UnsupportedOperationException();
         }
 
+        @Override
         public ByteBuffer decompose(Void value)
         {
             throw new UnsupportedOperationException();
@@ -356,12 +358,12 @@ public class DynamicCompositeType extends AbstractCompositeType
             throw new UnsupportedOperationException();
         }
 
+        @Override
         public void validate(ByteBuffer bytes)
         {
             throw new UnsupportedOperationException();
         }
 
-        @Override
         public TypeSerializer<Void> getSerializer()
         {
             throw new UnsupportedOperationException();

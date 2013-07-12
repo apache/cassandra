@@ -32,16 +32,6 @@ public class FloatType extends AbstractType<Float>
 
     FloatType() {} // singleton
 
-    public Float compose(ByteBuffer bytes)
-    {
-        return FloatSerializer.instance.serialize(bytes);
-    }
-
-    public ByteBuffer decompose(Float value)
-    {
-        return FloatSerializer.instance.deserialize(value);
-    }
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         if (o1.remaining() == 0)
@@ -54,11 +44,6 @@ public class FloatType extends AbstractType<Float>
         }
 
         return compose(o1).compareTo(compose(o2));
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        return FloatSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -78,17 +63,11 @@ public class FloatType extends AbstractType<Float>
       }
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        FloatSerializer.instance.validate(bytes);
-    }
-
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.FLOAT;
     }
 
-    @Override
     public TypeSerializer<Float> getSerializer()
     {
         return FloatSerializer.instance;

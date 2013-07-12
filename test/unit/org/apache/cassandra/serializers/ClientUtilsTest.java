@@ -37,35 +37,24 @@ public class ClientUtilsTest
     @Test
     public void test() throws UnknownHostException
     {
-        AsciiSerializer.instance.serialize(AsciiSerializer.instance.deserialize("string"));
-        BooleanSerializer.instance.serialize(BooleanSerializer.instance.deserialize(true));
-        BytesSerializer.instance.serialize(BytesSerializer.instance.deserialize(ByteBuffer.wrap("string".getBytes())));
+        AsciiSerializer.instance.deserialize(AsciiSerializer.instance.serialize("string"));
+        BooleanSerializer.instance.deserialize(BooleanSerializer.instance.serialize(true));
+        BytesSerializer.instance.deserialize(BytesSerializer.instance.serialize(ByteBuffer.wrap("string".getBytes())));
 
         Date date = new Date(System.currentTimeMillis());
-        ByteBuffer dateBB = TimestampSerializer.instance.deserialize(date);
-        TimestampSerializer.instance.serialize(dateBB);
-        assert (TimestampSerializer.instance.toString(date).equals(TimestampSerializer.instance.getString(dateBB)));
+        ByteBuffer dateBB = TimestampSerializer.instance.serialize(date);
+        TimestampSerializer.instance.deserialize(dateBB);
 
-        DecimalSerializer.instance.serialize(DecimalSerializer.instance.deserialize(new BigDecimal(1)));
-        DoubleSerializer.instance.serialize(DoubleSerializer.instance.deserialize(new Double(1.0d)));
-        FloatSerializer.instance.serialize(FloatSerializer.instance.deserialize(new Float(1.0f)));
-        Int32Serializer.instance.serialize(Int32Serializer.instance.deserialize(1));
-        IntegerSerializer.instance.serialize(IntegerSerializer.instance.deserialize(new BigInteger("1")));
-        LongSerializer.instance.serialize(LongSerializer.instance.deserialize(1L));
-        UTF8Serializer.instance.serialize(UTF8Serializer.instance.deserialize("string"));
+        DecimalSerializer.instance.deserialize(DecimalSerializer.instance.serialize(new BigDecimal(1)));
+        DoubleSerializer.instance.deserialize(DoubleSerializer.instance.serialize(new Double(1.0d)));
+        FloatSerializer.instance.deserialize(FloatSerializer.instance.serialize(new Float(1.0f)));
+        Int32Serializer.instance.deserialize(Int32Serializer.instance.serialize(1));
+        IntegerSerializer.instance.deserialize(IntegerSerializer.instance.serialize(new BigInteger("1")));
+        LongSerializer.instance.deserialize(LongSerializer.instance.serialize(1L));
+        UTF8Serializer.instance.deserialize(UTF8Serializer.instance.serialize("string"));
 
         // UUIDGen
         UUID uuid = UUIDGen.getTimeUUID();
-        UUIDSerializer.instance.serialize(UUIDSerializer.instance.deserialize(uuid));
-
-        // Raise a MarshalException
-        try
-        {
-            UUIDSerializer.instance.getString(ByteBuffer.wrap("notauuid".getBytes()));
-        }
-        catch (MarshalException me)
-        {
-            // Success
-        }
+        UUIDSerializer.instance.deserialize(UUIDSerializer.instance.serialize(uuid));
     }
 }

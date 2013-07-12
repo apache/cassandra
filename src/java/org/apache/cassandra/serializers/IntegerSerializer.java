@@ -27,12 +27,12 @@ public class IntegerSerializer implements TypeSerializer<BigInteger>
 {
     public static final IntegerSerializer instance = new IntegerSerializer();
 
-    public BigInteger serialize(ByteBuffer bytes)
+    public BigInteger deserialize(ByteBuffer bytes)
     {
         return new BigInteger(ByteBufferUtil.getArray(bytes));
     }
 
-    public ByteBuffer deserialize(BigInteger value)
+    public ByteBuffer serialize(BigInteger value)
     {
         return ByteBuffer.wrap(value.toByteArray());
     }
@@ -40,16 +40,6 @@ public class IntegerSerializer implements TypeSerializer<BigInteger>
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         // no invalid integers.
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        if (bytes.remaining() == 0)
-        {
-            return "";
-        }
-
-        return new BigInteger(ByteBufferUtil.getArray(bytes)).toString(10);
     }
 
     public String toString(BigInteger value)

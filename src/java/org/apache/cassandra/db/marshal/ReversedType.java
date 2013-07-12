@@ -84,28 +84,12 @@ public class ReversedType<T> extends AbstractType<T>
         return baseType.fromString(source);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        baseType.validate(bytes);
-    }
-
-    public T compose(ByteBuffer bytes)
-    {
-        return baseType.compose(bytes);
-    }
-
-    public ByteBuffer decompose(T value)
-    {
-        return baseType.decompose(value);
-    }
-
     @Override
     public CQL3Type asCQL3Type()
     {
         return baseType.asCQL3Type();
     }
 
-    @Override
     public TypeSerializer<T> getSerializer()
     {
         return baseType.getSerializer();

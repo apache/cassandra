@@ -31,16 +31,6 @@ public class LongType extends AbstractType<Long>
 
     LongType() {} // singleton
 
-    public Long compose(ByteBuffer bytes)
-    {
-        return LongSerializer.instance.serialize(bytes);
-    }
-
-    public ByteBuffer decompose(Long value)
-    {
-        return LongSerializer.instance.deserialize(value);
-    }
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         return compareLongs(o1, o2);
@@ -64,11 +54,6 @@ public class LongType extends AbstractType<Long>
         return ByteBufferUtil.compareUnsigned(o1, o2);
     }
 
-    public String getString(ByteBuffer bytes)
-    {
-        return LongSerializer.instance.getString(bytes);
-    }
-
     public ByteBuffer fromString(String source) throws MarshalException
     {
         // Return an empty ByteBuffer for an empty string.
@@ -89,17 +74,11 @@ public class LongType extends AbstractType<Long>
         return decompose(longType);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-
-    }
-
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.BIGINT;
     }
 
-    @Override
     public TypeSerializer<Long> getSerializer()
     {
         return LongSerializer.instance;

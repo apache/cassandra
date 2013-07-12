@@ -33,16 +33,6 @@ public class Int32Type extends AbstractType<Integer>
     {
     } // singleton
 
-    public Integer compose(ByteBuffer bytes)
-    {
-        return Int32Serializer.instance.serialize(bytes);
-    }
-
-    public ByteBuffer decompose(Integer value)
-    {
-        return Int32Serializer.instance.deserialize(value);
-    }
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         if (o1.remaining() == 0)
@@ -60,11 +50,6 @@ public class Int32Type extends AbstractType<Integer>
 
 
         return ByteBufferUtil.compareUnsigned(o1, o2);
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        return Int32Serializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -87,17 +72,11 @@ public class Int32Type extends AbstractType<Integer>
         return decompose(int32Type);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        Int32Serializer.instance.validate(bytes);
-    }
-
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.INT;
     }
 
-    @Override
     public TypeSerializer<Integer> getSerializer()
     {
         return Int32Serializer.instance;

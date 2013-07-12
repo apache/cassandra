@@ -22,14 +22,15 @@ import java.nio.ByteBuffer;
 
 public interface TypeSerializer<T>
 {
-    public T serialize(ByteBuffer bytes);
-    public ByteBuffer deserialize(T value);
+    public ByteBuffer serialize(T value);
+    public T deserialize(ByteBuffer bytes);
 
-
-    /* validate that the byte array is a valid sequence for the type we are supposed to be comparing */
+    /*
+     * Validate that the byte array is a valid sequence for the type this represents.
+     * This guarantees deserialize() can be called without errors.
+     */
     public void validate(ByteBuffer bytes) throws MarshalException;
 
-    public String getString(ByteBuffer bytes);
     public String toString(T value);
 
     public Class<T> getType();

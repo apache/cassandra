@@ -26,12 +26,15 @@ public class FloatSerializer implements TypeSerializer<Float>
 {
     public static final FloatSerializer instance = new FloatSerializer();
 
-    public Float serialize(ByteBuffer bytes)
+    public Float deserialize(ByteBuffer bytes)
     {
+        if (bytes.remaining() == 0)
+            return null;
+
         return ByteBufferUtil.toFloat(bytes);
     }
 
-    public ByteBuffer deserialize(Float value)
+    public ByteBuffer serialize(Float value)
     {
         return (value == null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
     }
@@ -40,20 +43,6 @@ public class FloatSerializer implements TypeSerializer<Float>
     {
         if (bytes.remaining() != 4 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 4 or 0 byte value for a float (%d)", bytes.remaining()));
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        if (bytes.remaining() == 0)
-        {
-            return "";
-        }
-        if (bytes.remaining() != 4)
-        {
-            throw new MarshalException("A float is exactly 4 bytes : " + bytes.remaining());
-        }
-
-        return String.valueOf(ByteBufferUtil.toFloat(bytes));
     }
 
     public String toString(Float value)

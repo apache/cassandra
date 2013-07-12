@@ -30,34 +30,14 @@ public class UTF8Type extends AbstractType<String>
 
     UTF8Type() {} // singleton
 
-    public String compose(ByteBuffer bytes)
-    {
-        return UTF8Serializer.instance.serialize(bytes);
-    }
-
-    public ByteBuffer decompose(String value)
-    {
-        return UTF8Serializer.instance.deserialize(value);
-    }
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         return BytesType.bytesCompare(o1, o2);
     }
 
-    public String getString(ByteBuffer bytes)
-    {
-        return UTF8Serializer.instance.getString(bytes);
-    }
-
     public ByteBuffer fromString(String source)
     {
         return decompose(source);
-    }
-
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        UTF8Serializer.instance.validate(bytes);
     }
 
     @Override
@@ -73,7 +53,6 @@ public class UTF8Type extends AbstractType<String>
         return CQL3Type.Native.TEXT;
     }
 
-    @Override
     public TypeSerializer<String> getSerializer()
     {
         return UTF8Serializer.instance;

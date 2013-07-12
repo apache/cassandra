@@ -58,12 +58,6 @@ public class CounterColumnType extends AbstractCommutativeType
         return ByteBufferUtil.hexToBytes(source);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        if (bytes.remaining() != 8 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 8 or 0 byte long (%d)", bytes.remaining()));
-    }
-
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.COUNTER;

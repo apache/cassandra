@@ -32,16 +32,6 @@ public class BytesType extends AbstractType<ByteBuffer>
 
     BytesType() {} // singleton
 
-    public ByteBuffer compose(ByteBuffer bytes)
-    {
-        return BytesSerializer.instance.serialize(bytes);
-    }
-
-    public ByteBuffer decompose(ByteBuffer value)
-    {
-        return BytesSerializer.instance.deserialize(value);
-    }
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         return BytesType.bytesCompare(o1, o2);
@@ -55,11 +45,6 @@ public class BytesType extends AbstractType<ByteBuffer>
         return ByteBufferUtil.compareUnsigned(o1, o2);
     }
 
-    public String getString(ByteBuffer bytes)
-    {
-        return BytesSerializer.instance.getString(bytes);
-    }
-
     public ByteBuffer fromString(String source)
     {
         try
@@ -70,11 +55,6 @@ public class BytesType extends AbstractType<ByteBuffer>
         {
             throw new MarshalException(String.format("cannot parse '%s' as hex bytes", source), e);
         }
-    }
-
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        BytesSerializer.instance.validate(bytes);
     }
 
     @Override
@@ -90,7 +70,6 @@ public class BytesType extends AbstractType<ByteBuffer>
         return CQL3Type.Native.BLOB;
     }
 
-    @Override
     public TypeSerializer<ByteBuffer> getSerializer()
     {
         return BytesSerializer.instance;

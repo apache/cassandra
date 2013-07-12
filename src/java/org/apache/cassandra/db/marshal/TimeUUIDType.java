@@ -38,16 +38,6 @@ public class TimeUUIDType extends AbstractType<UUID>
     {
     } // singleton
 
-    public UUID compose(ByteBuffer bytes)
-    {
-        return TimeUUIDSerializer.instance.serialize(bytes);
-    }
-
-    public ByteBuffer decompose(UUID value)
-    {
-        return TimeUUIDSerializer.instance.deserialize(value);
-    }
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         if (o1.remaining() == 0)
@@ -91,11 +81,6 @@ public class TimeUUIDType extends AbstractType<UUID>
         if (d != 0) return d;
 
         return (o1.get(o1Pos + 3) & 0xFF) - (o2.get(o2Pos + 3) & 0xFF);
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        return TimeUUIDSerializer.instance.getString(bytes);
     }
 
     // This accepts dates are valid TimeUUID represensation, which is bogus
@@ -164,18 +149,11 @@ public class TimeUUIDType extends AbstractType<UUID>
         return idBytes;
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        TimeUUIDSerializer.instance.validate(bytes);
-
-    }
-
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.TIMEUUID;
     }
 
-    @Override
     public TypeSerializer<UUID> getSerializer()
     {
         return TimeUUIDSerializer.instance;

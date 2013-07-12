@@ -39,11 +39,13 @@ public class LocalByPartionerType<T extends Token> extends AbstractType<ByteBuff
         this.partitioner = partitioner;
     }
 
+    @Override
     public ByteBuffer compose(ByteBuffer bytes)
     {
         throw new UnsupportedOperationException("You can't do this with a local partitioner.");
     }
 
+    @Override
     public ByteBuffer decompose(ByteBuffer bytes)
     {
         throw new UnsupportedOperationException("You can't do this with a local partitioner.");
@@ -65,6 +67,7 @@ public class LocalByPartionerType<T extends Token> extends AbstractType<ByteBuff
         return RowPosition.forKey(o1, partitioner).compareTo(RowPosition.forKey(o2, partitioner));
     }
 
+    @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         throw new IllegalStateException("You shouldn't be validating this.");

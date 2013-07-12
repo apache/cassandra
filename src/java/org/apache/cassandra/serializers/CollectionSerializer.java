@@ -28,11 +28,6 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
         // The collection is not currently being properly validated.
     }
 
-    public String getString(ByteBuffer bytes)
-    {
-        return BytesSerializer.instance.getString(bytes);
-    }
-
     // Utilitary method
     protected static ByteBuffer pack(List<ByteBuffer> buffers, int elements, int size)
     {
@@ -53,7 +48,6 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
             size += 2 + bb.remaining();
         return pack(buffers, elements, size);
     }
-
 
     protected static int getUnsignedShort(ByteBuffer bb)
     {

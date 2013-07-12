@@ -83,10 +83,6 @@ public class RoundTripTest
     public void testBytes()
     {
         byte[] v = new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-        assert BytesSerializer.instance.getString(BytesType.instance.fromString(Hex.bytesToHex(v)))
-                .equals(Hex.bytesToHex(v));
-        assert BytesType.instance.fromString(BytesSerializer.instance.getString(ByteBuffer.wrap(v)))
-                .equals(ByteBuffer.wrap(v));
         assert BytesType.instance.compose(ByteBuffer.wrap(v)).equals(ByteBuffer.wrap(v));
         assert BytesSerializer.instance.toString(ByteBuffer.wrap(v)).equals(Hex.bytesToHex(v));
     }
@@ -95,8 +91,6 @@ public class RoundTripTest
     public void testLexicalUUID()
     {
         UUID uuid = UUIDGen.getTimeUUID();
-        assert UUIDSerializer.instance.getString(LexicalUUIDType.instance.fromString(uuid.toString()))
-                .equals(uuid.toString());
         assert LexicalUUIDType.instance.fromString(LexicalUUIDType.instance.getString(ByteBuffer.wrap(UUIDGen.decompose(uuid))))
                 .equals(ByteBuffer.wrap(UUIDGen.decompose(uuid)));
         assert LexicalUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.decompose(uuid))).equals(uuid);

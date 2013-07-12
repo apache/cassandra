@@ -50,7 +50,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         this.values = values;
     }
 
-    public Map<K, V> serialize(ByteBuffer bytes)
+    public Map<K, V> deserialize(ByteBuffer bytes)
     {
         try
         {
@@ -71,7 +71,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
                 ByteBuffer vbb = ByteBuffer.wrap(datav);
                 values.validate(vbb);
 
-                m.put(keys.serialize(kbb), values.serialize(vbb));
+                m.put(keys.deserialize(kbb), values.deserialize(vbb));
             }
             return m;
         }
@@ -81,14 +81,23 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         }
     }
 
-    public ByteBuffer deserialize(Map<K, V> value)
+    /**
+     * Layout is: {@code <n><sk_1><k_1><sv_1><v_1>...<sk_n><k_n><sv_n><v_n> }
+     * where:
+     *   n is the number of elements
+     *   sk_i is the number of bytes composing the ith key k_i
+     *   k_i is the sk_i bytes composing the ith key
+     *   sv_i is the number of bytes composing the ith value v_i
+     *   v_i is the sv_i bytes composing the ith value
+     */
+    public ByteBuffer serialize(Map<K, V> value)
     {
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(2 * value.size());
         int size = 0;
         for (Map.Entry<K, V> entry : value.entrySet())
         {
-            ByteBuffer bbk = keys.deserialize(entry.getKey());
-            ByteBuffer bbv = values.deserialize(entry.getValue());
+            ByteBuffer bbk = keys.serialize(entry.getKey());
+            ByteBuffer bbv = values.serialize(entry.getValue());
             bbs.add(bbk);
             bbs.add(bbv);
             size += 4 + bbk.remaining() + bbv.remaining();

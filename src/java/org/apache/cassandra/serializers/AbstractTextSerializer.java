@@ -32,17 +32,7 @@ public abstract class AbstractTextSerializer implements TypeSerializer<String>
         this.charset = charset;
     }
 
-    public String serialize(ByteBuffer bytes)
-    {
-        return getString(bytes);
-    }
-
-    public ByteBuffer deserialize(String value)
-    {
-        return ByteBufferUtil.bytes(value, charset);
-    }
-
-    public String getString(ByteBuffer bytes)
+    public String deserialize(ByteBuffer bytes)
     {
         try
         {
@@ -52,6 +42,11 @@ public abstract class AbstractTextSerializer implements TypeSerializer<String>
         {
             throw new MarshalException("Invalid " + charset + " bytes " + ByteBufferUtil.bytesToHex(bytes));
         }
+    }
+
+    public ByteBuffer serialize(String value)
+    {
+        return ByteBufferUtil.bytes(value, charset);
     }
 
     public String toString(String value)

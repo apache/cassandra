@@ -26,12 +26,14 @@ public class DoubleSerializer implements TypeSerializer<Double>
 {
     public static final DoubleSerializer instance = new DoubleSerializer();
 
-    public Double serialize(ByteBuffer bytes)
+    public Double deserialize(ByteBuffer bytes)
     {
+        if (bytes.remaining() == 0)
+            return null;
         return ByteBufferUtil.toDouble(bytes);
     }
 
-    public ByteBuffer deserialize(Double value)
+    public ByteBuffer serialize(Double value)
     {
         return (value == null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
     }
@@ -40,20 +42,6 @@ public class DoubleSerializer implements TypeSerializer<Double>
     {
         if (bytes.remaining() != 8 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 8 or 0 byte value for a double (%d)", bytes.remaining()));
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        if (bytes.remaining() == 0)
-        {
-            return "";
-        }
-        if (bytes.remaining() != 8)
-        {
-            throw new MarshalException("A double is exactly 8 bytes : " + bytes.remaining());
-        }
-
-        return String.valueOf(ByteBufferUtil.toDouble(bytes));
     }
 
     public String toString(Double value)

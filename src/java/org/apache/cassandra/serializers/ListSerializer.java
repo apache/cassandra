@@ -45,7 +45,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
         this.elements = elements;
     }
 
-    public List<T> serialize(ByteBuffer bytes)
+    public List<T> deserialize(ByteBuffer bytes)
     {
         try
         {
@@ -59,7 +59,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
                 input.get(data);
                 ByteBuffer databb = ByteBuffer.wrap(data);
                 elements.validate(databb);
-                l.add(elements.serialize(databb));
+                l.add(elements.deserialize(databb));
             }
             return l;
         }
@@ -76,13 +76,13 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
      *   s_i is the number of bytes composing the ith element
      *   b_i is the s_i bytes composing the ith element
      */
-    public ByteBuffer deserialize(List<T> value)
+    public ByteBuffer serialize(List<T> value)
     {
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(value.size());
         int size = 0;
         for (T elt : value)
         {
-            ByteBuffer bb = elements.deserialize(elt);
+            ByteBuffer bb = elements.serialize(elt);
             bbs.add(bb);
             size += 2 + bb.remaining();
         }

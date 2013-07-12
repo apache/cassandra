@@ -138,7 +138,7 @@ public abstract class Lists
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but compose does the validation (so we're fine).
-                List<?> l = type.compose(value);
+                List<?> l = (List<?>)type.compose(value);
                 List<ByteBuffer> elements = new ArrayList<ByteBuffer>(l.size());
                 for (Object element : l)
                     elements.add(type.elements.decompose(element));

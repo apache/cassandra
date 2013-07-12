@@ -26,34 +26,20 @@ public class LongSerializer implements TypeSerializer<Long>
 {
     public static final LongSerializer instance = new LongSerializer();
 
-    public Long serialize(ByteBuffer bytes)
+    public Long deserialize(ByteBuffer bytes)
     {
-        return ByteBufferUtil.toLong(bytes);
+        return bytes.remaining() == 0 ? null : ByteBufferUtil.toLong(bytes);
     }
 
-    public ByteBuffer deserialize(Long value)
+    public ByteBuffer serialize(Long value)
     {
-        return ByteBufferUtil.bytes(value);
+        return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         if (bytes.remaining() != 8 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 8 or 0 byte long (%d)", bytes.remaining()));
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        if (bytes.remaining() == 0)
-        {
-            return "";
-        }
-        if (bytes.remaining() != 8)
-        {
-            throw new MarshalException("A long is exactly 8 bytes: " + bytes.remaining());
-        }
-
-        return String.valueOf(ByteBufferUtil.toLong(bytes));
     }
 
     public String toString(Long value)

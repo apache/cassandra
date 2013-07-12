@@ -30,34 +30,14 @@ public class AsciiType extends AbstractType<String>
 
     AsciiType() {} // singleton
 
-    public String getString(ByteBuffer bytes)
-    {
-        return AsciiSerializer.instance.getString(bytes);
-    }
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         return BytesType.bytesCompare(o1, o2);
     }
 
-    public String compose(ByteBuffer bytes)
-    {
-        return AsciiSerializer.instance.getString(bytes);
-    }
-
-    public ByteBuffer decompose(String value)
-    {
-        return AsciiSerializer.instance.deserialize(value);
-    }
-
     public ByteBuffer fromString(String source)
     {
         return decompose(source);
-    }
-
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        AsciiSerializer.instance.validate(bytes);
     }
 
     public CQL3Type asCQL3Type()

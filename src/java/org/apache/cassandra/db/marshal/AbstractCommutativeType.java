@@ -29,11 +29,13 @@ public abstract class AbstractCommutativeType extends AbstractType<Long>
         return true;
     }
 
+    @Override
     public Long compose(ByteBuffer bytes)
     {
         return CounterContext.instance().total(bytes);
     }
 
+    @Override
     public ByteBuffer decompose(Long value)
     {
         return ByteBufferUtil.bytes(value);

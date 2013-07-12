@@ -32,24 +32,9 @@ public class InetAddressType extends AbstractType<InetAddress>
 
     InetAddressType() {} // singleton
 
-    public InetAddress compose(ByteBuffer bytes)
-    {
-        return InetAddressSerializer.instance.serialize(bytes);
-    }
-
-    public ByteBuffer decompose(InetAddress value)
-    {
-        return InetAddressSerializer.instance.deserialize(value);
-    }
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         return ByteBufferUtil.compareUnsigned(o1, o2);
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        return InetAddressSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -72,17 +57,11 @@ public class InetAddressType extends AbstractType<InetAddress>
         return decompose(address);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        InetAddressSerializer.instance.validate(bytes);
-    }
-
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.INET;
     }
 
-    @Override
     public TypeSerializer<InetAddress> getSerializer()
     {
         return InetAddressSerializer.instance;

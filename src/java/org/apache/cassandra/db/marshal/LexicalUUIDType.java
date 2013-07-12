@@ -34,16 +34,6 @@ public class LexicalUUIDType extends AbstractType<UUID>
     {
     } // singleton
 
-    public UUID compose(ByteBuffer bytes)
-    {
-        return UUIDSerializer.instance.serialize(bytes);
-    }
-
-    public ByteBuffer decompose(UUID value)
-    {
-        return UUIDSerializer.instance.deserialize(value);
-    }
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         if (o1.remaining() == 0)
@@ -56,11 +46,6 @@ public class LexicalUUIDType extends AbstractType<UUID>
         }
 
         return UUIDGen.getUUID(o1).compareTo(UUIDGen.getUUID(o2));
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        return UUIDSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -79,12 +64,6 @@ public class LexicalUUIDType extends AbstractType<UUID>
         }
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        UUIDSerializer.instance.validate(bytes);
-    }
-
-    @Override
     public TypeSerializer<UUID> getSerializer()
     {
         return UUIDSerializer.instance;

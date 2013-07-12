@@ -31,16 +31,6 @@ public class DoubleType extends AbstractType<Double>
 
     DoubleType() {} // singleton
 
-    public Double compose(ByteBuffer bytes)
-    {
-        return DoubleSerializer.instance.serialize(bytes);
-    }
-
-    public ByteBuffer decompose(Double value)
-    {
-        return DoubleSerializer.instance.deserialize(value);
-    }
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         if (o1.remaining() == 0)
@@ -53,11 +43,6 @@ public class DoubleType extends AbstractType<Double>
         }
 
         return compose(o1).compareTo(compose(o2));
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        return DoubleSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -79,17 +64,11 @@ public class DoubleType extends AbstractType<Double>
       return decompose(d);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        DoubleSerializer.instance.validate(bytes);
-    }
-
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.DOUBLE;
     }
 
-    @Override
     public TypeSerializer<Double> getSerializer()
     {
         return DoubleSerializer.instance;

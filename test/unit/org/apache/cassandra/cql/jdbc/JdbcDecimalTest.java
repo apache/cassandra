@@ -33,8 +33,8 @@ public class JdbcDecimalTest
         BigDecimal expected = new BigDecimal("123456789123456789.987654321");
         DecimalSerializer decimal = new DecimalSerializer();
         
-        ByteBuffer buffer = decimal.deserialize(expected);
-        BigDecimal actual = decimal.serialize(buffer);
+        ByteBuffer buffer = decimal.serialize(expected);
+        BigDecimal actual = decimal.deserialize(buffer);
         Assert.assertEquals(expected, actual);
     }
 }

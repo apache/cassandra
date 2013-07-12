@@ -74,16 +74,6 @@ public class ColumnToCollectionType extends AbstractType<ByteBuffer>
         return t.nameComparator().compare(o1, o2);
     }
 
-    public ByteBuffer compose(ByteBuffer bytes)
-    {
-        return BytesType.instance.compose(bytes);
-    }
-
-    public ByteBuffer decompose(ByteBuffer value)
-    {
-        return BytesType.instance.decompose(value);
-    }
-
     public String getString(ByteBuffer bytes)
     {
         return BytesType.instance.getString(bytes);
@@ -101,6 +91,7 @@ public class ColumnToCollectionType extends AbstractType<ByteBuffer>
         }
     }
 
+    @Override
     public void validate(ByteBuffer bytes)
     {
         throw new UnsupportedOperationException("ColumnToCollectionType should only be used in composite types, never alone");

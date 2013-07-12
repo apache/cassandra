@@ -33,7 +33,7 @@ public class SetType<T> extends CollectionType<Set<T>>
     private static final Map<AbstractType<?>, SetType> instances = new HashMap<AbstractType<?>, SetType>();
 
     public final AbstractType<T> elements;
-    private final SetSerializer<T> composer;
+    private final SetSerializer<T> serializer;
 
     public static SetType<?> getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
@@ -59,7 +59,7 @@ public class SetType<T> extends CollectionType<Set<T>>
     {
         super(Kind.SET);
         this.elements = elements;
-        this.composer = SetSerializer.getInstance(elements.getSerializer());
+        this.serializer = SetSerializer.getInstance(elements.getSerializer());
     }
 
     public AbstractType<T> nameComparator()
@@ -72,19 +72,9 @@ public class SetType<T> extends CollectionType<Set<T>>
         return EmptyType.instance;
     }
 
-    public Set<T> compose(ByteBuffer bytes)
-    {
-        return composer.serialize(bytes);
-    }
-
-    public ByteBuffer decompose(Set<T> value)
-    {
-        return composer.deserialize(value);
-    }
-
     public TypeSerializer<Set<T>> getSerializer()
     {
-        return composer;
+        return serializer;
     }
 
     protected void appendToStringBuilder(StringBuilder sb)

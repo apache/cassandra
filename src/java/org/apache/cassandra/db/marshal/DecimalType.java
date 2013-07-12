@@ -46,25 +46,6 @@ public class DecimalType extends AbstractType<BigDecimal>
         return compose(bb0).compareTo(compose(bb1));
     }
 
-    public BigDecimal compose(ByteBuffer bytes)
-    {
-        return DecimalSerializer.instance.serialize(bytes);
-    }
-
-    /**
-     * The bytes of the ByteBuffer are made up of 4 bytes of int containing the scale
-     * followed by the n bytes it takes to store a BigInteger.
-     */
-    public ByteBuffer decompose(BigDecimal value)
-    {
-        return DecimalSerializer.instance.deserialize(value);
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        return DecimalSerializer.instance.getString(bytes);
-    }
-
     public ByteBuffer fromString(String source) throws MarshalException
     {
         // Return an empty ByteBuffer for an empty string.
@@ -84,17 +65,11 @@ public class DecimalType extends AbstractType<BigDecimal>
         return decompose(decimal);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        DecimalSerializer.instance.validate(bytes);
-    }
-
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.DECIMAL;
     }
 
-    @Override
     public TypeSerializer<BigDecimal> getSerializer()
     {
         return DecimalSerializer.instance;

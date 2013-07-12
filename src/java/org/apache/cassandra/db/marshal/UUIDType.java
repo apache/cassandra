@@ -158,27 +158,6 @@ public class UUIDType extends AbstractType<UUID>
         return (o1.get(o1Pos + 3) & 0xFF) - (o2.get(o2Pos + 3) & 0xFF);
     }
 
-    public UUID compose(ByteBuffer bytes)
-    {
-
-        return UUIDSerializer.instance.serialize(bytes);
-    }
-
-    public void validate(ByteBuffer bytes)
-    {
-        UUIDSerializer.instance.validate(bytes);
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        return UUIDSerializer.instance.getString(bytes);
-    }
-
-    public ByteBuffer decompose(UUID value)
-    {
-        return UUIDSerializer.instance.deserialize(value);
-    }
-
     @Override
     public ByteBuffer fromString(String source) throws MarshalException
     {
@@ -239,7 +218,6 @@ public class UUIDType extends AbstractType<UUID>
         return CQL3Type.Native.UUID;
     }
 
-    @Override
     public TypeSerializer<UUID> getSerializer()
     {
         return UUIDSerializer.instance;

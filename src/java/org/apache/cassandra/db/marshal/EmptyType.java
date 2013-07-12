@@ -34,16 +34,6 @@ public class EmptyType extends AbstractType<Void>
 
     private EmptyType() {} // singleton
 
-    public Void compose(ByteBuffer bytes)
-    {
-        return null;
-    }
-
-    public ByteBuffer decompose(Void value)
-    {
-        return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-    }
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         return 0;
@@ -60,11 +50,6 @@ public class EmptyType extends AbstractType<Void>
             throw new MarshalException(String.format("'%s' is not empty", source));
 
         return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-    }
-
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        EmptySerializer.instance.validate(bytes);
     }
 
     public TypeSerializer<Void> getSerializer()

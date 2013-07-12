@@ -26,12 +26,12 @@ public class EmptySerializer implements TypeSerializer<Void>
 {
     public static final EmptySerializer instance = new EmptySerializer();
 
-    public Void serialize(ByteBuffer bytes)
+    public Void deserialize(ByteBuffer bytes)
     {
         return null;
     }
 
-    public ByteBuffer deserialize(Void value)
+    public ByteBuffer serialize(Void value)
     {
         return ByteBufferUtil.EMPTY_BYTE_BUFFER;
     }
@@ -40,11 +40,6 @@ public class EmptySerializer implements TypeSerializer<Void>
     {
         if (bytes.remaining() > 0)
             throw new MarshalException("EmptyType only accept empty values");
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        return "";
     }
 
     public String toString(Void value)

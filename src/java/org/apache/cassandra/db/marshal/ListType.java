@@ -33,7 +33,7 @@ public class ListType<T> extends CollectionType<List<T>>
     private static final Map<AbstractType<?>, ListType> instances = new HashMap<AbstractType<?>, ListType>();
 
     public final AbstractType<T> elements;
-    public final ListSerializer<T> composer;
+    public final ListSerializer<T> serializer;
 
     public static ListType<?> getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
@@ -59,7 +59,7 @@ public class ListType<T> extends CollectionType<List<T>>
     {
         super(Kind.LIST);
         this.elements = elements;
-        this.composer = ListSerializer.getInstance(elements.getSerializer());
+        this.serializer = ListSerializer.getInstance(elements.getSerializer());
     }
 
     public AbstractType<UUID> nameComparator()
@@ -72,26 +72,9 @@ public class ListType<T> extends CollectionType<List<T>>
         return elements;
     }
 
-    public List<T> compose(ByteBuffer bytes)
-    {
-        return composer.serialize(bytes);
-    }
-
-    /**
-     * Layout is: {@code <n><s_1><b_1>...<s_n><b_n> }
-     * where:
-     *   n is the number of elements
-     *   s_i is the number of bytes composing the ith element
-     *   b_i is the s_i bytes composing the ith element
-     */
-    public ByteBuffer decompose(List<T> value)
-    {
-        return composer.deserialize(value);
-    }
-
     public TypeSerializer<List<T>> getSerializer()
     {
-        return composer;
+        return serializer;
     }
 
     protected void appendToStringBuilder(StringBuilder sb)

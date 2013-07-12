@@ -286,6 +286,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         return bb;
     }
 
+    @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         ByteBuffer bb = bytes.duplicate();
@@ -319,17 +320,6 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 
     public abstract ByteBuffer decompose(Object... objects);
 
-    public ByteBuffer compose(ByteBuffer bytes)
-    {
-        return bytes;
-    }
-
-    public ByteBuffer decompose(ByteBuffer value)
-    {
-        return value;
-    }
-
-    @Override
     public TypeSerializer<ByteBuffer> getSerializer()
     {
         return BytesSerializer.instance;

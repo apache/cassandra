@@ -42,16 +42,6 @@ public class DateType extends AbstractType<Date>
 
     DateType() {} // singleton
 
-    public Date compose(ByteBuffer bytes)
-    {
-        return TimestampSerializer.instance.serialize(bytes);
-    }
-
-    public ByteBuffer decompose(Date value)
-    {
-        return TimestampSerializer.instance.deserialize(value);
-    }
-
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         if (o1.remaining() == 0)
@@ -64,11 +54,6 @@ public class DateType extends AbstractType<Date>
         }
 
         return ByteBufferUtil.compareUnsigned(o1, o2);
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        return TimestampSerializer.instance.getString(bytes);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -132,11 +117,6 @@ public class DateType extends AbstractType<Date>
         }
 
         return false;
-    }
-
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        TimestampSerializer.instance.validate(bytes);
     }
 
     public TypeSerializer<Date> getSerializer()

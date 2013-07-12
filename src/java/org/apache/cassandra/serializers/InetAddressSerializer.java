@@ -28,8 +28,11 @@ public class InetAddressSerializer implements TypeSerializer<InetAddress>
 {
     public static final InetAddressSerializer instance = new InetAddressSerializer();
 
-    public InetAddress serialize(ByteBuffer bytes)
+    public InetAddress deserialize(ByteBuffer bytes)
     {
+        if (bytes.remaining() == 0)
+            return null;
+
         try
         {
             return InetAddress.getByAddress(ByteBufferUtil.getArray(bytes));
@@ -40,13 +43,16 @@ public class InetAddressSerializer implements TypeSerializer<InetAddress>
         }
     }
 
-    public ByteBuffer deserialize(InetAddress value)
+    public ByteBuffer serialize(InetAddress value)
     {
-        return ByteBuffer.wrap(value.getAddress());
+        return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBuffer.wrap(value.getAddress());
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
+        if (bytes.remaining() == 0)
+            return;
+
         try
         {
             InetAddress.getByAddress(ByteBufferUtil.getArray(bytes));
@@ -55,11 +61,6 @@ public class InetAddressSerializer implements TypeSerializer<InetAddress>
         {
             throw new MarshalException(String.format("Expected 4 or 16 byte inetaddress; got %s", ByteBufferUtil.bytesToHex(bytes)));
         }
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        return serialize(bytes).getHostAddress();
     }
 
     public String toString(InetAddress value)

@@ -26,12 +26,12 @@ public class Int32Serializer implements TypeSerializer<Integer>
 {
     public static final Int32Serializer instance = new Int32Serializer();
 
-    public Integer serialize(ByteBuffer bytes)
+    public Integer deserialize(ByteBuffer bytes)
     {
-        return ByteBufferUtil.toInt(bytes);
+        return bytes.remaining() == 0 ? null : ByteBufferUtil.toInt(bytes);
     }
 
-    public ByteBuffer deserialize(Integer value)
+    public ByteBuffer serialize(Integer value)
     {
         return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
     }
@@ -40,20 +40,6 @@ public class Int32Serializer implements TypeSerializer<Integer>
     {
         if (bytes.remaining() != 4 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 4 or 0 byte int (%d)", bytes.remaining()));
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        if (bytes.remaining() == 0)
-        {
-            return "";
-        }
-        if (bytes.remaining() != 4)
-        {
-            throw new MarshalException("A int is exactly 4 bytes: " + bytes.remaining());
-        }
-
-        return String.valueOf(ByteBufferUtil.toInt(bytes));
     }
 
     public String toString(Integer value)

@@ -28,13 +28,16 @@ public class BooleanSerializer implements TypeSerializer<Boolean>
 
     public static final BooleanSerializer instance = new BooleanSerializer();
 
-    public Boolean serialize(ByteBuffer bytes)
+    public Boolean deserialize(ByteBuffer bytes)
     {
+        if (bytes.remaining() == 0)
+            return null;
+
         byte value = bytes.get(bytes.position());
         return value != 0;
     }
 
-    public ByteBuffer deserialize(Boolean value)
+    public ByteBuffer serialize(Boolean value)
     {
         return (value == null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER
                 : value ? TRUE : FALSE; // false
@@ -44,21 +47,6 @@ public class BooleanSerializer implements TypeSerializer<Boolean>
     {
         if (bytes.remaining() != 1 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 1 or 0 byte value (%d)", bytes.remaining()));
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        if (bytes.remaining() == 0)
-        {
-            return Boolean.FALSE.toString();
-        }
-        if (bytes.remaining() != 1)
-        {
-            throw new MarshalException("A boolean is stored in exactly 1 byte: " + bytes.remaining());
-        }
-        byte value = bytes.get(bytes.position());
-
-        return value == 0 ? Boolean.FALSE.toString() : Boolean.TRUE.toString();
     }
 
     public String toString(Boolean value)

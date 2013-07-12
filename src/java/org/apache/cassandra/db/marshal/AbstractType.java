@@ -137,12 +137,25 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         };
     }
 
-    public abstract T compose(ByteBuffer bytes);
+    public T compose(ByteBuffer bytes)
+    {
+        return getSerializer().deserialize(bytes);
+    }
 
-    public abstract ByteBuffer decompose(T value);
+    public ByteBuffer decompose(T value)
+    {
+        return getSerializer().serialize(value);
+    }
 
     /** get a string representation of the bytes suitable for log messages */
-    public abstract String getString(ByteBuffer bytes);
+    public String getString(ByteBuffer bytes)
+    {
+        TypeSerializer<T> serializer = getSerializer();
+        serializer.validate(bytes);
+
+        T value = serializer.deserialize(bytes);
+        return value == null ? "null" : serializer.toString(value);
+    }
 
     /** get a byte representation of the given string. */
     public abstract ByteBuffer fromString(String source) throws MarshalException;
@@ -154,7 +167,10 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     }
 
     /* validate that the byte array is a valid sequence for the type we are supposed to be comparing */
-    public abstract void validate(ByteBuffer bytes) throws MarshalException;
+    public void validate(ByteBuffer bytes) throws MarshalException
+    {
+        getSerializer().validate(bytes);
+    }
 
     /* Most of our internal type should override that. */
     public CQL3Type asCQL3Type()

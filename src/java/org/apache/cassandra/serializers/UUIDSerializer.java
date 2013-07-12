@@ -17,23 +17,24 @@
  */
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.utils.UUIDGen;
-
 import java.nio.ByteBuffer;
 import java.util.UUID;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.UUIDGen;
 
 public class UUIDSerializer implements TypeSerializer<UUID>
 {
     public static final UUIDSerializer instance = new UUIDSerializer();
 
-    public UUID serialize(ByteBuffer bytes)
+    public UUID deserialize(ByteBuffer bytes)
     {
-        return UUIDGen.getUUID(bytes);
+        return bytes.remaining() == 0 ? null : UUIDGen.getUUID(bytes);
     }
 
-    public ByteBuffer deserialize(UUID value)
+    public ByteBuffer serialize(UUID value)
     {
-        return ByteBuffer.wrap(UUIDGen.decompose(value));
+        return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBuffer.wrap(UUIDGen.decompose(value));
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException
@@ -41,20 +42,6 @@ public class UUIDSerializer implements TypeSerializer<UUID>
         if (bytes.remaining() != 16 && bytes.remaining() != 0)
             throw new MarshalException(String.format("UUID should be 16 or 0 bytes (%d)", bytes.remaining()));
         // not sure what the version should be for this.
-    }
-
-    public String getString(ByteBuffer bytes)
-    {
-        if (bytes.remaining() == 0)
-        {
-            return "";
-        }
-        if (bytes.remaining() != 16)
-        {
-            throw new MarshalException("UUIDs must be exactly 16 bytes");
-        }
-        UUID uuid = UUIDGen.getUUID(bytes);
-        return uuid.toString();
     }
 
     public String toString(UUID value)

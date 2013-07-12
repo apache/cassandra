@@ -36,7 +36,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
 
     public final AbstractType<K> keys;
     public final AbstractType<V> values;
-    private final MapSerializer<K, V> composer;
+    private final MapSerializer<K, V> serializer;
 
     public static MapType<?, ?> getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
@@ -64,7 +64,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         super(Kind.MAP);
         this.keys = keys;
         this.values = values;
-        this.composer = MapSerializer.getInstance(keys.getSerializer(), values.getSerializer());
+        this.serializer = MapSerializer.getInstance(keys.getSerializer(), values.getSerializer());
     }
 
     public AbstractType<K> nameComparator()
@@ -77,65 +77,10 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         return values;
     }
 
-    public Map<K, V> compose(ByteBuffer bytes)
-    {
-        try
-        {
-            ByteBuffer input = bytes.duplicate();
-            int n = getUnsignedShort(input);
-            Map<K, V> m = new LinkedHashMap<K, V>(n);
-            for (int i = 0; i < n; i++)
-            {
-                int sk = getUnsignedShort(input);
-                byte[] datak = new byte[sk];
-                input.get(datak);
-                ByteBuffer kbb = ByteBuffer.wrap(datak);
-                keys.validate(kbb);
-
-                int sv = getUnsignedShort(input);
-                byte[] datav = new byte[sv];
-                input.get(datav);
-                ByteBuffer vbb = ByteBuffer.wrap(datav);
-                values.validate(vbb);
-
-                m.put(keys.compose(kbb), values.compose(vbb));
-            }
-            return m;
-        }
-        catch (BufferUnderflowException e)
-        {
-            throw new MarshalException("Not enough bytes to read a map");
-        }
-    }
-
-    /**
-     * Layout is: {@code <n><sk_1><k_1><sv_1><v_1>...<sk_n><k_n><sv_n><v_n> }
-     * where:
-     *   n is the number of elements
-     *   sk_i is the number of bytes composing the ith key k_i
-     *   k_i is the sk_i bytes composing the ith key
-     *   sv_i is the number of bytes composing the ith value v_i
-     *   v_i is the sv_i bytes composing the ith value
-     */
-    public ByteBuffer decompose(Map<K, V> value)
-    {
-        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(2 * value.size());
-        int size = 0;
-        for (Map.Entry<K, V> entry : value.entrySet())
-        {
-            ByteBuffer bbk = keys.decompose(entry.getKey());
-            ByteBuffer bbv = values.decompose(entry.getValue());
-            bbs.add(bbk);
-            bbs.add(bbv);
-            size += 4 + bbk.remaining() + bbv.remaining();
-        }
-        return pack(bbs, value.size(), size);
-    }
-
     @Override
     public TypeSerializer<Map<K, V>> getSerializer()
     {
-        return composer;
+        return serializer;
     }
 
     protected void appendToStringBuilder(StringBuilder sb)
@@ -144,7 +89,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     }
 
     /**
-     * Creates the same output than deserialize, but from the internal representation.
+     * Creates the same output than serialize, but from the internal representation.
      */
     public ByteBuffer serialize(List<Pair<ByteBuffer, Column>> columns)
     {
