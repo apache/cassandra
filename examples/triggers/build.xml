@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project default="jar" name="trigger-example">
+	<property name="cassandra.dir" value="../.." />
+	<property name="cassandra.dir.lib" value="${cassandra.dir}/lib" />
+	<property name="cassandra.classes" value="${cassandra.dir}/build/classes/main" />
+	<property name="build.src" value="${basedir}/src" />
+	<property name="build.dir" value="${basedir}/build" />
+	<property name="build.classes" value="${build.dir}/classes" />
+	<property name="final.name" value="trigger-example" />
+
+	<path id="build.classpath">
+		<fileset dir="${cassandra.dir.lib}">
+			<include name="**/*.jar" />
+		</fileset>
+		<fileset dir="${cassandra.dir}/build/lib/jars">
+			<include name="**/*.jar" />
+		</fileset>
+		<pathelement location="${cassandra.classes}" />
+	</path>
+	<target name="init">
+		<mkdir dir="${build.classes}" />
+	</target>
+
+	<target name="build" depends="init">
+		<javac destdir="${build.classes}" debug="true" includeantruntime="false">
+			<src path="${build.src}" />
+			<classpath refid="build.classpath" />
+		</javac>
+	</target>
+
+	<target name="jar" depends="build">
+		<jar jarfile="${build.dir}/${final.name}.jar">
+			<fileset dir="${build.classes}" />
+		</jar>
+	</target>
+
+	<target name="clean">
+		<delete dir="${build.dir}" />
+	</target>
+</project>
