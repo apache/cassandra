@@ -434,7 +434,7 @@ public class Shuffle extends AbstractJmxClient
                 assert row.getColumns().size() == 2;
 
                 ByteBuffer tokenBytes = ByteBuffer.wrap(row.getColumns().get(0).getValue());
-                String query = String.format("DELETE FROM system.range_xfers WHERE token_bytes = '%s'",
+                String query = String.format("DELETE FROM system.range_xfers WHERE token_bytes = 0x%s",
                         ByteBufferUtil.bytesToHex(tokenBytes));
                 executeCqlQuery(host, thriftPort, thriftFramed, query);
             }
