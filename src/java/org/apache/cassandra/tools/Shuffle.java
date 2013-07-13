@@ -683,7 +683,7 @@ public class Shuffle extends AbstractJmxClient
                 shuffler.ls();
             else if (subCommand.startsWith("en"))
                 shuffler.enable();
-            else if (subCommand.startsWith("in"))
+            else if (subCommand.startsWith("dis"))
                 shuffler.disable();
             else if (subCommand.equals("clear"))
                 shuffler.clear();
