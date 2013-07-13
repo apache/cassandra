@@ -91,7 +91,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
 
     public String toString(List<T> value)
     {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         boolean isFirst = true;
         for (T element : value)
         {

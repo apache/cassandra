@@ -91,7 +91,7 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
 
     public String toString(Set<T> value)
     {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         boolean isFirst = true;
         for (T element : value)
         {

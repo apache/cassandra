@@ -391,7 +391,7 @@ public class NodeCmd
         {
             if (format == null)
             {
-                StringBuffer buf = new StringBuffer();
+                StringBuilder buf = new StringBuilder();
                 String addressPlaceholder = String.format("%%-%ds  ", maxAddressLength);
                 buf.append("%s%s  ");                         // status
                 buf.append(addressPlaceholder);               // address

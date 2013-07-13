@@ -107,7 +107,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
 
     public String toString(Map<K, V> value)
     {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         boolean isFirst = true;
         for (Map.Entry<K, V> element : value.entrySet())
         {
