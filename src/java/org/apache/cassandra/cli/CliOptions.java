@@ -47,7 +47,6 @@ public class CliOptions
     private static final String JMX_USERNAME_OPTION = "jmxusername";
     private static final String JMX_PASSWORD_OPTION = "jmxpassword";
     private static final String VERBOSE_OPTION  = "verbose";
-    private static final String SCHEMA_MIGRATION_WAIT_TIME = "schema-mwt";
 
     private static final String SSL_TRUSTSTORE = "truststore";
     private static final String SSL_TRUSTSTORE_PW = "truststore-password";
@@ -75,7 +74,6 @@ public class CliOptions
         options.addOption(null, JMX_PORT_OPTION, "JMX-PORT", "JMX service port");
         options.addOption(null, JMX_USERNAME_OPTION, "JMX-USERNAME", "JMX service username");
         options.addOption(null, JMX_PASSWORD_OPTION, "JMX-PASSWORD", "JMX service password");
-        options.addOption(null, SCHEMA_MIGRATION_WAIT_TIME,  "TIME", "Schema migration wait time (secs.), default is 10 secs");
         options.addOption("tf", TRANSPORT_FACTORY, "TRANSPORT-FACTORY", "Fully-qualified TTransportFactory class name for creating a connection to cassandra");
 
         // ssl connection-related options
@@ -188,11 +186,6 @@ public class CliOptions
                 css.verbose = true;
             }
 
-            if (cmd.hasOption(SCHEMA_MIGRATION_WAIT_TIME))
-            {
-                css.schema_mwt = Integer.parseInt(cmd.getOptionValue(SCHEMA_MIGRATION_WAIT_TIME)) * 1000;
-            }
-
             if(cmd.hasOption(SSL_TRUSTSTORE))
             {
                 css.encOptions.truststore = cmd.getOptionValue(SSL_TRUSTSTORE);
@@ -276,7 +269,7 @@ public class CliOptions
     {
         try
         {
-            Class factory = Class.forName(transportFactory);
+            Class<?> factory = Class.forName(transportFactory);
 
             if(!TTransportFactory.class.isAssignableFrom(factory))
                 throw new IllegalArgumentException(String.format("transport factory '%s' " +

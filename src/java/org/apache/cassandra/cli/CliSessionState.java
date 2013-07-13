@@ -44,7 +44,6 @@ public class CliSessionState
     public String  jmxUsername;   // JMX service username
     public String  jmxPassword;   // JMX service password
     public boolean verbose = false; // verbose output
-    public int     schema_mwt = 10 * 1000;    // Schema migration wait time (secs.)
     public TTransportFactory transportFactory = new FramedTransportFactory();
     public EncryptionOptions encOptions = new ClientEncryptionOptions();
 
