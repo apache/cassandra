@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.repair;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,9 +39,6 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     /** Repair session ID that this streaming task belongs */
     public final RepairJobDesc desc;
     public final SyncRequest request;
-
-    // we expect one callback for the receive, and one for the send
-    private final AtomicInteger outstanding = new AtomicInteger(2);
 
     public StreamingRepairTask(RepairJobDesc desc, SyncRequest request)
     {
