@@ -996,7 +996,6 @@ public class SelectStatement implements CQLStatement
             CFDefinition cfDef = cfm.getCfDef();
 
             ColumnSpecification[] names = new ColumnSpecification[getBoundsTerms()];
-            IPartitioner partitioner = StorageService.getPartitioner();
 
             // Select clause
             if (parameters.isCount && !selectClause.isEmpty())
