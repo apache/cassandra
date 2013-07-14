@@ -65,10 +65,6 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
 
     public abstract void announceMigration() throws RequestValidationException;
 
-    @Override
-    public void validate(ClientState state) throws RequestValidationException
-    {}
-
     public ResultMessage execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables, int pageSize, PagingState pagingState) throws RequestValidationException
     {
         announceMigration();

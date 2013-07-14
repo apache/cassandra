@@ -63,6 +63,11 @@ public class AlterTableStatement extends SchemaAlteringStatement
         state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.ALTER);
     }
 
+    public void validate(ClientState state)
+    {
+        // validated in announceMigration()
+    }
+
     public void announceMigration() throws RequestValidationException
     {
         CFMetaData meta = validateColumnFamily(keyspace(), columnFamily());

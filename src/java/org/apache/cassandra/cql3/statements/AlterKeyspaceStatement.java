@@ -53,11 +53,8 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
         state.hasKeyspaceAccess(name, Permission.ALTER);
     }
 
-    @Override
     public void validate(ClientState state) throws RequestValidationException
     {
-        super.validate(state);
-
         KSMetaData ksm = Schema.instance.getKSMetaData(name);
         if (ksm == null)
             throw new InvalidRequestException("Unknown keyspace " + name);

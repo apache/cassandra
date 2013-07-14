@@ -105,7 +105,7 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
     {
         ColumnIdentifier alias = new ColumnIdentifier(cfm.compactValueColumn().name, definitionType);
         // That's how we distinguish between 'no value alias because coming from thrift' and 'I explicitely did not
-        // define a value' (see CreateColumnFamilyStatement)
+        // define a value' (see CreateTableStatement)
         return alias.key.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER)
                ? null
                : new Name(cfm.ksName, cfm.cfName, alias, Name.Kind.VALUE_ALIAS, cfm.getDefaultValidator());

@@ -31,7 +31,6 @@ import com.google.common.base.Objects;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
 
-import org.apache.cassandra.serializers.MarshalException;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.builder.EqualsBuilder;
@@ -44,7 +43,7 @@ import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.cql3.statements.CreateColumnFamilyStatement;
+import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
@@ -58,6 +57,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -461,7 +461,7 @@ public final class CFMetaData
     {
         try
         {
-            CreateColumnFamilyStatement statement = (CreateColumnFamilyStatement) QueryProcessor.parseStatement(cql).prepare().statement;
+            CreateTableStatement statement = (CreateTableStatement) QueryProcessor.parseStatement(cql).prepare().statement;
             CFMetaData cfmd = newSystemMetadata(keyspace, statement.columnFamily(), "", statement.comparator, null);
             statement.applyPropertiesTo(cfmd);
             return cfmd.rebuild();

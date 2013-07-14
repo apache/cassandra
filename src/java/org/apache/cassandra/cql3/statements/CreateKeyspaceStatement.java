@@ -73,10 +73,8 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
      *
      * @throws InvalidRequestException if arguments are missing or unacceptable
      */
-    @Override
     public void validate(ClientState state) throws RequestValidationException
     {
-        super.validate(state);
         ThriftValidation.validateKeyspaceNotSystem(name);
 
         // keyspace name

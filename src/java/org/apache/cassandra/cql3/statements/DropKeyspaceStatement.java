@@ -44,17 +44,15 @@ public class DropKeyspaceStatement extends SchemaAlteringStatement
         state.hasKeyspaceAccess(keyspace, Permission.DROP);
     }
 
+    public void validate(ClientState state) throws RequestValidationException
+    {
+        ThriftValidation.validateKeyspaceNotSystem(keyspace);
+    }
+
     @Override
     public String keyspace()
     {
         return keyspace;
-    }
-
-    @Override
-    public void validate(ClientState state) throws RequestValidationException
-    {
-        super.validate(state);
-        ThriftValidation.validateKeyspaceNotSystem(keyspace);
     }
 
     public void announceMigration() throws ConfigurationException

@@ -40,8 +40,8 @@ import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-/** A <code>CREATE COLUMNFAMILY</code> parsed from a CQL query statement. */
-public class CreateColumnFamilyStatement extends SchemaAlteringStatement
+/** A <code>CREATE TABLE</code> parsed from a CQL query statement. */
+public class CreateTableStatement extends SchemaAlteringStatement
 {
     public AbstractType<?> comparator;
     private AbstractType<?> defaultValidator;
@@ -55,7 +55,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
     private final CFPropDefs properties;
     private final boolean ifNotExists;
 
-    public CreateColumnFamilyStatement(CFName name, CFPropDefs properties, boolean ifNotExists)
+    public CreateTableStatement(CFName name, CFPropDefs properties, boolean ifNotExists)
     {
         super(name);
         this.properties = properties;
@@ -79,6 +79,11 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
         state.hasKeyspaceAccess(keyspace(), Permission.CREATE);
+    }
+
+    public void validate(ClientState state)
+    {
+        // validated in announceMigration()
     }
 
     // Column definitions
@@ -174,7 +179,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
         }
 
         /**
-         * Transform this raw statement into a CreateColumnFamilyStatement.
+         * Transform this raw statement into a CreateTableStatement.
          */
         public ParsedStatement.Prepared prepare() throws RequestValidationException
         {
@@ -190,7 +195,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
             properties.validate();
 
-            CreateColumnFamilyStatement stmt = new CreateColumnFamilyStatement(cfName, properties, ifNotExists);
+            CreateTableStatement stmt = new CreateTableStatement(cfName, properties, ifNotExists);
             stmt.setBoundTerms(getBoundsTerms());
 
             Map<ByteBuffer, CollectionType> definedCollections = null;

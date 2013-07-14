@@ -179,10 +179,10 @@ cqlStatement returns [ParsedStatement stmt]
     | st6= useStatement                { $stmt = st6; }
     | st7= truncateStatement           { $stmt = st7; }
     | st8= createKeyspaceStatement     { $stmt = st8; }
-    | st9= createColumnFamilyStatement { $stmt = st9; }
+    | st9= createTableStatement        { $stmt = st9; }
     | st10=createIndexStatement        { $stmt = st10; }
     | st11=dropKeyspaceStatement       { $stmt = st11; }
-    | st12=dropColumnFamilyStatement   { $stmt = st12; }
+    | st12=dropTableStatement          { $stmt = st12; }
     | st13=dropIndexStatement          { $stmt = st13; }
     | st14=alterTableStatement         { $stmt = st14; }
     | st15=alterKeyspaceStatement      { $stmt = st15; }
@@ -194,7 +194,7 @@ cqlStatement returns [ParsedStatement stmt]
     | st21=dropUserStatement           { $stmt = st21; }
     | st22=listUsersStatement          { $stmt = st22; }
     | st23=createTriggerStatement      { $stmt = st23; }
-    | st24=dropTriggerStatement      { $stmt = st24; }
+    | st24=dropTriggerStatement        { $stmt = st24; }
     ;
 
 /*
@@ -448,35 +448,35 @@ createKeyspaceStatement returns [CreateKeyspaceStatement expr]
  *     <name3> <type>
  * ) WITH <property> = <value> AND ...;
  */
-createColumnFamilyStatement returns [CreateColumnFamilyStatement.RawStatement expr]
+createTableStatement returns [CreateTableStatement.RawStatement expr]
     @init { boolean ifNotExists = false; }
     : K_CREATE K_COLUMNFAMILY (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
-      cf=columnFamilyName { $expr = new CreateColumnFamilyStatement.RawStatement(cf, ifNotExists); }
+      cf=columnFamilyName { $expr = new CreateTableStatement.RawStatement(cf, ifNotExists); }
       cfamDefinition[expr]
     ;
 
-cfamDefinition[CreateColumnFamilyStatement.RawStatement expr]
+cfamDefinition[CreateTableStatement.RawStatement expr]
     : '(' cfamColumns[expr] ( ',' cfamColumns[expr]? )* ')'
       ( K_WITH cfamProperty[expr] ( K_AND cfamProperty[expr] )*)?
     ;
 
-cfamColumns[CreateColumnFamilyStatement.RawStatement expr]
+cfamColumns[CreateTableStatement.RawStatement expr]
     : k=cident v=comparatorType { $expr.addDefinition(k, v); } (K_PRIMARY K_KEY { $expr.addKeyAliases(Collections.singletonList(k)); })?
     | K_PRIMARY K_KEY '(' pkDef[expr] (',' c=cident { $expr.addColumnAlias(c); } )* ')'
     ;
 
-pkDef[CreateColumnFamilyStatement.RawStatement expr]
+pkDef[CreateTableStatement.RawStatement expr]
     : k=cident { $expr.addKeyAliases(Collections.singletonList(k)); }
     | '(' { List<ColumnIdentifier> l = new ArrayList<ColumnIdentifier>(); } k1=cident { l.add(k1); } ( ',' kn=cident { l.add(kn); } )* ')' { $expr.addKeyAliases(l); }
     ;
 
-cfamProperty[CreateColumnFamilyStatement.RawStatement expr]
+cfamProperty[CreateTableStatement.RawStatement expr]
     : property[expr.properties]
     | K_COMPACT K_STORAGE { $expr.setCompactStorage(); }
     | K_CLUSTERING K_ORDER K_BY '(' cfamOrdering[expr] (',' cfamOrdering[expr])* ')'
     ;
 
-cfamOrdering[CreateColumnFamilyStatement.RawStatement expr]
+cfamOrdering[CreateTableStatement.RawStatement expr]
     @init{ boolean reversed=false; }
     : k=cident (K_ASC | K_DESC { reversed=true;} ) { $expr.setOrdering(k, reversed); }
     ;
@@ -560,9 +560,9 @@ dropKeyspaceStatement returns [DropKeyspaceStatement ksp]
 /**
  * DROP COLUMNFAMILY [IF EXISTS] <CF>;
  */
-dropColumnFamilyStatement returns [DropColumnFamilyStatement stmt]
+dropTableStatement returns [DropTableStatement stmt]
     @init { boolean ifExists = false; }
-    : K_DROP K_COLUMNFAMILY (K_IF K_EXISTS { ifExists = true; } )? cf=columnFamilyName { $stmt = new DropColumnFamilyStatement(cf, ifExists); }
+    : K_DROP K_COLUMNFAMILY (K_IF K_EXISTS { ifExists = true; } )? cf=columnFamilyName { $stmt = new DropTableStatement(cf, ifExists); }
     ;
 
 /**

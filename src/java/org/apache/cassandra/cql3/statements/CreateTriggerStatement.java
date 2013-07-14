@@ -54,7 +54,6 @@ public class CreateTriggerStatement extends SchemaAlteringStatement
         state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.ALTER);
     }
 
-    @Override
     public void validate(ClientState state) throws RequestValidationException
     {
         ThriftValidation.validateColumnFamily(keyspace(), columnFamily());

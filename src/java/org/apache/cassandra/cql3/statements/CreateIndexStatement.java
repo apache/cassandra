@@ -61,7 +61,6 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.ALTER);
     }
 
-    @Override
     public void validate(ClientState state) throws RequestValidationException
     {
         CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());

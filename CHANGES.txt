@@ -3,6 +3,7 @@
  * Cleanup AbstractType/TypeSerializer classes (CASSANDRA-5744)
  * Remove unimplemented cli option schema-mwt (CASSANDRA-5754)
  * Support range tombstones in thrift (CASSANDRA-5435)
+ * Normalize table-manipulating CQL3 statements' class names (CASSANDRA-5759)
 
 2.0.0-beta1
  * Removed on-heap row cache (CASSANDRA-5348)

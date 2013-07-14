@@ -49,6 +49,11 @@ public class DropIndexStatement extends SchemaAlteringStatement
         state.hasColumnFamilyAccess(cfm.ksName, cfm.cfName, Permission.ALTER);
     }
 
+    public void validate(ClientState state)
+    {
+        // validated in findIndexedCf()
+    }
+
     public ResultMessage.SchemaChange.Change changeType()
     {
         // Dropping an index is akin to updating the CF
