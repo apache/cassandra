@@ -619,6 +619,75 @@ class TestMutations(ThriftTester):
           for key in keys:
             _assert_no_columnpath(key, ColumnPath('Super1', super_column=sc.name))
 
+    def test_batch_mutate_remove_slice_standard(self):
+        _set_keyspace('Keyspace1')
+
+        columns = [Column('c1', 'value1', 0),
+                   Column('c2', 'value2', 0),
+                   Column('c3', 'value3', 0),
+                   Column('c4', 'value4', 0),
+                   Column('c5', 'value5', 0)]
+
+        for column in columns:
+            client.insert('key', ColumnParent('Standard1'), column, ConsistencyLevel.ONE)
+
+        d = Deletion(1, predicate=SlicePredicate(slice_range=SliceRange(start='c2', finish='c5')))
+        client.batch_mutate({'key': {'Standard1' : [Mutation(deletion=d)]}}, ConsistencyLevel.ONE)
+
+        _assert_columnpath_exists('key', ColumnPath('Standard1', column='c1'))
+        _assert_no_columnpath('key', ColumnPath('Standard1', column='c2'))
+        _assert_no_columnpath('key', ColumnPath('Standard1', column='c3'))
+        _assert_no_columnpath('key', ColumnPath('Standard1', column='c4'))
+        _assert_columnpath_exists('key', ColumnPath('Standard1', column='c5'))
+
+    def test_batch_mutate_remove_slice_of_entire_supercolumns(self):
+        _set_keyspace('Keyspace1')
+
+        columns = [SuperColumn(name='sc1', columns=[Column(_i64(1), 'value1', 0)]),
+                   SuperColumn(name='sc2',
+                               columns=[Column(_i64(2), 'value2', 0), Column(_i64(3), 'value3', 0)]),
+                   SuperColumn(name='sc3', columns=[Column(_i64(4), 'value4', 0)]),
+                   SuperColumn(name='sc4',
+                               columns=[Column(_i64(5), 'value5', 0), Column(_i64(6), 'value6', 0)]),
+                   SuperColumn(name='sc5', columns=[Column(_i64(7), 'value7', 0)])]
+
+        for column in columns:
+            for subcolumn in column.columns:
+                client.insert('key', ColumnParent('Super1', column.name), subcolumn, ConsistencyLevel.ONE)
+
+        d = Deletion(1, predicate=SlicePredicate(slice_range=SliceRange(start='sc2', finish='sc5')))
+        client.batch_mutate({'key': {'Super1' : [Mutation(deletion=d)]}}, ConsistencyLevel.ONE)
+
+        _assert_columnpath_exists('key', ColumnPath('Super1', super_column='sc1', column=_i64(1)))
+        _assert_no_columnpath('key', ColumnPath('Super1', super_column='sc2', column=_i64(2)))
+        _assert_no_columnpath('key', ColumnPath('Super1', super_column='sc2', column=_i64(3)))
+        _assert_no_columnpath('key', ColumnPath('Super1', super_column='sc3', column=_i64(4)))
+        _assert_no_columnpath('key', ColumnPath('Super1', super_column='sc4', column=_i64(5)))
+        _assert_no_columnpath('key', ColumnPath('Super1', super_column='sc4', column=_i64(6)))
+        _assert_columnpath_exists('key', ColumnPath('Super1', super_column='sc5', column=_i64(7)))
+
+    def test_batch_mutate_remove_slice_part_of_supercolumns(self):
+        _set_keyspace('Keyspace1')
+
+        columns = [Column(_i64(1), 'value1', 0),
+                   Column(_i64(2), 'value2', 0),
+                   Column(_i64(3), 'value3', 0),
+                   Column(_i64(4), 'value4', 0),
+                   Column(_i64(5), 'value5', 0)]
+
+        for column in columns:
+            client.insert('key', ColumnParent('Super1', 'sc1'), column, ConsistencyLevel.ONE)
+
+        r = SliceRange(start=_i64(2), finish=_i64(5))
+        d = Deletion(1, super_column='sc1', predicate=SlicePredicate(slice_range=r))
+        client.batch_mutate({'key': {'Super1' : [Mutation(deletion=d)]}}, ConsistencyLevel.ONE)
+
+        _assert_columnpath_exists('key', ColumnPath('Super1', super_column='sc1', column=_i64(1)))
+        _assert_no_columnpath('key', ColumnPath('Super1', super_column='sc1', column=_i64(2)))
+        _assert_no_columnpath('key', ColumnPath('Super1', super_column='sc1', column=_i64(3)))
+        _assert_no_columnpath('key', ColumnPath('Super1', super_column='sc1', column=_i64(4)))
+        _assert_columnpath_exists('key', ColumnPath('Super1', super_column='sc1', column=_i64(5)))
+
     def test_batch_mutate_insertions_and_deletions(self):
         _set_keyspace('Keyspace1')
         
@@ -683,15 +752,6 @@ class TestMutations(ThriftTester):
             client.batch_mutate({'key_34': {'Standard1': [Mutation(col, dele)]}},
                                  ConsistencyLevel.ONE)
         _expect_exception(too_full, InvalidRequestException)
-
-        # test_batch_mutate_does_not_yet_accept_slice_ranges
-        def send_range():
-            _set_keyspace('Keyspace1')
-            sp = SlicePredicate(slice_range=SliceRange(start='0', finish="", count=10))
-            d = Deletion(2, predicate=sp)
-            client.batch_mutate({'key_35': {'Standard1':[Mutation(deletion=d)]}},
-                                 ConsistencyLevel.ONE)
-        _expect_exception(send_range, InvalidRequestException)
 
         # test_batch_mutate_does_not_accept_cosc_on_undefined_cf:
         def bad_cf():

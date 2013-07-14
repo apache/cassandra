@@ -2,6 +2,7 @@
  * Allow nodetool with no args, and with help to run without a server (CASSANDRA-5734)
  * Cleanup AbstractType/TypeSerializer classes (CASSANDRA-5744)
  * Remove unimplemented cli option schema-mwt (CASSANDRA-5754)
+ * Support range tombstones in thrift (CASSANDRA-5435)
 
 2.0.0-beta1
  * Removed on-heap row cache (CASSANDRA-5348)
