@@ -32,7 +32,7 @@ exit 1
 from __future__ import with_statement
 
 description = "CQL Shell for Apache Cassandra"
-version = "3.1.2"
+version = "3.1.3"
 
 from StringIO import StringIO
 from itertools import groupby
@@ -1447,9 +1447,15 @@ class Shell(cmd.Cmd):
 
         for col in indexed_columns:
             out.write('\n')
-            # guess CQL can't represent index_type or index_options
-            out.write('CREATE INDEX %s ON %s (%s);\n'
-                         % (col.index_name, cfname, self.cql_protect_name(col.name)))
+            if col.index_type != 'CUSTOM':
+                out.write('CREATE INDEX %s ON %s (%s);\n'
+                             % (col.index_name, cfname, self.cql_protect_name(col.name)))
+            else:
+                out.write("CREATE CUSTOM INDEX %s ON %s (%s) USING '%s';\n"
+                             % (col.index_name,
+                                cfname,
+                                self.cql_protect_name(col.name),
+                                col.index_options[u'class_name']))
 
     def describe_keyspaces(self):
         print
