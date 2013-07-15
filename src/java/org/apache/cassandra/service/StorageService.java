@@ -655,7 +655,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (logger.isDebugEnabled())
                 logger.debug("... got ring + schema info");
 
-            if (DatabaseDescriptor.isReplacing())
+            if (!DatabaseDescriptor.isReplacing())
             {
                 if (tokenMetadata.isMember(FBUtilities.getBroadcastAddress()))
                 {
