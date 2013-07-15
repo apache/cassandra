@@ -70,6 +70,9 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('read_repair_chance', None),
         ('replicate_on_write', None),
         ('populate_io_cache_on_flush', None),
+        ('default_time_to_live', None),
+        ('speculative_retry', None),
+        ('memtable_flush_period_in_ms', None),
     )
 
     columnfamily_layout_map_options = (
