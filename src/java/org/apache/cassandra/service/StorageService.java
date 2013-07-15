@@ -547,7 +547,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         appStates.put(ApplicationState.NET_VERSION, valueFactory.networkVersion());
         appStates.put(ApplicationState.HOST_ID, valueFactory.hostId(SystemKeyspace.getLocalHostId()));
         appStates.put(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(DatabaseDescriptor.getRpcAddress()));
-        if (0 != DatabaseDescriptor.getReplaceTokens().size())
+        if (DatabaseDescriptor.isReplacing())
             appStates.put(ApplicationState.STATUS, valueFactory.hibernate(true));
         appStates.put(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
         Gossiper.instance.register(this);
@@ -614,7 +614,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (logger.isDebugEnabled())
                 logger.debug("... got ring + schema info");
 
-            if (DatabaseDescriptor.getReplaceTokens().size() == 0)
+            if (DatabaseDescriptor.isReplacing())
             {
                 if (tokenMetadata.isMember(FBUtilities.getBroadcastAddress()))
                 {
@@ -629,9 +629,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 // Sleeping additionally to make sure that the server actually is not alive
                 // and giving it more time to gossip if alive.
                 Uninterruptibles.sleepUninterruptibly(LoadBroadcaster.BROADCAST_INTERVAL, TimeUnit.MILLISECONDS);
+                if (DatabaseDescriptor.getReplaceTokens().size() != 0 && DatabaseDescriptor.getReplaceNode() != null)
+                    throw new UnsupportedOperationException("You cannot specify both replace_token and replace_node, choose one or the other");
                 tokens = new ArrayList<Token>();
-                for (String token : DatabaseDescriptor.getReplaceTokens())
-                    tokens.add(StorageService.getPartitioner().getTokenFactory().fromString(token));
+                if (DatabaseDescriptor.getReplaceTokens().size() !=0)
+                {
+                    for (String token : DatabaseDescriptor.getReplaceTokens())
+                        tokens.add(StorageService.getPartitioner().getTokenFactory().fromString(token));
+                }
+                else
+                {
+                    assert DatabaseDescriptor.getReplaceNode() != null;
+                    InetAddress endpoint = tokenMetadata.getEndpointForHostId(DatabaseDescriptor.getReplaceNode());
+                    if (endpoint == null)
+                        throw new UnsupportedOperationException("Cannot replace host id " + DatabaseDescriptor.getReplaceNode() + " because it does not exist!");
+                    tokens = tokenMetadata.getTokens(endpoint);
+                }
 
                 // check for operator errors...
                 for (Token token : tokens)
@@ -642,6 +655,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         if (delay > TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - Gossiper.instance.getEndpointStateForEndpoint(existing).getUpdateTimestamp()))
                             throw new UnsupportedOperationException("Cannnot replace a token for a Live node... ");
                         current.add(existing);
+                    }
+                    else
+                    {
+                        throw new UnsupportedOperationException("Cannot replace token " + token + " which does not exist!");
                     }
                 }
 
@@ -861,7 +878,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         isBootstrapMode = true;
         SystemKeyspace.updateTokens(tokens); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
-        if (0 == DatabaseDescriptor.getReplaceTokens().size())
+        if (DatabaseDescriptor.isReplacing())
         {
             // if not an existing token then bootstrap
             // order is important here, the gossiper can fire in between adding these two states.  It's ok to send TOKENS without STATUS, but *not* vice versa.

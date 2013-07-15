@@ -652,6 +652,22 @@ public class DatabaseDescriptor
         return tokensFromString(System.getProperty("cassandra.replace_token", null));
     }
 
+    public static UUID getReplaceNode()
+    {
+        try
+        {
+            return UUID.fromString(System.getProperty("cassandra.replace_node", null));
+        } catch (NullPointerException e)
+        {
+            return null;
+        }
+    }
+
+    public static boolean isReplacing()
+    {
+        return 0 != getReplaceTokens().size() || getReplaceNode() != null
+    }
+
     public static String getClusterName()
     {
         return conf.cluster_name;
