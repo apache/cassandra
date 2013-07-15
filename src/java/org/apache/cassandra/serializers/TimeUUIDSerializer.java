@@ -22,6 +22,8 @@ import java.nio.ByteBuffer;
 
 public class TimeUUIDSerializer extends UUIDSerializer
 {
+    public static final TimeUUIDSerializer instance = new TimeUUIDSerializer();
+
     @Override
     public void validate(ByteBuffer bytes) throws MarshalException
     {

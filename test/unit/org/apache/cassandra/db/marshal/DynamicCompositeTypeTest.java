@@ -144,7 +144,7 @@ public class DynamicCompositeTypeTest extends SchemaLoader
         }
         catch (MarshalException e)
         {
-            assert e.toString().contains("TimeUUID should be 16 or 0 bytes");
+            assert e.toString().contains("should be 16 or 0 bytes");
         }
 
         key = createDynamicCompositeKey("test1", UUID.randomUUID(), 42, false);
