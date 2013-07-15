@@ -665,7 +665,7 @@ public class DatabaseDescriptor
 
     public static boolean isReplacing()
     {
-        return 0 != getReplaceTokens().size() || getReplaceNode() != null
+        return 0 != getReplaceTokens().size() || getReplaceNode() != null;
     }
 
     public static String getClusterName()
