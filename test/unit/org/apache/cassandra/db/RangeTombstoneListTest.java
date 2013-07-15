@@ -205,6 +205,43 @@ public class RangeTombstoneListTest
     }
 
     @Test
+    public void addAllSequentialTest()
+    {
+        RangeTombstoneList l1 = new RangeTombstoneList(cmp, 0);
+        l1.add(rt(3, 5, 2));
+
+        RangeTombstoneList l2 = new RangeTombstoneList(cmp, 0);
+        l2.add(rt(5, 7, 7));
+
+        l1.addAll(l2);
+
+        Iterator<RangeTombstone> iter = l1.iterator();
+        assertRT(rt(3, 5, 2), iter.next());
+        assertRT(rt(5, 7, 7), iter.next());
+
+        assert !iter.hasNext();
+    }
+
+    @Test
+    public void addAllIncludedTest()
+    {
+        RangeTombstoneList l1 = new RangeTombstoneList(cmp, 0);
+        l1.add(rt(3, 10, 5));
+
+        RangeTombstoneList l2 = new RangeTombstoneList(cmp, 0);
+        l2.add(rt(4, 5, 2));
+        l2.add(rt(5, 7, 3));
+        l2.add(rt(7, 9, 4));
+
+        l1.addAll(l2);
+
+        Iterator<RangeTombstone> iter = l1.iterator();
+        assertRT(rt(3, 10, 5), iter.next());
+
+        assert !iter.hasNext();
+    }
+
+    @Test
     public void purgetTest()
     {
         RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
