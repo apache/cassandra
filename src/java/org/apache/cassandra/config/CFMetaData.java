@@ -91,81 +91,80 @@ public final class CFMetaData
     // Note that this is the default only for user created tables
     public final static String DEFAULT_COMPRESSOR = LZ4Compressor.class.getCanonicalName();
 
-    public static final CFMetaData IndexCf = compile(5, "CREATE TABLE \"" + SystemKeyspace.INDEX_CF + "\" ("
-                                                        + "table_name text,"
-                                                        + "index_name text,"
-                                                        + "PRIMARY KEY (table_name, index_name)"
-                                                        + ") WITH COMPACT STORAGE AND COMMENT='indexes that have been completed'");
+    public static final CFMetaData IndexCf = compile("CREATE TABLE \"" + SystemKeyspace.INDEX_CF + "\" ("
+                                                     + "table_name text,"
+                                                     + "index_name text,"
+                                                     + "PRIMARY KEY (table_name, index_name)"
+                                                     + ") WITH COMPACT STORAGE AND COMMENT='indexes that have been completed'");
 
-    public static final CFMetaData CounterIdCf = compile(6, "CREATE TABLE \"" + SystemKeyspace.COUNTER_ID_CF + "\" ("
-                                                            + "key text,"
-                                                            + "id timeuuid,"
-                                                            + "PRIMARY KEY (key, id)"
-                                                            + ") WITH COMPACT STORAGE AND COMMENT='counter node IDs'");
+    public static final CFMetaData CounterIdCf = compile("CREATE TABLE \"" + SystemKeyspace.COUNTER_ID_CF + "\" ("
+                                                         + "key text,"
+                                                         + "id timeuuid,"
+                                                         + "PRIMARY KEY (key, id)"
+                                                         + ") WITH COMPACT STORAGE AND COMMENT='counter node IDs'");
 
-    // new-style schema
-    public static final CFMetaData SchemaKeyspacesCf = compile(8, "CREATE TABLE " + SystemKeyspace.SCHEMA_KEYSPACES_CF + "("
-                                                                  + "keyspace_name text PRIMARY KEY,"
-                                                                  + "durable_writes boolean,"
-                                                                  + "strategy_class text,"
-                                                                  + "strategy_options text"
-                                                                  + ") WITH COMPACT STORAGE AND COMMENT='keyspace definitions' AND gc_grace_seconds=8640");
+    public static final CFMetaData SchemaKeyspacesCf = compile("CREATE TABLE " + SystemKeyspace.SCHEMA_KEYSPACES_CF + " ("
+                                                               + "keyspace_name text PRIMARY KEY,"
+                                                               + "durable_writes boolean,"
+                                                               + "strategy_class text,"
+                                                               + "strategy_options text"
+                                                               + ") WITH COMPACT STORAGE AND COMMENT='keyspace definitions' AND gc_grace_seconds=8640");
 
-    public static final CFMetaData SchemaColumnFamiliesCf = compile(9, "CREATE TABLE " + SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF + "("
-                                                                       + "keyspace_name text,"
-                                                                       + "columnfamily_name text,"
-                                                                       + "type text,"
-                                                                       + "comparator text,"
-                                                                       + "subcomparator text,"
-                                                                       + "comment text,"
-                                                                       + "read_repair_chance double,"
-                                                                       + "local_read_repair_chance double,"
-                                                                       + "replicate_on_write boolean,"
-                                                                       + "gc_grace_seconds int,"
-                                                                       + "default_validator text,"
-                                                                       + "key_validator text,"
-                                                                       + "min_compaction_threshold int,"
-                                                                       + "max_compaction_threshold int,"
-                                                                       + "memtable_flush_period_in_ms int,"
-                                                                       + "key_alias text," // that one is kept for compatibility sake
-                                                                       + "key_aliases text,"
-                                                                       + "bloom_filter_fp_chance double,"
-                                                                       + "caching text,"
-                                                                       + "default_time_to_live int,"
-                                                                       + "compaction_strategy_class text,"
-                                                                       + "compression_parameters text,"
-                                                                       + "value_alias text,"
-                                                                       + "column_aliases text,"
-                                                                       + "compaction_strategy_options text,"
-                                                                       + "default_read_consistency text,"
-                                                                       + "default_write_consistency text,"
-                                                                       + "speculative_retry text,"
-                                                                       + "populate_io_cache_on_flush boolean,"
-                                                                       + "index_interval int,"
-                                                                       + "dropped_columns map<text, bigint>,"
-                                                                       + "PRIMARY KEY (keyspace_name, columnfamily_name)"
-                                                                       + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=8640");
+    public static final CFMetaData SchemaColumnFamiliesCf = compile("CREATE TABLE " + SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF + " ("
+                                                                    + "keyspace_name text,"
+                                                                    + "columnfamily_name text,"
+                                                                    + "type text,"
+                                                                    + "comparator text,"
+                                                                    + "subcomparator text,"
+                                                                    + "comment text,"
+                                                                    + "read_repair_chance double,"
+                                                                    + "local_read_repair_chance double,"
+                                                                    + "replicate_on_write boolean,"
+                                                                    + "gc_grace_seconds int,"
+                                                                    + "default_validator text,"
+                                                                    + "key_validator text,"
+                                                                    + "min_compaction_threshold int,"
+                                                                    + "max_compaction_threshold int,"
+                                                                    + "memtable_flush_period_in_ms int,"
+                                                                    + "key_alias text," // that one is kept for compatibility sake
+                                                                    + "key_aliases text,"
+                                                                    + "bloom_filter_fp_chance double,"
+                                                                    + "caching text,"
+                                                                    + "default_time_to_live int,"
+                                                                    + "compaction_strategy_class text,"
+                                                                    + "compression_parameters text,"
+                                                                    + "value_alias text,"
+                                                                    + "column_aliases text,"
+                                                                    + "compaction_strategy_options text,"
+                                                                    + "default_read_consistency text,"
+                                                                    + "default_write_consistency text,"
+                                                                    + "speculative_retry text,"
+                                                                    + "populate_io_cache_on_flush boolean,"
+                                                                    + "index_interval int,"
+                                                                    + "dropped_columns map<text, bigint>,"
+                                                                    + "PRIMARY KEY (keyspace_name, columnfamily_name)"
+                                                                    + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=8640");
 
-    public static final CFMetaData SchemaColumnsCf = compile(10, "CREATE TABLE " + SystemKeyspace.SCHEMA_COLUMNS_CF + "("
-                                                                 + "keyspace_name text,"
-                                                                 + "columnfamily_name text,"
-                                                                 + "column_name text,"
-                                                                 + "validator text,"
-                                                                 + "index_type text,"
-                                                                 + "index_options text,"
-                                                                 + "index_name text,"
-                                                                 + "component_index int,"
-                                                                 + "type text,"
-                                                                 + "PRIMARY KEY(keyspace_name, columnfamily_name, column_name)"
-                                                                 + ") WITH COMMENT='ColumnFamily column attributes' AND gc_grace_seconds=8640");
+    public static final CFMetaData SchemaColumnsCf = compile("CREATE TABLE " + SystemKeyspace.SCHEMA_COLUMNS_CF + " ("
+                                                             + "keyspace_name text,"
+                                                             + "columnfamily_name text,"
+                                                             + "column_name text,"
+                                                             + "validator text,"
+                                                             + "index_type text,"
+                                                             + "index_options text,"
+                                                             + "index_name text,"
+                                                             + "component_index int,"
+                                                             + "type text,"
+                                                             + "PRIMARY KEY(keyspace_name, columnfamily_name, column_name)"
+                                                             + ") WITH COMMENT='ColumnFamily column attributes' AND gc_grace_seconds=8640");
 
-    public static final CFMetaData SchemaTriggerCf = compile("CREATE TABLE \"" + SystemKeyspace.SCHEMA_TRIGGERS_CF + "\" ("
-                                                                + "keyspace_name text,"
-                                                                + "column_family text,"
-                                                                + "trigger_name text,"
-                                                                + "trigger_options map<text, text>,"
-                                                                + "PRIMARY KEY (keyspace_name, column_family, trigger_name)"
-                                                                + ") WITH COMMENT='triggers metadata table'");
+    public static final CFMetaData SchemaTriggersCf = compile("CREATE TABLE " + SystemKeyspace.SCHEMA_TRIGGERS_CF + " ("
+                                                              + "keyspace_name text,"
+                                                              + "columnfamily_name text,"
+                                                              + "trigger_name text,"
+                                                              + "trigger_options map<text, text>,"
+                                                              + "PRIMARY KEY (keyspace_name, columnfamily_name, trigger_name)"
+                                                              + ") WITH COMMENT='triggers metadata table'");
 
     public static final CFMetaData HintsCf = compile("CREATE TABLE " + SystemKeyspace.HINTS_CF + " ("
                                                      + "target_id uuid,"
@@ -353,7 +352,7 @@ public final class CFMetaData
     public final String ksName;                       // name of keyspace
     public final String cfName;                       // name of this column family
     public final ColumnFamilyType cfType;             // standard, super
-    public volatile AbstractType<?> comparator;          // bytes, long, timeuuid, utf8, etc.
+    public volatile AbstractType<?> comparator;       // bytes, long, timeuuid, utf8, etc.
 
     //OPTIONAL
     private volatile String comment = "";
@@ -372,7 +371,7 @@ public final class CFMetaData
     private volatile int defaultTimeToLive = DEFAULT_DEFAULT_TIME_TO_LIVE;
     private volatile SpeculativeRetry speculativeRetry = DEFAULT_SPECULATIVE_RETRY;
     private volatile boolean populateIoCacheOnFlush = DEFAULT_POPULATE_IO_CACHE_ON_FLUSH;
-    private volatile Map<ByteBuffer, Long> droppedColumns = new HashMap<ByteBuffer, Long>();
+    private volatile Map<ByteBuffer, Long> droppedColumns = new HashMap<>();
     private volatile Map<String, Map<String, String>> triggers = new HashMap<>();
     private volatile Collection<String> cachedTriggers;
 
@@ -452,34 +451,24 @@ public final class CFMetaData
         return new HashMap<>(triggers);
     }
 
-    private static CFMetaData compile(String cql, String keyspace)
+    private static CFMetaData compile(String cql)
     {
-        return compile(null, cql, keyspace);
+        return compile(cql, Keyspace.SYSTEM_KS);
     }
 
-    private static CFMetaData compile(Integer id, String cql, String keyspace)
+    private static CFMetaData compile(String cql, String keyspace)
     {
         try
         {
             CreateTableStatement statement = (CreateTableStatement) QueryProcessor.parseStatement(cql).prepare().statement;
-            CFMetaData cfmd = newSystemMetadata(keyspace, statement.columnFamily(), "", statement.comparator, null);
-            statement.applyPropertiesTo(cfmd);
-            return cfmd.rebuild();
+            CFMetaData cfm = newSystemMetadata(keyspace, statement.columnFamily(), "", statement.comparator, null);
+            statement.applyPropertiesTo(cfm);
+            return cfm.rebuild();
         }
         catch (RequestValidationException e)
         {
             throw new RuntimeException(e);
         }
-    }
-
-    private static CFMetaData compile(String cql)
-    {
-        return compile(null, cql, Keyspace.SYSTEM_KS);
-    }
-
-    private static CFMetaData compile(int id, String cql)
-    {
-        return compile(id, cql, Keyspace.SYSTEM_KS);
     }
 
     private static AbstractType<?> makeComparator(ColumnFamilyType cftype, AbstractType<?> comp, AbstractType<?> subcc)
@@ -1441,7 +1430,7 @@ public final class CFMetaData
             if (fromThrift && cd.type != ColumnDefinition.Type.REGULAR)
                 continue;
 
-            cd.deleteFromSchema(rm, cfName, getColumnDefinitionComparator(cd), modificationTimestamp);
+            cd.deleteFromSchema(rm, cfName, modificationTimestamp);
         }
 
         // newly added columns
@@ -1482,12 +1471,12 @@ public final class CFMetaData
         cf.addAtom(new RangeTombstone(builder.build(), builder.buildAsEndOfRange(), timestamp, ldt));
 
         ColumnFamily tcf = rm.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
-        ColumnNameBuilder tbuilder = SchemaTriggerCf.getCfDef().getColumnNameBuilder();
+        ColumnNameBuilder tbuilder = SchemaTriggersCf.getCfDef().getColumnNameBuilder();
         tbuilder.add(ByteBufferUtil.bytes(cfName));
         tcf.addAtom(new RangeTombstone(tbuilder.build(), tbuilder.buildAsEndOfRange(), timestamp, ldt));
 
         for (ColumnDefinition cd : column_metadata.values())
-            cd.deleteFromSchema(rm, cfName, getColumnDefinitionComparator(cd), timestamp);
+            cd.deleteFromSchema(rm, cfName, timestamp);
 
         return rm;
     }
@@ -1776,8 +1765,7 @@ public final class CFMetaData
 
     public boolean removeColumnDefinition(ColumnDefinition def)
     {
-        boolean removed = column_metadata.remove(def.name) != null;
-        return removed;
+        return column_metadata.remove(def.name) != null;
     }
 
     public void recordColumnDrop(ColumnDefinition def)

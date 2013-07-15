@@ -195,7 +195,7 @@ public class ColumnDefinition
      * @param cfName     The name of the parent ColumnFamily
      * @param timestamp  The timestamp to use for column modification
      */
-    public void deleteFromSchema(RowMutation rm, String cfName, AbstractType<?> comparator, long timestamp)
+    public void deleteFromSchema(RowMutation rm, String cfName, long timestamp)
     {
         ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_COLUMNS_CF);
         int ldt = (int) (System.currentTimeMillis() / 1000);

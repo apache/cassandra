@@ -43,7 +43,7 @@ public class TriggerOptions
 
     public static Map<String, Map<String, String>> getAllTriggers(String ksName, String cfName)
     {
-        String req = "SELECT * FROM system.%s WHERE keyspace_name='%s' AND column_family='%s'";
+        String req = "SELECT * FROM system.%s WHERE keyspace_name='%s' AND columnfamily_name='%s'";
         UntypedResultSet result = processInternal(String.format(req, SystemKeyspace.SCHEMA_TRIGGERS_CF, ksName, cfName));
         Map<String, Map<String, String>> triggers = new HashMap<>();
         if (result.isEmpty())
@@ -57,7 +57,7 @@ public class TriggerOptions
     {
         ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
         assert tentry.getValue().get(CLASS_KEY) != null;
-        ColumnNameBuilder builder = CFMetaData.SchemaTriggerCf.getCfDef().getColumnNameBuilder();
+        ColumnNameBuilder builder = CFMetaData.SchemaTriggersCf.getCfDef().getColumnNameBuilder();
         builder.add(ByteBufferUtil.bytes(cfName)).add(ByteBufferUtil.bytes(tentry.getKey())).add(ByteBufferUtil.bytes(OPTIONS_KEY));
         for (Entry<String, String> entry : tentry.getValue().entrySet())
         {
@@ -71,7 +71,7 @@ public class TriggerOptions
     {
         ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
         int ldt = (int) (System.currentTimeMillis() / 1000);
-        ColumnNameBuilder builder = CFMetaData.SchemaTriggerCf.getCfDef().getColumnNameBuilder();
+        ColumnNameBuilder builder = CFMetaData.SchemaTriggersCf.getCfDef().getColumnNameBuilder();
         builder.add(ByteBufferUtil.bytes(cfName)).add(ByteBufferUtil.bytes(tentry.getKey()));
         cf.addAtom(new RangeTombstone(builder.build(), builder.buildAsEndOfRange(), modificationTimestamp, ldt));
     }
