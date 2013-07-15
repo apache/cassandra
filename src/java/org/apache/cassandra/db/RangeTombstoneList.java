@@ -201,8 +201,9 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
                     i++;
                 }
             }
+            // Addds the remaining ones from tombstones if any (not that insertFrom will increment size if relevant).
             for (; j < tombstones.size; j++)
-                insertFrom((i++) - 1, tombstones.starts[j], tombstones.ends[j], tombstones.markedAts[j], tombstones.delTimes[j]);
+                insertFrom(size - 1, tombstones.starts[j], tombstones.ends[j], tombstones.markedAts[j], tombstones.delTimes[j]);
         }
     }
 
@@ -381,7 +382,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
     /*
      * Inserts a new element whose start should be inserted at index i. This method
      * assumes that:
-     *   - starts[i] <= start.
+     *   - starts[i] <= start
      *   - start < starts[i+1] or there is no i+1 element.
      */
     private void insertFrom(int i, ByteBuffer start, ByteBuffer end, long markedAt, int delTime)
@@ -395,12 +396,12 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
         /*
          * We have elt(i) = [s_i, e_i]@t_i and want to insert X = [s, e]@t, knowing that s_i < s < s_i+1.
          * We can have 3 cases:
-         *  - s <= e_i && e <= e_i: we're fully contained in i.
-         *  - s <= e_i && e > e_i: we rewrite X to X1=[s, e_i]@t + X2=[e_i, e]@t. X1 is fully contained
+         *  - s < e_i && e <= e_i: we're fully contained in i.
+         *  - s < e_i && e > e_i: we rewrite X to X1=[s, e_i]@t + X2=[e_i, e]@t. X1 is fully contained
          *             in i and X2 is the insertAfter() case for i.
-         *  - s > e_i: we're in the insertAfter() case for i.
+         *  - s >= e_i: we're in the insertAfter() case for i.
          */
-        if (comparator.compare(start, ends[i]) <= 0)
+        if (comparator.compare(start, ends[i]) < 0)
         {
             if (comparator.compare(end, ends[i]) <= 0)
             {
