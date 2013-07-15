@@ -1,4 +1,5 @@
 1.2.7
+ * Add replace_node functionality for vnodes (CASSANDRA-5337)
  * Add timeout events to query traces (CASSANDRA-5520)
  * make starting native protocol server idempotent (CASSANDRA-5728)
  * Fix loading key cache when a saved entry is no longer valid (CASSANDRA-5706)
