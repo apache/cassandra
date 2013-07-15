@@ -98,6 +98,7 @@
  * Expose native protocol server status in nodetool info (CASSANDRA-5735)
  * Fix pathetic performance of range tombstones (CASSANDRA-5677)
  * Fix querying with an empty (impossible) range (CASSANDRA-5573)
+ * cqlsh: handle CUSTOM 2i in DESCRIBE output (CASSANDRA-5760)
 
 
 1.2.6
