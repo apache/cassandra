@@ -878,7 +878,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         isBootstrapMode = true;
         SystemKeyspace.updateTokens(tokens); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
-        if (DatabaseDescriptor.isReplacing())
+        if (!DatabaseDescriptor.isReplacing())
         {
             // if not an existing token then bootstrap
             // order is important here, the gossiper can fire in between adding these two states.  It's ok to send TOKENS without STATUS, but *not* vice versa.
