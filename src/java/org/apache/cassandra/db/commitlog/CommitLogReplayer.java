@@ -169,7 +169,7 @@ public class CommitLogReplayer
 
                     long claimedSizeChecksum = reader.readLong();
                     checksum.reset();
-                    if (CommitLogDescriptor.current_version < CommitLogDescriptor.VERSION_20)
+                    if (version < CommitLogDescriptor.VERSION_20)
                         checksum.update(serializedSize);
                     else
                         FBUtilities.updateChecksumInt(checksum, serializedSize);
