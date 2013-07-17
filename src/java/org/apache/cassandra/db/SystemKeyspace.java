@@ -192,7 +192,8 @@ public class SystemKeyspace
     {
         String req = "UPDATE system.%s SET truncated_at = truncated_at + %s WHERE key = '%s'";
         processInternal(String.format(req, LOCAL_CF, truncationAsMapEntry(cfs, truncatedAt, position), LOCAL_KEY));
-        forceBlockingFlush(LOCAL_CF);
+        if (!Boolean.getBoolean("cassandra.unsafetruncate"))
+            forceBlockingFlush(LOCAL_CF);
     }
 
     /**

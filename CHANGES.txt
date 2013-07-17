@@ -84,6 +84,7 @@
 
 
 1.2.7
+ * add cassandra.unsafetruncate property (CASSANDRA-5704)
  * (Hadoop) quote identifiers in CqlPagingRecordReader (CASSANDRA-5763)
  * Add replace_node functionality for vnodes (CASSANDRA-5337)
  * Add timeout events to query traces (CASSANDRA-5520)
