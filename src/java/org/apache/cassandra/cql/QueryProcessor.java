@@ -19,7 +19,6 @@ package org.apache.cassandra.cql;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 
@@ -864,17 +863,5 @@ public class QueryProcessor
         }
 
         throw new InvalidRequestException("Only COUNT(*) and COUNT(1) operations are currently supported.");
-    }
-
-    private static String bufferToString(ByteBuffer string)
-    {
-        try
-        {
-            return ByteBufferUtil.string(string);
-        }
-        catch (CharacterCodingException e)
-        {
-            throw new RuntimeException(e.getMessage(), e);
-        }
     }
 }
