@@ -2338,6 +2338,7 @@ public class CliClient
         sessionState.out.println("Cluster Information:");
         try
         {
+            sessionState.out.println("   Name: " + thriftClient.describe_cluster_name());
             sessionState.out.println("   Snitch: " + thriftClient.describe_snitch());
             sessionState.out.println("   Partitioner: " + thriftClient.describe_partitioner());
 
