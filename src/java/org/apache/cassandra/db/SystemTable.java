@@ -185,8 +185,7 @@ public class SystemTable
     {
         String req = "UPDATE system.%s SET truncated_at = truncated_at + %s WHERE key = '%s'";
         processInternal(String.format(req, LOCAL_CF, truncationAsMapEntry(cfs, truncatedAt, position), LOCAL_KEY));
-        if (!Boolean.getBoolean("cassandra.unsafetruncate"))
-            forceBlockingFlush(LOCAL_CF);
+        forceBlockingFlush(LOCAL_CF);
     }
 
     /**
@@ -347,20 +346,10 @@ public class SystemTable
         return tokens;
     }
 
-    private static void forceBlockingFlush(String cfname)
+    public static void forceBlockingFlush(String cfname)
     {
-        try
-        {
-            Table.open(Table.SYSTEM_KS).getColumnFamilyStore(cfname).forceBlockingFlush();
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
+        if (!Boolean.getBoolean("cassandra.unsafesystem"))
+            FBUtilities.waitOnFuture(Table.open(Table.SYSTEM_KS).getColumnFamilyStore(cfname).forceFlush());
     }
 
     /**
