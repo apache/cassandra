@@ -23,17 +23,13 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.SocketChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -41,7 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.OutboundTcpConnectionPool;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.FBUtilities;
@@ -70,38 +66,47 @@ public class ConnectionHandler
         this.session = session;
     }
 
-    public ConnectionHandler initiate() throws IOException
+    /**
+     * Set up incoming message handler and initiate streaming.
+     *
+     * This method is called once on initiator.
+     *
+     * @throws IOException
+     */
+    public void initiate() throws IOException
     {
-        // Connect to other side and use that as the outgoing socket. Once the receiving
-        // peer send back his init message, we'll have our incoming handling.
-        outgoing = new OutgoingMessageHandler(session, connect(session.peer), StreamMessage.CURRENT_VERSION);
-
-        logger.debug("Sending stream init... for {}", session.planId());
-        outgoing.sendInitMessage(true);
-        outgoing.start();
-
-        return this;
-    }
-
-    public ConnectionHandler initiateOnReceivingSide(Socket incomingSocket, int version) throws IOException
-    {
-        // Create and start the incoming handler
-        incoming = new IncomingMessageHandler(session, incomingSocket, version);
+        logger.debug("[Stream #{}] Sending stream init for incoming stream", session.planId());
+        Socket incomingSocket = connect(session.peer);
+        incoming = new IncomingMessageHandler(session, incomingSocket, StreamMessage.CURRENT_VERSION);
+        incoming.sendInitMessage(true);
         incoming.start();
 
-        // Connect back to the other side, and use that new socket for the outgoing handler
-        outgoing = new OutgoingMessageHandler(session, connect(session.peer), version);
-
-        logger.debug("Sending stream init back to initiator...");
+        logger.debug("[Stream #{}] Sending stream init for outgoing stream", session.planId());
+        Socket outgoingSocket = connect(session.peer);
+        outgoing = new OutgoingMessageHandler(session, outgoingSocket, StreamMessage.CURRENT_VERSION);
         outgoing.sendInitMessage(false);
         outgoing.start();
-        return this;
     }
 
-    public void attachIncomingSocket(Socket incomingSocket, int version) throws IOException
+    /**
+     * Set up outgoing message handler on receiving side.
+     *
+     * @param socket socket to use for {@link OutgoingMessageHandler}.
+     * @param version Streaming message version
+     * @throws IOException
+     */
+    public void initiateOnReceivingSide(Socket socket, boolean isForOutgoing, int version) throws IOException
     {
-        incoming = new IncomingMessageHandler(session, incomingSocket, version);
-        incoming.start();
+        if (isForOutgoing)
+        {
+            outgoing = new OutgoingMessageHandler(session, socket, version);
+            outgoing.start();
+        }
+        else
+        {
+            incoming = new IncomingMessageHandler(session, socket, version);
+            incoming.start();
+        }
     }
 
     /**
@@ -121,7 +126,7 @@ public class ConnectionHandler
             try
             {
                 logger.info("Connecting to {} for streaming", peer);
-                Socket socket = MessagingService.instance().getConnectionPool(peer).newSocket();
+                Socket socket = OutboundTcpConnectionPool.newSocket(peer);
                 socket.setSoTimeout(DatabaseDescriptor.getStreamingSocketTimeout());
                 return socket;
             }
@@ -173,6 +178,14 @@ public class ConnectionHandler
         outgoing.enqueue(message);
     }
 
+    /**
+     * @return true if outgoing connection is opened and ready to send messages
+     */
+    public boolean isOutgoingConnected()
+    {
+        return outgoing != null && !outgoing.isClosed();
+    }
+
     abstract static class MessageHandler implements Runnable
     {
         protected final StreamSession session;
@@ -209,9 +222,9 @@ public class ConnectionHandler
                  : in;
         }
 
-        public void sendInitMessage(boolean sentByInitiator) throws IOException
+        public void sendInitMessage(boolean isForOutgoing) throws IOException
         {
-            StreamInitMessage message = new StreamInitMessage(FBUtilities.getBroadcastAddress(), session.planId(), session.description(), sentByInitiator);
+            StreamInitMessage message = new StreamInitMessage(FBUtilities.getBroadcastAddress(), session.planId(), session.description(), isForOutgoing);
             getWriteChannel().write(message.createMessage(false, protocolVersion));
         }
 

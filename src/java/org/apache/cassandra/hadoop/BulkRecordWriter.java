@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -253,7 +254,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
 
     static class ExternalClient extends SSTableLoader.Client
     {
-        private final Map<String, Set<String>> knownCfs = new HashMap<String, Set<String>>();
+        private final Map<String, Map<String, CFMetaData>> knownCfs = new HashMap<>();
         private final String hostlist;
         private final int rpcPort;
         private final String username;
@@ -319,9 +320,9 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
 
                     for (KsDef ksDef : ksDefs)
                     {
-                        Set<String> cfs = new HashSet<String>(ksDef.cf_defs.size());
+                        Map<String, CFMetaData> cfs = new HashMap<>(ksDef.cf_defs.size());
                         for (CfDef cfDef : ksDef.cf_defs)
-                            cfs.add(cfDef.name);
+                            cfs.put(cfDef.name, CFMetaData.fromThrift(cfDef));
                         knownCfs.put(ksDef.name, cfs);
                     }
                     break;
@@ -334,10 +335,10 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
             }
         }
 
-        public boolean validateColumnFamily(String keyspace, String cfName)
+        public CFMetaData getCFMetaData(String keyspace, String cfName)
         {
-            Set<String> cfs = knownCfs.get(keyspace);
-            return cfs != null && cfs.contains(cfName);
+            Map<String, CFMetaData> cfs = knownCfs.get(keyspace);
+            return cfs != null ? cfs.get(cfName) : null;
         }
 
         private static Cassandra.Client createThriftClient(String host, int port) throws TTransportException

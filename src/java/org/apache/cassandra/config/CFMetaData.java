@@ -39,8 +39,8 @@ import org.apache.commons.lang.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.cql3.CFDefinition;
+import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
@@ -58,6 +58,7 @@ import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.thrift.CqlRow;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -935,6 +936,25 @@ public final class CFMetaData
         {
             throw new ConfigurationException(e.getMessage());
         }
+    }
+
+    /**
+     * Create CFMetaData from thrift {@link CqlRow} that contains columns from schema_columnfamilies.
+     *
+     * @param row CqlRow containing columns from schema_columnfamilies.
+     * @return CFMetaData derived from CqlRow
+     */
+    public static CFMetaData fromThriftCqlRow(CqlRow row)
+    {
+        Map<String, ByteBuffer> columns = new HashMap<>();
+        try
+        {
+            for (org.apache.cassandra.thrift.Column column : row.getColumns())
+                columns.put(ByteBufferUtil.string(column.bufferForName()), column.value);
+        }
+        catch (CharacterCodingException ignore) {}
+        UntypedResultSet.Row cql3row = new UntypedResultSet.Row(columns);
+        return fromSchemaNoColumns(cql3row);
     }
 
     public void reload()

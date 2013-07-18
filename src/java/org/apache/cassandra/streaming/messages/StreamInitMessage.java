@@ -43,15 +43,15 @@ public class StreamInitMessage
     public final UUID planId;
     public final String description;
 
-    // Whether the sender of this message is the stream initiator
-    public final boolean sentByInitiator;
+    // true if this init message is to connect for outgoing message on receiving side
+    public final boolean isForOutgoing;
 
-    public StreamInitMessage(InetAddress from, UUID planId, String description, boolean sentByInitiator)
+    public StreamInitMessage(InetAddress from, UUID planId, String description, boolean isForOutgoing)
     {
         this.from = from;
         this.planId = planId;
         this.description = description;
-        this.sentByInitiator = sentByInitiator;
+        this.isForOutgoing = isForOutgoing;
     }
 
     /**
@@ -72,11 +72,6 @@ public class StreamInitMessage
         // Setting up the version bit
         header |= (version << 8);
 
-        /* Adding the StreamHeader which contains the session Id along
-         * with the pendingfile info for the stream.
-         * | Session Id | Pending File Size | Pending File | Bool more files |
-         * | No. of Pending files | Pending Files ... |
-         */
         byte[] bytes;
         try
         {
@@ -106,7 +101,7 @@ public class StreamInitMessage
             CompactEndpointSerializationHelper.serialize(message.from, out);
             UUIDSerializer.serializer.serialize(message.planId, out, MessagingService.current_version);
             out.writeUTF(message.description);
-            out.writeBoolean(message.sentByInitiator);
+            out.writeBoolean(message.isForOutgoing);
         }
 
         public StreamInitMessage deserialize(DataInput in, int version) throws IOException
@@ -123,7 +118,7 @@ public class StreamInitMessage
             long size = CompactEndpointSerializationHelper.serializedSize(message.from);
             size += UUIDSerializer.serializer.serializedSize(message.planId, MessagingService.current_version);
             size += TypeSizes.NATIVE.sizeof(message.description);
-            size += TypeSizes.NATIVE.sizeof(message.sentByInitiator);
+            size += TypeSizes.NATIVE.sizeof(message.isForOutgoing);
             return size;
         }
     }

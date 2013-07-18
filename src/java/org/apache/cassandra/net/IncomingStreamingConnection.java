@@ -25,9 +25,7 @@ import java.net.Socket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamResultFuture;
-import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 
@@ -43,7 +41,7 @@ public class IncomingStreamingConnection extends Thread
 
     public IncomingStreamingConnection(int version, Socket socket)
     {
-        super("stream-init " + socket.getRemoteSocketAddress());
+        super("STREAM-INIT-" + socket.getRemoteSocketAddress());
         this.version = version;
         this.socket = socket;
     }
@@ -60,29 +58,11 @@ public class IncomingStreamingConnection extends Thread
             DataInput input = new DataInputStream(socket.getInputStream());
             StreamInitMessage init = StreamInitMessage.serializer.deserialize(input, version);
 
-            // We will use the current socket to incoming stream. So if the other side is the
-            // stream initiator, we must first create an outgoing stream, after which real streaming
-            // will start. If we were the initiator however, this socket will just be our incoming
-            // stream, everything is setup and we can initiate real streaming by sending the prepare message.
+            // The initiator makes two connections, one for incoming and one for outgoing.
+            // The receiving side distinguish two connections by looking at StreamInitMessage#isForOutgoing.
             // Note: we cannot use the same socket for incoming and outgoing streams because we want to
             // parallelize said streams and the socket is blocking, so we might deadlock.
-            if (init.sentByInitiator)
-            {
-                StreamResultFuture.initReceivingSide(init.planId, init.description, init.from, socket, version);
-            }
-            else
-            {
-                StreamResultFuture stream = StreamManager.instance.getStream(init.planId);
-                if (stream == null)
-                {
-                    // This should not happen. All we can do is close the socket to inform the other side, but that's a bug.
-                    logger.error("Got StreamInit message for a stream we are supposed to be the initiator of, but stream not found.");
-                    socket.close();
-                    return;
-                }
-                // We're fully setup for this session, start the actual streaming
-                stream.startStreaming(init.from, socket, version);
-            }
+            StreamResultFuture.initReceivingSide(init.planId, init.description, init.from, socket, init.isForOutgoing, version);
         }
         catch (IOException e)
         {

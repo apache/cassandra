@@ -31,6 +31,7 @@ import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 
 import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -63,7 +64,7 @@ public class BulkLoader
         SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(options.hosts, options.rpcPort, options.user, options.passwd), handler);
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
         StreamResultFuture future = loader.stream(options.ignores);
-        future.addEventListener(new ProgressIndicator(handler));
+        future.addEventListener(new ProgressIndicator());
         try
         {
             future.get();
@@ -83,16 +84,15 @@ public class BulkLoader
     // Return true when everything is at 100%
     static class ProgressIndicator implements StreamEventHandler
     {
-        private final Set<ProgressInfo> progresses = new HashSet<>();
-        private final OutputHandler handler;
+        private final Map<InetAddress, SessionInfo> sessionsByHost = new HashMap<>();
+        private final Map<InetAddress, Set<ProgressInfo>> progressByHost = new HashMap<>();
 
         private long start;
         private long lastProgress;
         private long lastTime;
 
-        public ProgressIndicator(OutputHandler handler)
+        public ProgressIndicator()
         {
-            this.handler = handler;
             start = lastTime = System.nanoTime();
         }
 
@@ -101,11 +101,22 @@ public class BulkLoader
 
         public void handleStreamEvent(StreamEvent event)
         {
-            if (event.eventType == StreamEvent.Type.FILE_PROGRESS)
+            if (event.eventType == StreamEvent.Type.STREAM_PREPARED)
+            {
+                SessionInfo session = ((StreamEvent.SessionPreparedEvent) event).session;
+                sessionsByHost.put(session.peer, session);
+            }
+            else if (event.eventType == StreamEvent.Type.FILE_PROGRESS)
             {
                 ProgressInfo progressInfo = ((StreamEvent.ProgressEvent) event).progress;
 
                 // update progress
+                Set<ProgressInfo> progresses = progressByHost.get(progressInfo.peer);
+                if (progresses == null)
+                {
+                    progresses = new HashSet<>();
+                    progressByHost.put(progressInfo.peer, progresses);
+                }
                 if (progresses.contains(progressInfo))
                     progresses.remove(progressInfo);
                 progresses.add(progressInfo);
@@ -115,16 +126,24 @@ public class BulkLoader
 
                 long totalProgress = 0;
                 long totalSize = 0;
-                long completed = 0;
-                for (ProgressInfo entry : progresses)
+                for (Map.Entry<InetAddress, Set<ProgressInfo>> entry : progressByHost.entrySet())
                 {
-                    if (entry.currentBytes == entry.totalBytes)
-                        completed++;
-                    totalProgress += entry.currentBytes;
-                    totalSize += entry.totalBytes;
-                    sb.append("[").append(entry.peer);
-                    sb.append(" ").append(completed).append("/").append(progresses.size());
-                    sb.append(" (").append(entry.totalBytes == 0 ? 100L : entry.currentBytes * 100L / entry.totalBytes).append(")] ");
+                    SessionInfo session = sessionsByHost.get(entry.getKey());
+
+                    long size = session.getTotalSizeToSend();
+                    long current = 0;
+                    int completed = 0;
+                    for (ProgressInfo progress : entry.getValue())
+                    {
+                        if (progress.currentBytes == progress.totalBytes)
+                            completed++;
+                        current += progress.currentBytes;
+                    }
+                    totalProgress += current;
+                    totalSize += size;
+                    sb.append("[").append(entry.getKey());
+                    sb.append(" ").append(completed).append("/").append(session.getTotalFilesToSend());
+                    sb.append(" (").append(size == 0 ? 100L : current * 100L / size).append("%)] ");
                 }
                 long time = System.nanoTime();
                 long deltaTime = TimeUnit.NANOSECONDS.toMillis(time - lastTime);
@@ -132,11 +151,11 @@ public class BulkLoader
                 long deltaProgress = totalProgress - lastProgress;
                 lastProgress = totalProgress;
 
-                sb.append("[total: ").append(totalSize == 0 ? 100L : totalProgress * 100L / totalSize).append(" - ");
+                sb.append("[total: ").append(totalSize == 0 ? 100L : totalProgress * 100L / totalSize).append("% - ");
                 sb.append(mbPerSec(deltaProgress, deltaTime)).append("MB/s");
                 sb.append(" (avg: ").append(mbPerSec(totalProgress, TimeUnit.NANOSECONDS.toMillis(time - start))).append("MB/s)]");
 
-                handler.output(sb.toString());
+                System.out.print(sb.toString());
             }
         }
 
@@ -149,7 +168,7 @@ public class BulkLoader
 
     static class ExternalClient extends SSTableLoader.Client
     {
-        private final Set<String> knownCfs = new HashSet<>();
+        private final Map<String, CFMetaData> knownCfs = new HashMap<>();
         private final Set<InetAddress> hosts;
         private final int rpcPort;
         private final String user;
@@ -187,13 +206,16 @@ public class BulkLoader
                         }
                     }
 
-                    String query = String.format("SELECT columnfamily_name FROM %s.%s WHERE keyspace_name = '%s'",
+                    String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = '%s'",
                                                  Keyspace.SYSTEM_KS,
                                                  SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF,
                                                  keyspace);
                     CqlResult result = client.execute_cql3_query(ByteBufferUtil.bytes(query), Compression.NONE, ConsistencyLevel.ONE);
                     for (CqlRow row : result.rows)
-                        knownCfs.add(new String(row.getColumns().get(0).getValue(), "UTF8"));
+                    {
+                        CFMetaData metadata = CFMetaData.fromThriftCqlRow(row);
+                        knownCfs.put(metadata.cfName, metadata);
+                    }
                     break;
                 }
                 catch (Exception e)
@@ -204,9 +226,9 @@ public class BulkLoader
             }
         }
 
-        public boolean validateColumnFamily(String keyspace, String cfName)
+        public CFMetaData getCFMetaData(String keyspace, String cfName)
         {
-            return knownCfs.contains(cfName);
+            return knownCfs.get(cfName);
         }
 
         private static Cassandra.Client createThriftClient(String host, int port, String user, String passwd) throws Exception

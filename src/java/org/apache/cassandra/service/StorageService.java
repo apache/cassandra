@@ -3545,9 +3545,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
 
             @Override
-            public boolean validateColumnFamily(String keyspace, String cfName)
+            public CFMetaData getCFMetaData(String keyspace, String cfName)
             {
-                return Schema.instance.getCFMetaData(keyspace, cfName) != null;
+                return Schema.instance.getCFMetaData(keyspace, cfName);
             }
         };
 

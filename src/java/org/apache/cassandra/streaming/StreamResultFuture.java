@@ -21,21 +21,13 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.utils.FBUtilities;
-
 
 /**
  * A future on the result ({@link StreamState}) of a streaming plan.
@@ -68,7 +60,6 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
      *
      * @param planId Stream plan ID
      * @param description Stream description
-     * @param numberOfSessions number of sessions to wait for complete
      */
     private StreamResultFuture(UUID planId, String description, Collection<StreamSession> sessions)
     {
@@ -76,7 +67,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         this.description = description;
         this.ongoingSessions = new HashMap<>(sessions.size());
         for (StreamSession session : sessions)
-            this.ongoingSessions.put(session.peer, session);;
+            this.ongoingSessions.put(session.peer, session);
 
         // if there is no session to listen to, we immediately set result for returning
         if (sessions.isEmpty())
@@ -97,16 +88,29 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         return future;
     }
 
-    public static StreamResultFuture initReceivingSide(UUID planId, String description, InetAddress from, Socket socket, int version)
+    public static synchronized StreamResultFuture initReceivingSide(UUID planId,
+                                                                    String description,
+                                                                    InetAddress from,
+                                                                    Socket socket,
+                                                                    boolean isForOutgoing,
+                                                                    int version) throws IOException
     {
-        final StreamSession session = new StreamSession(from);
+        StreamResultFuture future = StreamManager.instance.getReceivingStream(planId);
+        if (future == null)
+        {
+            final StreamSession session = new StreamSession(from);
 
-        // The main reason we create a StreamResultFuture on the receiving side is for JMX exposure.
-        StreamResultFuture future = createAndRegister(planId, description, Collections.singleton(session));
+            // The main reason we create a StreamResultFuture on the receiving side is for JMX exposure.
+            future = new StreamResultFuture(planId, description, Collections.singleton(session));
+            StreamManager.instance.registerReceiving(future);
 
-        session.init(future);
-        session.start(socket, version);
-
+            session.init(future);
+            session.handler.initiateOnReceivingSide(socket, isForOutgoing, version);
+        }
+        else
+        {
+            future.attachSocket(from, socket, isForOutgoing, version);
+        }
         return future;
     }
 
@@ -117,14 +121,12 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         return future;
     }
 
-    public void startStreaming(InetAddress from, Socket socket, int version) throws IOException
+    public void attachSocket(InetAddress from, Socket socket, boolean isForOutgoing, int version) throws IOException
     {
         StreamSession session = ongoingSessions.get(from);
         if (session == null)
             throw new RuntimeException(String.format("Got connection from %s for stream session %s but no such session locally", from, planId));
-
-        session.handler.attachIncomingSocket(socket, version);
-        session.onInitializationComplete();
+        session.handler.initiateOnReceivingSide(socket, isForOutgoing, version);
     }
 
     public void addEventListener(StreamEventHandler listener)

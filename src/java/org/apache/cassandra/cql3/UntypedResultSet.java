@@ -79,6 +79,11 @@ public class UntypedResultSet implements Iterable<UntypedResultSet.Row>
     {
         Map<String, ByteBuffer> data = new HashMap<String, ByteBuffer>();
 
+        public Row(Map<String, ByteBuffer> data)
+        {
+            this.data.putAll(data);
+        }
+
         public Row(List<ColumnSpecification> names, List<ByteBuffer> columns)
         {
             for (int i = 0; i < names.size(); i++)

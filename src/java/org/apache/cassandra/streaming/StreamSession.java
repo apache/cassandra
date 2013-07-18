@@ -30,8 +30,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -43,7 +43,6 @@ import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.streaming.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * Handles the streaming a one or more section of one of more sstables to and from a specific
@@ -56,17 +55,15 @@ import org.apache.cassandra.utils.UUIDGen;
  *
  *   (a) A node (the initiator in the following) create a new StreamSession, initialize it (init())
  *       and then start it (start()). Start will create a {@link ConnectionHandler} that will create
- *       a connection to the remote node (the follower in the following) with whom to stream and send
- *       a StreamInit message. This first connection will be the outgoing connection for the
- *       initiator.
+ *       two connections to the remote node (the follower in the following) with whom to stream and send
+ *       a StreamInit message. The first connection will be the incoming connection for the
+ *       initiator, and the second connection will be the outgoing.
  *   (b) Upon reception of that StreamInit message, the follower creates its own StreamSession,
- *       initialize it and start it using start(Socket, int). This creates the follower
- *       ConnectionHandler, which will use the just opened connection as incoming connection. It
- *       will then connect back to the initiator and send its own StreamInit message on that new
- *       connection. This new connection will be the outgoing connection for the follower.
- *   (c) On receiving the follower StreamInit message, the initiator will record that new connection
- *       as it's own incoming connection and call the Session onInitializationComplete() method to start
- *       the streaming prepare phase (StreamResultFuture.startStreaming()).
+ *       initialize it if it still does not exist, and attach connecting socket to its ConnectionHandler
+ *       according to StreamInit message's isForOutgoing flag.
+ *   (d) When the both incoming and outgoing connections are established, StreamSession calls
+ *       StreamSession#onInitializationComplete method to start the streaming prepare phase
+ *       (StreamResultFuture.startStreaming()).
  *
  * 2. Streaming preparation phase
  *
@@ -175,7 +172,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
      * perform pre-streaming initialization.
      *
      * @param streamResult result to report to
-     * @return this object for chaining
      */
     public void init(StreamResultFuture streamResult)
     {
@@ -184,7 +180,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
         // register to gossiper/FD to fail on node failure
         Gossiper.instance.register(this);
         FailureDetector.instance.registerFailureDetectionEventListener(this);
-
     }
 
     public void start()
@@ -203,6 +198,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
                 try
                 {
                     handler.initiate();
+                    onInitializationComplete();
                 }
                 catch (IOException e)
                 {
@@ -211,25 +207,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
             }
         });
     }
-
-    public void start(final Socket socket, final int version)
-    {
-        streamExecutor.execute(new Runnable()
-        {
-            public void run()
-            {
-                try
-                {
-                    handler.initiateOnReceivingSide(socket, version);
-                }
-                catch (IOException e)
-                {
-                    onError(e);
-                }
-            }
-        });
-    }
-
 
     /**
      * Request data fetch task to this session.
@@ -410,7 +387,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
     {
         logger.error("Streaming error occurred", e);
         // send session failure message
-        handler.sendMessage(new SessionFailedMessage());
+        if (handler.isOutgoingConnected())
+            handler.sendMessage(new SessionFailedMessage());
         // fail session
         closeSession(State.FAILED);
     }

@@ -17,19 +17,15 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.RateLimiter;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -64,12 +60,17 @@ public class StreamManager implements StreamManagerMBean
         return limiter;
     }
 
-    /** Currently running stream plans. Removed after completion/failure. */
-    private final Map<UUID, StreamResultFuture> currentStreams = new NonBlockingHashMap<>();
+    /*
+     * Currently running streams. Removed after completion/failure.
+     * We manage them in two different maps to distinguish plan from initiated ones to
+     * receiving ones withing the same JVM.
+     */
+    private final Map<UUID, StreamResultFuture> initiatedStreams = new NonBlockingHashMap<>();
+    private final Map<UUID, StreamResultFuture> receivingStreams = new NonBlockingHashMap<>();
 
     public Set<StreamState> getCurrentStreams()
     {
-        return Sets.newHashSet(Iterables.transform(currentStreams.values(), new Function<StreamResultFuture, StreamState>()
+        return Sets.newHashSet(Iterables.transform(Iterables.concat(initiatedStreams.values(), receivingStreams.values()), new Function<StreamResultFuture, StreamState>()
         {
             public StreamState apply(StreamResultFuture input)
             {
@@ -85,15 +86,29 @@ public class StreamManager implements StreamManagerMBean
         {
             public void run()
             {
-                currentStreams.remove(result.planId);
+                initiatedStreams.remove(result.planId);
             }
         }, MoreExecutors.sameThreadExecutor());
 
-        currentStreams.put(result.planId, result);
+        initiatedStreams.put(result.planId, result);
     }
 
-    public StreamResultFuture getStream(UUID planId)
+    public void registerReceiving(final StreamResultFuture result)
     {
-        return currentStreams.get(planId);
+        // Make sure we remove the stream on completion (whether successful or not)
+        result.addListener(new Runnable()
+        {
+            public void run()
+            {
+                receivingStreams.remove(result.planId);
+            }
+        }, MoreExecutors.sameThreadExecutor());
+
+        receivingStreams.put(result.planId, result);
+    }
+
+    public StreamResultFuture getReceivingStream(UUID planId)
+    {
+        return receivingStreams.get(planId);
     }
 }
