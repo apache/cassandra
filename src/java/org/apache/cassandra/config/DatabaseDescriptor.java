@@ -490,7 +490,7 @@ public class DatabaseDescriptor
             if (hasExistingNoSystemTables())
                 logger.info("Found keyspace data in data directories. Consider using cqlsh to define your schema.");
             else
-                logger.info("To create keyspaces and column families, see 'help create keyspace' in cqlsh.");
+                logger.info("To create keyspaces and column families, see 'help create' in cqlsh.");
         }
         else
         {
