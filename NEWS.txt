@@ -59,6 +59,7 @@ Operations
       https://issues.apache.org/jira/browse/CASSANDRA-3919 for details.
     - CAS uses gc_grace_seconds to determine how long to keep unused paxos
       state around for, or a minimum of three hours.
+    - A new hints created metric is tracked per target, replacing countPendingHints
 
 Features
 --------

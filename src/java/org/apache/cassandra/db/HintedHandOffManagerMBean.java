@@ -35,14 +35,6 @@ public interface HintedHandOffManagerMBean
      */
     public List<String> listEndpointsPendingHints();
 
-    /**
-     * List all the endpoints that this node has hints for, and
-     *  count the number of hints for each such endpoint.
-     *
-     * @return map of endpoint -> hint count
-     */
-    public Map<String, Integer> countPendingHints();
-
     /** force hint delivery to an endpoint **/
     public void scheduleHintDelivery(String host) throws UnknownHostException;
 

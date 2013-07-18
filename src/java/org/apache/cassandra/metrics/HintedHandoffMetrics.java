@@ -53,16 +53,23 @@ public class HintedHandoffMetrics
         }
     });
 
+    /** Total number of hints that have been created, This is not a cache. */
+    private final LoadingCache<InetAddress, Counter> createdHintCounts = CacheBuilder.newBuilder().build(new CacheLoader<InetAddress, Counter>()
+    {
+        public Counter load(InetAddress address)
+        {
+            return Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "Hints_created-" + address.getHostAddress()));
+        }
+    });
+
+    public void incrCreatedHints(InetAddress address)
+    {
+        createdHintCounts.getUnchecked(address).inc();
+    }
+
     public void incrPastWindow(InetAddress address)
     {
-        try
-        {
-            notStored.get(address).mark();
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e); // this cannot happen
-        }
+        notStored.getUnchecked(address).mark();
     }
 
     public void log()
@@ -84,7 +91,7 @@ public class HintedHandoffMetrics
 
         public DifferencingCounter(InetAddress address)
         {
-            this.meter = Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "Hints_not_stored-" + address.toString()));
+            this.meter = Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "Hints_not_stored-" + address.getHostAddress()));
         }
 
         public long diffrence()

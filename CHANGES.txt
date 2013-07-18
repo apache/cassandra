@@ -1,4 +1,5 @@
 2.0.0-beta2
+ * Replace countPendingHints with Hints Created metric (CASSANDRA-5746)
  * Allow nodetool with no args, and with help to run without a server (CASSANDRA-5734)
  * Cleanup AbstractType/TypeSerializer classes (CASSANDRA-5744)
  * Remove unimplemented cli option schema-mwt (CASSANDRA-5754)
@@ -6,6 +7,7 @@
  * Normalize table-manipulating CQL3 statements' class names (CASSANDRA-5759)
  * cqlsh: add missing table options to DESCRIBE output (CASSANDRA-5749)
  * Fix assertion error during repair (CASSANDRA-5757)
+
 
 2.0.0-beta1
  * Removed on-heap row cache (CASSANDRA-5348)
