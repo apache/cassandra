@@ -535,9 +535,9 @@ public class DatabaseDescriptor
                 logger.info("Couldn't detect any schema definitions in local storage.");
                 // peek around the data directories to see if anything is there.
                 if (hasExistingNoSystemTables())
-                    logger.info("Found table data in data directories. Consider using the CLI to define your schema.");
+                    logger.info("Found table data in data directories. Consider using cqlsh to define your schema.");
                 else
-                    logger.info("To create keyspaces and column families, see 'help create keyspace' in the CLI, or set up a schema using the thrift system_* calls.");
+                    logger.info("To create keyspaces and column families, see 'help create' in cqlsh.");
             }
             else
             {
