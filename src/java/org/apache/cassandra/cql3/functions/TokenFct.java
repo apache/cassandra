@@ -32,7 +32,7 @@ import org.apache.cassandra.service.StorageService;
 public class TokenFct extends AbstractFunction
 {
     // The actual token function depends on the partitioner used
-    private static final IPartitioner partitioner = StorageService.instance.getPartitioner();
+    private static final IPartitioner partitioner = StorageService.getPartitioner();
 
     public static final Function.Factory factory = new Function.Factory()
     {

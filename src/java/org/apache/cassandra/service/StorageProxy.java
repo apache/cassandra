@@ -1333,7 +1333,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public static List<InetAddress> getLiveSortedEndpoints(Keyspace keyspace, ByteBuffer key)
     {
-        return getLiveSortedEndpoints(keyspace, StorageService.instance.getPartitioner().decorateKey(key));
+        return getLiveSortedEndpoints(keyspace, StorageService.getPartitioner().decorateKey(key));
     }
 
     private static List<InetAddress> getLiveSortedEndpoints(Keyspace keyspace, RingPosition pos)
