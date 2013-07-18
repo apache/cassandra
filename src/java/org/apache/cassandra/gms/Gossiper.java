@@ -106,6 +106,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private final Map<InetAddress, Long> expireTimeEndpointMap = new ConcurrentHashMap<InetAddress, Long>();
 
+    // have we ever in our lifetime reached a seed?
+    private boolean seedContacted = false;
+
     private class GossipTask implements Runnable
     {
         public void run()
@@ -184,6 +187,17 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             throw new RuntimeException(e);
         }
+    }
+
+    protected void checkSeedContact(InetAddress ep)
+    {
+        if (!seedContacted && seeds.contains(ep))
+            seedContacted = true;
+    }
+
+    public boolean seenAnySeed()
+    {
+        return seedContacted;
     }
 
     /**

@@ -57,6 +57,8 @@ public class GossipDigestAckVerbHandler implements IVerbHandler<GossipDigestAck>
             Gossiper.instance.applyStateLocally(epStateMap);
         }
 
+        Gossiper.instance.checkSeedContact(from);
+
         /* Get the state required to send to this gossipee - construct GossipDigestAck2Message */
         Map<InetAddress, EndpointState> deltaEpStateMap = new HashMap<InetAddress, EndpointState>();
         for (GossipDigest gDigest : gDigestList)
