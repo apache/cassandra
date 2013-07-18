@@ -74,7 +74,7 @@ public class BulkLoader
         {
             System.err.println("Streaming to the following hosts failed:");
             System.err.println(loader.getFailedHosts());
-            System.err.println(e.getMessage());
+            System.err.println(e);
             if (options.debug)
                 e.printStackTrace(System.err);
             System.exit(1);

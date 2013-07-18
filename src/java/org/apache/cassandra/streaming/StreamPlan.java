@@ -113,14 +113,13 @@ public class StreamPlan
      * Add transfer task to send given SSTable files.
      *
      * @param to endpoint address of receiver
-     * @param ranges ranges to send
-     * @param sstables files to send
+     * @param sstableDetails sstables with file positions and estimated key count
      * @return this object for chaining
      */
-    public StreamPlan transferFiles(InetAddress to, Collection<Range<Token>> ranges, Collection<SSTableReader> sstables)
+    public StreamPlan transferFiles(InetAddress to, Collection<StreamSession.SSTableStreamingSections> sstableDetails)
     {
         StreamSession session = getOrCreateSession(to);
-        session.addTransferFiles(ranges, sstables);
+        session.addTransferFiles(sstableDetails);
         return this;
     }
 

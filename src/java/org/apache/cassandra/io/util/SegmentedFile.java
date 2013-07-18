@@ -69,12 +69,12 @@ public abstract class SegmentedFile
     {
         return mode == Config.DiskAccessMode.mmap
                ? new MmappedSegmentedFile.Builder()
-               : new BufferedSegmentedFile.Builder();
+               : new BufferedPoolingSegmentedFile.Builder();
     }
 
     public static Builder getCompressedBuilder()
     {
-        return new CompressedSegmentedFile.Builder();
+        return new CompressedPoolingSegmentedFile.Builder();
     }
 
     public abstract FileDataInput getSegment(long position);
@@ -136,7 +136,8 @@ public abstract class SegmentedFile
     }
 
     /**
-     * A lazy Iterator over segments in forward order from the given position.
+     * A lazy Iterator over segments in forward order from the given position.  It is caller's responsibility
+     * to close the FileDataIntputs when finished.
      */
     final class SegmentIterator implements Iterator<FileDataInput>
     {

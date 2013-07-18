@@ -20,7 +20,7 @@ package org.apache.cassandra.io.util;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 
-public class CompressedSegmentedFile extends PoolingSegmentedFile
+public class CompressedSegmentedFile extends SegmentedFile
 {
     public final CompressionMetadata metadata;
 
@@ -32,35 +32,25 @@ public class CompressedSegmentedFile extends PoolingSegmentedFile
 
     public static class Builder extends SegmentedFile.Builder
     {
-        /**
-         * Adds a position that would be a safe place for a segment boundary in the file. For a block/row based file
-         * format, safe boundaries are block/row edges.
-         * @param boundary The absolute position of the potential boundary in the file.
-         */
         public void addPotentialBoundary(long boundary)
         {
             // only one segment in a standard-io file
         }
 
-        /**
-         * Called after all potential boundaries have been added to apply this Builder to a concrete file on disk.
-         * @param path The file on disk.
-         */
         public SegmentedFile complete(String path)
         {
             return new CompressedSegmentedFile(path, CompressionMetadata.create(path));
         }
     }
 
-    protected RandomAccessReader createReader(String path)
+    public FileDataInput getSegment(long position)
     {
-        return CompressedRandomAccessReader.open(path, metadata, this);
+        RandomAccessReader reader = CompressedRandomAccessReader.open(path, metadata, null);
+        reader.seek(position);
+        return reader;
     }
 
-    @Override
     public void cleanup()
     {
-        super.cleanup();
-        metadata.close();
     }
 }

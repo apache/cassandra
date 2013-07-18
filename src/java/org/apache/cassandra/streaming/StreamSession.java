@@ -265,24 +265,46 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
      */
     public void addTransferFiles(Collection<Range<Token>> ranges, Collection<SSTableReader> sstables)
     {
+        List<SSTableStreamingSections> sstableDetails = new ArrayList<>(sstables.size());
         for (SSTableReader sstable : sstables)
+            sstableDetails.add(new SSTableStreamingSections(sstable, sstable.getPositionsForRanges(ranges), sstable.estimatedKeysForRanges(ranges)));
+
+        addTransferFiles(sstableDetails);
+    }
+
+    public void addTransferFiles(Collection<SSTableStreamingSections> sstableDetails)
+    {
+        for (SSTableStreamingSections details : sstableDetails)
         {
-            List<Pair<Long, Long>> sections = sstable.getPositionsForRanges(ranges);
-            if (sections.isEmpty())
+            if (details.sections.isEmpty())
             {
                 // A reference was acquired on the sstable and we won't stream it
-                sstable.releaseReference();
+                details.sstable.releaseReference();
                 continue;
             }
-            long estimatedKeys = sstable.estimatedKeysForRanges(ranges);
-            UUID cfId = sstable.metadata.cfId;
+
+            UUID cfId = details.sstable.metadata.cfId;
             StreamTransferTask task = transfers.get(cfId);
             if (task == null)
             {
                 task = new StreamTransferTask(this, cfId);
                 transfers.put(cfId, task);
             }
-            task.addTransferFile(sstable, estimatedKeys, sections);
+            task.addTransferFile(details.sstable, details.estimatedKeys, details.sections);
+        }
+    }
+
+    public static class SSTableStreamingSections
+    {
+        public final SSTableReader sstable;
+        public final List<Pair<Long, Long>> sections;
+        public final long estimatedKeys;
+
+        public SSTableStreamingSections(SSTableReader sstable, List<Pair<Long, Long>> sections, long estimatedKeys)
+        {
+            this.sstable = sstable;
+            this.sections = sections;
+            this.estimatedKeys = estimatedKeys;
         }
     }
 

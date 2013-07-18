@@ -183,7 +183,19 @@ public class StreamingTransferTest extends SchemaLoader
 
     private void transfer(SSTableReader sstable, List<Range<Token>> ranges) throws Exception
     {
-        new StreamPlan("StreamingTransferTest").transferFiles(LOCAL, ranges, Collections.singleton(sstable)).execute().get();
+        new StreamPlan("StreamingTransferTest").transferFiles(LOCAL, makeStreamingDetails(ranges, Arrays.asList(sstable))).execute().get();
+    }
+
+    private Collection<StreamSession.SSTableStreamingSections> makeStreamingDetails(List<Range<Token>> ranges, Collection<SSTableReader> sstables)
+    {
+        ArrayList<StreamSession.SSTableStreamingSections> details = new ArrayList<>();
+        for (SSTableReader sstable : sstables)
+        {
+            details.add(new StreamSession.SSTableStreamingSections(sstable,
+                                                                   sstable.getPositionsForRanges(ranges),
+                                                                   sstable.estimatedKeysForRanges(ranges)));
+        }
+        return details;
     }
 
     /**
@@ -338,7 +350,7 @@ public class StreamingTransferTest extends SchemaLoader
         // Acquiring references, transferSSTables needs it
         sstable.acquireReference();
         sstable2.acquireReference();
-        new StreamPlan("StreamingTransferTest").transferFiles(LOCAL, ranges, Arrays.asList(sstable, sstable2)).execute().get();
+        new StreamPlan("StreamingTransferTest").transferFiles(LOCAL, makeStreamingDetails(ranges, Arrays.asList(sstable, sstable2))).execute().get();
 
         // confirm that the sstables were transferred and registered and that 2 keys arrived
         ColumnFamilyStore cfstore = Keyspace.open(keyspaceName).getColumnFamilyStore(cfname);
@@ -392,7 +404,7 @@ public class StreamingTransferTest extends SchemaLoader
         if (!SSTableReader.acquireReferences(ssTableReaders))
             throw new AssertionError();
 
-        new StreamPlan("StreamingTransferTest").transferFiles(LOCAL, ranges, ssTableReaders).execute().get();
+        new StreamPlan("StreamingTransferTest").transferFiles(LOCAL, makeStreamingDetails(ranges, ssTableReaders)).execute().get();
 
         // check that only two keys were transferred
         for (Map.Entry<DecoratedKey,String> entry : Arrays.asList(first, last))
