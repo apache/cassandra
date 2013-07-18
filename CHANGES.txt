@@ -1,4 +1,5 @@
 1.2.7
+ * if no seeds can be a reached a node won't start in a ring by itself (CASSANDRA-5768)
  * add cassandra.unsafesystem property (CASSANDRA-5704)
  * (Hadoop) quote identifiers in CqlPagingRecordReader (CASSANDRA-5763)
  * Add replace_node functionality for vnodes (CASSANDRA-5337)
