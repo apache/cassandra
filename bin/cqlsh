@@ -1180,8 +1180,6 @@ class Shell(cmd.Cmd):
                     optval = '{%s}' % ', '.join(['%s: %s' % (self.cql_protect_value(k),
                                                              self.cql_protect_value(v))
                                                  for (k, v) in optval.items()])
-                    if optval == '{}':
-                        continue
                 out.write(" %s\n  %s=%s" % (joiner, optname, optval))
                 joiner = 'AND'
         out.write(";\n")
