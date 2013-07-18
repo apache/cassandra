@@ -7,6 +7,7 @@
  * Normalize table-manipulating CQL3 statements' class names (CASSANDRA-5759)
  * cqlsh: add missing table options to DESCRIBE output (CASSANDRA-5749)
  * Fix assertion error during repair (CASSANDRA-5757)
+ * Fix bulkloader (CASSANDRA-5542)
 
 
 2.0.0-beta1
