@@ -32,7 +32,7 @@ exit 1
 from __future__ import with_statement
 
 description = "CQL Shell for Apache Cassandra"
-version = "3.1.3"
+version = "3.1.4"
 
 from StringIO import StringIO
 from itertools import groupby
@@ -1439,8 +1439,6 @@ class Shell(cmd.Cmd):
                     optval = '{%s}' % ', '.join(['%s: %s' % (self.cql_protect_value(k),
                                                              self.cql_protect_value(v))
                                                  for (k, v) in optval.items()])
-                    if optval == '{}':
-                        continue
                 out.write(" %s\n  %s=%s" % (joiner, optname, optval))
                 joiner = 'AND'
         out.write(";\n")
