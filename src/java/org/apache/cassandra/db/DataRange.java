@@ -47,8 +47,6 @@ public class DataRange
 
     public DataRange(AbstractBounds<RowPosition> range, IDiskAtomFilter columnFilter)
     {
-        assert !(range instanceof Range) || !((Range)range).isWrapAround() || range.right.isMinimum() : range;
-
         this.keyRange = range;
         this.columnFilter = columnFilter;
         this.selectFullRow = columnFilter instanceof SliceQueryFilter
@@ -89,6 +87,13 @@ public class DataRange
         return keyRange.right;
     }
 
+    // Whether the bounds of this DataRange actually wraps around.
+    public boolean isWrapAround()
+    {
+        // On range can ever wrap
+        return keyRange instanceof Range && ((Range)keyRange).isWrapAround();
+    }
+
     public boolean contains(RowPosition pos)
     {
         return keyRange.contains(pos);
@@ -126,6 +131,10 @@ public class DataRange
         private Paging(AbstractBounds<RowPosition> range, SliceQueryFilter filter, ByteBuffer columnStart, ByteBuffer columnFinish, Comparator<ByteBuffer> comparator)
         {
             super(range, filter);
+
+            // When using a paging range, we don't allow wrapped ranges, as it's unclear how to handle them properly.
+            // This is ok for now since we only need this in range slice queries, and the range are "unwrapped" in that case.
+            assert !(range instanceof Range) || !((Range)range).isWrapAround() || range.right.isMinimum() : range;
 
             this.sliceFilter = filter;
             this.comparator = comparator;

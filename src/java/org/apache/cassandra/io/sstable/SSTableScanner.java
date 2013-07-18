@@ -45,7 +45,21 @@ public class SSTableScanner implements ICompactionScanner
     protected final RandomAccessReader ifile;
     public final SSTableReader sstable;
     private final DataRange dataRange;
-    private final long stopAt;
+
+    /*
+     * There is 2 cases:
+     *   - Either dataRange is not wrapping, and we just need to read
+     *     everything between startKey and endKey.
+     *   - Or dataRange is wrapping: we must the read everything between
+     *     the beginning of the file and the endKey, and then everything from
+     *     the startKey to the end of the file.
+     *
+     * In the first case, we seek to the start and read until stop. In the
+     * second one, we don't seek just yet, but read until stopAt and then
+     * seek to start (re-adjusting stopAt to be the end of the file in isDone())
+     */
+    private boolean hasSeeked;
+    private long stopAt;
 
     protected Iterator<OnDiskAtomIterator> iterator;
 
@@ -63,11 +77,16 @@ public class SSTableScanner implements ICompactionScanner
         this.sstable = sstable;
         this.dataRange = dataRange;
         this.stopAt = computeStopAt();
-        seekToStart();
+
+        // If we wrap (stopKey == minimum don't count), we'll seek to start *after* having read from beginning till stopAt
+        if (dataRange.stopKey().isMinimum(sstable.partitioner) || !dataRange.isWrapAround())
+            seekToStart();
     }
 
     private void seekToStart()
     {
+        hasSeeked = true;
+
         if (dataRange.startKey().isMinimum(sstable.partitioner))
             return;
 
@@ -109,10 +128,10 @@ public class SSTableScanner implements ICompactionScanner
     private long computeStopAt()
     {
         AbstractBounds<RowPosition> keyRange = dataRange.keyRange();
-        if (dataRange.stopKey().isMinimum(sstable.partitioner) || (keyRange instanceof Range && ((Range)keyRange).isWrapAround()))
+        if (dataRange.stopKey().isMinimum(sstable.partitioner))
             return dfile.length();
 
-        RowIndexEntry position = sstable.getPosition(keyRange.toRowBounds().right, SSTableReader.Operator.GT);
+        RowIndexEntry position = sstable.getPosition(dataRange.stopKey(), SSTableReader.Operator.GT);
         return position == null ? dfile.length() : position.position;
     }
 
@@ -160,6 +179,21 @@ public class SSTableScanner implements ICompactionScanner
         return new KeyScanningIterator();
     }
 
+    private boolean isDone(long current)
+    {
+        if (current < stopAt)
+            return false;
+
+        if (!hasSeeked)
+        {
+            // We're wrapping, so seek to the start now (which sets hasSeeked)
+            seekToStart();
+            stopAt = dfile.length();
+        }
+        // Re-test now that we might have seeked
+        return current >= stopAt;
+    }
+
     protected class KeyScanningIterator extends AbstractIterator<OnDiskAtomIterator>
     {
         private DecoratedKey nextKey;
@@ -186,7 +220,7 @@ public class SSTableScanner implements ICompactionScanner
                 }
 
                 assert currentEntry.position <= stopAt;
-                if (currentEntry.position == stopAt)
+                if (isDone(currentEntry.position))
                     return endOfData();
 
                 if (ifile.isEOF())

@@ -1028,11 +1028,10 @@ public class SSTableReader extends SSTable
         if (range == null)
             return getScanner(limiter);
 
-        Iterator<Pair<Long, Long>> rangeIterator = getPositionsForRanges(Collections.singletonList(range)).iterator();
-        if (rangeIterator.hasNext())
-            return new SSTableScanner(this, DataRange.forKeyRange(range), limiter);
-        else
-            return new EmptyCompactionScanner(getFilename());
+        // We want to avoid allocating a SSTableScanner if the range don't overlap the sstable (#5249)
+        return range.intersects(new Bounds(first.token, last.token))
+             ? new SSTableScanner(this, DataRange.forKeyRange(range), limiter)
+             : new EmptyCompactionScanner(getFilename());
     }
 
     public FileDataInput getFileDataInput(long position)

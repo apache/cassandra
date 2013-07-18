@@ -5,6 +5,7 @@
  * Support range tombstones in thrift (CASSANDRA-5435)
  * Normalize table-manipulating CQL3 statements' class names (CASSANDRA-5759)
  * cqlsh: add missing table options to DESCRIBE output (CASSANDRA-5749)
+ * Fix assertion error during repair (CASSANDRA-5757)
 
 2.0.0-beta1
  * Removed on-heap row cache (CASSANDRA-5348)
