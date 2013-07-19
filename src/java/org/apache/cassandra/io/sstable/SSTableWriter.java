@@ -29,13 +29,16 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.compaction.*;
+import org.apache.cassandra.db.compaction.AbstractCompactedRow;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FilterFactory;
+import org.apache.cassandra.utils.IFilter;
+import org.apache.cassandra.utils.StreamingHistogram;
 
 public class SSTableWriter extends SSTable
 {
@@ -205,7 +208,7 @@ public class SSTableWriter extends SSTable
      * @throws IOException if a read from the DataInput fails
      * @throws FSWriteError if a write to the dataFile fails
      */
-    public long appendFromStream(DecoratedKey key, CFMetaData metadata, DataInput in) throws IOException
+    public long appendFromStream(DecoratedKey key, CFMetaData metadata, DataInput in, Descriptor.Version version) throws IOException
     {
         long currentPosition = beforeAppend(key);
 
@@ -221,14 +224,21 @@ public class SSTableWriter extends SSTable
         cf.delete(DeletionTime.serializer.deserialize(in));
 
         ColumnIndex.Builder columnIndexer = new ColumnIndex.Builder(cf, key.key, dataFile.stream);
-        OnDiskAtom.Serializer atomSerializer = Column.onDiskSerializer();
+        int columnCount = Integer.MAX_VALUE;
+        if (version.hasRowSizeAndColumnCount)
+        {
+            // skip row size
+            in.skipBytes(8);
+            columnCount = in.readInt();
+        }
+        Iterator<OnDiskAtom> iter = metadata.getOnDiskIterator(in, columnCount, ColumnSerializer.Flag.PRESERVE_SIZE, Integer.MIN_VALUE, version);
         try
         {
-            while (true)
+            while (iter.hasNext())
             {
                 // deserialize column with PRESERVE_SIZE because we've written the dataSize based on the
                 // data size received, so we must reserialize the exact same data
-                OnDiskAtom atom = atomSerializer.deserializeFromSSTable(in, ColumnSerializer.Flag.PRESERVE_SIZE, Integer.MIN_VALUE, Descriptor.Version.CURRENT);
+                OnDiskAtom atom = iter.next();
                 if (atom == null)
                     break;
                 if (atom instanceof CounterColumn)
