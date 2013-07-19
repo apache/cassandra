@@ -394,7 +394,7 @@ public class CompactionManager implements CompactionManagerMBean
                 {
                     doValidationCompaction(cfStore, validator);
                 }
-                catch (Exception e)
+                catch (Throwable e)
                 {
                     // we need to inform the remote end of our failure, otherwise it will hang on repair forever
                     validator.fail();
