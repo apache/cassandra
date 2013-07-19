@@ -114,9 +114,12 @@ public class UpdateStatement extends ModificationStatement
          * @param columnValues list of column values (corresponds to names)
          * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
          */
-        public ParsedInsert(CFName name, Attributes.Raw attrs, List<ColumnIdentifier> columnNames, List<Term.Raw> columnValues)
+        public ParsedInsert(CFName name,
+                            Attributes.Raw attrs,
+                            List<ColumnIdentifier> columnNames, List<Term.Raw> columnValues,
+                            boolean ifNotExists)
         {
-            super(name, attrs, Collections.<Pair<ColumnIdentifier, Operation.RawUpdate>>emptyList(), false);
+            super(name, attrs, null, ifNotExists);
             this.columnNames = columnNames;
             this.columnValues = columnValues;
         }
@@ -184,10 +187,9 @@ public class UpdateStatement extends ModificationStatement
                             Attributes.Raw attrs,
                             List<Pair<ColumnIdentifier, Operation.RawUpdate>> updates,
                             List<Relation> whereClause,
-                            List<Pair<ColumnIdentifier, Operation.RawUpdate>> conditions,
-                            boolean ifNotExists)
+                            List<Pair<ColumnIdentifier, Operation.RawUpdate>> conditions)
         {
-            super(name, attrs, conditions, ifNotExists);
+            super(name, attrs, conditions, false);
             this.updates = updates;
             this.whereClause = whereClause;
         }

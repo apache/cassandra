@@ -10,6 +10,7 @@
  * Fix bulkloader (CASSANDRA-5542)
  * Add LZ4 compression to the native protocol (CASSANDRA-5765)
  * Fix bugs in the native protocol v2 (CASSANDRA-5770)
+ * CAS on 'primary key only' table (CASSANDRA-5715)
 
 
 2.0.0-beta1
