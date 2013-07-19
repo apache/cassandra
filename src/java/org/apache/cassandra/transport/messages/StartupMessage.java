@@ -94,6 +94,10 @@ public class StartupMessage extends Message.Request
                     throw new ProtocolException("This instance does not support Snappy compression");
                 connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
             }
+            else if (compression.equals("lz4"))
+            {
+                connection.setCompressor(FrameCompressor.LZ4Compressor.instance);
+            }
             else
             {
                 throw new ProtocolException(String.format("Unknown compression algorithm: %s", compression));

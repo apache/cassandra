@@ -662,6 +662,14 @@ Table of Contents
   discretion). A frame body should be compressed if and only if the compressed
   flag (see Section 2.2) is set.
 
+  As of this version 2 of the protocol, the following compressions are available:
+    - lz4 (https://code.google.com/p/lz4/). In that, note that the 4 first bytes
+      of the body will be the uncompressed length (followed by the compressed
+      bytes).
+    - snappy (https://code.google.com/p/snappy/). This compression might not be
+      available as it depends on a native lib (server-side) that might not be
+      avaivable on some installation.
+
 
 6. Collection types
 

@@ -66,6 +66,8 @@ public class OptionsMessage extends Message.Request
         List<String> compressions = new ArrayList<String>();
         if (FrameCompressor.SnappyCompressor.instance != null)
             compressions.add("snappy");
+        // LZ4 is always available since worst case scenario it default to a pure JAVA implem.
+        compressions.add("lz4");
 
         Map<String, List<String>> supported = new HashMap<String, List<String>>();
         supported.put(StartupMessage.CQL_VERSION, cqlVersions);

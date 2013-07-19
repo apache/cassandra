@@ -8,6 +8,7 @@
  * cqlsh: add missing table options to DESCRIBE output (CASSANDRA-5749)
  * Fix assertion error during repair (CASSANDRA-5757)
  * Fix bulkloader (CASSANDRA-5542)
+ * Add LZ4 compression to the native protocol (CASSANDRA-5765)
 
 
 2.0.0-beta1
