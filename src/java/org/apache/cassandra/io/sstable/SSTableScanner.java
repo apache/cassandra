@@ -127,7 +127,6 @@ public class SSTableScanner implements ICompactionScanner
 
     private long computeStopAt()
     {
-        AbstractBounds<RowPosition> keyRange = dataRange.keyRange();
         if (dataRange.stopKey().isMinimum(sstable.partitioner))
             return dfile.length();
 
