@@ -324,7 +324,7 @@ public abstract class ResultMessage extends Message.Response
         @Override
         public String toString()
         {
-            return "RESULT PREPARED " + statementId + " " + metadata;
+            return "RESULT PREPARED " + statementId + " " + metadata + " (resultMetadata=" + resultMetadata + ")";
         }
     }
 

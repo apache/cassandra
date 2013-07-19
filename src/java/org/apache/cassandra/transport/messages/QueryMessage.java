@@ -216,6 +216,8 @@ public class QueryMessage extends Message.Request
             }
 
             Message.Response response = QueryProcessor.process(query, values, consistency, state, resultPageSize, pagingState);
+            if (skipMetadata && response instanceof ResultMessage.Rows)
+                ((ResultMessage.Rows)response).result.metadata.setSkipMetadata();
 
             if (tracingId != null)
                 response.setTracingId(tracingId);

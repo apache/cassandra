@@ -204,6 +204,8 @@ public class ExecuteMessage extends Message.Request
             }
 
             Message.Response response = QueryProcessor.processPrepared(statement, consistency, state, values, resultPageSize, pagingState);
+            if (skipMetadata && response instanceof ResultMessage.Rows)
+                ((ResultMessage.Rows)response).result.metadata.setSkipMetadata();
 
             if (tracingId != null)
                 response.setTracingId(tracingId);

@@ -161,9 +161,17 @@ public class ResultSet
                 {
                     ByteBuffer v = row.get(i);
                     if (v == null)
+                    {
                         sb.append(" | null");
+                    }
                     else
-                        sb.append(" | ").append(metadata.names.get(i).type.getString(v));
+                    {
+                        sb.append(" | ");
+                        if (metadata.flags.contains(Flag.NO_METADATA))
+                            sb.append("0x").append(ByteBufferUtil.bytesToHex(v));
+                        else
+                            sb.append(metadata.names.get(i).type.getString(v));
+                    }
                 }
                 sb.append('\n');
             }
@@ -266,9 +274,17 @@ public class ResultSet
 
         public Metadata setHasMorePages(PagingState pagingState)
         {
+            if (pagingState == null)
+                return this;
+
             flags.add(Flag.HAS_MORE_PAGES);
             this.pagingState = pagingState;
             return this;
+        }
+
+        public void setSkipMetadata()
+        {
+            flags.add(Flag.NO_METADATA);
         }
 
         @Override
@@ -278,7 +294,7 @@ public class ResultSet
 
             if (names == null)
             {
-                sb.append("[").append(columnCount).append("columns]");
+                sb.append("[").append(columnCount).append(" columns]");
             }
             else
             {

@@ -175,7 +175,8 @@ public class SelectStatement implements CQLStatement
 
             List<Row> page = pager.fetchPage(pageSize);
             ResultMessage.Rows msg = processResults(page, variables, limit, now);
-            msg.result.metadata.setHasMorePages(pager.state());
+            if (!pager.isExhausted())
+                msg.result.metadata.setHasMorePages(pager.state());
             return msg;
         }
     }

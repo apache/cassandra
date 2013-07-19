@@ -833,3 +833,8 @@ Table of Contents
     value. Note that paging is optional, and a client that do not want to handle
     can simply avoid including the Page_size flag and parameter in QUERY and
     EXECUTE.
+  * QUERY and EXECUTE statements can request for the metadata to be skipped in
+    the result set returned (for efficiency reasons) if said metadata are known
+    in advance. Furthermore, the result to a PREPARE (section 4.2.5.4) now
+    includes the metadata for the result of executing the statement just
+    prepared (though those metadata will be empty for non SELECT statements).
