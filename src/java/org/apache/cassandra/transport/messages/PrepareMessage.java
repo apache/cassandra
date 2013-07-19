@@ -52,9 +52,9 @@ public class PrepareMessage extends Message.Request
         this.query = query;
     }
 
-    public ChannelBuffer encode()
+    public ChannelBuffer encode(int version)
     {
-        return codec.encode(this, getVersion());
+        return codec.encode(this, version);
     }
 
     public Message.Response execute(QueryState state)

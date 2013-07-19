@@ -158,9 +158,9 @@ public class BatchMessage extends Message.Request
         this.consistency = consistency;
     }
 
-    public ChannelBuffer encode()
+    public ChannelBuffer encode(int version)
     {
-        return codec.encode(this, getVersion());
+        return codec.encode(this, version);
     }
 
     public Message.Response execute(QueryState state)

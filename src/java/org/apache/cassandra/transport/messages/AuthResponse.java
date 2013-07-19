@@ -66,10 +66,9 @@ public class AuthResponse extends Message.Request
         this.token = token;
     }
 
-    @Override
-    public ChannelBuffer encode()
+    public ChannelBuffer encode(int version)
     {
-        return codec.encode(this, getVersion());
+        return codec.encode(this, version);
     }
 
     @Override

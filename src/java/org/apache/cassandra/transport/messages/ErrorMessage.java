@@ -211,9 +211,9 @@ public class ErrorMessage extends Message.Response
         return new ErrorMessage(new ServerError(e), streamId);
     }
 
-    public ChannelBuffer encode()
+    public ChannelBuffer encode(int version)
     {
-        return codec.encode(this, getVersion());
+        return codec.encode(this, version);
     }
 
     @Override

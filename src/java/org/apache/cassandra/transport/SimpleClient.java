@@ -71,15 +71,17 @@ public class SimpleClient
 
     protected final ResponseHandler responseHandler = new ResponseHandler();
     protected final Connection.Tracker tracker = new ConnectionTracker();
-    protected final Connection connection = new Connection(tracker);
+    // We don't track connection really, so we don't need one Connection per channel
+    protected final Connection connection = new Connection(null, Frame.Header.CURRENT_VERSION, tracker);
     protected ClientBootstrap bootstrap;
     protected Channel channel;
     protected ChannelFuture lastWriteFuture;
 
     private final Connection.Factory connectionFactory = new Connection.Factory()
     {
-        public Connection newConnection(Connection.Tracker tracker)
+        public Connection newConnection(Channel channel, int version)
         {
+            assert version == Frame.Header.CURRENT_VERSION;
             return connection;
         }
     };
@@ -227,7 +229,7 @@ public class SimpleClient
 
             //pipeline.addLast("debug", new LoggingHandler());
 
-            pipeline.addLast("frameDecoder", new Frame.Decoder(tracker, connectionFactory));
+            pipeline.addLast("frameDecoder", new Frame.Decoder(connectionFactory));
             pipeline.addLast("frameEncoder", frameEncoder);
 
             pipeline.addLast("frameDecompressor", frameDecompressor);

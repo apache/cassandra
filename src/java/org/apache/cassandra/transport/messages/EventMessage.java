@@ -46,9 +46,9 @@ public class EventMessage extends Message.Response
         this.setStreamId(-1);
     }
 
-    public ChannelBuffer encode()
+    public ChannelBuffer encode(int version)
     {
-        return codec.encode(this, getVersion());
+        return codec.encode(this, version);
     }
 
     @Override

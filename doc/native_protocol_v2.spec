@@ -69,10 +69,8 @@ Table of Contents
 
   The protocol distinguishes 2 types of frames: requests and responses. Requests
   are those frame sent by the clients to the server, response are the ones sent
-  by the server. Note however that while communication are initiated by the
-  client with the server responding to request, the protocol may likely add
-  server pushes in the future, so responses does not obligatory come right after
-  a client request.
+  by the server. Note however that the protocol supports server pushes (events)
+  so responses does not necessarily come right after a client request.
 
   Note to client implementors: clients library should always assume that the
   body of a given frame may contain more data than what is described in this
@@ -97,6 +95,11 @@ Table of Contents
   have one of:
     0x02    Request frame for this protocol version
     0x82    Response frame for this protocol version
+
+  Please note that the while every message ship with the version, only one version
+  of messages is accepted on a given connection. In other words, the first message
+  exchanged (STARTUP) sets the version for the connection for the lifetime of this
+  connection.
 
   This document describe the version 2 of the protocol. For the changes made since
   version 1, see Section 9.

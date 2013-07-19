@@ -19,6 +19,8 @@ package org.apache.cassandra.transport;
 
 import java.util.concurrent.ConcurrentMap;
 
+import org.jboss.netty.channel.Channel;
+
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.ISaslAwareAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -30,14 +32,6 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class ServerConnection extends Connection
 {
-    public static final Factory FACTORY = new Factory()
-    {
-        public Connection newConnection(Connection.Tracker tracker)
-        {
-            return new ServerConnection(tracker);
-        }
-    };
-
     private enum State { UNINITIALIZED, AUTHENTICATION, READY; }
 
     private volatile SaslAuthenticator saslAuthenticator;
@@ -46,9 +40,9 @@ public class ServerConnection extends Connection
 
     private final ConcurrentMap<Integer, QueryState> queryStates = new NonBlockingHashMap<Integer, QueryState>();
 
-    public ServerConnection(Connection.Tracker tracker)
+    public ServerConnection(Channel channel, int version, Connection.Tracker tracker)
     {
-        super(tracker);
+        super(channel, version, tracker);
         this.clientState = new ClientState();
         this.state = State.UNINITIALIZED;
     }

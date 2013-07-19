@@ -12,6 +12,7 @@
  * Fix bugs in the native protocol v2 (CASSANDRA-5770)
  * CAS on 'primary key only' table (CASSANDRA-5715)
  * Support streaming SSTables of old versions (CASSANDRA-5772)
+ * Always respect protocol version in native protocol (CASSANDRA-5778)
 
 
 2.0.0-beta1

@@ -54,9 +54,9 @@ public class SupportedMessage extends Message.Response
         this.supported = supported;
     }
 
-    public ChannelBuffer encode()
+    public ChannelBuffer encode(int version)
     {
-        return codec.encode(this, getVersion());
+        return codec.encode(this, version);
     }
 
     @Override

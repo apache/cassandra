@@ -49,9 +49,9 @@ public class AuthenticateMessage extends Message.Response
         this.authenticator = authenticator;
     }
 
-    public ChannelBuffer encode()
+    public ChannelBuffer encode(int version)
     {
-        return codec.encode(this, getVersion());
+        return codec.encode(this, version);
     }
 
     @Override

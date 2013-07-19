@@ -76,9 +76,9 @@ public class CredentialsMessage extends Message.Request
         super(Message.Type.CREDENTIALS);
     }
 
-    public ChannelBuffer encode()
+    public ChannelBuffer encode(int version)
     {
-        return codec.encode(this, getVersion());
+        return codec.encode(this, version);
     }
 
     public Message.Response execute(QueryState state)

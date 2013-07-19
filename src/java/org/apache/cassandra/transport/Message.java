@@ -119,7 +119,6 @@ public abstract class Message
     public final Type type;
     protected volatile Connection connection;
     private volatile int streamId;
-    private volatile int version = Frame.Header.CURRENT_VERSION;
 
     protected Message(Type type)
     {
@@ -147,18 +146,7 @@ public abstract class Message
         return streamId;
     }
 
-    public int getVersion()
-    {
-        return version;
-    }
-
-    public Message setVersion(int version)
-    {
-        this.version = version;
-        return this;
-    }
-
-    public abstract ChannelBuffer encode();
+    public abstract ChannelBuffer encode(int version);
 
     public static abstract class Request extends Message
     {
@@ -225,13 +213,12 @@ public abstract class Message
             {
                 Message message = frame.header.type.codec.decode(frame.body, frame.header.version);
                 message.setStreamId(frame.header.streamId);
-                message.setVersion(frame.header.version);
 
                 if (isRequest)
                 {
                     assert message instanceof Request;
                     Request req = (Request)message;
-                    req.attach(frame.connection);
+                    req.attach((Connection)channel.getAttachment());
                     if (isTracing)
                         req.setTracingRequested();
                 }
@@ -260,7 +247,11 @@ public abstract class Message
 
             Message message = (Message)msg;
 
-            ChannelBuffer body = message.encode();
+            Connection connection = (Connection)channel.getAttachment();
+            // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
+            int version = connection == null ? Frame.Header.CURRENT_VERSION : connection.getVersion();
+
+            ChannelBuffer body = message.encode(version);
             EnumSet<Frame.Header.Flag> flags = EnumSet.noneOf(Frame.Header.Flag.class);
             if (message instanceof Response)
             {
@@ -278,7 +269,7 @@ public abstract class Message
                     flags.add(Frame.Header.Flag.TRACING);
             }
 
-            return Frame.create(message.type, message.getStreamId(), message.getVersion(), flags, body, message.connection());
+            return Frame.create(message.type, message.getStreamId(), version, flags, body);
         }
     }
 
@@ -298,24 +289,23 @@ public abstract class Message
             {
                 assert request.connection() instanceof ServerConnection;
                 ServerConnection connection = (ServerConnection)request.connection();
-                QueryState qstate = connection.validateNewMessage(request.type, request.getVersion(), request.getStreamId());
+                QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion(), request.getStreamId());
 
-                logger.debug("Received: {}, v={}", request, request.getVersion());
+                logger.debug("Received: {}, v={}", request, connection.getVersion());
 
                 Response response = request.execute(qstate);
                 response.setStreamId(request.getStreamId());
-                response.setVersion(request.getVersion());
                 response.attach(connection);
                 connection.applyStateTransition(request.type, response.type);
 
-                logger.debug("Responding: {}, v={}", response, response.getVersion());
+                logger.debug("Responding: {}, v={}", response, connection.getVersion());
 
                 ctx.getChannel().write(response);
             }
             catch (Exception ex)
             {
                 // Don't let the exception propagate to exceptionCaught() if we can help it so that we can assign the right streamID.
-                ctx.getChannel().write(ErrorMessage.fromException(ex).setStreamId(request.getStreamId()).setVersion(request.getVersion()));
+                ctx.getChannel().write(ErrorMessage.fromException(ex).setStreamId(request.getStreamId()));
             }
         }
 

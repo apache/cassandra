@@ -48,7 +48,7 @@ public abstract class ResultMessage extends Message.Response
             ChannelBuffer kcb = ChannelBuffers.buffer(4);
             kcb.writeInt(msg.kind.id);
 
-            ChannelBuffer body = msg.encodeBody();
+            ChannelBuffer body = msg.encodeBody(version);
             return ChannelBuffers.wrappedBuffer(kcb, body);
         }
     };
@@ -102,12 +102,12 @@ public abstract class ResultMessage extends Message.Response
         this.kind = kind;
     }
 
-    public ChannelBuffer encode()
+    public ChannelBuffer encode(int version)
     {
-        return codec.encode(this, getVersion());
+        return codec.encode(this, version);
     }
 
-    protected abstract ChannelBuffer encodeBody();
+    protected abstract ChannelBuffer encodeBody(int version);
 
     public abstract CqlResult toThriftResult();
 
@@ -134,9 +134,9 @@ public abstract class ResultMessage extends Message.Response
             }
         };
 
-        protected ChannelBuffer encodeBody()
+        protected ChannelBuffer encodeBody(int version)
         {
-            return subcodec.encode(this, getVersion());
+            return subcodec.encode(this, version);
         }
 
         public CqlResult toThriftResult()
@@ -176,9 +176,9 @@ public abstract class ResultMessage extends Message.Response
             }
         };
 
-        protected ChannelBuffer encodeBody()
+        protected ChannelBuffer encodeBody(int version)
         {
-            return subcodec.encode(this, getVersion());
+            return subcodec.encode(this, version);
         }
 
         public CqlResult toThriftResult()
@@ -218,9 +218,9 @@ public abstract class ResultMessage extends Message.Response
             this.result = result;
         }
 
-        protected ChannelBuffer encodeBody()
+        protected ChannelBuffer encodeBody(int version)
         {
-            return subcodec.encode(this, getVersion());
+            return subcodec.encode(this, version);
         }
 
         public CqlResult toThriftResult()
@@ -299,9 +299,9 @@ public abstract class ResultMessage extends Message.Response
             return ((SelectStatement)statement).getResultMetadata();
         }
 
-        protected ChannelBuffer encodeBody()
+        protected ChannelBuffer encodeBody(int version)
         {
-            return subcodec.encode(this, getVersion());
+            return subcodec.encode(this, version);
         }
 
         public CqlResult toThriftResult()
@@ -382,9 +382,9 @@ public abstract class ResultMessage extends Message.Response
             }
         };
 
-        protected ChannelBuffer encodeBody()
+        protected ChannelBuffer encodeBody(int version)
         {
-            return subcodec.encode(this, getVersion());
+            return subcodec.encode(this, version);
         }
 
         public CqlResult toThriftResult()

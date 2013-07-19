@@ -21,13 +21,19 @@ import org.jboss.netty.channel.Channel;
 
 public class Connection
 {
-    private volatile FrameCompressor frameCompressor;
-    private volatile Channel channel;
+    private final Channel channel;
+    private final int version;
     private final Tracker tracker;
 
-    public Connection(Tracker tracker)
+    private volatile FrameCompressor frameCompressor;
+
+    public Connection(Channel channel, int version, Tracker tracker)
     {
+        this.channel = channel;
+        this.version = version;
         this.tracker = tracker;
+
+        tracker.addConnection(channel, this);
     }
 
     public void setCompressor(FrameCompressor compressor)
@@ -45,10 +51,9 @@ public class Connection
         return tracker;
     }
 
-    public void registerChannel(Channel ch)
+    public int getVersion()
     {
-        channel = ch;
-        tracker.addConnection(ch, this);
+        return version;
     }
 
     public Channel channel()
@@ -58,7 +63,7 @@ public class Connection
 
     public interface Factory
     {
-        public Connection newConnection(Tracker tracker);
+        public Connection newConnection(Channel channel, int version);
     }
 
     public interface Tracker

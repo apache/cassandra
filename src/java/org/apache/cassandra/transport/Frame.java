@@ -34,7 +34,6 @@ public class Frame
 {
     public final Header header;
     public final ChannelBuffer body;
-    public final Connection connection;
 
     /**
      * On-wire frame.
@@ -47,14 +46,13 @@ public class Frame
      *   |                length                 |
      *   +---------+---------+---------+---------+
      */
-    private Frame(Header header, ChannelBuffer body, Connection connection)
+    private Frame(Header header, ChannelBuffer body)
     {
         this.header = header;
         this.body = body;
-        this.connection = connection;
     }
 
-    public static Frame create(ChannelBuffer fullFrame, Connection connection)
+    public static Frame create(ChannelBuffer fullFrame)
     {
         assert fullFrame.readableBytes() >= Header.LENGTH : String.format("Frame too short (%d bytes = %s)",
                                                                           fullFrame.readableBytes(),
@@ -72,13 +70,13 @@ public class Frame
         version = version & 0x7F;
 
         Header header = new Header(version, flags, streamId, Message.Type.fromOpcode(opcode, direction));
-        return new Frame(header, fullFrame, connection);
+        return new Frame(header, fullFrame);
     }
 
-    public static Frame create(Message.Type type, int streamId, int version, EnumSet<Header.Flag> flags, ChannelBuffer body, Connection connection)
+    public static Frame create(Message.Type type, int streamId, int version, EnumSet<Header.Flag> flags, ChannelBuffer body)
     {
         Header header = new Header(version, flags, streamId, type);
-        return new Frame(header, body, connection);
+        return new Frame(header, body);
     }
 
     public static class Header
@@ -134,25 +132,19 @@ public class Frame
 
     public Frame with(ChannelBuffer newBody)
     {
-        return new Frame(header, newBody, connection);
+        return new Frame(header, newBody);
     }
 
     public static class Decoder extends LengthFieldBasedFrameDecoder
     {
         private static final int MAX_FRAME_LENTH = 256 * 1024 * 1024; // 256 MB
-        private final Connection connection;
 
-        public Decoder(Connection.Tracker tracker, Connection.Factory factory)
+        private final Connection.Factory factory;
+
+        public Decoder(Connection.Factory factory)
         {
             super(MAX_FRAME_LENTH, 4, 4, 0, 0, true);
-            this.connection = factory.newConnection(tracker);
-        }
-
-        @Override
-        public void channelOpen(ChannelHandlerContext ctx, ChannelStateEvent e)
-        throws Exception
-        {
-            connection.registerChannel(e.getChannel());
+            this.factory = factory;
         }
 
         @Override
@@ -183,7 +175,19 @@ public class Frame
                 {
                     return null;
                 }
-                return Frame.create(frame, connection);
+
+                Connection connection = (Connection)channel.getAttachment();
+                if (connection == null)
+                {
+                    // First message seen on this channel, attach the connection object
+                    connection = factory.newConnection(channel, version);
+                    channel.setAttachment(connection);
+                }
+                else if (connection.getVersion() != version)
+                {
+                    throw new ProtocolException(String.format("Invalid message version. Got %d but previous messages on this connection had version %d", version, connection.getVersion()));
+                }
+                return Frame.create(frame);
             }
             catch (CorruptedFrameException e)
             {
@@ -225,11 +229,12 @@ public class Frame
             assert msg instanceof Frame : "Expecting frame, got " + msg;
 
             Frame frame = (Frame)msg;
+            Connection connection = (Connection)channel.getAttachment();
 
-            if (!frame.header.flags.contains(Header.Flag.COMPRESSED))
+            if (!frame.header.flags.contains(Header.Flag.COMPRESSED) || connection == null)
                 return frame;
 
-            FrameCompressor compressor = frame.connection.getCompressor();
+            FrameCompressor compressor = connection.getCompressor();
             if (compressor == null)
                 return frame;
 
@@ -245,12 +250,13 @@ public class Frame
             assert msg instanceof Frame : "Expecting frame, got " + msg;
 
             Frame frame = (Frame)msg;
+            Connection connection = (Connection)channel.getAttachment();
 
             // Never compress STARTUP messages
-            if (frame.header.type == Message.Type.STARTUP || frame.connection == null)
+            if (frame.header.type == Message.Type.STARTUP || connection == null)
                 return frame;
 
-            FrameCompressor compressor = frame.connection.getCompressor();
+            FrameCompressor compressor = connection.getCompressor();
             if (compressor == null)
                 return frame;
 
