@@ -44,41 +44,32 @@ public class CredentialsMessage extends Message.Request
                 throw new ProtocolException("Legacy credentials authentication is not supported in " +
                         "protocol versions > 1. Please use SASL authentication via a SaslResponse message");
 
-            CredentialsMessage msg = new CredentialsMessage();
-            int count = body.readUnsignedShort();
-            for (int i = 0; i < count; i++)
-            {
-                String key = CBUtil.readString(body);
-                String value = CBUtil.readString(body);
-                msg.credentials.put(key, value);
-            }
-            return msg;
+            Map<String, String> credentials = CBUtil.readStringMap(body);
+            return new CredentialsMessage(credentials);
         }
 
-        public ChannelBuffer encode(CredentialsMessage msg, int version)
+        public void encode(CredentialsMessage msg, ChannelBuffer dest, int version)
         {
-            ChannelBuffer cb = ChannelBuffers.dynamicBuffer();
+            CBUtil.writeStringMap(msg.credentials, dest);
+        }
 
-            cb.writeShort(msg.credentials.size());
-            for (Map.Entry<String, String> entry : msg.credentials.entrySet())
-            {
-                cb.writeBytes(CBUtil.stringToCB(entry.getKey()));
-                cb.writeBytes(CBUtil.stringToCB(entry.getValue()));
-            }
-            return cb;
+        public int encodedSize(CredentialsMessage msg, int version)
+        {
+            return CBUtil.sizeOfStringMap(msg.credentials);
         }
     };
 
-    public final Map<String, String> credentials = new HashMap<String, String>();
+    public final Map<String, String> credentials;
 
     public CredentialsMessage()
     {
-        super(Message.Type.CREDENTIALS);
+        this(new HashMap<String, String>());
     }
 
-    public ChannelBuffer encode(int version)
+    private CredentialsMessage(Map<String, String> credentials)
     {
-        return codec.encode(this, version);
+        super(Message.Type.CREDENTIALS);
+        this.credentials = credentials;
     }
 
     public Message.Response execute(QueryState state)

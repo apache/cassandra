@@ -48,12 +48,19 @@ public abstract class Event
         throw new AssertionError();
     }
 
-    public ChannelBuffer serialize()
+    public void serialize(ChannelBuffer dest)
     {
-        return ChannelBuffers.wrappedBuffer(CBUtil.enumValueToCB(type), serializeEvent());
+        CBUtil.writeEnumValue(type, dest);
+        serializeEvent(dest);
     }
 
-    protected abstract ChannelBuffer serializeEvent();
+    public int serializedSize()
+    {
+        return CBUtil.sizeOfEnumValue(type) + eventSerializedSize();
+    }
+
+    protected abstract void serializeEvent(ChannelBuffer dest);
+    protected abstract int eventSerializedSize();
 
     public static class TopologyChange extends Event
     {
@@ -84,7 +91,7 @@ public abstract class Event
             return new TopologyChange(Change.MOVED_NODE, new InetSocketAddress(host, port));
         }
 
-        // Assumes the type has already by been deserialized
+        // Assumes the type has already been deserialized
         private static TopologyChange deserializeEvent(ChannelBuffer cb)
         {
             Change change = CBUtil.readEnumValue(Change.class, cb);
@@ -92,9 +99,15 @@ public abstract class Event
             return new TopologyChange(change, node);
         }
 
-        protected ChannelBuffer serializeEvent()
+        protected void serializeEvent(ChannelBuffer dest)
         {
-            return ChannelBuffers.wrappedBuffer(CBUtil.enumValueToCB(change), CBUtil.inetToCB(node));
+            CBUtil.writeEnumValue(change, dest);
+            CBUtil.writeInet(node, dest);
+        }
+
+        protected int eventSerializedSize()
+        {
+            return CBUtil.sizeOfEnumValue(change) + CBUtil.sizeOfInet(node);
         }
 
         @Override
@@ -128,7 +141,7 @@ public abstract class Event
             return new StatusChange(Status.DOWN, new InetSocketAddress(host, port));
         }
 
-        // Assumes the type has already by been deserialized
+        // Assumes the type has already been deserialized
         private static StatusChange deserializeEvent(ChannelBuffer cb)
         {
             Status status = CBUtil.readEnumValue(Status.class, cb);
@@ -136,9 +149,15 @@ public abstract class Event
             return new StatusChange(status, node);
         }
 
-        protected ChannelBuffer serializeEvent()
+        protected void serializeEvent(ChannelBuffer dest)
         {
-            return ChannelBuffers.wrappedBuffer(CBUtil.enumValueToCB(status), CBUtil.inetToCB(node));
+            CBUtil.writeEnumValue(status, dest);
+            CBUtil.writeInet(node, dest);
+        }
+
+        protected int eventSerializedSize()
+        {
+            return CBUtil.sizeOfEnumValue(status) + CBUtil.sizeOfInet(node);
         }
 
         @Override
@@ -169,7 +188,7 @@ public abstract class Event
             this(change, keyspace, "");
         }
 
-        // Assumes the type has already by been deserialized
+        // Assumes the type has already been deserialized
         private static SchemaChange deserializeEvent(ChannelBuffer cb)
         {
             Change change = CBUtil.readEnumValue(Change.class, cb);
@@ -178,11 +197,18 @@ public abstract class Event
             return new SchemaChange(change, keyspace, table);
         }
 
-        protected ChannelBuffer serializeEvent()
+        protected void serializeEvent(ChannelBuffer dest)
         {
-            return ChannelBuffers.wrappedBuffer(CBUtil.enumValueToCB(change),
-                                                CBUtil.stringToCB(keyspace),
-                                                CBUtil.stringToCB(table));
+            CBUtil.writeEnumValue(change, dest);
+            CBUtil.writeString(keyspace, dest);
+            CBUtil.writeString(table, dest);
+        }
+
+        protected int eventSerializedSize()
+        {
+            return CBUtil.sizeOfEnumValue(change)
+                 + CBUtil.sizeOfString(keyspace)
+                 + CBUtil.sizeOfString(table);
         }
 
         @Override

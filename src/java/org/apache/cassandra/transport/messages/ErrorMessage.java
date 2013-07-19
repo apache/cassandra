@@ -123,59 +123,71 @@ public class ErrorMessage extends Message.Response
             return new ErrorMessage(te);
         }
 
-        public ChannelBuffer encode(ErrorMessage msg, int version)
+        public void encode(ErrorMessage msg, ChannelBuffer dest, int version)
         {
-            ChannelBuffer ccb = CBUtil.intToCB(msg.error.code().value);
-            ChannelBuffer mcb = CBUtil.stringToCB(msg.error.getMessage());
+            dest.writeInt(msg.error.code().value);
+            CBUtil.writeString(msg.error.getMessage(), dest);
 
-            ChannelBuffer acb = ChannelBuffers.EMPTY_BUFFER;
             switch (msg.error.code())
             {
                 case UNAVAILABLE:
                     UnavailableException ue = (UnavailableException)msg.error;
-                    ChannelBuffer ueCl = CBUtil.consistencyLevelToCB(ue.consistency);
-                    acb = ChannelBuffers.buffer(ueCl.readableBytes() + 8);
-                    acb.writeBytes(ueCl);
-                    acb.writeInt(ue.required);
-                    acb.writeInt(ue.alive);
+                    CBUtil.writeConsistencyLevel(ue.consistency, dest);
+                    dest.writeInt(ue.required);
+                    dest.writeInt(ue.alive);
                     break;
                 case WRITE_TIMEOUT:
                 case READ_TIMEOUT:
                     RequestTimeoutException rte = (RequestTimeoutException)msg.error;
                     boolean isWrite = msg.error.code() == ExceptionCode.WRITE_TIMEOUT;
 
-                    ChannelBuffer rteCl = CBUtil.consistencyLevelToCB(rte.consistency);
-                    ByteBuffer writeType = isWrite
-                                         ? ByteBufferUtil.bytes(((WriteTimeoutException)rte).writeType.toString())
-                                         : null;
-
-                    int extraSize = isWrite  ? 2 + writeType.remaining() : 1;
-                    acb = ChannelBuffers.buffer(rteCl.readableBytes() + 8 + extraSize);
-
-                    acb.writeBytes(rteCl);
-                    acb.writeInt(rte.received);
-                    acb.writeInt(rte.blockFor);
+                    CBUtil.writeConsistencyLevel(rte.consistency, dest);
+                    dest.writeInt(rte.received);
+                    dest.writeInt(rte.blockFor);
                     if (isWrite)
-                    {
-                        acb.writeShort((short)writeType.remaining());
-                        acb.writeBytes(writeType);
-                    }
+                        CBUtil.writeString(((WriteTimeoutException)rte).writeType.toString(), dest);
                     else
-                    {
-                        acb.writeByte((byte)(((ReadTimeoutException)rte).dataPresent ? 1 : 0));
-                    }
+                        dest.writeByte((byte)(((ReadTimeoutException)rte).dataPresent ? 1 : 0));
                     break;
                 case UNPREPARED:
                     PreparedQueryNotFoundException pqnfe = (PreparedQueryNotFoundException)msg.error;
-                    acb = CBUtil.bytesToCB(pqnfe.id.bytes);
+                    CBUtil.writeBytes(pqnfe.id.bytes, dest);
                     break;
                 case ALREADY_EXISTS:
                     AlreadyExistsException aee = (AlreadyExistsException)msg.error;
-                    acb = ChannelBuffers.wrappedBuffer(CBUtil.stringToCB(aee.ksName),
-                                                       CBUtil.stringToCB(aee.cfName));
+                    CBUtil.writeString(aee.ksName, dest);
+                    CBUtil.writeString(aee.cfName, dest);
                     break;
             }
-            return ChannelBuffers.wrappedBuffer(ccb, mcb, acb);
+        }
+
+        public int encodedSize(ErrorMessage msg, int version)
+        {
+            int size = 4 + CBUtil.sizeOfString(msg.error.getMessage());
+            switch (msg.error.code())
+            {
+                case UNAVAILABLE:
+                    UnavailableException ue = (UnavailableException)msg.error;
+                    size += CBUtil.sizeOfConsistencyLevel(ue.consistency) + 8;
+                    break;
+                case WRITE_TIMEOUT:
+                case READ_TIMEOUT:
+                    RequestTimeoutException rte = (RequestTimeoutException)msg.error;
+                    boolean isWrite = msg.error.code() == ExceptionCode.WRITE_TIMEOUT;
+                    size += CBUtil.sizeOfConsistencyLevel(rte.consistency) + 8;
+                    size += isWrite ? CBUtil.sizeOfString(((WriteTimeoutException)rte).writeType.toString()) : 1;
+                    break;
+                case UNPREPARED:
+                    PreparedQueryNotFoundException pqnfe = (PreparedQueryNotFoundException)msg.error;
+                    size += CBUtil.sizeOfBytes(pqnfe.id.bytes);
+                    break;
+                case ALREADY_EXISTS:
+                    AlreadyExistsException aee = (AlreadyExistsException)msg.error;
+                    size += CBUtil.sizeOfString(aee.ksName);
+                    size += CBUtil.sizeOfString(aee.cfName);
+                    break;
+            }
+            return size;
         }
     };
 
@@ -209,11 +221,6 @@ public class ErrorMessage extends Message.Response
         // Unexpected exception
         logger.error("Unexpected exception during request", e);
         return new ErrorMessage(new ServerError(e), streamId);
-    }
-
-    public ChannelBuffer encode(int version)
-    {
-        return codec.encode(this, version);
     }
 
     @Override

@@ -146,8 +146,6 @@ public abstract class Message
         return streamId;
     }
 
-    public abstract ChannelBuffer encode(int version);
-
     public static abstract class Request extends Message
     {
         protected boolean tracingRequested;
@@ -207,7 +205,7 @@ public abstract class Message
             boolean isRequest = frame.header.type.direction == Direction.REQUEST;
             boolean isTracing = frame.header.flags.contains(Frame.Header.Flag.TRACING);
 
-            UUID tracingId = isRequest || !isTracing ? null : CBUtil.readUuid(frame.body);
+            UUID tracingId = isRequest || !isTracing ? null : CBUtil.readUUID(frame.body);
 
             try
             {
@@ -251,24 +249,34 @@ public abstract class Message
             // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
             int version = connection == null ? Server.CURRENT_VERSION : connection.getVersion();
 
-            ChannelBuffer body = message.encode(version);
             EnumSet<Frame.Header.Flag> flags = EnumSet.noneOf(Frame.Header.Flag.class);
+
+            Codec<Message> codec = (Codec<Message>)message.type.codec;
+            int messageSize = codec.encodedSize(message, version);
+            ChannelBuffer body;
             if (message instanceof Response)
             {
                 UUID tracingId = ((Response)message).getTracingId();
                 if (tracingId != null)
                 {
-                    body = ChannelBuffers.wrappedBuffer(CBUtil.uuidToCB(tracingId), body);
+                    body = ChannelBuffers.buffer(CBUtil.sizeOfUUID(tracingId) + messageSize);
+                    CBUtil.writeUUID(tracingId, body);
                     flags.add(Frame.Header.Flag.TRACING);
+                }
+                else
+                {
+                    body = ChannelBuffers.buffer(messageSize);
                 }
             }
             else
             {
                 assert message instanceof Request;
+                body = ChannelBuffers.buffer(messageSize);
                 if (((Request)message).isTracingRequested())
                     flags.add(Frame.Header.Flag.TRACING);
             }
 
+            codec.encode(message, body, version);
             return Frame.create(message.type, message.getStreamId(), version, flags, body);
         }
     }

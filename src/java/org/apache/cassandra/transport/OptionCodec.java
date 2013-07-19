@@ -104,16 +104,12 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         return Pair.create(opt, value);
     }
 
-    public ChannelBuffer encodeOne(Pair<T, Object> option)
+    public void writeOne(Pair<T, Object> option, ChannelBuffer dest)
     {
         T opt = option.left;
         Object obj = option.right;
-
-        ChannelBuffer cb = ChannelBuffers.buffer(oneSerializedSize(option));
-
-        cb.writeShort(opt.getId());
-        opt.writeValue(obj, cb);
-        return cb;
+        dest.writeShort(opt.getId());
+        opt.writeValue(obj, dest);
     }
 
     public int oneSerializedSize(Pair<T, Object> option)

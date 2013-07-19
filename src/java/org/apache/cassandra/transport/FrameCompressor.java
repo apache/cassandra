@@ -73,18 +73,16 @@ public interface FrameCompressor
 
         public Frame compress(Frame frame) throws IOException
         {
-            byte[] input = new byte[frame.body.readableBytes()];
+            byte[] input = CBUtil.readRawBytes(frame.body);
             byte[] output = new byte[Snappy.maxCompressedLength(input.length)];
 
-            frame.body.readBytes(input);
             int written = Snappy.compress(input, 0, input.length, output, 0);
             return frame.with(ChannelBuffers.wrappedBuffer(output, 0, written));
         }
 
         public Frame decompress(Frame frame) throws IOException
         {
-            byte[] input = new byte[frame.body.readableBytes()];
-            frame.body.readBytes(input);
+            byte[] input = CBUtil.readRawBytes(frame.body);
 
             if (!Snappy.isValidCompressedBuffer(input, 0, input.length))
                 throw new ProtocolException("Provided frame does not appear to be Snappy compressed");
@@ -120,8 +118,7 @@ public interface FrameCompressor
 
         public Frame compress(Frame frame) throws IOException
         {
-            byte[] input = new byte[frame.body.readableBytes()];
-            frame.body.readBytes(input);
+            byte[] input = CBUtil.readRawBytes(frame.body);
 
             int maxCompressedLength = compressor.maxCompressedLength(input.length);
             byte[] output = new byte[INTEGER_BYTES + maxCompressedLength];
@@ -144,8 +141,7 @@ public interface FrameCompressor
 
         public Frame decompress(Frame frame) throws IOException
         {
-            byte[] input = new byte[frame.body.readableBytes()];
-            frame.body.readBytes(input);
+            byte[] input = CBUtil.readRawBytes(frame.body);
 
             int uncompressedLength = ((input[0] & 0xFF) << 24)
                                    | ((input[1] & 0xFF) << 16)

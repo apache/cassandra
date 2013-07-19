@@ -206,19 +206,26 @@ public class ResultSet
             return rs;
         }
 
-        public ChannelBuffer encode(ResultSet rs, int version)
+        public void encode(ResultSet rs, ChannelBuffer dest, int version)
         {
-            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(2, 0, rs.metadata.columnCount * rs.rows.size());
-            builder.add(Metadata.codec.encode(rs.metadata, version));
-            builder.add(CBUtil.intToCB(rs.rows.size()));
-
+            Metadata.codec.encode(rs.metadata, dest, version);
+            dest.writeInt(rs.rows.size());
             for (List<ByteBuffer> row : rs.rows)
             {
                 for (ByteBuffer bb : row)
-                    builder.addValue(bb);
+                    CBUtil.writeValue(bb, dest);
             }
+        }
 
-            return builder.build();
+        public int encodedSize(ResultSet rs, int version)
+        {
+            int size = Metadata.codec.encodedSize(rs.metadata, version) + 4;
+            for (List<ByteBuffer> row : rs.rows)
+            {
+                for (ByteBuffer bb : row)
+                    size += CBUtil.sizeOfValue(bb);
+            }
+            return size;
         }
     }
 
@@ -350,47 +357,71 @@ public class ResultSet
                 return new Metadata(flags, names).setHasMorePages(state);
             }
 
-            public ChannelBuffer encode(Metadata m, int version)
+            public void encode(Metadata m, ChannelBuffer dest, int version)
             {
                 boolean noMetadata = m.flags.contains(Flag.NO_METADATA);
                 boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);
                 boolean hasMorePages = m.flags.contains(Flag.HAS_MORE_PAGES);
 
-                int stringCount = noMetadata ? 0 : (globalTablesSpec ? 2 + m.columnCount : 3 * m.columnCount);
-                CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(1 + (noMetadata ? 0 : m.columnCount), stringCount, hasMorePages ? 1 : 0);
-
-                ChannelBuffer header = ChannelBuffers.buffer(8);
-
                 assert version > 1 || (!m.flags.contains(Flag.HAS_MORE_PAGES) && !noMetadata): "version = " + version + ", flags = " + m.flags;
 
-                header.writeInt(Flag.serialize(m.flags));
-                header.writeInt(m.columnCount);
-
-                builder.add(header);
+                dest.writeInt(Flag.serialize(m.flags));
+                dest.writeInt(m.columnCount);
 
                 if (hasMorePages)
-                    builder.addValue(m.pagingState == null ? null : m.pagingState.serialize());
+                    CBUtil.writeValue(m.pagingState.serialize(), dest);
 
                 if (!noMetadata)
                 {
                     if (globalTablesSpec)
                     {
-                        builder.addString(m.names.get(0).ksName);
-                        builder.addString(m.names.get(0).cfName);
+                        CBUtil.writeString(m.names.get(0).ksName, dest);
+                        CBUtil.writeString(m.names.get(0).cfName, dest);
                     }
 
                     for (ColumnSpecification name : m.names)
                     {
                         if (!globalTablesSpec)
                         {
-                            builder.addString(name.ksName);
-                            builder.addString(name.cfName);
+                            CBUtil.writeString(name.ksName, dest);
+                            CBUtil.writeString(name.cfName, dest);
                         }
-                        builder.addString(name.toString());
-                        builder.add(DataType.codec.encodeOne(DataType.fromType(name.type)));
+                        CBUtil.writeString(name.toString(), dest);
+                        DataType.codec.writeOne(DataType.fromType(name.type), dest);
                     }
                 }
-                return builder.build();
+            }
+
+            public int encodedSize(Metadata m, int version)
+            {
+                boolean noMetadata = m.flags.contains(Flag.NO_METADATA);
+                boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);
+                boolean hasMorePages = m.flags.contains(Flag.HAS_MORE_PAGES);
+
+                int size = 8;
+                if (hasMorePages)
+                    size += CBUtil.sizeOfValue(m.pagingState.serialize());
+
+                if (!noMetadata)
+                {
+                    if (globalTablesSpec)
+                    {
+                        size += CBUtil.sizeOfString(m.names.get(0).ksName);
+                        size += CBUtil.sizeOfString(m.names.get(0).cfName);
+                    }
+
+                    for (ColumnSpecification name : m.names)
+                    {
+                        if (!globalTablesSpec)
+                        {
+                            size += CBUtil.sizeOfString(name.ksName);
+                            size += CBUtil.sizeOfString(name.cfName);
+                        }
+                        size += CBUtil.sizeOfString(name.toString());
+                        size += DataType.codec.oneSerializedSize(DataType.fromType(name.type));
+                    }
+                }
+                return size;
             }
         }
     }

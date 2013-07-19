@@ -38,11 +38,14 @@ public class SupportedMessage extends Message.Response
             return new SupportedMessage(CBUtil.readStringToStringListMap(body));
         }
 
-        public ChannelBuffer encode(SupportedMessage msg, int version)
+        public void encode(SupportedMessage msg, ChannelBuffer dest, int version)
         {
-            ChannelBuffer cb = ChannelBuffers.dynamicBuffer();
-            CBUtil.writeStringToStringListMap(cb, msg.supported);
-            return cb;
+            CBUtil.writeStringToStringListMap(msg.supported, dest);
+        }
+
+        public int encodedSize(SupportedMessage msg, int version)
+        {
+            return CBUtil.sizeOfStringToStringListMap(msg.supported);
         }
     };
 
@@ -52,11 +55,6 @@ public class SupportedMessage extends Message.Response
     {
         super(Message.Type.SUPPORTED);
         this.supported = supported;
-    }
-
-    public ChannelBuffer encode(int version)
-    {
-        return codec.encode(this, version);
     }
 
     @Override

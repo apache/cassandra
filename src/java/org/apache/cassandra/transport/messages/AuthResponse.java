@@ -39,7 +39,6 @@ public class AuthResponse extends Message.Request
 {
     public static final Message.Codec<AuthResponse> codec = new Message.Codec<AuthResponse>()
     {
-        @Override
         public AuthResponse decode(ChannelBuffer body, int version)
         {
             if (version == 1)
@@ -51,10 +50,14 @@ public class AuthResponse extends Message.Request
             return new AuthResponse(token);
         }
 
-        @Override
-        public ChannelBuffer encode(AuthResponse response, int version)
+        public void encode(AuthResponse response, ChannelBuffer dest, int version)
         {
-            return CBUtil.valueToCB(response.token);
+            CBUtil.writeValue(response.token, dest);
+        }
+
+        public int encodedSize(AuthResponse response, int version)
+        {
+            return CBUtil.sizeOfValue(response.token);
         }
     };
 
@@ -64,11 +67,6 @@ public class AuthResponse extends Message.Request
     {
         super(Message.Type.AUTH_RESPONSE);
         this.token = token;
-    }
-
-    public ChannelBuffer encode(int version)
-    {
-        return codec.encode(this, version);
     }
 
     @Override

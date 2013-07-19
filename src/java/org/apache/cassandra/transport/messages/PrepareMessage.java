@@ -38,9 +38,14 @@ public class PrepareMessage extends Message.Request
             return new PrepareMessage(query);
         }
 
-        public ChannelBuffer encode(PrepareMessage msg, int version)
+        public void encode(PrepareMessage msg, ChannelBuffer dest, int version)
         {
-            return CBUtil.longStringToCB(msg.query);
+            CBUtil.writeLongString(msg.query, dest);
+        }
+
+        public int encodedSize(PrepareMessage msg, int version)
+        {
+            return CBUtil.sizeOfLongString(msg.query);
         }
     };
 
@@ -50,11 +55,6 @@ public class PrepareMessage extends Message.Request
     {
         super(Message.Type.PREPARE);
         this.query = query;
-    }
-
-    public ChannelBuffer encode(int version)
-    {
-        return codec.encode(this, version);
     }
 
     public Message.Response execute(QueryState state)

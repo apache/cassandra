@@ -31,9 +31,14 @@ public class EventMessage extends Message.Response
             return new EventMessage(Event.deserialize(body));
         }
 
-        public ChannelBuffer encode(EventMessage msg, int version)
+        public void encode(EventMessage msg, ChannelBuffer dest, int version)
         {
-            return msg.event.serialize();
+            msg.event.serialize(dest);
+        }
+
+        public int encodedSize(EventMessage msg, int version)
+        {
+            return msg.event.serializedSize();
         }
     };
 
@@ -44,11 +49,6 @@ public class EventMessage extends Message.Response
         super(Message.Type.EVENT);
         this.event = event;
         this.setStreamId(-1);
-    }
-
-    public ChannelBuffer encode(int version)
-    {
-        return codec.encode(this, version);
     }
 
     @Override

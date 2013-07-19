@@ -30,7 +30,6 @@ public class AuthChallenge extends Message.Response
 {
     public static final Message.Codec<AuthChallenge> codec = new Message.Codec<AuthChallenge>()
     {
-        @Override
         public AuthChallenge decode(ChannelBuffer body, int version)
         {
             ByteBuffer b = CBUtil.readValue(body);
@@ -39,10 +38,14 @@ public class AuthChallenge extends Message.Response
             return new AuthChallenge(token);
         }
 
-        @Override
-        public ChannelBuffer encode(AuthChallenge challenge, int version)
+        public void encode(AuthChallenge challenge, ChannelBuffer dest, int version)
         {
-            return CBUtil.valueToCB(challenge.token);
+            CBUtil.writeValue(challenge.token, dest);
+        }
+
+        public int encodedSize(AuthChallenge challenge, int version)
+        {
+            return CBUtil.sizeOfValue(challenge.token);
         }
     };
 
@@ -52,11 +55,6 @@ public class AuthChallenge extends Message.Response
     {
         super(Message.Type.AUTH_CHALLENGE);
         this.token = token;
-    }
-
-    public ChannelBuffer encode(int version)
-    {
-        return codec.encode(this, version);
     }
 
     public byte[] getToken()

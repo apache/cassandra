@@ -104,18 +104,18 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         {
             case CUSTOM:
                 assert value instanceof String;
-                cb.writeBytes(CBUtil.stringToCB((String)value));
+                CBUtil.writeString((String)value, cb);
                 break;
             case LIST:
-                cb.writeBytes(codec.encodeOne(DataType.fromType((AbstractType)value)));
+                codec.writeOne(DataType.fromType((AbstractType)value), cb);
                 break;
             case SET:
-                cb.writeBytes(codec.encodeOne(DataType.fromType((AbstractType)value)));
+                codec.writeOne(DataType.fromType((AbstractType)value), cb);
                 break;
             case MAP:
                 List<AbstractType> l = (List<AbstractType>)value;
-                cb.writeBytes(codec.encodeOne(DataType.fromType(l.get(0))));
-                cb.writeBytes(codec.encodeOne(DataType.fromType(l.get(1))));
+                codec.writeOne(DataType.fromType(l.get(0)), cb);
+                codec.writeOne(DataType.fromType(l.get(1)), cb);
                 break;
         }
     }

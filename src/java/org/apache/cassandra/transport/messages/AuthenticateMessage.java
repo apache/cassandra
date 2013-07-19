@@ -35,9 +35,14 @@ public class AuthenticateMessage extends Message.Response
             return new AuthenticateMessage(authenticator);
         }
 
-        public ChannelBuffer encode(AuthenticateMessage msg, int version)
+        public void encode(AuthenticateMessage msg, ChannelBuffer dest, int version)
         {
-            return CBUtil.stringToCB(msg.authenticator);
+            CBUtil.writeString(msg.authenticator, dest);
+        }
+
+        public int encodedSize(AuthenticateMessage msg, int version)
+        {
+            return CBUtil.sizeOfString(msg.authenticator);
         }
     };
 
@@ -47,11 +52,6 @@ public class AuthenticateMessage extends Message.Response
     {
         super(Message.Type.AUTHENTICATE);
         this.authenticator = authenticator;
-    }
-
-    public ChannelBuffer encode(int version)
-    {
-        return codec.encode(this, version);
     }
 
     @Override
