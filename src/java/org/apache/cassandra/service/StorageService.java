@@ -1351,20 +1351,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.debug("Node " + endpoint + " state normal, token " + tokens);
 
         if (tokenMetadata.isMember(endpoint))
-        {
             logger.info("Node " + endpoint + " state jump to normal");
-
-            if (!isClientMode)
-            {
-                for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
-                    subscriber.onUp(endpoint);
-            }
-        }
-        else if (!isClientMode)
-        {
-            for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
-                subscriber.onJoinCluster(endpoint);
-        }
 
         // Order Matters, TM.updateHostID() should be called before TM.updateNormalToken(), (see CASSANDRA-4300).
         if (Gossiper.instance.usesHostId(endpoint))
@@ -1976,8 +1963,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void onAlive(InetAddress endpoint, EndpointState state)
     {
-        if (!isClientMode && getTokenMetadata().isMember(endpoint))
+        if (isClientMode)
+            return;
+
+        if (tokenMetadata.isMember(endpoint))
+        {
             HintedHandOffManager.instance.scheduleHintDelivery(endpoint);
+            for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+                subscriber.onUp(endpoint);
+        }
+        else
+        {
+            for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+                subscriber.onJoinCluster(endpoint);
+        }
     }
 
     public void onRemove(InetAddress endpoint)

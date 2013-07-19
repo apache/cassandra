@@ -21,6 +21,7 @@
  * cqlsh: handle CUSTOM 2i in DESCRIBE output (CASSANDRA-5760)
  * Fix minor bug in Range.intersects(Bound) (CASSANDRA-5771)
  * cqlsh: handle disabled compression in DESCRIBE output (CASSANDRA-5766)
+ * Ensure all UP events are notified on the native protocol (CASSANDRA-5769)
 
 
 1.2.6
