@@ -523,7 +523,7 @@ public abstract class ModificationStatement implements CQLStatement
         {
             super(name);
             this.attrs = attrs;
-            this.conditions = conditions;
+            this.conditions = conditions == null ? Collections.<Pair<ColumnIdentifier, Operation.RawUpdate>>emptyList() : conditions;
             this.ifNotExists = ifNotExists;
         }
 
