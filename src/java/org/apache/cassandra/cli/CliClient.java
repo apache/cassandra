@@ -194,6 +194,10 @@ public class CliClient
     public void printBanner()
     {
         sessionState.out.println("Welcome to Cassandra CLI version " + FBUtilities.getReleaseVersionString() + "\n");
+
+        sessionState.out.println("Please consider using the more convenient cqlsh instead of CLI");
+        sessionState.out.println("CQL3 is fully backwards compatible with Thrift data; see http://www.datastax.com/dev/blog/thrift-to-cql3\n");
+
         sessionState.out.println(getHelp().banner);
     }
 
