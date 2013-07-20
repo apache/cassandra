@@ -316,13 +316,12 @@ public class SSTableExport
 
             Iterator<OnDiskAtom> atomIterator = sstable.metadata.getOnDiskIterator(dfile, columnCount, sstable.descriptor.version);
 
-            serializeRow(deletionInfo, atomIterator, sstable.metadata, decoratedKey, outs);
+            checkStream(outs);
 
             if (i != 0)
                 outs.println(",");
-
-            checkStream(outs);
             i++;
+            serializeRow(deletionInfo, atomIterator, sstable.metadata, decoratedKey, outs);
         }
 
         outs.println("\n]");
