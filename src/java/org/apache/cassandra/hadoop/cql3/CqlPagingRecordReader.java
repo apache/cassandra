@@ -706,7 +706,7 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
             for (int i = 0; i < partitionBoundColumns.size(); i++)
                 keys[i] = partitionBoundColumns.get(i).value.duplicate();
 
-            rowKey = ((CompositeType) keyValidator).build(keys);
+            rowKey = CompositeType.build(keys);
         }
         else
         {
