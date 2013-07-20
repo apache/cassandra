@@ -355,12 +355,11 @@ public class SSTableExport
             if (!row.getKey().equals(decoratedKey))
                 continue;
 
-            serializeRow(row, decoratedKey, outs);
-
             if (i != 0)
                 outs.println(",");
-
             i++;
+
+            serializeRow(row, decoratedKey, outs);
         }
 
         outs.println("\n]");
