@@ -49,9 +49,9 @@ public class StreamTransferTask extends StreamTask
     }
 
     /**
-     * Complete sending file.
+     * Received ACK for file at {@code sequenceNumber}.
      *
-     * @param sequenceNumber sequence number of completed file transfer
+     * @param sequenceNumber sequence number of file
      */
     public void complete(int sequenceNumber)
     {

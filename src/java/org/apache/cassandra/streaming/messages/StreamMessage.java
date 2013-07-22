@@ -65,9 +65,10 @@ public abstract class StreamMessage
     {
         PREPARE(1, 5, PrepareMessage.serializer),
         FILE(2, 0, FileMessage.serializer),
-        RETRY(3, 1, RetryMessage.serializer),
-        COMPLETE(4, 4, CompleteMessage.serializer),
-        SESSION_FAILED(5, 5, SessionFailedMessage.serializer);
+        RECEIVED(3, 1, ReceivedMessage.serializer),
+        RETRY(4, 1, RetryMessage.serializer),
+        COMPLETE(5, 4, CompleteMessage.serializer),
+        SESSION_FAILED(6, 5, SessionFailedMessage.serializer);
 
         public static Type get(byte type)
         {

@@ -17,6 +17,7 @@
  * Update deletion timestamp in Commit#updatesWithPaxosTime (CASSANDRA-5787)
  * Thrift cas() method crashes if input columns are not sorted (CASSANDRA-5786)
  * Order columns names correctly when querying for CAS (CASSANDRA-5788)
+ * Fix streaming retry (CASSANDRA-5775)
 
 
 2.0.0-beta1

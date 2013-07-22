@@ -19,7 +19,6 @@ package org.apache.cassandra.streaming;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.Future;
 
@@ -359,7 +358,12 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
                 break;
 
             case FILE:
-                received((FileMessage) message);
+                receive((FileMessage) message);
+                break;
+
+            case RECEIVED:
+                ReceivedMessage received = (ReceivedMessage) message;
+                received(received.cfId, received.sequenceNumber);
                 break;
 
             case RETRY:
@@ -455,7 +459,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
     {
         StreamingMetrics.totalOutgoingBytes.inc(header.size());
         metrics.outgoingBytes.inc(header.size());
-        transfers.get(header.cfId).complete(header.sequenceNumber);
     }
 
     /**
@@ -463,10 +466,12 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
      *
      * @param message received file
      */
-    public void received(FileMessage message)
+    public void receive(FileMessage message)
     {
         StreamingMetrics.totalIncomingBytes.inc(message.header.size());
         metrics.incomingBytes.inc(message.header.size());
+        // send back file received message
+        handler.sendMessage(new ReceivedMessage(message.header.cfId, message.header.sequenceNumber));
         receivers.get(message.header.cfId).received(message.sstable);
     }
 
@@ -474,6 +479,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
     {
         ProgressInfo progress = new ProgressInfo(peer, desc.filenameFor(Component.DATA), direction, bytes, total);
         streamResult.handleProgress(progress);
+    }
+
+    public void received(UUID cfId, int sequenceNumber)
+    {
+        transfers.get(cfId).complete(sequenceNumber);
     }
 
     /**
@@ -513,6 +523,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
 
     public void doRetry(FileMessageHeader header, Throwable e)
     {
+        logger.warn("retrying for following error", e);
         // retry
         retries++;
         if (retries > DatabaseDescriptor.getMaxStreamingRetries())
