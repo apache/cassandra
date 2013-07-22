@@ -19,10 +19,6 @@ package org.apache.cassandra.net;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * A callback specialized for returning a value from a single target; that is, this is for messages
@@ -31,64 +27,52 @@ import java.util.concurrent.locks.ReentrantLock;
 public class AsyncOneResponse<T> implements IAsyncCallback<T>
 {
     private T result;
-    private final AtomicBoolean done = new AtomicBoolean(false);
-    private final Lock lock = new ReentrantLock();
-    private final Condition condition;
-    private final long start;
-
-    public AsyncOneResponse()
-    {
-        condition = lock.newCondition();
-        start = System.nanoTime();
-    }
+    private boolean done;
+    private final long start = System.nanoTime();
 
     public T get(long timeout, TimeUnit tu) throws TimeoutException
     {
-        lock.lock();
+        timeout = tu.toNanos(timeout);
+        boolean interrupted = false;
         try
         {
-            boolean bVal = true;
-            try
+            synchronized (this)
             {
-                if (!done.get())
+                while (!done)
                 {
-                    timeout = tu.toNanos(timeout);
-                    long overall_timeout = timeout - (System.nanoTime() - start);
-                    bVal = overall_timeout > 0 && condition.await(overall_timeout, TimeUnit.NANOSECONDS);
+                    try
+                    {
+                        long overallTimeout = timeout - (System.nanoTime() - start);
+                        if (overallTimeout <= 0)
+                        {
+                            throw new TimeoutException("Operation timed out.");
+                        }
+                        TimeUnit.NANOSECONDS.timedWait(this, overallTimeout);
+                    }
+                    catch (InterruptedException e)
+                    {
+                        interrupted = true;
+                    }
                 }
-            }
-            catch (InterruptedException ex)
-            {
-                throw new AssertionError(ex);
-            }
-
-            if (!bVal && !done.get())
-            {
-                throw new TimeoutException("Operation timed out.");
             }
         }
         finally
         {
-            lock.unlock();
+            if (interrupted)
+            {
+                Thread.currentThread().interrupt();
+            }
         }
         return result;
     }
 
-    public void response(MessageIn<T> response)
+    public synchronized void response(MessageIn<T> response)
     {
-        try
+        if (!done)
         {
-            lock.lock();
-            if (!done.get())
-            {
-                result = response.payload;
-                done.set(true);
-                condition.signal();
-            }
-        }
-        finally
-        {
-            lock.unlock();
+            result = response.payload;
+            done = true;
+            this.notifyAll();
         }
     }
 

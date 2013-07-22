@@ -1,3 +1,7 @@
+2.0.0-rc1
+ * fix potential spurious wakeup in AsyncOneResponse (CASSANDRA-5690)
+
+
 2.0.0-beta2
  * Replace countPendingHints with Hints Created metric (CASSANDRA-5746)
  * Allow nodetool with no args, and with help to run without a server (CASSANDRA-5734)
