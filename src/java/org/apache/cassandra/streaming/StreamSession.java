@@ -620,8 +620,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
         state(State.STREAMING);
         for (StreamTransferTask task : transfers.values())
         {
-            if (task.getFileMessages().size() > 0)
-                handler.sendMessages(task.getFileMessages());
+            Collection<FileMessage> messages = task.getFileMessages();
+            if (messages.size() > 0)
+                handler.sendMessages(messages);
             else
                 taskCompleted(task); // there is no file to send
         }

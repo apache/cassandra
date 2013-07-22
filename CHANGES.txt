@@ -13,6 +13,7 @@
  * CAS on 'primary key only' table (CASSANDRA-5715)
  * Support streaming SSTables of old versions (CASSANDRA-5772)
  * Always respect protocol version in native protocol (CASSANDRA-5778)
+ * Fix ConcurrentModificationException during streaming (CASSANDRA-5782)
 
 
 2.0.0-beta1

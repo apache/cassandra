@@ -73,7 +73,9 @@ public class StreamTransferTask extends StreamTask
 
     public Collection<FileMessage> getFileMessages()
     {
-        return files.values();
+        // We may race between queuing all those messages and the completion of the completion of
+        // the first ones. So copy the values to avoid a ConcurrentModificationException
+        return new ArrayList<>(files.values());
     }
 
     public FileMessage createMessageForRetry(int sequenceNumber)
