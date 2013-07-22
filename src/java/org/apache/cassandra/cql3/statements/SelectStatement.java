@@ -368,13 +368,40 @@ public class SelectStatement implements CQLStatement
             // Since that doesn't work for maps/sets/lists, we now use the compositesToGroup option of SliceQueryFilter.
             // But we must preserve backward compatibility too (for mixed version cluster that is).
             int toGroup = cfDef.isCompact ? -1 : cfDef.columns.size();
-            ColumnSlice slice = new ColumnSlice(getRequestedBound(Bound.START, variables),
-                                                getRequestedBound(Bound.END, variables));
+            List<ByteBuffer> startBounds = getRequestedBound(Bound.START, variables);
+            List<ByteBuffer> endBounds = getRequestedBound(Bound.END, variables);
+            assert startBounds.size() == endBounds.size();
 
-            if (slice.isAlwaysEmpty(cfDef.cfm.comparator, isReversed))
-                return null;
+            // The case where startBounds == 1 is common enough that it's worth optimizing
+            ColumnSlice[] slices;
+            if (startBounds.size() == 1)
+            {
+                ColumnSlice slice = new ColumnSlice(startBounds.get(0), endBounds.get(0));
+                if (slice.isAlwaysEmpty(cfDef.cfm.comparator, isReversed))
+                    return null;
+                slices = new ColumnSlice[]{slice};
+            }
+            else
+            {
+                // The IN query might not have listed the values in comparator order, so we need to re-sort
+                // the bounds lists to make sure the slices works correctly
+                Comparator<ByteBuffer> cmp = isReversed ? cfDef.cfm.comparator.reverseComparator : cfDef.cfm.comparator;
+                Collections.sort(startBounds, cmp);
+                Collections.sort(endBounds, cmp);
 
-            SliceQueryFilter filter = new SliceQueryFilter(new ColumnSlice[]{slice},
+                List<ColumnSlice> l = new ArrayList<ColumnSlice>(startBounds.size());
+                for (int i = 0; i < startBounds.size(); i++)
+                {
+                    ColumnSlice slice = new ColumnSlice(startBounds.get(i), endBounds.get(i));
+                    if (!slice.isAlwaysEmpty(cfDef.cfm.comparator, isReversed))
+                        l.add(slice);
+                }
+                if (l.isEmpty())
+                    return null;
+                slices = l.toArray(new ColumnSlice[l.size()]);
+            }
+
+            SliceQueryFilter filter = new SliceQueryFilter(slices,
                                                            isReversed,
                                                            limit,
                                                            toGroup);
@@ -452,7 +479,8 @@ public class SelectStatement implements CQLStatement
 
     private ByteBuffer getKeyBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
     {
-        return buildBound(b, cfDef.keys.values(), keyRestrictions, false, cfDef.getKeyNameBuilder(), variables);
+        // We deal with IN queries for keys in other places, so we know buildBound will return only one result
+        return buildBound(b, cfDef.keys.values(), keyRestrictions, false, cfDef.getKeyNameBuilder(), variables).get(0);
     }
 
     private Token getTokenBound(Bound b, List<ByteBuffer> variables, IPartitioner<?> p) throws InvalidRequestException
@@ -488,16 +516,13 @@ public class SelectStatement implements CQLStatement
 
     private boolean isColumnRange()
     {
-        // Static CF never entails a column slice
-        if (!cfDef.isCompact && !cfDef.isComposite)
-            return false;
+        // Due to CASSANDRA-5762, we always do a slice for CQL3 tables (not compact, composite).
+        // Static CF (non compact but non composite) never entails a column slice however
+        if (!cfDef.isCompact)
+            return cfDef.isComposite;
 
-        // However, collections always entails one
-        if (selectACollection())
-            return true;
-
-        // Otherwise, it is a range query if it has at least one the column alias
-        // for which no relation is defined or is not EQ.
+        // Otherwise (i.e. for compact table where we don't have a row marker anyway and thus don't care about CASSANDRA-5762),
+        // it is a range query if it has at least one the column alias for which no relation is defined or is not EQ.
         for (Restriction r : columnRestrictions)
         {
             if (r == null || !r.isEquality())
@@ -606,12 +631,12 @@ public class SelectStatement implements CQLStatement
         return false;
     }
 
-    private static ByteBuffer buildBound(Bound bound,
-                                         Collection<CFDefinition.Name> names,
-                                         Restriction[] restrictions,
-                                         boolean isReversed,
-                                         ColumnNameBuilder builder,
-                                         List<ByteBuffer> variables) throws InvalidRequestException
+    private static List<ByteBuffer> buildBound(Bound bound,
+                                               Collection<CFDefinition.Name> names,
+                                               Restriction[] restrictions,
+                                               boolean isReversed,
+                                               ColumnNameBuilder builder,
+                                               List<ByteBuffer> variables) throws InvalidRequestException
     {
         // The end-of-component of composite doesn't depend on whether the
         // component type is reversed or not (i.e. the ReversedType is applied
@@ -630,15 +655,30 @@ public class SelectStatement implements CQLStatement
                 // There wasn't any non EQ relation on that key, we select all records having the preceding component as prefix.
                 // For composites, if there was preceding component and we're computing the end, we must change the last component
                 // End-Of-Component, otherwise we would be selecting only one record.
-                if (builder.componentCount() > 0 && eocBound == Bound.END)
-                    return builder.buildAsEndOfRange();
-                else
-                    return builder.build();
+                return Collections.singletonList(builder.componentCount() > 0 && eocBound == Bound.END
+                                                 ? builder.buildAsEndOfRange()
+                                                 : builder.build());
             }
 
             if (r.isEquality())
             {
-                assert r.eqValues.size() == 1;
+                if (r.eqValues.size() > 1)
+                {
+                    // IN query, we only support it on the clustering column
+                    assert name.position == names.size() - 1;
+                    List<ByteBuffer> l = new ArrayList<ByteBuffer>(r.eqValues.size());
+                    for (Term t : r.eqValues)
+                    {
+                        ByteBuffer val = t.bindAndGet(variables);
+                        if (val == null)
+                            throw new InvalidRequestException(String.format("Invalid null clustering key part %s", name));
+                        ColumnNameBuilder copy = builder.copy().add(val);
+                        // See below for why this
+                        l.add((bound == Bound.END && copy.remainingCount() > 0) ? copy.buildAsEndOfRange() : copy.build());
+                    }
+                    return l;
+                }
+
                 ByteBuffer val = r.eqValues.get(0).bindAndGet(variables);
                 if (val == null)
                     throw new InvalidRequestException(String.format("Invalid null clustering key part %s", name));
@@ -651,7 +691,7 @@ public class SelectStatement implements CQLStatement
                 ByteBuffer val = t.bindAndGet(variables);
                 if (val == null)
                     throw new InvalidRequestException(String.format("Invalid null clustering key part %s", name));
-                return builder.add(val, r.getRelation(eocBound, b)).build();
+                return Collections.singletonList(builder.add(val, r.getRelation(eocBound, b)).build());
             }
         }
         // Means no relation at all or everything was an equal
@@ -660,10 +700,10 @@ public class SelectStatement implements CQLStatement
         // with 2ndary index is done, and with the the partition provided with an EQ, we'll end up here, and in that
         // case using the eoc would be bad, since for the random partitioner we have no guarantee that
         // builder.buildAsEndOfRange() will sort after builder.build() (see #5240).
-        return (bound == Bound.END && builder.remainingCount() > 0) ? builder.buildAsEndOfRange() : builder.build();
+        return Collections.singletonList((bound == Bound.END && builder.remainingCount() > 0) ? builder.buildAsEndOfRange() : builder.build());
     }
 
-    private ByteBuffer getRequestedBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
+    private List<ByteBuffer> getRequestedBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
     {
         assert isColumnRange();
         return buildBound(b, cfDef.columns.values(), columnRestrictions, isReversed, cfDef.getColumnNameBuilder(), variables);

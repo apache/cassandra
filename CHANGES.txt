@@ -116,6 +116,8 @@
  * cqlsh: handle disabled compression in DESCRIBE output (CASSANDRA-5766)
  * Ensure all UP events are notified on the native protocol (CASSANDRA-5769)
  * Fix formatting of sstable2json with multiple -k arguments (CASSANDRA-5781)
+ * Don't rely on row marker for queries in general to hide lost markers
+   after TTL expires (CASSANDRA-5762)
 
 
 1.2.6
