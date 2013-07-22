@@ -24,11 +24,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Properties;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.io.util.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class InvertedIndex implements ITrigger {
     private static final Logger logger = LoggerFactory.getLogger(InvertedIndex.class);

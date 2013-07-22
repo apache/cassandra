@@ -502,19 +502,19 @@ createIndexStatement returns [CreateIndexStatement expr]
     ;
 
 /**
- * CREATE TRIGGER [triggerName] ON columnFamily (columnName) EXECUTE (class, class);
+ * CREATE TRIGGER triggerName ON columnFamily USING 'triggerClass';
  */
 createTriggerStatement returns [CreateTriggerStatement expr]
-    : K_CREATE K_TRIGGER (tn=IDENT) K_ON cf=columnFamilyName K_USING tc1=STRING_LITERAL
-      { $expr = new CreateTriggerStatement(cf, $tn.text, $tc1.text); }
+    : K_CREATE K_TRIGGER (name=IDENT) K_ON cf=columnFamilyName K_USING cls=STRING_LITERAL
+      { $expr = new CreateTriggerStatement(cf, $name.text, $cls.text); }
     ;
 
 /**
- * DROP TRIGGER [triggerName] ON columnFamily (columnName);
+ * DROP TRIGGER triggerName ON columnFamily;
  */
 dropTriggerStatement returns [DropTriggerStatement expr]
-    : K_DROP K_TRIGGER (tn=IDENT) K_ON cf=columnFamilyName
-      { $expr = new DropTriggerStatement(cf, $tn.text); }
+    : K_DROP K_TRIGGER (name=IDENT) K_ON cf=columnFamilyName
+      { $expr = new DropTriggerStatement(cf, $name.text); }
     ;
 
 /**

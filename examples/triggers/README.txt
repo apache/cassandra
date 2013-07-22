@@ -16,6 +16,6 @@ Copy conf/* to <cassandra_home>/conf/
 Create column family configured in InvertedIndex.properties 
     Example: Keyspace1.InvertedIndex as configured in InvertedIndex.properties
 Configure trigger on the table.
-    Example: CREATE TRIGGER test1 ON "Keyspace1"."Standard1" 
-                    EXECUTE ('org.apache.cassandra.triggers.InvertedIndex');
+    Example: CREATE TRIGGER test1 ON "Keyspace1"."Standard1"
+                 USING 'org.apache.cassandra.triggers.InvertedIndex';
 Start inserting data to the column family which has the triggers. 
