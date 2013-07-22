@@ -1483,14 +1483,14 @@ public final class CFMetaData
     public RowMutation dropFromSchema(long timestamp)
     {
         RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(ksName));
-        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF);
+        ColumnFamily cf = rm.addOrGet(SchemaColumnFamiliesCf);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
         ColumnNameBuilder builder = SchemaColumnFamiliesCf.getCfDef().getColumnNameBuilder();
         builder.add(ByteBufferUtil.bytes(cfName));
         cf.addAtom(new RangeTombstone(builder.build(), builder.buildAsEndOfRange(), timestamp, ldt));
 
-        ColumnFamily tcf = rm.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
+        ColumnFamily tcf = rm.addOrGet(SchemaTriggersCf);
         ColumnNameBuilder tbuilder = SchemaTriggersCf.getCfDef().getColumnNameBuilder();
         tbuilder.add(ByteBufferUtil.bytes(cfName));
         tcf.addAtom(new RangeTombstone(tbuilder.build(), tbuilder.buildAsEndOfRange(), timestamp, ldt));
@@ -1513,7 +1513,7 @@ public final class CFMetaData
     {
         // For property that can be null (and can be changed), we insert tombstones, to make sure
         // we don't keep a property the user has removed
-        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF);
+        ColumnFamily cf = rm.addOrGet(SchemaColumnFamiliesCf);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
         cf.addColumn(Column.create("", timestamp, cfName, ""));

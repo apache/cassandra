@@ -120,7 +120,11 @@ public class RowMutation implements IMutation
      */
     public ColumnFamily addOrGet(String cfName)
     {
-        CFMetaData cfm = Schema.instance.getCFMetaData(keyspaceName, cfName);
+        return addOrGet(Schema.instance.getCFMetaData(keyspaceName, cfName));
+    }
+
+    public ColumnFamily addOrGet(CFMetaData cfm)
+    {
         ColumnFamily cf = modifications.get(cfm.cfId);
         if (cf == null)
         {

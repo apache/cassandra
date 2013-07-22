@@ -237,7 +237,7 @@ public final class KSMetaData
     public RowMutation toSchema(long timestamp)
     {
         RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(name));
-        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_KEYSPACES_CF);
+        ColumnFamily cf = rm.addOrGet(CFMetaData.SchemaKeyspacesCf);
 
         cf.addColumn(Column.create(durableWrites, timestamp, "durable_writes"));
         cf.addColumn(Column.create(strategyClass.getName(), timestamp, "strategy_class"));

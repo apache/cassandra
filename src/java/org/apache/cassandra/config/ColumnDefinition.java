@@ -197,7 +197,7 @@ public class ColumnDefinition
      */
     public void deleteFromSchema(RowMutation rm, String cfName, long timestamp)
     {
-        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_COLUMNS_CF);
+        ColumnFamily cf = rm.addOrGet(CFMetaData.SchemaColumnsCf);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
         ColumnNameBuilder builder = CFMetaData.SchemaColumnsCf.getCfDef().getColumnNameBuilder();
@@ -207,7 +207,7 @@ public class ColumnDefinition
 
     public void toSchema(RowMutation rm, String cfName, AbstractType<?> comparator, long timestamp)
     {
-        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_COLUMNS_CF);
+        ColumnFamily cf = rm.addOrGet(CFMetaData.SchemaColumnsCf);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
         cf.addColumn(Column.create("", timestamp, cfName, comparator.getString(name), ""));

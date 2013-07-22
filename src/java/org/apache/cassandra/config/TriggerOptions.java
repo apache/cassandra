@@ -55,7 +55,7 @@ public class TriggerOptions
 
     public static void addColumns(RowMutation rm, String cfName, Entry<String, Map<String, String>> tentry, long modificationTimestamp)
     {
-        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
+        ColumnFamily cf = rm.addOrGet(CFMetaData.SchemaTriggersCf);
         assert tentry.getValue().get(CLASS_KEY) != null;
         ColumnNameBuilder builder = CFMetaData.SchemaTriggersCf.getCfDef().getColumnNameBuilder();
         builder.add(ByteBufferUtil.bytes(cfName)).add(ByteBufferUtil.bytes(tentry.getKey())).add(ByteBufferUtil.bytes(OPTIONS_KEY));
@@ -69,7 +69,7 @@ public class TriggerOptions
 
     public static void deleteColumns(RowMutation rm, String cfName, Entry<String, Map<String, String>> tentry, long modificationTimestamp)
     {
-        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
+        ColumnFamily cf = rm.addOrGet(CFMetaData.SchemaTriggersCf);
         int ldt = (int) (System.currentTimeMillis() / 1000);
         ColumnNameBuilder builder = CFMetaData.SchemaTriggersCf.getCfDef().getColumnNameBuilder();
         builder.add(ByteBufferUtil.bytes(cfName)).add(ByteBufferUtil.bytes(tentry.getKey()));
