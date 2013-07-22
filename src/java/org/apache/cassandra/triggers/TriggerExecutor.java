@@ -1,6 +1,4 @@
-package org.apache.cassandra.triggers;
 /*
- * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,17 +15,19 @@ package org.apache.cassandra.triggers;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
  */
-
+package org.apache.cassandra.triggers;
 
 import java.io.File;
-import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+
+import org.apache.cassandra.config.TriggerDefinition;
 import org.apache.cassandra.cql.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.CounterMutation;
@@ -35,9 +35,6 @@ import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.FBUtilities;
-
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 
 public class TriggerExecutor
 {
@@ -106,20 +103,20 @@ public class TriggerExecutor
      */
     private List<RowMutation> execute(ByteBuffer key, ColumnFamily columnFamily)
     {
-        Collection<String> triggerNames = columnFamily.metadata().getTriggerClasses();
-        if (triggerNames == null)
+        Map<String,TriggerDefinition> triggers = columnFamily.metadata().getTriggers();
+        if (triggers.isEmpty())
             return null;
         List<RowMutation> tmutations = Lists.newLinkedList();
         Thread.currentThread().setContextClassLoader(customClassLoader);
         try
         {
-            for (String triggerName : triggerNames)
+            for (TriggerDefinition td : triggers.values())
             {
-                ITrigger trigger = cachedTriggers.get(triggerName);
+                ITrigger trigger = cachedTriggers.get(td.classOption);
                 if (trigger == null)
                 {
-                    trigger = loadTriggerInstance(triggerName);
-                    cachedTriggers.put(triggerName, trigger);
+                    trigger = loadTriggerInstance(td.classOption);
+                    cachedTriggers.put(td.classOption, trigger);
                 }
                 Collection<RowMutation> temp = trigger.augment(key, columnFamily);
                 if (temp != null)
@@ -142,8 +139,6 @@ public class TriggerExecutor
         // double check.
         if (cachedTriggers.get(triggerName) != null)
             return cachedTriggers.get(triggerName);
-
-        Constructor<? extends ITrigger> costructor = (Constructor<? extends ITrigger>) customClassLoader.loadClass(triggerName).getConstructor(new Class<?>[0]);
-        return costructor.newInstance(new Object[0]);
+        return (ITrigger) customClassLoader.loadClass(triggerName).getConstructor().newInstance();
     }
 }

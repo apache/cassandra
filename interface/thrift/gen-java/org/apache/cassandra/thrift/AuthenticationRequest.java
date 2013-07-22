@@ -383,7 +383,7 @@ public class AuthenticationRequest implements org.apache.thrift.TBase<Authentica
                 struct.credentials = new HashMap<String,String>(2*_map80.size);
                 for (int _i81 = 0; _i81 < _map80.size; ++_i81)
                 {
-                  String _key82; // required
+                  String _key82; // optional
                   String _val83; // required
                   _key82 = iprot.readString();
                   _val83 = iprot.readString();
@@ -459,7 +459,7 @@ public class AuthenticationRequest implements org.apache.thrift.TBase<Authentica
         struct.credentials = new HashMap<String,String>(2*_map86.size);
         for (int _i87 = 0; _i87 < _map86.size; ++_i87)
         {
-          String _key88; // required
+          String _key88; // optional
           String _val89; // required
           _key88 = iprot.readString();
           _val89 = iprot.readString();

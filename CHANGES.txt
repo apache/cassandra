@@ -1,5 +1,6 @@
 2.0.0-rc1
  * fix potential spurious wakeup in AsyncOneResponse (CASSANDRA-5690)
+ * fix schema-related trigger issues (CASSANDRA-5774)
 
 
 2.0.0-beta2

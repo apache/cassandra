@@ -148,6 +148,15 @@ public class ColumnDefinition
         return type == ColumnDefinition.Type.REGULAR && componentIndex == null;
     }
 
+    public static List<ColumnDef> toThrift(Map<ByteBuffer, ColumnDefinition> columns)
+    {
+        List<ColumnDef> thriftDefs = new ArrayList<>(columns.size());
+        for (ColumnDefinition def : columns.values())
+            if (def.type == ColumnDefinition.Type.REGULAR)
+                thriftDefs.add(def.toThrift());
+        return thriftDefs;
+    }
+
     public ColumnDef toThrift()
     {
         ColumnDef cd = new ColumnDef();

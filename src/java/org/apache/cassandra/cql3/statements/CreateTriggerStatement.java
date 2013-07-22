@@ -17,13 +17,15 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.TriggerOptions;
+import org.apache.cassandra.config.TriggerDefinition;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -32,21 +34,19 @@ import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class CreateTriggerStatement extends SchemaAlteringStatement
 {
     private static final Logger logger = LoggerFactory.getLogger(CreateTriggerStatement.class);
 
     private final String triggerName;
-    private final String clazz;
+    private final String triggerClass;
 
     public CreateTriggerStatement(CFName name, String triggerName, String clazz)
     {
         super(name);
         this.triggerName = triggerName;
-        this.clazz = clazz;
+        this.triggerClass = clazz;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -59,19 +59,19 @@ public class CreateTriggerStatement extends SchemaAlteringStatement
         ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
         try
         {
-            TriggerExecutor.instance.loadTriggerInstance(clazz);
+            TriggerExecutor.instance.loadTriggerInstance(triggerClass);
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-            throw new RequestValidationException(ExceptionCode.INVALID, "Trigger class: " + clazz + ", doesnt exist.", ex) {};
+            throw new ConfigurationException(String.format("Trigger class '%s' doesn't exist", triggerClass));
         }
     }
 
     public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).clone();
-        TriggerOptions.update(cfm, triggerName, clazz);
-        logger.info("Adding triggers with name {} and classes {}", triggerName, clazz);
+        cfm.addTriggerDefinition(TriggerDefinition.create(triggerName, triggerClass));
+        logger.info("Adding trigger with name {} and class {}", triggerName, triggerClass);
         MigrationManager.announceColumnFamilyUpdate(cfm, false);
     }
 

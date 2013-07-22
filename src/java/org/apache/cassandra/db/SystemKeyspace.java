@@ -676,11 +676,12 @@ public class SystemKeyspace
 
     public static List<Row> serializedSchema()
     {
-        List<Row> schema = new ArrayList<Row>(3);
+        List<Row> schema = new ArrayList<>();
 
         schema.addAll(serializedSchema(SCHEMA_KEYSPACES_CF));
         schema.addAll(serializedSchema(SCHEMA_COLUMNFAMILIES_CF));
         schema.addAll(serializedSchema(SCHEMA_COLUMNS_CF));
+        schema.addAll(serializedSchema(SCHEMA_TRIGGERS_CF));
 
         return schema;
     }
@@ -702,11 +703,12 @@ public class SystemKeyspace
 
     public static Collection<RowMutation> serializeSchema()
     {
-        Map<DecoratedKey, RowMutation> mutationMap = new HashMap<DecoratedKey, RowMutation>();
+        Map<DecoratedKey, RowMutation> mutationMap = new HashMap<>();
 
         serializeSchema(mutationMap, SCHEMA_KEYSPACES_CF);
         serializeSchema(mutationMap, SCHEMA_COLUMNFAMILIES_CF);
         serializeSchema(mutationMap, SCHEMA_COLUMNS_CF);
+        serializeSchema(mutationMap, SCHEMA_TRIGGERS_CF);
 
         return mutationMap.values();
     }
@@ -754,19 +756,25 @@ public class SystemKeyspace
         return new Row(key, result);
     }
 
-    public static Row readSchemaRow(String ksName, String cfName)
+    /**
+     * Fetches a subset of schema (table data, columns metadata or triggers) for the keyspace+table pair.
+     *
+     * @param schemaCfName the schema table to get the data from (schema_columnfamilies, schema_columns or schema_triggers)
+     * @param ksName the keyspace of the table we are interested in
+     * @param cfName the table we are interested in
+     * @return a Row containing the schema data of a particular type for the table
+     */
+    public static Row readSchemaRow(String schemaCfName, String ksName, String cfName)
     {
         DecoratedKey key = StorageService.getPartitioner().decorateKey(getSchemaKSKey(ksName));
-
-        ColumnFamilyStore schemaCFS = SystemKeyspace.schemaCFS(SCHEMA_COLUMNFAMILIES_CF);
-        ColumnFamily result = schemaCFS.getColumnFamily(key,
-                                                        DefsTables.searchComposite(cfName, true),
-                                                        DefsTables.searchComposite(cfName, false),
-                                                        false,
-                                                        Integer.MAX_VALUE,
-                                                        System.currentTimeMillis());
-
-        return new Row(key, result);
+        ColumnFamilyStore schemaCFS = SystemKeyspace.schemaCFS(schemaCfName);
+        ColumnFamily cf = schemaCFS.getColumnFamily(key,
+                                                    DefsTables.searchComposite(cfName, true),
+                                                    DefsTables.searchComposite(cfName, false),
+                                                    false,
+                                                    Integer.MAX_VALUE,
+                                                    System.currentTimeMillis());
+        return new Row(key, cf);
     }
 
     public static PaxosState loadPaxosState(ByteBuffer key, CFMetaData metadata)

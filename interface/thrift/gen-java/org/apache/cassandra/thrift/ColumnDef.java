@@ -771,7 +771,7 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
                 struct.index_options = new HashMap<String,String>(2*_map90.size);
                 for (int _i91 = 0; _i91 < _map90.size; ++_i91)
                 {
-                  String _key92; // required
+                  String _key92; // optional
                   String _val93; // required
                   _key92 = iprot.readString();
                   _val93 = iprot.readString();
@@ -908,7 +908,7 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
           struct.index_options = new HashMap<String,String>(2*_map96.size);
           for (int _i97 = 0; _i97 < _map96.size; ++_i97)
           {
-            String _key98; // required
+            String _key98; // optional
             String _val99; // required
             _key98 = iprot.readString();
             _val99 = iprot.readString();

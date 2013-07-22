@@ -24,13 +24,11 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
-import java.util.Map.Entry;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
-
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.builder.EqualsBuilder;
@@ -373,8 +371,7 @@ public final class CFMetaData
     private volatile SpeculativeRetry speculativeRetry = DEFAULT_SPECULATIVE_RETRY;
     private volatile boolean populateIoCacheOnFlush = DEFAULT_POPULATE_IO_CACHE_ON_FLUSH;
     private volatile Map<ByteBuffer, Long> droppedColumns = new HashMap<>();
-    private volatile Map<String, Map<String, String>> triggers = new HashMap<>();
-    private volatile Collection<String> cachedTriggers;
+    private volatile Map<String, TriggerDefinition> triggers = new HashMap<>();
 
     /*
      * All CQL3 columns definition are stored in the column_metadata map.
@@ -424,7 +421,7 @@ public final class CFMetaData
     public CFMetaData speculativeRetry(SpeculativeRetry prop) {speculativeRetry = prop; return this;}
     public CFMetaData populateIoCacheOnFlush(boolean prop) {populateIoCacheOnFlush = prop; return this;}
     public CFMetaData droppedColumns(Map<ByteBuffer, Long> cols) {droppedColumns = cols; return this;}
-    public CFMetaData triggers(Map<String, Map<String, String>> prop) {triggers = prop; cachedTriggers = TriggerOptions.extractClasses(triggers); return this;}
+    public CFMetaData triggers(Map<String, TriggerDefinition> prop) {triggers = prop; return this;}
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType<?> comp, AbstractType<?> subcc)
     {
@@ -447,9 +444,9 @@ public final class CFMetaData
         cfId = id;
     }
 
-    public Map<String, Map<String, String>> getTriggers()
+    public Map<String, TriggerDefinition> getTriggers()
     {
-        return new HashMap<>(triggers);
+        return triggers;
     }
 
     private static CFMetaData compile(String cql)
@@ -515,7 +512,6 @@ public final class CFMetaData
                              .gcGraceSeconds(0)
                              .caching(indexCaching)
                              .speculativeRetry(parent.speculativeRetry)
-                             .triggers(parent.triggers)
                              .compactionStrategyClass(parent.compactionStrategyClass)
                              .compactionStrategyOptions(parent.compactionStrategyOptions)
                              .reloadSecondaryIndexMetadata(parent)
@@ -713,11 +709,6 @@ public final class CFMetaData
                : bloomFilterFpChance;
     }
 
-    public Collection<String> getTriggerClasses()
-    {
-        return cachedTriggers;
-    }
-
     public Caching getCaching()
     {
         return caching;
@@ -911,7 +902,7 @@ public final class CFMetaData
             if (cf_def.isSetPopulate_io_cache_on_flush())
                 newCFMD.populateIoCacheOnFlush(cf_def.populate_io_cache_on_flush);
             if (cf_def.isSetTriggers())
-                newCFMD.triggers(cf_def.triggers);
+                newCFMD.triggers(TriggerDefinition.fromThrift(cf_def.triggers));
 
             CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
 
@@ -954,12 +945,12 @@ public final class CFMetaData
         }
         catch (CharacterCodingException ignore) {}
         UntypedResultSet.Row cql3row = new UntypedResultSet.Row(columns);
-        return fromSchemaNoColumns(cql3row);
+        return fromSchemaNoColumnsNoTriggers(cql3row);
     }
 
     public void reload()
     {
-        Row cfDefRow = SystemKeyspace.readSchemaRow(ksName, cfName);
+        Row cfDefRow = SystemKeyspace.readSchemaRow(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF, ksName, cfName);
 
         if (cfDefRow.cf == null || cfDefRow.cf.getColumnCount() == 0)
             throw new RuntimeException(String.format("%s not found in the schema definitions keyspace.", ksName + ":" + cfName));
@@ -1030,11 +1021,12 @@ public final class CFMetaData
             oldDef.apply(def, getColumnDefinitionComparator(oldDef));
         }
 
-        triggers(new HashMap<>(cfm.triggers)); // update trigger as an unit.
         compactionStrategyClass = cfm.compactionStrategyClass;
         compactionStrategyOptions = cfm.compactionStrategyOptions;
 
-        compressionParameters = cfm.compressionParameters();
+        compressionParameters = cfm.compressionParameters;
+
+        triggers = cfm.triggers;
 
         rebuild();
         logger.debug("application result is {}", this);
@@ -1156,13 +1148,7 @@ public final class CFMetaData
         // We only return the alias if only one is set since thrift don't know about multiple key aliases
         if (partitionKeyColumns.size() == 1)
             def.setKey_alias(partitionKeyColumns.get(0).name);
-        List<org.apache.cassandra.thrift.ColumnDef> column_meta = new ArrayList<org.apache.cassandra.thrift.ColumnDef>(column_metadata.size());
-        for (ColumnDefinition cd : column_metadata.values())
-        {
-            if (cd.type == ColumnDefinition.Type.REGULAR)
-                column_meta.add(cd.toThrift());
-        }
-        def.setColumn_metadata(column_meta);
+        def.setColumn_metadata(ColumnDefinition.toThrift(column_metadata));
         def.setCompaction_strategy(compactionStrategyClass.getName());
         def.setCompaction_strategy_options(new HashMap<String, String>(compactionStrategyOptions));
         def.setCompression_options(compressionParameters.asThriftOptions());
@@ -1173,7 +1159,8 @@ public final class CFMetaData
         def.setCaching(caching.toString());
         def.setDefault_time_to_live(defaultTimeToLive);
         def.setSpeculative_retry(speculativeRetry.toString());
-        def.setTriggers(triggers);
+        def.setTriggers(TriggerDefinition.toThrift(triggers));
+
         return def;
     }
 
@@ -1438,7 +1425,7 @@ public final class CFMetaData
     {
         RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(ksName));
 
-        newState.toSchemaNoColumns(rm, modificationTimestamp);
+        newState.toSchemaNoColumnsNoTriggers(rm, modificationTimestamp);
 
         MapDifference<ByteBuffer, ColumnDefinition> columnDiff = Maps.difference(column_metadata, newState.column_metadata);
 
@@ -1464,11 +1451,15 @@ public final class CFMetaData
             cd.toSchema(rm, cfName, getColumnDefinitionComparator(cd), modificationTimestamp);
         }
 
-        MapDifference<String, Map<String, String>> tdiffrence = Maps.difference(triggers, newState.triggers);
-        for (Entry<String, Map<String, String>> tentry : tdiffrence.entriesOnlyOnLeft().entrySet())
-            TriggerOptions.deleteColumns(rm, cfName, tentry, modificationTimestamp);
-        for (Entry<String, Map<String, String>> tentry : tdiffrence.entriesOnlyOnRight().entrySet())
-            TriggerOptions.addColumns(rm, cfName, tentry, modificationTimestamp);
+        MapDifference<String, TriggerDefinition> triggerDiff = Maps.difference(triggers, newState.triggers);
+
+        // dropped triggers
+        for (TriggerDefinition td : triggerDiff.entriesOnlyOnLeft().values())
+            td.deleteFromSchema(rm, cfName, modificationTimestamp);
+
+        // newly created triggers
+        for (TriggerDefinition td : triggerDiff.entriesOnlyOnRight().values())
+            td.toSchema(rm, cfName, modificationTimestamp);
 
         return rm;
     }
@@ -1490,26 +1481,24 @@ public final class CFMetaData
         builder.add(ByteBufferUtil.bytes(cfName));
         cf.addAtom(new RangeTombstone(builder.build(), builder.buildAsEndOfRange(), timestamp, ldt));
 
-        ColumnFamily tcf = rm.addOrGet(SchemaTriggersCf);
-        ColumnNameBuilder tbuilder = SchemaTriggersCf.getCfDef().getColumnNameBuilder();
-        tbuilder.add(ByteBufferUtil.bytes(cfName));
-        tcf.addAtom(new RangeTombstone(tbuilder.build(), tbuilder.buildAsEndOfRange(), timestamp, ldt));
-
         for (ColumnDefinition cd : column_metadata.values())
             cd.deleteFromSchema(rm, cfName, timestamp);
+
+        for (TriggerDefinition td : triggers.values())
+            td.deleteFromSchema(rm, cfName, timestamp);
 
         return rm;
     }
 
     public void toSchema(RowMutation rm, long timestamp)
     {
-        toSchemaNoColumns(rm, timestamp);
+        toSchemaNoColumnsNoTriggers(rm, timestamp);
 
         for (ColumnDefinition cd : column_metadata.values())
             cd.toSchema(rm, cfName, getColumnDefinitionComparator(cd), timestamp);
     }
 
-    private void toSchemaNoColumns(RowMutation rm, long timestamp)
+    private void toSchemaNoColumnsNoTriggers(RowMutation rm, long timestamp)
     {
         // For property that can be null (and can be changed), we insert tombstones, to make sure
         // we don't keep a property the user has removed
@@ -1566,7 +1555,7 @@ public final class CFMetaData
     }
 
     // Package protected for use by tests
-    static CFMetaData fromSchemaNoColumns(UntypedResultSet.Row result)
+    static CFMetaData fromSchemaNoColumnsNoTriggers(UntypedResultSet.Row result)
     {
         try
         {
@@ -1664,13 +1653,13 @@ public final class CFMetaData
      */
     public static CFMetaData fromSchema(UntypedResultSet.Row result)
     {
-        CFMetaData cfDef = fromSchemaNoColumns(result);
+        CFMetaData cfDef = fromSchemaNoColumnsNoTriggers(result);
 
-        // read triggers.
-        cfDef.triggers(TriggerOptions.getAllTriggers(cfDef.ksName, cfDef.cfName));
+        Row serializedTriggers = SystemKeyspace.readSchemaRow(SystemKeyspace.SCHEMA_TRIGGERS_CF, cfDef.ksName, cfDef.cfName);
+        addTriggerDefinitionsFromSchema(cfDef, serializedTriggers);
 
-        Row serializedColumnDefinitions = ColumnDefinition.readSchema(cfDef.ksName, cfDef.cfName);
-        return addColumnDefinitionSchema(cfDef, serializedColumnDefinitions);
+        Row serializedColumns = SystemKeyspace.readSchemaRow(SystemKeyspace.SCHEMA_COLUMNS_CF, cfDef.ksName, cfDef.cfName);
+        return addColumnDefinitionsFromSchema(cfDef, serializedColumns);
     }
 
     private static CFMetaData fromSchema(Row row)
@@ -1761,7 +1750,7 @@ public final class CFMetaData
     }
 
     // Package protected for use by tests
-    static CFMetaData addColumnDefinitionSchema(CFMetaData cfDef, Row serializedColumnDefinitions)
+    static CFMetaData addColumnDefinitionsFromSchema(CFMetaData cfDef, Row serializedColumnDefinitions)
     {
         for (ColumnDefinition cd : ColumnDefinition.fromSchema(serializedColumnDefinitions, cfDef))
             cfDef.column_metadata.put(cd.name, cd);
@@ -1786,6 +1775,24 @@ public final class CFMetaData
     public boolean removeColumnDefinition(ColumnDefinition def)
     {
         return column_metadata.remove(def.name) != null;
+    }
+
+    private static void addTriggerDefinitionsFromSchema(CFMetaData cfDef, Row serializedTriggerDefinitions)
+    {
+        for (TriggerDefinition td : TriggerDefinition.fromSchema(serializedTriggerDefinitions))
+            cfDef.triggers.put(td.name, td);
+    }
+
+    public void addTriggerDefinition(TriggerDefinition def) throws ConfigurationException
+    {
+        if (triggers.containsKey(def.name))
+            throw new ConfigurationException(String.format("Cannot create trigger %s, a trigger with the same name already exists", def.name));
+        triggers.put(def.name, def);
+    }
+
+    public boolean removeTrigger(String name)
+    {
+        return triggers.remove(name) != null;
     }
 
     public void recordColumnDrop(ColumnDefinition def)

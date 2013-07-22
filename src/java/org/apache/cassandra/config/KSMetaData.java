@@ -308,13 +308,11 @@ public final class KSMetaData
 
         for (CFMetaData cfm : cfms.values())
         {
-            Row columnRow = ColumnDefinition.readSchema(cfm.ksName, cfm.cfName);
+            Row columnRow = SystemKeyspace.readSchemaRow(SystemKeyspace.SCHEMA_COLUMNS_CF, cfm.ksName, cfm.cfName);
+            // This may replace some existing definition coming from the old key, column and
+            // value aliases. But that's what we want (see CFMetaData.fromSchemaNoColumnsNoTriggers).
             for (ColumnDefinition cd : ColumnDefinition.fromSchema(columnRow, cfm))
-            {
-                // This may replace some existing definition coming from the old key, column and
-                // value aliases. But that's what we want (see CFMetaData.fromSchemaNoColumns).
                 cfm.addOrReplaceColumnDefinition(cd);
-            }
             cfm.rebuild();
         }
 

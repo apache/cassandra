@@ -430,6 +430,15 @@ struct ColumnDef {
     5: optional map<string,string> index_options
 }
 
+/**
+    Describes a trigger.
+    `options` should include at least 'class' param.
+    Other options are not supported yet.
+*/
+struct TriggerDef {
+    1: required string name,
+    2: required map<string,string> options
+}
 
 /* describes a column family. */
 struct CfDef {
@@ -460,7 +469,7 @@ struct CfDef {
     40: optional i32 default_time_to_live,
     41: optional i32 index_interval,
     42: optional string speculative_retry="NONE",
-    43: optional map<string, map<string, string>> triggers,
+    43: optional list<TriggerDef> triggers,
 
     /* All of the following are now ignored and unsupplied. */
 
