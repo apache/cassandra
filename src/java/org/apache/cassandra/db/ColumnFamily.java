@@ -471,6 +471,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         return builder.build();
     }
 
+    // Note: the returned ColumnFamily will be an UnsortedColumns.
     public static ColumnFamily fromBytes(ByteBuffer bytes)
     {
         if (bytes == null)
@@ -478,7 +479,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
 
         try
         {
-            return serializer.deserialize(new DataInputStream(ByteBufferUtil.inputStream(bytes)), MessagingService.current_version);
+            return serializer.deserialize(new DataInputStream(ByteBufferUtil.inputStream(bytes)), UnsortedColumns.factory, ColumnSerializer.Flag.LOCAL, MessagingService.current_version);
         }
         catch (IOException e)
         {

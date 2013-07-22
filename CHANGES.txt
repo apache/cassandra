@@ -15,6 +15,7 @@
  * Always respect protocol version in native protocol (CASSANDRA-5778)
  * Fix ConcurrentModificationException during streaming (CASSANDRA-5782)
  * Update deletion timestamp in Commit#updatesWithPaxosTime (CASSANDRA-5787)
+ * Thrift cas() method crashes if input columns are not sorted (CASSANDRA-5786)
 
 
 2.0.0-beta1
