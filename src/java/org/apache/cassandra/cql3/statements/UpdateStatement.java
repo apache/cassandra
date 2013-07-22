@@ -213,7 +213,7 @@ public class UpdateStatement extends ModificationStatement
 
         QueryProcessor.validateKey(key);
         RowMutation rm = new RowMutation(cfDef.cfm.ksName, key);
-        ColumnFamily cf = rm.addOrGet(cfDef.cfm.cfName);
+        ColumnFamily cf = rm.addOrGet(cfDef.cfm);
 
         // Inserting the CQL row marker (see #4361)
         // We always need to insert a marker, because of the following situation:

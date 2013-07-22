@@ -149,7 +149,11 @@ public class RowMutation implements IMutation
      */
     public ColumnFamily addOrGet(String cfName)
     {
-        CFMetaData cfm = Schema.instance.getCFMetaData(table, cfName);
+        return addOrGet(Schema.instance.getCFMetaData(table, cfName));
+    }
+
+    public ColumnFamily addOrGet(CFMetaData cfm)
+    {
         ColumnFamily cf = modifications.get(cfm.cfId);
         if (cf == null)
         {
@@ -266,7 +270,8 @@ public class RowMutation implements IMutation
      */
     public void apply()
     {
-        KSMetaData ksm = Schema.instance.getTableDefinition(getTable());
+        KSMetaData ksm = Schema.instance.getTableDefinition(table);
+        assert ksm != null : "Attempting to mutate non-existant keyspace " + table;
         Table.open(table).apply(this, ksm.durableWrites);
     }
 

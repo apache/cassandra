@@ -102,7 +102,7 @@ public class DeleteStatement extends ModificationStatement
     {
         QueryProcessor.validateKey(key);
         RowMutation rm = new RowMutation(cfDef.cfm.ksName, key);
-        ColumnFamily cf = rm.addOrGet(columnFamily());
+        ColumnFamily cf = rm.addOrGet(cfDef.cfm);
 
         if (toRemove.isEmpty() && builder.componentCount() == 0)
         {
