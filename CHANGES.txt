@@ -1,6 +1,7 @@
 2.0.0-rc1
  * fix potential spurious wakeup in AsyncOneResponse (CASSANDRA-5690)
  * fix schema-related trigger issues (CASSANDRA-5774)
+ * Better validation when accessing CQL3 table from thrift (CASSANDRA-5138)
 
 
 2.0.0-beta2
