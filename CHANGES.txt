@@ -16,6 +16,7 @@
  * Fix ConcurrentModificationException during streaming (CASSANDRA-5782)
  * Update deletion timestamp in Commit#updatesWithPaxosTime (CASSANDRA-5787)
  * Thrift cas() method crashes if input columns are not sorted (CASSANDRA-5786)
+ * Order columns names correctly when querying for CAS (CASSANDRA-5788)
 
 
 2.0.0-beta1
