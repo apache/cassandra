@@ -197,15 +197,15 @@ public class CounterId implements Comparable<CounterId>
                 // no recorded local counter id, generating a new one and saving it
                 id = generate();
                 logger.info("No saved local counter id, using newly generated: {}", id);
-                SystemKeyspace.writeCurrentLocalCounterId(null, id, FBUtilities.timestampMicros());
-                current = new AtomicReference<CounterId>(id);
-                olds = new CopyOnWriteArrayList<CounterIdRecord>();
+                SystemKeyspace.writeCurrentLocalCounterId(id, FBUtilities.timestampMicros());
+                current = new AtomicReference<>(id);
+                olds = new CopyOnWriteArrayList<>();
             }
             else
             {
                 logger.info("Saved local counter id: {}", id);
-                current = new AtomicReference<CounterId>(id);
-                olds = new CopyOnWriteArrayList<CounterIdRecord>(SystemKeyspace.getOldLocalCounterIds());
+                current = new AtomicReference<>(id);
+                olds = new CopyOnWriteArrayList<>(SystemKeyspace.getOldLocalCounterIds());
             }
         }
 
@@ -213,7 +213,7 @@ public class CounterId implements Comparable<CounterId>
         {
             CounterId newCounterId = generate();
             CounterId old = current.get();
-            SystemKeyspace.writeCurrentLocalCounterId(old, newCounterId, now);
+            SystemKeyspace.writeCurrentLocalCounterId(newCounterId, now);
             current.set(newCounterId);
             olds.add(new CounterIdRecord(old, now));
         }

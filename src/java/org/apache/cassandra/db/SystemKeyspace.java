@@ -627,13 +627,10 @@ public class SystemKeyspace
     /**
      * Write a new current local node id to the system keyspace.
      *
-     * @param oldCounterId the previous local node id (that {@code newCounterId}
-     * replace) or null if no such node id exists (new node or removed system
-     * keyspace)
      * @param newCounterId the new current local node id to record
      * @param now microsecond time stamp.
      */
-    public static void writeCurrentLocalCounterId(CounterId oldCounterId, CounterId newCounterId, long now)
+    public static void writeCurrentLocalCounterId(CounterId newCounterId, long now)
     {
         ByteBuffer ip = ByteBuffer.wrap(FBUtilities.getBroadcastAddress().getAddress());
 

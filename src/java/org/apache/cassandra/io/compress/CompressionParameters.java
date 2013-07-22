@@ -89,6 +89,18 @@ public class CompressionParameters
         this.crcCheckChance = (chance == null) ? DEFAULT_CRC_CHECK_CHANCE : parseCrcCheckChance(chance);
     }
 
+    public CompressionParameters copy()
+    {
+        try
+        {
+            return new CompressionParameters(sstableCompressor, chunkLength, new HashMap<>(otherOptions));
+        }
+        catch (ConfigurationException e)
+        {
+            throw new AssertionError(e); // can't happen at this point.
+        }
+    }
+
     public void setCrcCheckChance(double crcCheckChance) throws ConfigurationException
     {
         validateCrcCheckChance(crcCheckChance);

@@ -384,14 +384,14 @@ public final class CFMetaData
     public static final String DEFAULT_COLUMN_ALIAS = "column";
     public static final String DEFAULT_VALUE_ALIAS = "value";
 
-    private volatile Map<ByteBuffer, ColumnDefinition> column_metadata = new HashMap<ByteBuffer,ColumnDefinition>();
+    private volatile Map<ByteBuffer, ColumnDefinition> column_metadata = new HashMap<>();
     private volatile List<ColumnDefinition> partitionKeyColumns;  // Always of size keyValidator.componentsCount, null padded if necessary
     private volatile List<ColumnDefinition> clusteringKeyColumns; // Of size comparator.componentsCount or comparator.componentsCount -1, null padded if necessary
     private volatile Set<ColumnDefinition> regularColumns;
     private volatile ColumnDefinition compactValueColumn;
 
     public volatile Class<? extends AbstractCompactionStrategy> compactionStrategyClass = DEFAULT_COMPACTION_STRATEGY_CLASS;
-    public volatile Map<String, String> compactionStrategyOptions = new HashMap<String, String>();
+    public volatile Map<String, String> compactionStrategyOptions = new HashMap<>();
 
     public volatile CompressionParameters compressionParameters = new CompressionParameters(null);
 
@@ -541,12 +541,13 @@ public final class CFMetaData
 
     static CFMetaData copyOpts(CFMetaData newCFMD, CFMetaData oldCFMD)
     {
-        Map<ByteBuffer, ColumnDefinition> clonedColumns = new HashMap<ByteBuffer, ColumnDefinition>();
+        Map<ByteBuffer, ColumnDefinition> clonedColumns = new HashMap<>();
         for (ColumnDefinition cd : oldCFMD.column_metadata.values())
         {
             ColumnDefinition cloned = cd.clone();
             clonedColumns.put(cloned.name, cloned);
         }
+
         return newCFMD.comment(oldCFMD.comment)
                       .readRepairChance(oldCFMD.readRepairChance)
                       .dcLocalReadRepairChance(oldCFMD.dcLocalReadRepairChance)
@@ -558,8 +559,8 @@ public final class CFMetaData
                       .maxCompactionThreshold(oldCFMD.maxCompactionThreshold)
                       .columnMetadata(clonedColumns)
                       .compactionStrategyClass(oldCFMD.compactionStrategyClass)
-                      .compactionStrategyOptions(oldCFMD.compactionStrategyOptions)
-                      .compressionParameters(oldCFMD.compressionParameters)
+                      .compactionStrategyOptions(new HashMap<>(oldCFMD.compactionStrategyOptions))
+                      .compressionParameters(oldCFMD.compressionParameters.copy())
                       .bloomFilterFpChance(oldCFMD.bloomFilterFpChance)
                       .caching(oldCFMD.caching)
                       .defaultTimeToLive(oldCFMD.defaultTimeToLive)
@@ -567,8 +568,8 @@ public final class CFMetaData
                       .speculativeRetry(oldCFMD.speculativeRetry)
                       .memtableFlushPeriod(oldCFMD.memtableFlushPeriod)
                       .populateIoCacheOnFlush(oldCFMD.populateIoCacheOnFlush)
-                      .droppedColumns(oldCFMD.droppedColumns)
-                      .triggers(oldCFMD.getTriggers())
+                      .droppedColumns(new HashMap<>(oldCFMD.droppedColumns))
+                      .triggers(new HashMap<>(oldCFMD.triggers))
                       .rebuild();
     }
 
@@ -862,19 +863,17 @@ public final class CFMetaData
     {
         ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
         if (cfType == null)
-        {
-          throw new InvalidRequestException("Invalid column type " + cf_def.column_type);
-        }
+            throw new InvalidRequestException("Invalid column type " + cf_def.column_type);
 
         applyImplicitDefaults(cf_def);
 
         try
         {
             CFMetaData newCFMD = new CFMetaData(cf_def.keyspace,
-                    cf_def.name,
-                    cfType,
-                    TypeParser.parse(cf_def.comparator_type),
-                    cf_def.subcomparator_type == null ? null : TypeParser.parse(cf_def.subcomparator_type));
+                                                cf_def.name,
+                                                cfType,
+                                                TypeParser.parse(cf_def.comparator_type),
+                                                cf_def.subcomparator_type == null ? null : TypeParser.parse(cf_def.subcomparator_type));
 
             if (cf_def.isSetGc_grace_seconds()) { newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds); }
             if (cf_def.isSetMin_compaction_threshold()) { newCFMD.minCompactionThreshold(cf_def.min_compaction_threshold); }
@@ -882,7 +881,7 @@ public final class CFMetaData
             if (cf_def.isSetCompaction_strategy())
                 newCFMD.compactionStrategyClass = createCompactionStrategy(cf_def.compaction_strategy);
             if (cf_def.isSetCompaction_strategy_options())
-                newCFMD.compactionStrategyOptions(new HashMap<String, String>(cf_def.compaction_strategy_options));
+                newCFMD.compactionStrategyOptions(new HashMap<>(cf_def.compaction_strategy_options));
             if (cf_def.isSetBloom_filter_fp_chance())
                 newCFMD.bloomFilterFpChance(cf_def.bloom_filter_fp_chance);
             if (cf_def.isSetMemtable_flush_period_in_ms())
@@ -919,11 +918,7 @@ public final class CFMetaData
                           .compressionParameters(cp)
                           .rebuild();
         }
-        catch (SyntaxException e)
-        {
-            throw new ConfigurationException(e.getMessage());
-        }
-        catch (MarshalException e)
+        catch (SyntaxException | MarshalException e)
         {
             throw new ConfigurationException(e.getMessage());
         }
@@ -1100,19 +1095,7 @@ public final class CFMetaData
             });
             return constructor.newInstance(cfs, compactionStrategyOptions);
         }
-        catch (NoSuchMethodException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InstantiationException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (IllegalAccessException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (InvocationTargetException e)
+        catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | InstantiationException e)
         {
             throw new RuntimeException(e);
         }
@@ -1150,7 +1133,7 @@ public final class CFMetaData
             def.setKey_alias(partitionKeyColumns.get(0).name);
         def.setColumn_metadata(ColumnDefinition.toThrift(column_metadata));
         def.setCompaction_strategy(compactionStrategyClass.getName());
-        def.setCompaction_strategy_options(new HashMap<String, String>(compactionStrategyOptions));
+        def.setCompaction_strategy_options(new HashMap<>(compactionStrategyOptions));
         def.setCompression_options(compressionParameters.asThriftOptions());
         if (bloomFilterFpChance != null)
             def.setBloom_filter_fp_chance(bloomFilterFpChance);
@@ -1617,11 +1600,7 @@ public final class CFMetaData
 
             return cfm;
         }
-        catch (SyntaxException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (ConfigurationException e)
+        catch (SyntaxException | ConfigurationException e)
         {
             throw new RuntimeException(e);
         }
@@ -2019,7 +1998,7 @@ public final class CFMetaData
 
     private static <T> List<T> nullInitializedList(int size)
     {
-        List<T> l = new ArrayList(size);
+        List<T> l = new ArrayList<>(size);
         for (int i = 0; i < size; ++i)
             l.add(null);
         return l;
