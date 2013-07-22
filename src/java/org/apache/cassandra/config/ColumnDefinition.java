@@ -30,7 +30,6 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -40,6 +39,15 @@ import static org.apache.cassandra.utils.FBUtilities.json;
 
 public class ColumnDefinition
 {
+    // system.schema_columns column names
+    private static final String COLUMN_NAME = "column_name";
+    private static final String VALIDATOR = "validator";
+    private static final String INDEX_TYPE = "index_type";
+    private static final String INDEX_OPTIONS = "index_options";
+    private static final String INDEX_NAME = "index_name";
+    private static final String COMPONENT_INDEX = "component_index";
+    private static final String TYPE = "type";
+
     /*
      * The type of CQL3 column this definition represents.
      * There is 3 main type of CQL3 columns: those parts of the partition key,
@@ -56,14 +64,14 @@ public class ColumnDefinition
         PARTITION_KEY,
         CLUSTERING_KEY,
         REGULAR,
-        COMPACT_VALUE;
+        COMPACT_VALUE
     }
 
     public final ByteBuffer name;
     private AbstractType<?> validator;
-    private IndexType index_type;
-    private Map<String,String> index_options;
-    private String index_name;
+    private IndexType indexType;
+    private Map<String,String> indexOptions;
+    private String indexName;
     public final Type type;
 
     /*
@@ -99,25 +107,31 @@ public class ColumnDefinition
     }
 
     @VisibleForTesting
-    public ColumnDefinition(ByteBuffer name, AbstractType<?> validator, IndexType index_type, Map<String, String> index_options, String index_name, Integer componentIndex, Type type)
+    public ColumnDefinition(ByteBuffer name,
+                            AbstractType<?> validator,
+                            IndexType indexType,
+                            Map<String, String> indexOptions,
+                            String indexName,
+                            Integer componentIndex,
+                            Type type)
     {
         assert name != null && validator != null;
         this.name = name;
-        this.index_name = index_name;
+        this.indexName = indexName;
         this.validator = validator;
         this.componentIndex = componentIndex;
-        this.setIndexType(index_type, index_options);
+        this.setIndexType(indexType, indexOptions);
         this.type = type;
     }
 
     public ColumnDefinition clone()
     {
-        return new ColumnDefinition(name, validator, index_type, index_options, index_name, componentIndex, type);
+        return new ColumnDefinition(name, validator, indexType, indexOptions, indexName, componentIndex, type);
     }
 
     public ColumnDefinition cloneWithNewName(ByteBuffer newName)
     {
-        return new ColumnDefinition(newName, validator, index_type, index_options, index_name, componentIndex, type);
+        return new ColumnDefinition(newName, validator, indexType, indexOptions, indexName, componentIndex, type);
     }
 
     @Override
@@ -125,22 +139,37 @@ public class ColumnDefinition
     {
         if (this == o)
             return true;
-        if (o == null || getClass() != o.getClass())
+
+        if (!(o instanceof ColumnDefinition))
             return false;
 
-        ColumnDefinition that = (ColumnDefinition) o;
-        return Objects.equal(name, that.name)
-            && Objects.equal(validator, that.validator)
-            && Objects.equal(componentIndex, that.componentIndex)
-            && Objects.equal(index_name, that.index_name)
-            && Objects.equal(index_type, that.index_type)
-            && Objects.equal(index_options, that.index_options);
+        ColumnDefinition cd = (ColumnDefinition) o;
+
+        return Objects.equal(name, cd.name)
+            && Objects.equal(validator, cd.validator)
+            && Objects.equal(componentIndex, cd.componentIndex)
+            && Objects.equal(indexName, cd.indexName)
+            && Objects.equal(indexType, cd.indexType)
+            && Objects.equal(indexOptions, cd.indexOptions);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(name, validator, componentIndex, index_name, index_type, index_options);
+        return Objects.hashCode(name, validator, componentIndex, indexName, indexType, indexOptions);
+    }
+
+    @Override
+    public String toString()
+    {
+        return Objects.toStringHelper(this)
+                      .add("name", ByteBufferUtil.bytesToHex(name))
+                      .add("validator", validator)
+                      .add("type", type)
+                      .add("componentIndex", componentIndex)
+                      .add("indexName", indexName)
+                      .add("indexType", indexType)
+                      .toString();
     }
 
     public boolean isThriftCompatible()
@@ -163,12 +192,9 @@ public class ColumnDefinition
 
         cd.setName(ByteBufferUtil.clone(name));
         cd.setValidation_class(validator.toString());
-
-        cd.setIndex_type(index_type == null
-                            ? null
-                            : IndexType.valueOf(index_type.name()));
-        cd.setIndex_name(index_name == null ? null : index_name);
-        cd.setIndex_options(index_options == null ? null : Maps.newHashMap(index_options));
+        cd.setIndex_type(indexType == null ? null : IndexType.valueOf(indexType.name()));
+        cd.setIndex_name(indexName == null ? null : indexName);
+        cd.setIndex_options(indexOptions == null ? null : Maps.newHashMap(indexOptions));
 
         return cd;
     }
@@ -188,9 +214,9 @@ public class ColumnDefinition
     public static Map<ByteBuffer, ColumnDefinition> fromThrift(List<ColumnDef> thriftDefs, boolean isSuper) throws SyntaxException, ConfigurationException
     {
         if (thriftDefs == null)
-            return new HashMap<ByteBuffer,ColumnDefinition>();
+            return new HashMap<>();
 
-        Map<ByteBuffer, ColumnDefinition> cds = new TreeMap<ByteBuffer, ColumnDefinition>();
+        Map<ByteBuffer, ColumnDefinition> cds = new TreeMap<>();
         for (ColumnDef thriftColumnDef : thriftDefs)
             cds.put(ByteBufferUtil.clone(thriftColumnDef.name), fromThrift(thriftColumnDef, isSuper));
 
@@ -220,16 +246,16 @@ public class ColumnDefinition
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
         cf.addColumn(Column.create("", timestamp, cfName, comparator.getString(name), ""));
-        cf.addColumn(Column.create(validator.toString(), timestamp, cfName, comparator.getString(name), "validator"));
-        cf.addColumn(index_type == null ? DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "index_type")
-                                        : Column.create(index_type.toString(), timestamp, cfName, comparator.getString(name), "index_type"));
-        cf.addColumn(index_options == null ? DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "index_options")
-                                           : Column.create(json(index_options), timestamp, cfName, comparator.getString(name), "index_options"));
-        cf.addColumn(index_name == null ? DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "index_name")
-                                        : Column.create(index_name, timestamp, cfName, comparator.getString(name), "index_name"));
-        cf.addColumn(componentIndex == null ? DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), "component_index")
-                                            : Column.create(componentIndex, timestamp, cfName, comparator.getString(name), "component_index"));
-        cf.addColumn(Column.create(type.toString().toLowerCase(), timestamp, cfName, comparator.getString(name), "type"));
+        cf.addColumn(Column.create(validator.toString(), timestamp, cfName, comparator.getString(name), VALIDATOR));
+        cf.addColumn(indexType == null ? DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), INDEX_TYPE)
+                                       : Column.create(indexType.toString(), timestamp, cfName, comparator.getString(name), INDEX_TYPE));
+        cf.addColumn(indexOptions == null ? DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), INDEX_OPTIONS)
+                                          : Column.create(json(indexOptions), timestamp, cfName, comparator.getString(name), INDEX_OPTIONS));
+        cf.addColumn(indexName == null ? DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), INDEX_NAME)
+                                       : Column.create(indexName, timestamp, cfName, comparator.getString(name), INDEX_NAME));
+        cf.addColumn(componentIndex == null ? DeletedColumn.create(ldt, timestamp, cfName, comparator.getString(name), COMPONENT_INDEX)
+                                            : Column.create(componentIndex, timestamp, cfName, comparator.getString(name), COMPONENT_INDEX));
+        cf.addColumn(Column.create(type.toString().toLowerCase(), timestamp, cfName, comparator.getString(name), TYPE));
     }
 
     public void apply(ColumnDefinition def, AbstractType<?> comparator)  throws ConfigurationException
@@ -240,7 +266,8 @@ public class ColumnDefinition
         {
             // If an index is set (and not drop by this update), the validator shouldn't be change to a non-compatible one
             if (!def.getValidator().isCompatibleWith(getValidator()))
-                throw new ConfigurationException(String.format("Cannot modify validator to a non-compatible one for column %s since an index is set", comparator.getString(name)));
+                throw new ConfigurationException(String.format("Cannot modify validator to a non-compatible one for column %s since an index is set",
+                                                                comparator.getString(name)));
 
             assert getIndexName() != null;
             if (!getIndexName().equals(def.getIndexName()))
@@ -253,122 +280,94 @@ public class ColumnDefinition
     }
 
     /**
-     * Deserialize columns from low-level representation
+     * Deserialize columns from storage-level representation
      *
-     * @return Thrift-based deserialized representation of the column
-     * @param row
+     * @param serializedColumns storage-level partition containing the column definitions
+     * @return the list of processed ColumnDefinitions
      */
-    public static List<ColumnDefinition> fromSchema(Row row, CFMetaData cfm)
+    public static List<ColumnDefinition> fromSchema(Row serializedColumns, CFMetaData cfm)
     {
-        if (row.cf == null)
-            return Collections.emptyList();
+        List<ColumnDefinition> cds = new ArrayList<>();
 
-        List<ColumnDefinition> cds = new ArrayList<ColumnDefinition>();
-        for (UntypedResultSet.Row result : QueryProcessor.resultify("SELECT * FROM system.schema_columns", row))
+        String query = String.format("SELECT * FROM %s.%s", Keyspace.SYSTEM_KS, SystemKeyspace.SCHEMA_COLUMNS_CF);
+        for (UntypedResultSet.Row row : QueryProcessor.resultify(query, serializedColumns))
         {
+            Type type = row.has(TYPE)
+                      ? Enum.valueOf(Type.class, row.getString(TYPE).toUpperCase())
+                      : Type.REGULAR;
+
+            Integer componentIndex = null;
+            if (row.has(COMPONENT_INDEX))
+                componentIndex = row.getInt(COMPONENT_INDEX);
+            else if (type == Type.CLUSTERING_KEY && cfm.isSuper())
+                componentIndex = 1; // A ColumnDefinition for super columns applies to the column component
+
+            ByteBuffer name = cfm.getComponentComparator(componentIndex, type).fromString(row.getString(COLUMN_NAME));
+
+            AbstractType<?> validator;
             try
             {
-                IndexType index_type = null;
-                Map<String,String> index_options = null;
-                String index_name = null;
-                Integer componentIndex = null;
-
-                Type type = result.has("type")
-                          ? Enum.valueOf(Type.class, result.getString("type").toUpperCase())
-                          : Type.REGULAR;
-
-                if (result.has("index_type"))
-                    index_type = IndexType.valueOf(result.getString("index_type"));
-                if (result.has("index_options"))
-                    index_options = FBUtilities.fromJsonMap(result.getString("index_options"));
-                if (result.has("index_name"))
-                    index_name = result.getString("index_name");
-                if (result.has("component_index"))
-                    componentIndex = result.getInt("component_index");
-                // A ColumnDefinition for super columns applies to the column component
-                else if (type == Type.CLUSTERING_KEY && cfm.isSuper())
-                    componentIndex = 1;
-
-
-                cds.add(new ColumnDefinition(cfm.getComponentComparator(componentIndex, type).fromString(result.getString("column_name")),
-                                             TypeParser.parse(result.getString("validator")),
-                                             index_type,
-                                             index_options,
-                                             index_name,
-                                             componentIndex,
-                                             type));
+                validator = TypeParser.parse(row.getString(VALIDATOR));
             }
             catch (RequestValidationException e)
             {
                 throw new RuntimeException(e);
             }
+
+            IndexType indexType = null;
+            if (row.has(INDEX_TYPE))
+                indexType = IndexType.valueOf(row.getString(INDEX_TYPE));
+
+            Map<String, String> indexOptions = null;
+            if (row.has(INDEX_OPTIONS))
+                indexOptions = FBUtilities.fromJsonMap(row.getString(INDEX_OPTIONS));
+
+            String indexName = null;
+            if (row.has(INDEX_NAME))
+                indexName = row.getString(INDEX_NAME);
+
+            cds.add(new ColumnDefinition(name, validator, indexType, indexOptions, indexName, componentIndex, type));
         }
 
         return cds;
     }
 
-    public static Row readSchema(String ksName, String cfName)
-    {
-        DecoratedKey key = StorageService.getPartitioner().decorateKey(SystemKeyspace.getSchemaKSKey(ksName));
-        ColumnFamilyStore columnsStore = SystemKeyspace.schemaCFS(SystemKeyspace.SCHEMA_COLUMNS_CF);
-        ColumnFamily cf = columnsStore.getColumnFamily(key,
-                                                       DefsTables.searchComposite(cfName, true),
-                                                       DefsTables.searchComposite(cfName, false),
-                                                       false,
-                                                       Integer.MAX_VALUE,
-                                                       System.currentTimeMillis());
-        return new Row(key, cf);
-    }
-
-    @Override
-    public String toString()
-    {
-        return "ColumnDefinition{" +
-               "name=" + ByteBufferUtil.bytesToHex(name) +
-               ", validator=" + validator +
-               ", index_type=" + index_type +
-               ", index_name='" + index_name + '\'' +
-               (componentIndex != null ? ", component_index=" + componentIndex : "") +
-               ", type=" + type +
-               '}';
-    }
-
     public String getIndexName()
     {
-        return index_name;
+        return indexName;
     }
 
-    public ColumnDefinition setIndexName(String s)
+    public ColumnDefinition setIndexName(String indexName)
     {
-        this.index_name = s;
+        this.indexName = indexName;
         return this;
     }
 
-    public ColumnDefinition setIndexType(IndexType index_type, Map<String,String> index_options)
+    public ColumnDefinition setIndexType(IndexType indexType, Map<String,String> indexOptions)
     {
-        this.index_type = index_type;
-        this.index_options = index_options;
+        this.indexType = indexType;
+        this.indexOptions = indexOptions;
         return this;
     }
 
-    public ColumnDefinition setIndex(String s, IndexType index_type, Map<String,String> index_options)
+    public ColumnDefinition setIndex(String indexName, IndexType indexType, Map<String,String> indexOptions)
     {
-        return setIndexName(s).setIndexType(index_type, index_options);
+        return setIndexName(indexName).setIndexType(indexType, indexOptions);
     }
 
     public boolean isIndexed()
     {
-        return index_type != null;
+        return indexType != null;
     }
 
     public IndexType getIndexType()
     {
-        return index_type;
+        return indexType;
     }
 
     public Map<String,String> getIndexOptions()
     {
-        return index_options;
+        return indexOptions;
     }
 
     public AbstractType<?> getValidator()
