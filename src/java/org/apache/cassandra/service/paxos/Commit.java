@@ -114,6 +114,7 @@ public class Commit
     {
         ColumnFamily cf = updates.cloneMeShallow();
         long t = UUIDGen.microsTimestamp(ballot);
+        cf.deletionInfo().updateAllTimestamp(t);
         for (Column column : updates)
             cf.addAtom(column.withUpdatedTimestamp(t));
         return cf;

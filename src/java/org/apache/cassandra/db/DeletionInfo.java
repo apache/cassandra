@@ -265,6 +265,16 @@ public class DeletionInfo
         return sb.toString();
     }
 
+    // Updates all the timestamp of the deletion contained in this DeletionInfo to be {@code timestamp}.
+    public void updateAllTimestamp(long timestamp)
+    {
+        if (topLevel.markedForDeleteAt != Long.MIN_VALUE)
+            topLevel = new DeletionTime(timestamp, topLevel.localDeletionTime);
+
+        if (ranges != null)
+            ranges.updateAllTimestamp(timestamp);
+    }
+
     @Override
     public boolean equals(Object o)
     {

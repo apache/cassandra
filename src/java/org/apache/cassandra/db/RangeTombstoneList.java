@@ -288,6 +288,12 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
         return max;
     }
 
+    public void updateAllTimestamp(long timestamp)
+    {
+        for (int i = 0; i < size; i++)
+            markedAts[i] = timestamp;
+    }
+
     /**
      * Removes all range tombstones whose local deletion time is older than gcBefore.
      */

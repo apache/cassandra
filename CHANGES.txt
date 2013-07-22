@@ -14,6 +14,7 @@
  * Support streaming SSTables of old versions (CASSANDRA-5772)
  * Always respect protocol version in native protocol (CASSANDRA-5778)
  * Fix ConcurrentModificationException during streaming (CASSANDRA-5782)
+ * Update deletion timestamp in Commit#updatesWithPaxosTime (CASSANDRA-5787)
 
 
 2.0.0-beta1
