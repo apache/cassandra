@@ -171,6 +171,14 @@ public class NodeCmd
         StringBuilder header = new StringBuilder(512);
         header.append("\nAvailable commands\n");
         final NodeToolHelp ntHelp = loadHelp();
+        Collections.sort(ntHelp.commands, new Comparator<NodeToolHelp.NodeToolCommand>() 
+        {
+            @Override
+            public int compare(NodeToolHelp.NodeToolCommand o1, NodeToolHelp.NodeToolCommand o2) 
+            {
+                return o1.name.compareTo(o2.name);
+            }
+        });
         for(NodeToolHelp.NodeToolCommand cmd : ntHelp.commands)
             addCmdHelp(header, cmd);
         String usage = String.format("java %s --host <arg> <command>%n", NodeCmd.class.getName());
