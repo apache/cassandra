@@ -1157,7 +1157,7 @@ public class SelectStatement implements CQLStatement
 
                     // We don't support IN for indexed values (basically this would require supporting a form of OR)
                     if (restriction.eqValues.size() > 1)
-                        throw new InvalidRequestException("Cannot use IN operator on column not part of the PRIMARY KEY");
+                        throw new InvalidRequestException("Cannot use IN operator on column not part of the partition key");
 
                     if (indexedNames.contains(entry.getKey().name.key))
                     {
