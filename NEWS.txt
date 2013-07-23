@@ -15,6 +15,7 @@ using the provided 'sstableupgrade' tool.
 
 1.2.7
 =====
+
 Upgrading
 ---------
     - If you have decommissioned a node in the past 72 hours, it is imperative
