@@ -409,7 +409,7 @@ CREATE INDEX userIndex ON NerdMovies (user);
 CREATE INDEX ON Mutants (abilityId);
 CREATE CUSTOM INDEX ON users (email) USING 'path.to.the.IndexClass';
 
-The @CREATE INDEX@ statement is used to create a new (automatic) secondary index for a given (existing) column in a given table. A name for the index itself can be specified before the @ON@ keyword, if desired. If data already exists for the column, it will be indexed during the execution of this statement. After the index is created, new data for the column is indexed automatically at insertion time.
+The @CREATE INDEX@ statement is used to create a new (automatic) secondary index for a given (existing) column in a given table. A name for the index itself can be specified before the @ON@ keyword, if desired. If data already exists for the column, it will be indexed asynchronously. After the index is created, new data for the column is indexed automatically at insertion time.
 
 Attempting to create an already existing index will return an error unless the @IF NOT EXISTS@ option is used. If it is used, the statement will be a no-op if the index already exists.
 
@@ -437,6 +437,7 @@ bc(syntax)..
 <insertStatement> ::= INSERT INTO <tablename>
                              '(' <identifier> ( ',' <identifier> )* ')'
                       VALUES '(' <term-or-literal> ( ',' <term-or-literal> )* ')'
+                      ( IF NOT EXISTS )?
                       ( USING <option> ( AND <option> )* )?
 
 <term-or-literal> ::= <term>
@@ -454,7 +455,9 @@ USING TTL 86400;
 
 The @INSERT@ statement writes one or more columns for a given row in a table. Note that since a row is identified by its @PRIMARY KEY@, the columns that compose it must be specified. Also, since a row only exists when it contains one value for a column not part of the @PRIMARY KEY@, one such value must be specified too.
 
-Note that unlike in SQL, @INSERT@ does not check the prior existence of the row: the row is created if none existed before, and updated otherwise. Furthermore, there is no mean to know which of creation or update happened. In fact, the semantic of @INSERT@ and @UPDATE@ are identical.
+Note that unlike in SQL, @INSERT@ does not check the prior existence of the row by default: the row is created if none existed before, and updated otherwise. Furthermore, there is no mean to know which of creation or update happened.
+
+It is however possible to use the @IF NOT EXISTS@ condition to only insert if the row does not exist prior to the insertion. But please note that using @IF NOT EXISTS@ will incur a non negligible performance cost (internally, Paxos will be used) so this should be used sparingly.
 
 All updates for an @INSERT@ are applied atomically and in isolation.
 
@@ -469,6 +472,7 @@ bc(syntax)..
                   ( USING <option> ( AND <option> )* )?
                   SET <assignment> ( ',' <assignment> )*
                   WHERE <where-clause>
+                  ( IF <identifier> '=' <term> ( AND <identifier> '=' <term> )* )?
 
 <assignment> ::= <identifier> '=' <term>
                | <identifier> '=' <identifier> ('+' | '-') (<int-term> | <set-literal> | <list-literal>)
@@ -494,7 +498,9 @@ UPDATE UserActions SET total = total + 2 WHERE user = B70DE1D0-9908-4AE3-BE34-55
 p. 
 The @UPDATE@ statement writes one or more columns for a given row in a table. The @<where-clause>@ is used to select the row to update and must include all columns composing the @PRIMARY KEY@. Other columns values are specified through @<assignment>@ after the @SET@ keyword.
 
-Note that unlike in SQL, @UPDATE@ does not check the prior existence of the row: the row is created if none existed before, and updated otherwise. Furthermore, there is no mean to know which of creation or update happened. In fact, the semantic of @INSERT@ and @UPDATE@ are identical.
+Note that unlike in SQL, @UPDATE@ does not check the prior existence of the row by default: the row is created if none existed before, and updated otherwise. Furthermore, there is no mean to know which of creation or update happened.
+
+It is however possible to use the conditions on some columns through @IF@, in which case the row will not be updated unless such condition are met. But please note that using @IF@ conditions will incur a non negligible performance cost (internally, Paxos will be used) so this should be used sparingly.
 
 In an @UPDATE@ statement, all updates within the same partition key are applied atomically and in isolation.
 
@@ -1072,6 +1078,7 @@ h3. 3.1.0
 * "ALTER TABLE":#alterTableStmt @DROP@ option has been reenabled for CQL3 tables and has new semantics now: the space formerly used by dropped columns will now be eventually reclaimed (post-compaction). You should not readd previously dropped columns unless you use timestamps with microsecond precision (see "CASSANDRA-3919":https://issues.apache.org/jira/browse/CASSANDRA-3919 for more details).
 * @SELECT@ statement now supports aliases in select clause. Aliases in WHERE and ORDER BY clauses are not supported. See the "section on select"#selectStmt for details.
 * @CREATE@ statements for @KEYSPACE@, @TABLE@ and @INDEX@ now supports an @IF NOT EXISTS@ condition. Similarly, @DROP@ statements support a @IF EXISTS@ condition.
+* @INSERT@ statements optionally supports a @IF NOT EXISTS@ condition and @UDPATE@ supports @IF@ conditions.
 
 h3. 3.0.4
 
