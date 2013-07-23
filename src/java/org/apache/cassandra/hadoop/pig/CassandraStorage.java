@@ -297,14 +297,14 @@ public class CassandraStorage extends AbstractCassandraStorage
             ConfigHelper.setInputSlicePredicate(conf, predicate);
         }
         if (System.getenv(PIG_WIDEROW_INPUT) != null)
-            widerows = Boolean.valueOf(System.getenv(PIG_WIDEROW_INPUT));
+            widerows = Boolean.parseBoolean(System.getenv(PIG_WIDEROW_INPUT));
         if (System.getenv(PIG_USE_SECONDARY) != null)
-            usePartitionFilter = Boolean.valueOf(System.getenv(PIG_USE_SECONDARY));
+            usePartitionFilter = Boolean.parseBoolean(System.getenv(PIG_USE_SECONDARY));
         if (System.getenv(PIG_INPUT_SPLIT_SIZE) != null)
         {
             try
             {
-                ConfigHelper.setInputSplitSize(conf, Integer.valueOf(System.getenv(PIG_INPUT_SPLIT_SIZE)));
+                ConfigHelper.setInputSplitSize(conf, Integer.parseInt(System.getenv(PIG_INPUT_SPLIT_SIZE)));
             }
             catch (NumberFormatException e)
             {
@@ -365,7 +365,7 @@ public class CassandraStorage extends AbstractCassandraStorage
 
         // we have to do this again here for the check in writeColumnsFromTuple
         if (System.getenv(PIG_USE_SECONDARY) != null)
-            usePartitionFilter = Boolean.valueOf(System.getenv(PIG_USE_SECONDARY));
+            usePartitionFilter = Boolean.parseBoolean(System.getenv(PIG_USE_SECONDARY));
 
         initSchema(storeSignature);
     }

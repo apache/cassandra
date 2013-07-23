@@ -144,7 +144,7 @@ public class CqlStorage extends AbstractCassandraStorage
         {
             try
             {
-                ConfigHelper.setInputSplitSize(conf, Integer.valueOf(System.getenv(PIG_INPUT_SPLIT_SIZE)));
+                ConfigHelper.setInputSplitSize(conf, Integer.parseInt(System.getenv(PIG_INPUT_SPLIT_SIZE)));
             }
             catch (NumberFormatException e)
             {

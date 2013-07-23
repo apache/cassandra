@@ -135,7 +135,7 @@ public class IncomingTcpConnection extends Thread
     {
         int id;
         if (version < MessagingService.VERSION_20)
-            id = Integer.valueOf(input.readUTF());
+            id = Integer.parseInt(input.readUTF());
         else
             id = input.readInt();
 

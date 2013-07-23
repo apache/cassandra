@@ -91,7 +91,7 @@ public class BackgroundActivityMonitor
         assert name.equalsIgnoreCase("cpu");
         long[] returned = new long[tokenizer.countTokens()];
         for (int i = 0; i < tokenizer.countTokens(); i++)
-            returned[i] = Long.valueOf(tokenizer.nextToken());
+            returned[i] = Long.parseLong(tokenizer.nextToken());
         return returned;
     }
 
