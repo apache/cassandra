@@ -85,7 +85,7 @@ public class DeletionTime implements Comparable<DeletionTime>
 
     public boolean isDeleted(IColumn column)
     {
-        return column.isMarkedForDelete() && column.getMarkedForDeleteAt() <= markedForDeleteAt;
+        return column.mostRecentLiveChangeAt() <= markedForDeleteAt;
     }
 
     public long memorySize()
