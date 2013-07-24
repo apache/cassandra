@@ -1176,12 +1176,9 @@ public class SelectStatement implements CQLStatement
                 }
                 else
                 {
-                    if (hasQueriableIndex)
-                    {
-                        stmt.usesSecondaryIndexing = true;
-                        break;
-                    }
-                    throw new InvalidRequestException("Only EQ and IN relation are supported on the partition key for random partitioners (unless you use the token() function)");
+                    // Non EQ relation is not supported without token(), even if we have a 2ndary index (since even those are ordered by partitioner).
+                    // Note: In theory we could allow it for 2ndary index queries with ALLOW FILTERING, but that would probably require some special casing
+                    throw new InvalidRequestException("Only EQ and IN relation are supported on the partition key (unless you use the token() function)");
                 }
                 previous = cname;
             }
