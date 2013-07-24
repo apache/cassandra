@@ -40,6 +40,11 @@ public abstract class AbstractMarker extends Term.NonTerminal
         boundNames[bindIndex] = receiver;
     }
 
+    public boolean containsBindMarker()
+    {
+        return true;
+    }
+
     /**
      * A parsed, but non prepared, bind marker.
      */

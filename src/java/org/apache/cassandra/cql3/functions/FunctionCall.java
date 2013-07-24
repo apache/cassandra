@@ -72,6 +72,16 @@ public class FunctionCall extends Term.NonTerminal
         return fun.execute(buffers);
     }
 
+    public boolean containsBindMarker()
+    {
+        for (Term t : terms)
+        {
+            if (t.containsBindMarker())
+                return true;
+        }
+        return false;
+    }
+
     private static Term.Terminal makeTerminal(Function fun, ByteBuffer result) throws InvalidRequestException
     {
         if (!(fun.returnType() instanceof CollectionType))
