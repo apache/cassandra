@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -57,7 +59,7 @@ public abstract class Sets
             this.elements = elements;
         }
 
-        public Term.Terminal prepare(ColumnSpecification receiver) throws InvalidRequestException
+        public Term prepare(ColumnSpecification receiver) throws InvalidRequestException
         {
             validateAssignableTo(receiver);
 
@@ -66,31 +68,24 @@ public abstract class Sets
             if (receiver.type instanceof MapType && elements.isEmpty())
                 return new Maps.Value(Collections.<ByteBuffer, ByteBuffer>emptyMap());
 
+
             ColumnSpecification valueSpec = Sets.valueSpecOf(receiver);
-            Set<ByteBuffer> values = new TreeSet<ByteBuffer>(((SetType)receiver.type).elements);
+            Set<Term> values = new HashSet<Term>(elements.size());
+            boolean allTerminal = true;
             for (Term.Raw rt : elements)
             {
                 Term t = rt.prepare(valueSpec);
 
-                if (t instanceof Term.NonTerminal)
+                if (t.containsBindMarker())
                     throw new InvalidRequestException(String.format("Invalid set literal for %s: bind variables are not supported inside collection literals", receiver));
 
-                // We don't allow prepared marker in collections, nor nested collections (for the later, prepare will throw an exception)
-                assert t instanceof Constants.Value;
-                ByteBuffer bytes = ((Constants.Value)t).bytes;
-                if (bytes == null)
-                    throw new InvalidRequestException("null is not supported inside collections");
+                if (t instanceof Term.NonTerminal)
+                    allTerminal = false;
 
-                // We don't support value > 64K because the serialization format encode the length as an unsigned short.
-                if (bytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
-                    throw new InvalidRequestException(String.format("Set value is too long. Set values are limited to %d bytes but %d bytes value provided",
-                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
-                                                                    bytes.remaining()));
-
-                if (!values.add(bytes))
-                    throw new InvalidRequestException(String.format("Invalid set literal: duplicate value %s", rt));
+                values.add(t);
             }
-            return new Value(values);
+            DelayedValue value = new DelayedValue(((SetType)receiver.type).elements, values);
+            return allTerminal ? value.bind(Collections.<ByteBuffer>emptyList()) : value;
         }
 
         private void validateAssignableTo(ColumnSpecification receiver) throws InvalidRequestException
@@ -163,6 +158,50 @@ public abstract class Sets
         public ByteBuffer get()
         {
             return CollectionType.pack(new ArrayList<ByteBuffer>(elements), elements.size());
+        }
+    }
+
+    // See Lists.DelayedValue
+    public static class DelayedValue extends Term.NonTerminal
+    {
+        private final Comparator<ByteBuffer> comparator;
+        private final Set<Term> elements;
+
+        public DelayedValue(Comparator<ByteBuffer> comparator, Set<Term> elements)
+        {
+            this.comparator = comparator;
+            this.elements = elements;
+        }
+
+        public boolean containsBindMarker()
+        {
+            // False since we don't support them in collection
+            return false;
+        }
+
+        public void collectMarkerSpecification(ColumnSpecification[] boundNames)
+        {
+        }
+
+        public Value bind(List<ByteBuffer> values) throws InvalidRequestException
+        {
+            Set<ByteBuffer> buffers = new TreeSet<ByteBuffer>(comparator);
+            for (Term t : elements)
+            {
+                ByteBuffer bytes = t.bindAndGet(values);
+
+                if (bytes == null)
+                    throw new InvalidRequestException("null is not supported inside collections");
+
+                // We don't support value > 64K because the serialization format encode the length as an unsigned short.
+                if (bytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
+                    throw new InvalidRequestException(String.format("Set value is too long. Set values are limited to %d bytes but %d bytes value provided",
+                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
+                                                                    bytes.remaining()));
+
+                buffers.add(bytes);
+            }
+            return new Value(buffers);
         }
     }
 

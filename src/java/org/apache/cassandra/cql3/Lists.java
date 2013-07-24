@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -60,34 +61,27 @@ public abstract class Lists
             this.elements = elements;
         }
 
-        public Value prepare(ColumnSpecification receiver) throws InvalidRequestException
+        public Term prepare(ColumnSpecification receiver) throws InvalidRequestException
         {
             validateAssignableTo(receiver);
 
             ColumnSpecification valueSpec = Lists.valueSpecOf(receiver);
-            List<ByteBuffer> values = new ArrayList<ByteBuffer>(elements.size());
+            List<Term> values = new ArrayList<Term>(elements.size());
+            boolean allTerminal = true;
             for (Term.Raw rt : elements)
             {
                 Term t = rt.prepare(valueSpec);
 
-                if (t instanceof Term.NonTerminal)
+                if (t.containsBindMarker())
                     throw new InvalidRequestException(String.format("Invalid list literal for %s: bind variables are not supported inside collection literals", receiver));
 
-                // We don't allow prepared marker in collections, nor nested collections (for the later, prepare will throw an exception)
-                assert t instanceof Constants.Value;
-                ByteBuffer bytes = ((Constants.Value)t).bytes;
-                if (bytes == null)
-                    throw new InvalidRequestException("null is not supported inside collections");
+                if (t instanceof Term.NonTerminal)
+                    allTerminal = false;
 
-                // We don't support value > 64K because the serialization format encode the length as an unsigned short.
-                if (bytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
-                    throw new InvalidRequestException(String.format("List value is too long. List values are limited to %d bytes but %d bytes value provided",
-                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
-                                                                    bytes.remaining()));
-
-                values.add(bytes);
+                values.add(t);
             }
-            return new Value(values);
+            DelayedValue value = new DelayedValue(values);
+            return allTerminal ? value.bind(Collections.<ByteBuffer>emptyList()) : value;
         }
 
         private void validateAssignableTo(ColumnSpecification receiver) throws InvalidRequestException
@@ -153,6 +147,56 @@ public abstract class Lists
         public ByteBuffer get()
         {
             return CollectionType.pack(elements, elements.size());
+        }
+    }
+
+    /*
+     * Basically similar to a Value, but with some non-pure function (that need
+     * to be evaluated at execution time) in it.
+     *
+     * Note: this would also work for a list with bind markers, but we don't support
+     * that because 1) it's not excessively useful and 2) we wouldn't have a good
+     * column name to return in the ColumnSpecification for those markers (not a
+     * blocker per-se but we don't bother due to 1)).
+     */
+    public static class DelayedValue extends Term.NonTerminal
+    {
+        private final List<Term> elements;
+
+        public DelayedValue(List<Term> elements)
+        {
+            this.elements = elements;
+        }
+
+        public boolean containsBindMarker()
+        {
+            // False since we don't support them in collection
+            return false;
+        }
+
+        public void collectMarkerSpecification(ColumnSpecification[] boundNames)
+        {
+        }
+
+        public Value bind(List<ByteBuffer> values) throws InvalidRequestException
+        {
+            List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(elements.size());
+            for (Term t : elements)
+            {
+                ByteBuffer bytes = t.bindAndGet(values);
+
+                if (bytes == null)
+                    throw new InvalidRequestException("null is not supported inside collections");
+
+                // We don't support value > 64K because the serialization format encode the length as an unsigned short.
+                if (bytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
+                    throw new InvalidRequestException(String.format("List value is too long. List values are limited to %d bytes but %d bytes value provided",
+                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
+                                                                    bytes.remaining()));
+
+                buffers.add(bytes);
+            }
+            return new Value(buffers);
         }
     }
 

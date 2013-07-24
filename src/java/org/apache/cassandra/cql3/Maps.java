@@ -19,6 +19,9 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,42 +61,29 @@ public abstract class Maps
             this.entries = entries;
         }
 
-        public Value prepare(ColumnSpecification receiver) throws InvalidRequestException
+        public Term prepare(ColumnSpecification receiver) throws InvalidRequestException
         {
             validateAssignableTo(receiver);
 
             ColumnSpecification keySpec = Maps.keySpecOf(receiver);
             ColumnSpecification valueSpec = Maps.valueSpecOf(receiver);
-            Map<ByteBuffer, ByteBuffer> values = new TreeMap<ByteBuffer, ByteBuffer>(((MapType)receiver.type).keys);
+            Map<Term, Term> values = new HashMap<Term, Term>(entries.size());
+            boolean allTerminal = true;
             for (Pair<Term.Raw, Term.Raw> entry : entries)
             {
                 Term k = entry.left.prepare(keySpec);
                 Term v = entry.right.prepare(valueSpec);
 
-                if (k instanceof Term.NonTerminal || v instanceof Term.NonTerminal)
+                if (k.containsBindMarker() || v.containsBindMarker())
                     throw new InvalidRequestException(String.format("Invalid map literal for %s: bind variables are not supported inside collection literals", receiver));
 
-                // We don't support values > 64K because the serialization format encode the length as an unsigned short.
-                ByteBuffer keyBytes = ((Constants.Value)k).bytes;
-                if (keyBytes == null)
-                    throw new InvalidRequestException("null is not supported inside collections");
-                if (keyBytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
-                    throw new InvalidRequestException(String.format("Map key is too long. Map keys are limited to %d bytes but %d bytes keys provided",
-                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
-                                                                    keyBytes.remaining()));
+                if (k instanceof Term.NonTerminal || v instanceof Term.NonTerminal)
+                    allTerminal = false;
 
-                ByteBuffer valueBytes = ((Constants.Value)v).bytes;
-                if (valueBytes == null)
-                    throw new InvalidRequestException("null is not supported inside collections");
-                if (valueBytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
-                    throw new InvalidRequestException(String.format("Map value is too long. Map values are limited to %d bytes but %d bytes value provided",
-                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
-                                                                    valueBytes.remaining()));
-
-                if (values.put(keyBytes, valueBytes) != null)
-                    throw new InvalidRequestException(String.format("Invalid map literal: duplicate entry for key %s", entry.left));
+                values.put(k, v);
             }
-            return new Value(values);
+            DelayedValue value = new DelayedValue(((MapType)receiver.type).keys, values);
+            return allTerminal ? value.bind(Collections.<ByteBuffer>emptyList()) : value;
         }
 
         private void validateAssignableTo(ColumnSpecification receiver) throws InvalidRequestException
@@ -176,6 +166,56 @@ public abstract class Maps
                 buffers.add(entry.getValue());
             }
             return CollectionType.pack(buffers, map.size());
+        }
+    }
+
+    // See Lists.DelayedValue
+    public static class DelayedValue extends Term.NonTerminal
+    {
+        private final Comparator<ByteBuffer> comparator;
+        private final Map<Term, Term> elements;
+
+        public DelayedValue(Comparator<ByteBuffer> comparator, Map<Term, Term> elements)
+        {
+            this.comparator = comparator;
+            this.elements = elements;
+        }
+
+        public boolean containsBindMarker()
+        {
+            // False since we don't support them in collection
+            return false;
+        }
+
+        public void collectMarkerSpecification(ColumnSpecification[] boundNames)
+        {
+        }
+
+        public Value bind(List<ByteBuffer> values) throws InvalidRequestException
+        {
+            Map<ByteBuffer, ByteBuffer> buffers = new TreeMap<ByteBuffer, ByteBuffer>(comparator);
+            for (Map.Entry<Term, Term> entry : elements.entrySet())
+            {
+                // We don't support values > 64K because the serialization format encode the length as an unsigned short.
+                ByteBuffer keyBytes = entry.getKey().bindAndGet(values);
+                if (keyBytes == null)
+                    throw new InvalidRequestException("null is not supported inside collections");
+                if (keyBytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
+                    throw new InvalidRequestException(String.format("Map key is too long. Map keys are limited to %d bytes but %d bytes keys provided",
+                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
+                                                                    keyBytes.remaining()));
+
+                ByteBuffer valueBytes = entry.getValue().bindAndGet(values);
+                if (valueBytes == null)
+                    throw new InvalidRequestException("null is not supported inside collections");
+                if (valueBytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
+                    throw new InvalidRequestException(String.format("Map value is too long. Map values are limited to %d bytes but %d bytes value provided",
+                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
+                                                                    valueBytes.remaining()));
+
+                buffers.put(keyBytes, valueBytes);
+            }
+            return new Value(buffers);
         }
     }
 

@@ -59,6 +59,15 @@ public interface Term
     public ByteBuffer bindAndGet(List<ByteBuffer> values) throws InvalidRequestException;
 
     /**
+     * Whether or not that term contains at least one bind marker.
+     *
+     * Note that this is slightly different from being or not a NonTerminal,
+     * because calls to non pure functions will be NonTerminal (see #5616)
+     * even if they don't have bind markers.
+     */
+    public abstract boolean containsBindMarker();
+
+    /**
      * A parsed, non prepared (thus untyped) term.
      *
      * This can be one of:
@@ -83,7 +92,11 @@ public interface Term
     }
 
     /**
-     * A terminal term, i.e. one without any bind marker.
+     * A terminal term, one that can be reduced to a byte buffer directly.
+     *
+     * This includes most terms that don't have a bind marker (an exception
+     * being delayed call for non pure function that are NonTerminal even
+     * if they don't have bind markers).
      *
      * This can be only one of:
      *   - a constant value
@@ -97,6 +110,13 @@ public interface Term
         public void collectMarkerSpecification(ColumnSpecification[] boundNames) {}
         public Terminal bind(List<ByteBuffer> values) { return this; }
 
+        // While some NonTerminal may not have bind markers, no Term can be Terminal
+        // with a bind marker
+        public boolean containsBindMarker()
+        {
+            return false;
+        }
+
         /**
          * @return the serialized value of this terminal.
          */
@@ -109,12 +129,14 @@ public interface Term
     }
 
     /**
-     * A non terminal term, i.e. one that contains at least one bind marker.
+     * A non terminal term, i.e. a term that can only be reduce to a byte buffer
+     * at execution time.
      *
-     * We distinguish between the following type of NonTerminal:
+     * We have the following type of NonTerminal:
      *   - marker for a constant value
      *   - marker for a collection value (list, set, map)
      *   - a function having bind marker
+     *   - a non pure function (even if it doesn't have bind marker - see #5616)
      */
     public abstract class NonTerminal implements Term
     {

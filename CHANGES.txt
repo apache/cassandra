@@ -131,6 +131,7 @@
    after TTL expires (CASSANDRA-5762)
  * Sort nodetool help output (CASSANDRA-5776)
  * Fix column expiring during 2 phases compaction (CASSANDRA-5799)
+ * now() is being rejected in INSERTs when inside collections (CASSANDRA-5795)
 
 
 1.2.6
