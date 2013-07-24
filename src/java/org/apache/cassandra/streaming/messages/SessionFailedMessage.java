@@ -39,4 +39,10 @@ public class SessionFailedMessage extends StreamMessage
     {
         super(Type.SESSION_FAILED);
     }
+
+    @Override
+    public String toString()
+    {
+        return "Session Failed";
+    }
 }

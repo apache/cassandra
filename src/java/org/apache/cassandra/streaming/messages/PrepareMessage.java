@@ -79,12 +79,12 @@ public class PrepareMessage extends StreamMessage
     @Override
     public String toString()
     {
-        final StringBuilder sb = new StringBuilder("PrepareMessage{");
+        final StringBuilder sb = new StringBuilder("Prepare (");
         sb.append(requests.size()).append(" requests, ");
         int totalFile = 0;
         for (StreamSummary summary : summaries)
             totalFile += summary.files;
-        sb.append(totalFile).append(" files receiving");
+        sb.append(" ").append(totalFile).append(" files");
         sb.append('}');
         return sb.toString();
     }

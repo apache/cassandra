@@ -107,6 +107,6 @@ public class FileMessage extends StreamMessage
     @Override
     public String toString()
     {
-        return "FileMessage(" + sstable + ")";
+        return "File (" + header + ", file: " + sstable.getFilename() + ")";
     }
 }

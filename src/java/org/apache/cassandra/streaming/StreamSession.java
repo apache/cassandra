@@ -185,7 +185,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
     {
         if (requests.isEmpty() && transfers.isEmpty())
         {
-            logger.debug("Session does not have any tasks.");
+            logger.info("[Stream #{}] Session does not have any tasks.", planId());
             closeSession(State.COMPLETE);
             return;
         }
@@ -386,8 +386,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
      */
     public void onInitializationComplete()
     {
-        logger.debug("Connected. Sending prepare...");
-
         // send prepare message
         state(State.PREPARING);
         PrepareMessage prepare = new PrepareMessage();
@@ -398,10 +396,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
 
         // if we don't need to prepare for receiving stream, start sending files immediately
         if (requests.isEmpty())
-        {
-            logger.debug("Prepare complete. Start streaming files.");
             startStreamingFiles();
-        }
     }
 
     /**
@@ -411,7 +406,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
      */
     public void onError(Throwable e)
     {
-        logger.error("Streaming error occurred", e);
+        logger.error("[Stream #" + planId() + "] Streaming error occurred", e);
         // send session failure message
         if (handler.isOutgoingConnected())
             handler.sendMessage(new SessionFailedMessage());
@@ -424,8 +419,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
      */
     public void prepare(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
     {
-        logger.debug("Start preparing this session (" + requests.size() + " to send, " + summaries.size() + " to receive)");
-
         // prepare tasks
         state(State.PREPARING);
         for (StreamRequest request : requests)
@@ -444,10 +437,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
 
         // if there are files to stream
         if (!maybeCompleted())
-        {
-            logger.debug("Prepare complete. Start streaming files.");
             startStreamingFiles();
-        }
     }
 
     /**
@@ -523,7 +513,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
 
     public void doRetry(FileMessageHeader header, Throwable e)
     {
-        logger.warn("retrying for following error", e);
+        logger.warn("[Stream #" + planId() + "] Retrying for following error", e);
         // retry
         retries++;
         if (retries > DatabaseDescriptor.getMaxStreamingRetries())
@@ -610,7 +600,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
      */
     private void flushSSTables(Iterable<ColumnFamilyStore> stores)
     {
-        logger.info("Flushing memtables for {}...", stores);
         List<Future<?>> flushes = new ArrayList<>();
         for (ColumnFamilyStore cfs : stores)
             flushes.add(cfs.forceFlush());
@@ -619,7 +608,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
 
     private void prepareReceiving(StreamSummary summary)
     {
-        logger.debug("Prepare for receiving " + summary);
         if (summary.files > 0)
             receivers.put(summary.cfId, new StreamReceiveTask(this, summary.cfId, summary.files, summary.totalSize));
     }

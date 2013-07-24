@@ -125,7 +125,6 @@ public class ConnectionHandler
         {
             try
             {
-                logger.info("Connecting to {} for streaming", peer);
                 Socket socket = OutboundTcpConnectionPool.newSocket(peer);
                 socket.setSoTimeout(DatabaseDescriptor.getStreamingSocketTimeout());
                 return socket;
@@ -151,7 +150,7 @@ public class ConnectionHandler
 
     public ListenableFuture<?> close()
     {
-        logger.debug("Closing stream connection handler on {}", session.peer);
+        logger.debug("[Stream #{}] Closing stream connection handler on {}", session.planId(), session.peer);
 
         ListenableFuture<?> inClosed = incoming == null ? Futures.immediateFuture(null) : incoming.close();
         ListenableFuture<?> outClosed = outgoing == null ? Futures.immediateFuture(null) : outgoing.close();
@@ -290,7 +289,7 @@ public class ConnectionHandler
                     // to ignore here since we'll have asked for a retry.
                     if (message != null)
                     {
-                        logger.debug("Received {}", message);
+                        logger.debug("[Stream #{}] Received {}", session.planId(), message);
                         session.messageReceived(message);
                     }
                 }
@@ -354,7 +353,7 @@ public class ConnectionHandler
                 {
                     if ((next = messageQueue.poll(1, TimeUnit.SECONDS)) != null)
                     {
-                        logger.debug("Sending {}", next);
+                        logger.debug("[Stream #{}] Sending {}", session.planId(), next);
                         sendMessage(next);
                         if (next.type == StreamMessage.Type.SESSION_FAILED)
                             close();

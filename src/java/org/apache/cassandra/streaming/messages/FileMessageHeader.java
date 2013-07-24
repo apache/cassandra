@@ -83,6 +83,20 @@ public class FileMessageHeader
     }
 
     @Override
+    public String toString()
+    {
+        final StringBuilder sb = new StringBuilder("Header (");
+        sb.append("cfId: ").append(cfId);
+        sb.append(", #").append(sequenceNumber);
+        sb.append(", version: ").append(version);
+        sb.append(", estimated keys: ").append(estimatedKeys);
+        sb.append(", transfer size: ").append(size());
+        sb.append(", compressed?: ").append(compressionInfo != null);
+        sb.append(')');
+        return sb.toString();
+    }
+
+    @Override
     public boolean equals(Object o)
     {
         if (this == o) return true;

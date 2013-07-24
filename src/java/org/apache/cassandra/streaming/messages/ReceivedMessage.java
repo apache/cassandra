@@ -54,4 +54,12 @@ public class ReceivedMessage extends StreamMessage
         this.cfId = cfId;
         this.sequenceNumber = sequenceNumber;
     }
+
+    @Override
+    public String toString()
+    {
+        final StringBuilder sb = new StringBuilder("Received (");
+        sb.append(cfId).append(", #").append(sequenceNumber).append(')');
+        return sb.toString();
+    }
 }

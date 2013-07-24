@@ -39,4 +39,10 @@ public class CompleteMessage extends StreamMessage
     {
         super(Type.COMPLETE);
     }
+
+    @Override
+    public String toString()
+    {
+        return "Complete";
+    }
 }

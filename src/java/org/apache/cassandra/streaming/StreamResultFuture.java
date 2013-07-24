@@ -78,9 +78,11 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
     {
         StreamResultFuture future = createAndRegister(planId, description, sessions);
 
+        logger.info("[Stream #{}] Executing streaming plan for {}", planId,  description);
         // start sessions
         for (final StreamSession session : sessions)
         {
+            logger.info("[Stream #{}] Beginning stream session with {}", planId, session.peer);
             session.init(future);
             session.start();
         }
@@ -110,6 +112,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         else
         {
             future.attachSocket(from, socket, isForOutgoing, version);
+            logger.info("[Stream #{}] Received streaming plan for {}", planId,  description);
         }
         return future;
     }
@@ -161,6 +164,12 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
     void handleSessionPrepared(StreamSession session)
     {
         SessionInfo sessionInfo = session.getSessionInfo();
+        logger.info("[Stream #{}] Prepare completed. Receiving {} files({} bytes), sending {} files({} bytes)",
+                              session.planId(),
+                              sessionInfo.getTotalFilesToReceive(),
+                              sessionInfo.getTotalSizeToReceive(),
+                              sessionInfo.getTotalFilesToSend(),
+                              sessionInfo.getTotalSizeToSend());
         StreamEvent.SessionPreparedEvent event = new StreamEvent.SessionPreparedEvent(planId, sessionInfo);
         sessionStates.put(sessionInfo.peer, sessionInfo);
         fireStreamEvent(event);
@@ -168,7 +177,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
 
     void handleSessionComplete(StreamSession session)
     {
-        logger.debug("Session with {} is complete", session.peer);
+        logger.info("[Stream #{}] Session with {} is complete", session.planId(), session.peer);
 
         SessionInfo sessionInfo = session.getSessionInfo();
         sessionStates.put(sessionInfo.peer, sessionInfo);
@@ -196,9 +205,15 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         {
             StreamState finalState = getCurrentState();
             if (finalState.hasFailedSession())
+            {
+                logger.warn("[Stream #{}] Stream failed", planId);
                 setException(new StreamException(finalState, "Stream failed"));
+            }
             else
+            {
+                logger.info("[Stream #{}] All sessions completed", planId);
                 set(finalState);
+            }
         }
     }
 }
