@@ -97,7 +97,9 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, column));
         int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
         ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
-        cfi.addTombstone(makeIndexColumnName(rowKey, column), localDeletionTime, column.timestamp());
+        ByteBuffer name = makeIndexColumnName(rowKey, column);
+        assert name.remaining() > 0 && name.remaining() <= Column.MAX_NAME_LENGTH : name.remaining();
+        cfi.addTombstone(name, localDeletionTime, column.timestamp());
         indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater);
         if (logger.isDebugEnabled())
             logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
@@ -108,6 +110,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, column));
         ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
         ByteBuffer name = makeIndexColumnName(rowKey, column);
+        assert name.remaining() > 0 && name.remaining() <= Column.MAX_NAME_LENGTH : name.remaining();
         if (column instanceof ExpiringColumn)
         {
             ExpiringColumn ec = (ExpiringColumn)column;

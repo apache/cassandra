@@ -246,8 +246,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
 
                 // PrecompactedRow.removeDeletedAndOldShards have only checked the top-level CF deletion times,
                 // not the range tombstone. For that we use the columnIndexer tombstone tracker.
-                // Note that this doesn't work for super columns.
-                if (indexBuilder.tombstoneTracker().isDeleted(reduced, System.currentTimeMillis()))
+                if (indexBuilder.tombstoneTracker().isDeleted(reduced))
                     return null;
 
                 columns++;
