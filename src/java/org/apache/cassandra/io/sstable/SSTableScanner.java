@@ -178,21 +178,6 @@ public class SSTableScanner implements ICompactionScanner
         return new KeyScanningIterator();
     }
 
-    private boolean isDone(long current)
-    {
-        if (current < stopAt)
-            return false;
-
-        if (!hasSeeked)
-        {
-            // We're wrapping, so seek to the start now (which sets hasSeeked)
-            seekToStart();
-            stopAt = dfile.length();
-        }
-        // Re-test now that we might have seeked
-        return current >= stopAt;
-    }
-
     protected class KeyScanningIterator extends AbstractIterator<OnDiskAtomIterator>
     {
         private DecoratedKey nextKey;
@@ -218,9 +203,21 @@ public class SSTableScanner implements ICompactionScanner
                     currentEntry = nextEntry;
                 }
 
-                assert currentEntry.position <= stopAt;
-                if (isDone(currentEntry.position))
+                if (currentEntry.position >= stopAt)
+                {
+                    // We're in the wrapping, if we have just read the first part (we haven't seeked yet),
+                    // seek to the beginning of the 2nd part and continue;
+                    if (!hasSeeked)
+                    {
+                        seekToStart(); // This sets hasSeeked
+                        stopAt = dfile.length();
+                        // reset currentKey and nextKey since we have seeked
+                        currentKey = null;
+                        nextKey = null;
+                        return computeNext();
+                    }
                     return endOfData();
+                }
 
                 if (ifile.isEOF())
                 {
