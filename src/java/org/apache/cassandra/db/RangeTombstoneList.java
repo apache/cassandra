@@ -742,7 +742,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
                 }
                 else
                 {
-                    if (comparator.compare(name, ends[idx]) < 0)
+                    if (comparator.compare(name, ends[idx]) <= 0)
                         return markedAts[idx] >= timestamp;
                     else
                         idx++;

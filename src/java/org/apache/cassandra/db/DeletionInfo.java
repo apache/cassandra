@@ -336,13 +336,18 @@ public class DeletionInfo
      */
     public class InOrderTester
     {
-        private final RangeTombstoneList.InOrderTester tester;
+        /*
+         * Note that because because range tombstone are added to this DeletionInfo while we iterate,
+         * ranges may be null initially and we need to wait the first range to create the tester (once
+         * created the test will pick up new tombstones however). We do are guaranteed that a range tombstone
+         * will be added *before* we test any column that it may delete so this is ok.
+         */
+        private RangeTombstoneList.InOrderTester tester;
         private final boolean reversed;
 
         private InOrderTester(boolean reversed)
         {
             this.reversed = reversed;
-            this.tester = ranges == null || reversed ? null : ranges.inOrderTester();
         }
 
         public boolean isDeleted(Column column)
@@ -359,9 +364,14 @@ public class DeletionInfo
              * We don't optimize the reversed case for now because RangeTombstoneList
              * is always in forward sorted order.
              */
-            return reversed
-                 ? DeletionInfo.this.isDeleted(name, timestamp)
-                 : tester != null && tester.isDeleted(name, timestamp);
+            if (reversed)
+                 return DeletionInfo.this.isDeleted(name, timestamp);
+
+            // Maybe create the tester if we hadn't yet and we now have some ranges (see above).
+            if (tester == null && ranges != null)
+                tester = ranges.inOrderTester();
+
+            return tester != null && tester.isDeleted(name, timestamp);
         }
     }
 }

@@ -3,6 +3,7 @@
  * fix schema-related trigger issues (CASSANDRA-5774)
  * Better validation when accessing CQL3 table from thrift (CASSANDRA-5138)
  * Fix assertion error during repair (CASSANDRA-5801)
+ * Fix range tombstone bug (CASSANDRA-5805)
 
 
 2.0.0-beta2
