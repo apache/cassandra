@@ -235,8 +235,8 @@ public class ThriftValidation
                 ByteBuffer[] components = composite.split(name);
                 int minComponents = composite.types.size() - (cfDef.hasCollections ? 1 : 0);
                 if (components.length < minComponents)
-                    throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Not enough component (found %d but %d expected) for column name since %s is a CQL3 table",
-                                                                                                    metadata.cfName, components.length, minComponents));
+                    throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Not enough components (found %d but %d expected) for column name since %s is a CQL3 table",
+                                                                                                    components.length, minComponents, metadata.cfName));
 
                 // Furthermore, the column name must be a declared one.
                 int columnIndex = composite.types.size() - (cfDef.hasCollections ? 2 : 1);
