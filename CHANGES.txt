@@ -1,3 +1,7 @@
+1.2.8
+ * cqlsh: add collections support to COPY (CASSANDRA-5698)
+
+
 1.2.7
  * if no seeds can be a reached a node won't start in a ring by itself (CASSANDRA-5768)
  * add cassandra.unsafesystem property (CASSANDRA-5704)
