@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -71,12 +72,10 @@ public class CassandraAuthorizer implements IAuthorizer
         UntypedResultSet result;
         try
         {
-            ResultMessage.Rows rows = authorizeStatement.execute(ConsistencyLevel.ONE,
-                                                                 new QueryState(new ClientState(true)),
-                                                                 Lists.newArrayList(ByteBufferUtil.bytes(user.getName()),
-                                                                                    ByteBufferUtil.bytes(resource.getName())),
-                                                                 -1,
-                                                                 null);
+            ResultMessage.Rows rows = authorizeStatement.execute(new QueryState(new ClientState(true)),
+                                                                 new QueryOptions(ConsistencyLevel.ONE,
+                                                                                  Lists.newArrayList(ByteBufferUtil.bytes(user.getName()),
+                                                                                                     ByteBufferUtil.bytes(resource.getName()))));
             result = new UntypedResultSet(rows.result);
         }
         catch (RequestValidationException e)

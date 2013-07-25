@@ -841,7 +841,7 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
                 struct.strategy_options = new HashMap<String,String>(2*_map146.size);
                 for (int _i147 = 0; _i147 < _map146.size; ++_i147)
                 {
-                  String _key148; // optional
+                  String _key148; // required
                   String _val149; // required
                   _key148 = iprot.readString();
                   _val149 = iprot.readString();
@@ -1032,7 +1032,7 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
           struct.strategy_options = new HashMap<String,String>(2*_map160.size);
           for (int _i161 = 0; _i161 < _map160.size; ++_i161)
           {
-            String _key162; // optional
+            String _key162; // required
             String _val163; // required
             _key162 = iprot.readString();
             _val163 = iprot.readString();

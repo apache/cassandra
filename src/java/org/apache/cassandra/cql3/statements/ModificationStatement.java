@@ -334,32 +334,34 @@ public abstract class ModificationStatement implements CQLStatement
         return ifNotExists || (columnConditions != null && !columnConditions.isEmpty());
     }
 
-    public ResultMessage execute(ConsistencyLevel cl, QueryState queryState, List<ByteBuffer> variables, int pageSize, PagingState pagingState)
+    public ResultMessage execute(QueryState queryState, QueryOptions options)
     throws RequestExecutionException, RequestValidationException
     {
-        if (cl == null)
+        if (options.getConsistency() == null)
             throw new InvalidRequestException("Invalid empty consistency level");
 
         return hasConditions()
-             ? executeWithCondition(cl, queryState, variables)
-             : executeWithoutCondition(cl, queryState, variables);
+             ? executeWithCondition(queryState, options)
+             : executeWithoutCondition(queryState, options);
     }
 
-    private ResultMessage executeWithoutCondition(ConsistencyLevel cl, QueryState queryState, List<ByteBuffer> variables)
+    private ResultMessage executeWithoutCondition(QueryState queryState, QueryOptions options)
     throws RequestExecutionException, RequestValidationException
     {
+        ConsistencyLevel cl = options.getConsistency();
         if (isCounter())
             cl.validateCounterForWrite(cfm);
         else
             cl.validateForWrite(cfm.ksName);
 
-        StorageProxy.mutateWithTriggers(getMutations(variables, false, cl, queryState.getTimestamp(), false), cl, false);
+        StorageProxy.mutateWithTriggers(getMutations(options.getValues(), false, cl, queryState.getTimestamp(), false), cl, false);
         return null;
     }
 
-    public ResultMessage executeWithCondition(ConsistencyLevel cl, QueryState queryState, List<ByteBuffer> variables)
+    public ResultMessage executeWithCondition(QueryState queryState, QueryOptions options)
     throws RequestExecutionException, RequestValidationException
     {
+        List<ByteBuffer> variables = options.getValues();
         List<ByteBuffer> keys = buildPartitionKeyNames(variables);
         // We don't support IN for CAS operation so far
         if (keys.size() > 1)
@@ -374,7 +376,7 @@ public abstract class ModificationStatement implements CQLStatement
         ColumnFamily updates = updateForKey(key, clusteringPrefix, params);
         ColumnFamily expected = buildConditions(key, clusteringPrefix, params);
 
-        ColumnFamily result = StorageProxy.cas(keyspace(), columnFamily(), key, clusteringPrefix, expected, updates, cl);
+        ColumnFamily result = StorageProxy.cas(keyspace(), columnFamily(), key, clusteringPrefix, expected, updates, options.getConsistency(), options.getSerialConsistency());
         return new ResultMessage.Rows(buildCasResultSet(key, result));
     }
 

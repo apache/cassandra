@@ -30,6 +30,7 @@ import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -230,11 +231,8 @@ public class Auth
     {
         try
         {
-            ResultMessage.Rows rows = selectUserStatement.execute(consistencyForUser(username),
-                                                                  new QueryState(new ClientState(true)),
-                                                                  Lists.newArrayList(ByteBufferUtil.bytes(username)),
-                                                                  -1,
-                                                                  null);
+            ResultMessage.Rows rows = selectUserStatement.execute(new QueryState(new ClientState(true)),
+                                                                  new QueryOptions(consistencyForUser(username), Lists.newArrayList(ByteBufferUtil.bytes(username))));
             return new UntypedResultSet(rows.result);
         }
         catch (RequestValidationException e)

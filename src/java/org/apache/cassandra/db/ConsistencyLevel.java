@@ -48,7 +48,8 @@ public enum ConsistencyLevel
     ALL         (5),
     LOCAL_QUORUM(6),
     EACH_QUORUM (7),
-    SERIAL      (8);
+    SERIAL      (8),
+    LOCAL_SERIAL(9);
 
     private static final Logger logger = LoggerFactory.getLogger(ConsistencyLevel.class);
 
@@ -277,11 +278,13 @@ public enum ConsistencyLevel
                 requireNetworkTopologyStrategy(keyspaceName);
                 break;
             case SERIAL:
+            case LOCAL_SERIAL:
                 throw new InvalidRequestException("You must use conditional updates for serializable writes");
         }
     }
 
-    public void validateForCas(String keyspaceName) throws InvalidRequestException
+    // This is the same than validateForWrite really, but we include a slightly different error message for SERIAL/LOCAL_SERIAL
+    public void validateForCasCommit(String keyspaceName) throws InvalidRequestException
     {
         switch (this)
         {
@@ -289,9 +292,21 @@ public enum ConsistencyLevel
             case EACH_QUORUM:
                 requireNetworkTopologyStrategy(keyspaceName);
                 break;
-            case ANY:
-                throw new InvalidRequestException("ANY is not supported with CAS. Use SERIAL if you mean, make sure it is accepted but I don't care how many replicas commit it for non-SERIAL reads");
+            case SERIAL:
+            case LOCAL_SERIAL:
+                throw new InvalidRequestException(this + " is not supported as conditional update commit consistency. Use ANY if you mean \"make sure it is accepted but I don't care how many replicas commit it for non-SERIAL reads\"");
         }
+    }
+
+    public void validateForCas() throws InvalidRequestException
+    {
+        if (!isSerialConsistency())
+            throw new InvalidRequestException("Invalid consistency for conditional update. Must be one of SERIAL or LOCAL_SERIAL");
+    }
+
+    public boolean isSerialConsistency()
+    {
+        return this == SERIAL || this == LOCAL_SERIAL;
     }
 
     public void validateCounterForWrite(CFMetaData metadata) throws InvalidRequestException
@@ -304,7 +319,7 @@ public enum ConsistencyLevel
         {
             throw new InvalidRequestException("cannot achieve CL > CL.ONE without replicate_on_write on columnfamily " + metadata.cfName);
         }
-        else if (this == ConsistencyLevel.SERIAL)
+        else if (isSerialConsistency())
         {
             throw new InvalidRequestException("Counter operations are inherently non-serializable");
         }

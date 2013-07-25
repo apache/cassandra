@@ -662,7 +662,7 @@ public class CqlMetadata implements org.apache.thrift.TBase<CqlMetadata, CqlMeta
                 struct.name_types = new HashMap<ByteBuffer,String>(2*_map172.size);
                 for (int _i173 = 0; _i173 < _map172.size; ++_i173)
                 {
-                  ByteBuffer _key174; // optional
+                  ByteBuffer _key174; // required
                   String _val175; // required
                   _key174 = iprot.readBinary();
                   _val175 = iprot.readString();
@@ -682,7 +682,7 @@ public class CqlMetadata implements org.apache.thrift.TBase<CqlMetadata, CqlMeta
                 struct.value_types = new HashMap<ByteBuffer,String>(2*_map176.size);
                 for (int _i177 = 0; _i177 < _map176.size; ++_i177)
                 {
-                  ByteBuffer _key178; // optional
+                  ByteBuffer _key178; // required
                   String _val179; // required
                   _key178 = iprot.readBinary();
                   _val179 = iprot.readString();
@@ -807,7 +807,7 @@ public class CqlMetadata implements org.apache.thrift.TBase<CqlMetadata, CqlMeta
         struct.name_types = new HashMap<ByteBuffer,String>(2*_map184.size);
         for (int _i185 = 0; _i185 < _map184.size; ++_i185)
         {
-          ByteBuffer _key186; // optional
+          ByteBuffer _key186; // required
           String _val187; // required
           _key186 = iprot.readBinary();
           _val187 = iprot.readString();
@@ -820,7 +820,7 @@ public class CqlMetadata implements org.apache.thrift.TBase<CqlMetadata, CqlMeta
         struct.value_types = new HashMap<ByteBuffer,String>(2*_map188.size);
         for (int _i189 = 0; _i189 < _map188.size; ++_i189)
         {
-          ByteBuffer _key190; // optional
+          ByteBuffer _key190; // required
           String _val191; // required
           _key190 = iprot.readBinary();
           _val191 = iprot.readString();

@@ -236,6 +236,7 @@ enum ConsistencyLevel {
     TWO = 7,
     THREE = 8,
     SERIAL = 9,
+    LOCAL_SERIAL = 10,
 }
 
 /**
@@ -664,12 +665,22 @@ service Cassandra {
    * If the cas is successfull, the success boolean in CASResult will be true and there will be no current_values.
    * Otherwise, success will be false and current_values will contain the current values for the columns in
    * expected (that, by definition of compare-and-set, will differ from the values in expected).
+   *
+   * A cas operation takes 2 consistency level. The first one, serial_consistency_level, simply indicates the
+   * level of serialization required. This can be either ConsistencyLevel.SERIAL or ConsistencyLevel.LOCAL_SERIAL.
+   * The second one, commit_consistency_level, defines the consistency level for the commit phase of the cas. This
+   * is a more traditional consistency level (the same CL than for traditional writes are accepted) that impact
+   * the visibility for reads of the operation. For instance, if commit_consistency_level is QUORUM, then it is
+   * guaranteed that a followup QUORUM read will see the cas write (if that one was successful obviously). If
+   * commit_consistency_level is ANY, you will need to use a SERIAL/LOCAL_SERIAL read to be guaranteed to see
+   * the write.
    */
   CASResult cas(1:required binary key,
                 2:required string column_family,
                 3:list<Column> expected,
                 4:list<Column> updates,
-                5:required ConsistencyLevel consistency_level=ConsistencyLevel.QUORUM)
+                5:required ConsistencyLevel serial_consistency_level=ConsistencyLevel.SERIAL,
+                6:required ConsistencyLevel commit_consistency_level=ConsistencyLevel.QUORUM)
        throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**

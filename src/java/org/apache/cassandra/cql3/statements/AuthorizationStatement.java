@@ -22,6 +22,7 @@ import java.util.List;
 
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
@@ -42,7 +43,7 @@ public abstract class AuthorizationStatement extends ParsedStatement implements 
         return 0;
     }
 
-    public ResultMessage execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables, int pageSize, PagingState pagingState)
+    public ResultMessage execute(QueryState state, QueryOptions options)
     throws RequestValidationException, RequestExecutionException
     {
         return execute(state.getClientState());

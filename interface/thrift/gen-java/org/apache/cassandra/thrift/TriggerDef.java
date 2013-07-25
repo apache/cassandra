@@ -478,7 +478,7 @@ public class TriggerDef implements org.apache.thrift.TBase<TriggerDef, TriggerDe
                 struct.options = new HashMap<String,String>(2*_map100.size);
                 for (int _i101 = 0; _i101 < _map100.size; ++_i101)
                 {
-                  String _key102; // optional
+                  String _key102; // required
                   String _val103; // required
                   _key102 = iprot.readString();
                   _val103 = iprot.readString();
@@ -562,7 +562,7 @@ public class TriggerDef implements org.apache.thrift.TBase<TriggerDef, TriggerDe
         struct.options = new HashMap<String,String>(2*_map106.size);
         for (int _i107 = 0; _i107 < _map106.size; ++_i107)
         {
-          String _key108; // optional
+          String _key108; // required
           String _val109; // required
           _key108 = iprot.readString();
           _val109 = iprot.readString();

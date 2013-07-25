@@ -43,6 +43,7 @@ import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.cql.QueryProcessor;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
@@ -691,7 +692,12 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public CASResult cas(ByteBuffer key, String column_family, List<Column> expected, List<Column> updates, ConsistencyLevel consistency_level)
+    public CASResult cas(ByteBuffer key,
+                         String column_family,
+                         List<Column> expected,
+                         List<Column> updates,
+                         ConsistencyLevel serial_consistency_level,
+                         ConsistencyLevel commit_consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
         if (startSessionIfRequested())
@@ -747,7 +753,14 @@ public class CassandraServer implements Cassandra.Iface
             }
 
             schedule(DatabaseDescriptor.getWriteRpcTimeout());
-            ColumnFamily result = StorageProxy.cas(cState.getKeyspace(), column_family, key, null, cfExpected, cfUpdates, ThriftConversion.fromThrift(consistency_level));
+            ColumnFamily result = StorageProxy.cas(cState.getKeyspace(),
+                                                   column_family,
+                                                   key,
+                                                   null,
+                                                   cfExpected,
+                                                   cfUpdates,
+                                                   ThriftConversion.fromThrift(serial_consistency_level),
+                                                   ThriftConversion.fromThrift(commit_consistency_level));
             return result == null
                  ? new CASResult(true)
                  : new CASResult(false).setCurrent_values(thriftifyColumnsAsColumns(result.getSortedColumns(), System.currentTimeMillis()));
@@ -2024,11 +2037,8 @@ public class CassandraServer implements Cassandra.Iface
             logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId, statement.getBoundsTerms());
 
             return org.apache.cassandra.cql3.QueryProcessor.processPrepared(statement,
-                                                                            ThriftConversion.fromThrift(cLevel),
                                                                             cState.getQueryState(),
-                                                                            bindVariables,
-                                                                            -1,
-                                                                            null).toThriftResult();
+                                                                            new QueryOptions(ThriftConversion.fromThrift(cLevel), bindVariables)).toThriftResult();
         }
         catch (RequestExecutionException e)
         {

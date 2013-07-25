@@ -55,7 +55,7 @@ public class TruncateStatement extends CFStatement implements CQLStatement
         ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
     }
 
-    public ResultMessage execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables, int pageSize, PagingState pagingState) throws InvalidRequestException, TruncateException
+    public ResultMessage execute(QueryState state, QueryOptions options) throws InvalidRequestException, TruncateException
     {
         try
         {

@@ -3674,7 +3674,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
                 struct.compaction_strategy_options = new HashMap<String,String>(2*_map113.size);
                 for (int _i114 = 0; _i114 < _map113.size; ++_i114)
                 {
-                  String _key115; // optional
+                  String _key115; // required
                   String _val116; // required
                   _key115 = iprot.readString();
                   _val116 = iprot.readString();
@@ -3694,7 +3694,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
                 struct.compression_options = new HashMap<String,String>(2*_map117.size);
                 for (int _i118 = 0; _i118 < _map117.size; ++_i118)
                 {
-                  String _key119; // optional
+                  String _key119; // required
                   String _val120; // required
                   _key119 = iprot.readString();
                   _val120 = iprot.readString();
@@ -4484,7 +4484,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           struct.compaction_strategy_options = new HashMap<String,String>(2*_map135.size);
           for (int _i136 = 0; _i136 < _map135.size; ++_i136)
           {
-            String _key137; // optional
+            String _key137; // required
             String _val138; // required
             _key137 = iprot.readString();
             _val138 = iprot.readString();
@@ -4499,7 +4499,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           struct.compression_options = new HashMap<String,String>(2*_map139.size);
           for (int _i140 = 0; _i140 < _map139.size; ++_i140)
           {
-            String _key141; // optional
+            String _key141; // required
             String _val142; // required
             _key141 = iprot.readString();
             _val142 = iprot.readString();

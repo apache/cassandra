@@ -138,8 +138,10 @@ public class SelectStatement implements CQLStatement
         // Nothing to do, all validation has been done by RawStatement.prepare()
     }
 
-    public ResultMessage.Rows execute(ConsistencyLevel cl, QueryState state, List<ByteBuffer> variables, int pageSize, PagingState pagingState) throws RequestExecutionException, RequestValidationException
+    public ResultMessage.Rows execute(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
+        ConsistencyLevel cl = options.getConsistency();
+        List<ByteBuffer> variables = options.getValues();
         if (cl == null)
             throw new InvalidRequestException("Invalid empty consistency level");
 
@@ -158,18 +160,19 @@ public class SelectStatement implements CQLStatement
             command = commands == null ? null : new Pageable.ReadCommands(commands);
         }
 
+        int pageSize = options.getPageSize();
         // A count query will never be paged for the user, but we always page it internally to avoid OOM.
         // If we user provided a pageSize we'll use that to page internally (because why not), otherwise we use our default
-        if (parameters.isCount && pageSize < 0)
+        if (parameters.isCount && pageSize <= 0)
             pageSize = DEFAULT_COUNT_PAGE_SIZE;
 
-        if (pageSize < 0 || command == null || !QueryPagers.mayNeedPaging(command, pageSize))
+        if (pageSize <= 0 || command == null || !QueryPagers.mayNeedPaging(command, pageSize))
         {
             return execute(command, cl, variables, limit, now);
         }
         else
         {
-            QueryPager pager = QueryPagers.pager(command, cl, pagingState);
+            QueryPager pager = QueryPagers.pager(command, cl, options.getPagingState());
             if (parameters.isCount)
                 return pageCountQuery(pager, variables, pageSize, now);
 

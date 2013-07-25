@@ -29,6 +29,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.base.Function;
+import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.lang.StringUtils;
@@ -195,16 +196,25 @@ public class StorageProxy implements StorageProxyMBean
      * the first live column of the row).
      * @param expected the expected column values. This can be null to check for existence (see {@code prefix}).
      * @param updates the value to insert if {@code expected matches the current values}.
-     * @param consistencyLevel the consistency for the operation.
+     * @param consistencyForPaxos the consistency for the paxos prepare and propose round. This can only be either SERIAL or LOCAL_SERIAL.
+     * @param consistencyForCommit the consistency for write done during the commit phase. This can be anything, except SERIAL or LOCAL_SERIAL.
      *
      * @return null if the operation succeeds in updating the row, or the current values for the columns contained in
      * expected (since, if the CAS doesn't succeed, it means the current value do not match the one in expected). If
      * expected == null and the CAS is unsuccessfull, the first live column of the CF is returned.
      */
-    public static ColumnFamily cas(String keyspaceName, String cfName, ByteBuffer key, ColumnNameBuilder prefix, ColumnFamily expected, ColumnFamily updates, ConsistencyLevel consistencyLevel)
+    public static ColumnFamily cas(String keyspaceName,
+                                   String cfName,
+                                   ByteBuffer key,
+                                   ColumnNameBuilder prefix,
+                                   ColumnFamily expected,
+                                   ColumnFamily updates,
+                                   ConsistencyLevel consistencyForPaxos,
+                                   ConsistencyLevel consistencyForCommit)
     throws UnavailableException, IsBootstrappingException, ReadTimeoutException, WriteTimeoutException, InvalidRequestException
     {
-        consistencyLevel.validateForCas(keyspaceName);
+        consistencyForPaxos.validateForCas();
+        consistencyForCommit.validateForCasCommit(keyspaceName);
 
         CFMetaData metadata = Schema.instance.getCFMetaData(keyspaceName, cfName);
 
@@ -213,11 +223,11 @@ public class StorageProxy implements StorageProxyMBean
         while (System.nanoTime() - start < timeout)
         {
             // for simplicity, we'll do a single liveness check at the start of each attempt
-            Pair<List<InetAddress>, Integer> p = getPaxosParticipants(keyspaceName, key);
+            Pair<List<InetAddress>, Integer> p = getPaxosParticipants(keyspaceName, key, consistencyForPaxos);
             List<InetAddress> liveEndpoints = p.left;
             int requiredParticipants = p.right;
 
-            UUID ballot = beginAndRepairPaxos(start, key, metadata, liveEndpoints, requiredParticipants);
+            UUID ballot = beginAndRepairPaxos(start, key, metadata, liveEndpoints, requiredParticipants, consistencyForPaxos);
 
             // read the current value and compare with expected
             Tracing.trace("Reading existing values for CAS precondition");
@@ -250,10 +260,10 @@ public class StorageProxy implements StorageProxyMBean
             Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
             if (proposePaxos(proposal, liveEndpoints, requiredParticipants))
             {
-                if (consistencyLevel == ConsistencyLevel.SERIAL)
+                if (consistencyForCommit == ConsistencyLevel.ANY)
                     sendCommit(proposal, liveEndpoints);
                 else
-                    commitPaxos(proposal, consistencyLevel);
+                    commitPaxos(proposal, consistencyForCommit);
                 Tracing.trace("CAS successful");
                 return null;
             }
@@ -263,7 +273,7 @@ public class StorageProxy implements StorageProxyMBean
             // continue to retry
         }
 
-        throw new WriteTimeoutException(WriteType.CAS, ConsistencyLevel.SERIAL, -1, -1);
+        throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, -1, -1);
     }
 
     private static boolean hasLiveColumns(ColumnFamily cf, long now)
@@ -301,15 +311,35 @@ public class StorageProxy implements StorageProxyMBean
         return true;
     }
 
-    private static Pair<List<InetAddress>, Integer> getPaxosParticipants(String keyspaceName, ByteBuffer key) throws UnavailableException
+    private static Predicate<InetAddress> sameDCPredicateFor(final String dc)
+    {
+        final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+        return new Predicate<InetAddress>()
+        {
+            public boolean apply(InetAddress host)
+            {
+                return dc.equals(snitch.getDatacenter(host));
+            }
+        };
+    }
+
+    private static Pair<List<InetAddress>, Integer> getPaxosParticipants(String keyspaceName, ByteBuffer key, ConsistencyLevel consistencyForPaxos) throws UnavailableException
     {
         Token tk = StorageService.getPartitioner().getToken(key);
         List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(keyspaceName, tk);
         Collection<InetAddress> pendingEndpoints = StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, keyspaceName);
+        if (consistencyForPaxos == ConsistencyLevel.LOCAL_SERIAL)
+        {
+            // Restrict naturalEndpoints and pendingEndpoints to node in the local DC only
+            String localDc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
+            Predicate<InetAddress> isLocalDc = sameDCPredicateFor(localDc);
+            naturalEndpoints = ImmutableList.copyOf(Iterables.filter(naturalEndpoints, isLocalDc));
+            pendingEndpoints = ImmutableList.copyOf(Iterables.filter(pendingEndpoints, isLocalDc));
+        }
         int requiredParticipants = pendingEndpoints.size() + 1 + naturalEndpoints.size() / 2; // See CASSANDRA-833
         List<InetAddress> liveEndpoints = ImmutableList.copyOf(Iterables.filter(Iterables.concat(naturalEndpoints, pendingEndpoints), IAsyncCallback.isAlive));
         if (liveEndpoints.size() < requiredParticipants)
-            throw new UnavailableException(ConsistencyLevel.SERIAL, requiredParticipants, liveEndpoints.size());
+            throw new UnavailableException(consistencyForPaxos, requiredParticipants, liveEndpoints.size());
         return Pair.create(liveEndpoints, requiredParticipants);
     }
 
@@ -319,7 +349,7 @@ public class StorageProxy implements StorageProxyMBean
      * @return the Paxos ballot promised by the replicas if no in-progress requests were seen and a quorum of
      * nodes have seen the mostRecentCommit.  Otherwise, return null.
      */
-    private static UUID beginAndRepairPaxos(long start, ByteBuffer key, CFMetaData metadata, List<InetAddress> liveEndpoints, int requiredParticipants)
+    private static UUID beginAndRepairPaxos(long start, ByteBuffer key, CFMetaData metadata, List<InetAddress> liveEndpoints, int requiredParticipants, ConsistencyLevel consistencyForPaxos)
     throws WriteTimeoutException
     {
         long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getCasContentionTimeout());
@@ -376,7 +406,7 @@ public class StorageProxy implements StorageProxyMBean
             return ballot;
         }
 
-        throw new WriteTimeoutException(WriteType.CAS, ConsistencyLevel.SERIAL, -1, -1);
+        throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, -1, -1);
     }
 
     /**
@@ -1079,26 +1109,26 @@ public class StorageProxy implements StorageProxyMBean
         List<Row> rows = null;
         try
         {
-            if (consistency_level == ConsistencyLevel.SERIAL)
+            if (consistency_level.isSerialConsistency())
             {
                 // make sure any in-progress paxos writes are done (i.e., committed to a majority of replicas), before performing a quorum read
                 if (commands.size() > 1)
-                    throw new InvalidRequestException("SERIAL consistency may only be requested for one row at a time");
+                    throw new InvalidRequestException("SERIAL/LOCAL_SERIAL consistency may only be requested for one row at a time");
                 ReadCommand command = commands.get(0);
 
                 CFMetaData metadata = Schema.instance.getCFMetaData(command.ksName, command.cfName);
-                Pair<List<InetAddress>, Integer> p = getPaxosParticipants(command.ksName, command.key);
+                Pair<List<InetAddress>, Integer> p = getPaxosParticipants(command.ksName, command.key, consistency_level);
                 List<InetAddress> liveEndpoints = p.left;
                 int requiredParticipants = p.right;
 
                 // does the work of applying in-progress writes; throws UAE or timeout if it can't
                 try
                 {
-                    beginAndRepairPaxos(start, command.key, metadata, liveEndpoints, requiredParticipants);
+                    beginAndRepairPaxos(start, command.key, metadata, liveEndpoints, requiredParticipants, consistency_level);
                 }
                 catch (WriteTimeoutException e)
                 {
-                    throw new ReadTimeoutException(ConsistencyLevel.SERIAL, -1, -1, false);
+                    throw new ReadTimeoutException(consistency_level, -1, -1, false);
                 }
 
                 rows = fetchRows(commands, ConsistencyLevel.QUORUM);
