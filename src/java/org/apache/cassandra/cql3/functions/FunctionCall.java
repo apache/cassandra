@@ -21,8 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.common.base.Objects;
-
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Lists;
@@ -96,27 +94,6 @@ public class FunctionCall extends Term.NonTerminal
             case MAP:  return Maps.Value.fromSerialized(result, (MapType)fun.returnType());
         }
         throw new AssertionError();
-    }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        if (this == o)
-            return true;
-
-        if (!(o instanceof FunctionCall))
-            return false;
-
-        FunctionCall fc = (FunctionCall) o;
-
-        return Objects.equal(this.fun, fc.fun)
-            && Objects.equal(this.terms, fc.terms);
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hashCode(fun, terms);
     }
 
     public static class Raw implements Term.Raw
