@@ -68,7 +68,6 @@ public abstract class Sets
             if (receiver.type instanceof MapType && elements.isEmpty())
                 return new Maps.Value(Collections.<ByteBuffer, ByteBuffer>emptyMap());
 
-
             ColumnSpecification valueSpec = Sets.valueSpecOf(receiver);
             Set<Term> values = new HashSet<Term>(elements.size());
             boolean allTerminal = true;
@@ -82,7 +81,8 @@ public abstract class Sets
                 if (t instanceof Term.NonTerminal)
                     allTerminal = false;
 
-                values.add(t);
+                if (!values.add(t))
+                    throw new InvalidRequestException(String.format("Invalid set literal: duplicate value %s", rt));
             }
             DelayedValue value = new DelayedValue(((SetType)receiver.type).elements, values);
             return allTerminal ? value.bind(Collections.<ByteBuffer>emptyList()) : value;

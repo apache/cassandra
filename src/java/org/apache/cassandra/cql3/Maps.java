@@ -80,7 +80,8 @@ public abstract class Maps
                 if (k instanceof Term.NonTerminal || v instanceof Term.NonTerminal)
                     allTerminal = false;
 
-                values.put(k, v);
+                if (values.put(k, v) != null)
+                    throw new InvalidRequestException(String.format("Invalid map literal: duplicate entry for key %s", entry.left));
             }
             DelayedValue value = new DelayedValue(((MapType)receiver.type).keys, values);
             return allTerminal ? value.bind(Collections.<ByteBuffer>emptyList()) : value;
