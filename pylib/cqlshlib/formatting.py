@@ -112,8 +112,10 @@ def format_value_blob(val, colormap, **_):
     bval = '0x' + ''.join('%02x' % ord(c) for c in val)
     return colorme(bval, colormap, 'blob')
 
-def format_python_formatted_type(val, colormap, color):
+def format_python_formatted_type(val, colormap, color, quote=False):
     bval = str(val)
+    if quote:
+        bval = "'%s'" % bval
     return colorme(bval, colormap, color)
 
 @formatter_for('decimal')
@@ -127,8 +129,8 @@ def format_value_uuid(val, colormap, **_):
 formatter_for('timeuuid')(format_value_uuid)
 
 @formatter_for('inet')
-def formatter_value_inet(val, colormap, **_):
-    return format_python_formatted_type(val, colormap, 'inet')
+def formatter_value_inet(val, colormap, quote=False, **_):
+    return format_python_formatted_type(val, colormap, 'inet', quote=quote)
 
 @formatter_for('boolean')
 def format_value_boolean(val, colormap, **_):
@@ -152,8 +154,10 @@ formatter_for('varint')(format_integer_type)
 formatter_for('counter')(format_integer_type)
 
 @formatter_for('timestamp')
-def format_value_timestamp(val, colormap, time_format, **_):
+def format_value_timestamp(val, colormap, time_format, quote=False, **_):
     bval = strftime(time_format, val)
+    if quote:
+        bval = "'%s'" % bval
     return colorme(bval, colormap, 'timestamp')
 
 def strftime(time_format, seconds):
@@ -174,10 +178,12 @@ def strftime(time_format, seconds):
     return formatted[:-5] + sign + '{0:0=2}{1:0=2}'.format(hours, minutes)
 
 @formatter_for('text')
-def format_value_text(val, encoding, colormap, **_):
+def format_value_text(val, encoding, colormap, quote=False, **_):
     escapedval = val.replace(u'\\', u'\\\\')
     escapedval = unicode_controlchars_re.sub(_show_control_chars, escapedval)
     bval = escapedval.encode(encoding, 'backslashreplace')
+    if quote:
+        bval = "'%s'" % bval
     displaywidth = wcwidth.wcswidth(bval.decode(encoding))
     return color_text(bval, colormap, displaywidth)
 
@@ -188,7 +194,7 @@ def format_simple_collection(subtype, val, lbracket, rbracket, encoding,
                              colormap, time_format, float_precision, nullval):
     subs = [format_value(subtype, sval, encoding=encoding, colormap=colormap,
                          time_format=time_format, float_precision=float_precision,
-                         nullval=nullval)
+                         nullval=nullval, quote=True)
             for sval in val]
     bval = lbracket + ', '.join(sval.strval for sval in subs) + rbracket
     lb, sep, rb = [colormap['collection'] + s + colormap['reset']
@@ -212,7 +218,7 @@ def format_value_map(val, encoding, colormap, time_format, float_precision, subt
     def subformat(v, subtype):
         return format_value(subtype, v, encoding=encoding, colormap=colormap,
                             time_format=time_format, float_precision=float_precision,
-                            nullval=nullval)
+                            nullval=nullval, quote=True)
 
     subkeytype, subvaltype = subtypes
     subs = [(subformat(k, subkeytype), subformat(v, subvaltype)) for (k, v) in sorted(val.items())]
