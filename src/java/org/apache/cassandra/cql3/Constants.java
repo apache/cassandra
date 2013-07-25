@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import com.google.common.base.Objects;
 import org.apache.cassandra.serializers.MarshalException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -254,24 +253,6 @@ public abstract class Constants
         public ByteBuffer bindAndGet(List<ByteBuffer> values)
         {
             return bytes;
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hashCode(bytes);
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o)
-                return true;
-
-            if (!(o instanceof Value))
-                return false;
-
-            return Objects.equal(this.bytes, ((Value) o).bytes);
         }
     }
 
