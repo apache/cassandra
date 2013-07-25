@@ -106,6 +106,7 @@ public class ServerConnection extends Connection
                     // we won't use the authenticator again, null it so that it can be GC'd
                     saslAuthenticator = null;
                 }
+                break;
             case READY:
                 break;
             default:
