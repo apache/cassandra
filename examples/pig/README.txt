@@ -100,7 +100,7 @@ CqlStorage
 
 The CqlStorage class is somewhat similar to CassandraStorage, but it can work with CQL3-defined ColumnFamilies.  The main difference is in the URL format:
 
-cql://[username:password@]<keyspace>/<columnfamily>[?[page_size=<size>][&columns=<col1,col2>][&output_query=<prepared_statement>][&where_clause=<clause>][&split_size=<size>][&partitioner=<partitioner>]]
+cql://[username:password@]<keyspace>/<columnfamily>[?[page_size=<size>][&columns=<col1,col2>][&output_query=<prepared_statement>][&where_clause=<clause>][&split_size=<size>][&use_secondary=true|false][&partitioner=<partitioner>]]
 
 Which in grunt, the simplest example would look like:
 
