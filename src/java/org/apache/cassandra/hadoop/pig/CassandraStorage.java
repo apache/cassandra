@@ -70,8 +70,6 @@ public class CassandraStorage extends AbstractCassandraStorage
     public final static String PIG_WIDEROW_INPUT = "PIG_WIDEROW_INPUT";
     public final static String PIG_USE_SECONDARY = "PIG_USE_SECONDARY";
 
-    private final static String PARTITION_FILTER_SIGNATURE = "cassandra.partition.filter";
-
     private final static ByteBuffer BOUND = ByteBufferUtil.EMPTY_BYTE_BUFFER;
     private static final Logger logger = LoggerFactory.getLogger(CassandraStorage.class);
 
@@ -84,7 +82,6 @@ public class CassandraStorage extends AbstractCassandraStorage
     private RecordWriter<ByteBuffer, List<Mutation>> writer;
 
     private boolean widerows = false;
-    private boolean usePartitionFilter = false;
     private int limit;
     
     // wide row hacks
@@ -471,20 +468,6 @@ public class CassandraStorage extends AbstractCassandraStorage
         return schema;
     }
 
-    /** return partition keys */
-    public String[] getPartitionKeys(String location, Job job)
-    {
-        if (!usePartitionFilter)
-            return null;
-        List<ColumnDef> indexes = getIndexes();
-        String[] partitionKeys = new String[indexes.size()];
-        for (int i = 0; i < indexes.size(); i++)
-        {
-            partitionKeys[i] = new String(indexes.get(i).getName());
-        }
-        return partitionKeys;
-    }
-
     /** set partition filter */
     public void setPartitionFilter(Expression partitionFilter)
     {
@@ -679,19 +662,6 @@ public class CassandraStorage extends AbstractCassandraStorage
                 throw new RuntimeException("Unsupported expression type: " + expression.getOpType().name());
         }
         return indexExpressions;
-    }
-
-    /** get a list of columns with defined index*/
-    private List<ColumnDef> getIndexes()
-    {
-        CfDef cfdef = getCfDef(loadSignature);
-        List<ColumnDef> indexes = new ArrayList<ColumnDef>();
-        for (ColumnDef cdef : cfdef.column_metadata)
-        {
-            if (cdef.index_type != null)
-                indexes.add(cdef);
-        }
-        return indexes;
     }
 
     /** convert a list of index expression to string */
