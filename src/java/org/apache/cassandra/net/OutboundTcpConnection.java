@@ -216,7 +216,7 @@ public class OutboundTcpConnection extends Thread
 
                 // if the message was important, such as a repair acknowledgement, put it back on the queue
                 // to retry after re-connecting.  See CASSANDRA-5393
-                if (e instanceof SocketException && qm.shouldRetry())
+                if (qm.shouldRetry())
                 {
                     try
                     {

@@ -108,6 +108,7 @@
 
 1.2.8
  * cqlsh: add collections support to COPY (CASSANDRA-5698)
+ * retry important messages for any IOException (CASSANDRA-5804)
 
 
 1.2.7
