@@ -22,9 +22,9 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
@@ -228,7 +228,7 @@ public class SSTableWriter extends SSTable
         if (version.hasRowSizeAndColumnCount)
         {
             // skip row size
-            in.skipBytes(8);
+            FileUtils.skipBytesFully(in, 8);
             columnCount = in.readInt();
         }
         Iterator<OnDiskAtom> iter = metadata.getOnDiskIterator(in, columnCount, ColumnSerializer.Flag.PRESERVE_SIZE, Integer.MIN_VALUE, version);
