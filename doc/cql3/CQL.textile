@@ -1054,7 +1054,7 @@ The following describes the addition/changes brought for each version of CQL.
 
 h3. 3.0.5
 
-* SELECT, UPDATE, and DELETE statements now allow empty IN relations (see "CASSANDRA-5626":https://issues.apache.org/jira/browse/CASSANDRA-5626).
+* @SELECT@, @UPDATE@, and @DELETE@ statements now allow empty @IN@ relations (see "CASSANDRA-5626":https://issues.apache.org/jira/browse/CASSANDRA-5626).
 
 h3. 3.0.4
 
