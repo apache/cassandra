@@ -191,7 +191,7 @@ public abstract class ModificationStatement implements CQLStatement
         for (CFDefinition.Name name : cfDef.keys.values())
         {
             List<Term> values = processedKeys.get(name.name);
-            if (values == null || values.isEmpty())
+            if (values == null)
                 throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", name));
 
             if (keyBuilder.remainingCount() == 1)
@@ -206,7 +206,7 @@ public abstract class ModificationStatement implements CQLStatement
             }
             else
             {
-                if (values.size() > 1)
+                if (values.isEmpty() || values.size() > 1)
                     throw new InvalidRequestException("IN is only supported on the last column of the partition key");
                 ByteBuffer val = values.get(0).bindAndGet(variables);
                 if (val == null)
@@ -226,7 +226,7 @@ public abstract class ModificationStatement implements CQLStatement
         for (CFDefinition.Name name : cfDef.columns.values())
         {
             List<Term> values = processedKeys.get(name.name);
-            if (values == null || values.isEmpty())
+            if (values == null)
             {
                 firstEmptyKey = name;
                 if (requireFullClusteringKey() && cfDef.isComposite && !cfDef.isCompact)
@@ -354,7 +354,10 @@ public abstract class ModificationStatement implements CQLStatement
         else
             cl.validateForWrite(cfm.ksName);
 
-        StorageProxy.mutateWithTriggers(getMutations(options.getValues(), false, cl, queryState.getTimestamp(), false), cl, false);
+        Collection<? extends IMutation> mutations = getMutations(options.getValues(), false, cl, queryState.getTimestamp(), false);
+        if (!mutations.isEmpty())
+            StorageProxy.mutateWithTriggers(mutations, cl, false);
+
         return null;
     }
 

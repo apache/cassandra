@@ -484,7 +484,7 @@ bc(syntax)..
                | <identifier> '[' <term> ']' '=' <term>
 
 <where-clause> ::= <identifier> '=' <term>
-                 | <identifier> IN '(' <term> ( ',' <term> )* ')'
+                 | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
 
 <option> ::= TIMESTAMP <integer>
            | TTL <integer>
@@ -532,7 +532,7 @@ bc(syntax)..
 <selection> ::= <identifier> ( '[' <term> ']' )?
 
 <where-clause> ::= <identifier> '=' <term>
-                 | <identifier> IN '(' <term> ( ',' <term> )* ')'
+                 | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
 p. 
 __Sample:__
 
@@ -614,7 +614,7 @@ bc(syntax)..
 <where-clause> ::= <relation> ( "AND" <relation> )*
 
 <relation> ::= <identifier> ("=" | "<" | ">" | "<=" | ">=") <term>
-             | <identifier> IN '(' <term> ( ',' <term>)* ')'
+             | <identifier> IN '(' ( <term> ( ',' <term>)* )? ')'
              | TOKEN '(' <identifier> ')' ("=" | "<" | ">" | "<=" | ">=") (<term> | TOKEN '( <term> ')' )
 
 <order-by> ::= <ordering> ( ',' <odering> )*
@@ -1083,6 +1083,10 @@ h3. 3.1.0
 * @SELECT@ statement now supports aliases in select clause. Aliases in WHERE and ORDER BY clauses are not supported. See the "section on select"#selectStmt for details.
 * @CREATE@ statements for @KEYSPACE@, @TABLE@ and @INDEX@ now supports an @IF NOT EXISTS@ condition. Similarly, @DROP@ statements support a @IF EXISTS@ condition.
 * @INSERT@ statements optionally supports a @IF NOT EXISTS@ condition and @UDPATE@ supports @IF@ conditions.
+
+h3. 3.0.5
+
+* SELECT, UPDATE, and DELETE statements now allow empty IN relations (see "CASSANDRA-5626":https://issues.apache.org/jira/browse/CASSANDRA-5626).
 
 h3. 3.0.4
 

@@ -271,6 +271,9 @@ public class SelectStatement implements CQLStatement
     private List<ReadCommand> getSliceCommands(List<ByteBuffer> variables, int limit, long now) throws RequestValidationException
     {
         Collection<ByteBuffer> keys = getKeys(variables);
+        if (keys.isEmpty()) // in case of IN () for (the last column of) the partition key.
+            return null;
+
         List<ReadCommand> commands = new ArrayList<ReadCommand>(keys.size());
 
         IDiskAtomFilter filter = makeFilter(variables, limit);
@@ -287,6 +290,7 @@ public class SelectStatement implements CQLStatement
             // (this is fairly ugly and we should change that but that's probably not a tiny refactor to do that cleanly)
             commands.add(ReadCommand.create(keyspace(), key, columnFamily(), now, filter.cloneShallow()));
         }
+
         return commands;
     }
 
@@ -413,6 +417,8 @@ public class SelectStatement implements CQLStatement
         else
         {
             SortedSet<ByteBuffer> columnNames = getRequestedColumns(variables);
+            if (columnNames == null) // in case of IN () for the last column of the key
+                return null;
             QueryProcessor.validateColumnNames(columnNames);
             return new NamesQueryFilter(columnNames, true);
         }
@@ -469,7 +475,7 @@ public class SelectStatement implements CQLStatement
             }
             else
             {
-                if (r.eqValues.size() > 1)
+                if (r.isINRestriction())
                     throw new InvalidRequestException("IN is only supported on the last column of the partition key");
                 ByteBuffer val = r.eqValues.get(0).bindAndGet(variables);
                 if (val == null)
@@ -544,11 +550,13 @@ public class SelectStatement implements CQLStatement
         {
             ColumnIdentifier id = idIter.next();
             assert r != null && r.isEquality();
-            if (r.eqValues.size() > 1)
+            if (r.isINRestriction())
             {
                 // We have a IN, which we only support for the last column.
                 // If compact, just add all values and we're done. Otherwise,
                 // for each value of the IN, creates all the columns corresponding to the selection.
+                if (r.eqValues.isEmpty())
+                    return null;
                 SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfDef.cfm.comparator);
                 Iterator<Term> iter = r.eqValues.iterator();
                 while (iter.hasNext())
@@ -665,7 +673,7 @@ public class SelectStatement implements CQLStatement
 
             if (r.isEquality())
             {
-                if (r.eqValues.size() > 1)
+                if (r.isINRestriction())
                 {
                     // IN query, we only support it on the clustering column
                     assert name.position == names.size() - 1;
@@ -738,15 +746,13 @@ public class SelectStatement implements CQLStatement
             }
             if (restriction.isEquality())
             {
-                for (Term t : restriction.eqValues)
-                {
-                    ByteBuffer value = t.bindAndGet(variables);
-                    if (value == null)
-                        throw new InvalidRequestException(String.format("Unsupported null value for indexed column %s", name));
-                    if (value.remaining() > 0xFFFF)
-                        throw new InvalidRequestException("Index expression values may not be larger than 64K");
-                    expressions.add(new IndexExpression(name.name.key, IndexOperator.EQ, value));
-                }
+                assert restriction.eqValues.size() == 1; // IN is not supported for indexed columns.
+                ByteBuffer value = restriction.eqValues.get(0).bindAndGet(variables);
+                if (value == null)
+                    throw new InvalidRequestException(String.format("Unsupported null value for indexed column %s", name));
+                if (value.remaining() > 0xFFFF)
+                    throw new InvalidRequestException("Index expression values may not be larger than 64K");
+                expressions.add(new IndexExpression(name.name.key, IndexOperator.EQ, value));
             }
             else
             {
@@ -1062,7 +1068,7 @@ public class SelectStatement implements CQLStatement
              * WHERE clause. For a given entity, rules are:
              *   - EQ relation conflicts with anything else (including a 2nd EQ)
              *   - Can't have more than one LT(E) relation (resp. GT(E) relation)
-             *   - IN relation are restricted to row keys (for now) and conflics with anything else
+             *   - IN relation are restricted to row keys (for now) and conflicts with anything else
              *     (we could allow two IN for the same entity but that doesn't seem very useful)
              *   - The value_alias cannot be restricted in any way (we don't support wide rows with indexed value in CQL so far)
              */
@@ -1110,7 +1116,6 @@ public class SelectStatement implements CQLStatement
             // But we still need to know 2 things:
             //   - If we don't have a queriable index, is the query ok
             //   - Is it queriable without 2ndary index, which is always more efficient
-
             // If a component of the partition key is restricted by a non-EQ relation, all preceding
             // components must have a EQ, and all following must have no restriction
             boolean shouldBeDone = false;
@@ -1156,12 +1161,9 @@ public class SelectStatement implements CQLStatement
                 }
                 else if (restriction.onToken)
                 {
-                    // If this is a query on tokens, it's necessary a range query (there can be more than one key per token), so reject IN queries (as we don't know how to do them)
+                    // If this is a query on tokens, it's necessarily a range query (there can be more than one key per token).
                     stmt.isKeyRange = true;
                     stmt.onToken = true;
-
-                    if (restriction.isEquality() && restriction.eqValues.size() > 1)
-                        throw new InvalidRequestException("Select using the token() function don't support IN clause");
                 }
                 else if (stmt.onToken)
                 {
@@ -1169,7 +1171,7 @@ public class SelectStatement implements CQLStatement
                 }
                 else if (restriction.isEquality())
                 {
-                    if (restriction.eqValues.size() > 1)
+                    if (restriction.isINRestriction())
                     {
                         // We only support IN for the last name so far
                         if (i != stmt.keyRestrictions.length - 1)
@@ -1226,7 +1228,7 @@ public class SelectStatement implements CQLStatement
                     }
                     // We only support IN for the last name and for compact storage so far
                     // TODO: #3885 allows us to extend to non compact as well, but that remains to be done
-                    else if (restriction.eqValues.size() > 1)
+                    else if (restriction.isINRestriction())
                     {
                         if (i != stmt.columnRestrictions.length - 1)
                             throw new InvalidRequestException(String.format("PRIMARY KEY part %s cannot be restricted by IN relation", cname));
@@ -1500,6 +1502,11 @@ public class SelectStatement implements CQLStatement
         boolean isEquality()
         {
             return eqValues != null;
+        }
+
+        boolean isINRestriction()
+        {
+            return isEquality() && (eqValues.isEmpty() || eqValues.size() > 1);
         }
 
         public Term bound(Bound b)

@@ -861,7 +861,7 @@ relation[List<Relation> clauses]
                 $clauses.add(new Relation(id, type, t, true));
         }
     | name=cident K_IN { Relation rel = Relation.createInRelation($name.id); }
-       '(' f1=term { rel.addInValue(f1); } (',' fN=term { rel.addInValue(fN); } )* ')' { $clauses.add(rel); }
+       '(' ( f1=term { rel.addInValue(f1); } (',' fN=term { rel.addInValue(fN); } )* )? ')' { $clauses.add(rel); }
     ;
 
 comparatorType returns [CQL3Type t]
