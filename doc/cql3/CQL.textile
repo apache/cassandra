@@ -1,6 +1,6 @@
 <link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
-h1. Cassandra Query Language (CQL) v3.0.4
+h1. Cassandra Query Language (CQL) v3.0.5
 
 
  <span id="tableOfContents">
@@ -469,7 +469,7 @@ bc(syntax)..
                | <identifier> '[' <term> ']' '=' <term>
 
 <where-clause> ::= <identifier> '=' <term>
-                 | <identifier> IN '(' <term> ( ',' <term> )* ')'
+                 | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
 
 <option> ::= TIMESTAMP <integer>
            | TTL <integer>
@@ -515,7 +515,7 @@ bc(syntax)..
 <selection> ::= <identifier> ( '[' <term> ']' )?
 
 <where-clause> ::= <identifier> '=' <term>
-                 | <identifier> IN '(' <term> ( ',' <term> )* ')'
+                 | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
 p. 
 __Sample:__
 
@@ -597,7 +597,7 @@ bc(syntax)..
 <where-clause> ::= <relation> ( "AND" <relation> )*
 
 <relation> ::= <identifier> ("=" | "<" | ">" | "<=" | ">=") <term>
-             | <identifier> IN '(' <term> ( ',' <term>)* ')'
+             | <identifier> IN '(' ( <term> ( ',' <term>)* )? ')'
              | TOKEN '(' <identifier> ')' ("=" | "<" | ">" | "<=" | ">=") (<term> | TOKEN '( <term> ')' )
 
 <order-by> ::= <ordering> ( ',' <odering> )*
@@ -1051,6 +1051,10 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 h2(#changes). Changes
 
 The following describes the addition/changes brought for each version of CQL.
+
+h3. 3.0.5
+
+* SELECT, UPDATE, and DELETE statements now allow empty IN relations (see "CASSANDRA-5626":https://issues.apache.org/jira/browse/CASSANDRA-5626).
 
 h3. 3.0.4
 

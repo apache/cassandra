@@ -173,7 +173,7 @@ public class UpdateStatement extends ModificationStatement
         for (CFDefinition.Name name : cfDef.keys.values())
         {
             List<Term> values = processed.get(name.name);
-            if (values == null || values.isEmpty())
+            if (values == null)
                 throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", name));
 
             if (keyBuilder.remainingCount() == 1)
@@ -188,7 +188,7 @@ public class UpdateStatement extends ModificationStatement
             }
             else
             {
-                if (values.size() > 1)
+                if (values.isEmpty() || values.size() > 1)
                     throw new InvalidRequestException("IN is only supported on the last column of the partition key");
                 ByteBuffer val = values.get(0).bindAndGet(variables);
                 if (val == null)
