@@ -216,8 +216,8 @@ public class QueryOptions
             }
 
             CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(nbBuff, 0, options.values.size() + (flags.contains(Flag.PAGING_STATE) ? 1 : 0));
-            builder.add(CBUtil.byteToCB((byte)Flag.serialize(flags)));
             builder.add(CBUtil.consistencyLevelToCB(options.getConsistency()));
+            builder.add(CBUtil.byteToCB((byte)Flag.serialize(flags)));
 
             if (flags.contains(Flag.VALUES))
             {
