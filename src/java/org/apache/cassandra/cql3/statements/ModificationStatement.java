@@ -379,7 +379,14 @@ public abstract class ModificationStatement implements CQLStatement
         ColumnFamily updates = updateForKey(key, clusteringPrefix, params);
         ColumnFamily expected = buildConditions(key, clusteringPrefix, params);
 
-        ColumnFamily result = StorageProxy.cas(keyspace(), columnFamily(), key, clusteringPrefix, expected, updates, options.getConsistency(), options.getSerialConsistency());
+        ColumnFamily result = StorageProxy.cas(keyspace(),
+                                               columnFamily(),
+                                               key,
+                                               clusteringPrefix,
+                                               expected,
+                                               updates,
+                                               options.getSerialConsistency(),
+                                               options.getConsistency());
         return new ResultMessage.Rows(buildCasResultSet(key, result));
     }
 
