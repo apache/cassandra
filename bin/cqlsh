@@ -128,7 +128,7 @@ DEFAULT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S%z'
 DEFAULT_FLOAT_PRECISION = 5
 DEFAULT_SELECT_LIMIT = 10000
 
-if readline is not None and 'libedit' in readline.__doc__:
+if readline is not None and readline.__doc__ is not None and 'libedit' in readline.__doc__:
     DEFAULT_COMPLETEKEY = '\t'
 else:
     DEFAULT_COMPLETEKEY = 'tab'
@@ -706,7 +706,7 @@ class Shell(cmd.Cmd):
             else:
                 old_completer = readline.get_completer()
                 readline.set_completer(self.complete)
-                if 'libedit' in readline.__doc__:
+                if readline.__doc__ is not None and 'libedit' in readline.__doc__:
                     readline.parse_and_bind("bind -e")
                     readline.parse_and_bind("bind '" + self.completekey + "' rl_complete")
                 else:
