@@ -5,6 +5,11 @@
  * Fix assertion error during repair (CASSANDRA-5801)
  * Fix range tombstone bug (CASSANDRA-5805)
  * DC-local CAS (CASSANDRA-5797)
+Merged from 1.2:
+ * cqlsh: add collections support to COPY (CASSANDRA-5698)
+ * retry important messages for any IOException (CASSANDRA-5804)
+ * Allow empty IN relations in SELECT/UPDATE/DELETE statements (CASSANDRA-5626)
+ * cqlsh: fix crashing on Windows due to libedit detection (CASSANDRA-5812)
 
 
 2.0.0-beta2
@@ -27,6 +32,26 @@
  * Thrift cas() method crashes if input columns are not sorted (CASSANDRA-5786)
  * Order columns names correctly when querying for CAS (CASSANDRA-5788)
  * Fix streaming retry (CASSANDRA-5775)
+Merged from 1.2:
+ * if no seeds can be a reached a node won't start in a ring by itself (CASSANDRA-5768)
+ * add cassandra.unsafesystem property (CASSANDRA-5704)
+ * (Hadoop) quote identifiers in CqlPagingRecordReader (CASSANDRA-5763)
+ * Add replace_node functionality for vnodes (CASSANDRA-5337)
+ * Add timeout events to query traces (CASSANDRA-5520)
+ * Fix serialization of the LEFT gossip value (CASSANDRA-5696)
+ * Expose native protocol server status in nodetool info (CASSANDRA-5735)
+ * Fix pathetic performance of range tombstones (CASSANDRA-5677)
+ * Fix querying with an empty (impossible) range (CASSANDRA-5573)
+ * cqlsh: handle CUSTOM 2i in DESCRIBE output (CASSANDRA-5760)
+ * Fix minor bug in Range.intersects(Bound) (CASSANDRA-5771)
+ * cqlsh: handle disabled compression in DESCRIBE output (CASSANDRA-5766)
+ * Ensure all UP events are notified on the native protocol (CASSANDRA-5769)
+ * Fix formatting of sstable2json with multiple -k arguments (CASSANDRA-5781)
+ * Don't rely on row marker for queries in general to hide lost markers
+   after TTL expires (CASSANDRA-5762)
+ * Sort nodetool help output (CASSANDRA-5776)
+ * Fix column expiring during 2 phases compaction (CASSANDRA-5799)
+ * now() is being rejected in INSERTs when inside collections (CASSANDRA-5795)
 
 
 2.0.0-beta1
@@ -104,21 +129,7 @@
  * Auto paging in binary protocol (CASSANDRA-4415, 5714)
  * Don't tie client side use of AbstractType to JDBC (CASSANDRA-4495)
  * Adds new TimestampType to replace DateType (CASSANDRA-5723, CASSANDRA-5729)
-
-
-1.2.8
- * cqlsh: add collections support to COPY (CASSANDRA-5698)
- * retry important messages for any IOException (CASSANDRA-5804)
- * Allow empty IN relations in SELECT/UPDATE/DELETE statements (CASSANDRA-5626)
- * cqlsh: fix crashing on Windows due to libedit detection (CASSANDRA-5812)
-
-
-1.2.7
- * if no seeds can be a reached a node won't start in a ring by itself (CASSANDRA-5768)
- * add cassandra.unsafesystem property (CASSANDRA-5704)
- * (Hadoop) quote identifiers in CqlPagingRecordReader (CASSANDRA-5763)
- * Add replace_node functionality for vnodes (CASSANDRA-5337)
- * Add timeout events to query traces (CASSANDRA-5520)
+Merged from 1.2:
  * make starting native protocol server idempotent (CASSANDRA-5728)
  * Fix loading key cache when a saved entry is no longer valid (CASSANDRA-5706)
  * Fix serialization of the LEFT gossip value (CASSANDRA-5696)
@@ -129,19 +140,6 @@
  * Expire entries out of ThriftSessionManager (CASSANRDA-5719)
  * Don't keep ancestor information in memory (CASSANDRA-5342)
  * cqlsh: fix handling of semicolons inside BATCH queries (CASSANDRA-5697)
- * Expose native protocol server status in nodetool info (CASSANDRA-5735)
- * Fix pathetic performance of range tombstones (CASSANDRA-5677)
- * Fix querying with an empty (impossible) range (CASSANDRA-5573)
- * cqlsh: handle CUSTOM 2i in DESCRIBE output (CASSANDRA-5760)
- * Fix minor bug in Range.intersects(Bound) (CASSANDRA-5771)
- * cqlsh: handle disabled compression in DESCRIBE output (CASSANDRA-5766)
- * Ensure all UP events are notified on the native protocol (CASSANDRA-5769)
- * Fix formatting of sstable2json with multiple -k arguments (CASSANDRA-5781)
- * Don't rely on row marker for queries in general to hide lost markers
-   after TTL expires (CASSANDRA-5762)
- * Sort nodetool help output (CASSANDRA-5776)
- * Fix column expiring during 2 phases compaction (CASSANDRA-5799)
- * now() is being rejected in INSERTs when inside collections (CASSANDRA-5795)
 
 
 1.2.6
