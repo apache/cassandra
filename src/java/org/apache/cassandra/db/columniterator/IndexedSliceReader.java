@@ -106,7 +106,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 IndexHelper.skipBloomFilter(file);
                 this.indexes = IndexHelper.deserializeIndex(file);
                 this.emptyColumnFamily = ColumnFamily.create(sstable.metadata);
-                emptyColumnFamily.delete(indexEntry.deletionTime());
+                emptyColumnFamily.delete(DeletionTime.serializer.deserialize(file));
                 fetcher = indexes.isEmpty()
                         ? new SimpleBlockFetcher()
                         : new IndexedBlockFetcher(file.getFilePointer() + 4); // We still have the column count to
