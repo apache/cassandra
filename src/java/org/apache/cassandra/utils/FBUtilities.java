@@ -37,6 +37,7 @@ import java.util.concurrent.TimeoutException;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -618,5 +619,12 @@ public class FBUtilities
                : String.format("Final buffer length %s to accommodate data size of %s (predicted %s) for %s",
                                buffer.getData().length, buffer.getLength(), size, object);
         return buffer.getData();
+    }
+
+    public static File getToolsOutputDirectory()
+    {
+        File historyDir = new File(System.getProperty("user.home"), ".cassandra");
+        FileUtils.createDirectory(historyDir);
+        return historyDir;
     }
 }

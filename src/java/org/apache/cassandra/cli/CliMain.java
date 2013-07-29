@@ -27,7 +27,9 @@ import java.util.*;
 import jline.ConsoleReader;
 import jline.History;
 import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
@@ -38,7 +40,8 @@ import org.apache.thrift.transport.TTransport;
  */
 public class CliMain
 {
-    public final static String HISTORYFILE = ".cassandra.history";
+    public final static String OLD_HISTORYFILE = ".cassandra.history";
+    public final static String HISTORYFILE = "cli.history";
 
     private static TTransport transport = null;
     private static Cassandra.Client thriftClient = null;
@@ -283,17 +286,16 @@ public class CliMain
         {
             reader.addCompletor(completer);
             reader.setBellEnabled(false);
-
-            String historyFile = System.getProperty("user.home") + File.separator + HISTORYFILE;
+            File historyFile = handleHistoryFiles();
 
             try
             {
-                History history = new History(new File(historyFile));
+                History history = new History(historyFile);
                 reader.setHistory(history);
             }
             catch (IOException exp)
             {
-                sessionState.err.printf("Unable to open %s for writing %n", historyFile);
+                sessionState.err.printf("Unable to open %s for writing", historyFile.getAbsolutePath());
             }
         }
         else if (!sessionState.verbose) // if in batch mode but no verbose flag
@@ -344,6 +346,17 @@ public class CliMain
                 inCompoundStatement = true;
             }
         }
+    }
+
+    private static File handleHistoryFiles()
+    {
+        File outputDir = FBUtilities.getToolsOutputDirectory();
+        File historyFile = new File(outputDir, HISTORYFILE);
+        File oldHistoryFile = new File(System.getProperty("user.home"), OLD_HISTORYFILE);
+        if(oldHistoryFile.exists())
+            FileUtils.renameWithConfirm(oldHistoryFile, historyFile);
+
+        return historyFile;
     }
 
     private static void evaluateFileStatements(BufferedReader reader) throws IOException
