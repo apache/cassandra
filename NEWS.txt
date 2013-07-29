@@ -42,10 +42,15 @@ Upgrading
     - ASSUME command has been removed from cqlsh. Use CQL3 blobAsType() and
       typeAsBlob() conversion functions instead.
       See https://cassandra.apache.org/doc/cql3/CQL.html#blobFun for details.
-    - Inputing blobs as string constants is now fully deprecated in
+    - Inputting blobs as string constants is now fully deprecated in
       favor of blob constants. Make sure to update your applications to use
       the new syntax while you are still on 1.2 (which supports both string
       and blob constants for blob input) before upgrading to 2.0.
+    - index_interval is now moved to ColumnFamily property. You can change value
+      with ALTER TABLE ... WITH statement and SSTables written after that will
+      have new value. When upgrading, Cassandra will pick up the value defined in
+      cassanda.yaml as the default for existing ColumnFamilies, until you explicitly
+      set the value for those.
 
 Operations
 ----------

@@ -27,8 +27,6 @@ import org.apache.cassandra.utils.FBUtilities;
  * 
  * Properties declared as volatile can be mutated via JMX.
  */
-
-
 public class Config
 {
     public String cluster_name = "Test Cluster";
@@ -146,6 +144,9 @@ public class Config
     public ServerEncryptionOptions encryption_options;
 
     public InternodeCompression internode_compression = InternodeCompression.none;
+
+    @Deprecated
+    public Integer index_interval = null;
 
     public int hinted_handoff_throttle_in_kb = 1024;
     public int max_hints_delivery_threads = 1;

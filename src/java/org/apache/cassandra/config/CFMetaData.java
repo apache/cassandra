@@ -1573,7 +1573,17 @@ public final class CFMetaData
             cfm.compressionParameters(CompressionParameters.create(fromJsonMap(result.getString("compression_parameters"))));
             cfm.compactionStrategyOptions(fromJsonMap(result.getString("compaction_strategy_options")));
             if (result.has("index_interval"))
+            {
                 cfm.indexInterval(result.getInt("index_interval"));
+            }
+            else
+            {
+                if (DatabaseDescriptor.getIndexInterval() != null)
+                {
+                    // use index_interval set in cassandra.yaml as default value (in memory only)
+                    cfm.indexInterval(DatabaseDescriptor.getIndexInterval());
+                }
+            }
             if (result.has("populate_io_cache_on_flush"))
                 cfm.populateIoCacheOnFlush(result.getBoolean("populate_io_cache_on_flush"));
 
