@@ -447,8 +447,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
      */
     public void fileSent(FileMessageHeader header)
     {
-        StreamingMetrics.totalOutgoingBytes.inc(header.size());
-        metrics.outgoingBytes.inc(header.size());
+        long headerSize = header.size();
+        StreamingMetrics.totalOutgoingBytes.inc(headerSize);
+        metrics.outgoingBytes.inc(headerSize);
     }
 
     /**
@@ -458,8 +459,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
      */
     public void receive(FileMessage message)
     {
-        StreamingMetrics.totalIncomingBytes.inc(message.header.size());
-        metrics.incomingBytes.inc(message.header.size());
+        long headerSize = message.header.size();
+        StreamingMetrics.totalIncomingBytes.inc(headerSize);
+        metrics.incomingBytes.inc(headerSize);
         // send back file received message
         handler.sendMessage(new ReceivedMessage(message.header.cfId, message.header.sequenceNumber));
         receivers.get(message.header.cfId).received(message.sstable);
