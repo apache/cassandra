@@ -60,6 +60,8 @@ Operations
     - CAS uses gc_grace_seconds to determine how long to keep unused paxos
       state around for, or a minimum of three hours.
     - A new hints created metric is tracked per target, replacing countPendingHints
+    - After performance testing for CASSANDRA-5727, the default LCS filesize
+      has been changed from 5MB to 160MB.
 
 Features
 --------
