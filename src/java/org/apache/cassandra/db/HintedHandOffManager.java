@@ -122,7 +122,13 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     public RowMutation hintFor(RowMutation mutation, int ttl, UUID targetId)
     {
         assert ttl > 0;
-        metrics.incrCreatedHints(StorageService.instance.getTokenMetadata().getEndpointForHostId(targetId));
+
+        InetAddress endpoint = StorageService.instance.getTokenMetadata().getEndpointForHostId(targetId);
+        // during tests we may not have a matching endpoint, but this would be unexpected in real clusters
+        if (endpoint != null)
+            metrics.incrCreatedHints(endpoint);
+        else
+            logger.warn("Unable to find matching endpoint for target {} when storing a hint", targetId);
 
         UUID hintId = UUIDGen.getTimeUUID();
         // serialize the hint with id and version as a composite column name
