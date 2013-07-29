@@ -1,3 +1,7 @@
+1.2.9
+ * update default LCS sstable size to 160MB (CASSANDRA-5727)
+
+
 1.2.8
  * Fix reading DeletionTime from 1.1-format sstables (CASSANDRA-5814)
  * cqlsh: add collections support to COPY (CASSANDRA-5698)

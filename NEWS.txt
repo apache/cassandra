@@ -13,6 +13,15 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+1.2.9
+=====
+
+Defaults
+--------
+    - After performance testing for CASSANDRA-5727, the default LCS filesize
+      has been changed from 5MB to 160MB.
+
+
 1.2.7
 =====
 
