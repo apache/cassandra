@@ -82,7 +82,6 @@ public class Frame
     public static class Header
     {
         public static final int LENGTH = 8;
-        public static final int CURRENT_VERSION = 2;
 
         public final int version;
         public final EnumSet<Flag> flags;
@@ -163,7 +162,7 @@ public class Frame
                 Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
                 int version = firstByte & 0x7F;
 
-                if (version > Header.CURRENT_VERSION)
+                if (version > Server.CURRENT_VERSION)
                     throw new ProtocolException("Invalid or unsupported protocol version: " + version);
 
                 // Validate the opcode

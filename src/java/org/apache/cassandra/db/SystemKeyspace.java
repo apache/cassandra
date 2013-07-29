@@ -22,13 +22,13 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
 
 import com.google.common.base.Function;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.transport.Server;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -116,13 +116,14 @@ public class SystemKeyspace
 
     private static void setupVersion()
     {
-        String req = "INSERT INTO system.%s (key, release_version, cql_version, thrift_version, data_center, rack, partitioner) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s')";
+        String req = "INSERT INTO system.%s (key, release_version, cql_version, thrift_version, native_protocol_version, data_center, rack, partitioner) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')";
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         processInternal(String.format(req, LOCAL_CF,
                                          LOCAL_KEY,
                                          FBUtilities.getReleaseVersionString(),
                                          QueryProcessor.CQL_VERSION.toString(),
                                          cassandraConstants.VERSION,
+                                         Server.CURRENT_VERSION,
                                          snitch.getDatacenter(FBUtilities.getBroadcastAddress()),
                                          snitch.getRack(FBUtilities.getBroadcastAddress()),
                                          DatabaseDescriptor.getPartitioner().getClass().getName()));

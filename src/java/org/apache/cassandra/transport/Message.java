@@ -249,7 +249,7 @@ public abstract class Message
 
             Connection connection = (Connection)channel.getAttachment();
             // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
-            int version = connection == null ? Frame.Header.CURRENT_VERSION : connection.getVersion();
+            int version = connection == null ? Server.CURRENT_VERSION : connection.getVersion();
 
             ChannelBuffer body = message.encode(version);
             EnumSet<Frame.Header.Flag> flags = EnumSet.noneOf(Frame.Header.Flag.class);

@@ -203,6 +203,7 @@ public final class CFMetaData
                                                      + "release_version text,"
                                                      + "thrift_version text,"
                                                      + "cql_version text,"
+                                                     + "native_protocol_version text,"
                                                      + "data_center text,"
                                                      + "rack text,"
                                                      + "partitioner text,"

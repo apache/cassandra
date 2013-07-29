@@ -5,6 +5,7 @@
  * Fix assertion error during repair (CASSANDRA-5801)
  * Fix range tombstone bug (CASSANDRA-5805)
  * DC-local CAS (CASSANDRA-5797)
+ * Add a native_protocol_version column to the system.local table (CASSANRDA-5819)
 Merged from 1.2:
  * cqlsh: add collections support to COPY (CASSANDRA-5698)
  * retry important messages for any IOException (CASSANDRA-5804)

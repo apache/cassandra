@@ -64,6 +64,9 @@ public class Server implements CassandraDaemon.Server
 
     private static final Logger logger = LoggerFactory.getLogger(Server.class);
 
+    /** current version of the native protocol we support */
+    public static final int CURRENT_VERSION = 2;
+
     private final ConnectionTracker connectionTracker = new ConnectionTracker();
 
     private final Connection.Factory connectionFactory = new Connection.Factory()

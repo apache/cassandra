@@ -74,7 +74,7 @@ public class SimpleClient
     protected final ResponseHandler responseHandler = new ResponseHandler();
     protected final Connection.Tracker tracker = new ConnectionTracker();
     // We don't track connection really, so we don't need one Connection per channel
-    protected final Connection connection = new Connection(null, Frame.Header.CURRENT_VERSION, tracker);
+    protected final Connection connection = new Connection(null, Server.CURRENT_VERSION, tracker);
     protected ClientBootstrap bootstrap;
     protected Channel channel;
     protected ChannelFuture lastWriteFuture;
@@ -83,7 +83,7 @@ public class SimpleClient
     {
         public Connection newConnection(Channel channel, int version)
         {
-            assert version == Frame.Header.CURRENT_VERSION;
+            assert version == Server.CURRENT_VERSION;
             return connection;
         }
     };
