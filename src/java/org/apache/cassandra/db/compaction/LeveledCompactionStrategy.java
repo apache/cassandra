@@ -52,15 +52,17 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
     public LeveledCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
         super(cfs, options);
-        int configuredMaxSSTableSize = 5;
+        int configuredMaxSSTableSize = 160;
         if (options != null)
         {
-            String value = options.containsKey(SSTABLE_SIZE_OPTION) ? options.get(SSTABLE_SIZE_OPTION) : "5";
-            configuredMaxSSTableSize = Integer.parseInt(value);
-            if (configuredMaxSSTableSize >= 1000)
+            if (options.containsKey(SSTABLE_SIZE_OPTION))
             {
-                // Yes, people have done this
-                logger.warn("Max sstable size of {}MB is configured; having a unit of compaction this large is probably a bad idea", configuredMaxSSTableSize);
+                configuredMaxSSTableSize = Integer.parseInt(options.get(SSTABLE_SIZE_OPTION));
+                if (configuredMaxSSTableSize >= 1000)
+                {
+                    // Yes, people have done this
+                    logger.warn("Max sstable size of {}MB is configured; having a unit of compaction this large is probably a bad idea", configuredMaxSSTableSize);
+                }
             }
         }
         maxSSTableSizeInMB = configuredMaxSSTableSize;
