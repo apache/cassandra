@@ -458,7 +458,7 @@ public class MerkleTreeTest
         {
             Integer depth = depthiter.next();
             byte[] hash = val;
-            while (dstack.peek() == depth)
+            while (depth.equals(dstack.peek()))
             {
                 // consume the stack
                 hash = Hashable.binaryHash(hstack.pop(), hash);
