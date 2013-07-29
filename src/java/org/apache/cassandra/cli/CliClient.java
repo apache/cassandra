@@ -470,7 +470,6 @@ public class CliClient
 
         byte[] superColumnName = null;
         byte[] columnName = null;
-        boolean isSuper = cfDef.column_type.equals("Super");
 
         if ((columnSpecCnt < 0) || (columnSpecCnt > 2))
         {
@@ -496,7 +495,7 @@ public class CliClient
                                       ? convertValueByFunction(columnTree, null, null).array()
                                       : columnNameAsByteArray(CliCompiler.getColumn(columnFamilySpec, 0), cfDef);
 
-
+            boolean isSuper = cfDef.column_type.equals("Super");
             if (isSuper)
                 superColumnName = columnNameBytes;
             else
@@ -2044,7 +2043,6 @@ public class CliClient
         try
         {
             AuthenticationRequest authRequest;
-            Map<String, String> credentials = new HashMap<String, String>();
 
             keySpaceName = CliCompiler.getKeySpace(keySpaceName, thriftClient.describe_keyspaces());
 
@@ -2052,6 +2050,7 @@ public class CliClient
 
             if (username != null && password != null)
             {
+                Map<String, String> credentials = new HashMap<String, String>();
                 /* remove quotes */
                 password = password.replace("\'", "");
                 credentials.put(IAuthenticator.USERNAME_KEY, username);
