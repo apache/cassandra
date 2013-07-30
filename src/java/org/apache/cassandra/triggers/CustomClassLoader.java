@@ -45,7 +45,6 @@ import com.google.common.io.Files;
 public class CustomClassLoader extends URLClassLoader
 {
     private static final Logger logger = LoggerFactory.getLogger(CustomClassLoader.class);
-    private static final String[] PACKAGE_EXCLUSION_LIST = new String[] {"org.apache.log4j", "org.slf4j"};
     private final Map<String, Class<?>> cache = new ConcurrentHashMap<String, Class<?>>();
     private final ClassLoader parent;
 
@@ -109,8 +108,7 @@ public class CustomClassLoader extends URLClassLoader
     {
         try
         {
-            if (!isExcluded(name))
-                return parent.loadClass(name);
+            return parent.loadClass(name);
         }
         catch (ClassNotFoundException ex)
         {
@@ -120,15 +118,5 @@ public class CustomClassLoader extends URLClassLoader
         Class<?> clazz = this.findClass(name);
         cache.put(name, clazz);
         return clazz;
-    }
-
-    private boolean isExcluded(String name)
-    {
-        for (String exclusion : PACKAGE_EXCLUSION_LIST)
-        {
-            if (name.startsWith(exclusion))
-                return true;
-        }
-        return false;
     }
 }
