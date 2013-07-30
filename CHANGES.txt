@@ -11,6 +11,7 @@ Merged from 1.2:
  * (Hadoop) fix quoting in CqlPagingRecordReader and CqlRecordWriter 
    (CASSANDRA-5824)
  * update default LCS sstable size to 160MB (CASSANDRA-5727)
+ * Allow compacting 2Is via nodetool (CASSANDRA-5670)
  * Hex-encode non-String keys in OPP (CASSANDRA-5793)
  * Fix reading DeletionTime from 1.1-format sstables (CASSANDRA-5814)
  * cqlsh: add collections support to COPY (CASSANDRA-5698)
