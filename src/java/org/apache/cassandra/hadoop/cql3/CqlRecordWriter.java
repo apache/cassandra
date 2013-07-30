@@ -375,10 +375,16 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         String keyWhereClause = "";
 
         for (String partitionKey : partitionKeyColumns)
-            keyWhereClause += String.format("%s = ?", keyWhereClause.isEmpty() ? partitionKey : (" AND " + partitionKey));
+            keyWhereClause += String.format("%s = ?", keyWhereClause.isEmpty() ? quote(partitionKey) : (" AND " + quote(partitionKey)));
         for (String clusterColumn : clusterColumns)
-            keyWhereClause += " AND " + clusterColumn + " = ?";
+            keyWhereClause += " AND " + quote(clusterColumn) + " = ?";
 
         return cqlQuery + " WHERE " + keyWhereClause;
+    }
+
+    /** Quoting for working with uppercase */
+    private String quote(String identifier)
+    {
+        return "\"" + identifier.replaceAll("\"", "\"\"") + "\"";
     }
 }
