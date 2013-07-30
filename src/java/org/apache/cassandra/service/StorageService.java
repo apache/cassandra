@@ -3526,7 +3526,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         SSTableLoader.Client client = new SSTableLoader.Client()
         {
-            @Override
             public void init(String keyspace)
             {
                 try
@@ -3545,7 +3544,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 }
             }
 
-            @Override
             public CFMetaData getCFMetaData(String keyspace, String cfName)
             {
                 return Schema.instance.getCFMetaData(keyspace, cfName);

@@ -568,7 +568,7 @@ public class SSTableReader extends SSTable
         if (!compression)
             throw new IllegalStateException(this + " is not compressed");
 
-        return ((CompressedPoolingSegmentedFile)dfile).metadata;
+        return ((ICompressedFile) dfile).getMetadata();
     }
 
     /**

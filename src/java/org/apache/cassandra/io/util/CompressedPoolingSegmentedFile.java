@@ -20,7 +20,7 @@ package org.apache.cassandra.io.util;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 
-public class CompressedPoolingSegmentedFile extends PoolingSegmentedFile
+public class CompressedPoolingSegmentedFile extends PoolingSegmentedFile implements ICompressedFile
 {
     public final CompressionMetadata metadata;
 
@@ -46,6 +46,11 @@ public class CompressedPoolingSegmentedFile extends PoolingSegmentedFile
     protected RandomAccessReader createReader(String path)
     {
         return CompressedRandomAccessReader.open(path, metadata, this);
+    }
+
+    public CompressionMetadata getMetadata()
+    {
+        return metadata;
     }
 
     @Override
