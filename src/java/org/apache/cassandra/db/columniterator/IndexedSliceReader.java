@@ -30,7 +30,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -78,7 +77,6 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
 
         try
         {
-            Descriptor.Version version = sstable.descriptor.version;
             this.indexes = indexEntry.columnsIndex();
             emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
             if (indexes.isEmpty())
