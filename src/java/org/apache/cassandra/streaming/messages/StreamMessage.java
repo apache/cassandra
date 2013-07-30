@@ -47,10 +47,18 @@ public abstract class StreamMessage
     public static StreamMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
     {
         ByteBuffer buff = ByteBuffer.allocate(1);
-        in.read(buff);
-        buff.flip();
-        Type type = Type.get(buff.get());
-        return type.serializer.deserialize(in, version, session);
+        if (in.read(buff) > 0)
+        {
+            buff.flip();
+            Type type = Type.get(buff.get());
+            return type.serializer.deserialize(in, version, session);
+        }
+        else
+        {
+            // when socket gets closed, there is a chance that buff is empty
+            // in that case, just return null
+            return null;
+        }
     }
 
     /** StreamMessage serializer */
