@@ -2165,7 +2165,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void forceTableCompaction(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, tableName, columnFamilies))
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, tableName, columnFamilies))
         {
             cfStore.forceMajorCompaction();
         }
