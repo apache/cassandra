@@ -4,6 +4,7 @@
    (CASSANDRA-5824)
  * update default LCS sstable size to 160MB (CASSANDRA-5727)
  * Allow compacting 2Is via nodetool (CASSANDRA-5670)
+ * Hex-encode non-String keys in OPP (CASSANDRA-5793)
 
 
 1.2.8
