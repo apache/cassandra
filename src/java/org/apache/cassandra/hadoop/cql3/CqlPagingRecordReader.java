@@ -765,4 +765,3 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
         }
     }
 }
-@
