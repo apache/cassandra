@@ -1,4 +1,6 @@
 1.2.9
+ * (Hadoop) fix quoting in CqlPagingRecordReader and CqlRecordWriter 
+   (CASSANDRA-5824)
  * update default LCS sstable size to 160MB (CASSANDRA-5727)
 
 
