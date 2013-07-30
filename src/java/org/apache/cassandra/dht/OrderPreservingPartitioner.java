@@ -164,7 +164,7 @@ public class OrderPreservingPartitioner extends AbstractPartitioner<StringToken>
         }
         catch (CharacterCodingException e)
         {
-            throw new RuntimeException("The provided key was not UTF8 encoded.", e);
+            skey = ByteBufferUtil.bytesToHex(key);
         }
         return new StringToken(skey);
     }
