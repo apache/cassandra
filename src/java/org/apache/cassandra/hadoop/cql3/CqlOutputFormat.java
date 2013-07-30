@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.hadoop.AbstractColumnFamilyOutputFormat;
-import org.apache.cassandra.hadoop.ColumnFamilyInputFormat;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.hadoop.Progressable;
 import org.apache.hadoop.mapreduce.*;

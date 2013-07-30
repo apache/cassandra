@@ -17,10 +17,7 @@
  */
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
-
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 
 public class UTF8Serializer extends AbstractTextSerializer

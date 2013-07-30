@@ -19,7 +19,6 @@ package org.apache.cassandra.metrics;
 
 import java.net.InetAddress;
 import java.util.Map.Entry;
-import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.SystemKeyspace;

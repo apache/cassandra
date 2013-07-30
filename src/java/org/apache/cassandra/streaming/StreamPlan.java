@@ -18,12 +18,10 @@
 package org.apache.cassandra.streaming;
 
 import java.net.InetAddress;
-import java.net.Socket;
 import java.util.*;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.UUIDGen;
 
 /**

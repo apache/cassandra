@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.AsciiSerializer;
-import org.apache.cassandra.serializers.MarshalException;
 
 public class AsciiType extends AbstractType<String>
 {

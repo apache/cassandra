@@ -23,7 +23,6 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.CounterSerializer;
-import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class CounterColumnType extends AbstractCommutativeType

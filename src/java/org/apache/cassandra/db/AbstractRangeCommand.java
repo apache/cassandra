@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.*;

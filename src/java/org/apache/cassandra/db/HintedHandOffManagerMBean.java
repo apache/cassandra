@@ -19,7 +19,6 @@ package org.apache.cassandra.db;
 
 import java.net.UnknownHostException;
 import java.util.List;
-import java.util.Map;
 
 public interface HintedHandOffManagerMBean
 {

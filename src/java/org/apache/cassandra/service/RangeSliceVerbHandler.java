@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import java.util.List;
-
 import org.apache.cassandra.db.AbstractRangeCommand;
 import org.apache.cassandra.db.RangeSliceReply;
 import org.apache.cassandra.net.IVerbHandler;

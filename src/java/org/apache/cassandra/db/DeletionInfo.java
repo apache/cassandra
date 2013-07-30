@@ -20,21 +20,14 @@ package org.apache.cassandra.db;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.ISSTableSerializer;
-import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.IntervalTree;
 
 public class DeletionInfo
 {

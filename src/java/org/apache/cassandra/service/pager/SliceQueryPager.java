@@ -19,10 +19,7 @@ package org.apache.cassandra.service.pager;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
-
-import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.SliceQueryFilter;

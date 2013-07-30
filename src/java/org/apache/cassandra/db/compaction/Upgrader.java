@@ -19,25 +19,20 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.IOError;
 import java.util.*;
 
 import com.google.common.base.Throwables;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.compaction.AbstractCompactedRow;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.AbstractCompactionIterable;
 import org.apache.cassandra.db.compaction.CompactionIterable;
 import org.apache.cassandra.db.compaction.CompactionController;
-import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.*;
-import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.OutputHandler;
 
@@ -111,7 +106,7 @@ public class Upgrader
             {
                 AbstractCompactedRow row = iter.next();
 
-                RowIndexEntry indexEntry = writer.append(row);
+                writer.append(row);
             }
 
             long maxAge = CompactionTask.getMaxDataAge(this.toUpgrade);

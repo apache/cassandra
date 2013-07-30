@@ -17,10 +17,6 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.nio.ByteBuffer;
-import java.util.List;
-
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;

@@ -22,7 +22,6 @@ import java.net.InetSocketAddress;
 
 import com.thinkaurelius.thrift.Message;
 import com.thinkaurelius.thrift.TDisruptorServer;
-import org.apache.thrift.transport.TNonblockingTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

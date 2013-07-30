@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.UUID;
 
 import org.apache.cassandra.config.Schema;

@@ -23,7 +23,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.Condition;
 
 import com.google.common.collect.AbstractIterator;
 import org.slf4j.Logger;

@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.serializers.TypeSerializer;
-import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.UTF8Serializer;
 
 public class UTF8Type extends AbstractType<String>

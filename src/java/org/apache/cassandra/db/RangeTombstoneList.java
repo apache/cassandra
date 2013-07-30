@@ -25,10 +25,8 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.AbstractIterator;
 
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;

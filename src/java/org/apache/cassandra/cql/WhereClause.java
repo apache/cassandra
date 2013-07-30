@@ -17,14 +17,12 @@
  */
 package org.apache.cassandra.cql;
 
-import java.nio.charset.CharacterCodingException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * WhereClauses encapsulate all of the predicates of a SELECT query.
