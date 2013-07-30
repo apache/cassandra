@@ -77,9 +77,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                                        int bufferSizeInMB,
                                        CompressionParameters compressParameters)
     {
-        super(directory, new CFMetaData(keyspace, columnFamily, subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super, comparator, subComparator).compressionParameters(compressParameters), partitioner);
-        this.bufferSize = bufferSizeInMB * 1024L * 1024L;
-        this.diskWriter.start();
+        this(directory, new CFMetaData(keyspace, columnFamily, subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super, comparator, subComparator).compressionParameters(compressParameters), partitioner, bufferSizeInMB);
     }
 
     public SSTableSimpleUnsortedWriter(File directory,
@@ -91,6 +89,13 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                                        int bufferSizeInMB)
     {
         this(directory, partitioner, keyspace, columnFamily, comparator, subComparator, bufferSizeInMB, new CompressionParameters(null));
+    }
+
+    public SSTableSimpleUnsortedWriter(File directory, CFMetaData metadata, IPartitioner partitioner, long bufferSizeInMB)
+    {
+        super(directory, metadata, partitioner);
+        this.bufferSize = bufferSizeInMB * 1024L * 1024L;
+        this.diskWriter.start();
     }
 
     protected void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException

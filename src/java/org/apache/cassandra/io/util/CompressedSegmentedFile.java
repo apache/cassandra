@@ -17,12 +17,10 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.File;
-
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 
-public class CompressedSegmentedFile extends SegmentedFile
+public class CompressedSegmentedFile extends SegmentedFile implements ICompressedFile
 {
     public final CompressionMetadata metadata;
 
@@ -50,6 +48,11 @@ public class CompressedSegmentedFile extends SegmentedFile
         RandomAccessReader reader = CompressedRandomAccessReader.open(path, metadata, null);
         reader.seek(position);
         return reader;
+    }
+
+    public CompressionMetadata getMetadata()
+    {
+        return metadata;
     }
 
     public void cleanup()
