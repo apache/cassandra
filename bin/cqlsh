@@ -117,8 +117,19 @@ from cqlshlib.formatting import format_by_type
 from cqlshlib.util import trim_if_present
 from cqlshlib.tracing import print_trace_session
 
-CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
-HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
+HISTORY_DIR = os.path.expanduser(os.path.join('~', '.cassandra'))
+CONFIG_FILE = os.path.join(HISTORY_DIR, 'cqlshrc')
+HISTORY = os.path.join(HISTORY_DIR, 'cqlsh_history')
+if not os.path.exists(HISTORY_DIR):
+    os.mkdir(HISTORY_DIR)
+
+OLD_CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
+if os.path.exists(OLD_CONFIG_FILE):
+    os.rename(OLD_CONFIG_FILE, CONFIG_FILE)
+OLD_HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
+if os.path.exists(OLD_HISTORY):
+    os.rename(OLD_HISTORY, HISTORY)
+
 DEFAULT_HOST = 'localhost'
 DEFAULT_PORT = 9160
 DEFAULT_CQLVER = '3.1.0'

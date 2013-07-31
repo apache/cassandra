@@ -17,20 +17,21 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.lang.management.MemoryUsage;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Maps;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.cli.*;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
@@ -53,6 +54,7 @@ import org.apache.cassandra.utils.Pair;
 
 public class NodeCmd
 {
+    private static final String HISTORYFILE = "nodetool.history";
     private static final Pair<String, String> SNAPSHOT_COLUMNFAMILY_OPT = Pair.create("cf", "column-family");
     private static final Pair<String, String> HOST_OPT = Pair.create("h", "host");
     private static final Pair<String, String> PORT_OPT = Pair.create("p", "port");
@@ -1026,6 +1028,9 @@ public class NodeCmd
 
             NodeCmd nodeCmd = new NodeCmd(probe);
 
+            //print history here after we've already determined we can reasonably call cassandra
+            printHistory(args, cmd);
+
             // Execute the requested command.
             String[] arguments = cmd.getCommandArguments();
             String tag;
@@ -1254,6 +1259,27 @@ public class NodeCmd
             }
         }
         System.exit(probe.isFailed() ? 1 : 0);
+    }
+
+    private static void printHistory(String[] args, ToolCommandLine cmd)
+    {
+        //don't bother to print if no args passed (meaning, nodetool is just printing out the sub-commands list)
+        if (args.length == 0)
+            return;
+        String cmdLine = Joiner.on(" ").skipNulls().join(args);
+        final String password = cmd.getOptionValue(PASSWORD_OPT.left);
+        if (password != null)
+            cmdLine = cmdLine.replace(password, "<hidden>");
+
+        try (FileWriter writer = new FileWriter(new File(FBUtilities.getToolsOutputDirectory(), HISTORYFILE), true))
+        {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
+            writer.append(sdf.format(new Date()) + ": " + cmdLine + "\n");
+        }
+        catch (IOException ioe)
+        {
+            //quietly ignore any errors about not being able to write out history
+        }
     }
 
     private static Throwable findInnermostThrowable(Throwable ex)

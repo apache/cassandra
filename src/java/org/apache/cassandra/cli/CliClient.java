@@ -3059,6 +3059,7 @@ public class CliClient
 
     class CfAssumptions
     {
+        private static final String ASSUMPTIONS_FILENAME = "assumptions.json";
         //Map<KeySpace, Map<ColumnFamily, Map<Property, Value>>>
         private Map<String, Map<String, Map<String, String>>> assumptions;
         private boolean assumptionsChanged;
@@ -3068,8 +3069,16 @@ public class CliClient
         {
             assumptions = new HashMap<String, Map<String, Map<String, String>>>();
             assumptionsChanged = false;
-            assumptionDirectory = new File(System.getProperty("user.home"), ".cassandra-cli");
-            assumptionDirectory.mkdirs();
+            assumptionDirectory = FBUtilities.getToolsOutputDirectory();
+
+            File oldAssumptionDir = new File(System.getProperty("user.home") + File.separator + ".cassandra-cli");
+            if (oldAssumptionDir.exists())
+            {
+                File oldAssumptionFile = new File(oldAssumptionDir, ASSUMPTIONS_FILENAME);
+                if (oldAssumptionFile.exists())
+                    FileUtils.renameWithConfirm(oldAssumptionFile, new File(assumptionDirectory, ASSUMPTIONS_FILENAME));
+                FileUtils.deleteRecursive(oldAssumptionDir);
+            }
         }
 
         public void addAssumption(String keyspace, String columnFamily, String property, String value)
@@ -3115,7 +3124,7 @@ public class CliClient
 
         private void readAssumptions()
         {
-            File assumptionFile = new File(assumptionDirectory, "assumptions.json");
+            File assumptionFile = new File(assumptionDirectory, ASSUMPTIONS_FILENAME);
             if (assumptionFile.isFile())
             {
                 try
@@ -3179,7 +3188,7 @@ public class CliClient
         {
             if (assumptionsChanged)
             {
-                File assumptionFile = new File(assumptionDirectory, "assumptions.json");
+                File assumptionFile = new File(assumptionDirectory, ASSUMPTIONS_FILENAME);
                 try
                 {
                     JsonFactory f = new JsonFactory();
