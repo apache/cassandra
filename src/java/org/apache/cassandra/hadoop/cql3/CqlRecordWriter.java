@@ -340,7 +340,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         logger.debug("partition keys: " + keyString);
 
         List<String> keys = FBUtilities.fromJsonList(keyString);
-        if (keys.size() == 0)
+        if (keys.isEmpty())
         {
             retrieveKeysForThriftTables(client);
             return;
@@ -385,6 +385,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
             }
         }
     }
+    
     private AbstractType<?> parseType(String type) throws ConfigurationException
     {
         try

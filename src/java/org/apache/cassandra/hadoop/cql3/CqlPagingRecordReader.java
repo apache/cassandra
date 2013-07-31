@@ -674,7 +674,7 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
 
         for (String key : keys)
             partitionBoundColumns.add(new BoundColumn(key));
-        if (partitionBoundColumns.size() == 0)
+        if (partitionBoundColumns.isEmpty())
         {
             retrieveKeysForThriftTables();
             return;
