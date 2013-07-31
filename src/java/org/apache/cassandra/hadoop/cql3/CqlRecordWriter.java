@@ -26,9 +26,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.cql3.CFDefinition;
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.LongType;
@@ -340,11 +337,6 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         logger.debug("partition keys: " + keyString);
 
         List<String> keys = FBUtilities.fromJsonList(keyString);
-        if (keys.size() == 0)
-        {
-            retrieveKeysForThriftTables(client);
-            return;
-        }
         partitionKeyColumns = new String[keys.size()];
         int i = 0;
         for (String key : keys)
@@ -360,31 +352,6 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         clusterColumns = FBUtilities.fromJsonList(clusterColumnString);
     }
 
-    /** 
-     * retrieve the fake partition keys and cluster keys for classic thrift table 
-     * use CFDefinition to get keys and columns
-     * */
-    private void retrieveKeysForThriftTables(Cassandra.Client client) throws Exception
-    {
-        String keyspace = ConfigHelper.getOutputKeyspace(conf);
-        String cfName = ConfigHelper.getOutputColumnFamily(conf);
-        KsDef ksDef = client.describe_keyspace(keyspace);
-        for (CfDef cfDef : ksDef.cf_defs)
-        {
-            if (cfDef.name.equalsIgnoreCase(cfName))
-            {
-                CFMetaData cfMeta = CFMetaData.fromThrift(cfDef);
-                CFDefinition cfDefinition = new CFDefinition(cfMeta);
-                int i = 0;
-                for (ColumnIdentifier column : cfDefinition.keys.keySet())
-                {
-                    partitionKeyColumns[i] = column.toString();
-                    i++;
-                }
-                return;
-            }
-        }
-    }
     private AbstractType<?> parseType(String type) throws ConfigurationException
     {
         try
