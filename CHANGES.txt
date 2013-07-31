@@ -6,6 +6,8 @@
  * Allow compacting 2Is via nodetool (CASSANDRA-5670)
  * Hex-encode non-String keys in OPP (CASSANDRA-5793)
  * nodetool history logging (CASSANDRA-5823)
+ * (Hadoop) fix support for Thrift tables in CqlPagingRecordReader 
+   (CASSANDRA-5752)
 
 
 1.2.8
