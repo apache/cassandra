@@ -1070,6 +1070,10 @@ public final class CFMetaData
                 throw (ConfigurationException) e.getTargetException();
             throw new ConfigurationException("Failed to validate compaction options");
         }
+        catch (ConfigurationException e)
+        {
+            throw e;
+        }
         catch (Exception e)
         {
             throw new ConfigurationException("Failed to validate compaction options");
