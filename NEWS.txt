@@ -79,6 +79,17 @@ Features
       API."
 
 
+1.2.9
+=====
+
+Features
+--------
+    - A history of executed nodetool commands is now captured.
+      It can be found in ~/.cassandra/nodetool.history. Other tools output files
+      (cli and cqlsh history, .cqlshrc) are now centralized in ~/.cassandra, as well.
+
+
+
 1.2.7
 =====
 
