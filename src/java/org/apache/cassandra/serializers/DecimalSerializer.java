@@ -48,17 +48,14 @@ public class DecimalSerializer implements TypeSerializer<BigDecimal>
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
         BigInteger bi = value.unscaledValue();
-        Integer scale = value.scale();
+        int scale = value.scale();
         byte[] bibytes = bi.toByteArray();
-        byte[] sbytes = ByteBufferUtil.bytes(scale).array();
-        byte[] bytes = new byte[bi.toByteArray().length + 4];
 
-        for (int i = 0; i < 4; i++)
-            bytes[i] = sbytes[i];
-        for (int i = 4; i < bibytes.length + 4; i++)
-            bytes[i] = bibytes[i - 4];
-
-        return ByteBuffer.wrap(bytes);
+        ByteBuffer bytes = ByteBuffer.allocate(4 + bibytes.length);
+        bytes.putInt(scale);
+        bytes.put(bibytes);
+        bytes.rewind();
+        return bytes;
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException
