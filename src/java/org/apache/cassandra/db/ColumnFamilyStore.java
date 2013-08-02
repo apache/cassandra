@@ -223,8 +223,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         Caching caching = metadata.getCaching();
 
-        if (logger.isDebugEnabled())
-            logger.debug("Starting CFS {}", columnFamily);
+        logger.info("Initializing {}.{}", table.name, columnFamily);
 
         // scan for sstables corresponding to this cf and load them
         data = new DataTracker(this);
