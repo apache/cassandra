@@ -48,7 +48,7 @@ public class StatusLogger
         MBeanServer server = ManagementFactory.getPlatformMBeanServer();
 
         // everything from o.a.c.concurrent
-        logger.info(String.format("%-25s%10s%10s%10s", "Pool Name", "Active", "Pending", "Blocked"));
+        logger.info(String.format("%-25s%10s%10s%15s%10s%18s", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All Time Blocked"));
         Set<ObjectName> request, internal;
         try
         {
@@ -63,8 +63,13 @@ public class StatusLogger
         {
             String poolName = objectName.getKeyProperty("type");
             JMXEnabledThreadPoolExecutorMBean threadPoolProxy = JMX.newMBeanProxy(server, objectName, JMXEnabledThreadPoolExecutorMBean.class);
-            logger.info(String.format("%-25s%10s%10s%10s",
-                                      poolName, threadPoolProxy.getActiveCount(), threadPoolProxy.getPendingTasks(), threadPoolProxy.getCurrentlyBlockedTasks()));
+            logger.info(String.format("%-25s%10s%10s%15s%10s%18s",
+                                      poolName,
+                                      threadPoolProxy.getActiveCount(),
+                                      threadPoolProxy.getPendingTasks(),
+                                      threadPoolProxy.getCompletedTasks(),
+                                      threadPoolProxy.getCurrentlyBlockedTasks(),
+                                      threadPoolProxy.getTotalBlockedTasks()));
         }
         // one offs
         CompactionManager cm = CompactionManager.instance;
