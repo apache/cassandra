@@ -1519,7 +1519,7 @@ public class StorageProxy implements StorageProxyMBean
      */
     public static void truncateBlocking(String keyspace, String cfname) throws UnavailableException, TimeoutException, IOException
     {
-        logger.debug("Starting a blocking truncate operation on keyspace {}, CF ", keyspace, cfname);
+        logger.debug("Starting a blocking truncate operation on keyspace {}, CF {}", keyspace, cfname);
         if (isAnyHostDown())
         {
             logger.info("Cannot perform truncate, some hosts are down");
