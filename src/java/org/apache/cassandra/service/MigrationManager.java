@@ -110,10 +110,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
      */
     private static void maybeScheduleSchemaPull(final UUID theirVersion, final InetAddress endpoint)
     {
-        if (Gossiper.instance.isFatClient(endpoint))
-            return;
-
-        if (Schema.instance.getVersion().equals(theirVersion))
+        if (Schema.instance.getVersion().equals(theirVersion) || !shouldPullSchemaFrom(endpoint))
             return;
 
         if (Schema.emptyVersion.equals(Schema.instance.getVersion()) || runtimeMXBean.getUptime() < MIGRATION_DELAY_IN_MS)
@@ -142,13 +139,23 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         }
     }
 
-    private static void submitMigrationTask(InetAddress endpoint)
+    private static Future<?> submitMigrationTask(InetAddress endpoint)
     {
         /*
          * Do not de-ref the future because that causes distributed deadlock (CASSANDRA-3832) because we are
          * running in the gossip stage.
          */
-        StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(endpoint));
+        return StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(endpoint));
+    }
+
+    private static boolean shouldPullSchemaFrom(InetAddress endpoint)
+    {
+        /*
+         * Don't request schema from nodes with a higher major (may have incompatible schema)
+         * Don't request schema from fat clients
+         */
+        return MessagingService.instance().getVersion(endpoint) <= MessagingService.current_version
+            && !Gossiper.instance.isFatClient(endpoint);
     }
 
     public static boolean isReadyForBootstrap()
@@ -279,9 +286,9 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
     private static void pushSchemaMutation(InetAddress endpoint, Collection<RowMutation> schema)
     {
-        MessageOut<Collection<RowMutation>> msg = new MessageOut<Collection<RowMutation>>(MessagingService.Verb.DEFINITIONS_UPDATE,
-                                                                                          schema,
-                                                                                          MigrationsSerializer.instance);
+        MessageOut<Collection<RowMutation>> msg = new MessageOut<>(MessagingService.Verb.DEFINITIONS_UPDATE,
+                                                                   schema,
+                                                                   MigrationsSerializer.instance);
         MessagingService.instance().sendOneWay(msg, endpoint);
     }
 
@@ -300,6 +307,10 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         {
             if (endpoint.equals(FBUtilities.getBroadcastAddress()))
                 continue; // we've dealt with localhost already
+
+            // don't send schema to the nodes with the versions older than current major
+            if (MessagingService.instance().getVersion(endpoint) < MessagingService.current_version)
+                continue;
 
             pushSchemaMutation(endpoint, schema);
         }
@@ -328,8 +339,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     {
         logger.info("Starting local schema reset...");
 
-        if (logger.isDebugEnabled())
-            logger.debug("Truncating schema tables...");
+        logger.debug("Truncating schema tables...");
 
         // truncate schema tables
         SystemKeyspace.schemaCFS(SystemKeyspace.SCHEMA_KEYSPACES_CF).truncateBlocking();
@@ -337,25 +347,22 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         SystemKeyspace.schemaCFS(SystemKeyspace.SCHEMA_COLUMNS_CF).truncateBlocking();
         SystemKeyspace.schemaCFS(SystemKeyspace.SCHEMA_TRIGGERS_CF).truncateBlocking();
 
-        if (logger.isDebugEnabled())
-            logger.debug("Clearing local schema keyspace definitions...");
+        logger.debug("Clearing local schema keyspace definitions...");
 
         Schema.instance.clear();
 
         Set<InetAddress> liveEndpoints = Gossiper.instance.getLiveMembers();
         liveEndpoints.remove(FBUtilities.getBroadcastAddress());
 
-        // force migration is there are nodes around, first of all
-        // check if there are nodes with versions >= 1.1.7 to request migrations from,
-        // because migration format of the nodes with versions < 1.1 is incompatible with older versions
-        // and due to broken timestamps in versions prior to 1.1.7
+        // force migration if there are nodes around
         for (InetAddress node : liveEndpoints)
         {
-            if (logger.isDebugEnabled())
-                logger.debug("Requesting schema from " + node);
-
-            FBUtilities.waitOnFuture(StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(node)));
-            break;
+            if (shouldPullSchemaFrom(node))
+            {
+                logger.debug("Requesting schema from {}", node);
+                FBUtilities.waitOnFuture(submitMigrationTask(node));
+                break;
+            }
         }
 
         logger.info("Local schema reset is complete.");

@@ -39,12 +39,9 @@ public class MigrationRequestVerbHandler implements IVerbHandler
     public void doVerb(MessageIn message, int id)
     {
         logger.debug("Received migration request from {}.", message.from);
-
-        Collection<RowMutation> schema = SystemKeyspace.serializeSchema();
-
-        MessageOut<Collection<RowMutation>> response = new MessageOut<Collection<RowMutation>>(MessagingService.Verb.INTERNAL_RESPONSE,
-                                                                                               schema,
-                                                                                               MigrationManager.MigrationsSerializer.instance);
+        MessageOut<Collection<RowMutation>> response = new MessageOut<>(MessagingService.Verb.INTERNAL_RESPONSE,
+                                                                        SystemKeyspace.serializeSchema(),
+                                                                        MigrationManager.MigrationsSerializer.instance);
         MessagingService.instance().sendReply(response, id, message.from);
     }
 }

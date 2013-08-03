@@ -22,9 +22,9 @@ Upgrading
       timestamps are microseconds-since-epoch.  Do not use these
       features if you are using client-specified timestamps with some
       other source.
-    - Upgrading is ONLY supported from Cassandra 1.2.7 or later.  This
+    - Upgrading is ONLY supported from Cassandra 1.2.9 or later. This
       goes for sstable compatibility as well as network.  When
-      upgrading from an earlier release, upgrade to 1.2.7 first and
+      upgrading from an earlier release, upgrade to 1.2.9 first and
       run upgradesstables before proceeding to 2.0.
     - Replication and strategy options do not accept unknown options anymore.
       This was already the case for CQL3 in 1.2 but this is now the case for
