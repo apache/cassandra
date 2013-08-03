@@ -9,6 +9,7 @@
  * (Hadoop) fix support for Thrift tables in CqlPagingRecordReader 
    (CASSANDRA-5752)
  * add "all time blocked" to StatusLogger output (CASSANDRA-5825)
+ * Future-proof inter-major-version schema migrations (CASSANDRA-5845)
 
 
 1.2.8
