@@ -1090,14 +1090,8 @@ class Shell(cmd.Cmd):
         layout = self.get_columnfamily_layout(ksname, cfname)
         cfname = self.cql_protect_name(layout.name)
         out.write("CREATE TABLE %s (\n" % cfname)
-        keycol = layout.columns[0]
-        out.write("  %s %s" % (self.cql_protect_name(keycol.name),
-                               keycol.cqltype.cql_parameterized_type()))
-        if len(layout.primary_key_components) == 1:
-            out.write(" PRIMARY KEY")
 
-        indexed_columns = []
-        for col in layout.columns[1:]:
+        for col in layout.columns:
             colname = self.cql_protect_name(col.name)
             coltype = col.cqltype
 
@@ -1105,29 +1099,26 @@ class Shell(cmd.Cmd):
             if issubclass(coltype, ReversedType):
                 coltype = coltype.subtypes[0]
 
-            out.write(",\n  %s %s" % (colname, coltype.cql_parameterized_type()))
-            if col.index_name is not None:
-                indexed_columns.append(col)
+            out.write("  %s %s,\n" % (colname, coltype.cql_parameterized_type()))
 
-        if len(layout.primary_key_components) > 1:
-            out.write(",\n  PRIMARY KEY (")
-            partkeynames = self.cql_protect_names(layout.partition_key_components)
-            if len(partkeynames) > 1:
-                partkey = "(%s)" % ', '.join(partkeynames)
-            else:
-                partkey = partkeynames[0]
-            pk_parts = [partkey] + self.cql_protect_names(layout.column_aliases)
-            out.write(', '.join(pk_parts) + ')')
+        out.write("  PRIMARY KEY (")
+        partkeynames = self.cql_protect_names(layout.partition_key_columns)
+        if len(partkeynames) > 1:
+            partkey = "(%s)" % ', '.join(partkeynames)
+        else:
+            partkey = partkeynames[0]
+        pk_parts = [partkey] + self.cql_protect_names(layout.clustering_key_columns)
+        out.write(', '.join(pk_parts) + ')')
 
         out.write("\n)")
         joiner = 'WITH'
 
-        if layout.compact_storage:
+        if layout.is_compact_storage():
             out.write(' WITH COMPACT STORAGE')
             joiner = 'AND'
 
         # check if we need a CLUSTERING ORDER BY clause
-        if layout.column_aliases:
+        if layout.clustering_key_columns:
             # get a list of clustering component types
             if issubclass(layout.comparator, CompositeType):
                 clustering_types = layout.comparator.subtypes
@@ -1136,13 +1127,13 @@ class Shell(cmd.Cmd):
 
             # only write CLUSTERING ORDER clause of we have >= 1 DESC item
             if any(issubclass(t, ReversedType) for t in clustering_types):
-                if layout.compact_storage:
+                if layout.is_compact_storage():
                     out.write(' AND\n ')
                 else:
                     out.write(' WITH')
                 out.write(' CLUSTERING ORDER BY (')
 
-                clustering_names = self.cql_protect_names(layout.column_aliases)
+                clustering_names = self.cql_protect_names(layout.clustering_key_columns)
 
                 inner = []
                 for colname, coltype in zip(clustering_names, clustering_types):
@@ -1195,7 +1186,7 @@ class Shell(cmd.Cmd):
                 joiner = 'AND'
         out.write(";\n")
 
-        for col in indexed_columns:
+        for col in [ c for c in layout.columns if c.index_name is not None ]:
             out.write('\n')
             if col.index_type != 'CUSTOM':
                 out.write('CREATE INDEX %s ON %s (%s);\n'
@@ -1454,7 +1445,7 @@ class Shell(cmd.Cmd):
                     rowmap[name] = self.cql_protect_value(value)
                 else:
                     rowmap[name] = value
-            elif name in layout.column_aliases and not type.empty_binary_ok:
+            elif name in layout.clustering_key_columns and not type.empty_binary_ok:
                 rowmap[name] = 'blobAs%s(0x)' % cqltype.title()
             else:
                 rowmap[name] = 'null'
