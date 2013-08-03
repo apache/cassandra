@@ -42,7 +42,7 @@ public class TriggerExecutor
 
     private final Map<String, ITrigger> cachedTriggers = Maps.newConcurrentMap();
     private final ClassLoader parent = Thread.currentThread().getContextClassLoader();
-    private final File triggerDirectory = new File(FBUtilities.cassandraHomeDir(), "triggers");
+    private final File triggerDirectory = FBUtilities.cassandraTriggerDir();
     private volatile ClassLoader customClassLoader;
 
     private TriggerExecutor()

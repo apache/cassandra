@@ -6,6 +6,7 @@ conf/cassandra-rackdc.properties etc/cassandra
 conf/commitlog_archiving.properties etc/cassandra
 conf/cassandra-topology.properties etc/cassandra
 conf/log4j-tools.properties etc/cassandra
+conf/triggers/* etc/cassandra/triggers
 debian/cassandra.in.sh usr/share/cassandra
 debian/cassandra.conf etc/security/limits.d
 debian/cassandra-sysctl.conf etc/sysctl.d

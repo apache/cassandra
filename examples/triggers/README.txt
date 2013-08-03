@@ -11,7 +11,7 @@ Installation:
 ============
 change directory to <cassandra_src_dir>/examples/triggers
 run "ant jar"
-Copy build/trigger-example.jar to <cassandra_home>/triggers/
+Copy build/trigger-example.jar to <cassandra_conf>/triggers/
 Copy conf/* to <cassandra_home>/conf/
 Create column family configured in InvertedIndex.properties 
     Example: Keyspace1.InvertedIndex as configured in InvertedIndex.properties

@@ -69,6 +69,7 @@ public class FBUtilities
     private static ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
 
     public static final BigInteger TWO = new BigInteger("2");
+    private static final String DEFAULT_TRIGGER_DIR = "triggers";
 
     private static volatile InetAddress localInetAddress;
     private static volatile InetAddress broadcastInetAddress;
@@ -341,10 +342,16 @@ public class FBUtilities
         return scpurl.getFile();
     }
 
-    public static File cassandraHomeDir()
+    public static File cassandraTriggerDir()
     {
-        String libDir = new File(FBUtilities.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getParent();
-        return new File(new File(libDir).getParent());
+        File triggerDir;
+        if (System.getProperty("cassandra.triggers_dir") != null)
+            triggerDir = new File(System.getProperty("cassandra.triggers_dir"));
+        else
+            triggerDir = new File(FBUtilities.class.getClassLoader().getResource(DEFAULT_TRIGGER_DIR).getFile());
+        if (!triggerDir.exists())
+            throw new RuntimeException("Trigger Directory doesnt exist, please create inside conf.");
+        return triggerDir;
     }
 
     public static String getReleaseVersionString()
