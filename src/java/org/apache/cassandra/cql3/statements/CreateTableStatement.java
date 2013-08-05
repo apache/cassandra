@@ -335,11 +335,11 @@ public class CreateTableStatement extends SchemaAlteringStatement
             }
 
 
-            // If we give a clustering order, we must explicitely do so for all aliases and in the order of the PK
+            // If we give a clustering order, we must explicitly do so for all aliases and in the order of the PK
             if (!definedOrdering.isEmpty())
             {
                 if (definedOrdering.size() > columnAliases.size())
-                    throw new InvalidRequestException("Too much columns provided for CLUSTERING ORDER");
+                    throw new InvalidRequestException("Only clustering key columns can be defined in CLUSTERING ORDER directive");
 
                 int i = 0;
                 for (ColumnIdentifier id : definedOrdering.keySet())
