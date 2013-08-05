@@ -1,3 +1,7 @@
+2.0.0
+ * fix CAS contention timeout (CASSANDRA-5830)
+
+
 2.0.0-rc1
  * improve DecimalSerializer performance (CASSANDRA-5837)
  * fix potential spurious wakeup in AsyncOneResponse (CASSANDRA-5690)

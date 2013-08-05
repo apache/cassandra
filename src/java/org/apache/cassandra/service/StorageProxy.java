@@ -355,7 +355,7 @@ public class StorageProxy implements StorageProxyMBean
         long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getCasContentionTimeout());
 
         PrepareCallback summary = null;
-        while (start - System.nanoTime() < timeout)
+        while (System.nanoTime() - start < timeout)
         {
             long ballotMillis = summary == null
                               ? System.currentTimeMillis()
