@@ -25,9 +25,6 @@ Merged from 1.2:
    (CASSANDRA-5752)
  * add "all time blocked" to StatusLogger output (CASSANDRA-5825)
  * Future-proof inter-major-version schema migrations (CASSANDRA-5845)
-
-
-1.2.8
  * Fix reading DeletionTime from 1.1-format sstables (CASSANDRA-5814)
  * cqlsh: add collections support to COPY (CASSANDRA-5698)
  * retry important messages for any IOException (CASSANDRA-5804)
