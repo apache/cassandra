@@ -26,14 +26,15 @@ import java.net.URL;
 import java.util.Map;
 
 import com.google.common.base.Charsets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -71,6 +72,7 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
     {
         // Populate the region and zone by introspection, fail if 404 on metadata
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        DataInputStream d = null;
         try
         {
             conn.setRequestMethod("GET");
@@ -80,12 +82,13 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
             // Read the information. I wish I could say (String) conn.getContent() here...
             int cl = conn.getContentLength();
             byte[] b = new byte[cl];
-            DataInputStream d = new DataInputStream((FilterInputStream) conn.getContent());
+            d = new DataInputStream((FilterInputStream) conn.getContent());
             d.readFully(b);
             return new String(b, Charsets.UTF_8);
         }
         finally
         {
+            FileUtils.close(d);
             conn.disconnect();
         }
     }
