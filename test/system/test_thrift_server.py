@@ -233,7 +233,7 @@ class TestMutations(ThriftTester):
     def test_cas(self):
         _set_keyspace('Keyspace1')
         def cas(expected, updates):
-            return client.cas('key1', 'Standard1', expected, updates, ConsistencyLevel.ONE)
+            return client.cas('key1', 'Standard1', expected, updates, ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM)
 
         cas_result = cas(_SIMPLE_COLUMNS, _SIMPLE_COLUMNS)
         assert not cas_result.success
