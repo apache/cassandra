@@ -22,6 +22,8 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
+
 import edu.stanford.ppl.concurrent.SnapTreeMap;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -65,7 +67,7 @@ public class AtomicSortedColumns extends ColumnFamily
     private AtomicSortedColumns(CFMetaData metadata, Holder holder)
     {
         super(metadata);
-        this.ref = new AtomicReference<Holder>(holder);
+        this.ref = new AtomicReference<>(holder);
     }
 
     public AbstractType<?> getComparator()
@@ -178,6 +180,15 @@ public class AtomicSortedColumns extends ColumnFamily
             current = ref.get();
             DeletionInfo newDelInfo = current.deletionInfo.copy().add(cm.deletionInfo());
             modified = new Holder(current.map.clone(), newDelInfo);
+
+            if (cm.deletionInfo().hasRanges())
+            {
+                for (Column currentColumn : Iterables.concat(current.map.values(), cm))
+                {
+                    if (cm.deletionInfo().isDeleted(currentColumn))
+                        indexer.remove(currentColumn);
+                }
+            }
 
             for (Column column : cm)
             {

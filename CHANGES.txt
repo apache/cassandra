@@ -1,3 +1,7 @@
+2.0.1
+ * Notify indexer of columns shadowed by range tombstones (CASSANDRA-5614)
+
+
 2.0.0
  * fix CAS contention timeout (CASSANDRA-5830)
 

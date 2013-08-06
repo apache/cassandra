@@ -106,7 +106,7 @@ public class PrecompactedRow extends AbstractCompactedRow
         final ColumnFamily returnCF = ArrayBackedSortedColumns.factory.create(controller.cfs.metadata);
 
         // transform into iterators that MergeIterator will like, and apply row-level tombstones
-        List<CloseableIterator<Column>> data = new ArrayList<CloseableIterator<Column>>(rows.size());
+        List<CloseableIterator<Column>> data = new ArrayList<>(rows.size());
         for (SSTableIdentityIterator row : rows)
         {
             ColumnFamily cf = row.getColumnFamilyWithColumns(ArrayBackedSortedColumns.factory);
@@ -132,9 +132,15 @@ public class PrecompactedRow extends AbstractCompactedRow
             public void reduce(Column column)
             {
                 container.addColumn(column);
-                if (indexer != SecondaryIndexManager.nullUpdater
-                    && !column.isMarkedForDelete(System.currentTimeMillis())
-                    && !container.getColumn(column.name()).equals(column))
+
+                // skip the index-update checks if there is no indexing needed since they are a bit expensive
+                if (indexer == SecondaryIndexManager.nullUpdater)
+                    return;
+
+                // notify the index that the column has been overwritten if the value being reduced has been
+                // superceded by another directly, or indirectly by a range tombstone
+                if ((!column.isMarkedForDelete(System.currentTimeMillis()) && !container.getColumn(column.name()).equals(column))
+                    || returnCF.deletionInfo().isDeleted(column.name(), CompactionManager.NO_GC))
                 {
                     indexer.remove(column);
                 }
