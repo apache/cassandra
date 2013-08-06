@@ -267,9 +267,11 @@ public class CqlStorage extends AbstractCassandraStorage
 
         if (t.getType(0) == DataType.TUPLE)
         {
-            Map<String, ByteBuffer> key = tupleToKeyMap((Tuple)t.get(0));
             if (t.getType(1) == DataType.TUPLE)
+            {
+                Map<String, ByteBuffer> key = tupleToKeyMap((Tuple)t.get(0));
                 cqlQueryFromTuple(key, t, 1);
+            }
             else
                 throw new IOException("Second argument in output must be a tuple");
         }
@@ -453,8 +455,6 @@ public class CqlStorage extends AbstractCassandraStorage
     private String partitionFilterToWhereClauseString(Expression expression)
     {
         Expression.BinaryExpression be = (Expression.BinaryExpression) expression;
-        String name = be.getLhs().toString();
-        String value = be.getRhs().toString();
         OpType op = expression.getOpType();
         String opString = op.name();
         switch (op)
@@ -465,6 +465,8 @@ public class CqlStorage extends AbstractCassandraStorage
             case OP_GT:
             case OP_LE:
             case OP_LT:
+                String name = be.getLhs().toString();
+                String value = be.getRhs().toString();
                 return String.format("%s %s %s", name, opString, value);
             case OP_AND:
                 return String.format("%s AND %s", partitionFilterToWhereClauseString(be.getLhs()), partitionFilterToWhereClauseString(be.getRhs()));
