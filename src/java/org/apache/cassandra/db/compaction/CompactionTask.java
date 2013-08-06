@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.*;
 
 import com.google.common.base.Predicates;
+import com.google.common.base.Throwables;
 import com.google.common.collect.Iterators;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -188,7 +189,7 @@ public class CompactionTask extends AbstractCompactionTask
             for (SSTableWriter completedWriter : writers)
                 sstables.add(completedWriter.closeAndOpenReader(maxAge));
         }
-        catch (Exception e)
+        catch (Throwable t)
         {
             for (SSTableWriter writer : writers)
                 writer.abort();
@@ -198,7 +199,7 @@ public class CompactionTask extends AbstractCompactionTask
                 sstable.markCompacted();
                 sstable.releaseReference();
             }
-            throw FBUtilities.unchecked(e);
+            throw Throwables.propagate(t);
         }
         finally
         {

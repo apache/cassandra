@@ -1,3 +1,7 @@
+1.1.next
+ * Backport compaction exception handling from 1.2
+
+
 1.1.12
  * Remove buggy thrift max message length option (CASSANDRA-5529)
  * Add retry mechanism to OTC for non-droppable_verbs (CASSANDRA-5393)
