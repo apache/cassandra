@@ -356,7 +356,7 @@ public class FBUtilities
         }
         if (triggerDir == null || !triggerDir.exists())
         {
-            logger.warn("Trigger Directory doesnt exist, please create it and try again.");
+            logger.warn("Trigger directory doesn't exist, please create it and try again.");
             return null;
         }
         return triggerDir;
