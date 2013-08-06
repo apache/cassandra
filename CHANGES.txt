@@ -1,5 +1,6 @@
 2.0.0
  * fix CAS contention timeout (CASSANDRA-5830)
+ * fix HsHa to respect max frame size (CASSANDRA-4573)
 
 
 2.0.0-rc1
