@@ -230,6 +230,11 @@ public class DeletionInfo
         return size + (ranges == null ? 0 : ranges.dataSize());
     }
 
+    public boolean hasRanges()
+    {
+        return ranges != null && !ranges.isEmpty();
+    }
+
     @Override
     public String toString()
     {

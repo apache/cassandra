@@ -241,8 +241,12 @@ public class RangeTombstone extends Interval<ByteBuffer, DeletionTime> implement
         {
             for (RangeTombstone tombstone : ranges)
             {
-                if (comparator.compare(column.name(), tombstone.max) <= 0 && tombstone.data.isDeleted(column))
+                if (comparator.compare(column.name(), tombstone.min) >= 0
+                    && comparator.compare(column.name(), tombstone.max) <= 0
+                    && tombstone.maxTimestamp() >= column.timestamp())
+                {
                     return true;
+                }
             }
             return false;
         }
