@@ -52,7 +52,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.IAllocator;
 import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.thrift.TBase;
@@ -344,13 +343,22 @@ public class FBUtilities
 
     public static File cassandraTriggerDir()
     {
-        File triggerDir;
+        File triggerDir = null;
         if (System.getProperty("cassandra.triggers_dir") != null)
+        {
             triggerDir = new File(System.getProperty("cassandra.triggers_dir"));
+        }
         else
-            triggerDir = new File(FBUtilities.class.getClassLoader().getResource(DEFAULT_TRIGGER_DIR).getFile());
-        if (!triggerDir.exists())
-            throw new RuntimeException("Trigger Directory doesnt exist, please create inside conf.");
+        {
+            URL confDir = FBUtilities.class.getClassLoader().getResource(DEFAULT_TRIGGER_DIR);
+            if (confDir != null)
+                triggerDir = new File(confDir.getFile());
+        }
+        if (triggerDir == null || !triggerDir.exists())
+        {
+            logger.warn("Trigger directory doesn't exist, please create it and try again.");
+            return null;
+        }
         return triggerDir;
     }
 

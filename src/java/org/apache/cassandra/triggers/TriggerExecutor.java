@@ -42,7 +42,6 @@ public class TriggerExecutor
 
     private final Map<String, ITrigger> cachedTriggers = Maps.newConcurrentMap();
     private final ClassLoader parent = Thread.currentThread().getContextClassLoader();
-    private final File triggerDirectory = FBUtilities.cassandraTriggerDir();
     private volatile ClassLoader customClassLoader;
 
     private TriggerExecutor()
@@ -56,7 +55,10 @@ public class TriggerExecutor
      */
     public void reloadClasses()
     {
-        customClassLoader = new CustomClassLoader(parent, triggerDirectory);
+        File tiggerDirectory = FBUtilities.cassandraTriggerDir();
+        if (tiggerDirectory == null)
+            return;
+        customClassLoader = new CustomClassLoader(parent, tiggerDirectory);
         cachedTriggers.clear();
     }
 
