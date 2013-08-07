@@ -1,4 +1,5 @@
 1.2.9
+ * add --migrate option to sstableupgrade and sstablescrub (CASSANDRA-5831)
  * fix bulk-loading compressed sstables (CASSANDRA-5820)
  * (Hadoop) fix quoting in CqlPagingRecordReader and CqlRecordWriter 
    (CASSANDRA-5824)

@@ -49,15 +49,30 @@ public class StandaloneScrubber
     private static final String DEBUG_OPTION  = "debug";
     private static final String HELP_OPTION  = "help";
     private static final String MANIFEST_CHECK_OPTION  = "manifest-check";
+    private static final String MIGRATE_OPTION  = "migrate";
 
     public static void main(String args[]) throws IOException
     {
         Options options = Options.parseArgs(args);
         try
         {
+            OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
+
             // Migrate sstables from pre-#2749 to the correct location
             if (Directories.sstablesNeedsMigration())
+            {
+                if (!options.migrate)
+                {
+                    System.err.println("Detected a pre-1.1 data directory layout.  For this tool to work, a migration " +
+                                       "must be performed to the 1.1+ format for directories and filenames.  Re-run " +
+                                       TOOL_NAME + " with the --" + MIGRATE_OPTION + " option to automatically " +
+                                       "migrate *all* keyspaces and column families to the new layout.");
+                    System.exit(1);
+                }
+                handler.output("Detected a pre-1.1 data directory layout. All keyspace and column family directories " +
+                               "will be migrated to the 1.1+ format.");
                 Directories.migrateSSTables();
+            }
 
             // load keyspace descriptions.
             DatabaseDescriptor.loadSchemas();
@@ -72,7 +87,6 @@ public class StandaloneScrubber
             ColumnFamilyStore cfs = table.getColumnFamilyStore(options.cfName);
             String snapshotName = "pre-scrub-" + System.currentTimeMillis();
 
-            OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
             Directories.SSTableLister lister = cfs.directories.sstableLister().skipTemporary(true);
 
             List<SSTableReader> sstables = new ArrayList<SSTableReader>();
@@ -184,6 +198,7 @@ public class StandaloneScrubber
         public boolean debug;
         public boolean verbose;
         public boolean manifestCheckOnly;
+        public boolean migrate;
 
         private Options(String tableName, String cfName)
         {
@@ -222,6 +237,7 @@ public class StandaloneScrubber
                 opts.debug = cmd.hasOption(DEBUG_OPTION);
                 opts.verbose = cmd.hasOption(VERBOSE_OPTION);
                 opts.manifestCheckOnly = cmd.hasOption(MANIFEST_CHECK_OPTION);
+                opts.migrate = cmd.hasOption(MIGRATE_OPTION);
 
                 return opts;
             }
@@ -246,6 +262,7 @@ public class StandaloneScrubber
             options.addOption("v",  VERBOSE_OPTION,        "verbose output");
             options.addOption("h",  HELP_OPTION,           "display this help message");
             options.addOption("m",  MANIFEST_CHECK_OPTION, "only check and repair the leveled manifest, without actually scrubbing the sstables");
+            options.addOption(null, MIGRATE_OPTION,        "convert directory layout and filenames to 1.1+ structure");
             return options;
         }
 

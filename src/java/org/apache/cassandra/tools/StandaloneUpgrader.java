@@ -47,12 +47,30 @@ public class StandaloneUpgrader
     private static final String TOOL_NAME = "sstableupgrade";
     private static final String DEBUG_OPTION  = "debug";
     private static final String HELP_OPTION  = "help";
+    private static final String MIGRATE_OPTION  = "migrate";
 
     public static void main(String args[]) throws IOException
     {
         Options options = Options.parseArgs(args);
         try
         {
+            OutputHandler handler = new OutputHandler.SystemOutput(false, options.debug);
+            // Migrate sstables from pre-#2749 to the correct location
+            if (Directories.sstablesNeedsMigration())
+            {
+                if (!options.migrate)
+                {
+                    System.err.println("Detected a pre-1.1 data directory layout.  For this tool to work, a migration " +
+                                       "must be performed to the 1.1+ format for directories and filenames.  Re-run " +
+                                       TOOL_NAME + " with the --" + MIGRATE_OPTION + " option to automatically " +
+                                       "migrate *all* keyspaces and column families to the new layout.");
+                    System.exit(1);
+                }
+                handler.output("Detected a pre-1.1 data directory layout. All keyspace and column family directories " +
+                               "will be migrated to the 1.1+ format.");
+                Directories.migrateSSTables();
+            }
+
             // load keyspace descriptions.
             DatabaseDescriptor.loadSchemas();
 
@@ -64,7 +82,6 @@ public class StandaloneUpgrader
             Table table = Table.openWithoutSSTables(options.keyspace);
             ColumnFamilyStore cfs = table.getColumnFamilyStore(options.cf);
 
-            OutputHandler handler = new OutputHandler.SystemOutput(false, options.debug);
             Directories.SSTableLister lister = cfs.directories.sstableLister();
             if (options.snapshot != null)
                 lister.onlyBackups(true).snapshots(options.snapshot);
@@ -137,6 +154,7 @@ public class StandaloneUpgrader
         public final String snapshot;
 
         public boolean debug;
+        public boolean migrate;
 
         private Options(String keyspace, String cf, String snapshot)
         {
@@ -176,6 +194,7 @@ public class StandaloneUpgrader
                 Options opts = new Options(keyspace, cf, snapshot);
 
                 opts.debug = cmd.hasOption(DEBUG_OPTION);
+                opts.migrate = cmd.hasOption(MIGRATE_OPTION);
 
                 return opts;
             }
@@ -197,6 +216,7 @@ public class StandaloneUpgrader
         {
             CmdLineOptions options = new CmdLineOptions();
             options.addOption(null, DEBUG_OPTION,          "display stack traces");
+            options.addOption(null, MIGRATE_OPTION,        "convert directory layout and filenames to 1.1+ structure");
             options.addOption("h",  HELP_OPTION,           "display this help message");
             return options;
         }
