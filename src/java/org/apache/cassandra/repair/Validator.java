@@ -61,8 +61,6 @@ public class Validator implements Runnable
     private transient MerkleTree.TreeRangeIterator ranges;
     private transient DecoratedKey lastKey;
 
-    public final static MerkleTree.RowHash EMPTY_ROW = new MerkleTree.RowHash(null, new byte[0]);
-
     /**
      * Create Validator with default size of initial Merkle Tree.
      */
@@ -145,7 +143,7 @@ public class Validator implements Runnable
         while (!range.contains(row.key.token))
         {
             // add the empty hash, and move to the next range
-            range.addHash(EMPTY_ROW);
+            range.ensureHashInitialised();
             range = ranges.next();
         }
 
@@ -153,13 +151,52 @@ public class Validator implements Runnable
         range.addHash(rowHash(row));
     }
 
+    static class CountingDigest extends MessageDigest
+    {
+        private long count;
+        private MessageDigest underlying;
+
+        public CountingDigest(MessageDigest underlying)
+        {
+            super(underlying.getAlgorithm());
+            this.underlying = underlying;
+        }
+
+        @Override
+        protected void engineUpdate(byte input)
+        {
+            underlying.update(input);
+            count += 1;
+        }
+
+        @Override
+        protected void engineUpdate(byte[] input, int offset, int len)
+        {
+            underlying.update(input, offset, len);
+            count += len;
+        }
+
+        @Override
+        protected byte[] engineDigest()
+        {
+            return underlying.digest();
+        }
+
+        @Override
+        protected void engineReset()
+        {
+            underlying.reset();
+        }
+
+    }
+
     private MerkleTree.RowHash rowHash(AbstractCompactedRow row)
     {
         validated++;
         // MerkleTree uses XOR internally, so we want lots of output bits here
-        MessageDigest digest = FBUtilities.newMessageDigest("SHA-256");
+        CountingDigest digest = new CountingDigest(FBUtilities.newMessageDigest("SHA-256"));
         row.update(digest);
-        return new MerkleTree.RowHash(row.key.token, digest.digest());
+        return new MerkleTree.RowHash(row.key.token, digest.digest(), digest.count);
     }
 
     /**
@@ -170,7 +207,15 @@ public class Validator implements Runnable
         completeTree();
 
         StageManager.getStage(Stage.ANTI_ENTROPY).execute(this);
-        logger.debug("Validated " + validated + " rows into AEService tree for " + desc);
+
+        if (logger.isDebugEnabled())
+        {
+            // log distribution of rows in tree
+            logger.debug("Validated " + validated + " rows into AEService tree for " + desc + " with row count distribution:");
+            tree.histogramOfRowCountPerLeaf().log(logger);
+            logger.debug("Validated " + validated + " rows into AEService tree for " + desc + " with row size distribution:");
+            tree.histogramOfRowSizePerLeaf().log(logger);
+        }
     }
 
     @VisibleForTesting
@@ -179,11 +224,11 @@ public class Validator implements Runnable
         assert ranges != null : "Validator was not prepared()";
 
         if (range != null)
-            range.addHash(EMPTY_ROW);
+            range.ensureHashInitialised();
         while (ranges.hasNext())
         {
             range = ranges.next();
-            range.addHash(EMPTY_ROW);
+            range.ensureHashInitialised();
         }
     }
 

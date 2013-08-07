@@ -64,6 +64,7 @@ public class MerkleTree implements Serializable
     public static final int CONSISTENT = 0;
     public static final int FULLY_INCONSISTENT = 1;
     public static final int PARTIALLY_INCONSISTENT = 2;
+    private static final byte[] EMPTY_HASH = new byte[0];
 
     public final byte hashdepth;
 
@@ -227,11 +228,14 @@ public class MerkleTree implements Serializable
         if (!ltree.fullRange.equals(rtree.fullRange))
             throw new IllegalArgumentException("Difference only make sense on tree covering the same range (but " + ltree.fullRange + " != " + rtree.fullRange + ")");
 
-        List<TreeRange> diff = new ArrayList<TreeRange>();
-        TreeRange active = new TreeRange(null, ltree.fullRange.left, ltree.fullRange.right, (byte)0, null);
+        List<TreeRange> diff = new ArrayList<>();
+        TreeDifference active = new TreeDifference(ltree.fullRange.left, ltree.fullRange.right, (byte)0);
 
-        byte[] lhash = ltree.hash(active);
-        byte[] rhash = rtree.hash(active);
+        Hashable lnode = ltree.find(active);
+        Hashable rnode = rtree.find(active);
+        byte[] lhash = lnode.hash();
+        byte[] rhash = rnode.hash();
+        active.setSize(lnode.sizeOfRange(), rnode.sizeOfRange());
 
         if (lhash != null && rhash != null && !Arrays.equals(lhash, rhash))
         {
@@ -256,14 +260,19 @@ public class MerkleTree implements Serializable
             return CONSISTENT;
 
         Token midpoint = ltree.partitioner().midpoint(active.left, active.right);
-        TreeRange left = new TreeRange(null, active.left, midpoint, inc(active.depth), null);
-        TreeRange right = new TreeRange(null, midpoint, active.right, inc(active.depth), null);
-        byte[] lhash;
-        byte[] rhash;
+        TreeDifference left = new TreeDifference(active.left, midpoint, inc(active.depth));
+        TreeDifference right = new TreeDifference(midpoint, active.right, inc(active.depth));
+        byte[] lhash, rhash;
+        Hashable lnode, rnode;
 
         // see if we should recurse left
-        lhash = ltree.hash(left);
-        rhash = rtree.hash(left);
+        lnode = ltree.find(left);
+        rnode = rtree.find(left);
+        lhash = lnode.hash();
+        rhash = rnode.hash();
+        left.setSize(lnode.sizeOfRange(), rnode.sizeOfRange());
+        left.setRows(lnode.rowsInRange(), rnode.rowsInRange());
+
         int ldiff = CONSISTENT;
         boolean lreso = lhash != null && rhash != null;
         if (lreso && !Arrays.equals(lhash, rhash))
@@ -271,10 +280,14 @@ public class MerkleTree implements Serializable
         else if (!lreso)
             ldiff = FULLY_INCONSISTENT;
 
-
         // see if we should recurse right
-        lhash = ltree.hash(right);
-        rhash = rtree.hash(right);
+        lnode = ltree.find(right);
+        rnode = rtree.find(right);
+        lhash = lnode.hash();
+        rhash = rnode.hash();
+        right.setSize(lnode.sizeOfRange(), rnode.sizeOfRange());
+        right.setRows(lnode.rowsInRange(), rnode.rowsInRange());
+
         int rdiff = CONSISTENT;
         boolean rreso = lhash != null && rhash != null;
         if (rreso && !Arrays.equals(lhash, rhash))
@@ -363,54 +376,57 @@ public class MerkleTree implements Serializable
      */
     public byte[] hash(Range<Token> range)
     {
+        return find(range).hash();
+    }
+
+    /**
+     * Find the {@link Hashable} node that matches the given {@code range}.
+     *
+     * @param range Range to find
+     * @return {@link Hashable} found. If nothing found, return {@link Leaf} with null hash.
+     */
+    private Hashable find(Range<Token> range)
+    {
         try
         {
-            return hashHelper(root, new Range<Token>(fullRange.left, fullRange.right), range);
+            return findHelper(root, new Range<Token>(fullRange.left, fullRange.right), range);
         }
         catch (StopRecursion e)
         {
-            return null;
+            return new Leaf();
         }
     }
 
     /**
      * @throws StopRecursion If no match could be found for the range.
      */
-    private byte[] hashHelper(Hashable hashable, Range<Token> active, Range<Token> range) throws StopRecursion
+    private Hashable findHelper(Hashable current, Range<Token> activeRange, Range<Token> find) throws StopRecursion
     {
-        if (hashable instanceof Leaf)
+        if (current instanceof Leaf)
         {
-            if (!range.contains(active))
+            if (!find.contains(activeRange))
                 // we are not fully contained in this range!
                 throw new StopRecursion.BadRange();
-            return hashable.hash();
+            return current;
         }
         // else: node.
 
-        Inner node = (Inner)hashable;
-        Range<Token> leftactive = new Range<Token>(active.left, node.token);
-        Range<Token> rightactive = new Range<Token>(node.token, active.right);
+        Inner node = (Inner)current;
+        Range<Token> leftRange = new Range<Token>(activeRange.left, node.token);
+        Range<Token> rightRange = new Range<Token>(node.token, activeRange.right);
 
-        if (range.contains(active))
-        {
+        if (find.contains(activeRange))
             // this node is fully contained in the range
-            if (node.hash() != null)
-                // we had a cached value
-                return node.hash();
-            // continue recursing to hash our children
-            byte[] lhash = hashHelper(node.lchild(), leftactive, range);
-            byte[] rhash = hashHelper(node.rchild(), rightactive, range);
-            // cache the computed value (even if it is null)
-            node.hash(lhash, rhash);
-            return node.hash();
-        } // else: one of our children contains the range
+            return node.calc();
 
-        if (leftactive.contains(range))
+        // else: one of our children contains the range
+
+        if (leftRange.contains(find))
             // left child contains/matches the range
-            return hashHelper(node.lchild, leftactive, range);
-        else if (rightactive.contains(range))
+            return findHelper(node.lchild, leftRange, find);
+        else if (rightRange.contains(find))
             // right child contains/matches the range
-            return hashHelper(node.rchild, rightactive, range);
+            return findHelper(node.rchild, rightRange, find);
         else
             throw new StopRecursion.BadRange();
     }
@@ -479,6 +495,26 @@ public class MerkleTree implements Serializable
         return new TreeRangeIterator(this);
     }
 
+    public EstimatedHistogram histogramOfRowSizePerLeaf()
+    {
+        HistogramBuilder histbuild = new HistogramBuilder();
+        for (TreeRange range : new TreeRangeIterator(this))
+        {
+            histbuild.add(range.hashable.sizeOfRange);
+        }
+        return histbuild.buildWithStdevRangesAroundMean();
+    }
+
+    public EstimatedHistogram histogramOfRowCountPerLeaf()
+    {
+        HistogramBuilder histbuild = new HistogramBuilder();
+        for (TreeRange range : new TreeRangeIterator(this))
+        {
+            histbuild.add(range.hashable.rowsInRange);
+        }
+        return histbuild.buildWithStdevRangesAroundMean();
+    }
+
     @Override
     public String toString()
     {
@@ -487,6 +523,59 @@ public class MerkleTree implements Serializable
         root.toString(buff, 8);
         buff.append(">");
         return buff.toString();
+    }
+
+    public static class TreeDifference extends TreeRange
+    {
+        private static final long serialVersionUID = 6363654174549968183L;
+
+        private long sizeOnLeft;
+        private long sizeOnRight;
+        private long rowsOnLeft;
+        private long rowsOnRight;
+
+        void setSize(long sizeOnLeft, long sizeOnRight)
+        {
+            this.sizeOnLeft = sizeOnLeft;
+            this.sizeOnRight = sizeOnRight;
+        }
+
+        void setRows(long rowsOnLeft, long rowsOnRight)
+        {
+            this.rowsOnLeft = rowsOnLeft;
+            this.rowsOnRight = rowsOnRight;
+        }
+
+        public long sizeOnLeft()
+        {
+            return sizeOnLeft;
+        }
+
+        public long sizeOnRight()
+        {
+            return sizeOnRight;
+        }
+
+        public long rowsOnLeft()
+        {
+            return rowsOnLeft;
+        }
+
+        public long rowsOnRight()
+        {
+            return rowsOnRight;
+        }
+
+        public TreeDifference(Token left, Token right, byte depth)
+        {
+            super(null, left, right, depth, null);
+        }
+
+        public long totalRows()
+        {
+            return rowsOnLeft + rowsOnRight;
+        }
+
     }
 
     /**
@@ -531,7 +620,16 @@ public class MerkleTree implements Serializable
             assert tree != null : "Not intended for modification!";
             assert hashable instanceof Leaf;
 
-            hashable.addHash(entry.hash);
+            hashable.addHash(entry.hash, entry.size);
+        }
+
+        public void ensureHashInitialised()
+        {
+            assert tree != null : "Not intended for modification!";
+            assert hashable instanceof Leaf;
+
+            if (hashable.hash == null)
+                hashable.hash = EMPTY_HASH;
         }
 
         public void addAll(Iterator<RowHash> entries)
@@ -662,6 +760,21 @@ public class MerkleTree implements Serializable
             rchild = child;
         }
 
+        Hashable calc()
+        {
+            if (hash == null)
+            {
+                // hash and size haven't been calculated; calc children then compute
+                Hashable lnode = lchild.calc();
+                Hashable rnode = rchild.calc();
+                // cache the computed value
+                hash(lnode.hash, rnode.hash);
+                sizeOfRange = lnode.sizeOfRange + rnode.sizeOfRange;
+                rowsInRange = lnode.rowsInRange + rnode.rowsInRange;
+            }
+            return this;
+        }
+
         /**
          * Recursive toString.
          */
@@ -729,12 +842,12 @@ public class MerkleTree implements Serializable
             public long serializedSize(Inner inner, int version)
             {
                 int size = inner.hash == null
-                         ? TypeSizes.NATIVE.sizeof(-1)
-                         : TypeSizes.NATIVE.sizeof(inner.hash().length) + inner.hash().length;
+                ? TypeSizes.NATIVE.sizeof(-1)
+                        : TypeSizes.NATIVE.sizeof(inner.hash().length) + inner.hash().length;
 
                 size += Token.serializer.serializedSize(inner.token, TypeSizes.NATIVE)
-                        + Hashable.serializer.serializedSize(inner.lchild, version)
-                        + Hashable.serializer.serializedSize(inner.rchild, version);
+                + Hashable.serializer.serializedSize(inner.lchild, version)
+                + Hashable.serializer.serializedSize(inner.rchild, version);
                 return size;
             }
         }
@@ -766,11 +879,6 @@ public class MerkleTree implements Serializable
         public Leaf(byte[] hash)
         {
             super(hash);
-        }
-
-        public Leaf(byte[] lefthash, byte[] righthash)
-        {
-            super(Hashable.binaryHash(lefthash, righthash));
         }
 
         public void toString(StringBuilder buff, int maxdepth)
@@ -826,16 +934,18 @@ public class MerkleTree implements Serializable
     {
         public final Token token;
         public final byte[] hash;
-        public RowHash(Token token, byte[] hash)
+        public final long size;
+        public RowHash(Token token, byte[] hash, long size)
         {
             this.token = token;
             this.hash  = hash;
+            this.size = size;
         }
 
         @Override
         public String toString()
         {
-            return "#<RowHash " + token + " " + Hashable.toString(hash) + ">";
+            return "#<RowHash " + token + " " + Hashable.toString(hash) + " @ " + size + " bytes>";
         }
     }
 
@@ -848,6 +958,8 @@ public class MerkleTree implements Serializable
         private static final IVersionedSerializer<Hashable> serializer = new HashableSerializer();
 
         protected byte[] hash;
+        protected long sizeOfRange;
+        protected long rowsInRange;
 
         protected Hashable(byte[] hash)
         {
@@ -859,9 +971,24 @@ public class MerkleTree implements Serializable
             return hash;
         }
 
+        public long sizeOfRange()
+        {
+            return sizeOfRange;
+        }
+
+        public long rowsInRange()
+        {
+            return rowsInRange;
+        }
+
         void hash(byte[] hash)
         {
             this.hash = hash;
+        }
+
+        Hashable calc()
+        {
+            return this;
         }
 
         /**
@@ -878,12 +1005,14 @@ public class MerkleTree implements Serializable
          * Mixes the given value into our hash. If our hash is null,
          * our hash will become the given value.
          */
-        void addHash(byte[] righthash)
+        void addHash(byte[] righthash, long sizeOfRow)
         {
             if (hash == null)
                 hash = righthash;
             else
                 hash = binaryHash(hash, righthash);
+            this.sizeOfRange += sizeOfRow;
+            this.rowsInRange += 1;
         }
 
         /**
