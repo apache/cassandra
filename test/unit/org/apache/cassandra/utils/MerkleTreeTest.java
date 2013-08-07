@@ -25,16 +25,15 @@ import com.google.common.collect.AbstractIterator;
 import com.google.common.io.ByteArrayDataInput;
 import com.google.common.io.ByteArrayDataOutput;
 import com.google.common.io.ByteStreams;
-import org.apache.hadoop.hdfs.server.common.Storage;
+
 import org.junit.Before;
 import org.junit.Test;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.MerkleTree.Hashable;
 import org.apache.cassandra.utils.MerkleTree.RowHash;
+import org.apache.cassandra.utils.MerkleTree.TreeDifference;
 import org.apache.cassandra.utils.MerkleTree.TreeRange;
 import org.apache.cassandra.utils.MerkleTree.TreeRangeIterator;
 
@@ -322,7 +321,7 @@ public class MerkleTreeTest
         // validate the tree
         TreeRangeIterator ranges = mt.invalids();
         for (TreeRange range : ranges)
-            range.addHash(new RowHash(range.right, new byte[0]));
+            range.addHash(new RowHash(range.right, new byte[0], 0));
 
         assert mt.hash(new Range<>(tok(-1), tok(-1))) != null :
             "Could not hash tree " + mt;
@@ -491,7 +490,7 @@ public class MerkleTreeTest
         public RowHash computeNext()
         {
             if (tokens.hasNext())
-                return new RowHash(tokens.next(), DUMMY);
+                return new RowHash(tokens.next(), DUMMY, DUMMY.length);
             return endOfData();
         }
     }

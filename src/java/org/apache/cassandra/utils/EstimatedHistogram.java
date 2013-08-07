@@ -27,6 +27,7 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
+import org.slf4j.Logger;
 
 public class EstimatedHistogram
 {
@@ -224,6 +225,70 @@ public class EstimatedHistogram
     public boolean isOverflowed()
     {
         return buckets.get(buckets.length() - 1) > 0;
+    }
+
+    /**
+     * log.debug() every record in the histogram
+     *
+     * @param log
+     */
+    public void log(Logger log)
+    {
+
+        // only print overflow if there is any
+        int nameCount;
+        if (buckets.get(buckets.length() - 1) == 0)
+            nameCount = buckets.length() - 1;
+        else
+            nameCount = buckets.length();
+        String[] names = new String[nameCount];
+
+        int maxNameLength = 0;
+        for (int i = 0; i < nameCount; i++)
+        {
+            names[i] = nameOfRange(bucketOffsets, i);
+            maxNameLength = Math.max(maxNameLength, names[i].length());
+        }
+
+        // emit log records
+        String formatstr = "%" + maxNameLength + "s: %d";
+        for (int i = 0; i < nameCount; i++)
+        {
+            long count = buckets.get(i);
+            // sort-of-hack to not print empty ranges at the start that are only used to demarcate the
+            // first populated range. for code clarity we don't omit this record from the maxNameLength
+            // calculation, and accept the unnecessary whitespace prefixes that will occasionally occur
+            if (i == 0 && count == 0)
+                continue;
+            log.debug(String.format(formatstr, names[i], count));
+        }
+    }
+
+    private static String nameOfRange(long[] bucketOffsets, int index)
+    {
+        StringBuilder sb = new StringBuilder();
+        appendRange(sb, bucketOffsets, index);
+        return sb.toString();
+    }
+
+    private static void appendRange(StringBuilder sb, long[] bucketOffsets, int index)
+    {
+        sb.append("[");
+        if (index == 0)
+            if (bucketOffsets[0] > 0)
+                // by original definition, this histogram is for values greater than zero only;
+                // if values of 0 or less are required, an entry of lb-1 must be inserted at the start
+                sb.append("1");
+            else
+                sb.append("-Inf");
+        else
+            sb.append(bucketOffsets[index - 1] + 1);
+        sb.append("..");
+        if (index == bucketOffsets.length)
+            sb.append("Inf");
+        else
+            sb.append(bucketOffsets[index]);
+        sb.append("]");
     }
 
     @Override

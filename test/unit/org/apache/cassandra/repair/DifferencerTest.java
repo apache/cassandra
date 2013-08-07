@@ -132,7 +132,7 @@ public class DifferencerTest extends SchemaLoader
         tree.init();
         for (MerkleTree.TreeRange r : tree.invalids())
         {
-            r.addHash(Validator.EMPTY_ROW);
+            r.ensureHashInitialised();
         }
         return tree;
     }
