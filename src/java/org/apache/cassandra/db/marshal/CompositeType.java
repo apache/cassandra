@@ -124,6 +124,30 @@ public class CompositeType extends AbstractCompositeType
         return build(serialized);
     }
 
+    // Extract component idx from bb. Return null if there is not enough component.
+    public static ByteBuffer extractComponent(ByteBuffer bb, int idx)
+    {
+        bb = bb.duplicate();
+        int i = 0;
+        while (bb.remaining() > 0)
+        {
+            ByteBuffer c = getWithShortLength(bb);
+            if (i == idx)
+                return c;
+
+            bb.get(); // skip end-of-component
+            ++i;
+        }
+        return null;
+    }
+
+    // Extract CQL3 column name from the full column name.
+    public ByteBuffer extractLastComponent(ByteBuffer bb)
+    {
+        int idx = types.get(types.size() - 1) instanceof ColumnToCollectionType ? types.size() - 2 : types.size() - 1;
+        return extractComponent(bb, idx);
+    }
+
     @Override
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
