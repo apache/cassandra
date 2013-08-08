@@ -54,16 +54,13 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         super(cfs, options);
         int configuredMaxSSTableSize = 160;
         SizeTieredCompactionStrategyOptions localOptions = new SizeTieredCompactionStrategyOptions(options);
-        if (options != null)
+        if (options.containsKey(SSTABLE_SIZE_OPTION))
         {
-            if (options.containsKey(SSTABLE_SIZE_OPTION))
+            configuredMaxSSTableSize = Integer.parseInt(options.get(SSTABLE_SIZE_OPTION));
+            if (configuredMaxSSTableSize >= 1000)
             {
-                configuredMaxSSTableSize = Integer.parseInt(options.get(SSTABLE_SIZE_OPTION));
-                if (configuredMaxSSTableSize >= 1000)
-                {
-                    // Yes, people have done this
-                    logger.warn("Max sstable size of {}MB is configured; having a unit of compaction this large is probably a bad idea", configuredMaxSSTableSize);
-                }
+                // Yes, people have done this
+                logger.warn("Max sstable size of {}MB is configured; having a unit of compaction this large is probably a bad idea", configuredMaxSSTableSize);
             }
         }
         maxSSTableSizeInMB = configuredMaxSSTableSize;
