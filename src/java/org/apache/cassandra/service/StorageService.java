@@ -1589,10 +1589,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     protected long extractExpireTime(String[] pieces)
     {
-        if (VersionedValue.STATUS_LEFT.equals(pieces[0]))
-            return Long.parseLong(pieces[1]);
-        else
-            return Long.parseLong(pieces[2]);
+        return Long.parseLong(pieces[2]);
     }
 
     /**
