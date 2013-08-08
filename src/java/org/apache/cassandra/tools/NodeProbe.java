@@ -32,11 +32,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Condition;
 import javax.management.*;
+import javax.management.openmbean.CompositeData;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
+import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
@@ -52,6 +55,7 @@ import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamManagerMBean;
+import org.apache.cassandra.streaming.management.StreamStateCompositeData;
 import org.apache.cassandra.utils.SimpleCondition;
 
 /**
@@ -547,7 +551,13 @@ public class NodeProbe
 
     public Set<StreamState> getStreamStatus()
     {
-        return streamProxy.getCurrentStreams();
+        return Sets.newHashSet(Iterables.transform(streamProxy.getCurrentStreams(), new Function<CompositeData, StreamState>()
+        {
+            public StreamState apply(CompositeData input)
+            {
+                return StreamStateCompositeData.fromCompositeData(input);
+            }
+        }));
     }
 
     public String getOperationMode()

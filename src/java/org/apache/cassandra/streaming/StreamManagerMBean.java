@@ -18,13 +18,15 @@
 package org.apache.cassandra.streaming;
 
 import java.util.Set;
+import javax.management.NotificationEmitter;
+import javax.management.openmbean.CompositeData;
 
-public interface StreamManagerMBean
+public interface StreamManagerMBean extends NotificationEmitter
 {
     public static final String OBJECT_NAME = "org.apache.cassandra.net:type=StreamManager";
 
     /**
      * Returns the current state of all ongoing streams.
      */
-    Set<StreamState> getCurrentStreams();
+    Set<CompositeData> getCurrentStreams();
 }
