@@ -594,7 +594,7 @@ public class SSTableReader extends SSTable
      */
     public long estimatedKeys()
     {
-        return indexSummary.size() * indexSummary.getIndexInterval();
+        return ((long) indexSummary.size()) * indexSummary.getIndexInterval();
     }
 
     /**
