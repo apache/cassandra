@@ -97,7 +97,7 @@ public class CompressedInputStreamTest
 
         // read buffer using CompressedInputStream
         CompressionInfo info = new CompressionInfo(chunks, param);
-        CompressedInputStream input = new CompressedInputStream(new ByteArrayInputStream(toRead), info);
+        CompressedInputStream input = new CompressedInputStream(new ByteArrayInputStream(toRead), info, true);
         DataInputStream in = new DataInputStream(input);
 
         for (int i = 0; i < sections.size(); i++)

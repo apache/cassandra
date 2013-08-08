@@ -44,7 +44,7 @@ public class Descriptor
     public static class Version
     {
         // This needs to be at the begining for initialization sake
-        public static final String current_version = "ja";
+        public static final String current_version = "jb";
 
         // ic (1.2.5): omits per-row bloom filter of column names
         // ja (2.0.0): super columns are serialized as composites (note that there is no real format change,
@@ -55,6 +55,8 @@ public class Descriptor
         //             records bloom_filter_fp_chance in metadata component
         //             remove data size and column count from data file (CASSANDRA-4180)
         //             tracks max/min column values (according to comparator)
+        // jb (2.0.1): switch from crc32 to adler32 for compression checksums
+        //             checksum the compressed data
 
         public static final Version CURRENT = new Version(current_version);
 
@@ -67,6 +69,7 @@ public class Descriptor
         public final boolean offHeapSummaries;
         public final boolean hasRowSizeAndColumnCount;
         public final boolean tracksMaxMinColumnNames;
+        public final boolean hasPostCompressionAdlerChecksums;
 
         public Version(String version)
         {
@@ -78,6 +81,7 @@ public class Descriptor
             offHeapSummaries = version.compareTo("ja") >= 0;
             hasRowSizeAndColumnCount = version.compareTo("ja") < 0;
             tracksMaxMinColumnNames = version.compareTo("ja") >= 0;
+            hasPostCompressionAdlerChecksums = version.compareTo("jb") >= 0;
         }
 
         /**

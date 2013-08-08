@@ -20,6 +20,7 @@ package org.apache.cassandra.io.compress;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
+import java.util.zip.Adler32;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -55,7 +56,7 @@ public class CompressedSequentialWriter extends SequentialWriter
     // holds a number of already written chunks
     private int chunkCount = 0;
 
-    private final Checksum checksum = new CRC32();
+    private final Checksum checksum = new Adler32();
 
     private long originalSize = 0, compressedSize = 0;
 
@@ -126,7 +127,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         compressedSize += compressedLength;
 
         // update checksum
-        checksum.update(buffer, 0, validBufferBytes);
+        checksum.update(compressed.buffer, 0, compressedLength);
 
         try
         {
@@ -204,7 +205,7 @@ public class CompressedSequentialWriter extends SequentialWriter
                 throw new CorruptBlockException(getPath(), chunkOffset, chunkSize);
             }
 
-            checksum.update(buffer, 0, validBytes);
+            checksum.update(compressed.buffer, 0, chunkSize);
 
             if (out.readInt() != (int) checksum.getValue())
                 throw new CorruptBlockException(getPath(), chunkOffset, chunkSize);

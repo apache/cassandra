@@ -64,7 +64,7 @@ public class CompressedStreamReader extends StreamReader
 
         SSTableWriter writer = createWriter(cfs, totalSize);
 
-        CompressedInputStream cis = new CompressedInputStream(Channels.newInputStream(channel), compressionInfo);
+        CompressedInputStream cis = new CompressedInputStream(Channels.newInputStream(channel), compressionInfo, inputVersion.hasPostCompressionAdlerChecksums);
         BytesReadTracker in = new BytesReadTracker(new DataInputStream(cis));
         try
         {

@@ -42,6 +42,7 @@ public class CompressionMetadata
 {
     public final long dataLength;
     public final long compressedFileLength;
+    public final boolean hasPostCompressionAdlerChecksums;
     private final Memory chunkOffsets;
     public final String indexFilePath;
     public final CompressionParameters parameters;
@@ -60,13 +61,14 @@ public class CompressionMetadata
     public static CompressionMetadata create(String dataFilePath)
     {
         Descriptor desc = Descriptor.fromFilename(dataFilePath);
-        return new CompressionMetadata(desc.filenameFor(Component.COMPRESSION_INFO), new File(dataFilePath).length());
+        return new CompressionMetadata(desc.filenameFor(Component.COMPRESSION_INFO), new File(dataFilePath).length(), desc.version.hasPostCompressionAdlerChecksums);
     }
 
     @VisibleForTesting
-    CompressionMetadata(String indexFilePath, long compressedLength)
+    CompressionMetadata(String indexFilePath, long compressedLength, boolean hasPostCompressionAdlerChecksums)
     {
         this.indexFilePath = indexFilePath;
+        this.hasPostCompressionAdlerChecksums = hasPostCompressionAdlerChecksums;
 
         DataInputStream stream;
         try
