@@ -1654,12 +1654,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 return Long.parseLong(pieces[2]);
             else
                 return 0L;
-        } else
+        }
+        else
         {
-            if (VersionedValue.STATUS_LEFT.equals(pieces[0]))
-                return Long.parseLong(pieces[1]);
-            else
-                return Long.parseLong(pieces[2]);
+            return Long.parseLong(pieces[2]);
         }
     }
 
