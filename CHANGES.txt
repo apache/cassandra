@@ -1,6 +1,7 @@
 2.0.1
  * Notify indexer of columns shadowed by range tombstones (CASSANDRA-5614)
  * Log Merkle tree stats (CASSANDRA-2698)
+ * Switch from crc32 to adler32 for compressed sstable checksums (CASSANDRA-5862)
 
 
 2.0.0

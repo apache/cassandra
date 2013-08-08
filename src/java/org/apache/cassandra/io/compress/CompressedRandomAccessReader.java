@@ -19,6 +19,7 @@ package org.apache.cassandra.io.compress;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.util.zip.Adler32;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -65,7 +66,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     private ByteBuffer compressed;
 
     // re-use single crc object
-    private final Checksum checksum = new CRC32();
+    private final Checksum checksum;
 
     // raw checksum bytes
     private final ByteBuffer checksumBytes = ByteBuffer.wrap(new byte[4]);
@@ -74,6 +75,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     {
         super(new File(dataFilePath), metadata.chunkLength(), owner);
         this.metadata = metadata;
+        checksum = metadata.hasPostCompressionAdlerChecksums ? new Adler32() : new CRC32();
         compressed = ByteBuffer.wrap(new byte[metadata.compressor().initialCompressedBufferLength(metadata.chunkLength())]);
     }
 
@@ -122,7 +124,15 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
         if (metadata.parameters.getCrcCheckChance() > FBUtilities.threadLocalRandom().nextDouble())
         {
-            checksum.update(buffer, 0, validBufferBytes);
+
+            if (metadata.hasPostCompressionAdlerChecksums)
+            {
+                checksum.update(compressed.array(), 0, chunk.length);
+            }
+            else
+            {
+                checksum.update(buffer, 0, validBufferBytes);
+            }
 
             if (checksum(chunk) != (int) checksum.getValue())
                 throw new CorruptBlockException(getPath(), chunk);

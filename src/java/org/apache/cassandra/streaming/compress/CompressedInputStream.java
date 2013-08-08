@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.util.Iterator;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.zip.Adler32;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -52,20 +53,23 @@ public class CompressedInputStream extends InputStream
     // number of bytes in the buffer that are actually valid
     protected int validBufferBytes = -1;
 
-    private final Checksum checksum = new CRC32();
+    private final Checksum checksum;
 
     // raw checksum bytes
     private final byte[] checksumBytes = new byte[4];
 
     private long totalCompressedBytesRead;
+    private final boolean hasPostCompressionAdlerChecksums;
 
     /**
      * @param source Input source to read compressed data from
      * @param info Compression info
      */
-    public CompressedInputStream(InputStream source, CompressionInfo info)
+    public CompressedInputStream(InputStream source, CompressionInfo info, boolean hasPostCompressionAdlerChecksums)
     {
         this.info = info;
+        this.checksum = hasPostCompressionAdlerChecksums ? new Adler32() : new CRC32();
+        this.hasPostCompressionAdlerChecksums = hasPostCompressionAdlerChecksums;
         this.buffer = new byte[info.parameters.chunkLength()];
         // buffer is limited to store up to 1024 chunks
         this.dataBuffer = new ArrayBlockingQueue<byte[]>(Math.min(info.chunks.length, 1024));
@@ -107,7 +111,14 @@ public class CompressedInputStream extends InputStream
         // validate crc randomly
         if (info.parameters.getCrcCheckChance() > FBUtilities.threadLocalRandom().nextDouble())
         {
-            checksum.update(buffer, 0, validBufferBytes);
+            if (hasPostCompressionAdlerChecksums)
+            {
+                checksum.update(compressed, 0, compressed.length - checksumBytes.length);
+            }
+            else
+            {
+                checksum.update(buffer, 0, validBufferBytes);
+            }
 
             System.arraycopy(compressed, compressed.length - checksumBytes.length, checksumBytes, 0, checksumBytes.length);
             if (Ints.fromByteArray(checksumBytes) != (int) checksum.getValue())
