@@ -48,7 +48,7 @@ public class SlabAllocator extends Allocator
     private final static int MAX_CLONED_SIZE = 128 * 1024; // bigger than this don't go in the region
 
     private final AtomicReference<Region> currentRegion = new AtomicReference<Region>();
-    private volatile int regionCount = 0;
+    private final AtomicInteger regionCount = new AtomicInteger(0);
     private AtomicLong unslabbed = new AtomicLong(0);
 
     public ByteBuffer allocate(int size)
@@ -99,7 +99,7 @@ public class SlabAllocator extends Allocator
             {
                 // we won race - now we need to actually do the expensive allocation step
                 region.init();
-                regionCount++;
+                regionCount.incrementAndGet();
                 logger.trace("{} regions now allocated in {}", regionCount, this);
                 return region;
             }
@@ -113,7 +113,7 @@ public class SlabAllocator extends Allocator
      */
     public long getMinimumSize()
     {
-        return unslabbed.get() + (regionCount - 1) * (long)REGION_SIZE;
+        return unslabbed.get() + (regionCount.get() - 1) * (long)REGION_SIZE;
     }
 
     /**
@@ -121,7 +121,7 @@ public class SlabAllocator extends Allocator
      */
     public long getMaximumSize()
     {
-        return unslabbed.get() + regionCount * (long)REGION_SIZE;
+        return unslabbed.get() + regionCount.get() * (long)REGION_SIZE;
     }
 
     /**
