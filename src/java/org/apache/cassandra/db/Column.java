@@ -302,16 +302,9 @@ public class Column implements OnDiskAtom
 
         // If this is a CQL table, we need to pull out the CQL column name to look up the correct column type.
         // (Note that COMPACT composites are handled by validateName, above.)
-        ByteBuffer internalName;
-        if (cfdef.isComposite && !cfdef.isCompact)
-        {
-            CompositeType comparator = (CompositeType) metadata.comparator;
-            internalName = comparator.extractLastComponent(name);
-        }
-        else
-        {
-            internalName = name;
-        }
+        ByteBuffer internalName = (cfdef.isComposite && !cfdef.isCompact)
+                                ? ((CompositeType) metadata.comparator).extractLastComponent(name)
+                                : name;
 
         AbstractType<?> valueValidator = metadata.getValueValidator(internalName);
         if (valueValidator != null)
