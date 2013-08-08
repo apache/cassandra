@@ -597,7 +597,7 @@ public class SSTableReader extends SSTable
      */
     public long estimatedKeys()
     {
-        return indexSummary.size() * DatabaseDescriptor.getIndexInterval();
+        return ((long) indexSummary.size()) * DatabaseDescriptor.getIndexInterval();
     }
 
     /**
