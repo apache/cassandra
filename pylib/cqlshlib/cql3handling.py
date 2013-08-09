@@ -84,22 +84,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
             ('sstable_compression', 'chunk_length_kb', 'crc_check_chance')),
     )
 
-    obsolete_cf_options = (
-        'compaction_parameters',
-        'compaction_strategy_class',
-        'compaction_strategy_options',
-        'compression_parameters',
-        'key_cache_save_period_in_seconds',
-        'key_cache_size',
-        'max_compaction_threshold',
-        'memtable_flush_after_mins',
-        'memtable_operations_in_millions',
-        'memtable_throughput_in_mb',
-        'min_compaction_threshold',
-        'row_cache_provider',
-        'row_cache_save_period_in_seconds',
-        'row_cache_size',
-    )
+    obsolete_cf_options = ()
 
     consistency_levels = (
         'ANY',

@@ -19,9 +19,6 @@ package org.apache.cassandra.cql3;
 
 import java.util.*;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.CFMetaData.SpeculativeRetry;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
@@ -31,8 +28,6 @@ import org.apache.cassandra.io.compress.CompressionParameters;
 
 public class CFPropDefs extends PropertyDefinitions
 {
-    private static final Logger logger = LoggerFactory.getLogger(CFPropDefs.class);
-
     public static final String KW_COMMENT = "comment";
     public static final String KW_READREPAIRCHANCE = "read_repair_chance";
     public static final String KW_DCLOCALREADREPAIRCHANCE = "dclocal_read_repair_chance";
@@ -53,8 +48,8 @@ public class CFPropDefs extends PropertyDefinitions
 
     public static final String COMPACTION_STRATEGY_CLASS_KEY = "class";
 
-    public static final Set<String> keywords = new HashSet<String>();
-    public static final Set<String> obsoleteKeywords = new HashSet<String>();
+    public static final Set<String> keywords = new HashSet<>();
+    public static final Set<String> obsoleteKeywords = new HashSet<>();
 
     static
     {
@@ -72,13 +67,6 @@ public class CFPropDefs extends PropertyDefinitions
         keywords.add(KW_COMPACTION);
         keywords.add(KW_COMPRESSION);
         keywords.add(KW_MEMTABLE_FLUSH_PERIOD);
-
-        obsoleteKeywords.add("compaction_strategy_class");
-        obsoleteKeywords.add("compaction_strategy_options");
-        obsoleteKeywords.add("min_compaction_threshold");
-        obsoleteKeywords.add("max_compaction_threshold");
-        obsoleteKeywords.add("compaction_parameters");
-        obsoleteKeywords.add("compression_parameters");
     }
 
     private Class<? extends AbstractCompactionStrategy> compactionStrategyClass = null;
@@ -111,7 +99,7 @@ public class CFPropDefs extends PropertyDefinitions
             if (compressionOptions.containsKey(CompressionParameters.CHUNK_LENGTH_KB))
                 chunkLength = CompressionParameters.parseChunkLength(compressionOptions.get(CompressionParameters.CHUNK_LENGTH_KB));
 
-            Map<String, String> remainingOptions = new HashMap<String, String>(compressionOptions);
+            Map<String, String> remainingOptions = new HashMap<>(compressionOptions);
             remainingOptions.remove(CompressionParameters.SSTABLE_COMPRESSION);
             remainingOptions.remove(CompressionParameters.CHUNK_LENGTH_KB);
             CompressionParameters cp = new CompressionParameters(sstableCompressionClass, chunkLength, remainingOptions);
@@ -133,7 +121,7 @@ public class CFPropDefs extends PropertyDefinitions
     {
         Map<String, String> compactionOptions = getMap(KW_COMPACTION);
         if (compactionOptions == null)
-            return Collections.<String, String>emptyMap();
+            return new HashMap<>();
         return compactionOptions;
     }
 
@@ -141,7 +129,7 @@ public class CFPropDefs extends PropertyDefinitions
     {
         Map<String, String> compressionOptions = getMap(KW_COMPRESSION);
         if (compressionOptions == null)
-            return new HashMap<String, String>();
+            return new HashMap<>();
         return compressionOptions;
     }
 
@@ -170,7 +158,7 @@ public class CFPropDefs extends PropertyDefinitions
         if (compactionStrategyClass != null)
         {
             cfm.compactionStrategyClass(compactionStrategyClass);
-            cfm.compactionStrategyOptions(new HashMap<String, String>(getCompactionOptions()));
+            cfm.compactionStrategyOptions(new HashMap<>(getCompactionOptions()));
         }
 
         cfm.bloomFilterFpChance(getDouble(KW_BF_FP_CHANCE, cfm.getBloomFilterFpChance()));
