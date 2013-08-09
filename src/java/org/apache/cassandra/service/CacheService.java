@@ -388,7 +388,7 @@ public class CacheService implements CacheServiceMBean
             }
             RowIndexEntry entry = promotedIndexes
                                 ? RowIndexEntry.serializer.deserialize(input, reader.descriptor.version)
-                                : reader.getPosition(reader.partitioner.decorateKey(key), Operator.EQ);
+                                : reader.getPosition(reader.partitioner.decorateKey(key), Operator.EQ, false);
             return Futures.immediateFuture(Pair.create(new KeyCacheKey(reader.descriptor, key), entry));
         }
 
@@ -410,7 +410,7 @@ public class CacheService implements CacheServiceMBean
 
                 for (SSTableReader sstable : cfs.getSSTables())
                 {
-                    RowIndexEntry entry = sstable.getPosition(dk, Operator.EQ);
+                    RowIndexEntry entry = sstable.getPosition(dk, Operator.EQ, false);
                     if (entry != null)
                         keyCache.put(new KeyCacheKey(sstable.descriptor, key), entry);
                 }

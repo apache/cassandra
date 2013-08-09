@@ -13,6 +13,7 @@
  * Future-proof inter-major-version schema migrations (CASSANDRA-5845)
  * (Hadoop) add CqlPagingRecordReader support for ReversedType in Thrift table
    (CASSANDRA-5718)
+ * Add KeyCacheHitRate metric to CF metrics (CASSANDRA-5868)
 Merged from 1.1:
  * Correctly validate sparse composite cells in scrub (CASSANDRA-5855)
 
