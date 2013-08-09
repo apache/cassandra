@@ -1,4 +1,6 @@
 1.2.9
+ * migrate 1.1 schema_columnfamilies.key_alias column to key_aliases
+   (CASSANDRA-5800)
  * add --migrate option to sstableupgrade and sstablescrub (CASSANDRA-5831)
  * fix bulk-loading compressed sstables (CASSANDRA-5820)
  * (Hadoop) fix quoting in CqlPagingRecordReader and CqlRecordWriter 

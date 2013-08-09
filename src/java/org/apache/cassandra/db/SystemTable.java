@@ -180,6 +180,44 @@ public class SystemTable
             logger.info("Possible old-format hints found. Truncating");
             oldHintsCfs.truncate();
         }
+
+        migrateKeyAliases();
+    }
+
+
+    /**
+     * 1.1 used a key_alias column; 1.2 changed that to key_aliases as part of CQL3
+     */
+    private static void migrateKeyAliases()
+    {
+        for (UntypedResultSet.Row row : processInternal("SELECT keyspace_name, columnfamily_name, key_aliases, key_alias FROM system.schema_columnfamilies"))
+        {
+            String key_alias = null;
+            String key_aliases = null;
+            try
+            {
+                key_alias = row.getString("key_alias");
+            }
+            catch (NullPointerException e)
+            {
+                // column value is null
+            }
+            try
+            {
+                key_aliases =  row.getString("key_aliases");
+            }
+            catch (NullPointerException e)
+            {
+                // column value is null
+            }
+            if (key_alias != null && key_aliases == null)
+            {
+                String keyspace = row.getString("keyspace_name");
+                String columnfamily = row.getString("columnfamily_name");
+                processInternal(String.format("UPDATE system.schema_columnfamilies set key_aliases='[\"%s\"]' , key_alias = null where keyspace_name='%s' and columnfamily_name='%s'",
+                                              key_alias, keyspace, columnfamily));
+            }
+        }
     }
 
     public static void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, ReplayPosition position)
