@@ -22,6 +22,7 @@ import com.yammer.metrics.core.Counter;
 import com.yammer.metrics.core.Gauge;
 import com.yammer.metrics.core.Histogram;
 import com.yammer.metrics.core.MetricName;
+import com.yammer.metrics.util.RatioGauge;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -76,6 +77,8 @@ public class ColumnFamilyMetrics
     public final Gauge<Double> recentBloomFilterFalseRatio;
     /** Disk space used by bloom filter */
     public final Gauge<Long> bloomFilterDiskSpaceUsed;
+    /** Key cache hit rate  for this CF */
+    public final Gauge<Double> keyCacheHitRate;
 
     private final MetricNameFactory factory;
 
@@ -277,6 +280,24 @@ public class ColumnFamilyMetrics
             }
         });
         speculativeRetry = Metrics.newCounter(factory.createMetricName("SpeculativeRetry"));
+        keyCacheHitRate = Metrics.newGauge(factory.createMetricName("KeyCacheHitRate"), new RatioGauge()
+        {
+            protected double getNumerator()
+            {
+                long hits = 0L;
+                for (SSTableReader sstable : cfs.getSSTables())
+                    hits += sstable.getKeyCacheHit();
+                return hits;
+            }
+
+            protected double getDenominator()
+            {
+                long requests = 0L;
+                for (SSTableReader sstable : cfs.getSSTables())
+                    requests += sstable.getKeyCacheRequest();
+                return Math.max(requests, 1); // to avoid NaN.
+            }
+        });
     }
 
     public void updateSSTableIterated(int count)

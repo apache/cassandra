@@ -365,7 +365,7 @@ public class CacheService implements CacheServiceMBean
 
                 for (SSTableReader sstable : cfs.getSSTables())
                 {
-                    RowIndexEntry entry = sstable.getPosition(dk, Operator.EQ);
+                    RowIndexEntry entry = sstable.getPosition(dk, Operator.EQ, false);
                     if (entry != null)
                         keyCache.put(new KeyCacheKey(sstable.descriptor, key), entry);
                 }
