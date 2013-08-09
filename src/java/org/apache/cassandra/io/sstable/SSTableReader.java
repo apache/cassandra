@@ -25,6 +25,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
@@ -103,6 +104,9 @@ public class SSTableReader extends SSTable
     private final SSTableDeletingTask deletingTask;
     // not final since we need to be able to change level on a file.
     private volatile SSTableMetadata sstableMetadata;
+
+    private final AtomicLong keyCacheHit = new AtomicLong(0);
+    private final AtomicLong keyCacheRequest = new AtomicLong(0);
 
     public static long getApproximateKeyCount(Iterable<SSTableReader> sstables, CFMetaData metadata)
     {
@@ -789,8 +793,20 @@ public class SSTableReader extends SSTable
 
     private RowIndexEntry getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
     {
-        if (keyCache != null && keyCache.getCapacity() > 0)
-            return updateStats ? keyCache.get(unifiedKey) : keyCache.getInternal(unifiedKey);
+        if (keyCache != null && keyCache.getCapacity() > 0) {
+            if (updateStats)
+            {
+                RowIndexEntry cachedEntry = keyCache.get(unifiedKey);
+                keyCacheRequest.incrementAndGet();
+                if (cachedEntry != null)
+                    keyCacheHit.incrementAndGet();
+                return cachedEntry;
+            }
+            else
+            {
+                return keyCache.getInternal(unifiedKey);
+            }
+        }
         return null;
     }
 
@@ -1258,6 +1274,22 @@ public class SSTableReader extends SSTable
     public long getCreationTimeFor(Component component)
     {
         return new File(descriptor.filenameFor(component)).lastModified();
+    }
+
+    /**
+     * @return Number of key cache hit
+     */
+    public long getKeyCacheHit()
+    {
+        return keyCacheHit.get();
+    }
+
+    /**
+     * @return Number of key cache request
+     */
+    public long getKeyCacheRequest()
+    {
+        return keyCacheRequest.get();
     }
 
     /**
