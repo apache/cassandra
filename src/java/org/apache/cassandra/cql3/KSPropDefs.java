@@ -29,15 +29,13 @@ public class KSPropDefs extends PropertyDefinitions
 
     public static final String REPLICATION_STRATEGY_CLASS_KEY = "class";
 
-    public static final Set<String> keywords = new HashSet<String>();
-    public static final Set<String> obsoleteKeywords = new HashSet<String>();
+    public static final Set<String> keywords = new HashSet<>();
+    public static final Set<String> obsoleteKeywords = new HashSet<>();
 
     static
     {
         keywords.add(KW_DURABLE_WRITES);
         keywords.add(KW_REPLICATION);
-
-        obsoleteKeywords.add("strategy_class");
     }
 
     private String strategyClass;
@@ -58,7 +56,7 @@ public class KSPropDefs extends PropertyDefinitions
     {
         Map<String, String> replicationOptions = getMap(KW_REPLICATION);
         if (replicationOptions == null)
-            return Collections.<String, String>emptyMap();
+            return Collections.emptyMap();
         return replicationOptions;
     }
 
