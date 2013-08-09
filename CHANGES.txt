@@ -9,6 +9,7 @@
  * fix HsHa to respect max frame size (CASSANDRA-4573)
 Merged from 1.2:
  * Correctly validate sparse composite cells in scrub (CASSANDRA-5855)
+ * Add KeyCacheHitRate metric to CF metrics (CASSANDRA-5868)
 
 
 2.0.0-rc1
