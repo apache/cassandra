@@ -611,8 +611,8 @@ SELECT name, occupation FROM users WHERE userid IN (199, 200, 207);
 SELECT time, value
 FROM events
 WHERE event_type = 'myEvent'
-  AND time > 2011-02-03
-  AND time <= 2012-01-01
+  AND time > '2011-02-03'
+  AND time <= '2012-01-01'
 
 SELECT COUNT(*) FROM users;
 p. 
@@ -646,13 +646,13 @@ CREATE TABLE posts (
 The following query is allowed:
 
 bc(sample). 
-SELECT entry_title, content FROM posts WHERE userid='john doe' AND blog_title='John's Blog' AND posted_at >= 2012-01-01 AND posted_at < 2012-01-31
+SELECT entry_title, content FROM posts WHERE userid='john doe' AND blog_title='John's Blog' AND posted_at >= '2012-01-01' AND posted_at < '2012-01-31'
 
 But the following one is not, as it does not select a contiguous set of rows (and we suppose no secondary indexes are set):
 
 bc(sample). 
 // Needs a blog_title to be set to select ranges of posted_at
-SELECT entry_title, content FROM posts WHERE userid='john doe' AND posted_at >= 2012-01-01 AND posted_at < 2012-01-31
+SELECT entry_title, content FROM posts WHERE userid='john doe' AND posted_at >= '2012-01-01' AND posted_at < '2012-01-31'
 
 When specifying relations, the @TOKEN@ function can be used on the @PARTITION KEY@ column to query. In that case, rows will be selected based on the token of their @PARTITION_KEY@ rather than on the value. Note that the token of a key depends on the partitioner in use, and that in particular the RandomPartitioner won't yeld a meaningful order. Also note that ordering partitioners always order token values by bytes (so even if the partition key is of type int, @token(-1) > token(0)@ in particular). Example:
 
