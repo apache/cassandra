@@ -19,13 +19,11 @@ package org.apache.cassandra.metrics;
 
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Counter;
-import com.yammer.metrics.core.Gauge;
-import com.yammer.metrics.core.Meter;
-import com.yammer.metrics.core.MetricName;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Meter;
 
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -55,9 +53,9 @@ public class CompactionMetrics implements CompactionManager.CompactionExecutorSt
 
     public CompactionMetrics(final ThreadPoolExecutor... collectors)
     {
-        pendingTasks = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "PendingTasks"), new Gauge<Integer>()
+        pendingTasks = CassandraMetricRegistry.register(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "PendingTasks"), new Gauge<Integer>()
         {
-            public Integer value()
+            public Integer getValue()
             {
                 int n = 0;
                 for (String keyspaceName : Schema.instance.getKeyspaces())
@@ -70,9 +68,9 @@ public class CompactionMetrics implements CompactionManager.CompactionExecutorSt
                 return n;
             }
         });
-        completedTasks = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "CompletedTasks"), new Gauge<Long>()
+        completedTasks = CassandraMetricRegistry.register(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "CompletedTasks"), new Gauge<Long>()
         {
-            public Long value()
+            public Long getValue()
             {
                 long completedTasks = 0;
                 for (ThreadPoolExecutor collector : collectors)
@@ -80,8 +78,8 @@ public class CompactionMetrics implements CompactionManager.CompactionExecutorSt
                 return completedTasks;
             }
         });
-        totalCompactionsCompleted = Metrics.newMeter(new MetricName(GROUP_NAME, TYPE_NAME, "TotalCompactionsCompleted"), "compaction completed", TimeUnit.SECONDS);
-        bytesCompacted = Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "BytesCompacted"));
+        totalCompactionsCompleted = CassandraMetricRegistry.get().meter(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "TotalCompactionsCompleted"));
+        bytesCompacted = CassandraMetricRegistry.get().counter(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "BytesCompacted"));
     }
 
     public void beginCompaction(CompactionInfo.Holder ci)

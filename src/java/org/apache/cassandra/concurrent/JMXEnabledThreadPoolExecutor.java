@@ -151,12 +151,12 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
 
     public int getTotalBlockedTasks()
     {
-        return (int) metrics.totalBlocked.count();
+        return (int) metrics.totalBlocked.getCount();
     }
 
     public int getCurrentlyBlockedTasks()
     {
-        return (int) metrics.currentBlocked.count();
+        return (int) metrics.currentBlocked.getCount();
     }
 
     public int getCoreThreads()

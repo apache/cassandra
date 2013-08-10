@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.stress.operations;
 
-import com.yammer.metrics.core.TimerContext;
+import com.codahale.metrics.Timer.Context;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
@@ -74,7 +74,7 @@ public class Inserter extends Operation
                                         : getColumnsMutationMap(columns);
         Map<ByteBuffer, Map<String, List<Mutation>>> record = Collections.singletonMap(ByteBufferUtil.bytes(rawKey), row);
 
-        TimerContext context = session.latency.time();
+        Context context = session.latency.time();
 
         boolean success = false;
         String exceptionMessage = null;

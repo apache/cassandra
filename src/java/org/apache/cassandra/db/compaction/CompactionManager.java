@@ -874,22 +874,22 @@ public class CompactionManager implements CompactionManagerMBean
 
     public long getTotalBytesCompacted()
     {
-        return metrics.bytesCompacted.count();
+        return metrics.bytesCompacted.getCount();
     }
 
     public long getTotalCompactionsCompleted()
     {
-        return metrics.totalCompactionsCompleted.count();
+        return metrics.totalCompactionsCompleted.getCount();
     }
 
     public int getPendingTasks()
     {
-        return metrics.pendingTasks.value();
+        return metrics.pendingTasks.getValue();
     }
 
     public long getCompletedTasks()
     {
-        return metrics.completedTasks.value();
+        return metrics.completedTasks.getValue();
     }
 
     private static class CleanupInfo extends CompactionInfo.Holder

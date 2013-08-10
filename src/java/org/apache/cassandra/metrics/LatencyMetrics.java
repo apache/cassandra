@@ -19,10 +19,9 @@ package org.apache.cassandra.metrics;
 
 import java.util.concurrent.TimeUnit;
 
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Counter;
-import com.yammer.metrics.core.MetricName;
-import com.yammer.metrics.core.Timer;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Timer;
 
 import org.apache.cassandra.utils.EstimatedHistogram;
 
@@ -80,8 +79,8 @@ public class LatencyMetrics
         this.factory = factory;
         this.namePrefix = namePrefix;
 
-        latency = Metrics.newTimer(factory.createMetricName(namePrefix + "Latency"), TimeUnit.MICROSECONDS, TimeUnit.SECONDS);
-        totalLatency = Metrics.newCounter(factory.createMetricName(namePrefix + "TotalLatency"));
+        latency = CassandraMetricRegistry.get().timer(factory.createMetricName(namePrefix + "Latency"));
+        totalLatency = CassandraMetricRegistry.get().counter(factory.createMetricName(namePrefix + "TotalLatency"));
     }
 
     /** takes nanoseconds **/
@@ -101,15 +100,15 @@ public class LatencyMetrics
 
     public void release()
     {
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName(namePrefix + "Latency"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName(namePrefix + "TotalLatency"));
+        CassandraMetricRegistry.unregister(factory.createMetricName(namePrefix + "Latency"));
+        CassandraMetricRegistry.unregister(factory.createMetricName(namePrefix + "TotalLatency"));
     }
 
     @Deprecated
     public double getRecentLatency()
     {
-        long ops = latency.count();
-        long n = totalLatency.count();
+        long ops = latency.getCount();
+        long n = totalLatency.getCount();
         try
         {
             return ((double) n - lastLatency) / (ops - lastOpCount);
@@ -134,9 +133,9 @@ public class LatencyMetrics
             this.scope = scope;
         }
 
-        public MetricName createMetricName(String metricName)
+        public String createMetricName(String metricName)
         {
-            return new MetricName(group, type, metricName, scope);
+            return MetricRegistry.name(group, type, metricName, scope);
         }
     }
 }

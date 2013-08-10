@@ -26,7 +26,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
-import com.yammer.metrics.core.TimerContext;
+import com.codahale.metrics.Timer.Context;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.stress.Session;
@@ -86,7 +86,7 @@ public class CqlIndexedRangeSlicer extends CQLOperation
 
         while (received < expectedPerValue)
         {
-            TimerContext context = session.latency.time();
+            Context context = session.latency.time();
 
             boolean success = false;
             String exceptionMessage = null;

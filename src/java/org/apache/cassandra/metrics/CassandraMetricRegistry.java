@@ -17,13 +17,30 @@
  */
 package org.apache.cassandra.metrics;
 
+import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.Counter;
 
-/**
- * Metrics related to Storage.
- */
-public class StorageMetrics
+public class CassandraMetricRegistry 
 {
-    public static final Counter load = CassandraMetricRegistry.get().counter(MetricRegistry.name("org.apache.cassandra.metrics", "Storage", "Load"));
+    private static MetricRegistry defaultRegistry = new MetricRegistry();
+    
+    private CassandraMetricRegistry()
+    {  
+    }
+    
+    public static MetricRegistry get()
+    {
+        return defaultRegistry;
+    }
+    
+    public static <T extends Metric> T register(String name, T metric) 
+    {
+        defaultRegistry.remove(name);
+        return defaultRegistry.register(name, metric);
+    }
+    
+    public static void unregister(String name)
+    {
+        defaultRegistry.remove(name);
+    }
 }

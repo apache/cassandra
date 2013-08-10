@@ -151,22 +151,22 @@ public class CacheService implements CacheServiceMBean
 
     public long getKeyCacheHits()
     {
-        return keyCache.getMetrics().hits.count();
+        return keyCache.getMetrics().hits.getCount();
     }
 
     public long getRowCacheHits()
     {
-        return rowCache.getMetrics().hits.count();
+        return rowCache.getMetrics().hits.getCount();
     }
 
     public long getKeyCacheRequests()
     {
-        return keyCache.getMetrics().requests.count();
+        return keyCache.getMetrics().requests.getCount();
     }
 
     public long getRowCacheRequests()
     {
-        return rowCache.getMetrics().requests.count();
+        return rowCache.getMetrics().requests.getCount();
     }
 
     public double getKeyCacheRecentHitRate()
@@ -219,7 +219,7 @@ public class CacheService implements CacheServiceMBean
 
     public long getRowCacheCapacityInBytes()
     {
-        return rowCache.getMetrics().capacity.value();
+        return rowCache.getMetrics().capacity.getValue();
     }
 
     public long getRowCacheCapacityInMB()
@@ -237,7 +237,7 @@ public class CacheService implements CacheServiceMBean
 
     public long getKeyCacheCapacityInBytes()
     {
-        return keyCache.getMetrics().capacity.value();
+        return keyCache.getMetrics().capacity.getValue();
     }
 
     public long getKeyCacheCapacityInMB()
@@ -255,7 +255,7 @@ public class CacheService implements CacheServiceMBean
 
     public long getRowCacheSize()
     {
-        return rowCache.getMetrics().size.value();
+        return rowCache.getMetrics().size.getValue();
     }
 
     public long getRowCacheEntries()
@@ -265,7 +265,7 @@ public class CacheService implements CacheServiceMBean
 
     public long getKeyCacheSize()
     {
-        return keyCache.getMetrics().size.value();
+        return keyCache.getMetrics().size.getValue();
     }
 
     public long getKeyCacheEntries()

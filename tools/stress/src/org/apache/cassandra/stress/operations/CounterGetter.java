@@ -17,16 +17,21 @@
  */
 package org.apache.cassandra.stress.operations;
 
-import com.yammer.metrics.core.TimerContext;
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.thrift.*;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+
+import com.codahale.metrics.Timer.Context;
+
+import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.stress.Session;
+import org.apache.cassandra.stress.util.CassandraClient;
+import org.apache.cassandra.stress.util.Operation;
+import org.apache.cassandra.thrift.Cassandra;
+import org.apache.cassandra.thrift.ColumnOrSuperColumn;
+import org.apache.cassandra.thrift.ColumnParent;
+import org.apache.cassandra.thrift.SlicePredicate;
+import org.apache.cassandra.thrift.SliceRange;
 
 public class CounterGetter extends Operation
 {
@@ -68,7 +73,7 @@ public class CounterGetter extends Operation
             String superColumn = 'S' + Integer.toString(j);
             ColumnParent parent = new ColumnParent("SuperCounter1").setSuper_column(superColumn.getBytes());
 
-            TimerContext context = session.latency.time();
+            Context context = session.latency.time();
 
             boolean success = false;
             String exceptionMessage = null;
@@ -113,7 +118,7 @@ public class CounterGetter extends Operation
         byte[] key = generateKey();
         ByteBuffer keyBuffer = ByteBuffer.wrap(key);
 
-        TimerContext context = session.latency.time();
+        Context context = session.latency.time();
 
         boolean success = false;
         String exceptionMessage = null;

@@ -17,30 +17,41 @@
  */
 package org.apache.cassandra.stress;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
+import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.yammer.metrics.Metrics;
+import com.codahale.metrics.MetricRegistry;
+
 import org.apache.cassandra.cli.transport.FramedTransportFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
+import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.db.marshal.*;
-import org.apache.commons.cli.*;
-
-import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.metrics.CassandraMetricRegistry;
 import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.thrift.*;
-import org.apache.commons.lang.StringUtils;
-
+import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.commons.cli.*;
+import org.apache.commons.lang.StringUtils;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
@@ -59,7 +70,7 @@ public class Session implements Serializable
 
     public final AtomicInteger operations = new AtomicInteger();
     public final AtomicInteger keys = new AtomicInteger();
-    public final com.yammer.metrics.core.Timer latency = Metrics.newTimer(Session.class, "latency");
+    public final com.codahale.metrics.Timer latency = CassandraMetricRegistry.get().timer(MetricRegistry.name(Session.class, "latency"));
 
     private static final String SSL_TRUSTSTORE = "truststore";
     private static final String SSL_TRUSTSTORE_PW = "truststore-password";

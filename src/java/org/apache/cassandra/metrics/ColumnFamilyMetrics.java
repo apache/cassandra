@@ -17,18 +17,20 @@
  */
 package org.apache.cassandra.metrics;
 
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Counter;
-import com.yammer.metrics.core.Gauge;
-import com.yammer.metrics.core.Histogram;
-import com.yammer.metrics.core.MetricName;
-import com.yammer.metrics.util.RatioGauge;
+
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.RatioGauge;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.metrics.CassandraMetricRegistry;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.EstimatedHistogram;
+
 
 /**
  * Metrics for {@link ColumnFamilyStore}.
@@ -40,7 +42,7 @@ public class ColumnFamilyMetrics
     /** Total number of columns present in the memtable. */
     public final Gauge<Long> memtableColumnsCount;
     /** Number of times flush has resulted in the memtable being switched out. */
-    public final Counter memtableSwitchCount;
+    public Counter memtableSwitchCount;
     /** Current compression ratio for all SSTables */
     public final Gauge<Double> compressionRatio;
     /** Histogram of estimated row size (in bytes). */
@@ -97,24 +99,24 @@ public class ColumnFamilyMetrics
     {
         factory = new ColumnFamilyMetricNameFactory(cfs);
 
-        memtableColumnsCount = Metrics.newGauge(factory.createMetricName("MemtableColumnsCount"), new Gauge<Long>()
+        memtableColumnsCount = CassandraMetricRegistry.register(factory.createMetricName("MemtableColumnsCount"), new Gauge<Long>()
         {
-            public Long value()
+            public Long getValue()
             {
                 return cfs.getDataTracker().getMemtable().getOperations();
             }
         });
-        memtableDataSize = Metrics.newGauge(factory.createMetricName("MemtableDataSize"), new Gauge<Long>()
+        memtableDataSize = CassandraMetricRegistry.register(factory.createMetricName("MemtableDataSize"), new Gauge<Long>()
         {
-            public Long value()
+            public Long getValue()
             {
                 return cfs.getDataTracker().getMemtable().getLiveSize();
             }
         });
-        memtableSwitchCount = Metrics.newCounter(factory.createMetricName("MemtableSwitchCount"));
-        estimatedRowSizeHistogram = Metrics.newGauge(factory.createMetricName("EstimatedRowSizeHistogram"), new Gauge<long[]>()
+        memtableSwitchCount = CassandraMetricRegistry.get().counter(factory.createMetricName("MemtableSwitchCount"));
+        estimatedRowSizeHistogram = CassandraMetricRegistry.register(factory.createMetricName("EstimatedRowSizeHistogram"), new Gauge<long[]>()
         {
-            public long[] value()
+            public long[] getValue()
             {
                 long[] histogram = new long[90];
                 for (SSTableReader sstable : cfs.getSSTables())
@@ -126,9 +128,9 @@ public class ColumnFamilyMetrics
                 return histogram;
             }
         });
-        estimatedColumnCountHistogram = Metrics.newGauge(factory.createMetricName("EstimatedColumnCountHistogram"), new Gauge<long[]>()
+        estimatedColumnCountHistogram = CassandraMetricRegistry.register(factory.createMetricName("EstimatedColumnCountHistogram"), new Gauge<long[]>()
         {
-            public long[] value()
+            public long[] getValue()
             {
                 long[] histogram = new long[90];
                 for (SSTableReader sstable : cfs.getSSTables())
@@ -140,10 +142,10 @@ public class ColumnFamilyMetrics
                 return histogram;
             }
         });
-        sstablesPerReadHistogram = Metrics.newHistogram(factory.createMetricName("SSTablesPerReadHistogram"));
-        compressionRatio = Metrics.newGauge(factory.createMetricName("CompressionRatio"), new Gauge<Double>()
+        sstablesPerReadHistogram = CassandraMetricRegistry.get().histogram(factory.createMetricName("SSTablesPerReadHistogram"));
+        compressionRatio = CassandraMetricRegistry.register(factory.createMetricName("CompressionRatio"), new Gauge<Double>()
         {
-            public Double value()
+            public Double getValue()
             {
                 double sum = 0;
                 int total = 0;
@@ -160,26 +162,26 @@ public class ColumnFamilyMetrics
         });
         readLatency = new LatencyMetrics(factory, "Read");
         writeLatency = new LatencyMetrics(factory, "Write");
-        pendingTasks = Metrics.newGauge(factory.createMetricName("PendingTasks"), new Gauge<Integer>()
+        pendingTasks = CassandraMetricRegistry.register(factory.createMetricName("PendingTasks"), new Gauge<Integer>()
         {
-            public Integer value()
+            public Integer getValue()
             {
                 // TODO this actually isn't a good measure of pending tasks
                 return Keyspace.switchLock.getQueueLength();
             }
         });
-        liveSSTableCount = Metrics.newGauge(factory.createMetricName("LiveSSTableCount"), new Gauge<Integer>()
+        liveSSTableCount = CassandraMetricRegistry.register(factory.createMetricName("LiveSSTableCount"), new Gauge<Integer>()
         {
-            public Integer value()
+            public Integer getValue()
             {
                 return cfs.getDataTracker().getSSTables().size();
             }
         });
-        liveDiskSpaceUsed = Metrics.newCounter(factory.createMetricName("LiveDiskSpaceUsed"));
-        totalDiskSpaceUsed = Metrics.newCounter(factory.createMetricName("TotalDiskSpaceUsed"));
-        minRowSize = Metrics.newGauge(factory.createMetricName("MinRowSize"), new Gauge<Long>()
+        liveDiskSpaceUsed = CassandraMetricRegistry.get().counter(factory.createMetricName("LiveDiskSpaceUsed"));
+        totalDiskSpaceUsed = CassandraMetricRegistry.get().counter(factory.createMetricName("TotalDiskSpaceUsed"));
+        minRowSize = CassandraMetricRegistry.register(factory.createMetricName("MinRowSize"), new Gauge<Long>()
         {
-            public Long value()
+            public Long getValue()
             {
                 long min = 0;
                 for (SSTableReader sstable : cfs.getSSTables())
@@ -190,9 +192,9 @@ public class ColumnFamilyMetrics
                 return min;
             }
         });
-        maxRowSize = Metrics.newGauge(factory.createMetricName("MaxRowSize"), new Gauge<Long>()
+        maxRowSize = CassandraMetricRegistry.register(factory.createMetricName("MaxRowSize"), new Gauge<Long>()
         {
-            public Long value()
+            public Long getValue()
             {
                 long max = 0;
                 for (SSTableReader sstable : cfs.getSSTables())
@@ -203,9 +205,9 @@ public class ColumnFamilyMetrics
                 return max;
             }
         });
-        meanRowSize = Metrics.newGauge(factory.createMetricName("MeanRowSize"), new Gauge<Long>()
+        meanRowSize = CassandraMetricRegistry.register(factory.createMetricName("MeanRowSize"), new Gauge<Long>()
         {
-            public Long value()
+            public Long getValue()
             {
                 long sum = 0;
                 long count = 0;
@@ -217,9 +219,9 @@ public class ColumnFamilyMetrics
                 return count > 0 ? sum / count : 0;
             }
         });
-        bloomFilterFalsePositives = Metrics.newGauge(factory.createMetricName("BloomFilterFalsePositives"), new Gauge<Long>()
+        bloomFilterFalsePositives = CassandraMetricRegistry.register(factory.createMetricName("BloomFilterFalsePositives"), new Gauge<Long>()
         {
-            public Long value()
+            public Long getValue()
             {
                 long count = 0L;
                 for (SSTableReader sstable: cfs.getSSTables())
@@ -227,9 +229,9 @@ public class ColumnFamilyMetrics
                 return count;
             }
         });
-        recentBloomFilterFalsePositives = Metrics.newGauge(factory.createMetricName("RecentBloomFilterFalsePositives"), new Gauge<Long>()
+        recentBloomFilterFalsePositives = CassandraMetricRegistry.register(factory.createMetricName("RecentBloomFilterFalsePositives"), new Gauge<Long>()
         {
-            public Long value()
+            public Long getValue()
             {
                 long count = 0L;
                 for (SSTableReader sstable: cfs.getSSTables())
@@ -237,9 +239,9 @@ public class ColumnFamilyMetrics
                 return count;
             }
         });
-        bloomFilterFalseRatio = Metrics.newGauge(factory.createMetricName("BloomFilterFalseRatio"), new Gauge<Double>()
+        bloomFilterFalseRatio = CassandraMetricRegistry.register(factory.createMetricName("BloomFilterFalseRatio"), new Gauge<Double>()
         {
-            public Double value()
+            public Double getValue()
             {
                 long falseCount = 0L;
                 long trueCount = 0L;
@@ -253,9 +255,9 @@ public class ColumnFamilyMetrics
                 return (double) falseCount / (trueCount + falseCount);
             }
         });
-        recentBloomFilterFalseRatio = Metrics.newGauge(factory.createMetricName("RecentBloomFilterFalseRatio"), new Gauge<Double>()
+        recentBloomFilterFalseRatio = CassandraMetricRegistry.register(factory.createMetricName("RecentBloomFilterFalseRatio"), new Gauge<Double>()
         {
-            public Double value()
+            public Double getValue()
             {
                 long falseCount = 0L;
                 long trueCount = 0L;
@@ -269,9 +271,9 @@ public class ColumnFamilyMetrics
                 return (double) falseCount / (trueCount + falseCount);
             }
         });
-        bloomFilterDiskSpaceUsed = Metrics.newGauge(factory.createMetricName("BloomFilterDiskSpaceUsed"), new Gauge<Long>()
+        bloomFilterDiskSpaceUsed = CassandraMetricRegistry.register(factory.createMetricName("BloomFilterDiskSpaceUsed"), new Gauge<Long>()
         {
-            public Long value()
+            public Long getValue()
             {
                 long total = 0;
                 for (SSTableReader sst : cfs.getSSTables())
@@ -279,8 +281,9 @@ public class ColumnFamilyMetrics
                 return total;
             }
         });
-        speculativeRetry = Metrics.newCounter(factory.createMetricName("SpeculativeRetry"));
-        keyCacheHitRate = Metrics.newGauge(factory.createMetricName("KeyCacheHitRate"), new RatioGauge()
+
+        speculativeRetry = CassandraMetricRegistry.get().counter(factory.createMetricName("SpeculativeRetry"));
+        keyCacheHitRate = CassandraMetricRegistry.register(factory.createMetricName("KeyCacheHitRate"), new RatioGauge()
         {
             protected double getNumerator()
             {
@@ -297,7 +300,18 @@ public class ColumnFamilyMetrics
                     requests += sstable.getKeyCacheRequest();
                 return Math.max(requests, 1); // to avoid NaN.
             }
+
+            @Override
+            protected Ratio getRatio() 
+            {
+                return Ratio.of(getNumerator(), getDenominator());
+            }
         });
+    }
+    
+    public void resetMemTableSwitchCount()
+    {
+        memtableSwitchCount = CassandraMetricRegistry.get().counter(factory.createMetricName("MemtableSwitchCount"));
     }
 
     public void updateSSTableIterated(int count)
@@ -314,25 +328,25 @@ public class ColumnFamilyMetrics
     {
         readLatency.release();
         writeLatency.release();
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableColumnsCount"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableDataSize"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableSwitchCount"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("CompressionRatio"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("EstimatedRowSizeHistogram"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("EstimatedColumnCountHistogram"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("SSTablesPerReadHistogram"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("PendingTasks"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("LiveSSTableCount"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("LiveDiskSpaceUsed"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("TotalDiskSpaceUsed"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("MinRowSize"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("MaxRowSize"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("MeanRowSize"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("BloomFilterFalsePositives"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("RecentBloomFilterFalsePositives"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("BloomFilterFalseRatio"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("RecentBloomFilterFalseRatio"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("BloomFilterDiskSpaceUsed"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("MemtableColumnsCount"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("MemtableDataSize"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("MemtableSwitchCount"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("CompressionRatio"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("EstimatedRowSizeHistogram"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("EstimatedColumnCountHistogram"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("SSTablesPerReadHistogram"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("PendingTasks"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("LiveSSTableCount"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("LiveDiskSpaceUsed"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("TotalDiskSpaceUsed"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("MinRowSize"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("MaxRowSize"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("MeanRowSize"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("BloomFilterFalsePositives"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("RecentBloomFilterFalsePositives"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("BloomFilterFalseRatio"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("RecentBloomFilterFalseRatio"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("BloomFilterDiskSpaceUsed"));
     }
 
     class ColumnFamilyMetricNameFactory implements MetricNameFactory
@@ -348,7 +362,7 @@ public class ColumnFamilyMetrics
             isIndex = cfs.isIndex();
         }
 
-        public MetricName createMetricName(String metricName)
+        public String createMetricName(String metricName)
         {
             String groupName = ColumnFamilyMetrics.class.getPackage().getName();
             String type = isIndex ? "IndexColumnFamily" : "ColumnFamily";
@@ -360,7 +374,7 @@ public class ColumnFamilyMetrics
             mbeanName.append(",scope=").append(columnFamilyName);
             mbeanName.append(",name=").append(metricName);
 
-            return new MetricName(groupName, type, metricName, keyspaceName + "." + columnFamilyName, mbeanName.toString());
+            return MetricRegistry.name(groupName, type, metricName, keyspaceName + "." + columnFamilyName, mbeanName.toString());
         }
     }
 }

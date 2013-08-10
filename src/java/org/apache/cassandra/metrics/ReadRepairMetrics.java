@@ -20,12 +20,8 @@ package org.apache.cassandra.metrics;
  * 
  */
 
-
-import java.util.concurrent.TimeUnit;
-
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Meter;
-import com.yammer.metrics.core.MetricName;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Meter;
 
 /**
  * Metrics related to Read Repair.
@@ -35,9 +31,9 @@ public class ReadRepairMetrics {
     public static final String TYPE_NAME = "ReadRepair";
     
     public static final Meter repairedBlocking =
-            Metrics.newMeter(new MetricName(GROUP_NAME, TYPE_NAME, "RepairedBlocking"), "RepairedBlocking", TimeUnit.SECONDS);
+            CassandraMetricRegistry.get().meter(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "RepairedBlocking"));
     public static final Meter repairedBackground =
-            Metrics.newMeter(new MetricName(GROUP_NAME, TYPE_NAME, "RepairedBackground"), "RepairedBackground", TimeUnit.SECONDS);
+            CassandraMetricRegistry.get().meter(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "RepairedBackground"));
     public static final Meter attempted = 
-            Metrics.newMeter(new MetricName(GROUP_NAME, TYPE_NAME, "Attempted"), "Attempted", TimeUnit.SECONDS);
+            CassandraMetricRegistry.get().meter(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "Attempted"));
 }

@@ -19,8 +19,8 @@ package org.apache.cassandra.metrics;
 
 import java.util.concurrent.ThreadPoolExecutor;
 
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.*;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.*;
 
 /**
  * Metrics for {@link ThreadPoolExecutor}.
@@ -54,25 +54,25 @@ public class ThreadPoolMetrics
     {
         this.factory = new ThreadPoolMetricNameFactory(path, poolName);
 
-        activeTasks = Metrics.newGauge(factory.createMetricName("ActiveTasks"), new Gauge<Integer>()
+        activeTasks = CassandraMetricRegistry.register(factory.createMetricName("ActiveTasks"), new Gauge<Integer>()
         {
-            public Integer value()
+            public Integer getValue()
             {
                 return executor.getActiveCount();
             }
         });
-        totalBlocked = Metrics.newCounter(factory.createMetricName("TotalBlockedTasks"));
-        currentBlocked = Metrics.newCounter(factory.createMetricName("CurrentlyBlockedTasks"));
-        completedTasks = Metrics.newGauge(factory.createMetricName("CompletedTasks"), new Gauge<Long>()
+        totalBlocked = CassandraMetricRegistry.get().counter(factory.createMetricName("TotalBlockedTasks"));
+        currentBlocked = CassandraMetricRegistry.get().counter(factory.createMetricName("CurrentlyBlockedTasks"));
+        completedTasks = CassandraMetricRegistry.register(factory.createMetricName("CompletedTasks"), new Gauge<Long>()
         {
-            public Long value()
+            public Long getValue()
             {
                 return executor.getCompletedTaskCount();
             }
         });
-        pendingTasks = Metrics.newGauge(factory.createMetricName("PendingTasks"), new Gauge<Long>()
+        pendingTasks = CassandraMetricRegistry.register(factory.createMetricName("PendingTasks"), new Gauge<Long>()
         {
-            public Long value()
+            public Long getValue()
             {
                 return executor.getTaskCount() - executor.getCompletedTaskCount();
             }
@@ -81,11 +81,11 @@ public class ThreadPoolMetrics
 
     public void release()
     {
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("ActiveTasks"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("PendingTasks"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("CompletedTasks"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("TotalBlockedTasks"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("CurrentlyBlockedTasks"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("ActiveTasks"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("PendingTasks"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("CompletedTasks"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("TotalBlockedTasks"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("CurrentlyBlockedTasks"));
     }
 
     class ThreadPoolMetricNameFactory implements MetricNameFactory
@@ -99,7 +99,7 @@ public class ThreadPoolMetrics
             this.poolName = poolName;
         }
 
-        public MetricName createMetricName(String metricName)
+        public String createMetricName(String metricName)
         {
             String groupName = ThreadPoolMetrics.class.getPackage().getName();
             String type = "ThreadPools";
@@ -110,7 +110,7 @@ public class ThreadPoolMetrics
             mbeanName.append(",scope=").append(poolName);
             mbeanName.append(",name=").append(metricName);
 
-            return new MetricName(groupName, type, metricName, path + "." + poolName, mbeanName.toString());
+            return MetricRegistry.name(groupName, type, metricName, path + "." + poolName, mbeanName.toString());
         }
     }
 }

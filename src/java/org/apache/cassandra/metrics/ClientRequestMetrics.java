@@ -20,18 +20,16 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.concurrent.TimeUnit;
-
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Counter;
-import com.yammer.metrics.core.Meter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
 
 public class ClientRequestMetrics extends LatencyMetrics
 {
-    @Deprecated public static final Counter readTimeouts = Metrics.newCounter(ClientRequestMetrics.class, "ReadTimeouts");
-    @Deprecated public static final Counter writeTimeouts = Metrics.newCounter(ClientRequestMetrics.class, "WriteTimeouts");
-    @Deprecated public static final Counter readUnavailables = Metrics.newCounter(ClientRequestMetrics.class, "ReadUnavailables");
-    @Deprecated public static final Counter writeUnavailables = Metrics.newCounter(ClientRequestMetrics.class, "WriteUnavailables");
+    @Deprecated public static final Counter readTimeouts = CassandraMetricRegistry.get().counter(MetricRegistry.name(ClientRequestMetrics.class, "ReadTimeouts"));
+    @Deprecated public static final Counter writeTimeouts = CassandraMetricRegistry.get().counter(MetricRegistry.name(ClientRequestMetrics.class, "WriteTimeouts"));
+    @Deprecated public static final Counter readUnavailables = CassandraMetricRegistry.get().counter(MetricRegistry.name(ClientRequestMetrics.class, "ReadUnavailables"));
+    @Deprecated public static final Counter writeUnavailables = CassandraMetricRegistry.get().counter(MetricRegistry.name(ClientRequestMetrics.class, "WriteUnavailables"));
 
     public final Meter timeouts;
     public final Meter unavailables;
@@ -40,14 +38,14 @@ public class ClientRequestMetrics extends LatencyMetrics
     {
         super("org.apache.cassandra.metrics", "ClientRequest", scope);
 
-        timeouts = Metrics.newMeter(factory.createMetricName("Timeouts"), "timeouts", TimeUnit.SECONDS);
-        unavailables = Metrics.newMeter(factory.createMetricName("Unavailables"), "unavailables", TimeUnit.SECONDS);
+        timeouts = CassandraMetricRegistry.get().meter(factory.createMetricName("Timeouts"));
+        unavailables = CassandraMetricRegistry.get().meter(factory.createMetricName("Unavailables"));
     }
 
     public void release()
     {
         super.release();
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("Timeouts"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("Unavailables"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("Timeouts"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("Unavailables"));
     }
 }

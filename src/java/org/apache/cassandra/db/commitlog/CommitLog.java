@@ -265,7 +265,7 @@ public class CommitLog implements CommitLogMBean
      */
     public long getCompletedTasks()
     {
-        return metrics.completedTasks.value();
+        return metrics.completedTasks.getValue();
     }
 
     /**
@@ -273,7 +273,7 @@ public class CommitLog implements CommitLogMBean
      */
     public long getPendingTasks()
     {
-        return metrics.pendingTasks.value();
+        return metrics.pendingTasks.getValue();
     }
 
     /**
@@ -281,7 +281,7 @@ public class CommitLog implements CommitLogMBean
      */
     public long getTotalCommitlogSize()
     {
-        return metrics.totalCommitLogSize.value();
+        return metrics.totalCommitLogSize.getValue();
     }
 
     /**

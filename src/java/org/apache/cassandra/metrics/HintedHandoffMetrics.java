@@ -29,9 +29,8 @@ import org.slf4j.LoggerFactory;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Counter;
-import com.yammer.metrics.core.MetricName;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Counter;
 
 /**
  * Metrics for {@link HintedHandOffManager}.
@@ -57,7 +56,7 @@ public class HintedHandoffMetrics
     {
         public Counter load(InetAddress address)
         {
-            return Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "Hints_created-" + address.getHostAddress()));
+            return CassandraMetricRegistry.get().counter(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "Hints_created-" + address.getHostAddress()));
         }
     });
 
@@ -90,12 +89,12 @@ public class HintedHandoffMetrics
 
         public DifferencingCounter(InetAddress address)
         {
-            this.meter = Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "Hints_not_stored-" + address.getHostAddress()));
+            this.meter = CassandraMetricRegistry.get().counter(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "Hints_not_stored-" + address.getHostAddress()));
         }
 
         public long diffrence()
         {
-            long current = meter.count();
+            long current = meter.getCount();
             long diffrence = current - reported;
             this.reported = current;
             return diffrence;
@@ -103,7 +102,7 @@ public class HintedHandoffMetrics
 
         public long count()
         {
-            return meter.count();
+            return meter.getCount();
         }
 
         public void mark()

@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.stress;
 
-import com.yammer.metrics.stats.Snapshot;
+import com.codahale.metrics.Snapshot;
 import java.io.PrintStream;
 import org.apache.commons.lang.time.DurationFormatUtils;
 

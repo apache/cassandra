@@ -17,11 +17,8 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.concurrent.TimeUnit;
-
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Meter;
-import com.yammer.metrics.core.MetricName;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Meter;
 
 import org.apache.cassandra.net.MessagingService;
 
@@ -40,13 +37,13 @@ public class DroppedMessageMetrics
 
     public DroppedMessageMetrics(MessagingService.Verb verb)
     {
-        dropped = Metrics.newMeter(new MetricName(GROUP_NAME, TYPE_NAME, "Dropped", verb.toString()), "dropped", TimeUnit.SECONDS);
+        dropped = CassandraMetricRegistry.get().meter(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "Dropped", verb.toString()));
     }
 
     @Deprecated
     public int getRecentlyDropped()
     {
-        long currentDropped = dropped.count();
+        long currentDropped = dropped.getCount();
         long recentlyDropped = currentDropped - lastDropped;
         lastDropped = currentDropped;
         return (int)recentlyDropped;
