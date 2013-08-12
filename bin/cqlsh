@@ -178,7 +178,7 @@ else:
 
 debug_completion = bool(os.environ.get('CQLSH_DEBUG_COMPLETION', '') == 'YES')
 
-SYSTEM_KEYSPACES = ('system', 'system_traces')
+SYSTEM_KEYSPACES = ('system', 'system_traces', 'system_auth')
 
 # we want the cql parser to understand our cqlsh-specific commands too
 my_commands_ending_with_newline = (
@@ -227,7 +227,7 @@ cqlsh_extra_syntax_rules = r'''
                                   | "KEYSPACE" ksname=<keyspaceName>?
                                   | ( "COLUMNFAMILY" | "TABLE" ) cf=<columnFamilyName>
                                   | ( "COLUMNFAMILIES" | "TABLES" )
-                                  | "SCHEMA"
+                                  | "FULL"? "SCHEMA"
                                   | "CLUSTER" )
                     ;
 
@@ -635,7 +635,7 @@ class Shell(cmd.Cmd):
         return self.make_hacktastic_thrift_call('describe_version')
 
     def get_ring(self):
-        if self.current_keyspace is None or self.current_keyspace in SYSTEM_KEYSPACES:
+        if self.current_keyspace is None or self.current_keyspace == 'system':
             raise NoKeyspaceError("Ring view requires a current non-system keyspace")
         return self.make_hacktastic_thrift_call('describe_ring', self.current_keyspace)
 
@@ -1235,18 +1235,19 @@ class Shell(cmd.Cmd):
         snitch = trim_if_present(self.get_snitch(), 'org.apache.cassandra.locator.')
         print 'Snitch: %s\n' % snitch
         if self.current_keyspace is not None \
-        and self.current_keyspace not in SYSTEM_KEYSPACES:
+        and self.current_keyspace != 'system':
             print "Range ownership:"
             ring = self.get_ring()
             for entry in ring:
                 print ' %39s  [%s]' % (entry.start_token, ', '.join(entry.endpoints))
             print
 
-    def describe_schema(self):
+    def describe_schema(self, include_system=False):
         print
         for k in self.get_keyspaces():
-            self.print_recreate_keyspace(k, sys.stdout)
-            print
+            if include_system or not k.name in SYSTEM_KEYSPACES:
+                self.print_recreate_keyspace(k, sys.stdout)
+                print
 
     def do_describe(self, parsed):
         """
@@ -1289,11 +1290,11 @@ class Shell(cmd.Cmd):
           connected to a non-system keyspace, also shows endpoint-range
           ownership information for the Cassandra ring.
 
-        DESCRIBE SCHEMA
+        DESCRIBE [FULL] SCHEMA
 
-          Output CQL commands that could be used to recreate the entire schema.
-          Works as though "DESCRIBE KEYSPACE k" was invoked for each keyspace
-          k.
+          Output CQL commands that could be used to recreate the entire (non-system) schema.
+          Works as though "DESCRIBE KEYSPACE k" was invoked for each non-system keyspace
+          k. Use DESCRIBE FULL SCHEMA to include the system keyspaces.
         """
         what = parsed.matched[1][1].lower()
         if what == 'keyspaces':
@@ -1315,7 +1316,9 @@ class Shell(cmd.Cmd):
         elif what == 'cluster':
             self.describe_cluster()
         elif what == 'schema':
-            self.describe_schema()
+            self.describe_schema(False)
+        elif what == 'full' and parsed.matched[2][1].lower() == 'schema':
+            self.describe_schema(True)
     do_desc = do_describe
 
     def do_copy(self, parsed):
