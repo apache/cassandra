@@ -125,7 +125,6 @@ public final class CFMetaData
                                                                     + "min_compaction_threshold int,"
                                                                     + "max_compaction_threshold int,"
                                                                     + "memtable_flush_period_in_ms int,"
-                                                                    + "key_alias text," // that one is kept for compatibility sake
                                                                     + "key_aliases text,"
                                                                     + "bloom_filter_fp_chance double,"
                                                                     + "caching text,"
@@ -1561,7 +1560,6 @@ public final class CFMetaData
             cfm.maxCompactionThreshold(result.getInt("max_compaction_threshold"));
             if (result.has("comment"))
                 cfm.comment(result.getString("comment"));
-            // We need support the old key_alias for compatibility sake
             if (result.has("bloom_filter_fp_chance"))
                 cfm.bloomFilterFpChance(result.getDouble("bloom_filter_fp_chance"));
             if (result.has("memtable_flush_period_in_ms"))
@@ -1590,7 +1588,7 @@ public final class CFMetaData
                 cfm.populateIoCacheOnFlush(result.getBoolean("populate_io_cache_on_flush"));
 
             /*
-             * The info previously hold by key_alias(es), column_alias and value_alias is now stored in column_metadata (because 1) this
+             * The info previously hold by key_aliases, column_aliases and value_alias is now stored in column_metadata (because 1) this
              * make more sense and 2) this allow to store indexing information).
              * However, for upgrade sake we need to still be able to read those old values. Moreover, we cannot easily
              * remove those old columns once "converted" to column_metadata because that would screw up nodes that may
@@ -1598,11 +1596,7 @@ public final class CFMetaData
              * In other words, the ColumnDefinition the following lines add may be replaced later when ColumnDefinition.fromSchema
              * is called but that's ok.
              */
-            if (result.has("key_aliases"))
-                cfm.addColumnMetadataFromAliases(aliasesFromStrings(fromJsonList(result.getString("key_aliases"))), cfm.keyValidator, ColumnDefinition.Type.PARTITION_KEY);
-            else if (result.has("key_alias"))
-                cfm.addColumnMetadataFromAliases(Collections.<ByteBuffer>singletonList(result.getBytes("key_alias")), cfm.keyValidator, ColumnDefinition.Type.PARTITION_KEY);
-
+            cfm.addColumnMetadataFromAliases(aliasesFromStrings(fromJsonList(result.getString("key_aliases"))), cfm.keyValidator, ColumnDefinition.Type.PARTITION_KEY);
             cfm.addColumnMetadataFromAliases(aliasesFromStrings(fromJsonList(result.getString("column_aliases"))), cfm.comparator, ColumnDefinition.Type.CLUSTERING_KEY);
 
             if (result.has("value_alias"))
