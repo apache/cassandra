@@ -21,16 +21,18 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.management.Notification;
 import javax.management.NotificationBroadcasterSupport;
 
-import org.apache.cassandra.streaming.StreamEvent;
-import org.apache.cassandra.streaming.StreamEventHandler;
-import org.apache.cassandra.streaming.StreamManagerMBean;
-import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.streaming.*;
 
 /**
  */
 public class StreamEventJMXNotifier extends NotificationBroadcasterSupport implements StreamEventHandler
 {
+    // interval in millisec to use for progress notification
+    private static final long PROGRESS_NOTIFICATION_INTERVAL = 1000;
+
     private final AtomicLong seq = new AtomicLong();
+
+    private long progressLastSent;
 
     public void handleStreamEvent(StreamEvent event)
     {
@@ -49,10 +51,18 @@ public class StreamEventJMXNotifier extends NotificationBroadcasterSupport imple
                 notif.setUserData(SessionCompleteEventCompositeData.toCompositeData((StreamEvent.SessionCompleteEvent) event));
                 break;
             case FILE_PROGRESS:
-                notif = new Notification(StreamEvent.ProgressEvent.class.getCanonicalName(),
-                                         StreamManagerMBean.OBJECT_NAME,
-                                         seq.getAndIncrement());
-                notif.setUserData(ProgressInfoCompositeData.toCompositeData(event.planId, ((StreamEvent.ProgressEvent) event).progress));
+                ProgressInfo progress = ((StreamEvent.ProgressEvent) event).progress;
+                long current = System.currentTimeMillis();
+                if (current - progressLastSent >= PROGRESS_NOTIFICATION_INTERVAL || progress.isCompleted())
+                {
+                    notif = new Notification(StreamEvent.ProgressEvent.class.getCanonicalName(),
+                                             StreamManagerMBean.OBJECT_NAME,
+                                             seq.getAndIncrement());
+                    notif.setUserData(ProgressInfoCompositeData.toCompositeData(event.planId, progress));
+                    progressLastSent = System.currentTimeMillis();
+                } else {
+                    return;
+                }
                 break;
         }
         sendNotification(notif);
