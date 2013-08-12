@@ -589,7 +589,7 @@ def select_order_column_completer(ctxt, cass):
         if not keyname:
             return [Hint("Can't ORDER BY here: need to specify partition key in WHERE clause")]
     layout = get_cf_layout(ctxt, cass)
-    order_by_candidates = layout.column_aliases[:]
+    order_by_candidates = layout.clustering_key_columns[:]
     if len(order_by_candidates) > len(prev_order_cols):
         return [maybe_escape_name(order_by_candidates[len(prev_order_cols)])]
     return [Hint('No more orderable columns here.')]
@@ -601,21 +601,21 @@ def relation_token_word_completer(ctxt, cass):
 @completer_for('relation', 'rel_tokname')
 def relation_token_subject_completer(ctxt, cass):
     layout = get_cf_layout(ctxt, cass)
-    return [layout.partition_key_components[0]]
+    return [layout.partition_key_columns[0]]
 
 @completer_for('relation', 'rel_lhs')
 def select_relation_lhs_completer(ctxt, cass):
     layout = get_cf_layout(ctxt, cass)
-    filterable = set((layout.partition_key_components[0], layout.column_aliases[0]))
+    filterable = set((layout.partition_key_columns[0], layout.clustering_key_columns[0]))
     already_filtered_on = map(dequote_name, ctxt.get_binding('rel_lhs'))
-    for num in range(1, len(layout.partition_key_components)):
-        if layout.partition_key_components[num - 1] in already_filtered_on:
-            filterable.add(layout.partition_key_components[num])
+    for num in range(1, len(layout.partition_key_columns)):
+        if layout.partition_key_columns[num - 1] in already_filtered_on:
+            filterable.add(layout.partition_key_columns[num])
         else:
             break
-    for num in range(1, len(layout.column_aliases)):
-        if layout.column_aliases[num - 1] in already_filtered_on:
-            filterable.add(layout.column_aliases[num])
+    for num in range(1, len(layout.clustering_key_columns)):
+        if layout.clustering_key_columns[num - 1] in already_filtered_on:
+            filterable.add(layout.clustering_key_columns[num])
         else:
             break
     for cd in layout.columns:
@@ -647,11 +647,11 @@ syntax_rules += r'''
 def insert_colname_completer(ctxt, cass):
     layout = get_cf_layout(ctxt, cass)
     colnames = set(map(dequote_name, ctxt.get_binding('colname', ())))
-    keycols = layout.primary_key_components
+    keycols = layout.primary_key_columns
     for k in keycols:
         if k not in colnames:
             return [maybe_escape_name(k)]
-    normalcols = set([c.name for c in layout.columns]) - set(keycols) - colnames
+    normalcols = set(layout.regular_columns) - colnames
     return map(maybe_escape_name, normalcols)
 
 @completer_for('insertStatement', 'newval')
@@ -714,9 +714,7 @@ def insert_option_completer(ctxt, cass):
 @completer_for('assignment', 'updatecol')
 def update_col_completer(ctxt, cass):
     layout = get_cf_layout(ctxt, cass)
-    normals = set([cm.name for cm in layout.columns]) \
-            - set(layout.primary_key_components)
-    return map(maybe_escape_name, normals)
+    return map(maybe_escape_name, layout.regular_columns)
 
 @completer_for('assignment', 'update_rhs')
 def update_countername_completer(ctxt, cass):
@@ -790,10 +788,8 @@ def delete_opt_completer(ctxt, cass):
 
 @completer_for('deleteSelector', 'delcol')
 def delete_delcol_completer(ctxt, cass):
-        layout = get_cf_layout(ctxt, cass)
-        cols = set([c.name for c in layout.columns
-                    if c not in layout.primary_key_components])
-        return map(maybe_escape_name, cols)
+    layout = get_cf_layout(ctxt, cass)
+    return map(maybe_escape_name, layout.regular_columns)
 
 syntax_rules += r'''
 <batchStatement> ::= "BEGIN" ( "UNLOGGED" | "COUNTER" )? "BATCH"
@@ -1123,72 +1119,11 @@ def username_name_completer(ctxt, cass):
 
 CqlRuleSet.append_rules(syntax_rules)
 
-
-
-# current assumption is that all valid CQL tables match the rules in the
-# following table.
-#
-#                        non-empty     non-empty      multiple    composite
-#                       value_alias  column_aliases  key_aliases  comparator
-# ---------------------+----------------------------------------------------
-# A: single-column PK, |
-# compact storage      |   either         no            no           no
-# ---------------------+----------------------------------------------------
-# B: single-column PK, |
-# dynamic storage      |    no            no            no           yes
-# ---------------------+----------------------------------------------------
-# C: compound PK,      |
-# plain part. key,     |    yes[1]        yes           no          either
-# compact storage      |
-# ---------------------+----------------------------------------------------
-# D: compound PK,      |
-# plain part. key,     |    no            yes           no           yes
-# dynamic storage      |
-# ---------------------+----------------------------------------------------
-# E: compound PK,      |
-# multipart part. key, |
-# all key components   |   either         no            yes          no
-# go in part. key,     |
-# compact storage      |
-# ---------------------+----------------------------------------------------
-# F: compound PK,      |
-# multipart part. key, |
-# all key components   |    no            no            yes          yes
-# go in part. key,     |
-# dynamic storage      |
-# ---------------------+----------------------------------------------------
-# G: compound PK,      |
-# multipart part. key, |
-# some key components  |    yes[1]        yes           yes         either
-# not in part. key,    |
-# compact storage      |
-# ---------------------+----------------------------------------------------
-# H: compound PK,      |
-# multipart part. key, |
-# some key components  |    no            yes           yes          yes
-# not in part. key,    |
-# dynamic storage      |
-# ---------------------+----------------------------------------------------
-#
-# [1] the value_alias may be blank, but not null.
-
-# for compact storage:
-#
-# if no column aliases:
-#     comparator will be UTF8Type
-# elif one column alias:
-#     comparator will be type of that column
-# else:
-#     comparator will be composite of types of all column_aliases
-#
-# for dynamic storage:
-#
-# comparator is composite of types of column_aliases, followed by UTF8Type,
-# followed by one CTCT if there are collections.
-
 class CqlColumnDef:
     index_name = None
     index_type = None
+    component_type = 'regular'
+    component_index = None
     index_options = {}
 
     def __init__(self, name, cqltype):
@@ -1198,11 +1133,11 @@ class CqlColumnDef:
 
     @classmethod
     def from_layout(cls, layout):
-        try:
-            colname = layout[u'column_name']
-        except KeyError:
-            colname = layout[u'column']
-        c = cls(colname, lookup_casstype(layout[u'validator']))
+        c = cls(layout[u'column_name'], lookup_casstype(layout[u'validator']))
+        c.component_type = layout[u'type']
+        idx = layout[u'component_index'] # can be None
+        if idx:
+            c.component_index = int(idx)
         c.index_name = layout[u'index_name']
         c.index_type = layout[u'index_type']
         if c.index_type == 'CUSTOM':
@@ -1215,24 +1150,19 @@ class CqlColumnDef:
     __repr__ = __str__
 
 class CqlTableDef:
-    json_attrs = ('column_aliases', 'compaction_strategy_options', 'compression_parameters',
-                  'key_aliases')
-    colname_type = UTF8Type
-    column_class = CqlColumnDef
-
-    """True if this CF has compact storage (isn't a CQL3 table)"""
-    compact_storage = False
-
-    """Names of all columns which are part of the primary key, whether or not
-       they are grouped into the partition key"""
-    primary_key_components = ()
-
     """Names of all columns which are grouped into the partition key"""
-    partition_key_components = ()
+    partition_key_columns = ()
 
     """Names of all columns which are part of the primary key, but not grouped
        into the partition key"""
-    column_aliases = ()
+    clustering_key_columns = ()
+
+    """Names of all columns which are part of the primary key, whether or not
+       they are grouped into the partition key"""
+    primary_key_columns = ()
+
+    """Names of all columns which aren't part of the primary key"""
+    regular_columns = ()
 
     """CqlColumnDef objects for all columns. Use .get_column() to access one
        by name."""
@@ -1248,40 +1178,33 @@ class CqlTableDef:
         of system.schema_columnfamilies, and a sequence of similar dictionaries
         from corresponding rows in system.schema_columns.
         """
-        try:
-            cfname = layout[u'columnfamily_name']
-            ksname = layout[u'keyspace_name']
-        except KeyError:
-            cfname = layout[u'columnfamily']
-            ksname = layout[u'keyspace']
-        cf = cls(name=cfname)
+        cf = cls(name=layout[u'columnfamily_name'])
+        cf.keyspace = layout[u'keyspace_name']
         for attr, val in layout.items():
             setattr(cf, attr.encode('ascii'), val)
-        cf.keyspace = ksname
-        for attr in cls.json_attrs:
-            try:
-                val = getattr(cf, attr)
-                # cfs created in 1.1 may not have key_aliases defined
-                if attr == 'key_aliases' and val is None:
-                    val = '[]'
-                setattr(cf, attr, json.loads(val))
-            except AttributeError:
-                pass
-        cf.partition_key_validator = lookup_casstype(cf.key_validator)
         cf.comparator = lookup_casstype(cf.comparator)
-        cf.default_validator = lookup_casstype(cf.default_validator)
-        cf.coldefs = cf.filter_regular_coldefs(coldefs)
-        cf.compact_storage = cf.is_compact_storage()
-        cf.key_aliases = cf.get_key_aliases()
-        cf.partition_key_components = cf.key_aliases
-        cf.column_aliases = cf.get_column_aliases()
-        cf.primary_key_components = cf.key_aliases + list(cf.column_aliases)
-        cf.columns = cf.get_columns()
+        for attr in ('compaction_strategy_options', 'compression_parameters'):
+            setattr(cf, attr, json.loads(getattr(cf, attr)))
+
+        # deal with columns
+        columns = map(CqlColumnDef.from_layout, coldefs)
+
+        partition_key_cols = filter(lambda c: c.component_type == u'partition_key', columns)
+        partition_key_cols.sort(key=lambda c: c.component_index)
+        cf.partition_key_columns = map(lambda c: c.name, partition_key_cols)
+
+        clustering_key_cols = filter(lambda c: c.component_type == u'clustering_key', columns)
+        clustering_key_cols.sort(key=lambda c: c.component_index)
+        cf.clustering_key_columns = map(lambda c: c.name, clustering_key_cols)
+
+        cf.primary_key_columns = cf.partition_key_columns + cf.clustering_key_columns
+
+        regular_cols = list(set(columns) - set(partition_key_cols) - set(clustering_key_cols))
+        regular_cols.sort(key=lambda c: c.name)
+        cf.regular_columns = map(lambda c: c.name, regular_cols)
+
+        cf.columns = partition_key_cols + clustering_key_cols + regular_cols
         return cf
-
-    def filter_regular_coldefs(self, cols):
-        return [ c for c in cols if c.get('type', 'regular') == 'regular' ]
-
 
     # not perfect, but good enough; please read CFDefinition constructor comments
     # returns False if we are dealing with a CQL3 table, True otherwise.
@@ -1292,110 +1215,10 @@ class CqlTableDef:
         for subtype in self.comparator.subtypes:
             if issubclass(subtype, ColumnToCollectionType):
                 return False
-        if len(self.column_aliases) == len(self.comparator.subtypes) - 1:
+        if len(self.clustering_key_columns) == len(self.comparator.subtypes) - 1:
             if self.comparator.subtypes[-1] is UTF8Type:
                 return False
         return True
-
-    def get_key_aliases(self):
-        if not issubclass(self.partition_key_validator, CompositeType):
-            return self.key_aliases or (self.key_alias and [self.key_alias]) or [u'key']
-        expected = len(self.partition_key_validator.subtypes)
-        # key, key2, key3, ..., keyN
-        aliases = [u'key'] + [ u'key' + str(i) for i in range(2, expected + 1) ]
-        # append the missing (non-renamed) aliases (if any)
-        return self.key_aliases + aliases[len(self.key_aliases):]
-
-    def get_column_aliases(self):
-        # CQL3 table
-        if not self.compact_storage:
-            return self.column_aliases
-        if not issubclass(self.comparator, CompositeType):
-            # static cf
-            if self.coldefs:
-                return []
-            else:
-                return self.column_aliases or [u'column1']
-        expected = len(self.comparator.subtypes)
-        # column1, column2, column3, ..., columnN
-        aliases = [ u'column' + str(i) for i in range(1, expected + 1) ]
-        # append the missing (non-renamed) aliases (if any)
-        return self.column_aliases + aliases[len(self.column_aliases):]
-
-    def get_columns(self):
-        if self.compact_storage:
-            return self.get_columns_compact()
-        else:
-            return self.get_columns_cql3()
-
-    # dense composite or dynamic cf or static cf (technically not compact).
-    def get_columns_compact(self):
-        if issubclass(self.partition_key_validator, CompositeType):
-            partkey_types = self.partition_key_validator.subtypes
-        else:
-            partkey_types = [self.partition_key_validator]
-        partkey_cols = map(self.column_class, self.partition_key_components, partkey_types)
-
-        if len(self.column_aliases) == 0:
-            if self.comparator is not UTF8Type:
-                warn(UnexpectedTableStructure("Compact storage CF %s has no column aliases,"
-                                              " but comparator is not UTF8Type." % (self.name,)))
-            colalias_types = []
-        elif issubclass(self.comparator, CompositeType):
-            colalias_types = self.comparator.subtypes
-        else:
-            colalias_types = [self.comparator]
-        if len(colalias_types) != len(self.column_aliases):
-            warn(UnexpectedTableStructure("Compact storage CF comparator-types %r is not"
-                                          " the same length as its column_aliases %r"
-                                          % (colalias_types, self.column_aliases)))
-        colalias_cols = map(self.column_class, self.column_aliases, colalias_types)
-
-        if self.value_alias is not None:
-            if self.coldefs:
-                warn(UnexpectedTableStructure("Compact storage CF has both a value_alias"
-                                              " (%r) and entries in system.schema_columns"
-                                              % (self.value_alias,)))
-            if self.value_alias == '':
-                value_cols = []
-            else:
-                value_cols = [self.column_class(self.value_alias, self.default_validator)]
-        elif self.value_alias is None and not self.coldefs:
-            value_cols = [self.column_class("value", self.default_validator)]
-        else:
-            value_cols = map(self.column_class.from_layout, self.coldefs)
-            value_cols.sort(key=lambda c: c.name)
-
-        return partkey_cols + colalias_cols + value_cols
-
-    # sparse composite (CQL3 table).
-    def get_columns_cql3(self):
-        if issubclass(self.partition_key_validator, CompositeType):
-            partkey_types = self.partition_key_validator.subtypes
-        else:
-            partkey_types = [self.partition_key_validator]
-        partkey_cols = map(self.column_class, self.partition_key_components, partkey_types)
-
-        for subtype in self.comparator.subtypes[:-1]:
-            if issubclass(subtype, ColumnToCollectionType):
-                warn(UnexpectedTableStructure("ColumnToCollectionType found, but not in "
-                                              "last position inside composite comparator"))
-        coltypes = list(self.comparator.subtypes)
-        if issubclass(coltypes[-1], ColumnToCollectionType):
-            # all this information should be available in schema_columns
-            coltypes.pop(-1)
-        if len(coltypes) != len(self.column_aliases) + 1 or coltypes[-1] is not UTF8Type:
-            warn(UnexpectedTableStructure("CQL3 CF does not have UTF8Type"
-                                          " added to comparator"))
-        colalias_cols = map(self.column_class, self.column_aliases, coltypes[:-1])
-
-        if self.value_alias is not None:
-            warn(UnexpectedTableStructure("CQL3 CF has a value_alias (%r)"
-                                          % (self.value_alias,)))
-        value_cols = map(self.column_class.from_layout, self.coldefs)
-        value_cols.sort(key=lambda c: c.name)
-
-        return partkey_cols + colalias_cols + value_cols
 
     def is_counter_col(self, colname):
         try:

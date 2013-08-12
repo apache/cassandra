@@ -638,7 +638,7 @@ class TestCqlshOutput(BaseTestCase):
         table_desc3 = dedent("""
 
             CREATE TABLE has_all_types (
-              num int PRIMARY KEY,
+              num int,
               asciicol ascii,
               bigintcol bigint,
               blobcol blob,
@@ -651,7 +651,8 @@ class TestCqlshOutput(BaseTestCase):
               timestampcol timestamp,
               uuidcol uuid,
               varcharcol text,
-              varintcol varint
+              varintcol varint,
+              PRIMARY KEY (num)
             ) WITH
               bloom_filter_fp_chance=0.010000 AND
               caching='KEYS_ONLY' AND

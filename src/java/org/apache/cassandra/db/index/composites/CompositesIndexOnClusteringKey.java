@@ -76,9 +76,10 @@ public class CompositesIndexOnClusteringKey extends CompositesIndex
         ByteBuffer[] components = baseComparator.split(columnName);
         CompositeType.Builder builder = getIndexComparator().builder();
         builder.add(rowKey);
-        for (int i = 0; i < columnDef.componentIndex; i++)
+
+        for (int i = 0; i < Math.min(components.length, columnDef.componentIndex); i++)
             builder.add(components[i]);
-        for (int i = columnDef.componentIndex + 1; i < ckCount; i++)
+        for (int i = columnDef.componentIndex + 1; i < Math.min(components.length, ckCount); i++)
             builder.add(components[i]);
         return builder;
     }

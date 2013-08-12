@@ -90,7 +90,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         if (cd.getValidator().isCollection() && !isCustom)
             throw new InvalidRequestException("Indexes on collections are no yet supported");
 
-        if (cd.type == ColumnDefinition.Type.PARTITION_KEY && (cd.componentIndex == null || cd.componentIndex == 0))
+        if (cd.type == ColumnDefinition.Type.PARTITION_KEY && cd.componentIndex == null)
             throw new InvalidRequestException(String.format("Cannot add secondary index to already primarily indexed column %s", columnName));
     }
 
