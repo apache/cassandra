@@ -21,6 +21,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import javax.management.ListenerNotFoundException;
+import javax.management.MBeanNotificationInfo;
+import javax.management.NotificationFilter;
+import javax.management.NotificationListener;
+import javax.management.openmbean.CompositeData;
+
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -29,6 +35,8 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.streaming.management.StreamEventJMXNotifier;
+import org.apache.cassandra.streaming.management.StreamStateCompositeData;
 
 /**
  * StreamManager manages currently running {@link StreamResultFuture}s and provides status of all operation invoked.
@@ -60,6 +68,8 @@ public class StreamManager implements StreamManagerMBean
         return limiter;
     }
 
+    private final StreamEventJMXNotifier notifier = new StreamEventJMXNotifier();
+
     /*
      * Currently running streams. Removed after completion/failure.
      * We manage them in two different maps to distinguish plan from initiated ones to
@@ -68,19 +78,20 @@ public class StreamManager implements StreamManagerMBean
     private final Map<UUID, StreamResultFuture> initiatedStreams = new NonBlockingHashMap<>();
     private final Map<UUID, StreamResultFuture> receivingStreams = new NonBlockingHashMap<>();
 
-    public Set<StreamState> getCurrentStreams()
+    public Set<CompositeData> getCurrentStreams()
     {
-        return Sets.newHashSet(Iterables.transform(Iterables.concat(initiatedStreams.values(), receivingStreams.values()), new Function<StreamResultFuture, StreamState>()
+        return Sets.newHashSet(Iterables.transform(Iterables.concat(initiatedStreams.values(), receivingStreams.values()), new Function<StreamResultFuture, CompositeData>()
         {
-            public StreamState apply(StreamResultFuture input)
+            public CompositeData apply(StreamResultFuture input)
             {
-                return input.getCurrentState();
+                return StreamStateCompositeData.toCompositeData(input.getCurrentState());
             }
         }));
     }
 
     public void register(final StreamResultFuture result)
     {
+        result.addEventListener(notifier);
         // Make sure we remove the stream on completion (whether successful or not)
         result.addListener(new Runnable()
         {
@@ -95,6 +106,7 @@ public class StreamManager implements StreamManagerMBean
 
     public void registerReceiving(final StreamResultFuture result)
     {
+        result.addEventListener(notifier);
         // Make sure we remove the stream on completion (whether successful or not)
         result.addListener(new Runnable()
         {
@@ -110,5 +122,25 @@ public class StreamManager implements StreamManagerMBean
     public StreamResultFuture getReceivingStream(UUID planId)
     {
         return receivingStreams.get(planId);
+    }
+
+    public void addNotificationListener(NotificationListener listener, NotificationFilter filter, Object handback)
+    {
+        notifier.addNotificationListener(listener, filter, handback);
+    }
+
+    public void removeNotificationListener(NotificationListener listener) throws ListenerNotFoundException
+    {
+        notifier.removeNotificationListener(listener);
+    }
+
+    public void removeNotificationListener(NotificationListener listener, NotificationFilter filter, Object handback) throws ListenerNotFoundException
+    {
+        notifier.removeNotificationListener(listener, filter, handback);
+    }
+
+    public MBeanNotificationInfo[] getNotificationInfo()
+    {
+        return notifier.getNotificationInfo();
     }
 }
