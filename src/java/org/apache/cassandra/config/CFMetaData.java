@@ -136,8 +136,6 @@ public final class CFMetaData
                                                                        + "value_alias text,"
                                                                        + "column_aliases text,"
                                                                        + "compaction_strategy_options text,"
-                                                                       + "default_read_consistency text,"
-                                                                       + "default_write_consistency text,"
                                                                        + "PRIMARY KEY (keyspace_name, columnfamily_name)"
                                                                        + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=8640");
 

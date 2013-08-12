@@ -503,10 +503,6 @@ def cf_new_prop_val_completer(ctxt, cass):
     if this_opt in ('min_compaction_threshold', 'max_compaction_threshold',
                     'gc_grace_seconds'):
         return [Hint('<integer>')]
-    if this_opt == 'default_read_consistency':
-        return [cl for cl in CqlRuleSet.consistency_levels if cl != 'ANY']
-    if this_opt == 'default_write_consistency':
-        return CqlRuleSet.consistency_levels
     return [Hint('<option_value>')]
 
 def cf_new_prop_val_mapkey_completer(ctxt, cass):
