@@ -54,6 +54,9 @@ Upgrading
 
 Operations
 ----------
+    - VNodes are enabled by default in cassandra.yaml.  initial_token
+      for non-vnode deployments has been removed from the example
+      yaml, but is still respected if specified.
     - Major compactions, cleanup, scrub, and upgradesstables will interrupt 
       any in-progress compactions (but not repair validations) when invoked.
     - Disabling autocompactions by setting min/max compaction threshold to 0
