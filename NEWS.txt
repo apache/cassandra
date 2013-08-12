@@ -70,6 +70,8 @@ Operations
     - A new hints created metric is tracked per target, replacing countPendingHints
     - After performance testing for CASSANDRA-5727, the default LCS filesize
       has been changed from 5MB to 160MB.
+    - cqlsh DESCRIBE SCHEMA no longer outputs the schema of system_* keyspaces;
+      use DESCRIBE FULL SCHEMA if you need the schema of system_* keyspaces.
 
 Features
 --------

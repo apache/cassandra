@@ -761,7 +761,7 @@ class TestCqlshOutput(BaseTestCase):
     def test_describe_schema_output(self):
         with testrun_cqlsh(tty=True) as c:
             for semicolon in ('', ';'):
-                output = c.cmd_and_response('desc schema' + semicolon)
+                output = c.cmd_and_response('desc full schema' + semicolon)
                 self.assertNoHasColors(output)
                 self.assertRegexpMatches(output, '^\nCREATE KEYSPACE')
                 self.assertIn("\nCREATE KEYSPACE system WITH replication = {\n  'class': 'LocalStrategy'\n};\n",
