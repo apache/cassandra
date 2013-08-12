@@ -8,6 +8,7 @@
  * enable vnodes by default (CASSANDRA-5869)
  * fix CAS contention timeout (CASSANDRA-5830)
  * fix HsHa to respect max frame size (CASSANDRA-4573)
+ * Fix (some) 2i on composite components omissions (CASSANDRA-5851)
 Merged from 1.2:
  * Correctly validate sparse composite cells in scrub (CASSANDRA-5855)
  * Add KeyCacheHitRate metric to CF metrics (CASSANDRA-5868)
