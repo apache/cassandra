@@ -135,8 +135,6 @@ public final class CFMetaData
                                                                     + "value_alias text,"
                                                                     + "column_aliases text,"
                                                                     + "compaction_strategy_options text,"
-                                                                    + "default_read_consistency text,"
-                                                                    + "default_write_consistency text,"
                                                                     + "speculative_retry text,"
                                                                     + "populate_io_cache_on_flush boolean,"
                                                                     + "index_interval int,"
