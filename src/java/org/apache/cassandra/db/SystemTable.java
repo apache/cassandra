@@ -181,41 +181,59 @@ public class SystemTable
             oldHintsCfs.truncate();
         }
 
-        migrateKeyAliases();
+        migrateKeyAlias();
     }
 
 
     /**
      * 1.1 used a key_alias column; 1.2 changed that to key_aliases as part of CQL3
      */
-    private static void migrateKeyAliases()
+    private static void migrateKeyAlias()
     {
-        for (UntypedResultSet.Row row : processInternal("SELECT keyspace_name, columnfamily_name, key_aliases, key_alias FROM system.schema_columnfamilies"))
+        String selectQuery = String.format("SELECT keyspace_name, columnfamily_name, writetime(type), key_aliases, key_alias FROM %s.%s",
+                                           Table.SYSTEM_KS,
+                                           SCHEMA_COLUMNFAMILIES_CF);
+        for (UntypedResultSet.Row row : processInternal(selectQuery))
         {
-            String key_alias = null;
-            String key_aliases = null;
-            try
+            String ks = row.getString("keyspace_name");
+            String cf = row.getString("columnfamily_name");
+            Long timestamp = row.getLong("writetime(type)"); // guaranteed to be present
+
+            String keyAlias = row.has("key_alias") ? row.getString("key_alias") : null;
+            String keyAliases = row.has("key_aliases") ? row.getString("key_aliases") : null;
+
+            if (keyAliases != null)
             {
-                key_alias = row.getString("key_alias");
+                if (keyAlias == null)
+                    continue; // key_alias has never existed or has already been migrated - moving on.
+
+                // delete key_alias if it's still there - it's not being used anymore.
+                processInternal(String.format("DELETE key_alias "
+                                              + "FROM %s.%s "
+                                              + "USING TIMESTAMP %d "
+                                              + "WHERE keyspace_name = '%s' AND columnfamily_name = '%s'",
+                                              Table.SYSTEM_KS,
+                                              SCHEMA_COLUMNFAMILIES_CF,
+                                              timestamp,
+                                              ks,
+                                              cf));
             }
-            catch (NullPointerException e)
+            else
             {
-                // column value is null
-            }
-            try
-            {
-                key_aliases =  row.getString("key_aliases");
-            }
-            catch (NullPointerException e)
-            {
-                // column value is null
-            }
-            if (key_alias != null && key_aliases == null)
-            {
-                String keyspace = row.getString("keyspace_name");
-                String columnfamily = row.getString("columnfamily_name");
-                processInternal(String.format("UPDATE system.schema_columnfamilies set key_aliases='[\"%s\"]' , key_alias = null where keyspace_name='%s' and columnfamily_name='%s'",
-                                              key_alias, keyspace, columnfamily));
+                // key_aliases is null. Set to either '[]' or '["<keyAlias>"]', depending on the key_alias (lack of) value.
+                List<String> aliases = keyAlias == null
+                                     ? Collections.<String>emptyList()
+                                     : Collections.singletonList(keyAlias);
+                processInternal(String.format("UPDATE %s.%s "
+                                              + "USING TIMESTAMP %d "
+                                              + "SET key_alias = null, key_aliases = '%s' "
+                                              + "WHERE keyspace_name = '%s' AND columnfamily_name = '%s'",
+                                              Table.SYSTEM_KS,
+                                              SCHEMA_COLUMNFAMILIES_CF,
+                                              timestamp,
+                                              FBUtilities.json(aliases),
+                                              ks,
+                                              cf));
             }
         }
     }
