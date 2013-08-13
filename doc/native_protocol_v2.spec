@@ -369,6 +369,9 @@ Table of Contents
        - <value_1>...<value_n> are the [bytes] to use for bound variables.
     - <consistency> is the [consistency] level for the operation.
 
+  The server will respond with a RESULT message with a `Void` kind (0x0001,
+  see Section 4.2.5).
+
 
 4.1.8. REGISTER
 
@@ -440,7 +443,7 @@ Table of Contents
 
 4.2.5. RESULT
 
-  The result to a query (QUERY, PREPARE or EXECUTE messages).
+  The result to a query (QUERY, PREPARE, EXECUTE or BATCH messages).
 
   The first element of the body of a RESULT message is an [int] representing the
   `kind` of result. The rest of the body depends on the kind. The kind can be
