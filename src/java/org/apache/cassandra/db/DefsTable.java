@@ -341,6 +341,10 @@ public class DefsTable
         for (RowMutation mutation : mutations)
             mutation.apply();
 
+        // Must be called after each schema pull and not just on startup to guarantee the migration.
+        // See CASSANDRA-5800 comments for the details.
+        SystemTable.migrateKeyAlias();
+
         if (!StorageService.instance.isClientMode())
             flushSchemaCFs();
 

@@ -184,11 +184,10 @@ public class SystemTable
         migrateKeyAlias();
     }
 
-
     /**
      * 1.1 used a key_alias column; 1.2 changed that to key_aliases as part of CQL3
      */
-    private static void migrateKeyAlias()
+    public static void migrateKeyAlias()
     {
         String selectQuery = String.format("SELECT keyspace_name, columnfamily_name, writetime(type), key_aliases, key_alias FROM %s.%s",
                                            Table.SYSTEM_KS,
