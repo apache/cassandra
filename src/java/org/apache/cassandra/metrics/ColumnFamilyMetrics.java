@@ -347,6 +347,8 @@ public class ColumnFamilyMetrics
         CassandraMetricRegistry.unregister(factory.createMetricName("BloomFilterFalseRatio"));
         CassandraMetricRegistry.unregister(factory.createMetricName("RecentBloomFilterFalseRatio"));
         CassandraMetricRegistry.unregister(factory.createMetricName("BloomFilterDiskSpaceUsed"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("KeyCacheHitRate"));
+        CassandraMetricRegistry.unregister(factory.createMetricName("SpeculativeRetry"));
     }
 
     class ColumnFamilyMetricNameFactory implements MetricNameFactory
