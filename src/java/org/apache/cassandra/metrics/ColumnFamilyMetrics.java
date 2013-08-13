@@ -333,6 +333,8 @@ public class ColumnFamilyMetrics
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("BloomFilterFalseRatio"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("RecentBloomFilterFalseRatio"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("BloomFilterDiskSpaceUsed"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("KeyCacheHitRate"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("SpeculativeRetry"));
     }
 
     class ColumnFamilyMetricNameFactory implements MetricNameFactory
