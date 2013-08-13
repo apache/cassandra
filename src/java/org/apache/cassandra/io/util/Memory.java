@@ -28,6 +28,7 @@ public class Memory
 {
     private static final Unsafe unsafe = NativeAllocator.unsafe;
     private static final IAllocator allocator = DatabaseDescriptor.getoffHeapMemoryAllocator();
+    private static final long BYTE_ARRAY_BASE_OFFSET = unsafe.arrayBaseOffset(byte[].class);
 
     protected long peer;
     // size of the memory region
@@ -94,8 +95,8 @@ public class Memory
         checkPosition(memoryOffset);
         long end = memoryOffset + count;
         checkPosition(end - 1);
-        while (memoryOffset < end)
-            unsafe.putByte(peer + memoryOffset++, buffer[bufferOffset++]);
+
+        unsafe.copyMemory(buffer, BYTE_ARRAY_BASE_OFFSET, null, peer + memoryOffset, count);
     }
 
     public byte getByte(long offset)
@@ -136,8 +137,8 @@ public class Memory
         checkPosition(memoryOffset);
         long end = memoryOffset + count;
         checkPosition(end - 1);
-        while (memoryOffset < end)
-            buffer[bufferOffset++] = unsafe.getByte(peer + memoryOffset++);
+
+        unsafe.copyMemory(null, peer + memoryOffset, buffer, BYTE_ARRAY_BASE_OFFSET, count);
     }
 
     private void checkPosition(long offset)
