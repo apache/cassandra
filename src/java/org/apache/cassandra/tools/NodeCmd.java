@@ -78,7 +78,7 @@ public class NodeCmd
 
     static
     {
-        options.addOption(SNAPSHOT_COLUMNFAMILY_OPT, true, "only take a snapshot of the specified column family");
+        options.addOption(SNAPSHOT_COLUMNFAMILY_OPT, true, "only take a snapshot of the specified table (column family)");
         options.addOption(HOST_OPT,     true, "node hostname or ip address");
         options.addOption(PORT_OPT,     true, "remote jmx agent port number");
         options.addOption(USERNAME_OPT, true, "remote jmx agent username");
@@ -690,7 +690,7 @@ public class NodeCmd
         CompactionManagerMBean cm = probe.getCompactionManagerProxy();
         outs.println("pending tasks: " + cm.getPendingTasks());
         if (cm.getCompactions().size() > 0)
-            outs.printf("%25s%16s%16s%16s%16s%10s%10s%n", "compaction type", "keyspace", "column family", "completed", "total", "unit", "progress");
+            outs.printf("%25s%16s%16s%16s%16s%10s%10s%n", "compaction type", "keyspace", "table", "completed", "total", "unit", "progress");
         long remainingBytes = 0;
         for (Map<String, String> c : cm.getCompactions())
         {
@@ -813,9 +813,9 @@ public class NodeCmd
             {
                 String cfName = cfstore.getColumnFamilyName();
                 if(cfName.contains("."))
-                    outs.println("\t\tColumn Family (index): " + cfName);
+                    outs.println("\t\tTable (index): " + cfName);
                 else
-                    outs.println("\t\tColumn Family: " + cfName);
+                    outs.println("\t\tTable: " + cfName);
 
                 outs.println("\t\tSSTable count: " + cfstore.getLiveSSTableCount());
                 int[] leveledSStables = cfstore.getSSTableCountPerLevel();
@@ -839,23 +839,23 @@ public class NodeCmd
                             outs.println("]");
                     }
                 }
-                outs.println("\t\tSpace used (live): " + cfstore.getLiveDiskSpaceUsed());
-                outs.println("\t\tSpace used (total): " + cfstore.getTotalDiskSpaceUsed());
-                outs.println("\t\tNumber of Keys (estimate): " + cfstore.estimateKeys());
-                outs.println("\t\tMemtable Columns Count: " + cfstore.getMemtableColumnsCount());
-                outs.println("\t\tMemtable Data Size: " + cfstore.getMemtableDataSize());
-                outs.println("\t\tMemtable Switch Count: " + cfstore.getMemtableSwitchCount());
-                outs.println("\t\tRead Count: " + cfstore.getReadCount());
-                outs.println("\t\tRead Latency: " + String.format("%01.3f", cfstore.getRecentReadLatencyMicros() / 1000) + " ms.");
-                outs.println("\t\tWrite Count: " + cfstore.getWriteCount());
-                outs.println("\t\tWrite Latency: " + String.format("%01.3f", cfstore.getRecentWriteLatencyMicros() / 1000) + " ms.");
-                outs.println("\t\tPending Tasks: " + cfstore.getPendingTasks());
-                outs.println("\t\tBloom Filter False Positives: " + cfstore.getBloomFilterFalsePositives());
-                outs.println("\t\tBloom Filter False Ratio: " + String.format("%01.5f", cfstore.getRecentBloomFilterFalseRatio()));
-                outs.println("\t\tBloom Filter Space Used: " + cfstore.getBloomFilterDiskSpaceUsed());
-                outs.println("\t\tCompacted row minimum size: " + cfstore.getMinRowSize());
-                outs.println("\t\tCompacted row maximum size: " + cfstore.getMaxRowSize());
-                outs.println("\t\tCompacted row mean size: " + cfstore.getMeanRowSize());
+                outs.println("\t\tSpace used (live), bytes: " + cfstore.getLiveDiskSpaceUsed());
+                outs.println("\t\tSpace used (total), bytes: " + cfstore.getTotalDiskSpaceUsed());
+                outs.println("\t\tNumber of keys (estimate): " + cfstore.estimateKeys());
+                outs.println("\t\tMemtable cell count: " + cfstore.getMemtableColumnsCount());
+                outs.println("\t\tMemtable data size, bytes: " + cfstore.getMemtableDataSize());
+                outs.println("\t\tMemtable switch count: " + cfstore.getMemtableSwitchCount());
+                outs.println("\t\tRead count: " + cfstore.getReadCount());
+                outs.println("\t\tRead latency, micros: " + String.format("%01.3f", cfstore.getRecentReadLatencyMicros() / 1000) + " ms.");
+                outs.println("\t\tWrite count: " + cfstore.getWriteCount());
+                outs.println("\t\tWrite latency, micros: " + String.format("%01.3f", cfstore.getRecentWriteLatencyMicros() / 1000) + " ms.");
+                outs.println("\t\tPending tasks: " + cfstore.getPendingTasks());
+                outs.println("\t\tBloom filter false positives: " + cfstore.getBloomFilterFalsePositives());
+                outs.println("\t\tBloom filter false ratio: " + String.format("%01.5f", cfstore.getRecentBloomFilterFalseRatio()));
+                outs.println("\t\tBloom filter space used, bytes: " + cfstore.getBloomFilterDiskSpaceUsed());
+                outs.println("\t\tCompacted partition minimum size, bytes: " + cfstore.getMinRowSize());
+                outs.println("\t\tCompacted partition maximum size, bytes: " + cfstore.getMaxRowSize());
+                outs.println("\t\tCompacted partition mean size, bytes: " + cfstore.getMeanRowSize());
 
                 outs.println("");
             }
@@ -884,7 +884,9 @@ public class NodeCmd
         output.println(String.format("%s/%s histograms", keySpace, columnFamily));
 
         output.println(String.format("%-10s%10s%18s%18s%18s%18s",
-                                     "Offset", "SSTables", "Write Latency", "Read Latency", "Row Size", "Column Count"));
+                                     "Offset", "SSTables", "Write Latency", "Read Latency", "Partition Size", "Cell Count"));
+        output.println(String.format("%-10s%10s%18s%18s%18s%18s",
+                                     "", "", "(micros)", "(micros)", "(bytes)", ""));
 
         for (int i = 0; i < offsets.length; i++)
         {
@@ -1358,7 +1360,7 @@ public class NodeCmd
 
         if (columnFamily != null)
         {
-            System.out.print("and column family: " + columnFamily);
+            System.out.print("and table: " + columnFamily);
         }
         System.out.println();
 

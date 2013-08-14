@@ -18,14 +18,14 @@ using the provided 'sstableupgrade' tool.
 
 Upgrading
 ---------
-    - CAS and new features in CQL such as DROP COLUMN assume that cell
-      timestamps are microseconds-since-epoch.  Do not use these
-      features if you are using client-specified timestamps with some
-      other source.
     - Upgrading is ONLY supported from Cassandra 1.2.9 or later. This
       goes for sstable compatibility as well as network.  When
       upgrading from an earlier release, upgrade to 1.2.9 first and
       run upgradesstables before proceeding to 2.0.
+    - CAS and new features in CQL such as DROP COLUMN assume that cell
+      timestamps are microseconds-since-epoch.  Do not use these
+      features if you are using client-specified timestamps with some
+      other source.
     - Replication and strategy options do not accept unknown options anymore.
       This was already the case for CQL3 in 1.2 but this is now the case for
       thrift too.
@@ -75,6 +75,8 @@ Operations
 
 Features
 --------
+    - Lightweight transactions 
+      (http://www.datastax.com/dev/blog/lightweight-transactions-in-cassandra-2-0)
     - Alias support has been added to CQL3 SELECT statement. Refer to
       CQL3 documentation (http://cassandra.apache.org/doc/cql3/CQL.html) for details.
     - JEMalloc support (see memory_allocator in cassandra.yaml)
