@@ -18,18 +18,26 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 
-import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.collect.AbstractIterator;
+import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.db.columniterator.IColumnIteratorFactory;
 import org.apache.cassandra.db.columniterator.LazyColumnIterator;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.compaction.ICompactionScanner;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -39,28 +47,17 @@ public class SSTableScanner implements ICompactionScanner
     protected final RandomAccessReader dfile;
     protected final RandomAccessReader ifile;
     public final SSTableReader sstable;
-    private final DataRange dataRange;
 
-    /*
-     * There is 2 cases:
-     *   - Either dataRange is not wrapping, and we just need to read
-     *     everything between startKey and endKey.
-     *   - Or dataRange is wrapping: we must the read everything between
-     *     the beginning of the file and the endKey, and then everything from
-     *     the startKey to the end of the file.
-     *
-     * In the first case, we seek to the start and read until stop. In the
-     * second one, we don't seek just yet, but read until stopAt and then
-     * seek to start (re-adjusting stopAt to be the end of the file in isDone())
-     */
-    private boolean hasSeeked;
-    private long stopAt;
+    private final Iterator<AbstractBounds<RowPosition>> rangeIterator;
+    private AbstractBounds<RowPosition> currentRange;
+
+    private final DataRange dataRange;
 
     protected Iterator<OnDiskAtomIterator> iterator;
 
     /**
      * @param sstable SSTable to scan; must not be null
-     * @param filter range of data to fetch; must not be null
+     * @param dataRange a single range to scan; must not be null
      * @param limiter background i/o RateLimiter; may be null
      */
     SSTableScanner(SSTableReader sstable, DataRange dataRange, RateLimiter limiter)
@@ -71,21 +68,50 @@ public class SSTableScanner implements ICompactionScanner
         this.ifile = sstable.openIndexReader();
         this.sstable = sstable;
         this.dataRange = dataRange;
-        this.stopAt = computeStopAt();
 
-        // If we wrap (stopKey == minimum don't count), we'll seek to start *after* having read from beginning till stopAt
-        if (dataRange.stopKey().isMinimum(sstable.partitioner) || !dataRange.isWrapAround())
-            seekToStart();
+        List<AbstractBounds<RowPosition>> boundsList = new ArrayList<>(2);
+        if (dataRange.isWrapAround() && !dataRange.stopKey().isMinimum(sstable.partitioner))
+        {
+            // split the wrapping range into two parts: 1) the part that starts at the beginning of the sstable, and
+            // 2) the part that comes before the wrap-around
+            boundsList.add(new Bounds<>(sstable.partitioner.getMinimumToken().minKeyBound(), dataRange.stopKey()));
+            boundsList.add(new Bounds<>(dataRange.startKey(), sstable.partitioner.getMinimumToken().maxKeyBound()));
+        }
+        else
+        {
+            boundsList.add(new Bounds<>(dataRange.startKey(), dataRange.stopKey()));
+        }
+        this.rangeIterator = boundsList.iterator();
     }
 
-    private void seekToStart()
+    /**
+     * @param sstable SSTable to scan; must not be null
+     * @param tokenRanges A set of token ranges to scan
+     * @param limiter background i/o RateLimiter; may be null
+     */
+    SSTableScanner(SSTableReader sstable, Collection<Range<Token>> tokenRanges, RateLimiter limiter)
     {
-        hasSeeked = true;
+        assert sstable != null;
 
-        if (dataRange.startKey().isMinimum(sstable.partitioner))
+        this.dfile = limiter == null ? sstable.openDataReader() : sstable.openDataReader(limiter);
+        this.ifile = sstable.openIndexReader();
+        this.sstable = sstable;
+        this.dataRange = null;
+
+        List<Range<Token>> normalized = Range.normalize(tokenRanges);
+        List<AbstractBounds<RowPosition>> boundsList = new ArrayList<>(normalized.size());
+        for (Range<Token> range : normalized)
+            boundsList.add(new Range<RowPosition>(range.left.maxKeyBound(sstable.partitioner), range.right.maxKeyBound(sstable.partitioner)));
+
+        this.rangeIterator = boundsList.iterator();
+    }
+
+    private void seekToCurrentRangeStart()
+    {
+        if (currentRange.left.isMinimum(sstable.partitioner))
             return;
 
-        long indexPosition = sstable.getIndexScanPosition(dataRange.startKey());
+        long indexPosition = sstable.getIndexScanPosition(currentRange.left);
         // -1 means the key is before everything in the sstable. So just start from the beginning.
         if (indexPosition == -1)
             return;
@@ -93,12 +119,15 @@ public class SSTableScanner implements ICompactionScanner
         ifile.seek(indexPosition);
         try
         {
+
             while (!ifile.isEOF())
             {
                 indexPosition = ifile.getFilePointer();
                 DecoratedKey indexDecoratedKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
-                int comparison = indexDecoratedKey.compareTo(dataRange.startKey());
-                if (comparison >= 0)
+                int comparison = indexDecoratedKey.compareTo(currentRange.left);
+                // because our range start may be inclusive or exclusive, we need to also contains()
+                // instead of just checking (comparison >= 0)
+                if (comparison > 0 || currentRange.contains(indexDecoratedKey))
                 {
                     // Found, just read the dataPosition and seek into index and data files
                     long dataPosition = ifile.readLong();
@@ -117,16 +146,6 @@ public class SSTableScanner implements ICompactionScanner
             sstable.markSuspect();
             throw new CorruptSSTableException(e, sstable.getFilename());
         }
-
-    }
-
-    private long computeStopAt()
-    {
-        if (dataRange.stopKey().isMinimum(sstable.partitioner))
-            return dfile.length();
-
-        RowIndexEntry position = sstable.getPosition(dataRange.stopKey(), SSTableReader.Operator.GT);
-        return position == null ? dfile.length() : position.position;
     }
 
     public void close() throws IOException
@@ -184,55 +203,59 @@ public class SSTableScanner implements ICompactionScanner
         {
             try
             {
-                if (ifile.isEOF() && nextKey == null)
-                    return endOfData();
-
-                if (currentKey == null)
+                if (nextEntry == null)
                 {
-                    currentKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
-                    currentEntry = RowIndexEntry.serializer.deserialize(ifile, sstable.descriptor.version);
+                    do
+                    {
+                        // we're starting the first range or we just passed the end of the previous range
+                        if (!rangeIterator.hasNext())
+                            return endOfData();
+
+                        currentRange = rangeIterator.next();
+                        seekToCurrentRangeStart();
+
+                        if (ifile.isEOF())
+                            return endOfData();
+
+                        currentKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
+                        currentEntry = RowIndexEntry.serializer.deserialize(ifile, sstable.descriptor.version);
+                    } while (!currentRange.contains(currentKey));
                 }
                 else
                 {
+                    // we're in the middle of a range
                     currentKey = nextKey;
                     currentEntry = nextEntry;
                 }
 
-                if (currentEntry.position >= stopAt)
-                {
-                    // We're in the wrapping, if we have just read the first part (we haven't seeked yet),
-                    // seek to the beginning of the 2nd part and continue;
-                    if (!hasSeeked)
-                    {
-                        seekToStart(); // This sets hasSeeked
-                        stopAt = dfile.length();
-                        // reset currentKey and nextKey since we have seeked
-                        currentKey = null;
-                        nextKey = null;
-                        return computeNext();
-                    }
-                    return endOfData();
-                }
-
+                long readEnd;
                 if (ifile.isEOF())
                 {
-                    nextKey = null;
                     nextEntry = null;
+                    nextKey = null;
+                    readEnd = dfile.length();
                 }
                 else
                 {
+                    // we need the position of the start of the next key, regardless of whether it falls in the current range
                     nextKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
                     nextEntry = RowIndexEntry.serializer.deserialize(ifile, sstable.descriptor.version);
+                    readEnd = nextEntry.position;
+
+                    if (!currentRange.contains(nextKey))
+                    {
+                        nextKey = null;
+                        nextEntry = null;
+                    }
                 }
 
-                assert !dfile.isEOF();
-                if (dataRange.selectsFullRowFor(currentKey.key))
+                if (dataRange == null || dataRange.selectsFullRowFor(currentKey.key))
                 {
                     dfile.seek(currentEntry.position);
                     ByteBufferUtil.readWithShortLength(dfile); // key
                     if (sstable.descriptor.version.hasRowSizeAndColumnCount)
                         dfile.readLong();
-                    long dataSize = (nextEntry == null ? dfile.length() : nextEntry.position) - dfile.getFilePointer();
+                    long dataSize = readEnd - dfile.getFilePointer();
                     return new SSTableIdentityIterator(sstable, dfile, currentKey, dataSize);
                 }
 
@@ -243,6 +266,7 @@ public class SSTableScanner implements ICompactionScanner
                         return dataRange.columnFilter(currentKey.key).getSSTableColumnIterator(sstable, dfile, currentKey, currentEntry);
                     }
                 });
+
             }
             catch (IOException e)
             {

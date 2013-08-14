@@ -1459,6 +1459,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return columns;
     }
 
+    public void cleanupCache()
+    {
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspace.getName());
+
+        for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
+        {
+            DecoratedKey dk = StorageService.getPartitioner().decorateKey(ByteBuffer.wrap(key.key));
+            if (key.cfId == metadata.cfId && !Range.isInRanges(dk.token, ranges))
+                invalidateCachedRow(dk);
+        }
+    }
+
     public static abstract class AbstractScanIterator extends AbstractIterator<Row> implements CloseableIterator<Row>
     {
         public boolean needsFiltering()

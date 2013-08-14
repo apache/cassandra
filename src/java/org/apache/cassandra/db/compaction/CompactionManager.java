@@ -97,6 +97,8 @@ public class CompactionManager implements CompactionManagerMBean
 
     private final CompactionExecutor executor = new CompactionExecutor();
     private final CompactionExecutor validationExecutor = new ValidationExecutor();
+    private final static CompactionExecutor cacheCleanupExecutor = new CacheCleanupExecutor();
+
     private final CompactionMetrics metrics = new CompactionMetrics(executor, validationExecutor);
     private final Multiset<ColumnFamilyStore> compactingCF = ConcurrentHashMultiset.create();
 
@@ -461,7 +463,7 @@ public class CompactionManager implements CompactionManagerMBean
      *
      * @throws IOException
      */
-    private void doCleanupCompaction(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, CounterId.OneShotRenewer renewer) throws IOException
+    private void doCleanupCompaction(final ColumnFamilyStore cfs, Collection<SSTableReader> sstables, CounterId.OneShotRenewer renewer) throws IOException
     {
         assert !cfs.isIndex();
         Keyspace keyspace = cfs.keyspace;
@@ -472,8 +474,8 @@ public class CompactionManager implements CompactionManagerMBean
             return;
         }
 
-        boolean isCommutative = cfs.metadata.getDefaultValidator().isCommutative();
         boolean hasIndexes = !cfs.indexManager.getIndexes().isEmpty();
+        CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfs, ranges, renewer);
 
         for (SSTableReader sstable : sstables)
         {
@@ -500,10 +502,9 @@ public class CompactionManager implements CompactionManagerMBean
             if (compactionFileLocation == null)
                 throw new IOException("disk full");
 
-            SSTableScanner scanner = sstable.getScanner(getRateLimiter());
-            List<Column> indexedColumnsInRow = null;
+            ICompactionScanner scanner = cleanupStrategy.getScanner(sstable, getRateLimiter());
+            CleanupInfo ci = new CleanupInfo(sstable, (SSTableScanner)scanner);
 
-            CleanupInfo ci = new CleanupInfo(sstable, scanner);
             metrics.beginCompaction(ci);
             SSTableWriter writer = createWriter(cfs,
                                                 compactionFileLocation,
@@ -517,50 +518,13 @@ public class CompactionManager implements CompactionManagerMBean
                     if (ci.isStopRequested())
                         throw new CompactionInterruptedException(ci.getCompactionInfo());
                     SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
-                    if (Range.isInRanges(row.getKey().token, ranges))
-                    {
-                        AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
-                        if (writer.append(compactedRow) != null)
-                            totalkeysWritten++;
-                    }
-                    else
-                    {
-                        cfs.invalidateCachedRow(row.getKey());
 
-                        if (hasIndexes || isCommutative)
-                        {
-                            if (indexedColumnsInRow != null)
-                                indexedColumnsInRow.clear();
-
-                            while (row.hasNext())
-                            {
-                                OnDiskAtom column = row.next();
-                                if (column instanceof CounterColumn)
-                                    renewer.maybeRenew((CounterColumn) column);
-                                if (column instanceof Column && cfs.indexManager.indexes((Column) column))
-                                {
-                                    if (indexedColumnsInRow == null)
-                                        indexedColumnsInRow = new ArrayList<Column>();
-
-                                    indexedColumnsInRow.add((Column) column);
-                                }
-                            }
-
-                            if (indexedColumnsInRow != null && !indexedColumnsInRow.isEmpty())
-                            {
-                                // acquire memtable lock here because secondary index deletion may cause a race. See CASSANDRA-3712
-                                Keyspace.switchLock.readLock().lock();
-                                try
-                                {
-                                    cfs.indexManager.deleteFromIndexes(row.getKey(), indexedColumnsInRow);
-                                }
-                                finally
-                                {
-                                    Keyspace.switchLock.readLock().unlock();
-                                }
-                            }
-                        }
-                    }
+                    row = cleanupStrategy.cleanup(row);
+                    if (row == null)
+                        continue;
+                    AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
+                    if (writer.append(compactedRow) != null)
+                        totalkeysWritten++;
                 }
                 if (totalkeysWritten > 0)
                     newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
@@ -596,6 +560,114 @@ public class CompactionManager implements CompactionManagerMBean
             cfs.indexManager.flushIndexesBlocking();
 
             cfs.replaceCompactedSSTables(Arrays.asList(sstable), results, OperationType.CLEANUP);
+        }
+    }
+
+    private static abstract class CleanupStrategy
+    {
+        public static CleanupStrategy get(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, CounterId.OneShotRenewer renewer)
+        {
+            if (!cfs.indexManager.getIndexes().isEmpty() || cfs.metadata.getDefaultValidator().isCommutative())
+                return new Full(cfs, ranges, renewer);
+
+            return new Bounded(cfs, ranges);
+        }
+
+        public abstract ICompactionScanner getScanner(SSTableReader sstable, RateLimiter limiter);
+        public abstract SSTableIdentityIterator cleanup(SSTableIdentityIterator row);
+
+        private static final class Bounded extends CleanupStrategy
+        {
+            private final Collection<Range<Token>> ranges;
+
+            public Bounded(final ColumnFamilyStore cfs, Collection<Range<Token>> ranges)
+            {
+                this.ranges = ranges;
+                cacheCleanupExecutor.submit(new Runnable()
+                {
+                    @Override
+                    public void run()
+                    {
+                        cfs.cleanupCache();
+                    }
+                });
+
+            }
+            @Override
+            public ICompactionScanner getScanner(SSTableReader sstable, RateLimiter limiter)
+            {
+                return sstable.getScanner(ranges, limiter);
+            }
+
+            @Override
+            public SSTableIdentityIterator cleanup(SSTableIdentityIterator row)
+            {
+                return row;
+            }
+        }
+
+        private static final class Full extends CleanupStrategy
+        {
+            private final Collection<Range<Token>> ranges;
+            private final ColumnFamilyStore cfs;
+            private List<Column> indexedColumnsInRow;
+            private final CounterId.OneShotRenewer renewer;
+
+            public Full(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, CounterId.OneShotRenewer renewer)
+            {
+                this.cfs = cfs;
+                this.ranges = ranges;
+                this.indexedColumnsInRow = null;
+                this.renewer = renewer;
+            }
+
+            @Override
+            public ICompactionScanner getScanner(SSTableReader sstable, RateLimiter limiter)
+            {
+                return sstable.getScanner(limiter);
+            }
+
+            @Override
+            public SSTableIdentityIterator cleanup(SSTableIdentityIterator row)
+            {
+                if (Range.isInRanges(row.getKey().token, ranges))
+                    return row;
+
+                cfs.invalidateCachedRow(row.getKey());
+
+                if (indexedColumnsInRow != null)
+                    indexedColumnsInRow.clear();
+
+                while (row.hasNext())
+                {
+                    OnDiskAtom column = row.next();
+                    if (column instanceof CounterColumn)
+                        renewer.maybeRenew((CounterColumn) column);
+
+                    if (column instanceof Column && cfs.indexManager.indexes((Column) column))
+                    {
+                        if (indexedColumnsInRow == null)
+                            indexedColumnsInRow = new ArrayList<>();
+
+                        indexedColumnsInRow.add((Column) column);
+                    }
+                }
+
+                if (indexedColumnsInRow != null && !indexedColumnsInRow.isEmpty())
+                {
+                    // acquire memtable lock here because secondary index deletion may cause a race. See CASSANDRA-3712
+                    Keyspace.switchLock.readLock().lock();
+                    try
+                    {
+                        cfs.indexManager.deleteFromIndexes(row.getKey(), indexedColumnsInRow);
+                    }
+                    finally
+                    {
+                        Keyspace.switchLock.readLock().unlock();
+                    }
+                }
+                return null;
+            }
         }
     }
 
@@ -844,6 +916,14 @@ public class CompactionManager implements CompactionManagerMBean
         public ValidationExecutor()
         {
             super(1, Integer.MAX_VALUE, "ValidationExecutor", new SynchronousQueue<Runnable>());
+        }
+    }
+
+    private static class CacheCleanupExecutor extends CompactionExecutor
+    {
+        public CacheCleanupExecutor()
+        {
+            super(1, "CacheCleanupExecutor");
         }
     }
 
