@@ -96,7 +96,7 @@ public class Memory
         long end = memoryOffset + count;
         checkPosition(end - 1);
 
-        unsafe.copyMemory(buffer, BYTE_ARRAY_BASE_OFFSET, null, peer + memoryOffset, count);
+        unsafe.copyMemory(buffer, BYTE_ARRAY_BASE_OFFSET + bufferOffset, null, peer + memoryOffset, count);
     }
 
     public byte getByte(long offset)
@@ -138,7 +138,7 @@ public class Memory
         long end = memoryOffset + count;
         checkPosition(end - 1);
 
-        unsafe.copyMemory(null, peer + memoryOffset, buffer, BYTE_ARRAY_BASE_OFFSET, count);
+        unsafe.copyMemory(null, peer + memoryOffset, buffer, BYTE_ARRAY_BASE_OFFSET + bufferOffset, count);
     }
 
     private void checkPosition(long offset)
