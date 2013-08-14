@@ -3,7 +3,7 @@
  * Log Merkle tree stats (CASSANDRA-2698)
  * Switch from crc32 to adler32 for compressed sstable checksums (CASSANDRA-5862)
  * Improve offheap memcpy performance (CASSANDRA-5884)
-
+ * Use a range aware scanner for cleanup (CASSANDRA-2524)
 
 2.0.0-rc2
  * enable vnodes by default (CASSANDRA-5869)

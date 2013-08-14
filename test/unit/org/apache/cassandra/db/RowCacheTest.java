@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import java.net.InetAddress;
 import java.util.Collection;
 
 import org.junit.AfterClass;
@@ -26,8 +27,12 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.dht.BytesToken;
+import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import static org.junit.Assert.assertEquals;
 
 public class RowCacheTest extends SchemaLoader
 {
@@ -134,7 +139,29 @@ public class RowCacheTest extends SchemaLoader
     public void testRowCacheLoad() throws Exception
     {
         CacheService.instance.setRowCacheCapacityInMB(1);
-        rowCacheLoad(100, Integer.MAX_VALUE);
+        rowCacheLoad(100, Integer.MAX_VALUE, 0);
+        CacheService.instance.setRowCacheCapacityInMB(0);
+    }
+
+    @Test
+    public void testRowCacheCleanup() throws Exception
+    {
+        StorageService.instance.initServer(0);
+        CacheService.instance.setRowCacheCapacityInMB(1);
+        rowCacheLoad(100, Integer.MAX_VALUE, 1000);
+
+        ColumnFamilyStore store = Keyspace.open(KEYSPACE).getColumnFamilyStore(COLUMN_FAMILY);
+        assertEquals(CacheService.instance.rowCache.getKeySet().size(), 100);
+        store.cleanupCache();
+        assertEquals(CacheService.instance.rowCache.getKeySet().size(), 100);
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        byte[] tk1, tk2;
+        tk1 = "key1000".getBytes();
+        tk2 = "key1050".getBytes();
+        tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
+        tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.2"));
+        store.cleanupCache();
+        assertEquals(CacheService.instance.rowCache.getKeySet().size(), 50);
         CacheService.instance.setRowCacheCapacityInMB(0);
     }
 
@@ -142,11 +169,11 @@ public class RowCacheTest extends SchemaLoader
     public void testRowCachePartialLoad() throws Exception
     {
         CacheService.instance.setRowCacheCapacityInMB(1);
-        rowCacheLoad(100, 50);
+        rowCacheLoad(100, 50, 0);
         CacheService.instance.setRowCacheCapacityInMB(0);
     }
 
-    public void rowCacheLoad(int totalKeys, int keysToSave) throws Exception
+    public void rowCacheLoad(int totalKeys, int keysToSave, int offset) throws Exception
     {
         CompactionManager.instance.disableAutoCompaction();
 
@@ -157,8 +184,8 @@ public class RowCacheTest extends SchemaLoader
         assert CacheService.instance.rowCache.size() == 0;
 
         // insert data and fill the cache
-        insertData(KEYSPACE, COLUMN_FAMILY, 0, totalKeys);
-        readData(KEYSPACE, COLUMN_FAMILY, 0, totalKeys);
+        insertData(KEYSPACE, COLUMN_FAMILY, offset, totalKeys);
+        readData(KEYSPACE, COLUMN_FAMILY, offset, totalKeys);
         assert CacheService.instance.rowCache.size() == totalKeys;
 
         // force the cache to disk
