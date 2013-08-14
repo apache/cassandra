@@ -111,15 +111,6 @@ public class DefsTables
 {
     private static final Logger logger = LoggerFactory.getLogger(DefsTables.class);
 
-    /* saves keyspace definitions to system schema columnfamilies */
-    public static synchronized void save(Collection<KSMetaData> keyspaces)
-    {
-        long timestamp = System.currentTimeMillis();
-
-        for (KSMetaData ksMetaData : keyspaces)
-            ksMetaData.toSchema(timestamp).apply();
-    }
-
     /**
      * Load keyspace definitions for the system keyspace (system.SCHEMA_KEYSPACES_CF)
      *
