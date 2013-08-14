@@ -17,12 +17,18 @@
  */
 package org.apache.cassandra.metrics;
 
+import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 
 public class CassandraMetricRegistry 
 {
     private static MetricRegistry defaultRegistry = new MetricRegistry();
+    static
+    {
+        JmxReporter reporter = JmxReporter.forRegistry(defaultRegistry).build();
+        reporter.start();
+    }
     
     private CassandraMetricRegistry()
     {  

@@ -85,7 +85,7 @@ public class RowIterationTest extends SchemaLoader
         rm.apply();
         store.forceBlockingFlush();
 
-        ColumnFamily cf = Util.getRangeSlice(store).iterator().next().cf;
+        ColumnFamily cf = Util.getRangeSlice(store).get(0).cf;
         assert cf.deletionInfo().equals(delInfo2);
     }
 
