@@ -82,7 +82,7 @@ public abstract class SegmentedFile
     /**
      * @return An Iterator over segments, beginning with the segment containing the given position: each segment must be closed after use.
      */
-    public Iterator<FileDataInput> iterator(long position, int bufferSize)
+    public Iterator<FileDataInput> iterator(long position)
     {
         return new SegmentIterator(position);
     }
