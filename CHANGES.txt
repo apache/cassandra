@@ -4,6 +4,9 @@
  * Switch from crc32 to adler32 for compressed sstable checksums (CASSANDRA-5862)
  * Improve offheap memcpy performance (CASSANDRA-5884)
  * Use a range aware scanner for cleanup (CASSANDRA-2524)
+ * Cleanup doesn't need to inspect sstables that contain only local data 
+   (CASSANDRA-5722)
+
 
 2.0.0-rc2
  * enable vnodes by default (CASSANDRA-5869)

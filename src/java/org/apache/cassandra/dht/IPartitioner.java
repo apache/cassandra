@@ -43,7 +43,8 @@ public interface IPartitioner<T extends Token>
     public Token midpoint(Token left, Token right);
 
     /**
-     * @return The minimum possible Token in the range that is being partitioned.
+     * @return A Token smaller than all others in the range that is being partitioned.
+     * Not legal to assign to a node or key.  (But legal to use in range scans.)
      */
     public T getMinimumToken();
 

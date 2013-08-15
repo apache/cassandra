@@ -39,7 +39,9 @@ import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
@@ -342,5 +344,115 @@ public class CompactionsTest extends SchemaLoader
 
         cf = cfs.getColumnFamily(filter);
         assert cf == null || cf.getColumnCount() == 0 : "should be empty: " + cf;
+    }
+
+    private static Range<Token> rangeFor(int start, int end)
+    {
+        return new Range<Token>(new BytesToken(String.format("%03d", start).getBytes()),
+                                new BytesToken(String.format("%03d", end).getBytes()));
+    }
+
+    private static Collection<Range<Token>> makeRanges(int ... keys)
+    {
+        Collection<Range<Token>> ranges = new ArrayList<Range<Token>>(keys.length / 2);
+        for (int i = 0; i < keys.length; i += 2)
+            ranges.add(rangeFor(keys[i], keys[i + 1]));
+        return ranges;
+    }
+
+    private static void insertRowWithKey(int key)
+    {
+        long timestamp = System.currentTimeMillis();
+        DecoratedKey decoratedKey = Util.dk(String.format("%03d", key));
+        RowMutation rm = new RowMutation(KEYSPACE1, decoratedKey.key);
+        rm.add("Standard1", ByteBufferUtil.bytes("col"), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp, 1000);
+        rm.apply();
+    }
+
+    @Test
+    public void testNeedsCleanup() throws IOException
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");
+        store.clearUnsafe();
+
+        // disable compaction while flushing
+        store.disableAutoCompaction();
+
+        // write three groups of 9 keys: 001, 002, ... 008, 009
+        //                               101, 102, ... 108, 109
+        //                               201, 202, ... 208, 209
+        for (int i = 1; i < 10; i++)
+        {
+            insertRowWithKey(i);
+            insertRowWithKey(i + 100);
+            insertRowWithKey(i + 200);
+        }
+        store.forceBlockingFlush();
+
+        assertEquals(1, store.getSSTables().size());
+        SSTableReader sstable = store.getSSTables().iterator().next();
+
+
+        // contiguous range spans all data
+        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(0, 209)));
+        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(0, 210)));
+
+        // separate ranges span all data
+        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
+                                                                       100, 109,
+                                                                       200, 209)));
+        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(0, 109,
+                                                                       200, 210)));
+        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
+                                                                       100, 210)));
+
+        // one range is missing completely
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(100, 109,
+                                                                      200, 209)));
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
+                                                                      200, 209)));
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
+                                                                      100, 109)));
+
+
+        // the beginning of one range is missing
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(1, 9,
+                                                                      100, 109,
+                                                                      200, 209)));
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
+                                                                      101, 109,
+                                                                      200, 209)));
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
+                                                                      100, 109,
+                                                                      201, 209)));
+
+        // the end of one range is missing
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(0, 8,
+                                                                      100, 109,
+                                                                      200, 209)));
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
+                                                                      100, 108,
+                                                                      200, 209)));
+        assertTrue(CompactionManager.needsCleanup(sstable, makeRanges(0, 9,
+                                                                      100, 109,
+                                                                      200, 208)));
+
+        // some ranges don't contain any data
+        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(0, 0,
+                                                                       0, 9,
+                                                                       50, 51,
+                                                                       100, 109,
+                                                                       150, 199,
+                                                                       200, 209,
+                                                                       300, 301)));
+        // same case, but with a middle range not covering some of the existing data
+        assertFalse(CompactionManager.needsCleanup(sstable, makeRanges(0, 0,
+                                                                       0, 9,
+                                                                       50, 51,
+                                                                       100, 103,
+                                                                       150, 199,
+                                                                       200, 209,
+                                                                       300, 301)));
     }
 }
