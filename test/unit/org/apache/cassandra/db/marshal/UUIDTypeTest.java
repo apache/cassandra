@@ -30,13 +30,14 @@ import java.util.UUID;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.junit.Test;
 
 public class UUIDTypeTest
 {
 
-    private static final Logger logger = Logger.getLogger(UUIDTypeTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(UUIDTypeTest.class);
 
     UUIDType uuidType = new UUIDType();
 

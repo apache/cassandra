@@ -1,0 +1,28 @@
+<configuration>
+  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>./build/test/logs/system.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+      <fileNamePattern>./build/test/logs/system.log.%i.zip</fileNamePattern>
+      <minIndex>1</minIndex>
+      <maxIndex>50</maxIndex>
+    </rollingPolicy>
+
+    <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+      <maxFileSize>20MB</maxFileSize>
+    </triggeringPolicy>
+    <encoder>
+      <pattern>%-5level [%thread] %date{ISO8601} %caller{1} - %msg%n</pattern>
+    </encoder>
+  </appender>
+  
+    <appender name="STDERR" target="System.err" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%-5level %date{HH:mm:ss,SSS} %msg%n</pattern>
+    </encoder>
+  </appender>
+        
+  <root level="DEBUG">
+    <appender-ref ref="FILE" />
+    <appender-ref ref="STDERR" />
+  </root>
+</configuration>

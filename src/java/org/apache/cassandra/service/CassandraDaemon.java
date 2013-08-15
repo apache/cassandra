@@ -21,8 +21,6 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -34,7 +32,6 @@ import javax.management.StandardMBean;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.SetMultimap;
 
-import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,11 +60,6 @@ import org.apache.cassandra.utils.Pair;
 public class CassandraDaemon
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=NativeAccess";
-    
-    static
-    {
-        initLog4j();
-    }
 
     // Have a dedicated thread to call exit to avoid deadlock in the case where the thread that wants to invoke exit
     // belongs to an executor that our shutdown hook wants to wait to exit gracefully. See CASSANDRA-5273.
@@ -78,50 +70,6 @@ public class CassandraDaemon
             System.exit(100);
         }
     }, "Exit invoker");
-
-    /**
-     * Initialize logging in such a way that it checks for config changes every 10 seconds.
-     */
-    public static void initLog4j()
-    {
-        if (System.getProperty("log4j.defaultInitOverride","false").equalsIgnoreCase("true"))
-        {
-            String config = System.getProperty("log4j.configuration", "log4j-server.properties");
-            URL configLocation = null;
-            try
-            {
-                // try loading from a physical location first.
-                configLocation = new URL(config);
-            }
-            catch (MalformedURLException ex)
-            {
-                // then try loading from the classpath.
-                configLocation = CassandraDaemon.class.getClassLoader().getResource(config);
-            }
-
-            if (configLocation == null)
-                throw new RuntimeException("Couldn't figure out log4j configuration: "+config);
-
-            // Now convert URL to a filename
-            String configFileName = null;
-            try
-            {
-                // first try URL.getFile() which works for opaque URLs (file:foo) and paths without spaces
-                configFileName = configLocation.getFile();
-                File configFile = new File(configFileName);
-                // then try alternative approach which works for all hierarchical URLs with or without spaces
-                if (!configFile.exists())
-                    configFileName = new File(configLocation.toURI()).getCanonicalPath();
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException("Couldn't convert log4j configuration location to a valid file", e);
-            }
-
-            PropertyConfigurator.configureAndWatch(configFileName, 10000);
-            org.apache.log4j.Logger.getLogger(CassandraDaemon.class).info("Logging initialized");
-        }
-    }
 
     private static final Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
 

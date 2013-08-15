@@ -344,7 +344,8 @@
           <dependency groupId="com.googlecode.concurrentlinkedhashmap" artifactId="concurrentlinkedhashmap-lru" version="1.3"/>
           <dependency groupId="org.antlr" artifactId="antlr" version="3.2"/>
           <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.7.2"/>
-          <dependency groupId="org.slf4j" artifactId="slf4j-log4j12" version="1.7.2"/>
+          <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.0.13"/>
+          <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.0.13"/>
           <dependency groupId="org.codehaus.jackson" artifactId="jackson-core-asl" version="1.9.2"/>
           <dependency groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl" version="1.9.2"/>
           <dependency groupId="jline" artifactId="jline" version="1.0">
@@ -368,7 +369,6 @@
 
           <dependency groupId="net.sourceforge.cobertura" artifactId="cobertura" version="${cobertura.version}"/>
 
-          <dependency groupId="log4j" artifactId="log4j" version="1.2.16" />
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift" version="${version}" />
           <dependency groupId="com.codahale.metrics" artifactId="metrics-core" version="3.0.1" />
@@ -453,9 +453,8 @@
       	<dependency groupId="com.codahale.metrics" artifactId="metrics-core"/>
         <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.0"/>
 
-        <dependency groupId="log4j" artifactId="log4j"/>
-        <!-- cassandra has a hard dependency on log4j, so force slf4j's log4j provider at runtime -->
-        <dependency groupId="org.slf4j" artifactId="slf4j-log4j12" scope="runtime"/>
+        <dependency groupId="ch.qos.logback" artifactId="logback-core"/>
+        <dependency groupId="ch.qos.logback" artifactId="logback-classic"/>
 
         <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
         <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift"/>
@@ -1006,7 +1005,6 @@
         <formatter type="xml" usefile="true"/>
         <formatter type="brief" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
-        <jvmarg value="-Dlog4j.configuration=log4j-junit.properties" />
         <jvmarg value="-Djava.awt.headless=true"/>
         <jvmarg value="-javaagent:${basedir}/lib/jamm-0.2.5.jar" />
         <jvmarg value="-ea"/>
@@ -1053,8 +1051,8 @@
         <pathelement location="${build.dir}/${ant.project.name}-thrift-${version}.jar" />
         <pathelement location="${build.lib}/libthrift-0.9.0.jar" />
         <pathelement location="${build.lib}/slf4j-api-1.7.2.jar" />
-        <pathelement location="${build.lib}/slf4j-log4j12-1.7.2.jar" />
-        <pathelement location="${build.lib}/log4j-1.2.16.jar" />
+        <pathelement location="${build.lib}/logback-core-1.0.13.jar" />
+        <pathelement location="${build.lib}/logback-classic-1.0.13.jar" />
         <pathelement location="${build.lib}/jackson-core-asl-1.9.2.jar" />
         <pathelement location="${build.lib}/jackson-mapper-asl-1.9.2.jar" />
         <fileset dir="${build.dir.lib}">
@@ -1129,7 +1127,7 @@
     <delete file="${cobertura.datafile}"/>
 
     <cobertura-instrument todir="${cobertura.classes.dir}" datafile="${cobertura.datafile}">
-      <ignore regex="org.apache.log4j.*"/>
+      <ignore regex="ch.qos.logback.*"/>
 
       <fileset dir="${build.classes.main}">
         <include name="**/*.class"/>
@@ -1165,7 +1163,7 @@
   </target>
 
   <target name="rat-check" depends="rat-init">
-    <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
+    <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"  
                 reportFile="${build.dir}/rat-report.log">
       <fileset dir="."  excludesfile=".rat-excludes" />
     </rat:report>
