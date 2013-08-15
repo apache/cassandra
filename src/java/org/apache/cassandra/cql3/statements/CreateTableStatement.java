@@ -212,8 +212,10 @@ public class CreateTableStatement extends SchemaAlteringStatement
                 stmt.columns.put(id, pt.getType()); // we'll remove what is not a column below
             }
 
-            if (keyAliases.size() != 1)
-                throw new InvalidRequestException("You must specify one and only one PRIMARY KEY");
+            if (keyAliases.isEmpty())
+                throw new InvalidRequestException("No PRIMARY KEY specifed (exactly one required)");
+            else if (keyAliases.size() > 1)
+                throw new InvalidRequestException("Multiple PRIMARY KEYs specifed (exactly one required)");
 
             List<ColumnIdentifier> kAliases = keyAliases.get(0);
 
