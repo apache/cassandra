@@ -16,7 +16,7 @@
 
 DESC="Cassandra"
 NAME=cassandra
-PIDFILE=/var/run/$NAME.pid
+PIDFILE=/var/run/$NAME/$NAME.pid
 SCRIPTNAME=/etc/init.d/$NAME
 CONFDIR=/etc/cassandra
 JSVC=/usr/bin/jsvc
@@ -125,34 +125,22 @@ do_start()
     #   0 if daemon has been started
     #   1 if daemon was already running
     #   2 if daemon could not be started
-    is_running && return 1
 
     ulimit -l unlimited
     ulimit -n "$FD_LIMIT"
 
     cassandra_home=`getent passwd cassandra | awk -F ':' '{ print $6; }'`
-    cd /    # jsvc doesn't chdir() for us
+    heap_dump_f="$cassandra_home/java_`date +%s`.hprof"
+    error_log_f="$cassandra_home/hs_err_`date +%s`.log"
 
-    $JSVC \
-        -user cassandra \
-        -home $JAVA_HOME \
-        -pidfile $PIDFILE \
-        -errfile "&1" \
-        -outfile /var/log/$NAME/output.log \
-        -cp `classpath` \
-        -Dlog4j.configuration=log4j-server.properties \
-        -Dlog4j.defaultInitOverride=true \
-        -XX:HeapDumpPath="$cassandra_home/java_`date +%s`.hprof" \
-        -XX:ErrorFile="$cassandra_home/hs_err_`date +%s`.log" \
-        $JVM_OPTS \
-        org.apache.cassandra.service.CassandraDaemon
+    [ -e `dirname "PIDFILE"` ] || \
+        install -d -ocassandra -gcassandra -m750 `dirname $PIDFILE`
 
-    is_running && return 0
-    for tries in `seq $WAIT_FOR_START`; do
-        sleep 1
-        is_running && return 0
-    done
-    return 2
+    start-stop-daemon -S -c cassandra -a /usr/sbin/cassandra -q -p "$PIDFILE" -t >/dev/null || return 1
+
+    start-stop-daemon -S -c cassandra -a /usr/sbin/cassandra -b -p "$PIDFILE" -- \
+        -p "$PIDFILE" -H "$heap_dump_f" -E "$error_log_f" >/dev/null || return 2
+
 }
 
 #
@@ -160,15 +148,15 @@ do_start()
 #
 do_stop()
 {
-	# Return
-	#   0 if daemon has been stopped
-	#   1 if daemon was already stopped
-	#   2 if daemon could not be stopped
-	#   other if a failure occurred
-    is_running || return 1
-    $JSVC -stop -home $JAVA_HOME -pidfile $PIDFILE \
-            org.apache.cassandra.service.CassandraDaemon
-    is_running && return 2 || return 0
+    # Return
+    #   0 if daemon has been stopped
+    #   1 if daemon was already stopped
+    #   2 if daemon could not be stopped
+    #   other if a failure occurred
+    start-stop-daemon -K -p "$PIDFILE" -R TERM/30/KILL/5 >/dev/null
+    RET=$?
+    rm -f "$PIDFILE"
+    return $RET
 }
 
 case "$1" in
