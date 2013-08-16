@@ -122,6 +122,9 @@ public class Auth
      */
     public static void setup()
     {
+        if (DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator)
+            return;
+
         setupAuthKeyspace();
         setupUsersTable();
 
