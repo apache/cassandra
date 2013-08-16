@@ -223,7 +223,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
 <unclosedString>  ::= /'([^']|'')*/ ;
 <unclosedName>    ::= /"([^"]|"")*/ ;
-<unclosedComment> ::= /[/][*][^\n]*$/ ;
+<unclosedComment> ::= /[/][*].*$/ ;
 
 <term> ::= <stringLiteral>
          | <integer>
