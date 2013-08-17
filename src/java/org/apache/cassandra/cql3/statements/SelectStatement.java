@@ -350,12 +350,6 @@ public class SelectStatement implements CQLStatement
             }
             else
             {
-                // The IN query might not have listed the values in comparator order, so we need to re-sort
-                // the bounds lists to make sure the slices works correctly
-                Comparator<ByteBuffer> cmp = isReversed ? cfDef.cfm.comparator.reverseComparator : cfDef.cfm.comparator;
-                Collections.sort(startBounds, cmp);
-                Collections.sort(endBounds, cmp);
-
                 List<ColumnSlice> l = new ArrayList<ColumnSlice>(startBounds.size());
                 for (int i = 0; i < startBounds.size(); i++)
                 {
@@ -368,12 +362,7 @@ public class SelectStatement implements CQLStatement
                 slices = l.toArray(new ColumnSlice[l.size()]);
             }
 
-            SliceQueryFilter filter = new SliceQueryFilter(slices,
-                                                           isReversed,
-                                                           getLimit(),
-                                                           toGroup,
-                                                           multiplier);
-            return filter;
+            return new SliceQueryFilter(slices, isReversed, getLimit(), toGroup, multiplier);
         }
         else
         {
@@ -581,12 +570,12 @@ public class SelectStatement implements CQLStatement
         return false;
     }
 
-    private static List<ByteBuffer> buildBound(Bound bound,
-                                               Collection<CFDefinition.Name> names,
-                                               Restriction[] restrictions,
-                                               boolean isReversed,
-                                               ColumnNameBuilder builder,
-                                               List<ByteBuffer> variables) throws InvalidRequestException
+    private List<ByteBuffer> buildBound(Bound bound,
+                                        Collection<CFDefinition.Name> names,
+                                        Restriction[] restrictions,
+                                        boolean isReversed,
+                                        ColumnNameBuilder builder,
+                                        List<ByteBuffer> variables) throws InvalidRequestException
     {
         // The end-of-component of composite doesn't depend on whether the
         // component type is reversed or not (i.e. the ReversedType is applied
@@ -616,7 +605,9 @@ public class SelectStatement implements CQLStatement
                 {
                     // IN query, we only support it on the clustering column
                     assert name.position == names.size() - 1;
-                    List<ByteBuffer> l = new ArrayList<ByteBuffer>(r.eqValues.size());
+                    // The IN query might not have listed the values in comparator order, so we need to re-sort
+                    // the bounds lists to make sure the slices works correctly (also, to avoid duplicates).
+                    TreeSet<ByteBuffer> s = new TreeSet<ByteBuffer>(isReversed ? cfDef.cfm.comparator.reverseComparator : cfDef.cfm.comparator);
                     for (Term t : r.eqValues)
                     {
                         ByteBuffer val = t.bindAndGet(variables);
@@ -624,9 +615,9 @@ public class SelectStatement implements CQLStatement
                             throw new InvalidRequestException(String.format("Invalid null clustering key part %s", name));
                         ColumnNameBuilder copy = builder.copy().add(val);
                         // See below for why this
-                        l.add((bound == Bound.END && copy.remainingCount() > 0) ? copy.buildAsEndOfRange() : copy.build());
+                        s.add((bound == Bound.END && copy.remainingCount() > 0) ? copy.buildAsEndOfRange() : copy.build());
                     }
-                    return l;
+                    return new ArrayList<ByteBuffer>(s);
                 }
 
                 ByteBuffer val = r.eqValues.get(0).bindAndGet(variables);
