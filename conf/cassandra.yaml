@@ -348,12 +348,16 @@ native_transport_port: 9042
 # Whether to start the thrift rpc server.
 start_rpc: true
 
-# The address to bind the Thrift RPC service to -- clients connect
-# here. Unlike ListenAddress above, you _can_ specify 0.0.0.0 here if
-# you want Thrift to listen on all interfaces.
-# 
+# The address to bind the Thrift RPC service and native transport
+# server -- clients connect here.
+#
 # Leaving this blank has the same effect it does for ListenAddress,
 # (i.e. it will be based on the configured hostname of the node).
+#
+# Note that unlike ListenAddress above, it is allowed to specify 0.0.0.0
+# here if you want to listen on all interfaces but is not best practice
+# as it is known to confuse the node auto-discovery features of some
+# client drivers.
 rpc_address: localhost
 # port for Thrift to listen for clients on
 rpc_port: 9160
