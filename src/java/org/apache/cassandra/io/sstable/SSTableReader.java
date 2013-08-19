@@ -593,6 +593,8 @@ public class SSTableReader extends SSTable
 
     public long getBloomFilterSerializedSize()
     {
+        if (bf instanceof AlwaysPresentFilter)
+            return 0;
         return FilterFactory.serializedSize(bf, descriptor.version.filterType);
     }
 
