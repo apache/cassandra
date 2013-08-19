@@ -8,6 +8,11 @@
    (CASSANDRA-5722)
 
 
+2.0.0
+Merged from 1.2:
+ * Fix getBloomFilterDiskSpaceUsed for AlwaysPresentFilter (CASSANDRA-5900)
+
+
 2.0.0-rc2
  * enable vnodes by default (CASSANDRA-5869)
  * fix CAS contention timeout (CASSANDRA-5830)
