@@ -229,9 +229,9 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Scrub (deserialize + reserialize at the latest version, skipping bad rows if any) the given keyspace.
      * If columnFamilies array is empty, all CFs are scrubbed.
      *
-     * Scrubbed CFs will be snapshotted first.
+     * Scrubbed CFs will be snapshotted first, if disableSnapshot is false
      */
-    public void scrub(String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
+    public void scrub(boolean disableSnapshot, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Rewrite all sstables to the latest version.

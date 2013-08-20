@@ -1038,9 +1038,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         CompactionManager.instance.performCleanup(ColumnFamilyStore.this, renewer);
     }
 
-    public void scrub() throws ExecutionException, InterruptedException
+    public void scrub(boolean disableSnapshot) throws ExecutionException, InterruptedException
     {
-        snapshotWithoutFlush("pre-scrub-" + System.currentTimeMillis());
+        // skip snapshot creation during scrub, SEE JIRA 5891
+        if(!disableSnapshot)
+            snapshotWithoutFlush("pre-scrub-" + System.currentTimeMillis());
         CompactionManager.instance.performScrub(ColumnFamilyStore.this);
     }
 
