@@ -65,7 +65,7 @@ public class OpenBitSet implements IBitSet
    */
   public OpenBitSet(long numBits)
   {
-      wlen = bits2words(numBits);
+      wlen = (int) bits2words(numBits);
       int lastPageSize = wlen % PAGE_SIZE;
       int fullPageCount = wlen / PAGE_SIZE;
       pageCount = fullPageCount + (lastPageSize == 0 ? 0 : 1);
@@ -339,8 +339,8 @@ public class OpenBitSet implements IBitSet
   }
 
   /** returns the number of 64 bit words it would take to hold numBits */
-  public static int bits2words(long numBits) {
-   return (int)(((numBits-1)>>>6)+1);
+  public static long bits2words(long numBits) {
+   return (((numBits-1)>>>6)+1);
   }
 
   /** returns true if both sets have the same bits set */
