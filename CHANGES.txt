@@ -62,6 +62,9 @@ Merged from 1.2:
  * cqlsh: add support for multiline comments (CASSANDRA-5798)
  * Handle CQL3 SELECT duplicate IN restrictions on clustering columns
    (CASSANDRA-5856)
+ * Don't announce schema version until we've loaded the changes locally
+   (CASSANDRA-5904)
+ * Add -no-snapshot option to scrub (CASSANDRA-5891)
 Merged from 1.1:
  * Correctly validate sparse composite cells in scrub (CASSANDRA-5855)
 
