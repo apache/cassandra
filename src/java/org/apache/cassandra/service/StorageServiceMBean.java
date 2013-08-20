@@ -236,7 +236,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      *
      * Scrubbed CFs will be snapshotted first.
      */
-    public void scrub(String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
+    public void scrub(boolean disableSnapshot, String tableName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Rewrite all sstables to the latest version.

@@ -70,6 +70,7 @@ public class NodeCmd
     private static final Pair<String, String> START_TOKEN_OPT = Pair.create("st", "start-token");
     private static final Pair<String, String> END_TOKEN_OPT = Pair.create("et", "end-token");
     private static final Pair<String, String> UPGRADE_ALL_SSTABLE_OPT = Pair.create("a", "include-all-sstables");
+    private static final Pair<String, String> NO_SNAPSHOT = Pair.create("ns", "no-snapshot");
 
     private static final String DEFAULT_HOST = "127.0.0.1";
     private static final int DEFAULT_PORT = 7199;
@@ -93,6 +94,7 @@ public class NodeCmd
         options.addOption(START_TOKEN_OPT, true, "token at which repair range starts");
         options.addOption(END_TOKEN_OPT, true, "token at which repair range ends");
         options.addOption(UPGRADE_ALL_SSTABLE_OPT, false, "includes sstables that are already on the most recent version during upgradesstables");
+        options.addOption(NO_SNAPSHOT, false, "disables snapshot creation for scrub");
     }
 
     public NodeCmd(NodeProbe probe)
@@ -1497,7 +1499,8 @@ public class NodeCmd
                     catch (ExecutionException ee) { err(ee, "Error occurred during cleanup"); }
                     break;
                 case SCRUB :
-                    try { probe.scrub(keyspace, columnFamilies); }
+                    boolean disableSnapshot = cmd.hasOption(NO_SNAPSHOT.left);
+                    try { probe.scrub(disableSnapshot, keyspace, columnFamilies); }
                     catch (ExecutionException ee) { err(ee, "Error occurred while scrubbing keyspace " + keyspace); }
                     break;
                 case UPGRADESSTABLES :

@@ -22,6 +22,7 @@
    (CASSANDRA-5856)
  * Don't announce schema version until we've loaded the changes locally
    (CASSANDRA-5904)
+ * Add -no-snapshot option to scrub (CASSANDRA-5891)
 Merged from 1.1:
  * Correctly validate sparse composite cells in scrub (CASSANDRA-5855)
 
