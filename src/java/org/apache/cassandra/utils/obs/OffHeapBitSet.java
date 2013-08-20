@@ -36,8 +36,15 @@ public class OffHeapBitSet implements IBitSet
     public OffHeapBitSet(long numBits)
     {
         // OpenBitSet.bits2words calculation is there for backward compatibility.
-        int byteCount = OpenBitSet.bits2words(numBits) * 8;
-        bytes = RefCountedMemory.allocate(byteCount);
+        long byteCount = OpenBitSet.bits2words(numBits) * 8L;
+        try
+        {
+            bytes = RefCountedMemory.allocate(byteCount);
+        }
+        catch (OutOfMemoryError e)
+        {
+            throw new RuntimeException("Out of native memory occured, You can avoid it by increasing the system ram space or by increasing bloom_filter_fp_chance.");
+        }
         // flush/clear the existing memory.
         clear();
     }
