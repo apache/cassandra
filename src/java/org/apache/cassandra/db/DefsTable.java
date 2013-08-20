@@ -348,8 +348,6 @@ public class DefsTable
         if (!StorageService.instance.isClientMode())
             flushSchemaCFs();
 
-        Schema.instance.updateVersionAndAnnounce();
-
         // with new data applied
         Map<DecoratedKey, ColumnFamily> newKeyspaces = SystemTable.getSchema(SystemTable.SCHEMA_KEYSPACES_CF);
         Map<DecoratedKey, ColumnFamily> newColumnFamilies = SystemTable.getSchema(SystemTable.SCHEMA_COLUMNFAMILIES_CF);
@@ -361,6 +359,7 @@ public class DefsTable
         for (String keyspaceToDrop : keyspacesToDrop)
             dropKeyspace(keyspaceToDrop);
 
+        Schema.instance.updateVersionAndAnnounce();
     }
 
     private static Set<String> mergeKeyspaces(Map<DecoratedKey, ColumnFamily> old, Map<DecoratedKey, ColumnFamily> updated)
