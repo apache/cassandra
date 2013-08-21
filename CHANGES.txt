@@ -14,6 +14,8 @@ Merged from 1.2:
  * Fix getBloomFilterDiskSpaceUsed for AlwaysPresentFilter (CASSANDRA-5900)
  * Don't announce schema version until we've loaded the changes locally
    (CASSANDRA-5904)
+ * Fix to support off heap bloom filters size greater than 2 GB (CASSANDRA-5903)
+ * Properly handle parsing huge map and set literals (CASSANDRA-5893)
 
 
 2.0.0-rc2
@@ -55,18 +57,10 @@ Merged from 1.2:
  * Future-proof inter-major-version schema migrations (CASSANDRA-5845)
  * (Hadoop) add CqlPagingRecordReader support for ReversedType in Thrift table
    (CASSANDRA-5718)
- * Add KeyCacheHitRate metric to CF metrics (CASSANDRA-5868)
- * cqlsh: add support for multiline comments (CASSANDRA-5798)
- * Handle CQL3 SELECT duplicate IN restrictions on clustering columns
-   (CASSANDRA-5856)
- * Don't announce schema version until we've loaded the changes locally
-   (CASSANDRA-5904)
  * Add -no-snapshot option to scrub (CASSANDRA-5891)
 Merged from 1.1:
  * Correctly validate sparse composite cells in scrub (CASSANDRA-5855)
 
-1.2.9
- * Fix to support off heap bloom filters size greater than 2 GB (CASSANDRA-5903)
 
 1.2.8
  * Fix reading DeletionTime from 1.1-format sstables (CASSANDRA-5814)
