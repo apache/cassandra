@@ -530,13 +530,13 @@ public class LeveledManifest
                 // if the overlapping ones are already busy in a compaction, leave it out.
                 // TODO try to find a set of L0 sstables that only overlaps with non-busy L1 sstables
                 candidates = Sets.union(candidates, overlapping(candidates, generations[1]));
-                // check overlap with L0 compacting sstables to make sure we are not generating overlap in L1.
-                Iterable<SSTableReader> compactingL0 = Iterables.filter(generations[0], Predicates.in(compacting));
-                if (!Sets.intersection(candidates, compacting).isEmpty() || !overlapping(candidates, compactingL0).isEmpty())
-                    return Collections.emptyList();
             }
-
-            return candidates.size() > 1 ? candidates : Collections.<SSTableReader>emptyList();
+            // check overlap with L0 compacting sstables to make sure we are not generating overlap in L1.
+            Iterable<SSTableReader> compactingL0 = Iterables.filter(generations[0], Predicates.in(compacting));
+            if (candidates.size() < 2 || !Sets.intersection(candidates, compacting).isEmpty() || !overlapping(candidates, compactingL0).isEmpty())
+                return Collections.emptyList();
+            else
+                return candidates;
         }
 
         // for non-L0 compactions, pick up where we left off last time
