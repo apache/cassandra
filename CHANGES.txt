@@ -63,6 +63,9 @@ Merged from 1.2:
  * (Hadoop) add CqlPagingRecordReader support for ReversedType in Thrift table
    (CASSANDRA-5718)
  * Add -no-snapshot option to scrub (CASSANDRA-5891)
+ * Fix to support off heap bloom filters size greater than 2 GB (CASSANDRA-5903)
+ * Properly handle parsing huge map and set literals (CASSANDRA-5893)
+ * Fix LCS L0 compaction may overlap in L1 (CASSANDRA-5907)
 Merged from 1.1:
  * Correctly validate sparse composite cells in scrub (CASSANDRA-5855)
 
