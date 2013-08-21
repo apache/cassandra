@@ -1,6 +1,6 @@
 <link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
-h1. Cassandra Query Language (CQL) v3.1.0
+h1. Cassandra Query Language (CQL) v3.1.1
 
 
  <span id="tableOfContents">
@@ -604,7 +604,7 @@ bc(syntax)..
                   ( LIMIT <integer> )?
                   ( ALLOW FILTERING )?
 
-<select-clause> ::= <selection-list>
+<select-clause> ::= DISTINCT? <selection-list>
                   | COUNT '(' ( '*' | '1' ) ')' (AS <identifier>)?
 
 <selection-list> ::= <selector> (AS <identifier>)? ( ',' <selector> (AS <identifier>)? )*
@@ -1077,11 +1077,16 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @WHERE@        | yes |
 | @WITH@         | yes |
 | @WRITETIME@    | no  |
+| @DISTINCT@     | no  |
 
 
 h2(#changes). Changes
 
 The following describes the addition/changes brought for each version of CQL.
+
+h3. 3.1.1
+
+* @SELECT@ statement now allows listing the partition keys (using the @DISTINCT@ modifier). See "CASSANDRA-4536":https://issues.apache.org/jira/browse/CASSANDRA-4536.
 
 h3. 3.1.0
 

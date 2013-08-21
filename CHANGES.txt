@@ -10,6 +10,7 @@
  * Use a range aware scanner for cleanup (CASSANDRA-2524)
  * Cleanup doesn't need to inspect sstables that contain only local data 
    (CASSANDRA-5722)
+ * Add ability for CQL3 to list partition keys (CASSANDRA-4536)
 
 
 2.0.0
