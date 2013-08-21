@@ -483,8 +483,10 @@ bc(syntax)..
                | <identifier> '=' <identifier> '+' <map-literal>
                | <identifier> '[' <term> ']' '=' <term>
 
-<where-clause> ::= <identifier> '=' <term>
-                 | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
+<where-clause> ::= <relation> ( AND <relation> )*
+
+<relation> ::= <identifier> '=' <term>
+             | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
 
 <option> ::= TIMESTAMP <integer>
            | TTL <integer>
@@ -500,7 +502,7 @@ WHERE movie = 'Serenity';
 
 UPDATE UserActions SET total = total + 2 WHERE user = B70DE1D0-9908-4AE3-BE34-5573E5B09F14 AND action = 'click';
 p. 
-The @UPDATE@ statement writes one or more columns for a given row in a table. The @<where-clause>@ is used to select the row to update and must include all columns composing the @PRIMARY KEY@. Other columns values are specified through @<assignment>@ after the @SET@ keyword.
+The @UPDATE@ statement writes one or more columns for a given row in a table. The @<where-clause>@ is used to select the row to update and must include all columns composing the @PRIMARY KEY@ (the @IN@ relation is only supported for the last column of the partition key). Other columns values are specified through @<assignment>@ after the @SET@ keyword.
 
 Note that unlike in SQL, @UPDATE@ does not check the prior existence of the row by default: the row is created if none existed before, and updated otherwise. Furthermore, there is no mean to know which of creation or update happened.
 
@@ -531,8 +533,10 @@ bc(syntax)..
 
 <selection> ::= <identifier> ( '[' <term> ']' )?
 
-<where-clause> ::= <identifier> '=' <term>
-                 | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
+<where-clause> ::= <relation> ( AND <relation> )*
+
+<relation> ::= <identifier> '=' <term>
+             | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
 p. 
 __Sample:__
 
@@ -541,7 +545,7 @@ DELETE FROM NerdMovies USING TIMESTAMP 1240003134 WHERE movie = 'Serenity';
 
 DELETE phone FROM Users WHERE userid IN (C73DE1D3-AF08-40F3-B124-3FF3E5109F22, B70DE1D0-9908-4AE3-BE34-5573E5B09F14);
 p. 
-The @DELETE@ statement deletes columns and rows. If column names are provided directly after the @DELETE@ keyword, only those columns are deleted from the row indicated by the @<where-clause>@ (the @id[value]@ syntax in @<selection>@ is for collection, please refer to the "collection section":#collections for more details).  Otherwise whole rows are removed. The @<where-clause>@ allows to specify the key for the row(s) to delete.
+The @DELETE@ statement deletes columns and rows. If column names are provided directly after the @DELETE@ keyword, only those columns are deleted from the row indicated by the @<where-clause>@ (the @id[value]@ syntax in @<selection>@ is for collection, please refer to the "collection section":#collections for more details).  Otherwise whole rows are removed. The @<where-clause>@ allows to specify the key for the row(s) to delete (the @IN@ relation is only supported for the last column of the partition key).
 
 @DELETE@ supports the @TIMESTAMP@ options with the same semantic that in the "@UPDATE@":#updateStmt statement.
 
@@ -611,11 +615,11 @@ bc(syntax)..
              | TTL '(' <identifier> ')'
              | <function> '(' (<selector> (',' <selector>)*)? ')'
 
-<where-clause> ::= <relation> ( "AND" <relation> )*
+<where-clause> ::= <relation> ( AND <relation> )*
 
-<relation> ::= <identifier> ("=" | "<" | ">" | "<=" | ">=") <term>
+<relation> ::= <identifier> ('=' | '<' | '>' | '<=' | '>=') <term>
              | <identifier> IN '(' ( <term> ( ',' <term>)* )? ')'
-             | TOKEN '(' <identifier> ')' ("=" | "<" | ">" | "<=" | ">=") (<term> | TOKEN '( <term> ')' )
+             | TOKEN '(' <identifier> ')' ('=' | '<' | '>' | '<=' | '>=') (<term> | TOKEN '(' <term> ')' )
 
 <order-by> ::= <ordering> ( ',' <odering> )*
 <ordering> ::= <identifer> ( ASC | DESC )?
@@ -682,6 +686,8 @@ When specifying relations, the @TOKEN@ function can be used on the @PARTITION KE
 
 bc(sample). 
 SELECT * FROM posts WHERE token(userid) > token('tom') AND token(userid) < token('bob')
+
+Moreover, the @IN@ relation is only allowed on the last column of the partition key and on the last column of the full primary key.
 
 h4(#selectOrderBy). @<order-by>@
 
