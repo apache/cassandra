@@ -242,7 +242,7 @@ public class ThriftValidation
                 int columnIndex = composite.types.size() - (cfDef.hasCollections ? 2 : 1);
                 ByteBuffer CQL3ColumnName = components[columnIndex];
                 ColumnIdentifier columnId = new ColumnIdentifier(CQL3ColumnName, composite.types.get(columnIndex));
-                if (cfDef.columns.get(columnId) == null)
+                if (cfDef.metadata.get(columnId) == null)
                     throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Invalid cell for CQL3 table %s. The CQL3 column component (%s) does not correspond to a defined CQL3 column",
                                                                                                     metadata.cfName, columnId));
 
