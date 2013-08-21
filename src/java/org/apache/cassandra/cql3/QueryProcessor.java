@@ -281,13 +281,14 @@ public class QueryProcessor
         }
         catch (RuntimeException re)
         {
-            SyntaxException ire = new SyntaxException("Failed parsing statement: [" + queryStr + "] reason: " + re.getClass().getSimpleName() + " " + re.getMessage());
-            throw ire;
+            throw new SyntaxException(String.format("Failed parsing statement: [%s] reason: %s %s",
+                                                    queryStr,
+                                                    re.getClass().getSimpleName(),
+                                                    re.getMessage()));
         }
         catch (RecognitionException e)
         {
-            SyntaxException ire = new SyntaxException("Invalid or malformed CQL query string: " + e.getMessage());
-            throw ire;
+            throw new SyntaxException("Invalid or malformed CQL query string: " + e.getMessage());
         }
     }
 }
