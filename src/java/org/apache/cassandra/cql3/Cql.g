@@ -212,13 +212,14 @@ useStatement returns [UseStatement stmt]
  */
 selectStatement returns [SelectStatement.RawStatement expr]
     @init {
+        boolean isDistinct = false;
         boolean isCount = false;
         ColumnIdentifier countAlias = null;
         Term.Raw limit = null;
         Map<ColumnIdentifier, Boolean> orderings = new LinkedHashMap<ColumnIdentifier, Boolean>();
         boolean allowFiltering = false;
     }
-    : K_SELECT ( sclause=selectClause
+    : K_SELECT ( ( K_DISTINCT { isDistinct = true; } )? sclause=selectClause
                | (K_COUNT '(' sclause=selectCountClause ')' { isCount = true; } (K_AS c=cident { countAlias = c; })?) )
       K_FROM cf=columnFamilyName
       ( K_WHERE wclause=whereClause )?
@@ -227,6 +228,7 @@ selectStatement returns [SelectStatement.RawStatement expr]
       ( K_ALLOW K_FILTERING  { allowFiltering = true; } )?
       {
           SelectStatement.Parameters params = new SelectStatement.Parameters(orderings,
+                                                                             isDistinct,
                                                                              isCount,
                                                                              countAlias,
                                                                              allowFiltering);
@@ -939,6 +941,7 @@ unreserved_function_keyword returns [String str]
         | K_EXISTS
         | K_CUSTOM
         | K_TRIGGER
+        | K_DISTINCT
         ) { $str = $k.text; }
     | t=native_type { $str = t.toString(); }
     ;
@@ -957,6 +960,7 @@ K_WITH:        W I T H;
 K_LIMIT:       L I M I T;
 K_USING:       U S I N G;
 K_USE:         U S E;
+K_DISTINCT:    D I S T I N C T;
 K_COUNT:       C O U N T;
 K_SET:         S E T;
 K_BEGIN:       B E G I N;

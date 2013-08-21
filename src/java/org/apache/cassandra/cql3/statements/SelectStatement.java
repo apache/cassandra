@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.base.Objects;
 import com.google.common.base.Predicate;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterables;
@@ -80,7 +81,7 @@ public class SelectStatement implements CQLStatement
     private Map<CFDefinition.Name, Integer> orderingIndexes;
 
     // Used by forSelection below
-    private static final Parameters defaultParameters = new Parameters(Collections.<ColumnIdentifier, Boolean>emptyMap(), false, null, false);
+    private static final Parameters defaultParameters = new Parameters(Collections.<ColumnIdentifier, Boolean>emptyMap(), false, false, null, false);
 
     private static enum Bound
     {
@@ -306,7 +307,7 @@ public class SelectStatement implements CQLStatement
         AbstractBounds<RowPosition> keyBounds = getKeyBounds(variables);
         return keyBounds == null
              ? null
-             : new RangeSliceCommand(keyspace(), columnFamily(), now,  filter, keyBounds, expressions, limit, true, false);
+             : new RangeSliceCommand(keyspace(), columnFamily(), now,  filter, keyBounds, expressions, limit, !parameters.isDistinct, false);
     }
 
     private AbstractBounds<RowPosition> getKeyBounds(List<ByteBuffer> variables) throws InvalidRequestException
@@ -369,7 +370,11 @@ public class SelectStatement implements CQLStatement
     private IDiskAtomFilter makeFilter(List<ByteBuffer> variables, int limit)
     throws InvalidRequestException
     {
-        if (isColumnRange())
+        if (parameters.isDistinct)
+        {
+            return new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, false, 1, -1);
+        }
+        else if (isColumnRange())
         {
             // For sparse, we used to ask for 'defined columns' * 'asked limit' (where defined columns includes the row marker)
             // to account for the grouping of columns.
@@ -826,7 +831,7 @@ public class SelectStatement implements CQLStatement
             if (row.cf == null)
                 continue;
 
-            processColumnFamily(row.key.key, row.cf, variables, limit, now, result);
+            processColumnFamily(row.key.key, row.cf, variables, now, result);
         }
 
         ResultSet cqlRows = result.build();
@@ -843,13 +848,24 @@ public class SelectStatement implements CQLStatement
     }
 
     // Used by ModificationStatement for CAS operations
-    void processColumnFamily(ByteBuffer key, ColumnFamily cf, List<ByteBuffer> variables, int limit, long now, Selection.ResultSetBuilder result) throws InvalidRequestException
+    void processColumnFamily(ByteBuffer key, ColumnFamily cf, List<ByteBuffer> variables, long now, Selection.ResultSetBuilder result)
+    throws InvalidRequestException
     {
         ByteBuffer[] keyComponents = cfDef.hasCompositeKey
                                    ? ((CompositeType)cfDef.cfm.getKeyValidator()).split(key)
                                    : new ByteBuffer[]{ key };
 
-        if (cfDef.isCompact)
+        if (parameters.isDistinct)
+        {
+            if (!cf.hasOnlyTombstones(now))
+            {
+                result.newRow();
+                // selection.getColumnsList() will contain only the partition key components - all of them.
+                for (CFDefinition.Name name : selection.getColumnsList())
+                    result.add(keyComponents[name.position]);
+            }
+        }
+        else if (cfDef.isCompact)
         {
             // One cqlRow per column
             for (Column c : columnsInOrder(cf, variables))
@@ -1054,6 +1070,9 @@ public class SelectStatement implements CQLStatement
             Selection selection = selectClause.isEmpty()
                                 ? Selection.wildcard(cfDef)
                                 : Selection.fromSelectors(cfDef, selectClause);
+
+            if (parameters.isDistinct)
+                validateDistinctSelection(selection.getColumnsList(), cfDef.keys.values());
 
             Term prepLimit = null;
             if (limit != null)
@@ -1370,6 +1389,18 @@ public class SelectStatement implements CQLStatement
             return new ParsedStatement.Prepared(stmt, Arrays.<ColumnSpecification>asList(names));
         }
 
+        private void validateDistinctSelection(Collection<CFDefinition.Name> requestedColumns, Collection<CFDefinition.Name> partitionKey)
+        throws InvalidRequestException
+        {
+            for (CFDefinition.Name name : requestedColumns)
+                if (!partitionKey.contains(name))
+                    throw new InvalidRequestException(String.format("SELECT DISTINCT queries must only request partition key columns (not %s)", name));
+
+            for (CFDefinition.Name name : partitionKey)
+                if (!requestedColumns.contains(name))
+                    throw new InvalidRequestException(String.format("SELECT DISTINCT queries must request all the partition key columns (missing %s)", name));
+        }
+
         private boolean containsAlias(final ColumnIdentifier name)
         {
             return Iterables.any(selectClause, new Predicate<RawSelector>()
@@ -1443,11 +1474,13 @@ public class SelectStatement implements CQLStatement
         @Override
         public String toString()
         {
-            return String.format("SelectRawStatement[name=%s, selectClause=%s, whereClause=%s, isCount=%s]",
-                    cfName,
-                    selectClause,
-                    whereClause,
-                    parameters.isCount);
+            return Objects.toStringHelper(this)
+                          .add("name", cfName)
+                          .add("selectClause", selectClause)
+                          .add("whereClause", whereClause)
+                          .add("isDistinct", parameters.isDistinct)
+                          .add("isCount", parameters.isCount)
+                          .toString();
         }
     }
 
@@ -1592,13 +1625,19 @@ public class SelectStatement implements CQLStatement
     public static class Parameters
     {
         private final Map<ColumnIdentifier, Boolean> orderings;
+        private final boolean isDistinct;
         private final boolean isCount;
         private final ColumnIdentifier countAlias;
         private final boolean allowFiltering;
 
-        public Parameters(Map<ColumnIdentifier, Boolean> orderings, boolean isCount, ColumnIdentifier countAlias, boolean allowFiltering)
+        public Parameters(Map<ColumnIdentifier, Boolean> orderings,
+                          boolean isDistinct,
+                          boolean isCount,
+                          ColumnIdentifier countAlias,
+                          boolean allowFiltering)
         {
             this.orderings = orderings;
+            this.isDistinct = isDistinct;
             this.isCount = isCount;
             this.countAlias = countAlias;
             this.allowFiltering = allowFiltering;
