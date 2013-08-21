@@ -68,7 +68,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         cfs.getDataTracker().subscribe(this);
         logger.debug("{} subscribed to the data tracker.", this);
 
-        manifest = LeveledManifest.create(cfs, this.maxSSTableSizeInMB, Collections.<SSTableReader>emptyList(), localOptions);
+        manifest = LeveledManifest.create(cfs, this.maxSSTableSizeInMB, cfs.getSSTables(), localOptions);
         logger.debug("Created {}", manifest);
     }
 
