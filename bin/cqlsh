@@ -32,7 +32,7 @@ exit 1
 from __future__ import with_statement
 
 description = "CQL Shell for Apache Cassandra"
-version = "4.0.0"
+version = "4.0.1"
 
 from StringIO import StringIO
 from itertools import groupby
@@ -132,7 +132,7 @@ if os.path.exists(OLD_HISTORY):
 
 DEFAULT_HOST = 'localhost'
 DEFAULT_PORT = 9160
-DEFAULT_CQLVER = '3.1.0'
+DEFAULT_CQLVER = '3.1.1'
 DEFAULT_TRANSPORT_FACTORY = 'cqlshlib.tfactory.regular_transport_factory'
 
 DEFAULT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S%z'

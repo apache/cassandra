@@ -119,9 +119,9 @@ public class OffHeapBitSet implements IBitSet
 
     public static OffHeapBitSet deserialize(DataInput in) throws IOException
     {
-        int byteCount = in.readInt() * 8;
+        long byteCount = in.readInt() * 8L;
         Memory memory = RefCountedMemory.allocate(byteCount);
-        for (int i = 0; i < byteCount;)
+        for (long i = 0; i < byteCount;)
         {
             long v = in.readLong();
             memory.setByte(i++, (byte) (v >>> 0));

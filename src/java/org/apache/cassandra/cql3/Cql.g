@@ -212,13 +212,14 @@ useStatement returns [UseStatement stmt]
  */
 selectStatement returns [SelectStatement.RawStatement expr]
     @init {
+        boolean isDistinct = false;
         boolean isCount = false;
         ColumnIdentifier countAlias = null;
         Term.Raw limit = null;
         Map<ColumnIdentifier, Boolean> orderings = new LinkedHashMap<ColumnIdentifier, Boolean>();
         boolean allowFiltering = false;
     }
-    : K_SELECT ( sclause=selectClause
+    : K_SELECT ( ( K_DISTINCT { isDistinct = true; } )? sclause=selectClause
                | (K_COUNT '(' sclause=selectCountClause ')' { isCount = true; } (K_AS c=cident { countAlias = c; })?) )
       K_FROM cf=columnFamilyName
       ( K_WHERE wclause=whereClause )?
@@ -227,6 +228,7 @@ selectStatement returns [SelectStatement.RawStatement expr]
       ( K_ALLOW K_FILTERING  { allowFiltering = true; } )?
       {
           SelectStatement.Parameters params = new SelectStatement.Parameters(orderings,
+                                                                             isDistinct,
                                                                              isCount,
                                                                              countAlias,
                                                                              allowFiltering);
@@ -421,7 +423,7 @@ batchStatement returns [BatchStatement.Parsed expr]
     : K_BEGIN
       ( K_UNLOGGED { type = BatchStatement.Type.UNLOGGED; } | K_COUNTER { type = BatchStatement.Type.COUNTER; } )?
       K_BATCH ( usingClause[attrs] )?
-          s1=batchStatementObjective ';'? { statements.add(s1); } ( sN=batchStatementObjective ';'? { statements.add(sN); } )*
+          ( s=batchStatementObjective ';'? { statements.add(s); } )+
       K_APPLY K_BATCH
       {
           return new BatchStatement.Parsed(type, attrs, statements);
@@ -732,33 +734,28 @@ constant returns [Constants.Literal constant]
     | t=HEXNUMBER      { $constant = Constants.Literal.hex($t.text); }
     ;
 
-set_tail[List<Term.Raw> s]
-    : '}'
-    | ',' t=term { s.add(t); } set_tail[s]
-    ;
-
-map_tail[List<Pair<Term.Raw, Term.Raw>> m]
-    : '}'
-    | ',' k=term ':' v=term { m.add(Pair.create(k, v)); } map_tail[m]
-    ;
-
 map_literal returns [Maps.Literal map]
-    : '{' '}' { $map = new Maps.Literal(Collections.<Pair<Term.Raw, Term.Raw>>emptyList()); }
-    | '{' { List<Pair<Term.Raw, Term.Raw>> m = new ArrayList<Pair<Term.Raw, Term.Raw>>(); }
-          k1=term ':' v1=term { m.add(Pair.create(k1, v1)); } map_tail[m]
-       { $map = new Maps.Literal(m); }
+    : '{' { List<Pair<Term.Raw, Term.Raw>> m = new ArrayList<Pair<Term.Raw, Term.Raw>>(); }
+          ( k1=term ':' v1=term { m.add(Pair.create(k1, v1)); } ( ',' kn=term ':' vn=term { m.add(Pair.create(kn, vn)); } )* )?
+      '}' { $map = new Maps.Literal(m); }
     ;
 
 set_or_map[Term.Raw t] returns [Term.Raw value]
-    : ':' v=term { List<Pair<Term.Raw, Term.Raw>> m = new ArrayList<Pair<Term.Raw, Term.Raw>>(); m.add(Pair.create(t, v)); } map_tail[m] { $value = new Maps.Literal(m); }
-    | { List<Term.Raw> s = new ArrayList<Term.Raw>(); s.add(t); } set_tail[s] { $value = new Sets.Literal(s); }
+    : ':' v=term { List<Pair<Term.Raw, Term.Raw>> m = new ArrayList<Pair<Term.Raw, Term.Raw>>(); m.add(Pair.create(t, v)); }
+          ( ',' kn=term ':' vn=term { m.add(Pair.create(kn, vn)); } )*
+      { $value = new Maps.Literal(m); }
+    | { List<Term.Raw> s = new ArrayList<Term.Raw>(); s.add(t); }
+          ( ',' tn=term { s.add(tn); } )*
+      { $value = new Sets.Literal(s); }
     ;
 
-// This is a bit convoluted but that's because I haven't found a much better to have antl disambiguate between sets and maps
 collection_literal returns [Term.Raw value]
-    : '[' { List<Term.Raw> l = new ArrayList<Term.Raw>(); } ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )? ']' { $value = new Lists.Literal(l); }
-    | '{' t=term v=set_or_map[t] { $value = v; }
-    // Note that we have an ambiguity between maps and set for "{}". So we force it to a set literal, and deal with it later based on the type of the column (SetLiteral.java).
+    : '[' { List<Term.Raw> l = new ArrayList<Term.Raw>(); }
+          ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )?
+      ']' { $value = new Lists.Literal(l); }
+    | '{' t=term v=set_or_map[t] { $value = v; } '}'
+    // Note that we have an ambiguity between maps and set for "{}". So we force it to a set literal,
+    // and deal with it later based on the type of the column (SetLiteral.java).
     | '{' '}' { $value = new Sets.Literal(Collections.<Term.Raw>emptyList()); }
     ;
 
@@ -944,6 +941,7 @@ unreserved_function_keyword returns [String str]
         | K_EXISTS
         | K_CUSTOM
         | K_TRIGGER
+        | K_DISTINCT
         ) { $str = $k.text; }
     | t=native_type { $str = t.toString(); }
     ;
@@ -962,6 +960,7 @@ K_WITH:        W I T H;
 K_LIMIT:       L I M I T;
 K_USING:       U S I N G;
 K_USE:         U S E;
+K_DISTINCT:    D I S T I N C T;
 K_COUNT:       C O U N T;
 K_SET:         S E T;
 K_BEGIN:       B E G I N;

@@ -568,7 +568,7 @@ syntax_rules += r'''
                              ")" ("=" | "<" | ">" | "<=" | ">=") <tokenDefinition>
              | [rel_lhs]=<cident> "IN" "(" <term> ( "," <term> )* ")"
              ;
-<selectClause> ::= <selector> ("AS" <cident>)? ("," <selector> ("AS" <cident>)?)*
+<selectClause> ::= "DISTINCT"? <selector> ("AS" <cident>)? ("," <selector> ("AS" <cident>)?)*
                  | "*"
                  | "COUNT" "(" star=( "*" | "1" ) ")" ("AS" <cident>)?
                  ;
