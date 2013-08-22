@@ -38,7 +38,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.FilterFactory.Type;
 
 public class BloomFilterTest
 {
@@ -170,7 +169,7 @@ public class BloomFilterTest
         out.close();
         
         DataInputStream in = new DataInputStream(new FileInputStream(file));
-        BloomFilter filter2 = (BloomFilter) FilterFactory.deserialize(in, Type.MURMUR3, true);
+        BloomFilter filter2 = (BloomFilter) FilterFactory.deserialize(in, true);
         Assert.assertTrue(filter2.isPresent(test));
         FileUtils.closeQuietly(in);
     }
