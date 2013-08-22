@@ -827,10 +827,10 @@ service Cassandra {
   /** updates properties of a column family. returns the new schema id. */
   string system_update_column_family(1:required CfDef cf_def)
     throws (1:InvalidRequestException ire, 2:SchemaDisagreementException sde),
-  
+
+
   /**
-   * Executes a CQL (Cassandra Query Language) statement and returns a
-   * CqlResult containing the results.
+   * @deprecated Will become a no-op in 2.2. Please use the CQL3 version instead.
    */
   CqlResult execute_cql_query(1:required binary query, 2:required Compression compression)
     throws (1:InvalidRequestException ire,
@@ -838,6 +838,10 @@ service Cassandra {
             3:TimedOutException te,
             4:SchemaDisagreementException sde)
 
+  /**
+   * Executes a CQL3 (Cassandra Query Language) statement and returns a
+   * CqlResult containing the results.
+   */
   CqlResult execute_cql3_query(1:required binary query, 2:required Compression compression, 3:required ConsistencyLevel consistency)
     throws (1:InvalidRequestException ire,
             2:UnavailableException ue,
@@ -846,21 +850,23 @@ service Cassandra {
 
 
   /**
-   * Prepare a CQL (Cassandra Query Language) statement by compiling and returning
-   * - the type of CQL statement
-   * - an id token of the compiled CQL stored on the server side.
-   * - a count of the discovered bound markers in the statement 
+   * @deprecated Will become a no-op in 2.2. Please use the CQL3 version instead.
    */
   CqlPreparedResult prepare_cql_query(1:required binary query, 2:required Compression compression)
     throws (1:InvalidRequestException ire)
 
+  /**
+   * Prepare a CQL3 (Cassandra Query Language) statement by compiling and returning
+   * - the type of CQL statement
+   * - an id token of the compiled CQL stored on the server side.
+   * - a count of the discovered bound markers in the statement
+   */
   CqlPreparedResult prepare_cql3_query(1:required binary query, 2:required Compression compression)
     throws (1:InvalidRequestException ire)
 
-             
+
   /**
-   * Executes a prepared CQL (Cassandra Query Language) statement by passing an id token and  a list of variables
-   * to bind and returns a CqlResult containing the results.
+   * @deprecated Will become a no-op in 2.2. Please use the CQL3 version instead.
    */
   CqlResult execute_prepared_cql_query(1:required i32 itemId, 2:required list<binary> values)
     throws (1:InvalidRequestException ire,
@@ -868,6 +874,10 @@ service Cassandra {
             3:TimedOutException te,
             4:SchemaDisagreementException sde)
 
+  /**
+   * Executes a prepared CQL3 (Cassandra Query Language) statement by passing an id token, a list of variables
+   * to bind, and the consistency level, and returns a CqlResult containing the results.
+   */
   CqlResult execute_prepared_cql3_query(1:required i32 itemId, 2:required list<binary> values, 3:required ConsistencyLevel consistency)
     throws (1:InvalidRequestException ire,
             2:UnavailableException ue,

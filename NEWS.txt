@@ -72,6 +72,9 @@ Operations
       has been changed from 5MB to 160MB.
     - cqlsh DESCRIBE SCHEMA no longer outputs the schema of system_* keyspaces;
       use DESCRIBE FULL SCHEMA if you need the schema of system_* keyspaces.
+    - CQL2 has been deprecated, and will be removed entirely in 2.2. See
+      CASSANDRA-5918 for details.
+
 
 Features
 --------
