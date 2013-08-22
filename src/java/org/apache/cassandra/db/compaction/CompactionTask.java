@@ -106,7 +106,7 @@ public class CompactionTask extends AbstractCompactionTask
 
         UUID taskId = SystemKeyspace.startCompaction(cfs, toCompact);
 
-        CompactionController controller = new CompactionController(cfs, toCompact, gcBefore);
+        CompactionController controller = getCompactionController(toCompact);
         Set<SSTableReader> actuallyCompact = Sets.difference(toCompact, controller.getFullyExpiredSSTables());
 
         // new sstables from flush can be added during a compaction, but only the compaction can remove them,
@@ -239,7 +239,7 @@ public class CompactionTask extends AbstractCompactionTask
             }
         }
 
-        cfs.replaceCompactedSSTables(toCompact, sstables, compactionType);
+        replaceCompactedSSTables(toCompact, sstables);
         // TODO: this doesn't belong here, it should be part of the reader to load when the tracker is wired up
         for (SSTableReader sstable : sstables)
             sstable.preheat(cachedKeyMap.get(sstable.descriptor));
@@ -286,6 +286,16 @@ public class CompactionTask extends AbstractCompactionTask
     protected int getLevel()
     {
         return 0;
+    }
+
+    protected void replaceCompactedSSTables(Collection<SSTableReader> compacted, Collection<SSTableReader> replacements)
+    {
+        cfs.replaceCompactedSSTables(compacted, replacements, compactionType);
+    }
+
+    protected CompactionController getCompactionController(Set<SSTableReader> toCompact)
+    {
+        return new CompactionController(cfs, toCompact, gcBefore);
     }
 
     protected boolean partialCompactionsAcceptable()
