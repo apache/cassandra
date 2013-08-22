@@ -7,6 +7,7 @@
  * Cleanup doesn't need to inspect sstables that contain only local data 
    (CASSANDRA-5722)
  * Add ability for CQL3 to list partition keys (CASSANDRA-4536)
+ * Improve native protocol serialization (CASSANDRA-5664)
 
 
 2.0.0
