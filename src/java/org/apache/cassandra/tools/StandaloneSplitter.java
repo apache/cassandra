@@ -32,7 +32,6 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.compaction.SSTableSplitter;
 import org.apache.cassandra.io.sstable.*;
-import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
@@ -40,11 +39,6 @@ import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 public class StandaloneSplitter
 {
     public static final int DEFAULT_SSTABLE_SIZE = 50;
-
-    static
-    {
-        CassandraDaemon.initLog4j();
-    }
 
     private static final String TOOL_NAME = "sstablessplit";
     private static final String VERBOSE_OPTION = "verbose";
