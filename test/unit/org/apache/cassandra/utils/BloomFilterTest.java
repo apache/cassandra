@@ -20,16 +20,25 @@ package org.apache.cassandra.utils;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
+import junit.framework.Assert;
+
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.FilterFactory.Type;
 
 public class BloomFilterTest
 {
@@ -137,5 +146,32 @@ public class BloomFilterTest
     public void testManyRandom()
     {
         testManyHashes(FilterTestHelper.randomKeys());
+    }
+
+    @Test(expected = UnsupportedOperationException.class)
+    public void testOffHeapException()
+    {
+        long numKeys = (Integer.MAX_VALUE * 64) + 1; // approx 128 Billion
+        FilterFactory.getFilter(numKeys, 0.01d, true);
+    }
+
+    @Test
+    @Ignore
+    public void testHugeBFSerialization() throws IOException
+    {
+        ByteBuffer test = ByteBuffer.wrap(new byte[] {0, 1});
+
+        File file = FileUtils.createTempFile("bloomFilterTest-", ".dat");
+        BloomFilter filter = (BloomFilter) FilterFactory.getFilter(((long)Integer.MAX_VALUE / 8) + 1, 0.01d, true);
+        filter.add(test);
+        DataOutputStream out = new DataOutputStream(new FileOutputStream(file));
+        FilterFactory.serialize(filter, out);
+        filter.bitset.serialize(out);
+        out.close();
+        
+        DataInputStream in = new DataInputStream(new FileInputStream(file));
+        BloomFilter filter2 = (BloomFilter) FilterFactory.deserialize(in, Type.MURMUR3, true);
+        Assert.assertTrue(filter2.isPresent(test));
+        FileUtils.closeQuietly(in);
     }
 }
