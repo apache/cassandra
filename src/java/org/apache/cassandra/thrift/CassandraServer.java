@@ -77,6 +77,8 @@ public class CassandraServer implements Cassandra.Iface
 
     private final static List<ColumnOrSuperColumn> EMPTY_COLUMNS = Collections.emptyList();
 
+    private volatile boolean loggedCQL2Warning = false;
+
     /*
      * RequestScheduler to perform the scheduling of incoming requests
      */
@@ -1866,6 +1868,8 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
         validateCQLVersion(2);
+        maybeLogCQL2Warning();
+
         try
         {
             String queryString = uncompress(query, compression);
@@ -1936,6 +1940,7 @@ public class CassandraServer implements Cassandra.Iface
             logger.debug("prepare_cql_query");
 
         validateCQLVersion(2);
+        maybeLogCQL2Warning();
 
         try
         {
@@ -1973,6 +1978,7 @@ public class CassandraServer implements Cassandra.Iface
     throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
     {
         validateCQLVersion(2);
+        maybeLogCQL2Warning();
 
         if (startSessionIfRequested())
         {
@@ -2069,6 +2075,16 @@ public class CassandraServer implements Cassandra.Iface
         catch (org.apache.cassandra.exceptions.InvalidRequestException e)
         {
             throw new InvalidRequestException(e.getMessage());
+        }
+    }
+
+    private void maybeLogCQL2Warning()
+    {
+        if (!loggedCQL2Warning)
+        {
+            logger.warn("CQL2 has been deprecated since Cassandra 2.0, and will be removed entirely in version 2.2."
+                        + " Please switch to CQL3 before then.");
+            loggedCQL2Warning = true;
         }
     }
 
