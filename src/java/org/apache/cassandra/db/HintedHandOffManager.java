@@ -356,7 +356,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             }
 
             List<WriteResponseHandler> responseHandlers = Lists.newArrayList();
-
+            Map<UUID, Long> truncationTimesCache = new HashMap<UUID, Long>();
             for (final Column hint : hintsPage)
             {
                 // check if hints delivery has been paused during the process
@@ -395,7 +395,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                     throw new AssertionError(e);
                 }
 
-                Map<UUID, Long> truncationTimesCache = new HashMap<UUID, Long>();
+                truncationTimesCache.clear();
                 for (UUID cfId : ImmutableSet.copyOf((rm.getColumnFamilyIds())))
                 {
                     Long truncatedAt = truncationTimesCache.get(cfId);
