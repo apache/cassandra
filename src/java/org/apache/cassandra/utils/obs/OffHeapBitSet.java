@@ -36,9 +36,12 @@ public class OffHeapBitSet implements IBitSet
     public OffHeapBitSet(long numBits)
     {
         // OpenBitSet.bits2words calculation is there for backward compatibility.
-        long byteCount = OpenBitSet.bits2words(numBits) * 8L;
+        long wordCount = OpenBitSet.bits2words(numBits);
+        if (wordCount > Integer.MAX_VALUE)
+            throw new UnsupportedOperationException("Bloom filter size is > 16GB, reduce the bloom_filter_fp_chance");
         try
         {
+            long byteCount = wordCount * 8L;
             bytes = RefCountedMemory.allocate(byteCount);
         }
         catch (OutOfMemoryError e)
