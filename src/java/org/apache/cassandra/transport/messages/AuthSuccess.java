@@ -33,7 +33,6 @@ public class AuthSuccess extends Message.Response
 {
     public static final Message.Codec<AuthSuccess> codec = new Message.Codec<AuthSuccess>()
     {
-        @Override
         public AuthSuccess decode(ChannelBuffer body, int version)
         {
             ByteBuffer b = CBUtil.readValue(body);
@@ -42,10 +41,14 @@ public class AuthSuccess extends Message.Response
             return new AuthSuccess(token);
         }
 
-        @Override
-        public ChannelBuffer encode(AuthSuccess success, int version)
+        public void encode(AuthSuccess success, ChannelBuffer dest, int version)
         {
-            return CBUtil.valueToCB(success.token);
+            CBUtil.writeValue(success.token, dest);
+        }
+
+        public int encodedSize(AuthSuccess success, int version)
+        {
+            return CBUtil.sizeOfValue(success.token);
         }
     };
 
@@ -57,14 +60,8 @@ public class AuthSuccess extends Message.Response
         this.token = token;
     }
 
-    public ChannelBuffer encode(int version)
-    {
-        return codec.encode(this, version);
-    }
-
     public byte[] getToken()
     {
         return token;
     }
 }
-

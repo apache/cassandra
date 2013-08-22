@@ -44,14 +44,9 @@ public class ExecuteMessage extends Message.Request
         public ExecuteMessage decode(ChannelBuffer body, int version)
         {
             byte[] id = CBUtil.readBytes(body);
-
             if (version == 1)
             {
-                int count = body.readUnsignedShort();
-                List<ByteBuffer> values = new ArrayList<ByteBuffer>(count);
-                for (int i = 0; i < count; i++)
-                    values.add(CBUtil.readValue(body));
-
+                List<ByteBuffer> values = CBUtil.readValueList(body);
                 ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
                 return new ExecuteMessage(id, values, consistency);
             }
@@ -61,27 +56,34 @@ public class ExecuteMessage extends Message.Request
             }
         }
 
-        public ChannelBuffer encode(ExecuteMessage msg, int version)
+        public void encode(ExecuteMessage msg, ChannelBuffer dest, int version)
         {
-            ChannelBuffer idBuffer = CBUtil.bytesToCB(msg.statementId.bytes);
-            ChannelBuffer optBuffer;
+            CBUtil.writeBytes(msg.statementId.bytes, dest);
             if (version == 1)
             {
-                CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(2, 0, msg.options.getValues().size());
-                builder.add(CBUtil.shortToCB(msg.options.getValues().size()));
-
-                // Values
-                for (ByteBuffer value : msg.options.getValues())
-                    builder.addValue(value);
-
-                builder.add(CBUtil.consistencyLevelToCB(msg.options.getConsistency()));
-                optBuffer = builder.build();
+                CBUtil.writeValueList(msg.options.getValues(), dest);
+                CBUtil.writeConsistencyLevel(msg.options.getConsistency(), dest);
             }
             else
             {
-                optBuffer = QueryOptions.codec.encode(msg.options, version);
+                QueryOptions.codec.encode(msg.options, dest, version);
             }
-            return ChannelBuffers.wrappedBuffer(idBuffer, optBuffer);
+        }
+
+        public int encodedSize(ExecuteMessage msg, int version)
+        {
+            int size = 0;
+            size += CBUtil.sizeOfBytes(msg.statementId.bytes);
+            if (version == 1)
+            {
+                size += CBUtil.sizeOfValueList(msg.options.getValues());
+                size += CBUtil.sizeOfConsistencyLevel(msg.options.getConsistency());
+            }
+            else
+            {
+                size += QueryOptions.codec.encodedSize(msg.options, version);
+            }
+            return size;
         }
     };
 
@@ -98,11 +100,6 @@ public class ExecuteMessage extends Message.Request
         super(Message.Type.EXECUTE);
         this.statementId = statementId;
         this.options = options;
-    }
-
-    public ChannelBuffer encode(int version)
-    {
-        return codec.encode(this, version);
     }
 
     public Message.Response execute(QueryState state)

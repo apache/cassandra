@@ -43,13 +43,15 @@ public abstract class ResultMessage extends Message.Response
             return kind.subcodec.decode(body, version);
         }
 
-        public ChannelBuffer encode(ResultMessage msg, int version)
+        public void encode(ResultMessage msg, ChannelBuffer dest, int version)
         {
-            ChannelBuffer kcb = ChannelBuffers.buffer(4);
-            kcb.writeInt(msg.kind.id);
+            dest.writeInt(msg.kind.id);
+            msg.kind.subcodec.encode(msg, dest, version);
+        }
 
-            ChannelBuffer body = msg.encodeBody(version);
-            return ChannelBuffers.wrappedBuffer(kcb, body);
+        public int encodedSize(ResultMessage msg, int version)
+        {
+            return 4 + msg.kind.subcodec.encodedSize(msg, version);
         }
     };
 
@@ -102,13 +104,6 @@ public abstract class ResultMessage extends Message.Response
         this.kind = kind;
     }
 
-    public ChannelBuffer encode(int version)
-    {
-        return codec.encode(this, version);
-    }
-
-    protected abstract ChannelBuffer encodeBody(int version);
-
     public abstract CqlResult toThriftResult();
 
     public static class Void extends ResultMessage
@@ -127,17 +122,16 @@ public abstract class ResultMessage extends Message.Response
                 return new Void();
             }
 
-            public ChannelBuffer encode(ResultMessage msg, int version)
+            public void encode(ResultMessage msg, ChannelBuffer dest, int version)
             {
                 assert msg instanceof Void;
-                return ChannelBuffers.EMPTY_BUFFER;
+            }
+
+            public int encodedSize(ResultMessage msg, int version)
+            {
+                return 0;
             }
         };
-
-        protected ChannelBuffer encodeBody(int version)
-        {
-            return subcodec.encode(this, version);
-        }
 
         public CqlResult toThriftResult()
         {
@@ -169,17 +163,18 @@ public abstract class ResultMessage extends Message.Response
                 return new SetKeyspace(keyspace);
             }
 
-            public ChannelBuffer encode(ResultMessage msg, int version)
+            public void encode(ResultMessage msg, ChannelBuffer dest, int version)
             {
                 assert msg instanceof SetKeyspace;
-                return CBUtil.stringToCB(((SetKeyspace)msg).keyspace);
+                CBUtil.writeString(((SetKeyspace)msg).keyspace, dest);
+            }
+
+            public int encodedSize(ResultMessage msg, int version)
+            {
+                assert msg instanceof SetKeyspace;
+                return CBUtil.sizeOfString(((SetKeyspace)msg).keyspace);
             }
         };
-
-        protected ChannelBuffer encodeBody(int version)
-        {
-            return subcodec.encode(this, version);
-        }
 
         public CqlResult toThriftResult()
         {
@@ -202,11 +197,18 @@ public abstract class ResultMessage extends Message.Response
                 return new Rows(ResultSet.codec.decode(body, version));
             }
 
-            public ChannelBuffer encode(ResultMessage msg, int version)
+            public void encode(ResultMessage msg, ChannelBuffer dest, int version)
             {
                 assert msg instanceof Rows;
                 Rows rowMsg = (Rows)msg;
-                return ResultSet.codec.encode(rowMsg.result, version);
+                ResultSet.codec.encode(rowMsg.result, dest, version);
+            }
+
+            public int encodedSize(ResultMessage msg, int version)
+            {
+                assert msg instanceof Rows;
+                Rows rowMsg = (Rows)msg;
+                return ResultSet.codec.encodedSize(rowMsg.result, version);
             }
         };
 
@@ -216,11 +218,6 @@ public abstract class ResultMessage extends Message.Response
         {
             super(Kind.ROWS);
             this.result = result;
-        }
-
-        protected ChannelBuffer encodeBody(int version)
-        {
-            return subcodec.encode(this, version);
         }
 
         public CqlResult toThriftResult()
@@ -252,16 +249,30 @@ public abstract class ResultMessage extends Message.Response
                 return new Prepared(id, -1, metadata, resultMetadata);
             }
 
-            public ChannelBuffer encode(ResultMessage msg, int version)
+            public void encode(ResultMessage msg, ChannelBuffer dest, int version)
             {
                 assert msg instanceof Prepared;
                 Prepared prepared = (Prepared)msg;
                 assert prepared.statementId != null;
 
+                CBUtil.writeBytes(prepared.statementId.bytes, dest);
+                ResultSet.Metadata.codec.encode(prepared.metadata, dest, version);
+                if (version > 1)
+                    ResultSet.Metadata.codec.encode(prepared.resultMetadata, dest, version);
+            }
 
-                return ChannelBuffers.wrappedBuffer(CBUtil.bytesToCB(prepared.statementId.bytes),
-                                                    ResultSet.Metadata.codec.encode(prepared.metadata, version),
-                                                    version > 1 ? ResultSet.Metadata.codec.encode(prepared.resultMetadata, version) : ChannelBuffers.EMPTY_BUFFER);
+            public int encodedSize(ResultMessage msg, int version)
+            {
+                assert msg instanceof Prepared;
+                Prepared prepared = (Prepared)msg;
+                assert prepared.statementId != null;
+
+                int size = 0;
+                size += CBUtil.sizeOfBytes(prepared.statementId.bytes);
+                size += ResultSet.Metadata.codec.encodedSize(prepared.metadata, version);
+                if (version > 1)
+                    ResultSet.Metadata.codec.encodedSize(prepared.resultMetadata, version);
+                return size;
             }
         };
 
@@ -297,11 +308,6 @@ public abstract class ResultMessage extends Message.Response
                 return ResultSet.Metadata.EMPTY;
 
             return ((SelectStatement)statement).getResultMetadata();
-        }
-
-        protected ChannelBuffer encodeBody(int version)
-        {
-            return subcodec.encode(this, version);
         }
 
         public CqlResult toThriftResult()
@@ -353,39 +359,35 @@ public abstract class ResultMessage extends Message.Response
         {
             public ResultMessage decode(ChannelBuffer body, int version)
             {
-                String cStr = CBUtil.readString(body);
-                Change change = null;
-                try
-                {
-                    change = Enum.valueOf(Change.class, cStr.toUpperCase());
-                }
-                catch (IllegalStateException e)
-                {
-                    throw new ProtocolException("Unknown Schema change action: " + cStr);
-                }
-
+                Change change = CBUtil.readEnumValue(Change.class, body);
                 String keyspace = CBUtil.readString(body);
                 String columnFamily = CBUtil.readString(body);
                 return new SchemaChange(change, keyspace, columnFamily);
 
             }
 
-            public ChannelBuffer encode(ResultMessage msg, int version)
+            public void encode(ResultMessage msg, ChannelBuffer dest, int version)
             {
                 assert msg instanceof SchemaChange;
                 SchemaChange scm = (SchemaChange)msg;
 
-                ChannelBuffer a = CBUtil.stringToCB(scm.change.toString());
-                ChannelBuffer k = CBUtil.stringToCB(scm.keyspace);
-                ChannelBuffer c = CBUtil.stringToCB(scm.columnFamily);
-                return ChannelBuffers.wrappedBuffer(a, k, c);
+                CBUtil.writeEnumValue(scm.change, dest);
+                CBUtil.writeString(scm.keyspace, dest);
+                CBUtil.writeString(scm.columnFamily, dest);
+            }
+
+            public int encodedSize(ResultMessage msg, int version)
+            {
+                assert msg instanceof SchemaChange;
+                SchemaChange scm = (SchemaChange)msg;
+
+                int size = 0;
+                size += CBUtil.sizeOfEnumValue(scm.change);
+                size += CBUtil.sizeOfString(scm.keyspace);
+                size += CBUtil.sizeOfString(scm.columnFamily);
+                return size;
             }
         };
-
-        protected ChannelBuffer encodeBody(int version)
-        {
-            return subcodec.encode(this, version);
-        }
 
         public CqlResult toThriftResult()
         {

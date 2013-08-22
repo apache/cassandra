@@ -34,20 +34,19 @@ public class ReadyMessage extends Message.Response
             return new ReadyMessage();
         }
 
-        public ChannelBuffer encode(ReadyMessage msg, int version)
+        public void encode(ReadyMessage msg, ChannelBuffer dest, int version)
         {
-            return ChannelBuffers.EMPTY_BUFFER;
+        }
+
+        public int encodedSize(ReadyMessage msg, int version)
+        {
+            return 0;
         }
     };
 
     public ReadyMessage()
     {
         super(Message.Type.READY);
-    }
-
-    public ChannelBuffer encode(int version)
-    {
-        return codec.encode(this, version);
     }
 
     @Override

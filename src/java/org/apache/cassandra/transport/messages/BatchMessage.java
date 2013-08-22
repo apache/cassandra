@@ -62,53 +62,48 @@ public class BatchMessage extends Message.Request
                     queryOrIds.add(MD5Digest.wrap(CBUtil.readBytes(body)));
                 else
                     throw new ProtocolException("Invalid query kind in BATCH messages. Must be 0 or 1 but got " + kind);
-
-                int count = body.readUnsignedShort();
-                List<ByteBuffer> values = count == 0 ? Collections.<ByteBuffer>emptyList() : new ArrayList<ByteBuffer>(count);
-                for (int j = 0; j < count; j++)
-                    values.add(CBUtil.readValue(body));
-                variables.add(values);
+                variables.add(CBUtil.readValueList(body));
             }
             ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
             return new BatchMessage(toType(type), queryOrIds, variables, consistency);
         }
 
-        public ChannelBuffer encode(BatchMessage msg, int version)
+        public void encode(BatchMessage msg, ChannelBuffer dest, int version)
         {
-            // We have:
-            //   - type
-            //   - Number of queries
-            //   - For each query:
-            //      - kind
-            //      - string or id
-            //      - value count
-            //      - values
-            //   - consistency
             int queries = msg.queryOrIdList.size();
-            int totalValues = count(msg.values);
 
-            ChannelBuffer header = ChannelBuffers.buffer(3);
-            header.writeByte(fromType(msg.type));
-            header.writeShort(queries);
+            dest.writeByte(fromType(msg.type));
+            dest.writeShort(queries);
 
-            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(2 + queries * 3, 0, totalValues);
-            builder.add(header);
             for (int i = 0; i < queries; i++)
             {
                 Object q = msg.queryOrIdList.get(i);
-                builder.add(CBUtil.byteToCB((byte)(q instanceof String ? 0 : 1)));
+                dest.writeByte((byte)(q instanceof String ? 0 : 1));
                 if (q instanceof String)
-                    builder.add(CBUtil.longStringToCB((String)q));
+                    CBUtil.writeLongString((String)q, dest);
                 else
-                    builder.add(CBUtil.bytesToCB(((MD5Digest)q).bytes));
-                List<ByteBuffer> queryValues = msg.values.get(i);
-                builder.add(CBUtil.shortToCB(queryValues.size()));
-                for (ByteBuffer value : queryValues)
-                    builder.addValue(value);
+                    CBUtil.writeBytes(((MD5Digest)q).bytes, dest);
+
+                CBUtil.writeValueList(msg.values.get(i), dest);
             }
 
-            builder.add(CBUtil.consistencyLevelToCB(msg.consistency));
-            return builder.build();
+            CBUtil.writeConsistencyLevel(msg.consistency, dest);
+        }
+
+        public int encodedSize(BatchMessage msg, int version)
+        {
+            int size = 3; // type + nb queries
+            for (int i = 0; i < msg.queryOrIdList.size(); i++)
+            {
+                Object q = msg.queryOrIdList.get(i);
+                size += 1 + (q instanceof String
+                             ? CBUtil.sizeOfLongString((String)q)
+                             : CBUtil.sizeOfBytes(((MD5Digest)q).bytes));
+
+                size += CBUtil.sizeOfValueList(msg.values.get(i));
+            }
+            size += CBUtil.sizeOfConsistencyLevel(msg.consistency);
+            return size;
         }
 
         private BatchStatement.Type toType(byte b)
@@ -134,14 +129,6 @@ public class BatchMessage extends Message.Request
                     throw new AssertionError();
             }
         }
-
-        private int count(List<List<ByteBuffer>> values)
-        {
-            int count = 0;
-            for (List<ByteBuffer> l : values)
-                count += l.size();
-            return count;
-        }
     };
 
     public final BatchStatement.Type type;
@@ -156,11 +143,6 @@ public class BatchMessage extends Message.Request
         this.queryOrIdList = queryOrIdList;
         this.values = values;
         this.consistency = consistency;
-    }
-
-    public ChannelBuffer encode(int version)
-    {
-        return codec.encode(this, version);
     }
 
     public Message.Response execute(QueryState state)

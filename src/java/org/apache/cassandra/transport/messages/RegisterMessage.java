@@ -39,13 +39,19 @@ public class RegisterMessage extends Message.Request
             return new RegisterMessage(eventTypes);
         }
 
-        public ChannelBuffer encode(RegisterMessage msg, int version)
+        public void encode(RegisterMessage msg, ChannelBuffer dest, int version)
         {
-            ChannelBuffer cb = ChannelBuffers.dynamicBuffer();
-            cb.writeShort(msg.eventTypes.size());
+            dest.writeShort(msg.eventTypes.size());
             for (Event.Type type : msg.eventTypes)
-                cb.writeBytes(CBUtil.enumValueToCB(type));
-            return cb;
+                CBUtil.writeEnumValue(type, dest);
+        }
+
+        public int encodedSize(RegisterMessage msg, int version)
+        {
+            int size = 2;
+            for (Event.Type type : msg.eventTypes)
+                CBUtil.sizeOfEnumValue(type);
+            return size;
         }
     };
 
@@ -65,11 +71,6 @@ public class RegisterMessage extends Message.Request
         for (Event.Type type : eventTypes)
             ((Server.ConnectionTracker)tracker).register(type, connection().channel());
         return new ReadyMessage();
-    }
-
-    public ChannelBuffer encode(int version)
-    {
-        return codec.encode(this, version);
     }
 
     @Override

@@ -55,11 +55,28 @@ public class QueryMessage extends Message.Request
             }
         }
 
-        public ChannelBuffer encode(QueryMessage msg, int version)
+        public void encode(QueryMessage msg, ChannelBuffer dest, int version)
         {
-            return ChannelBuffers.wrappedBuffer(CBUtil.longStringToCB(msg.query),
-                                                (version == 1 ? CBUtil.consistencyLevelToCB(msg.options.getConsistency())
-                                                              : QueryOptions.codec.encode(msg.options, version)));
+            CBUtil.writeLongString(msg.query, dest);
+            if (version == 1)
+                CBUtil.writeConsistencyLevel(msg.options.getConsistency(), dest);
+            else
+                QueryOptions.codec.encode(msg.options, dest, version);
+        }
+
+        public int encodedSize(QueryMessage msg, int version)
+        {
+            int size = CBUtil.sizeOfLongString(msg.query);
+
+            if (version == 1)
+            {
+                size += CBUtil.sizeOfConsistencyLevel(msg.options.getConsistency());
+            }
+            else
+            {
+                size += QueryOptions.codec.encodedSize(msg.options, version);
+            }
+            return size;
         }
     };
 
@@ -76,11 +93,6 @@ public class QueryMessage extends Message.Request
         super(Type.QUERY);
         this.query = query;
         this.options = options;
-    }
-
-    public ChannelBuffer encode(int version)
-    {
-        return codec.encode(this, version);
     }
 
     public Message.Response execute(QueryState state)

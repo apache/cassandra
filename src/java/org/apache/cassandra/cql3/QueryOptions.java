@@ -163,17 +163,9 @@ public class QueryOptions
             ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
             EnumSet<Flag> flags = Flag.deserialize((int)body.readByte());
 
-            List<ByteBuffer> values = Collections.emptyList();
-            if (flags.contains(Flag.VALUES))
-            {
-                int paramCount = body.readUnsignedShort();
-                if (paramCount > 0)
-                {
-                    values = new ArrayList<ByteBuffer>(paramCount);
-                    for (int i = 0; i < paramCount; i++)
-                        values.add(CBUtil.readValue(body));
-                }
-            }
+            List<ByteBuffer> values = flags.contains(Flag.VALUES)
+                                    ? CBUtil.readValueList(body)
+                                    : Collections.<ByteBuffer>emptyList();
 
             boolean skipMetadata = flags.contains(Flag.SKIP_METADATA);
             flags.remove(Flag.VALUES);
@@ -190,48 +182,58 @@ public class QueryOptions
             return new QueryOptions(consistency, values, skipMetadata, options);
         }
 
-        public ChannelBuffer encode(QueryOptions options, int version)
+        public void encode(QueryOptions options, ChannelBuffer dest, int version)
         {
             assert version >= 2;
 
-            int nbBuff = 2;
+            CBUtil.writeConsistencyLevel(options.getConsistency(), dest);
 
+            EnumSet<Flag> flags = gatherFlags(options);
+            dest.writeByte((byte)Flag.serialize(flags));
+
+            if (flags.contains(Flag.VALUES))
+                CBUtil.writeValueList(options.getValues(), dest);
+            if (flags.contains(Flag.PAGE_SIZE))
+                dest.writeInt(options.getPageSize());
+            if (flags.contains(Flag.PAGING_STATE))
+                CBUtil.writeValue(options.getPagingState().serialize(), dest);
+            if (flags.contains(Flag.SERIAL_CONSISTENCY))
+                CBUtil.writeConsistencyLevel(options.getSerialConsistency(), dest);
+        }
+
+        public int encodedSize(QueryOptions options, int version)
+        {
+            int size = 0;
+
+            size += CBUtil.sizeOfConsistencyLevel(options.getConsistency());
+
+            EnumSet<Flag> flags = gatherFlags(options);
+            size += 1;
+
+            if (flags.contains(Flag.VALUES))
+                size += CBUtil.sizeOfValueList(options.getValues());
+            if (flags.contains(Flag.PAGE_SIZE))
+                size += 4;
+            if (flags.contains(Flag.PAGING_STATE))
+                size += CBUtil.sizeOfValue(options.getPagingState().serialize());
+            if (flags.contains(Flag.SERIAL_CONSISTENCY))
+                size += CBUtil.sizeOfConsistencyLevel(options.getSerialConsistency());
+
+            return size;
+        }
+
+        private EnumSet<Flag> gatherFlags(QueryOptions options)
+        {
             EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
             if (options.getValues().size() > 0)
-            {
                 flags.add(Flag.VALUES);
-                nbBuff++;
-            }
             if (options.skipMetadata)
                 flags.add(Flag.SKIP_METADATA);
             if (options.getPageSize() >= 0)
-            {
                 flags.add(Flag.PAGE_SIZE);
-                nbBuff++;
-            }
             if (options.getSerialConsistency() != ConsistencyLevel.SERIAL)
-            {
                 flags.add(Flag.SERIAL_CONSISTENCY);
-                nbBuff++;
-            }
-
-            CBUtil.BufferBuilder builder = new CBUtil.BufferBuilder(nbBuff, 0, options.values.size() + (flags.contains(Flag.PAGING_STATE) ? 1 : 0));
-            builder.add(CBUtil.consistencyLevelToCB(options.getConsistency()));
-            builder.add(CBUtil.byteToCB((byte)Flag.serialize(flags)));
-
-            if (flags.contains(Flag.VALUES))
-            {
-                builder.add(CBUtil.shortToCB(options.getValues().size()));
-                for (ByteBuffer value : options.getValues())
-                    builder.addValue(value);
-            }
-            if (flags.contains(Flag.PAGE_SIZE))
-                builder.add(CBUtil.intToCB(options.getPageSize()));
-            if (flags.contains(Flag.PAGING_STATE))
-                builder.addValue(options.getPagingState().serialize());
-            if (flags.contains(Flag.SERIAL_CONSISTENCY))
-                builder.add(CBUtil.consistencyLevelToCB(options.getSerialConsistency()));
-            return builder.build();
+            return flags;
         }
     }
 }
