@@ -168,11 +168,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     if (getMemtableThreadSafe().isExpired())
                     {
-                        Future<?> future = forceFlush();
                         // if memtable is already expired but didn't flush because it's empty,
                         // then schedule another flush.
-                        if (future == null)
+                        if (isClean())
                             scheduleFlush();
+                        else
+                            forceFlush(); // scheduleFlush() will be called by the constructor of the new memtable.
                     }
                 }
             };
@@ -778,15 +779,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public Future<?> forceFlush()
+    private boolean isClean()
     {
         // during index build, 2ary index memtables can be dirty even if parent is not.  if so,
         // we want flushLargestMemtables to flush the 2ary index ones too.
-        boolean clean = true;
         for (ColumnFamilyStore cfs : concatWithIndexes())
-            clean &= cfs.getMemtableThreadSafe().isClean();
+            if (!cfs.getMemtableThreadSafe().isClean())
+                return false;
 
-        if (clean)
+        return true;
+    }
+
+    /**
+     * @return a future, with a guarantee that any data inserted prior to the forceFlush() call is fully flushed
+     *         by the time future.get() returns. Never returns null.
+     */
+    public Future<?> forceFlush()
+    {
+        if (isClean())
         {
             // We could have a memtable for this column family that is being
             // flushed. Make sure the future returned wait for that so callers can
