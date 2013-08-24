@@ -308,19 +308,11 @@ insertStatement returns [UpdateStatement.ParsedInsert expr]
     ;
 
 usingClause[Attributes.Raw attrs]
-    : K_USING usingClauseObjective[attrs] ( K_AND? usingClauseObjective[attrs] )*
-    ;
-
-usingClauseDelete[Attributes.Raw attrs]
-    : K_USING usingClauseDeleteObjective[attrs] ( K_AND? usingClauseDeleteObjective[attrs] )*
-    ;
-
-usingClauseDeleteObjective[Attributes.Raw attrs]
-    : K_TIMESTAMP ts=intValue { attrs.timestamp = ts; }
+    : K_USING usingClauseObjective[attrs] ( K_AND usingClauseObjective[attrs] )*
     ;
 
 usingClauseObjective[Attributes.Raw attrs]
-    : usingClauseDeleteObjective[attrs]
+    : K_TIMESTAMP ts=intValue { attrs.timestamp = ts; }
     | K_TTL t=intValue { attrs.timeToLive = t; }
     ;
 
@@ -388,6 +380,10 @@ deleteSelection returns [List<Operation.RawDeletion> operations]
 deleteOp returns [Operation.RawDeletion op]
     : c=cident                { $op = new Operation.ColumnDeletion(c); }
     | c=cident '[' t=term ']' { $op = new Operation.ElementDeletion(c, t); }
+    ;
+
+usingClauseDelete[Attributes.Raw attrs]
+    : K_USING K_TIMESTAMP ts=intValue { attrs.timestamp = ts; }
     ;
 
 /**
