@@ -290,19 +290,11 @@ insertStatement returns [UpdateStatement expr]
     ;
 
 usingClause[Attributes attrs]
-    : K_USING usingClauseObjective[attrs] ( K_AND? usingClauseObjective[attrs] )*
-    ;
-
-usingClauseDelete[Attributes attrs]
-    : K_USING usingClauseDeleteObjective[attrs] ( K_AND? usingClauseDeleteObjective[attrs] )*
-    ;
-
-usingClauseDeleteObjective[Attributes attrs]
-    : K_TIMESTAMP ts=INTEGER { attrs.timestamp = Long.valueOf($ts.text); }
+    : K_USING usingClauseObjective[attrs] ( K_AND usingClauseObjective[attrs] )*
     ;
 
 usingClauseObjective[Attributes attrs]
-    : usingClauseDeleteObjective[attrs]
+    : K_TIMESTAMP ts=INTEGER { attrs.timestamp = Long.valueOf($ts.text); }
     | K_TTL t=INTEGER { attrs.timeToLive = Integer.valueOf($t.text); }
     ;
 
@@ -355,6 +347,10 @@ deleteSelection returns [List<Operation.RawDeletion> operations]
 deleteOp returns [Operation.RawDeletion op]
     : c=cident                { $op = new Operation.ColumnDeletion(c); }
     | c=cident '[' t=term ']' { $op = new Operation.ElementDeletion(c, t); }
+    ;
+
+usingClauseDelete[Attributes attrs]
+    : K_USING K_TIMESTAMP ts=INTEGER { attrs.timestamp = Long.valueOf($ts.text); }
     ;
 
 /**

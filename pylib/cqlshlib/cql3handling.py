@@ -955,7 +955,7 @@ def update_indexbracket_completer(ctxt, cass):
 syntax_rules += r'''
 <deleteStatement> ::= "DELETE" ( <deleteSelector> ( "," <deleteSelector> )* )?
                         "FROM" cf=<columnFamilyName>
-                        ( "USING" [delopt]=<deleteOption> ( "AND" [delopt]=<deleteOption> )* )?
+                        ( "USING" [delopt]=<deleteOption> )?
                         "WHERE" <whereClause>
                     ;
 <deleteSelector> ::= delcol=<cident> ( memberbracket="[" memberselector=<term> "]" )?
