@@ -20,10 +20,10 @@ package org.apache.cassandra.metrics;
 public interface MetricNameFactory
 {
     /**
-     * Create {@link MetricName} from given metric name.
+     * Create a qualified name from given metric name.
      *
-     * @param metricName Name part of {@link MetricName}.
-     * @return new MetricName with given metric name.
+     * @param metricName part of qualified name.
+     * @return new String with given metric name.
      */
     String createMetricName(String metricName);
 }
