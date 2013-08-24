@@ -291,9 +291,9 @@ public class Memtable
     {
         return new Iterator<Map.Entry<DecoratedKey, AtomicSortedColumns>>()
         {
-            private Iterator<Map.Entry<RowPosition, AtomicSortedColumns>> iter = stopAt.isMinimum()
-                                                                                 ? rows.tailMap(startWith).entrySet().iterator()
-                                                                                 : rows.subMap(startWith, true, stopAt, true).entrySet().iterator();
+            private Iterator<Map.Entry<RowPosition, AtomicSortedColumns>> iter = stopAt.isMinimum(cfs.partitioner)
+                                                                               ? rows.tailMap(startWith).entrySet().iterator()
+                                                                               : rows.subMap(startWith, true, stopAt, true).entrySet().iterator();
 
             public boolean hasNext()
             {
