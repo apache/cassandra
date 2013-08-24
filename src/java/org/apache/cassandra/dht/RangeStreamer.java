@@ -224,7 +224,7 @@ public class RangeStreamer
             Collection<Range<Token>> ranges = entry.getValue().getValue();
             /* Send messages to respective folks to stream data over to me */
             if (logger.isDebugEnabled())
-                logger.debug("" + description + "ing from " + source + " ranges " + StringUtils.join(ranges, ", "));
+                logger.debug("{}ing from {} ranges {}", description, source, StringUtils.join(ranges, ", "));
             streamPlan.requestRanges(source, keyspace, ranges);
         }
 

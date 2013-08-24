@@ -188,7 +188,7 @@ public abstract class SecondaryIndex
         forceBlockingFlush();
 
         setIndexBuilt();
-        logger.info("Index build of " + getIndexName() + " complete");
+        logger.info("Index build of {} complete", getIndexName());
     }
 
 

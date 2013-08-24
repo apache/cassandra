@@ -115,7 +115,7 @@ public class CommitLogReplayer
 
     public void recover(File file) throws IOException
     {
-        logger.info("Replaying " + file.getPath());
+        logger.info("Replaying {}", file.getPath());
         CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
         final long segment = desc.id;
         int version = desc.getMessagingVersion();
@@ -139,14 +139,14 @@ public class CommitLogReplayer
             }
 
             if (logger.isDebugEnabled())
-                logger.debug("Replaying " + file + " starting at " + replayPosition);
+                logger.debug("Replaying {} starting at {}", file, replayPosition);
             reader.seek(replayPosition);
 
             /* read the logs populate RowMutation and apply */
             while (!reader.isEOF())
             {
                 if (logger.isDebugEnabled())
-                    logger.debug("Reading mutation at " + reader.getFilePointer());
+                    logger.debug("Reading mutation at {}", reader.getFilePointer());
 
                 long claimedCRC32;
                 int serializedSize;
@@ -156,7 +156,7 @@ public class CommitLogReplayer
                     serializedSize = reader.readInt();
                     if (serializedSize == CommitLog.END_OF_SEGMENT_MARKER)
                     {
-                        logger.debug("Encountered end of segment marker at " + reader.getFilePointer());
+                        logger.debug("Encountered end of segment marker at {}", reader.getFilePointer());
                         break;
                     }
 
@@ -278,7 +278,7 @@ public class CommitLogReplayer
         finally
         {
             FileUtils.closeQuietly(reader);
-            logger.info("Finished reading " + file);
+            logger.info("Finished reading {}", file);
         }
     }
 

@@ -386,7 +386,7 @@ public class Memtable
         private SSTableReader writeSortedContents(Future<ReplayPosition> context, File sstableDirectory)
         throws ExecutionException, InterruptedException
         {
-            logger.info("Writing " + Memtable.this.toString());
+            logger.info("Writing {}", Memtable.this.toString());
 
             SSTableReader ssTable;
             // errors when creating the writer that may leave empty temp files.

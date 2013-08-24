@@ -143,7 +143,7 @@ public class SecondaryIndexManager
 
         flushIndexesBlocking();
 
-        logger.info("Index build of " + idxNames + " complete");
+        logger.info("Index build of {} complete", idxNames);
     }
 
     public boolean indexes(ByteBuffer name, Collection<SecondaryIndex> indexes)

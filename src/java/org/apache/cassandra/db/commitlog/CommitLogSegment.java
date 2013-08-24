@@ -168,7 +168,7 @@ public class CommitLogSegment
         }
         catch (FSWriteError e)
         {
-            logger.error("I/O error flushing " + this + " " + e);
+            logger.error("I/O error flushing {} {}", this, e.getMessage());
             throw e;
         }
 
@@ -197,7 +197,7 @@ public class CommitLogSegment
             CFMetaData cfm = Schema.instance.getCFMetaData(columnFamily.id());
             if (cfm == null)
             {
-                logger.error("Attempted to write commit log entry for unrecognized column family: " + columnFamily.id());
+                logger.error("Attempted to write commit log entry for unrecognized column family: {}", columnFamily.id());
             }
             else
             {

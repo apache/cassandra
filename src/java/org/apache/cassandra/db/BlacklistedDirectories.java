@@ -48,7 +48,7 @@ public class BlacklistedDirectories implements BlacklistedDirectoriesMBean
         }
         catch (Exception e)
         {
-            logger.error("error registering MBean " + MBEAN_NAME, e);
+            logger.error("error registering MBean {}", MBEAN_NAME, e);
             //Allow the server to start even if the bean can't be registered
         }
     }

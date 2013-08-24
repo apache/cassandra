@@ -365,7 +365,7 @@ public class Keyspace
                 ColumnFamilyStore cfs = columnFamilyStores.get(cf.id());
                 if (cfs == null)
                 {
-                    logger.error("Attempting to mutate non-existant column family " + cf.id());
+                    logger.error("Attempting to mutate non-existant column family {}", cf.id());
                     continue;
                 }
 

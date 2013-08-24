@@ -408,7 +408,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
                     if (hint.maxTimestamp() < truncatedAt)
                     {
-                        logger.debug("Skipping delivery of hint for truncated columnfamily {}" + cfId);
+                        logger.debug("Skipping delivery of hint for truncated columnfamily {}", cfId);
                         rm = rm.without(cfId);
                     }
                 }

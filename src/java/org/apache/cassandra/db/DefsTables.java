@@ -338,7 +338,7 @@ public class DefsTables
         KSMetaData ksm = Schema.instance.getKSMetaData(cfm.ksName);
         ksm = KSMetaData.cloneWith(ksm, Iterables.concat(ksm.cfMetaData().values(), Collections.singleton(cfm)));
 
-        logger.info("Loading " + cfm);
+        logger.info("Loading {}", cfm);
 
         Schema.instance.load(cfm);
 

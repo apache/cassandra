@@ -129,8 +129,8 @@ public class DatabaseDescriptor
     {
         conf = config;
 
-        logger.info("Data files directories: " + Arrays.toString(conf.data_file_directories));
-        logger.info("Commit log directory: " + conf.commitlog_directory);
+        logger.info("Data files directories: {}", Arrays.toString(conf.data_file_directories));
+        logger.info("Commit log directory: {}", conf.commitlog_directory);
 
         if (conf.commitlog_sync == null)
         {
@@ -147,7 +147,7 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("Batch sync specified, but commitlog_sync_period_in_ms found. Only specify commitlog_sync_batch_window_in_ms when using batch sync");
             }
-            logger.debug("Syncing log with a batch window of " + conf.commitlog_sync_batch_window_in_ms);
+            logger.debug("Syncing log with a batch window of {}", conf.commitlog_sync_batch_window_in_ms);
         }
         else
         {
@@ -159,7 +159,7 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("commitlog_sync_period_in_ms specified, but commitlog_sync_batch_window_in_ms found.  Only specify commitlog_sync_period_in_ms when using periodic sync.");
             }
-            logger.debug("Syncing log with a period of " + conf.commitlog_sync_period_in_ms);
+            logger.debug("Syncing log with a period of {}", conf.commitlog_sync_period_in_ms);
         }
 
         if (conf.commitlog_total_space_in_mb == null)
@@ -170,21 +170,21 @@ public class DatabaseDescriptor
         {
             conf.disk_access_mode = System.getProperty("os.arch").contains("64") ? Config.DiskAccessMode.mmap : Config.DiskAccessMode.standard;
             indexAccessMode = conf.disk_access_mode;
-            logger.info("DiskAccessMode 'auto' determined to be " + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
+            logger.info("DiskAccessMode 'auto' determined to be {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
         }
         else if (conf.disk_access_mode == Config.DiskAccessMode.mmap_index_only)
         {
             conf.disk_access_mode = Config.DiskAccessMode.standard;
             indexAccessMode = Config.DiskAccessMode.mmap;
-            logger.info("DiskAccessMode is " + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
+            logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
         }
         else
         {
             indexAccessMode = conf.disk_access_mode;
-            logger.info("DiskAccessMode is " + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
+            logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
         }
 
-        logger.info("disk_failure_policy is " + conf.disk_failure_policy);
+        logger.info("disk_failure_policy is {}", conf.disk_failure_policy);
 
         /* Authentication and authorization backend, implementing IAuthenticator and IAuthorizer */
         if (conf.authenticator != null)
@@ -371,10 +371,10 @@ public class DatabaseDescriptor
 
         if (logger.isDebugEnabled() && conf.auto_bootstrap != null)
         {
-            logger.debug("setting auto_bootstrap to " + conf.auto_bootstrap);
+            logger.debug("setting auto_bootstrap to {}", conf.auto_bootstrap);
         }
 
-        logger.info((conf.multithreaded_compaction ? "" : "Not ") + "using multi-threaded compaction");
+        logger.info("{}using multi-threaded compaction", (conf.multithreaded_compaction ? "" : "Not "));
 
         if (conf.in_memory_compaction_limit_in_mb != null && conf.in_memory_compaction_limit_in_mb <= 0)
         {
@@ -574,13 +574,13 @@ public class DatabaseDescriptor
         }
         catch (ConfigurationException e)
         {
-            logger.error("Fatal error: " + e.getMessage());
+            logger.error("Fatal error: {}", e.getMessage());
             System.err.println("Bad configuration; unable to start server");
             System.exit(1);
         }
         catch (FSWriteError e)
         {
-            logger.error("Fatal error: " + e.getMessage());
+            logger.error("Fatal error: {}", e.getMessage());
             System.err.println(e.getCause().getMessage() + "; unable to start server");
             System.exit(1);
         }

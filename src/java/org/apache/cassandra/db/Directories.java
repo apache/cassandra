@@ -442,7 +442,7 @@ public class Directories
             if (snapshotDir.exists())
             {
                 if (logger.isDebugEnabled())
-                    logger.debug("Removing snapshot directory " + snapshotDir);
+                    logger.debug("Removing snapshot directory {}", snapshotDir);
                 FileUtils.deleteRecursive(snapshotDir);
             }
         }

@@ -721,7 +721,7 @@ public class CounterContext implements IContext
                     }
                     else
                     {
-                        logger.debug("Ignoring non-removable non-delta corrupted shard in context " + toString(context));
+                        logger.debug("Ignoring non-removable non-delta corrupted shard in context {}", toString(context));
                         state.moveToNext();
                         continue;
                     }

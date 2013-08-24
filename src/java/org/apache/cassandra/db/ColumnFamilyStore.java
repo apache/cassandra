@@ -335,7 +335,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         catch (Exception e)
         {
             // this shouldn't block anything.
-            logger.warn("Failed unregistering mbean: " + mbeanName, e);
+            logger.warn("Failed unregistering mbean: {}", mbeanName, e);
         }
     }
 
@@ -455,7 +455,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             for (File file : dir.listFiles())
                 if (tmpCacheFilePattern.matcher(file.getName()).matches())
                     if (!file.delete())
-                        logger.warn("could not delete " + file.getAbsolutePath());
+                        logger.warn("could not delete {}", file.getAbsolutePath());
         }
 
         // also clean out any index leftovers.
@@ -567,7 +567,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public synchronized void loadNewSSTables()
     {
-        logger.info("Loading new SSTables for " + keyspace.getName() + "/" + name + "...");
+        logger.info("Loading new SSTables for {}/{}...", keyspace.getName(), name);
 
         Set<Descriptor> currentDescriptors = new HashSet<Descriptor>();
         for (SSTableReader sstable : data.getView().sstables)
@@ -628,11 +628,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (newSSTables.isEmpty())
         {
-            logger.info("No new SSTables were found for " + keyspace.getName() + "/" + name);
+            logger.info("No new SSTables were found for {}/{}", keyspace.getName(), name);
             return;
         }
 
-        logger.info("Loading new SSTables and building secondary indexes for " + keyspace.getName() + "/" + name + ": " + newSSTables);
+        logger.info("Loading new SSTables and building secondary indexes for {}/{}: {}", keyspace.getName(), name, newSSTables);
         SSTableReader.acquireReferences(newSSTables);
         data.addSSTables(newSSTables);
         try
@@ -644,7 +644,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SSTableReader.releaseReferences(newSSTables);
         }
 
-        logger.info("Done loading load new SSTables for " + keyspace.getName() + "/" + name);
+        logger.info("Done loading load new SSTables for {}/{}", keyspace.getName(), name);
     }
 
     public static void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames)
@@ -1735,8 +1735,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
                     ssTable.createLinks(snapshotDirectory.getPath()); // hard links
                     if (logger.isDebugEnabled())
-                        logger.debug("Snapshot for " + keyspace + " keyspace data file " + ssTable.getFilename() +
-                                     " created in " + snapshotDirectory);
+                        logger.debug("Snapshot for {} keyspace data file {} created in {}", keyspace, ssTable.getFilename(), snapshotDirectory);
                 }
 
                 if (cfs.compactionStrategy instanceof LeveledCompactionStrategy)

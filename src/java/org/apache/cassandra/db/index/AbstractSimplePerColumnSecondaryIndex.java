@@ -67,7 +67,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
             double averageColumnCount = indexCfs.getMeanColumns();
             if (averageColumnCount > 0 && estimatedKeys / averageColumnCount > 1)
             {
-                logger.debug("turning row cache on for " + indexCfs.name);
+                logger.debug("turning row cache on for {}", indexCfs.name);
                 indexCfs.metadata.caching(baseCaching);
                 indexCfs.initRowCache();
             }

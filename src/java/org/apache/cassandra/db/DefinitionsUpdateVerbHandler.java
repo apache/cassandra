@@ -40,7 +40,7 @@ public class DefinitionsUpdateVerbHandler implements IVerbHandler<Collection<Row
 
     public void doVerb(final MessageIn<Collection<RowMutation>> message, int id)
     {
-        logger.debug("Received schema mutation push from " + message.from);
+        logger.debug("Received schema mutation push from {}", message.from);
 
         StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
         {

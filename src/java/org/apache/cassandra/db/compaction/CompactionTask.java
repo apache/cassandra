@@ -71,7 +71,7 @@ public class CompactionTask extends AbstractCompactionTask
         if (partialCompactionsAcceptable() && toCompact.size() > 1)
         {
             // Try again w/o the largest one.
-            logger.warn("insufficient space to compact all requested files " + StringUtils.join(toCompact, ", "));
+            logger.warn("insufficient space to compact all requested files {}", StringUtils.join(toCompact, ", "));
             // Note that we have removed files that are still marked as compacting.
             // This suboptimal but ok since the caller will unmark all the sstables at the end.
             return toCompact.remove(cfs.getMaxSizeFile(toCompact));
@@ -121,7 +121,7 @@ public class CompactionTask extends AbstractCompactionTask
         long estimatedSSTables = Math.max(1, SSTable.getTotalBytes(actuallyCompact) / strategy.getMaxSSTableSize());
         long keysPerSSTable = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
         if (logger.isDebugEnabled())
-            logger.debug("Expected bloom filter size : " + keysPerSSTable);
+            logger.debug("Expected bloom filter size : {}", keysPerSSTable);
 
         AbstractCompactionIterable ci = DatabaseDescriptor.isMultithreadedCompaction()
                                       ? new ParallelCompactionIterable(compactionType, strategy.getScanners(actuallyCompact), controller)

@@ -551,9 +551,9 @@ public class CompactionManager implements CompactionManagerMBean
             int expectedBloomFilterSize = Math.max(cfs.metadata.getIndexInterval(),
                                                    (int) (SSTableReader.getApproximateKeyCount(Arrays.asList(sstable), cfs.metadata)));
             if (logger.isDebugEnabled())
-                logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
+                logger.debug("Expected bloom filter size : {}", expectedBloomFilterSize);
 
-            logger.info("Cleaning up " + sstable);
+            logger.info("Cleaning up {}", sstable);
             // Calculate the expected compacted filesize
             long expectedRangeFileSize = cfs.getExpectedCompactedFileSize(Arrays.asList(sstable), OperationType.CLEANUP);
             File compactionFileLocation = cfs.directories.getDirectoryForNewSSTables(expectedRangeFileSize);

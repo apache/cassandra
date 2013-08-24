@@ -288,7 +288,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         expireTimeEndpointMap.remove(endpoint);
         quarantineEndpoint(endpoint);
         if (logger.isDebugEnabled())
-            logger.debug("evicting " + endpoint + " from gossip");
+            logger.debug("evicting {} from gossip", endpoint);
     }
 
     /**
@@ -315,7 +315,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         quarantineEndpoint(endpoint);
         MessagingService.instance().destroyConnectionPool(endpoint);
         if (logger.isDebugEnabled())
-            logger.debug("removing endpoint " + endpoint);
+            logger.debug("removing endpoint {}", endpoint);
     }
 
     /**
@@ -392,14 +392,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         // remember this node's generation
         int generation = epState.getHeartBeatState().getGeneration();
         logger.info("Removing host: {}", hostId);
-        logger.info("Sleeping for " + StorageService.RING_DELAY + "ms to ensure " + endpoint + " does not change");
+        logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY, endpoint);
         Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
         // make sure it did not change
         epState = endpointStateMap.get(endpoint);
         if (epState.getHeartBeatState().getGeneration() != generation)
             throw new RuntimeException("Endpoint " + endpoint + " generation changed while trying to remove it");
         // update the other node's generation to mimic it as if it had changed it itself
-        logger.info("Advertising removal for " + endpoint);
+        logger.info("Advertising removal for {}", endpoint);
         epState.updateTimestamp(); // make sure we don't evict it too soon
         epState.getHeartBeatState().forceNewerGenerationUnsafe();
         epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removingNonlocal(hostId));
@@ -421,7 +421,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         epState.getHeartBeatState().forceNewerGenerationUnsafe();
         long expireTime = computeExpireTime();
         epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
-        logger.info("Completing removal of " + endpoint);
+        logger.info("Completing removal of {}", endpoint);
         addExpireTimeForEndpoint(endpoint, expireTime);
         endpointStateMap.put(endpoint, epState);
         // ensure at least one gossip round occurs before returning
@@ -461,7 +461,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 tokens = Collections.singletonList(StorageService.getPartitioner().getRandomToken());
             }
             int generation = epState.getHeartBeatState().getGeneration();
-            logger.info("Sleeping for " + StorageService.RING_DELAY + "ms to ensure " + endpoint + " does not change");
+            logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY, endpoint);
             Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
             // make sure it did not change
             epState = endpointStateMap.get(endpoint);
@@ -592,7 +592,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     && !justRemovedEndpoints.containsKey(endpoint)
                     && TimeUnit.NANOSECONDS.toMillis(nowNano - epState.getUpdateTimestamp()) > FatClientTimeout)
                 {
-                    logger.info("FatClient " + endpoint + " has been silent for " + FatClientTimeout + "ms, removing from gossip");
+                    logger.info("FatClient {} has been silent for {}ms, removing from gossip", endpoint, FatClientTimeout);
                     removeEndpoint(endpoint); // will put it in justRemovedEndpoints to respect quarantine delay
                     evictFromMembership(endpoint); // can get rid of the state immediately
                 }
@@ -604,7 +604,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 {
                     if (logger.isDebugEnabled())
                     {
-                        logger.debug("time is expiring for endpoint : " + endpoint + " (" + expireTime + ")");
+                        logger.debug("time is expiring for endpoint : {} ({})", endpoint, expireTime);
                     }
                     evictFromMembership(endpoint);
                 }
@@ -618,7 +618,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 if ((now - entry.getValue()) > QUARANTINE_DELAY)
                 {
                     if (logger.isDebugEnabled())
-                        logger.debug(QUARANTINE_DELAY + " elapsed, " + entry.getKey() + " gossip quarantine over");
+                        logger.debug("{} elapsed, {} gossip quarantine over", QUARANTINE_DELAY, entry.getKey());
                     justRemovedEndpoints.remove(entry.getKey());
                 }
             }
@@ -785,7 +785,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 liveEndpoints.add(addr);
                 unreachableEndpoints.remove(addr);
                 expireTimeEndpointMap.remove(addr);
-                logger.debug("removing expire time for endpoint : " + addr);
+                logger.debug("removing expire time for endpoint : {}", addr);
                 logger.info("InetAddress {} is now UP", addr);
                 for (IEndpointStateChangeSubscriber subscriber : subscribers)
                     subscriber.onAlive(addr, localState);
@@ -837,7 +837,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             markAlive(ep, epState);
         else
         {
-            logger.debug("Not marking " + ep + " alive due to dead state");
+            logger.debug("Not marking {} alive due to dead state", ep);
             markDead(ep, epState);
         }
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
@@ -1173,7 +1173,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         if (logger.isDebugEnabled())
         {
-            logger.debug("adding expire time for endpoint : " + endpoint + " (" + expireTime + ")");
+            logger.debug("adding expire time for endpoint : {} ({})", endpoint, expireTime);
         }
         expireTimeEndpointMap.put(endpoint, expireTime);
     }
