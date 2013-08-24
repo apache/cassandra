@@ -91,7 +91,7 @@ public class ConnectionHandler
     /**
      * Set up outgoing message handler on receiving side.
      *
-     * @param socket socket to use for {@link OutgoingMessageHandler}.
+     * @param socket socket to use for {@link org.apache.cassandra.streaming.ConnectionHandler.OutgoingMessageHandler}.
      * @param version Streaming message version
      * @throws IOException
      */
