@@ -27,6 +27,7 @@
  * Properly handle parsing huge map and set literals (CASSANDRA-5893)
  * Fix LCS L0 compaction may overlap in L1 (CASSANDRA-5907)
  * New sstablesplit tool to split large sstables offline (CASSANDRA-4766)
+ * Fix potential deadlock in native protocol server (CASSANDRA-5926)
 Merged from 1.1:
  * Correctly validate sparse composite cells in scrub (CASSANDRA-5855)
 
