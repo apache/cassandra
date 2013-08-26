@@ -343,7 +343,7 @@ native_transport_port: 9042
 # transport is used. They are similar to rpc_min_threads and rpc_max_threads,
 # though the defaults differ slightly.
 # NOTE: native_transport_min_threads is now deprecated and ignored (but kept
-# in the 1.2.x serie for compatibility sake).
+# in the 1.2.x series for compatibility sake).
 # native_transport_min_threads: 16
 # native_transport_max_threads: 128
 
