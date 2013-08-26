@@ -51,6 +51,8 @@ Upgrading
       have new value. When upgrading, Cassandra will pick up the value defined in
       cassanda.yaml as the default for existing ColumnFamilies, until you explicitly
       set the value for those.
+    - The deprecated native_transport_min_threads option has been removed in
+      Cassandra.yaml.
 
 Operations
 ----------

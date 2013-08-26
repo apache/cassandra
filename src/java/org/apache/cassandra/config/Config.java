@@ -95,7 +95,6 @@ public class Config
 
     public Boolean start_native_transport = false;
     public Integer native_transport_port = 9042;
-    public Integer native_transport_min_threads = 16;
     public Integer native_transport_max_threads = 128;
 
     @Deprecated
