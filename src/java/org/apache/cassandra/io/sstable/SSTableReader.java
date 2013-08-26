@@ -160,9 +160,9 @@ public class SSTableReader extends SSTable
                                                   partitioner,
                                                   System.currentTimeMillis(),
                                                   sstableMetadata);
-        sstable.bf = new AlwaysPresentFilter();
         // don't save index summary to disk if we needed to build one
-        sstable.load(true, false);
+        sstable.load(false, false);
+        sstable.bf = FilterFactory.AlwaysPresent;
         return sstable;
     }
 
@@ -350,7 +350,7 @@ public class SSTableReader extends SSTable
         {
             // bf is disabled.
             load(false, true);
-            bf = new AlwaysPresentFilter();
+            bf = FilterFactory.AlwaysPresent;
         }
         else if (!components.contains(Component.FILTER))
         {
@@ -577,7 +577,7 @@ public class SSTableReader extends SSTable
      */
     public void forceFilterFailures()
     {
-        bf = new AlwaysPresentFilter();
+        bf = FilterFactory.AlwaysPresent;
     }
 
     public IFilter getBloomFilter()
@@ -587,9 +587,7 @@ public class SSTableReader extends SSTable
 
     public long getBloomFilterSerializedSize()
     {
-        if (bf instanceof AlwaysPresentFilter)
-            return 0;
-        return FilterFactory.serializedSize(bf);
+        return bf.serializedSize();
     }
 
     /**

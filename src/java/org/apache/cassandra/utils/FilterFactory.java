@@ -31,8 +31,9 @@ import org.slf4j.LoggerFactory;
 
 public class FilterFactory
 {
+    public static final IFilter AlwaysPresent = new AlwaysPresentFilter();
+
     private static final Logger logger = LoggerFactory.getLogger(FilterFactory.class);
-    private static final TypeSizes TYPE_SIZES = TypeSizes.NATIVE;
     private static final long BITSET_EXCESS = 20;
 
     public static void serialize(IFilter bf, DataOutput output) throws IOException
@@ -43,11 +44,6 @@ public class FilterFactory
     public static IFilter deserialize(DataInput input, boolean offheap) throws IOException
     {
         return Murmur3BloomFilter.serializer.deserialize(input, offheap);
-    }
-
-    public static long serializedSize(IFilter bf)
-    {
-        return Murmur3BloomFilter.serializer.serializedSize((Murmur3BloomFilter) bf, TYPE_SIZES);
     }
 
     /**
