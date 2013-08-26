@@ -23,10 +23,24 @@ public final class HeapAllocator extends Allocator
 {
     public static final HeapAllocator instance = new HeapAllocator();
 
-    private HeapAllocator() {}
+    /**
+     * Normally you should use HeapAllocator.instance, since there is no per-Allocator state.
+     * This is exposed so that the reflection done by Memtable works when SlabAllocator is disabled.
+     */
+    public HeapAllocator() {}
 
     public ByteBuffer allocate(int size)
     {
         return ByteBuffer.allocate(size);
+    }
+
+    public long getMinimumSize()
+    {
+        return 0;
+    }
+
+    public long getMaximumSize()
+    {
+        return Long.MAX_VALUE;
     }
 }

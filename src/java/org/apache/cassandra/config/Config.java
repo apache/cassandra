@@ -172,6 +172,8 @@ public class Config
 
     public boolean preheat_kernel_page_cache = false;
 
+    public String memtable_allocator = "SlabAllocator";
+
     private static boolean outboundBindAny = false;
 
     public static boolean getOutboundBindAny()

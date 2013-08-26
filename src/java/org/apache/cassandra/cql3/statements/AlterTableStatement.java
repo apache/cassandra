@@ -148,10 +148,25 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         cfm.comparator = CompositeType.getInstance(newTypes);
                         break;
                     case VALUE_ALIAS:
+                        // See below
+                        if (!validator.getType().isCompatibleWith(cfm.getDefaultValidator()))
+                            throw new ConfigurationException(String.format("Cannot change %s from type %s to type %s: types are incompatible.",
+                                                                           columnName,
+                                                                           cfm.getDefaultValidator().asCQL3Type(),
+                                                                           validator));
                         cfm.defaultValidator(validator.getType());
                         break;
                     case COLUMN_METADATA:
                         ColumnDefinition column = cfm.getColumnDefinition(columnName.key);
+                        // Thrift allows to change a column validator so CFMetaData.validateCompatility will let it slide
+                        // if we change to an incompatible type (contrarily to the comparator case). But we don't want to
+                        // allow it for CQL3 (see #5882) so validating it explicitly here
+                        if (!validator.getType().isCompatibleWith(column.getValidator()))
+                            throw new ConfigurationException(String.format("Cannot change %s from type %s to type %s: types are incompatible.",
+                                                                           columnName,
+                                                                           column.getValidator().asCQL3Type(),
+                                                                           validator));
+
                         column.setValidator(validator.getType());
                         break;
                 }
