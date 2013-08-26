@@ -8,6 +8,9 @@
    (CASSANDRA-5722)
  * Add ability for CQL3 to list partition keys (CASSANDRA-4536)
  * Improve native protocol serialization (CASSANDRA-5664)
+Merged from 1.2:
+ * Allow disabling SlabAllocator (CASSANDRA-5935)
+ * Make user-defined compaction JMX blocking (CASSANDRA-4952)
 
 
 2.0.0
@@ -68,6 +71,7 @@ Merged from 1.2:
  * Fix LCS L0 compaction may overlap in L1 (CASSANDRA-5907)
  * New sstablesplit tool to split large sstables offline (CASSANDRA-4766)
  * Fix potential deadlock in native protocol server (CASSANDRA-5926)
+ * Disallow incompatible type change in CQL3 (CASSANDRA-5882)
 Merged from 1.1:
  * Correctly validate sparse composite cells in scrub (CASSANDRA-5855)
 

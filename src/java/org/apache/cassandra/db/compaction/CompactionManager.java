@@ -38,7 +38,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionInfo.Holder;
 import org.apache.cassandra.db.index.SecondaryIndexBuilder;
 import org.apache.cassandra.dht.Bounds;
@@ -47,12 +46,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CompactionMetrics;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.repair.Validator;
-import org.apache.cassandra.utils.CloseableIterator;
-import org.apache.cassandra.utils.CounterId;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.*;
 
 /**
  * A singleton which manages a private executor of ongoing compactions.
@@ -322,11 +318,13 @@ public class CompactionManager implements CompactionManagerMBean
             descriptors.put(key, p.left);
         }
 
+        List<Future<?>> futures = new ArrayList<>();
         for (Pair<String, String> key : descriptors.keySet())
         {
             ColumnFamilyStore cfs = Keyspace.open(key.left).getColumnFamilyStore(key.right);
-            submitUserDefined(cfs, descriptors.get(key), getDefaultGcBefore(cfs));
+            futures.add(submitUserDefined(cfs, descriptors.get(key), getDefaultGcBefore(cfs)));
         }
+        FBUtilities.waitOnFutures(futures);
     }
 
     public Future<?> submitUserDefined(final ColumnFamilyStore cfs, final Collection<Descriptor> dataFiles, final int gcBefore)
