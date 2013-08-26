@@ -29,6 +29,15 @@ Defaults
       has been changed from 5MB to 160MB.
 
 
+1.2.8
+=====
+
+Upgrading
+---------
+    - Nothing specific to this release, but please see 1.2.7 if you are upgrading
+      from a previous version.
+
+
 1.2.7
 =====
 
