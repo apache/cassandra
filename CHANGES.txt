@@ -2,6 +2,7 @@
  * Fix thrift validation when inserting into CQL3 tables (CASSANDRA-5138)
  * Fix periodic memtable flushing behavior with clean memtables (CASSANDRA-5931)
  * Fix dateOf() function for pre-2.0 timestamp columns (CASSANDRA-5928)
+ * Fix SSTable unintentionally loads BF when opened for batch (CASSANDRA-5938)
 Merged from 1.2:
  * Fix getBloomFilterDiskSpaceUsed for AlwaysPresentFilter (CASSANDRA-5900)
  * Don't announce schema version until we've loaded the changes locally

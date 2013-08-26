@@ -19,6 +19,7 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.obs.IBitSet;
 
 public class Murmur3BloomFilter extends BloomFilter
@@ -28,6 +29,11 @@ public class Murmur3BloomFilter extends BloomFilter
     public Murmur3BloomFilter(int hashes, IBitSet bs)
     {
         super(hashes, bs);
+    }
+
+    public long serializedSize()
+    {
+        return serializer.serializedSize(this, TypeSizes.NATIVE);
     }
 
     protected long[] hash(ByteBuffer b, int position, int remaining, long seed)
