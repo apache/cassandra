@@ -25,6 +25,7 @@ import java.util.Date;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.TimestampSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -117,6 +118,12 @@ public class DateType extends AbstractType<Date>
         }
 
         return false;
+    }
+
+    @Override
+    public CQL3Type asCQL3Type()
+    {
+        return CQL3Type.Native.TIMESTAMP;
     }
 
     public TypeSerializer<Date> getSerializer()
