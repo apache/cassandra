@@ -56,10 +56,7 @@ import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.service.AntiEntropyService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.CloseableIterator;
-import org.apache.cassandra.utils.CounterId;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.*;
 
 /**
  * A singleton which manages a private executor of ongoing compactions. A readwrite lock
@@ -405,7 +402,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
 
         ColumnFamilyStore cfs = Table.open(ksname).getColumnFamilyStore(cfname);
-        submitUserDefined(cfs, descriptors, getDefaultGcBefore(cfs));
+        FBUtilities.waitOnFuture(submitUserDefined(cfs, descriptors, getDefaultGcBefore(cfs)));
     }
 
     public Future<?> submitUserDefined(final ColumnFamilyStore cfs, final Collection<Descriptor> dataFiles, final int gcBefore)

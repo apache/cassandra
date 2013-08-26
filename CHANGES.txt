@@ -1,5 +1,6 @@
 1.2.10
  * Allow disabling SlabAllocator (CASSANDRA-5935)
+ * Make user-defined compaction JMX blocking (CASSANDRA-4952)
 
 
 1.2.9
