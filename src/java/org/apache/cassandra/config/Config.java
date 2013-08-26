@@ -170,6 +170,8 @@ public class Config
 
     public boolean inter_dc_tcp_nodelay = true;
 
+    public String memtable_allocator = "SlabAllocator";
+
     private static boolean loadYaml = true;
     private static boolean outboundBindAny = false;
 

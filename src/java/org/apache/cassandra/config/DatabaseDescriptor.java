@@ -51,6 +51,7 @@ import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.yaml.snakeyaml.Loader;
 import org.yaml.snakeyaml.TypeDescription;
@@ -90,6 +91,8 @@ public class DatabaseDescriptor
 
     private static String localDC;
     private static Comparator<InetAddress> localComparator;
+
+    private static Class<? extends Allocator> memtableAllocator;
 
     /**
      * Inspect the classpath to find storage configuration file
@@ -466,6 +469,11 @@ public class DatabaseDescriptor
                 //operate under the assumption that server_encryption_options is not set in yaml rather than both
                 conf.server_encryption_options = conf.encryption_options;
             }
+
+            String allocatorClass = conf.memtable_allocator;
+            if (!allocatorClass.contains("."))
+                allocatorClass = "org.apache.cassandra.utils." + allocatorClass;
+            memtableAllocator = FBUtilities.classForName(allocatorClass, "allocator");
 
             // Hardcoded system tables
             List<KSMetaData> systemKeyspaces = Arrays.asList(KSMetaData.systemKeyspace(), KSMetaData.traceKeyspace());
@@ -1285,5 +1293,21 @@ public class DatabaseDescriptor
     public static boolean getInterDCTcpNoDelay()
     {
         return conf.inter_dc_tcp_nodelay;
+    }
+
+    public static Allocator getMemtableAllocator()
+    {
+        try
+        {
+            return memtableAllocator.newInstance();
+        }
+        catch (InstantiationException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (IllegalAccessException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 }
