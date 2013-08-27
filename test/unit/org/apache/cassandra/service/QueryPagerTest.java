@@ -119,7 +119,8 @@ public class QueryPagerTest extends SchemaLoader
     private static ReadCommand sliceQuery(String key, String start, String end, int count)
     {
         SliceQueryFilter filter = new SliceQueryFilter(bytes(start), bytes(end), false, count);
-        return new SliceFromReadCommand(KS, bytes(key), CF, System.currentTimeMillis(), filter);
+        // Note: for MultiQueryTest, we need the same timestamp/expireBefore for all queries, so we just use 0 as it doesn't matter here.
+        return new SliceFromReadCommand(KS, bytes(key), CF, 0, filter);
     }
 
     private static RangeSliceCommand rangeNamesQuery(AbstractBounds<RowPosition> range, int count, String... names)
