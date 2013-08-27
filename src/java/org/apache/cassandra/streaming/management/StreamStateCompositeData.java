@@ -33,10 +33,18 @@ import org.apache.cassandra.streaming.StreamState;
  */
 public class StreamStateCompositeData
 {
-    private static final String[] ITEM_NAMES = new String[]{"planId", "description", "sessions"};
+    private static final String[] ITEM_NAMES = new String[]{"planId", "description", "sessions",
+                                                            "currentRxBytes", "totalRxBytes", "rxPercentage",
+                                                            "currentTxBytes", "totalTxBytes", "txPercentage"};
     private static final String[] ITEM_DESCS = new String[]{"Plan ID of this stream",
                                                             "Stream plan description",
-                                                            "Active stream sessions"};
+                                                            "Active stream sessions",
+                                                            "Number of bytes received across all streams",
+                                                            "Total bytes available to receive across all streams",
+                                                            "Percentage received across all streams",
+                                                            "Number of bytes sent across all streams",
+                                                            "Total bytes available to send across all streams",
+                                                            "Percentage sent across all streams"};
     private static final OpenType<?>[] ITEM_TYPES;
 
     public static final CompositeType COMPOSITE_TYPE;
@@ -45,7 +53,9 @@ public class StreamStateCompositeData
         {
             ITEM_TYPES = new OpenType[]{SimpleType.STRING,
                                          SimpleType.STRING,
-                                         ArrayType.getArrayType(SessionInfoCompositeData.COMPOSITE_TYPE)};
+                                         ArrayType.getArrayType(SessionInfoCompositeData.COMPOSITE_TYPE),
+                                         SimpleType.LONG, SimpleType.LONG, SimpleType.DOUBLE,
+                                         SimpleType.LONG, SimpleType.LONG, SimpleType.DOUBLE};
             COMPOSITE_TYPE = new CompositeType(StreamState.class.getName(),
                                             "StreamState",
                                             ITEM_NAMES,
@@ -73,6 +83,28 @@ public class StreamStateCompositeData
             }
         })).toArray(sessions);
         valueMap.put(ITEM_NAMES[2], sessions);
+
+        long currentRxBytes = 0;
+        long totalRxBytes = 0;
+        long currentTxBytes = 0;
+        long totalTxBytes = 0;
+        for (SessionInfo sessInfo : streamState.sessions)
+        {
+            currentRxBytes += sessInfo.getTotalSizeReceived();
+            totalRxBytes += sessInfo.getTotalSizeToReceive();
+            currentTxBytes += sessInfo.getTotalSizeSent();
+            totalTxBytes += sessInfo.getTotalSizeToSend();
+        }
+        double rxPercentage = (totalRxBytes == 0 ? 100L : currentRxBytes * 100L / totalRxBytes);
+        double txPercentage = (totalTxBytes == 0 ? 100L : currentTxBytes * 100L / totalTxBytes);
+
+        valueMap.put(ITEM_NAMES[3], currentRxBytes);
+        valueMap.put(ITEM_NAMES[4], totalRxBytes);
+        valueMap.put(ITEM_NAMES[5], rxPercentage);
+        valueMap.put(ITEM_NAMES[6], currentTxBytes);
+        valueMap.put(ITEM_NAMES[7], totalTxBytes);
+        valueMap.put(ITEM_NAMES[8], txPercentage);
+
         try
         {
             return new CompositeDataSupport(COMPOSITE_TYPE, valueMap);
