@@ -34,7 +34,7 @@ public class Bounds<T extends RingPosition> extends AbstractBounds<T>
         this(left, right, StorageService.getPartitioner());
     }
 
-    Bounds(T left, T right, IPartitioner partitioner)
+    public Bounds(T left, T right, IPartitioner partitioner)
     {
         super(left, right, partitioner);
         // unlike a Range, a Bounds may not wrap

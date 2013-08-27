@@ -1478,7 +1478,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
         {
-            DecoratedKey dk = StorageService.getPartitioner().decorateKey(ByteBuffer.wrap(key.key));
+            DecoratedKey dk = partitioner.decorateKey(ByteBuffer.wrap(key.key));
             if (key.cfId == metadata.cfId && !Range.isInRanges(dk.token, ranges))
                 invalidateCachedRow(dk);
         }

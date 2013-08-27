@@ -74,12 +74,12 @@ public class SSTableScanner implements ICompactionScanner
         {
             // split the wrapping range into two parts: 1) the part that starts at the beginning of the sstable, and
             // 2) the part that comes before the wrap-around
-            boundsList.add(new Bounds<>(sstable.partitioner.getMinimumToken().minKeyBound(), dataRange.stopKey()));
-            boundsList.add(new Bounds<>(dataRange.startKey(), sstable.partitioner.getMinimumToken().maxKeyBound()));
+            boundsList.add(new Bounds<>(sstable.partitioner.getMinimumToken().minKeyBound(), dataRange.stopKey(), sstable.partitioner));
+            boundsList.add(new Bounds<>(dataRange.startKey(), sstable.partitioner.getMinimumToken().maxKeyBound(), sstable.partitioner));
         }
         else
         {
-            boundsList.add(new Bounds<>(dataRange.startKey(), dataRange.stopKey()));
+            boundsList.add(new Bounds<>(dataRange.startKey(), dataRange.stopKey(), sstable.partitioner));
         }
         this.rangeIterator = boundsList.iterator();
     }
@@ -101,7 +101,9 @@ public class SSTableScanner implements ICompactionScanner
         List<Range<Token>> normalized = Range.normalize(tokenRanges);
         List<AbstractBounds<RowPosition>> boundsList = new ArrayList<>(normalized.size());
         for (Range<Token> range : normalized)
-            boundsList.add(new Range<RowPosition>(range.left.maxKeyBound(sstable.partitioner), range.right.maxKeyBound(sstable.partitioner)));
+            boundsList.add(new Range<RowPosition>(range.left.maxKeyBound(sstable.partitioner),
+                                                  range.right.maxKeyBound(sstable.partitioner),
+                                                  sstable.partitioner));
 
         this.rangeIterator = boundsList.iterator();
     }
