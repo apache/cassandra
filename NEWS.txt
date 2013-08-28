@@ -80,7 +80,7 @@ Operations
 
 Features
 --------
-    - Lightweight transactions 
+    - Lightweight transactions
       (http://www.datastax.com/dev/blog/lightweight-transactions-in-cassandra-2-0)
     - Alias support has been added to CQL3 SELECT statement. Refer to
       CQL3 documentation (http://cassandra.apache.org/doc/cql3/CQL.html) for details.
@@ -89,6 +89,8 @@ Features
       means "tied closely to internal data structures; we plan to decouple this in
       the future, which will probably break triggers written against this initial
       API."
+    - Numerous improvements to CQL3 and a new version of the native protocol. See
+      http://www.datastax.com/dev/blog/cql-in-cassandra-2-0 for details.
 
 
 1.2.9
