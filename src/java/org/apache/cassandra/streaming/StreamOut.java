@@ -126,8 +126,11 @@ public class StreamOut
                                       boolean flushTables)
     {
         assert ranges.size() > 0;
+
+        List<Range<Token>> normalizedRanges = Range.normalize(ranges);
+
         logger.info("Beginning transfer to {}", session.getHost());
-        logger.debug("Ranges are {}", StringUtils.join(ranges, ","));
+        logger.debug("Ranges are {}", StringUtils.join(normalizedRanges, ","));
 
         if (flushTables)
             flushSSTables(cfses);
@@ -136,13 +139,13 @@ public class StreamOut
         for (ColumnFamilyStore cfStore : cfses)
         {
             List<AbstractBounds<RowPosition>> rowBoundsList = Lists.newLinkedList();
-            for (Range<Token> range : ranges)
+            for (Range<Token> range : normalizedRanges)
                 rowBoundsList.add(range.toRowBounds());
             ColumnFamilyStore.ViewFragment view = cfStore.markReferenced(rowBoundsList);
             sstables.addAll(view.sstables);
         }
 
-        transferSSTables(session, sstables, ranges, type);
+        transferSSTables(session, sstables, normalizedRanges, type);
     }
 
     /**

@@ -3,6 +3,7 @@
  * Fix CqlRecordWriter with composite keys (CASSANDRA-5949)
  * Allow disabling SlabAllocator (CASSANDRA-5935)
  * Make user-defined compaction JMX blocking (CASSANDRA-4952)
+ * Fix streaming does not transfer wrapped range (CASSANDRA-5948)
 
 
 1.2.9
