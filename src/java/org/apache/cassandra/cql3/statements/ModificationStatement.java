@@ -108,6 +108,8 @@ public abstract class ModificationStatement implements CQLStatement
 
     public void validate(ClientState state) throws InvalidRequestException
     {
+        if (hasConditions() && attrs.isTimestampSet())
+            throw new InvalidRequestException("Custom timestamps are not allowed when conditions are used");
     }
 
     public void addOperation(Operation op)
@@ -370,13 +372,17 @@ public abstract class ModificationStatement implements CQLStatement
             throw new InvalidRequestException("IN on the partition key is not supported with conditional updates");
 
         ColumnNameBuilder clusteringPrefix = createClusteringPrefixBuilder(variables);
-        UpdateParameters params = new UpdateParameters(cfm, variables, getTimestamp(queryState.getTimestamp(), variables), getTimeToLive(variables), null);
 
         ByteBuffer key = keys.get(0);
         ThriftValidation.validateKey(cfm, key);
 
-        ColumnFamily updates = updateForKey(key, clusteringPrefix, params);
-        ColumnFamily expected = buildConditions(key, clusteringPrefix, params);
+        UpdateParameters updParams = new UpdateParameters(cfm, variables, queryState.getTimestamp(), getTimeToLive(variables), null);
+        ColumnFamily updates = updateForKey(key, clusteringPrefix, updParams);
+
+        // When building the conditions, we should not use the TTL. It's not useful, and if a very low ttl (1 seconds) is used, it's possible
+        // for it to expire before actually build the conditions which would break since we would then test for the presence of tombstones.
+        UpdateParameters condParams = new UpdateParameters(cfm, variables, queryState.getTimestamp(), 0, null);
+        ColumnFamily expected = buildConditions(key, clusteringPrefix, condParams);
 
         ColumnFamily result = StorageProxy.cas(keyspace(),
                                                columnFamily(),
