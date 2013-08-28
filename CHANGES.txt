@@ -4,6 +4,7 @@
  * Fix dateOf() function for pre-2.0 timestamp columns (CASSANDRA-5928)
  * Fix SSTable unintentionally loads BF when opened for batch (CASSANDRA-5938)
  * Add stream session progress to JMX (CASSANDRA-4757)
+ * Fix NPE during CAS operation (CASSANDRA-5925)
 Merged from 1.2:
  * Fix getBloomFilterDiskSpaceUsed for AlwaysPresentFilter (CASSANDRA-5900)
  * Don't announce schema version until we've loaded the changes locally
