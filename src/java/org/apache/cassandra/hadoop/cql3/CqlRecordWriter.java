@@ -307,7 +307,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         {
             ByteBuffer[] keys = new ByteBuffer[partitionKeyColumns.length];
             for (int i = 0; i< keys.length; i++)
-                keys[i] = keyColumns.get(partitionKeyColumns[i]);
+                keys[i] = keyColumns.get(partitionKeyColumns[i]).duplicate();
 
             partitionKey = ((CompositeType) keyValidator).build(keys);
         }
