@@ -50,4 +50,9 @@ public class EndpointSnitchInfo implements EndpointSnitchInfoMBean
     {
         return DatabaseDescriptor.getEndpointSnitch().getRack(InetAddress.getByName(host));
     }
+
+    public String getSnitchName()
+    {
+        return DatabaseDescriptor.getEndpointSnitch().getClass().getName();
+    }
 }

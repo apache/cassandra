@@ -9,6 +9,8 @@
  * Add ability for CQL3 to list partition keys (CASSANDRA-4536)
  * Improve native protocol serialization (CASSANDRA-5664)
 Merged from 1.2:
+ * Fix CqlRecordWriter with composite keys (CASSANDRA-5949)
+ * Add snitch, schema version, cluster, partitioner to JMX (CASSANDRA-5881)
  * Allow disabling SlabAllocator (CASSANDRA-5935)
  * Make user-defined compaction JMX blocking (CASSANDRA-4952)
 

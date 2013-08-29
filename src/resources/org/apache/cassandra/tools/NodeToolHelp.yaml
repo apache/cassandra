@@ -118,6 +118,9 @@ commands:
   - name: setstreamthroughput  <value_in_mb>
     help: |
       Set the MB/s throughput cap for streaming in the system, or 0 to disable throttling.
+  - name: describecluster
+    help: |
+      Print the name, snitch, partitioner and schema version of a cluster.
   - name: describering [keyspace]
     help: |
       Shows the token ranges info of a given keyspace.
