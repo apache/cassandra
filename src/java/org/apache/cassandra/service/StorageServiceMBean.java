@@ -470,4 +470,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void enableScheduledRangeXfers();
     /** Disable processing of queued range transfers. */
     public void disableScheduledRangeXfers();
+
+    /** Returns the name of the cluster */
+    public String getClusterName();
+    /** Returns the cluster partitioner */
+    public String getPartitionerName();
 }

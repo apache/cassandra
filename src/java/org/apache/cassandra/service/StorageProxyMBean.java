@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.service;
 
+import java.util.List;
+import java.util.Map;
+
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 
 public interface StorageProxyMBean
@@ -92,4 +95,7 @@ public interface StorageProxyMBean
     public long getReadRepairAttempted();
     public long getReadRepairRepairedBlocking();
     public long getReadRepairRepairedBackground();
+
+    /** Returns each live node's schema version */
+    public Map<String, List<String>> getSchemaVersions();
 }

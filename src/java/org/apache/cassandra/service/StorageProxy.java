@@ -1275,6 +1275,11 @@ public class StorageProxy implements StorageProxyMBean
             return rows.size() > command.maxResults ? rows.subList(0, command.maxResults) : rows;
     }
 
+    public Map<String, List<String>> getSchemaVersions()
+    {
+        return this.describeSchemaVersions();
+    }
+
     /**
      * initiate a request/response session with each live node to check whether or not everybody is using the same
      * migration id. This is useful for determining if a schema change has propagated through the cluster. Disagreement

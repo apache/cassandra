@@ -671,6 +671,16 @@ public class NodeProbe
         return ssProxy.getKeyspaces();
     }
 
+    public String getClusterName()
+    {
+        return ssProxy.getClusterName();
+    }
+
+    public String getPartitioner()
+    {
+        return ssProxy.getPartitionerName();
+    }
+
     public void disableHintedHandoff()
     {
         spProxy.setHintedHandoffEnabled(false);

@@ -1,4 +1,5 @@
 1.2.10
+ * Add snitch, schema version, cluster, partitioner to JMX (CASSANDRA-5881)
  * Fix CqlRecordWriter with composite keys (CASSANDRA-5949)
  * Allow disabling SlabAllocator (CASSANDRA-5935)
  * Make user-defined compaction JMX blocking (CASSANDRA-4952)

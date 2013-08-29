@@ -3922,4 +3922,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         rangeXferExecutor.tearDown();
     }
+
+    /** Returns the name of the cluster */
+    public String getClusterName()
+    {
+        return DatabaseDescriptor.getClusterName();
+    }
+
+    /** Returns the cluster partitioner */
+    public String getPartitionerName()
+    {
+        return DatabaseDescriptor.getPartitionerName();
+    }
 }
