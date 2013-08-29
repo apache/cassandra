@@ -37,4 +37,12 @@ public interface EndpointSnitchInfoMBean
      * @throws UnknownHostException
      */
     public String getDatacenter(String host) throws UnknownHostException;
+
+
+    /**
+     * Provides the snitch name of the cluster
+     * @return Snitch name
+     */
+    public String getSnitchName();
+
 }

@@ -470,4 +470,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     void enableAutoCompaction(String ks, String ... columnFamilies) throws IOException;
 
     public void deliverHints(String host) throws UnknownHostException;
+
+    /** Returns the name of the cluster */
+    public String getClusterName();
+    /** Returns the cluster partitioner */
+    public String getPartitionerName();
 }
