@@ -24,7 +24,7 @@ import java.util.*;
 
 import org.apache.cassandra.db.Keyspace;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;

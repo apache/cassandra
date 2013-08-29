@@ -20,7 +20,7 @@ package org.apache.cassandra.stress;
 
 import com.yammer.metrics.stats.Snapshot;
 import java.io.PrintStream;
-import org.apache.commons.lang.time.DurationFormatUtils;
+import org.apache.commons.lang3.time.DurationFormatUtils;
 
 /**
  * Gathers and aggregates statistics for an operation

@@ -24,7 +24,7 @@ import java.util.Set;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.thrift.KsDef;
-import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.commons.lang3.StringEscapeUtils;
 
 public class CliUtils
 {

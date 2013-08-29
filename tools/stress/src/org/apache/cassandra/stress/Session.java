@@ -38,7 +38,7 @@ import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.thrift.*;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.thrift.protocol.TBinaryProtocol;

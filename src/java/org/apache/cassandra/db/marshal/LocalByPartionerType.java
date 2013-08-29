@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.commons.lang.NotImplementedException;
 
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.IPartitioner;
@@ -58,7 +57,7 @@ public class LocalByPartionerType<T extends Token> extends AbstractType<ByteBuff
 
     public ByteBuffer fromString(String source)
     {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
