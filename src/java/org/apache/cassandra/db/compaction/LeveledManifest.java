@@ -25,6 +25,7 @@ import java.util.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -412,6 +413,8 @@ public class LeveledManifest
 
         if (level == 0)
         {
+            Set<SSTableReader> compactingL0 = ImmutableSet.copyOf(Iterables.filter(generations[0], Predicates.in(compacting)));
+
             // L0 is the dumping ground for new sstables which thus may overlap each other.
             //
             // We treat L0 compactions specially:
@@ -433,13 +436,14 @@ public class LeveledManifest
                 if (candidates.contains(sstable))
                     continue;
 
-                for (SSTableReader newCandidate : Sets.union(Collections.singleton(sstable), overlapping(sstable, remaining)))
+                Sets.SetView<SSTableReader> overlappedL0 = Sets.union(Collections.singleton(sstable), overlapping(sstable, remaining));
+                if (!Sets.intersection(overlappedL0, compactingL0).isEmpty())
+                    continue;
+
+                for (SSTableReader newCandidate : overlappedL0)
                 {
-                    if (!compacting.contains(newCandidate))
-                    {
-                        candidates.add(newCandidate);
-                        remaining.remove(newCandidate);
-                    }
+                    candidates.add(newCandidate);
+                    remaining.remove(newCandidate);
                 }
 
                 if (candidates.size() > MAX_COMPACTING_L0)
@@ -458,9 +462,7 @@ public class LeveledManifest
                 // TODO try to find a set of L0 sstables that only overlaps with non-busy L1 sstables
                 candidates = Sets.union(candidates, overlapping(candidates, generations[1]));
             }
-            // check overlap with L0 compacting sstables to make sure we are not generating overlap in L1.
-            Iterable<SSTableReader> compactingL0 = Iterables.filter(generations[0], Predicates.in(compacting));
-            if (candidates.size() < 2 || !Sets.intersection(candidates, compacting).isEmpty() || !overlapping(candidates, compactingL0).isEmpty())
+            if (candidates.size() < 2)
                 return Collections.emptyList();
             else
                 return candidates;

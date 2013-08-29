@@ -1,4 +1,6 @@
 2.0.1
+ * Improve leveled compaction's ability to find non-overlapping L0 compactions
+   to work on concurrently (CASSANDRA-5921)
  * Notify indexer of columns shadowed by range tombstones (CASSANDRA-5614)
  * Log Merkle tree stats (CASSANDRA-2698)
  * Switch from crc32 to adler32 for compressed sstable checksums (CASSANDRA-5862)
