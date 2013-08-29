@@ -17,6 +17,7 @@ Merged from 1.2:
  * Add snitch, schema version, cluster, partitioner to JMX (CASSANDRA-5881)
  * Allow disabling SlabAllocator (CASSANDRA-5935)
  * Make user-defined compaction JMX blocking (CASSANDRA-4952)
+ * Fix streaming does not transfer wrapped range (CASSANDRA-5948)
 
 
 2.0.0

@@ -243,16 +243,17 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
         if (flushTables)
             flushSSTables(stores);
 
+        List<Range<Token>> normalizedRanges = Range.normalize(ranges);
         List<SSTableReader> sstables = Lists.newLinkedList();
         for (ColumnFamilyStore cfStore : stores)
         {
             List<AbstractBounds<RowPosition>> rowBoundsList = Lists.newLinkedList();
-            for (Range<Token> range : ranges)
+            for (Range<Token> range : normalizedRanges)
                 rowBoundsList.add(range.toRowBounds());
             ColumnFamilyStore.ViewFragment view = cfStore.markReferenced(rowBoundsList);
             sstables.addAll(view.sstables);
         }
-        addTransferFiles(ranges, sstables);
+        addTransferFiles(normalizedRanges, sstables);
     }
 
     /**
