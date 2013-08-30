@@ -1,4 +1,5 @@
 1.2.10
+ * Upgrade metrics-core to version 2.2.0 (CASSANDRA-5947)
  * Add snitch, schema version, cluster, partitioner to JMX (CASSANDRA-5881)
  * Fix CqlRecordWriter with composite keys (CASSANDRA-5949)
  * Allow disabling SlabAllocator (CASSANDRA-5935)
