@@ -35,8 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.codahale.metrics.MetricRegistry;
-
 import org.apache.cassandra.cli.transport.FramedTransportFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.EncryptionOptions;
@@ -51,11 +49,12 @@ import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.cli.*;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportFactory;
+import com.codahale.metrics.MetricRegistry;
 
 public class Session implements Serializable
 {

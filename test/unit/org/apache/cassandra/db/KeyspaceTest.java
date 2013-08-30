@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.Iterables;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
 import static junit.framework.Assert.*;

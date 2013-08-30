@@ -29,8 +29,8 @@ import java.util.concurrent.Future;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import org.apache.commons.lang.ArrayUtils;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -57,7 +57,7 @@ import org.apache.cassandra.utils.WrappedRunnable;
 import static junit.framework.Assert.*;
 import static org.apache.cassandra.Util.*;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-import static org.apache.commons.lang.ArrayUtils.EMPTY_BYTE_ARRAY;
+import static org.apache.commons.lang3.ArrayUtils.EMPTY_BYTE_ARRAY;
 import static org.junit.Assert.assertNull;
 
 @RunWith(OrderedJUnit4ClassRunner.class)

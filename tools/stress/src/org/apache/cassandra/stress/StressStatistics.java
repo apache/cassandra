@@ -18,11 +18,11 @@
 
 package org.apache.cassandra.stress;
 
-import com.codahale.metrics.Snapshot;
-
 import java.io.PrintStream;
 
-import org.apache.commons.lang.time.DurationFormatUtils;
+import org.apache.commons.lang3.time.DurationFormatUtils;
+
+import com.codahale.metrics.Snapshot;
 
 /**
  * Gathers and aggregates statistics for an operation

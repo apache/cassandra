@@ -18,7 +18,7 @@
 package org.apache.cassandra.auth;
 
 import com.google.common.base.Objects;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.Schema;
 

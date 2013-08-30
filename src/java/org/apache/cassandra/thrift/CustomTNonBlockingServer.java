@@ -19,11 +19,14 @@ package org.apache.cassandra.thrift;
 
 import java.net.InetSocketAddress;
 
+import java.nio.channels.SelectionKey;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.thrift.server.TNonblockingServer;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.transport.TNonblockingServerTransport;
 import org.apache.thrift.transport.TNonblockingSocket;
+import org.apache.thrift.transport.TNonblockingTransport;
 import org.apache.thrift.transport.TTransportException;
 
 public class CustomTNonBlockingServer extends TNonblockingServer
@@ -36,7 +39,7 @@ public class CustomTNonBlockingServer extends TNonblockingServer
     @Override
     protected boolean requestInvoke(FrameBuffer frameBuffer)
     {
-        TNonblockingSocket socket = (TNonblockingSocket) frameBuffer.trans_;
+        TNonblockingSocket socket = (TNonblockingSocket)((CustomFrameBuffer)frameBuffer).getTransport();
         ThriftSessionManager.instance.setCurrentSocket(socket.getSocketChannel().socket().getRemoteSocketAddress());
         frameBuffer.invoke();
         return true;
@@ -68,6 +71,19 @@ public class CustomTNonBlockingServer extends TNonblockingServer
                                                                                              .outputProtocolFactory(args.tProtocolFactory)
                                                                                              .processor(args.processor);
             return new CustomTNonBlockingServer(serverArgs);
+        }
+    }
+
+    public class CustomFrameBuffer extends FrameBuffer
+    {
+        public CustomFrameBuffer(final TNonblockingTransport trans,
+          final SelectionKey selectionKey,
+          final AbstractSelectThread selectThread) {
+			super(trans, selectionKey, selectThread);
+        }
+
+        public TNonblockingTransport getTransport() {
+            return this.trans_;
         }
     }
 }

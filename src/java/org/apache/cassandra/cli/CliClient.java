@@ -33,7 +33,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import org.antlr.runtime.tree.Tree;
 import org.apache.cassandra.auth.IAuthenticator;
