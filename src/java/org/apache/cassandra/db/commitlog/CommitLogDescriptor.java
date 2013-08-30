@@ -70,7 +70,7 @@ public class CommitLogDescriptor
 
     public int getMessagingVersion()
     {
-        assert MessagingService.current_version == MessagingService.VERSION_20;
+        assert MessagingService.current_version == MessagingService.VERSION_21;
         switch (version)
         {
             case VERSION_12:

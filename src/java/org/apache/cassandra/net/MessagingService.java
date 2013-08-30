@@ -70,7 +70,8 @@ public final class MessagingService implements MessagingServiceMBean
     // 8 bits version, so don't waste versions
     public static final int VERSION_12  = 6;
     public static final int VERSION_20  = 7;
-    public static final int current_version = VERSION_20;
+    public static final int VERSION_21  = 8;
+    public static final int current_version = VERSION_21;
 
     /**
      * we preface every message with this number so the recipient can validate the sender is sane

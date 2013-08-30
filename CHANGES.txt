@@ -1,6 +1,6 @@
 2.1
  * change logging from log4j to logback (CASSANDRA-5883)
-
+ * switch to LZ4 compression for internode communication (CASSANDRA-5887)
 
 2.0.1
  * Improve leveled compaction's ability to find non-overlapping L0 compactions

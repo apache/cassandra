@@ -21,9 +21,15 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.zip.Checksum;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import net.jpountz.lz4.LZ4BlockInputStream;
+import net.jpountz.lz4.LZ4Decompressor;
+import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.xxhash.XXHashFactory;
 import org.xerial.snappy.SnappyInputStream;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -100,7 +106,16 @@ public class IncomingTcpConnection extends Thread
         if (compressed)
         {
             logger.debug("Upgrading incoming connection to be compressed");
-            in = new DataInputStream(new SnappyInputStream(socket.getInputStream()));
+            if (version < MessagingService.VERSION_21)
+                in = new DataInputStream(new SnappyInputStream(socket.getInputStream()));
+            else
+            {
+                LZ4Decompressor decompressor = LZ4Factory.fastestInstance().decompressor();
+                Checksum checksum = XXHashFactory.fastestInstance().newStreamingHash32(OutboundTcpConnection.LZ4_HASH_SEED).asChecksum();
+                in = new DataInputStream(new LZ4BlockInputStream(socket.getInputStream(),
+                                                                 decompressor,
+                                                                 checksum));
+            }
         }
         else
         {

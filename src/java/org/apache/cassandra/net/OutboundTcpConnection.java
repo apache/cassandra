@@ -32,10 +32,15 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.zip.Checksum;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.jpountz.lz4.LZ4BlockOutputStream;
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.xxhash.XXHashFactory;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -57,6 +62,8 @@ public class OutboundTcpConnection extends Thread
     private static final int OPEN_RETRY_DELAY = 100; // ms between retries
     private static final int WAIT_FOR_VERSION_MAX_TIME = 5000;
     private static final int NO_VERSION = Integer.MIN_VALUE;
+
+    static final int LZ4_HASH_SEED = 0x9747b28c;
 
     // sending thread reads from "active" (one of queue1, queue2) until it is empty.
     // then it swaps it with "backlog."
@@ -356,7 +363,20 @@ public class OutboundTcpConnection extends Thread
                 {
                     out.flush();
                     logger.trace("Upgrading OutputStream to be compressed");
-                    out = new DataOutputStream(new SnappyOutputStream(new BufferedOutputStream(socket.getOutputStream())));
+                    if (targetVersion < MessagingService.VERSION_21)
+                    {
+                        out = new DataOutputStream(new SnappyOutputStream(new BufferedOutputStream(socket.getOutputStream())));
+                    }
+                    else
+                    {
+                        LZ4Compressor compressor = LZ4Factory.fastestInstance().fastCompressor();
+                        Checksum checksum = XXHashFactory.fastestInstance().newStreamingHash32(LZ4_HASH_SEED).asChecksum();
+                        out = new DataOutputStream(new LZ4BlockOutputStream(new BufferedOutputStream(socket.getOutputStream()),
+                                                                            1 << 14,  // 16k block size
+                                                                            compressor,
+                                                                            checksum,
+                                                                            true)); // no async flushing
+                    }
                 }
 
                 return true;
