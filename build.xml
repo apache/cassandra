@@ -340,7 +340,7 @@
           <dependency groupId="com.google.guava" artifactId="guava" version="13.0.1"/>
           <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
           <dependency groupId="commons-codec" artifactId="commons-codec" version="1.2"/>
-          <dependency groupId="commons-lang" artifactId="commons-lang" version="3.1"/>
+          <dependency groupId="org.apache.commons" artifactId="commons-lang3" version="3.1"/>
           <dependency groupId="com.googlecode.concurrentlinkedhashmap" artifactId="concurrentlinkedhashmap-lru" version="1.3"/>
           <dependency groupId="org.antlr" artifactId="antlr" version="3.2"/>
           <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.7.2"/>
@@ -442,7 +442,7 @@
         <dependency groupId="com.google.guava" artifactId="guava"/>
         <dependency groupId="commons-cli" artifactId="commons-cli"/>
         <dependency groupId="commons-codec" artifactId="commons-codec"/>
-        <dependency groupId="commons-lang" artifactId="commons-lang"/>
+        <dependency groupId="org.apache.commons" artifactId="commons-lang3"/>
         <dependency groupId="com.googlecode.concurrentlinkedhashmap" artifactId="concurrentlinkedhashmap-lru"/>
         <dependency groupId="org.antlr" artifactId="antlr"/>
         <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
@@ -482,7 +482,7 @@
                 artifactId="cassandra-parent"
                 version="${version}"/>
         <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
-        <dependency groupId="commons-lang" artifactId="commons-lang"/>
+        <dependency groupId="org.apache.commons" artifactId="commons-lang3"/>
         <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
         <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
       </artifact:pom>
