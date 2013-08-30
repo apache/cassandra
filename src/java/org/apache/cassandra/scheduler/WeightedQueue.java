@@ -90,12 +90,12 @@ class WeightedQueue implements WeightedQueueMBean
 
     public long getOperations()
     {
-        return metric.latency.getCount();
+        return metric.latency.count();
     }
 
     public long getTotalLatencyMicros()
     {
-        return metric.totalLatency.getCount();
+        return metric.totalLatency.count();
     }
 
     public double getRecentLatencyMicros()

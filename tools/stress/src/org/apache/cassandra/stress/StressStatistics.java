@@ -22,7 +22,8 @@ import java.io.PrintStream;
 
 import org.apache.commons.lang3.time.DurationFormatUtils;
 
-import com.codahale.metrics.Snapshot;
+import com.yammer.metrics.stats.Snapshot;
+
 
 /**
  * Gathers and aggregates statistics for an operation

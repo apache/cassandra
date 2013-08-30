@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.stress.operations;
 
-import com.codahale.metrics.Timer.Context;
+import com.yammer.metrics.core.TimerContext;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
@@ -56,7 +56,7 @@ public class MultiGetter extends Operation
             {
                 ColumnParent parent = new ColumnParent("Super1").setSuper_column(ByteBufferUtil.bytes("S" + j));
 
-                Context context = session.latency.time();
+                TimerContext context = session.latency.time();
 
                 boolean success = false;
                 String exceptionMessage = null;
@@ -99,7 +99,7 @@ public class MultiGetter extends Operation
 
             List<ByteBuffer> keys = generateKeys(offset, offset + session.getKeysPerCall());
 
-            Context context = session.latency.time();
+            TimerContext context = session.latency.time();
 
             boolean success = false;
             String exceptionMessage = null;

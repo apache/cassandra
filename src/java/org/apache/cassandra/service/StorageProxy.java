@@ -1673,12 +1673,12 @@ public class StorageProxy implements StorageProxyMBean
 
     public long getReadOperations()
     {
-        return readMetrics.latency.getCount();
+        return readMetrics.latency.count();
     }
 
     public long getTotalReadLatencyMicros()
     {
-        return readMetrics.totalLatency.getCount();
+        return readMetrics.totalLatency.count();
     }
 
     public double getRecentReadLatencyMicros()
@@ -1698,12 +1698,12 @@ public class StorageProxy implements StorageProxyMBean
 
     public long getRangeOperations()
     {
-        return rangeMetrics.latency.getCount();
+        return rangeMetrics.latency.count();
     }
 
     public long getTotalRangeLatencyMicros()
     {
-        return rangeMetrics.totalLatency.getCount();
+        return rangeMetrics.totalLatency.count();
     }
 
     public double getRecentRangeLatencyMicros()
@@ -1723,12 +1723,12 @@ public class StorageProxy implements StorageProxyMBean
 
     public long getWriteOperations()
     {
-        return writeMetrics.latency.getCount();
+        return writeMetrics.latency.count();
     }
 
     public long getTotalWriteLatencyMicros()
     {
-        return writeMetrics.totalLatency.getCount();
+        return writeMetrics.totalLatency.count();
     }
 
     public double getRecentWriteLatencyMicros()
@@ -1993,14 +1993,14 @@ public class StorageProxy implements StorageProxyMBean
 
     
     public long getReadRepairAttempted() {
-        return ReadRepairMetrics.attempted.getCount();
+        return ReadRepairMetrics.attempted.count();
     }
     
     public long getReadRepairRepairedBlocking() {
-        return ReadRepairMetrics.repairedBlocking.getCount();
+        return ReadRepairMetrics.repairedBlocking.count();
     }
     
     public long getReadRepairRepairedBackground() {
-        return ReadRepairMetrics.repairedBackground.getCount();
+        return ReadRepairMetrics.repairedBackground.count();
     }
 }

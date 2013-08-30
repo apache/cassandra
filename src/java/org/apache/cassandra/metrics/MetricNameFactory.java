@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.metrics;
 
+import com.yammer.metrics.core.MetricName;
+
 public interface MetricNameFactory
 {
     /**
@@ -25,5 +27,5 @@ public interface MetricNameFactory
      * @param metricName part of qualified name.
      * @return new String with given metric name.
      */
-    String createMetricName(String metricName);
+    MetricName createMetricName(String metricName);
 }

@@ -18,10 +18,12 @@
 package org.apache.cassandra.metrics;
 
 import java.net.InetAddress;
+import java.util.concurrent.TimeUnit;
 
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Meter;
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.Gauge;
+import com.yammer.metrics.core.Meter;
+import com.yammer.metrics.core.MetricName;
 
 import org.apache.cassandra.net.OutboundTcpConnectionPool;
 
@@ -34,7 +36,7 @@ public class ConnectionMetrics
     public static final String TYPE_NAME = "Connection";
 
     /** Total number of timeouts happened on this node */
-    public static final Meter totalTimeouts = CassandraMetricRegistry.get().meter(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "TotalTimeouts"));
+    public static final Meter totalTimeouts = Metrics.newMeter(new MetricName(GROUP_NAME, TYPE_NAME, "TotalTimeouts"), "total timeouts", TimeUnit.SECONDS);
     private static long recentTimeouts;
 
     public final String address;
@@ -64,58 +66,58 @@ public class ConnectionMetrics
         // ipv6 addresses will contain colons, which are invalid in a JMX ObjectName
         address = ip.getHostAddress().replaceAll(":", ".");
 
-        commandPendingTasks = CassandraMetricRegistry.register(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "CommandPendingTasks", address), new Gauge<Integer>()
+        commandPendingTasks = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "CommandPendingTasks", address), new Gauge<Integer>()
         {
-            public Integer getValue()
+            public Integer value()
             {
                 return connectionPool.cmdCon.getPendingMessages();
             }
         });
-        commandCompletedTasks = CassandraMetricRegistry.register(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "CommandCompletedTasks", address), new Gauge<Long>()
+        commandCompletedTasks = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "CommandCompletedTasks", address), new Gauge<Long>()
         {
-            public Long getValue()
+            public Long value()
             {
                 return connectionPool.cmdCon.getCompletedMesssages();
             }
         });
-        commandDroppedTasks = CassandraMetricRegistry.register(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "CommandDroppedTasks", address), new Gauge<Long>()
+        commandDroppedTasks = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "CommandDroppedTasks", address), new Gauge<Long>()
         {
-            public Long getValue()
+            public Long value()
             {
                 return connectionPool.cmdCon.getDroppedMessages();
             }
         });
-        responsePendingTasks = CassandraMetricRegistry.register(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "ResponsePendingTasks", address), new Gauge<Integer>()
+        responsePendingTasks = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "ResponsePendingTasks", address), new Gauge<Integer>()
         {
-            public Integer getValue()
+            public Integer value()
             {
                 return connectionPool.ackCon.getPendingMessages();
             }
         });
-        responseCompletedTasks = CassandraMetricRegistry.register(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "ResponseCompletedTasks", address), new Gauge<Long>()
+        responseCompletedTasks = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "ResponseCompletedTasks", address), new Gauge<Long>()
         {
-            public Long getValue()
+            public Long value()
             {
                 return connectionPool.ackCon.getCompletedMesssages();
             }
         });
-        timeouts = CassandraMetricRegistry.get().meter(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "Timeouts", address));
+        timeouts = Metrics.newMeter(new MetricName(GROUP_NAME, TYPE_NAME, "Timeouts", address), "timeouts", TimeUnit.SECONDS);
     }
 
     public void release()
     {
-        CassandraMetricRegistry.unregister(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "CommandPendingTasks", address));
-        CassandraMetricRegistry.unregister(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "CommandCompletedTasks", address));
-        CassandraMetricRegistry.unregister(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "CommandDroppedTasks", address));
-        CassandraMetricRegistry.unregister(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "ResponsePendingTasks", address));
-        CassandraMetricRegistry.unregister(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "ResponseCompletedTasks", address));
-        CassandraMetricRegistry.unregister(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "Timeouts", address));
+        Metrics.defaultRegistry().removeMetric(new MetricName(GROUP_NAME, TYPE_NAME, "CommandPendingTasks", address));
+        Metrics.defaultRegistry().removeMetric(new MetricName(GROUP_NAME, TYPE_NAME, "CommandCompletedTasks", address));
+        Metrics.defaultRegistry().removeMetric(new MetricName(GROUP_NAME, TYPE_NAME, "CommandDroppedTasks", address));
+        Metrics.defaultRegistry().removeMetric(new MetricName(GROUP_NAME, TYPE_NAME, "ResponsePendingTasks", address));
+        Metrics.defaultRegistry().removeMetric(new MetricName(GROUP_NAME, TYPE_NAME, "ResponseCompletedTasks", address));
+        Metrics.defaultRegistry().removeMetric(new MetricName(GROUP_NAME, TYPE_NAME, "Timeouts", address));
     }
 
     @Deprecated
     public static long getRecentTotalTimeout()
     {
-        long total = totalTimeouts.getCount();
+        long total = totalTimeouts.count();
         long recent = total - recentTimeouts;
         recentTimeouts = total;
         return recent;
@@ -124,7 +126,7 @@ public class ConnectionMetrics
     @Deprecated
     public long getRecentTimeout()
     {
-        long timeoutCount = timeouts.getCount();
+        long timeoutCount = timeouts.count();
         long recent = timeoutCount - recentTimeoutCount;
         recentTimeoutCount = timeoutCount;
         return recent;

@@ -17,12 +17,14 @@
  */
 package org.apache.cassandra.metrics;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.RatioGauge;
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.Gauge;
+import com.yammer.metrics.core.Meter;
+import com.yammer.metrics.core.MetricName;
+import com.yammer.metrics.util.RatioGauge;
 
 import org.apache.cassandra.cache.ICache;
 
@@ -58,43 +60,37 @@ public class CacheMetrics
      */
     public CacheMetrics(String type, final ICache cache)
     {
-        capacity = CassandraMetricRegistry.register(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "Capacity", type), new Gauge<Long>()
+        capacity = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "Capacity", type), new Gauge<Long>()
         {
-            public Long getValue()
+            public Long value()
             {
                 return cache.capacity();
             }
         });
-        hits = CassandraMetricRegistry.get().meter(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "Hits", type));
-        
-        requests = CassandraMetricRegistry.get().meter(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "Requests", type));
-        hitRate = CassandraMetricRegistry.register(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "HitRate", type), new RatioGauge()
+        hits = Metrics.newMeter(new MetricName(GROUP_NAME, TYPE_NAME, "Hits", type), "hits", TimeUnit.SECONDS);
+        requests = Metrics.newMeter(new MetricName(GROUP_NAME, TYPE_NAME, "Requests", type), "requests", TimeUnit.SECONDS);
+        hitRate = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "HitRate", type), new RatioGauge()
         {
             protected double getNumerator()
             {
-                return hits.getCount();
+                return hits.count();
             }
 
             protected double getDenominator()
             {
-                return requests.getCount();
-            }
-            
-            public Ratio getRatio()
-            {
-                return Ratio.of(getNumerator(),  getDenominator());
+                return requests.count();
             }
         });
-        size = CassandraMetricRegistry.register(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "Size", type), new Gauge<Long>()
+        size = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "Size", type), new Gauge<Long>()
         {
-            public Long getValue()
+            public Long value()
             {
                 return cache.weightedSize();
             }
         });
-        entries = CassandraMetricRegistry.register(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "Entries", type), new Gauge<Integer>()
+        entries = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "Entries", type), new Gauge<Integer>()
         {
-            public Integer getValue()
+            public Integer value()
             {
                 return cache.size();
             }
@@ -105,8 +101,8 @@ public class CacheMetrics
     @Deprecated
     public double getRecentHitRate()
     {
-        long r = requests.getCount();
-        long h = hits.getCount();
+        long r = requests.count();
+        long h = hits.count();
         try
         {
             return ((double)(h - lastHits.get())) / (r - lastRequests.get());

@@ -783,7 +783,7 @@ public final class MessagingService implements MessagingServiceMBean
         boolean logTpstats = false;
         for (Map.Entry<Verb, DroppedMessageMetrics> entry : droppedMessages.entrySet())
         {
-            int dropped = (int) entry.getValue().dropped.getCount();
+            int dropped = (int) entry.getValue().dropped.count();
             Verb verb = entry.getKey();
             int recent = dropped - lastDroppedInternal.get(verb);
             if (recent > 0)
@@ -920,7 +920,7 @@ public final class MessagingService implements MessagingServiceMBean
     {
         Map<String, Integer> map = new HashMap<String, Integer>();
         for (Map.Entry<Verb, DroppedMessageMetrics> entry : droppedMessages.entrySet())
-            map.put(entry.getKey().toString(), (int) entry.getValue().dropped.getCount());
+            map.put(entry.getKey().toString(), (int) entry.getValue().dropped.count());
         return map;
     }
 
@@ -934,7 +934,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public long getTotalTimeouts()
     {
-        return ConnectionMetrics.totalTimeouts.getCount();
+        return ConnectionMetrics.totalTimeouts.count();
     }
 
     public long getRecentTotalTimouts()

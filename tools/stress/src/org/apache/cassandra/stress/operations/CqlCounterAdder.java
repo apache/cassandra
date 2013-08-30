@@ -26,7 +26,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
-import com.codahale.metrics.Timer.Context;
+import com.yammer.metrics.core.TimerContext;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.CassandraClient;
@@ -75,7 +75,7 @@ public class CqlCounterAdder extends CQLOperation
         String key = String.format("%0" + session.getTotalKeysLength() + "d", index);
         List<String> queryParams = Collections.singletonList(getUnQuotedCqlBlob(key, session.cqlVersion.startsWith("3")));
 
-        Context context = session.latency.time();
+        TimerContext context = session.latency.time();
 
         boolean success = false;
         String exceptionMessage = null;

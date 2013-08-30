@@ -101,7 +101,7 @@ public class OutboundTcpConnectionPool
 
     public long getTimeouts()
     {
-       return metrics.timeouts.getCount();
+       return metrics.timeouts.count();
     }
 
     public long getRecentTimeouts()

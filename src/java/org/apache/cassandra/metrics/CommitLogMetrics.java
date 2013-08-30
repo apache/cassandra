@@ -17,8 +17,9 @@
  */
 package org.apache.cassandra.metrics;
 
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.Gauge;
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.Gauge;
+import com.yammer.metrics.core.MetricName;
 
 import org.apache.cassandra.db.commitlog.CommitLogAllocator;
 import org.apache.cassandra.db.commitlog.ICommitLogExecutorService;
@@ -40,23 +41,23 @@ public class CommitLogMetrics
 
     public CommitLogMetrics(final ICommitLogExecutorService executor, final CommitLogAllocator allocator)
     {
-        completedTasks = CassandraMetricRegistry.register(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "CompletedTasks"), new Gauge<Long>()
+        completedTasks = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "CompletedTasks"), new Gauge<Long>()
         {
-            public Long getValue()
+            public Long value()
             {
                 return executor.getCompletedTasks();
             }
         });
-        pendingTasks = CassandraMetricRegistry.register(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "PendingTasks"), new Gauge<Long>()
+        pendingTasks = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "PendingTasks"), new Gauge<Long>()
         {
-            public Long getValue()
+            public Long value()
             {
                 return executor.getPendingTasks();
             }
         });
-        totalCommitLogSize = CassandraMetricRegistry.register(MetricRegistry.name(GROUP_NAME, TYPE_NAME, "TotalCommitLogSize"), new Gauge<Long>()
+        totalCommitLogSize = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "TotalCommitLogSize"), new Gauge<Long>()
         {
-            public Long getValue()
+            public Long value()
             {
                 return allocator.bytesUsed();
             }

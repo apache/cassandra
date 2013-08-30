@@ -17,13 +17,14 @@
  */
 package org.apache.cassandra.metrics;
 
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.Counter;
+import com.yammer.metrics.Metrics;
+import com.yammer.metrics.core.Counter;
+import com.yammer.metrics.core.MetricName;
 
 /**
  * Metrics related to Storage.
  */
 public class StorageMetrics
 {
-    public static final Counter load = CassandraMetricRegistry.get().counter(MetricRegistry.name("org.apache.cassandra.metrics", "Storage", "Load"));
+    public static final Counter load = Metrics.newCounter(new MetricName("org.apache.cassandra.metrics", "Storage", "Load"));
 }

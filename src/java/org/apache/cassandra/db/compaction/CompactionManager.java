@@ -1010,22 +1010,22 @@ public class CompactionManager implements CompactionManagerMBean
 
     public long getTotalBytesCompacted()
     {
-        return metrics.bytesCompacted.getCount();
+        return metrics.bytesCompacted.count();
     }
 
     public long getTotalCompactionsCompleted()
     {
-        return metrics.totalCompactionsCompleted.getCount();
+        return metrics.totalCompactionsCompleted.count();
     }
 
     public int getPendingTasks()
     {
-        return metrics.pendingTasks.getValue();
+        return metrics.pendingTasks.value();
     }
 
     public long getCompletedTasks()
     {
-        return metrics.completedTasks.getValue();
+        return metrics.completedTasks.value();
     }
 
     private static class CleanupInfo extends CompactionInfo.Holder

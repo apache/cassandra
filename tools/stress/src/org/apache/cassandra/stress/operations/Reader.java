@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.stress.operations;
 
-import com.codahale.metrics.Timer.Context;
+import com.yammer.metrics.core.TimerContext;
 import org.apache.cassandra.stress.Session;
 import org.apache.cassandra.stress.util.CassandraClient;
 import org.apache.cassandra.stress.util.Operation;
@@ -67,7 +67,7 @@ public class Reader extends Operation
             String superColumn = 'S' + Integer.toString(j);
             ColumnParent parent = new ColumnParent("Super1").setSuper_column(superColumn.getBytes(UTF_8));
 
-            Context context = session.latency.time();
+            TimerContext context = session.latency.time();
 
             boolean success = false;
             String exceptionMessage = null;
@@ -112,7 +112,7 @@ public class Reader extends Operation
         byte[] key = generateKey();
         ByteBuffer keyBuffer = ByteBuffer.wrap(key);
 
-        Context context = session.latency.time();
+        TimerContext context = session.latency.time();
 
         boolean success = false;
         String exceptionMessage = null;
