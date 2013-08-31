@@ -867,6 +867,7 @@ public class NodeCmd
                 }
                 outs.println("\t\tSpace used (live), bytes: " + cfstore.getLiveDiskSpaceUsed());
                 outs.println("\t\tSpace used (total), bytes: " + cfstore.getTotalDiskSpaceUsed());
+                outs.println("\t\tSSTable Compression Ratio: " + cfstore.getCompressionRatio());
                 outs.println("\t\tNumber of keys (estimate): " + cfstore.estimateKeys());
                 outs.println("\t\tMemtable cell count: " + cfstore.getMemtableColumnsCount());
                 outs.println("\t\tMemtable data size, bytes: " + cfstore.getMemtableDataSize());
