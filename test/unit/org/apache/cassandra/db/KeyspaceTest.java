@@ -24,13 +24,12 @@ import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.*;
 import java.io.IOException;
-import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
-import static junit.framework.Assert.*;
+import static org.junit.Assert.*;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -41,8 +40,6 @@ import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.expiringColumn;
-import static org.apache.cassandra.Util.getBytes;
-import static org.junit.Assert.assertEquals;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -239,7 +236,7 @@ public class KeyspaceTest extends SchemaLoader
     }
 
     @Test
-    public void testReversedWithFlushing() throws IOException, ExecutionException, InterruptedException
+    public void testReversedWithFlushing()
     {
         final Keyspace keyspace = Keyspace.open("Keyspace1");
         final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("StandardLong1");
@@ -268,7 +265,7 @@ public class KeyspaceTest extends SchemaLoader
         }
     }
 
-    private void validateGetSliceNoMatch(Keyspace keyspace) throws IOException
+    private void validateGetSliceNoMatch(Keyspace keyspace)
     {
         ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("Standard2");
         ColumnFamily cf;
@@ -450,7 +447,7 @@ public class KeyspaceTest extends SchemaLoader
     }
 
     @Test
-    public void testLimitSSTables() throws CharacterCodingException, InterruptedException
+    public void testLimitSSTables() throws CharacterCodingException
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
         ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore("Standard1");
@@ -500,7 +497,7 @@ public class KeyspaceTest extends SchemaLoader
     }
 
     @Test
-    public void testLimitSSTablesComposites() throws CharacterCodingException, ExecutionException, InterruptedException
+    public void testLimitSSTablesComposites()
     {
         /*
         creates 10 sstables, composite columns like this:

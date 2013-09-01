@@ -18,12 +18,9 @@
 */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
-import java.util.concurrent.ExecutionException;
-
 import org.junit.Test;
 
-import static junit.framework.Assert.assertNull;
+import static org.junit.Assert.assertNull;
 import org.apache.cassandra.db.filter.QueryFilter;
 
 import org.apache.cassandra.SchemaLoader;
@@ -34,7 +31,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class RemoveColumnFamilyTest extends SchemaLoader
 {
     @Test
-    public void testRemoveColumnFamily() throws IOException, ExecutionException, InterruptedException
+    public void testRemoveColumnFamily()
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");

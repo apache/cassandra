@@ -34,7 +34,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static junit.framework.Assert.*;
+import static org.junit.Assert.*;
 
 public class SSTableScannerTest extends SchemaLoader
 {

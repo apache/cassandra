@@ -39,7 +39,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import com.google.common.collect.Iterators;
 
-import static junit.framework.Assert.assertEquals;
+import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
 
 public class HintedHandOffTest extends SchemaLoader

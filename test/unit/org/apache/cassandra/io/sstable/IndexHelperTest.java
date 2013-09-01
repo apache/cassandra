@@ -21,7 +21,7 @@ package org.apache.cassandra.io.sstable;
 import java.util.ArrayList;
 import java.util.List;
 
-import static junit.framework.Assert.*;
+import static org.junit.Assert.*;
 
 import org.junit.Test;
 

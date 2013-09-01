@@ -32,7 +32,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.FBUtilities;
-import static junit.framework.Assert.assertEquals;
+import static org.junit.Assert.assertEquals;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 

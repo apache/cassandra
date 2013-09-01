@@ -18,8 +18,8 @@
 */
 package org.apache.cassandra.tools;
 
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertNotNull;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytesToHex;
 import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
@@ -30,9 +30,6 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -110,13 +107,15 @@ public class SSTableExportTest extends SchemaLoader
         SSTableExport.enumeratekeys(Descriptor.fromFilename(writer.getFilename()), new PrintStream(temp.getPath()));
 
 
-        FileReader file = new FileReader(temp);
-        char[] buf = new char[(int) temp.length()];
-        file.read(buf);
-        String output = new String(buf);
-
-        String sep = System.getProperty("line.separator");
-        assert output.equals(asHex("rowA") + sep + asHex("rowB") + sep) : output;
+        try (FileReader file = new FileReader(temp))
+        {
+            char[] buf = new char[(int) temp.length()];
+            file.read(buf);
+            String output = new String(buf);
+    
+            String sep = System.getProperty("line.separator");
+            assert output.equals(asHex("rowA") + sep + asHex("rowB") + sep) : output;
+        }
     }
 
     @Test
@@ -175,7 +174,7 @@ public class SSTableExportTest extends SchemaLoader
     }
 
     @Test
-    public void testRoundTripStandardCf() throws IOException, ParseException
+    public void testRoundTripStandardCf() throws IOException
     {
         File tempSS = tempSSTableFile("Keyspace1", "Standard1");
         ColumnFamily cfamily = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");

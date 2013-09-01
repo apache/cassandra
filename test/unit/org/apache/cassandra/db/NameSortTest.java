@@ -18,12 +18,11 @@
  */
 package org.apache.cassandra.db;
 
-import static junit.framework.Assert.assertEquals;
+import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.Util.addMutation;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
-import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -34,27 +33,27 @@ import org.junit.Test;
 public class NameSortTest extends SchemaLoader
 {
     @Test
-    public void testNameSort1() throws IOException, ExecutionException, InterruptedException
+    public void testNameSort1() throws IOException
     {
         // single key
         testNameSort(1);
     }
 
     @Test
-    public void testNameSort10() throws IOException, ExecutionException, InterruptedException
+    public void testNameSort10() throws IOException
     {
         // multiple keys, flushing concurrently w/ inserts
         testNameSort(10);
     }
 
     @Test
-    public void testNameSort100() throws IOException, ExecutionException, InterruptedException
+    public void testNameSort100() throws IOException
     {
         // enough keys to force compaction concurrently w/ inserts
         testNameSort(100);
     }
 
-    private void testNameSort(int N) throws IOException, ExecutionException, InterruptedException
+    private void testNameSort(int N) throws IOException
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
 

@@ -25,8 +25,7 @@ import java.util.UUID;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
-import junit.framework.Assert;
-
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -203,12 +202,14 @@ public class CommitLogTest extends SchemaLoader
     protected void testRecovery(byte[] logData) throws Exception
     {
         File logFile = tmpFile();
-        OutputStream lout = new FileOutputStream(logFile);
-        lout.write(logData);
-        //statics make it annoying to test things correctly
-        CommitLog.instance.recover(new File[]{ logFile }); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
+        try (OutputStream lout = new FileOutputStream(logFile))
+        {
+            lout.write(logData);
+            //statics make it annoying to test things correctly
+            CommitLog.instance.recover(new File[]{ logFile }); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
+        }
     }
-
+    
     @Test
     public void testVersions()
     {

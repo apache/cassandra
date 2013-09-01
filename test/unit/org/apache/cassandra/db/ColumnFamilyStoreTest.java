@@ -54,11 +54,10 @@ import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-import static junit.framework.Assert.*;
+import static org.junit.Assert.*;
 import static org.apache.cassandra.Util.*;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.apache.commons.lang3.ArrayUtils.EMPTY_BYTE_ARRAY;
-import static org.junit.Assert.assertNull;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class ColumnFamilyStoreTest extends SchemaLoader
