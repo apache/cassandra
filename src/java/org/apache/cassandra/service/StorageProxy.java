@@ -261,7 +261,7 @@ public class StorageProxy implements StorageProxyMBean
             }
 
             // write to the batchlog
-            Collection<InetAddress> batchlogEndpoints = getBatchlogEndpoints(localDataCenter);
+            Collection<InetAddress> batchlogEndpoints = getBatchlogEndpoints(localDataCenter, consistency_level);
             UUID batchUUID = UUID.randomUUID();
             syncWriteToBatchlog(mutations, batchlogEndpoints, batchUUID);
 
@@ -418,7 +418,7 @@ public class StorageProxy implements StorageProxyMBean
      * - choose min(2, number of qualifying candiates above)
      * - allow the local node to be the only replica only if it's a single-node cluster
      */
-    private static Collection<InetAddress> getBatchlogEndpoints(String localDataCenter) throws UnavailableException
+    private static Collection<InetAddress> getBatchlogEndpoints(String localDataCenter, ConsistencyLevel consistencyLevel) throws UnavailableException
     {
         // will include every known node in the DC, including localhost.
         TokenMetadata.Topology topology = StorageService.instance.getTokenMetadata().cloneOnlyTokenMap().getTopology();
@@ -440,7 +440,12 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         if (candidates.isEmpty())
+        {
+            if (consistencyLevel == ConsistencyLevel.ANY)
+                return Collections.singleton(FBUtilities.getBroadcastAddress());
+
             throw new UnavailableException(ConsistencyLevel.ONE, 1, 0);
+        }
 
         if (candidates.size() > 2)
         {
