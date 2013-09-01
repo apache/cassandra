@@ -21,7 +21,6 @@ package org.apache.cassandra.utils;
  */
 
 
-import junit.framework.TestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -29,11 +28,13 @@ import java.util.Collections;
 import java.util.List;
 import java.io.*;
 
+import static org.junit.Assert.*;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 
-public class IntervalTreeTest extends TestCase
+public class IntervalTreeTest
 {
     @Test
     public void testSearch() throws Exception

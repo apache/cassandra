@@ -27,14 +27,14 @@ import java.util.Random;
 import com.google.common.collect.Lists;
 import org.junit.Test;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.KeyGenerator.WordGenerator;
 import org.apache.cassandra.utils.obs.IBitSet;
 import org.apache.cassandra.utils.obs.OffHeapBitSet;
 import org.apache.cassandra.utils.obs.OpenBitSet;
 
-import static junit.framework.Assert.assertEquals;
+import static org.junit.Assert.assertEquals;
 
 public class BitSetTest
 {

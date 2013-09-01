@@ -19,13 +19,11 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
-import java.io.IOException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
-import static junit.framework.Assert.assertNull;
+import static org.junit.Assert.assertNull;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.CompositeType;
 import static org.apache.cassandra.Util.getBytes;
@@ -39,7 +37,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 public class RemoveSubColumnTest extends SchemaLoader
 {
     @Test
-    public void testRemoveSubColumn() throws IOException, ExecutionException, InterruptedException
+    public void testRemoveSubColumn()
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Super1");

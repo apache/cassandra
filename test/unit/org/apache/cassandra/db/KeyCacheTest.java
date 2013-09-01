@@ -33,7 +33,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static junit.framework.Assert.assertEquals;
+import static org.junit.Assert.assertEquals;
 
 public class KeyCacheTest extends SchemaLoader
 {
@@ -98,7 +98,7 @@ public class KeyCacheTest extends SchemaLoader
     }
 
     @Test
-    public void testKeyCache() throws IOException, ExecutionException, InterruptedException
+    public void testKeyCache() throws ExecutionException, InterruptedException
     {
         CompactionManager.instance.disableAutoCompaction();
 

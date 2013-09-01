@@ -35,8 +35,7 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.pager.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static junit.framework.Assert.*;
-import static org.apache.cassandra.Util.bounds;
+import static org.junit.Assert.*;
 import static org.apache.cassandra.Util.range;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 

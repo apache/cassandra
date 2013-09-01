@@ -34,7 +34,7 @@ import org.apache.cassandra.io.sstable.SSTableUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static junit.framework.Assert.assertEquals;
+import static org.junit.Assert.assertEquals;
 
 public class LongCompactionsTest extends SchemaLoader
 {

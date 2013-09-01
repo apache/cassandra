@@ -18,7 +18,7 @@
 */
 package org.apache.cassandra.tools;
 
-import static junit.framework.Assert.assertEquals;
+import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
 import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
 
@@ -26,7 +26,6 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Collections;
 
 import org.junit.Test;
 
@@ -39,7 +38,6 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.json.simple.parser.ParseException;
 
 public class SSTableImportTest extends SchemaLoader
 {
@@ -100,7 +98,7 @@ public class SSTableImportTest extends SchemaLoader
     }
 
     @Test
-    public void testImportSuperCf() throws IOException, ParseException, URISyntaxException
+    public void testImportSuperCf() throws IOException, URISyntaxException
     {
         String jsonUrl = resourcePath("SuperCF.json");
         File tempSS = tempSSTableFile("Keyspace1", "Super4");

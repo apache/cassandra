@@ -24,10 +24,9 @@ package org.apache.cassandra.cache;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 
 import org.apache.cassandra.db.ColumnIndex;
-import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.utils.ObjectSizes;

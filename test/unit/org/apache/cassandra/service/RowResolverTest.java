@@ -30,7 +30,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.TreeMapBackedSortedColumns;
 
-import static junit.framework.Assert.*;
+import static org.junit.Assert.*;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.db.KeyspaceTest.*;
 

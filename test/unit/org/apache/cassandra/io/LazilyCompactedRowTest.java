@@ -25,7 +25,6 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 import com.google.common.base.Objects;
 import org.junit.Test;
@@ -43,7 +42,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 
-import static junit.framework.Assert.assertEquals;
+import static org.junit.Assert.assertEquals;
 
 
 public class LazilyCompactedRowTest extends SchemaLoader
@@ -129,7 +128,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
         }
     }
 
-    private void assertDigest(ColumnFamilyStore cfs, int gcBefore) throws IOException, NoSuchAlgorithmException
+    private void assertDigest(ColumnFamilyStore cfs, int gcBefore) throws NoSuchAlgorithmException
     {
         AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
         Collection<SSTableReader> sstables = cfs.getSSTables();
@@ -159,7 +158,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     }
 
     @Test
-    public void testOneRow() throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException
+    public void testOneRow() throws IOException, NoSuchAlgorithmException
     {
         CompactionManager.instance.disableAutoCompaction();
 
@@ -177,7 +176,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     }
 
     @Test
-    public void testOneRowTwoColumns() throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException
+    public void testOneRowTwoColumns() throws IOException, NoSuchAlgorithmException
     {
         CompactionManager.instance.disableAutoCompaction();
 
@@ -196,7 +195,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     }
 
     @Test
-    public void testOneRowManyColumns() throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException
+    public void testOneRowManyColumns() throws IOException, NoSuchAlgorithmException
     {
         CompactionManager.instance.disableAutoCompaction();
 
@@ -218,7 +217,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     }
 
     @Test
-    public void testTwoRows() throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException
+    public void testTwoRows() throws IOException, NoSuchAlgorithmException
     {
         CompactionManager.instance.disableAutoCompaction();
 
@@ -239,7 +238,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     }
 
     @Test
-    public void testTwoRowsTwoColumns() throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException
+    public void testTwoRowsTwoColumns() throws IOException, NoSuchAlgorithmException
     {
         CompactionManager.instance.disableAutoCompaction();
 
@@ -261,7 +260,7 @@ public class LazilyCompactedRowTest extends SchemaLoader
     }
 
     @Test
-    public void testManyRows() throws IOException, ExecutionException, InterruptedException, NoSuchAlgorithmException
+    public void testManyRows() throws IOException, NoSuchAlgorithmException
     {
         CompactionManager.instance.disableAutoCompaction();
 
