@@ -1,4 +1,5 @@
 2.0.1
+ * Improve error message when yaml contains invalid properties (CASSANDRA-5958)
  * Improve leveled compaction's ability to find non-overlapping L0 compactions
    to work on concurrently (CASSANDRA-5921)
  * Notify indexer of columns shadowed by range tombstones (CASSANDRA-5614)
