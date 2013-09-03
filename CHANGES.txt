@@ -64,6 +64,11 @@ Merged from 1.2:
  * Use index_interval from cassandra.yaml when upgraded (CASSANDRA-5822)
  * Fix buffer underflow on socket close (CASSANDRA-5792)
 Merged from 1.2:
+ * Fix reading DeletionTime from 1.1-format sstables (CASSANDRA-5814)
+ * cqlsh: add collections support to COPY (CASSANDRA-5698)
+ * retry important messages for any IOException (CASSANDRA-5804)
+ * Allow empty IN relations in SELECT/UPDATE/DELETE statements (CASSANDRA-5626)
+ * cqlsh: fix crashing on Windows due to libedit detection (CASSANDRA-5812)
  * fix bulk-loading compressed sstables (CASSANDRA-5820)
  * (Hadoop) fix quoting in CqlPagingRecordReader and CqlRecordWriter 
    (CASSANDRA-5824)
@@ -86,14 +91,6 @@ Merged from 1.2:
  * Disallow incompatible type change in CQL3 (CASSANDRA-5882)
 Merged from 1.1:
  * Correctly validate sparse composite cells in scrub (CASSANDRA-5855)
-
-
-1.2.8
- * Fix reading DeletionTime from 1.1-format sstables (CASSANDRA-5814)
- * cqlsh: add collections support to COPY (CASSANDRA-5698)
- * retry important messages for any IOException (CASSANDRA-5804)
- * Allow empty IN relations in SELECT/UPDATE/DELETE statements (CASSANDRA-5626)
- * cqlsh: fix crashing on Windows due to libedit detection (CASSANDRA-5812)
 
 
 2.0.0-beta2
