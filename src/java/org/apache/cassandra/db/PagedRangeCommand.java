@@ -29,8 +29,6 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class PagedRangeCommand extends AbstractRangeCommand
@@ -132,8 +130,8 @@ public class PagedRangeCommand extends AbstractRangeCommand
             out.writeInt(cmd.rowFilter.size());
             for (IndexExpression expr : cmd.rowFilter)
             {
-                ByteBufferUtil.writeWithShortLength(expr.column_name, out);
-                out.writeInt(expr.op.getValue());
+                ByteBufferUtil.writeWithShortLength(expr.column, out);
+                out.writeInt(expr.operator.ordinal());
                 ByteBufferUtil.writeWithLength(expr.value, out);
             }
 
@@ -158,7 +156,7 @@ public class PagedRangeCommand extends AbstractRangeCommand
             for (int i = 0; i < filterCount; i++)
             {
                 IndexExpression expr = new IndexExpression(ByteBufferUtil.readWithShortLength(in),
-                                                           IndexOperator.findByValue(in.readInt()),
+                                                           IndexExpression.Operator.findByOrdinal(in.readInt()),
                                                            ByteBufferUtil.readWithShortLength(in));
                 rowFilter.add(expr);
             }
@@ -182,8 +180,8 @@ public class PagedRangeCommand extends AbstractRangeCommand
             size += TypeSizes.NATIVE.sizeof(cmd.rowFilter.size());
             for (IndexExpression expr : cmd.rowFilter)
             {
-                size += TypeSizes.NATIVE.sizeofWithShortLength(expr.column_name);
-                size += TypeSizes.NATIVE.sizeof(expr.op.getValue());
+                size += TypeSizes.NATIVE.sizeofWithShortLength(expr.column);
+                size += TypeSizes.NATIVE.sizeof(expr.operator.ordinal());
                 size += TypeSizes.NATIVE.sizeofWithLength(expr.value);
             }
 

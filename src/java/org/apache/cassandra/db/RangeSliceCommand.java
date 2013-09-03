@@ -26,7 +26,6 @@ import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -36,8 +35,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.pager.Pageable;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class RangeSliceCommand extends AbstractRangeCommand implements Pageable
@@ -194,8 +191,8 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             out.writeInt(sliceCommand.rowFilter.size());
             for (IndexExpression expr : sliceCommand.rowFilter)
             {
-                ByteBufferUtil.writeWithShortLength(expr.column_name, out);
-                out.writeInt(expr.op.getValue());
+                ByteBufferUtil.writeWithShortLength(expr.column, out);
+                out.writeInt(expr.operator.ordinal());
                 ByteBufferUtil.writeWithShortLength(expr.value, out);
             }
         }
@@ -254,7 +251,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         {
             IndexExpression expr;
             expr = new IndexExpression(ByteBufferUtil.readWithShortLength(in),
-                                       IndexOperator.findByValue(in.readInt()),
+                                       IndexExpression.Operator.findByOrdinal(in.readInt()),
                                        ByteBufferUtil.readWithShortLength(in));
             rowFilter.add(expr);
         }
@@ -308,8 +305,8 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             size += TypeSizes.NATIVE.sizeof(rsc.rowFilter.size());
             for (IndexExpression expr : rsc.rowFilter)
             {
-                size += TypeSizes.NATIVE.sizeofWithShortLength(expr.column_name);
-                size += TypeSizes.NATIVE.sizeof(expr.op.getValue());
+                size += TypeSizes.NATIVE.sizeofWithShortLength(expr.column);
+                size += TypeSizes.NATIVE.sizeof(expr.operator.ordinal());
                 size += TypeSizes.NATIVE.sizeofWithLength(expr.value);
             }
         }

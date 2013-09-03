@@ -1155,7 +1155,7 @@ public class CassandraServer implements Cassandra.Iface
                                                                         now,
                                                                         filter,
                                                                         bounds,
-                                                                        range.row_filter,
+                                                                        ThriftConversion.fromThrift(range.row_filter),
                                                                         range.count),
                                                   consistencyLevel);
             }
@@ -1323,7 +1323,7 @@ public class CassandraServer implements Cassandra.Iface
                                                               now,
                                                               filter,
                                                               bounds,
-                                                              index_clause.expressions,
+                                                              ThriftConversion.fromThrift(index_clause.expressions),
                                                               index_clause.count);
 
             List<Row> rows = StorageProxy.getRangeSlice(command, consistencyLevel);

@@ -39,7 +39,6 @@ import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.junit.Test;

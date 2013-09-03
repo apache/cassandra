@@ -57,7 +57,6 @@ import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.thrift.CqlRow;
-import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -542,7 +541,7 @@ public final class CFMetaData
         Map<ByteBuffer, ColumnDefinition> clonedColumns = new HashMap<>();
         for (ColumnDefinition cd : oldCFMD.column_metadata.values())
         {
-            ColumnDefinition cloned = cd.clone();
+            ColumnDefinition cloned = cd.copy();
             clonedColumns.put(cloned.name, cloned);
         }
 

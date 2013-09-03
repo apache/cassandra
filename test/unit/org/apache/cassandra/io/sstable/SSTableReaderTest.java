@@ -50,8 +50,6 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import static org.junit.Assert.assertTrue;
@@ -314,7 +312,7 @@ public class SSTableReaderTest extends SchemaLoader
             clearAndLoad(cfs);
 
         // query using index to see if sstable for secondary index opens
-        IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(1L));
+        IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexExpression.Operator.EQ, ByteBufferUtil.bytes(1L));
         List<IndexExpression> clause = Arrays.asList(expr);
         IPartitioner p = StorageService.getPartitioner();
         Range<RowPosition> range = Util.range("", "");
@@ -324,7 +322,7 @@ public class SSTableReaderTest extends SchemaLoader
 
     private List<Range<Token>> makeRanges(Token left, Token right)
     {
-        return Arrays.<Range<Token>>asList(new Range[]{ new Range<Token>(left, right) });
+        return Arrays.asList(new Range<>(left, right));
     }
 
     private DecoratedKey k(int i)

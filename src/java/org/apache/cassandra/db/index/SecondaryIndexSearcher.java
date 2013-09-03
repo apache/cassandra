@@ -22,8 +22,6 @@ import java.util.*;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ExtendedFilter;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
 
 public abstract class SecondaryIndexSearcher
 {
@@ -55,11 +53,11 @@ public abstract class SecondaryIndexSearcher
         for (IndexExpression expression : clause)
         {
             //skip columns belonging to a different index type
-            if(!columns.contains(expression.column_name))
+            if(!columns.contains(expression.column))
                 continue;
 
-            SecondaryIndex index = indexManager.getIndexForColumn(expression.column_name);
-            if (index == null || (expression.op != IndexOperator.EQ))
+            SecondaryIndex index = indexManager.getIndexForColumn(expression.column);
+            if (index == null || expression.operator != IndexExpression.Operator.EQ)
                 continue;
             int columns = index.getIndexCfs().getMeanColumns();
             if (columns < bestMeanCount)

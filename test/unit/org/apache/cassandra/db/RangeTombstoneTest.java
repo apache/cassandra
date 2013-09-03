@@ -20,27 +20,27 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.IndexType;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
+import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.thrift.IndexType;
-
-import org.junit.Test;
-
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.Util.dk;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+
+import static org.apache.cassandra.Util.dk;
 
 public class RangeTombstoneTest extends SchemaLoader
 {

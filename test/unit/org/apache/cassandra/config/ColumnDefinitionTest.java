@@ -25,7 +25,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnDefinitionTest

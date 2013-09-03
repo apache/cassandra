@@ -33,8 +33,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
 
 /**
  * Extends a column filter (IFilter) to include a number of IndexExpression.
@@ -133,7 +131,7 @@ public abstract class ExtendedFilter
      */
     public abstract boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder);
 
-    public static boolean satisfies(int comparison, IndexOperator op)
+    public static boolean satisfies(int comparison, IndexExpression.Operator op)
     {
         switch (op)
         {
@@ -204,9 +202,7 @@ public abstract class ExtendedFilter
                 {
                     SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfs.getComparator());
                     for (IndexExpression expr : clause)
-                    {
-                        columns.add(expr.column_name);
-                    }
+                        columns.add(expr.column);
                     columns.addAll(((NamesQueryFilter) filter).columns);
                     return ((NamesQueryFilter) filter).withUpdatedColumns(columns);
                 }
@@ -237,7 +233,7 @@ public abstract class ExtendedFilter
 
             for (IndexExpression expr : clause)
             {
-                if (data.getColumn(expr.column_name) == null)
+                if (data.getColumn(expr.column) == null)
                 {
                     logger.debug("adding extraFilter to cover additional expressions");
                     return true;
@@ -264,10 +260,9 @@ public abstract class ExtendedFilter
             // why we do the dance of avoiding to query any column we already have (it's also more efficient anyway)
             SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfs.getComparator());
             for (IndexExpression expr : clause)
-            {
-                if (data.getColumn(expr.column_name) == null)
-                    columns.add(expr.column_name);
-            }
+                if (data.getColumn(expr.column) == null)
+                    columns.add(expr.column);
+
             assert !columns.isEmpty();
             return new NamesQueryFilter(columns);
         }
@@ -290,14 +285,14 @@ public abstract class ExtendedFilter
             // where the index returned a row which doesn't have the primary column when we actually read it
             for (IndexExpression expression : clause)
             {
-                ColumnDefinition def = data.metadata().getColumnDefinition(expression.column_name);
+                ColumnDefinition def = data.metadata().getColumnDefinition(expression.column);
                 ByteBuffer dataValue = null;
                 AbstractType<?> validator = null;
                 if (def == null)
                 {
                     // This can't happen with CQL3 as this should be rejected upfront. For thrift however,
                     // column name are not predefined. But that means the column name correspond to an internal one.
-                    Column column = data.getColumn(expression.column_name);
+                    Column column = data.getColumn(expression.column);
                     if (column != null)
                     {
                         dataValue = column.value();
@@ -314,7 +309,7 @@ public abstract class ExtendedFilter
                     return false;
 
                 int v = validator.compare(dataValue, expression.value);
-                if (!satisfies(v, expression.op))
+                if (!satisfies(v, expression.operator))
                     return false;
             }
             return true;

@@ -31,7 +31,6 @@ import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class CompositesSearcher extends SecondaryIndexSearcher
@@ -75,7 +74,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
         // to each row matching that clause.
         // TODO: allow merge join instead of just one index + loop
         final IndexExpression primary = highestSelectivityPredicate(filter.getClause());
-        final CompositesIndex index = (CompositesIndex)indexManager.getIndexForColumn(primary.column_name);
+        final CompositesIndex index = (CompositesIndex)indexManager.getIndexForColumn(primary.column);
         assert index != null;
         final DecoratedKey indexKey = index.getIndexKeyFor(primary.value);
 

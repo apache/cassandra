@@ -31,7 +31,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.thrift.ColumnDef;
-import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -124,7 +123,7 @@ public class ColumnDefinition
         this.type = type;
     }
 
-    public ColumnDefinition clone()
+    public ColumnDefinition copy()
     {
         return new ColumnDefinition(name, validator, indexType, indexOptions, indexName, componentIndex, type);
     }
@@ -192,7 +191,7 @@ public class ColumnDefinition
 
         cd.setName(ByteBufferUtil.clone(name));
         cd.setValidation_class(validator.toString());
-        cd.setIndex_type(indexType == null ? null : IndexType.valueOf(indexType.name()));
+        cd.setIndex_type(indexType == null ? null : org.apache.cassandra.thrift.IndexType.valueOf(indexType.name()));
         cd.setIndex_name(indexName == null ? null : indexName);
         cd.setIndex_options(indexOptions == null ? null : Maps.newHashMap(indexOptions));
 
@@ -204,7 +203,7 @@ public class ColumnDefinition
         // For super columns, the componentIndex is 1 because the ColumnDefinition applies to the column component.
         return new ColumnDefinition(ByteBufferUtil.clone(thriftColumnDef.name),
                                     TypeParser.parse(thriftColumnDef.validation_class),
-                                    thriftColumnDef.index_type,
+                                    thriftColumnDef.index_type == null ? null : IndexType.valueOf(thriftColumnDef.index_type.name()),
                                     thriftColumnDef.index_options,
                                     thriftColumnDef.index_name,
                                     isSuper ? 1 : null,

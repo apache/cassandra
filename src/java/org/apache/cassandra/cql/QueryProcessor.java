@@ -48,9 +48,6 @@ import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlResultType;
 import org.apache.cassandra.thrift.CqlRow;
 import org.apache.cassandra.thrift.CqlPreparedResult;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.thrift.ThriftClientState;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -165,7 +162,7 @@ public class QueryProcessor
             ByteBuffer value = columnRelation.getValue().getByteBuffer(select.getValueValidator(metadata.ksName, entity), variables);
 
             expressions.add(new IndexExpression(entity,
-                                                IndexOperator.valueOf(columnRelation.operator().toString()),
+                                                IndexExpression.Operator.valueOf(columnRelation.operator().toString()),
                                                 value));
         }
 

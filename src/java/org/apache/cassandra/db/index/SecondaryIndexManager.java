@@ -26,14 +26,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.IndexType;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -479,7 +478,7 @@ public class SecondaryIndexManager
         //Group columns by type
         for (IndexExpression ix : clause)
         {
-            SecondaryIndex index = getIndexForColumn(ix.column_name);
+            SecondaryIndex index = getIndexForColumn(ix.column);
 
             if (index == null)
                 continue;
@@ -492,7 +491,7 @@ public class SecondaryIndexManager
                 groupByIndexType.put(index.getClass().getCanonicalName(), columns);
             }
 
-            columns.add(ix.column_name);
+            columns.add(ix.column);
         }
 
         List<SecondaryIndexSearcher> indexSearchers = new ArrayList<SecondaryIndexSearcher>(groupByIndexType.size());

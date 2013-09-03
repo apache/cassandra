@@ -47,8 +47,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableUtils;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
@@ -242,8 +240,8 @@ public class StreamingTransferTest extends SchemaLoader
         {
             long val = key.hashCode();
             IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"),
-                                                              IndexOperator.EQ,
-                                                              ByteBufferUtil.bytes(val));
+                                                       IndexExpression.Operator.EQ,
+                                                       ByteBufferUtil.bytes(val));
             List<IndexExpression> clause = Arrays.asList(expr);
             IDiskAtomFilter filter = new IdentityQueryFilter();
             Range<RowPosition> range = Util.range("", "");

@@ -33,7 +33,6 @@ import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.HeapAllocator;
 
@@ -60,7 +59,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
         // to each row matching that clause.
         // TODO: allow merge join instead of just one index + loop
         final IndexExpression primary = highestSelectivityPredicate(filter.getClause());
-        final SecondaryIndex index = indexManager.getIndexForColumn(primary.column_name);
+        final SecondaryIndex index = indexManager.getIndexForColumn(primary.column);
         assert index != null;
         final DecoratedKey indexKey = index.getIndexKeyFor(primary.value);
 
@@ -179,7 +178,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                         if (((KeysIndex)index).isIndexEntryStale(indexKey.key, data, filter.timestamp))
                         {
                             // delete the index entry w/ its own timestamp
-                            Column dummyColumn = new Column(primary.column_name, indexKey.key, column.timestamp());
+                            Column dummyColumn = new Column(primary.column, indexKey.key, column.timestamp());
                             ((PerColumnSecondaryIndex)index).delete(dk.key, dummyColumn);
                             continue;
                         }

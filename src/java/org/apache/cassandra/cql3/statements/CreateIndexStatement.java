@@ -25,13 +25,13 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.IndexType;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.messages.ResultMessage;
 

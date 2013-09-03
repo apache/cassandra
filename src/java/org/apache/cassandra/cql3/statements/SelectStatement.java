@@ -41,8 +41,6 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.*;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -757,7 +755,7 @@ public class SelectStatement implements CQLStatement
                     throw new InvalidRequestException(String.format("Unsupported null value for indexed column %s", name));
                 if (value.remaining() > 0xFFFF)
                     throw new InvalidRequestException("Index expression values may not be larger than 64K");
-                expressions.add(new IndexExpression(name.name.key, IndexOperator.EQ, value));
+                expressions.add(new IndexExpression(name.name.key, IndexExpression.Operator.EQ, value));
             }
             else
             {
@@ -1556,14 +1554,14 @@ public class SelectStatement implements CQLStatement
             throw new AssertionError();
         }
 
-        public IndexOperator getIndexOperator(Bound b)
+        public IndexExpression.Operator getIndexOperator(Bound b)
         {
             switch (b)
             {
                 case START:
-                    return boundInclusive[b.idx] ? IndexOperator.GTE : IndexOperator.GT;
+                    return boundInclusive[b.idx] ? IndexExpression.Operator.GTE : IndexExpression.Operator.GT;
                 case END:
-                    return boundInclusive[b.idx] ? IndexOperator.LTE : IndexOperator.LT;
+                    return boundInclusive[b.idx] ? IndexExpression.Operator.LTE : IndexExpression.Operator.LT;
             }
             throw new AssertionError();
         }
