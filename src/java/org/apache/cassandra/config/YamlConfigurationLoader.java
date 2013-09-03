@@ -17,19 +17,23 @@
  */
 package org.apache.cassandra.config;
 
+import java.beans.IntrospectionException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.FileUtils;
-
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.YAMLException;
+import org.yaml.snakeyaml.introspector.MissingProperty;
+import org.yaml.snakeyaml.introspector.Property;
+import org.yaml.snakeyaml.introspector.PropertyUtils;
 
 public class YamlConfigurationLoader implements ConfigurationLoader
 {
@@ -83,8 +87,12 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             TypeDescription seedDesc = new TypeDescription(SeedProviderDef.class);
             seedDesc.putMapPropertyType("parameters", String.class, String.class);
             constructor.addTypeDescription(seedDesc);
+            MissingPropertiesChecker propertiesChecker = new MissingPropertiesChecker();
+            constructor.setPropertyUtils(propertiesChecker);
             Yaml yaml = new Yaml(constructor);
-            return (Config)yaml.load(input);
+            Config result = yaml.loadAs(input, Config.class);
+            propertiesChecker.check();
+            return result;
         }
         catch (YAMLException e)
         {
@@ -93,6 +101,35 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         finally
         {
             FileUtils.closeQuietly(input);
+        }
+    }
+    
+    private static class MissingPropertiesChecker extends PropertyUtils 
+    {
+        private final Set<String> missingProperties = new HashSet<>();
+        
+        public MissingPropertiesChecker()
+        {
+            setSkipMissingProperties(true);
+        }
+        
+        @Override
+        public Property getProperty(Class<? extends Object> type, String name) throws IntrospectionException
+        {
+            Property result = super.getProperty(type, name);
+            if (result instanceof MissingProperty)
+            {
+                missingProperties.add(result.getName());
+            }
+            return result;
+        }
+        
+        public void check() throws ConfigurationException
+        {
+            if (!missingProperties.isEmpty()) 
+            {
+                throw new ConfigurationException("Invalid yaml. Please remove properties " + missingProperties + " from your cassandra.yaml");
+            }
         }
     }
 }
