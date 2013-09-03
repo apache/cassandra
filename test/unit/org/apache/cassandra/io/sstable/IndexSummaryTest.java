@@ -1,6 +1,4 @@
-package org.apache.cassandra.io.sstable;
 /*
- * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,18 +6,16 @@ package org.apache.cassandra.io.sstable;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
+package org.apache.cassandra.io.sstable;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -31,16 +27,19 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-import org.junit.Assert;
+import com.google.common.collect.Lists;
+import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
-import org.junit.Test;
 
-import com.google.common.collect.Lists;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 public class IndexSummaryTest
 {
@@ -49,7 +48,7 @@ public class IndexSummaryTest
     {
         Pair<List<DecoratedKey>, IndexSummary> random = generateRandomIndex(100, 1);
         for (int i = 0; i < 100; i++)
-            Assert.assertEquals(random.left.get(i).key, ByteBuffer.wrap(random.right.getKey(i)));
+            assertEquals(random.left.get(i).key, ByteBuffer.wrap(random.right.getKey(i)));
     }
 
     @Test
@@ -57,7 +56,7 @@ public class IndexSummaryTest
     {
         Pair<List<DecoratedKey>, IndexSummary> random = generateRandomIndex(100, 1);
         for (int i = 0; i < 100; i++)
-            Assert.assertEquals(i, random.right.binarySearch(random.left.get(i)));
+            assertEquals(i, random.right.binarySearch(random.left.get(i)));
     }
 
     @Test
@@ -65,7 +64,7 @@ public class IndexSummaryTest
     {
         Pair<List<DecoratedKey>, IndexSummary> random = generateRandomIndex(100, 2);
         for (int i = 0; i < 50; i++)
-            Assert.assertEquals(i*2, random.right.getPosition(i));
+            assertEquals(i*2, random.right.getPosition(i));
     }
 
     @Test
@@ -82,11 +81,33 @@ public class IndexSummaryTest
         DataInputStream dis = new DataInputStream(new ByteArrayInputStream(aos.toByteArray()));
         IndexSummary is = IndexSummary.serializer.deserialize(dis, DatabaseDescriptor.getPartitioner());
         for (int i = 0; i < 100; i++)
-            Assert.assertEquals(i, is.binarySearch(random.left.get(i)));
+            assertEquals(i, is.binarySearch(random.left.get(i)));
         // read the junk
-        Assert.assertEquals(dis.readUTF(), "JUNK");
-        Assert.assertEquals(dis.readUTF(), "JUNK");
+        assertEquals(dis.readUTF(), "JUNK");
+        assertEquals(dis.readUTF(), "JUNK");
         FileUtils.closeQuietly(dis);
+    }
+
+    @Test
+    public void testAddEmptyKey() throws Exception
+    {
+        IPartitioner p = new RandomPartitioner();
+        IndexSummaryBuilder builder = new IndexSummaryBuilder(1, 1);
+        builder.maybeAddEntry(p.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER), 0);
+        IndexSummary summary = builder.build(p);
+        assertEquals(1, summary.size());
+        assertEquals(0, summary.getPosition(0));
+        assertArrayEquals(new byte[0], summary.getKey(0));
+
+        ByteArrayOutputStream aos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(aos);
+        IndexSummary.serializer.serialize(summary, dos);
+        DataInputStream dis = new DataInputStream(new ByteArrayInputStream(aos.toByteArray()));
+        IndexSummary loaded = IndexSummary.serializer.deserialize(dis, p);
+
+        assertEquals(1, loaded.size());
+        assertEquals(summary.getPosition(0), loaded.getPosition(0));
+        assertArrayEquals(summary.getKey(0), summary.getKey(0));
     }
 
     private Pair<List<DecoratedKey>, IndexSummary> generateRandomIndex(int size, int interval)

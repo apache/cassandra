@@ -398,7 +398,7 @@ public class ByteBufferUtil
 
     public static byte[] readBytes(DataInput in, int length) throws IOException
     {
-        assert length > 0;
+        assert length > 0 : "length is not > 0: " + length;
         byte[] bytes = new byte[length];
         in.readFully(bytes);
         return bytes;
