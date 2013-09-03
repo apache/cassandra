@@ -75,11 +75,11 @@ public class HintedHandoffMetrics
     {
         for (Entry<InetAddress, DifferencingCounter> entry : notStored.asMap().entrySet())
         {
-            long diffrence = entry.getValue().diffrence();
-            if (diffrence == 0)
+            long difference = entry.getValue().difference();
+            if (difference == 0)
                 continue;
-            logger.warn("{} has {} dropped hints, because node is down past configured hint window.", entry.getKey(), diffrence);
-            SystemKeyspace.updateHintsDropped(entry.getKey(), UUIDGen.getTimeUUID(), (int) diffrence);
+            logger.warn("{} has {} dropped hints, because node is down past configured hint window.", entry.getKey(), difference);
+            SystemKeyspace.updateHintsDropped(entry.getKey(), UUIDGen.getTimeUUID(), (int) difference);
         }
     }
 
@@ -93,12 +93,12 @@ public class HintedHandoffMetrics
             this.meter = Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "Hints_not_stored-" + address.getHostAddress()));
         }
 
-        public long diffrence()
+        public long difference()
         {
             long current = meter.count();
-            long diffrence = current - reported;
+            long difference = current - reported;
             this.reported = current;
-            return diffrence;
+            return difference;
         }
 
         public long count()
