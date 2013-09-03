@@ -121,7 +121,8 @@ public class IndexSummary
             for (int i = 0; i < size; i++)
             {
                 positions[i] = in.readLong();
-                keys[i] = ByteBufferUtil.readBytes(in, in.readInt());
+                int len = in.readInt();
+                keys[i] = len == 0 ? new byte[0] : ByteBufferUtil.readBytes(in, len);
             }
 
             return new IndexSummary(partitioner, keys, positions);
