@@ -50,7 +50,7 @@ public class RegisterMessage extends Message.Request
         {
             int size = 2;
             for (Event.Type type : msg.eventTypes)
-                CBUtil.sizeOfEnumValue(type);
+                size += CBUtil.sizeOfEnumValue(type);
             return size;
         }
     };
