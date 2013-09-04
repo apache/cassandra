@@ -20,13 +20,11 @@ package org.apache.cassandra.cql3.statements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.TriggerDefinition;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
@@ -49,9 +47,9 @@ public class CreateTriggerStatement extends SchemaAlteringStatement
         this.triggerClass = clazz;
     }
 
-    public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
+    public void checkAccess(ClientState state) throws UnauthorizedException
     {
-        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.ALTER);
+        state.ensureIsSuper("Only superusers are allowed to perfrom CREATE TRIGGER queries");
     }
 
     public void validate(ClientState state) throws RequestValidationException
@@ -67,7 +65,7 @@ public class CreateTriggerStatement extends SchemaAlteringStatement
         }
     }
 
-    public void announceMigration() throws InvalidRequestException, ConfigurationException
+    public void announceMigration() throws ConfigurationException
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).clone();
         cfm.addTriggerDefinition(TriggerDefinition.create(triggerName, triggerClass));

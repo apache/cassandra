@@ -231,6 +231,8 @@ public class QueryOptions
                 flags.add(Flag.SKIP_METADATA);
             if (options.getPageSize() >= 0)
                 flags.add(Flag.PAGE_SIZE);
+            if (options.getPagingState() != null)
+                flags.add(Flag.PAGING_STATE);
             if (options.getSerialConsistency() != ConsistencyLevel.SERIAL)
                 flags.add(Flag.SERIAL_CONSISTENCY);
             return flags;

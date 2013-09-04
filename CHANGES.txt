@@ -17,6 +17,7 @@
  * Add ability for CQL3 to list partition keys (CASSANDRA-4536)
  * Improve native protocol serialization (CASSANDRA-5664)
  * Upgrade Thrift to 0.9.1 (CASSANDRA-5923)
+ * Require superuser status for adding triggers (CASSANDRA-5963)
 Merged from 1.2:
  * Allow local batchlog writes for CL.ANY (CASSANDRA-5967)
  * Optimize name query performance in wide rows (CASSANDRA-5966)
