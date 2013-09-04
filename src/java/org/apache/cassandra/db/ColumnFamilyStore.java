@@ -889,6 +889,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         Iterator<Column> iter = cf.iterator();
         DeletionInfo.InOrderTester tester = cf.inOrderDeletionTester();
+        boolean hasDroppedColumns = !cf.metadata.getDroppedColumns().isEmpty();
         while (iter.hasNext())
         {
             Column c = iter.next();
@@ -896,7 +897,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // (a) the column itself is gcable or
             // (b) the column is shadowed by a CF tombstone
             // (c) the column has been dropped from the CF schema (CQL3 tables only)
-            if (c.getLocalDeletionTime() < gcBefore || tester.isDeleted(c) || isDroppedColumn(c, cf.metadata()))
+            if (c.getLocalDeletionTime() < gcBefore || tester.isDeleted(c) || (hasDroppedColumns && isDroppedColumn(c, cf.metadata())))
             {
                 iter.remove();
                 indexer.remove(c);
@@ -914,15 +915,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     // 2. if it has been re-added since then, this particular column was inserted before the last drop
     private static boolean isDroppedColumn(Column c, CFMetaData meta)
     {
-        if (meta.getDroppedColumns().isEmpty())
-            return false;
         Long droppedAt = meta.getDroppedColumns().get(((CompositeType) meta.comparator).extractLastComponent(c.name()));
         return droppedAt != null && c.timestamp() <= droppedAt;
     }
 
     private void removeDroppedColumns(ColumnFamily cf)
     {
-        if (cf == null)
+        if (cf == null || cf.metadata.getDroppedColumns().isEmpty())
             return;
 
         Iterator<Column> iter = cf.iterator();
