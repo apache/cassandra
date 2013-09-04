@@ -1489,8 +1489,11 @@ public class CassandraServer implements Cassandra.Iface
             cf_def.unsetId(); // explicitly ignore any id set by client (Hector likes to set zero)
             CFMetaData cfm = CFMetaData.fromThrift(cf_def);
             CFMetaData.validateCompactionOptions(cfm.compactionStrategyClass, cfm.compactionStrategyOptions);
-
             cfm.addDefaultIndexNames();
+
+            if (!cfm.getTriggers().isEmpty())
+                state().ensureIsSuper("Only superusers are allowed to add triggers.");
+
             MigrationManager.announceNewColumnFamily(cfm);
             return Schema.instance.getVersion().toString();
         }
@@ -1546,6 +1549,10 @@ public class CassandraServer implements Cassandra.Iface
                 cf_def.unsetId(); // explicitly ignore any id set by client (same as system_add_column_family)
                 CFMetaData cfm = CFMetaData.fromThrift(cf_def);
                 cfm.addDefaultIndexNames();
+
+                if (!cfm.getTriggers().isEmpty())
+                    state().ensureIsSuper("Only superusers are allowed to add triggers.");
+
                 cfDefs.add(cfm);
             }
             MigrationManager.announceNewKeyspace(KSMetaData.fromThrift(ks_def, cfDefs.toArray(new CFMetaData[cfDefs.size()])));
@@ -1610,16 +1617,22 @@ public class CassandraServer implements Cassandra.Iface
         {
             if (cf_def.keyspace == null || cf_def.name == null)
                 throw new InvalidRequestException("Keyspace and CF name must be set.");
+
+            state().hasColumnFamilyAccess(cf_def.keyspace, cf_def.name, Permission.ALTER);
             CFMetaData oldCfm = Schema.instance.getCFMetaData(cf_def.keyspace, cf_def.name);
+
             if (oldCfm == null)
                 throw new InvalidRequestException("Could not find column family definition to modify.");
 
-            state().hasColumnFamilyAccess(cf_def.keyspace, cf_def.name, Permission.ALTER);
 
             CFMetaData.applyImplicitDefaults(cf_def);
             CFMetaData cfm = CFMetaData.fromThrift(cf_def);
             CFMetaData.validateCompactionOptions(cfm.compactionStrategyClass, cfm.compactionStrategyOptions);
             cfm.addDefaultIndexNames();
+
+            if (!oldCfm.getTriggers().equals(cfm.getTriggers()))
+                state().ensureIsSuper("Only superusers are allowed to add or remove triggers.");
+
             MigrationManager.announceColumnFamilyUpdate(cfm, true);
             return Schema.instance.getVersion().toString();
         }

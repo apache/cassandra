@@ -201,6 +201,12 @@ public class ClientState
             throw new UnauthorizedException("You have to be logged in and not anonymous to perform this request");
     }
 
+    public void ensureIsSuper(String message) throws UnauthorizedException
+    {
+        if (DatabaseDescriptor.getAuthenticator().requireAuthentication() && (user == null || !user.isSuper()))
+            throw new UnauthorizedException(message);
+    }
+
     private static void validateKeyspace(String keyspace) throws InvalidRequestException
     {
         if (keyspace == null)
