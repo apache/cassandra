@@ -281,7 +281,7 @@ h4(#createTablepartitionClustering). Partition key and clustering
 
 In CQL, the order in which columns are defined for the @PRIMARY KEY@ matters. The first column of the key is called the __partition key__. It has the property that all the rows sharing the same partition key (even across table in fact) are stored on the same physical node. Also, insertion/update/deletion on rows sharing the same partition key for a given table are performed __atomically__ and in __isolation__. Note that it is possible to have a composite partition key, i.e. a partition key formed of multiple columns, using an extra set of parentheses to define which columns forms the partition key.
 
-The remaining columns of the @PRIMARY KEY@ definition, if any, are called __clustering keys__. On a given physical node, rows for a given partition key are stored in the order induced by the clustering keys, making the retrieval of rows in that clustering order particularly efficient (see <a href="#selectStmt"><tt>SELECT</tt></a>).
+The remaining columns of the @PRIMARY KEY@ definition, if any, are called __clustering columns. On a given physical node, rows for a given partition key are stored in the order induced by the clustering columns, making the retrieval of rows in that clustering order particularly efficient (see <a href="#selectStmt"><tt>SELECT</tt></a>).
 
 h4(#createTableOptions). @<option>@
 
@@ -360,7 +360,7 @@ p.
 The @ALTER@ statement is used to manipulate table definitions. It allows to add new columns, drop existing ones, change the type of existing columns, or update the table options. As for table creation, @ALTER COLUMNFAMILY@ is allowed as an alias for @ALTER TABLE@.
 
 The @<tablename>@ is the table name optionally preceded by the keyspace name.  The @<instruction>@ defines the alteration to perform:
-* @ALTER@: Update the type of a given defined column. Note that the type of the "clustering keys":#createTablepartitionClustering cannot be modified as it induces the on-disk ordering of rows. Columns on which a "secondary index":#createIndexStmt is defined have the same restriction. Other columns are free from those restrictions (no validation of existing data is performed), but it is usually a bad idea to change the type to a non-compatible one, unless no data have been inserted for that column yet, as this could confuse CQL drivers/tools.
+* @ALTER@: Update the type of a given defined column. Note that the type of the "clustering columns":#createTablepartitionClustering cannot be modified as it induces the on-disk ordering of rows. Columns on which a "secondary index":#createIndexStmt is defined have the same restriction. Other columns are free from those restrictions (no validation of existing data is performed), but it is usually a bad idea to change the type to a non-compatible one, unless no data have been inserted for that column yet, as this could confuse CQL drivers/tools.
 * @ADD@: Adds a new column to the table. The @<identifier>@ for the new column must not conflict with an existing column. Moreover, columns cannot be added to tables defined with the @COMPACT STORAGE@ option.
 * @WITH@: Allows to update the options of the table. The "supported @<option>@":#createTableOptions (and syntax) are the same as for the @CREATE TABLE@ statement except that @COMPACT STORAGE@ is not supported. Note that setting any @compaction@ sub-options has the effect of erasing all previous @compaction@ options, so you  need to re-specify all the sub-options if you want to keep them. The same note applies to the set of @compression@ sub-options.
 
@@ -634,7 +634,7 @@ h4(#selectWhere). @<where-clause>@
 
 The @<where-clause>@ specifies which rows must be queried. It is composed of relations on the columns that are part of the @PRIMARY KEY@ and/or have a "secondary index":#createIndexStmt defined on them.
 
-Not all relations are allowed in a query. For instance, non-equal relations (where @IN@ is considered as an equal relation) on a partition key are not supported (but see the use of the @TOKEN@ method below to do non-equal queries on the partition key). Moreover, for a given partition key, the clustering keys induce an ordering of rows and relations on them is restricted to the relations that allow to select a *contiguous* (for the ordering) set of rows. For instance, given
+Not all relations are allowed in a query. For instance, non-equal relations (where @IN@ is considered as an equal relation) on a partition key are not supported (but see the use of the @TOKEN@ method below to do non-equal queries on the partition key). Moreover, for a given partition key, the clustering columns induce an ordering of rows and relations on them is restricted to the relations that allow to select a *contiguous* (for the ordering) set of rows. For instance, given
 
 bc(sample). 
 CREATE TABLE posts (
