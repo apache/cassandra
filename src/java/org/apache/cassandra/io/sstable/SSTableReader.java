@@ -843,7 +843,7 @@ public class SSTableReader extends SSTable
             }
             else
             {
-                Tracing.trace("Index sample allows skipping sstable {}", descriptor.generation);
+                Tracing.trace("Partition summary allows skipping sstable {}", descriptor.generation);
                 return null;
             }
         }
