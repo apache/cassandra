@@ -235,9 +235,9 @@ public class DataResource implements IResource
 
         DataResource ds = (DataResource) o;
 
-        return Objects.equal(this.level, ds.level)
-            && Objects.equal(this.keyspace, ds.keyspace)
-            && Objects.equal(this.columnFamily, ds.columnFamily);
+        return Objects.equal(level, ds.level)
+            && Objects.equal(keyspace, ds.keyspace)
+            && Objects.equal(columnFamily, ds.columnFamily);
     }
 
     @Override
