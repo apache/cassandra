@@ -66,9 +66,9 @@ public class PermissionDetails implements Comparable<PermissionDetails>
             return false;
 
         PermissionDetails pd = (PermissionDetails) o;
-        return Objects.equal(this.username, pd.username)
-            && Objects.equal(this.resource, pd.resource)
-            && Objects.equal(this.permission, pd.permission);
+        return Objects.equal(username, pd.username)
+            && Objects.equal(resource, pd.resource)
+            && Objects.equal(permission, pd.permission);
     }
 
     @Override

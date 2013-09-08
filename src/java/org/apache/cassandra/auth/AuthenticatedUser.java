@@ -75,7 +75,7 @@ public class AuthenticatedUser
 
         AuthenticatedUser u = (AuthenticatedUser) o;
 
-        return Objects.equal(this.name, u.name);
+        return Objects.equal(name, u.name);
     }
 
     @Override

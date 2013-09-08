@@ -148,8 +148,7 @@ public class TriggerDefinition
 
         TriggerDefinition td = (TriggerDefinition) o;
 
-        return Objects.equal(this.name, td.name)
-            && Objects.equal(this.classOption, td.classOption);
+        return Objects.equal(name, td.name) && Objects.equal(classOption, td.classOption);
     }
 
     @Override
