@@ -255,7 +255,7 @@ public class QueryProcessor
         if (statement instanceof CFStatement)
             ((CFStatement)statement).prepareKeyspace(clientState);
 
-        Tracing.trace("Peparing statement");
+        Tracing.trace("Preparing statement");
         return statement.prepare();
     }
 
