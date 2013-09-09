@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.io.IOException;
 import java.util.*;
 
 import org.apache.cassandra.db.*;
@@ -34,7 +33,7 @@ public class SSTableSplitter {
         this.task = new SplittingCompactionTask(cfs, sstable, sstableSizeInMB);
     }
 
-    public void split() throws IOException
+    public void split()
     {
         task.execute(new StatsCollector());
     }
