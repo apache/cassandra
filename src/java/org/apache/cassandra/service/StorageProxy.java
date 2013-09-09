@@ -382,8 +382,17 @@ public class StorageProxy implements StorageProxyMBean
             if (!inProgress.update.isEmpty() && inProgress.isAfter(mostRecent))
             {
                 Tracing.trace("Finishing incomplete paxos round {}", inProgress);
-                if (proposePaxos(inProgress, liveEndpoints, requiredParticipants))
-                    commitPaxos(inProgress, ConsistencyLevel.QUORUM);
+                Commit refreshedInProgress = Commit.newProposal(inProgress.key, ballot, inProgress.update);
+                if (proposePaxos(refreshedInProgress, liveEndpoints, requiredParticipants))
+                {
+                    commitPaxos(refreshedInProgress, ConsistencyLevel.QUORUM);
+                }
+                else
+                {
+                    Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
+                    // sleep a random amount to give the other proposer a chance to finish
+                    Uninterruptibles.sleepUninterruptibly(FBUtilities.threadLocalRandom().nextInt(100), TimeUnit.MILLISECONDS);
+                }
                 continue;
             }
 
