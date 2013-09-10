@@ -138,7 +138,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                 {
                     // Did we get more columns that needed to respect the user limit?
                     // (but we still need to return what has been fetched already)
-                    if (columnsCount > limit)
+                    if (columnsCount >= limit)
                         return makeReturn(currentKey, data);
 
                     if (indexColumns == null || indexColumns.isEmpty())
