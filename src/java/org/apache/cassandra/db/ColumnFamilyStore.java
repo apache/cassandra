@@ -1658,7 +1658,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         try
         {
-            while (rowIterator.hasNext() && rows.size() < filter.maxRows() && columnsCount < filter.maxColumns())
+            while (rowIterator.hasNext() && matched < filter.maxRows() && columnsCount < filter.maxColumns())
             {
                 // get the raw columns requested, and additional columns for the expressions if necessary
                 Row rawRow = rowIterator.next();
