@@ -31,19 +31,12 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public abstract class PerRowSecondaryIndex extends SecondaryIndex
 {
     /**
-     * Index the given row for new index creation.  @param cf will represent the entire row.
+     * Index the given row.
      *
      * @param rowKey the row key
-     * @param cf the current rows data
+     * @param cf the cf data to be indexed
      */
     public abstract void index(ByteBuffer rowKey, ColumnFamily cf);
-
-    /**
-     * Index the given row
-     *
-     * @param rowKey the row key
-     */
-    public abstract void index(ByteBuffer rowKey);
 
     /**
      * cleans up deleted columns from cassandra cleanup compaction

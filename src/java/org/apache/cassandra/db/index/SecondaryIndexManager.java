@@ -76,8 +76,8 @@ public class SecondaryIndexManager
 
     public SecondaryIndexManager(ColumnFamilyStore baseCfs)
     {
-        indexesByColumn = new ConcurrentSkipListMap<ByteBuffer, SecondaryIndex>();
-        rowLevelIndexMap = new HashMap<Class<? extends SecondaryIndex>, SecondaryIndex>();
+        indexesByColumn = new ConcurrentSkipListMap<>();
+        rowLevelIndexMap = new HashMap<>();
 
         this.baseCfs = baseCfs;
     }
@@ -105,15 +105,13 @@ public class SecondaryIndexManager
 
         Set<SecondaryIndex> reloadedIndexes = Collections.newSetFromMap(new IdentityHashMap<SecondaryIndex, Boolean>());
         for (SecondaryIndex index : indexesByColumn.values())
-        {
             if (reloadedIndexes.add(index))
                 index.reload();
-        }
     }
 
     public Set<String> allIndexesNames()
     {
-        Set<String> names = new HashSet<String>(indexesByColumn.size());
+        Set<String> names = new HashSet<>(indexesByColumn.size());
         for (SecondaryIndex index : indexesByColumn.values())
             names.add(index.getIndexName());
         return names;
@@ -158,7 +156,7 @@ public class SecondaryIndexManager
             if (index.indexes(name))
             {
                 if (matching == null)
-                    matching = new ArrayList<SecondaryIndex>();
+                    matching = new ArrayList<>();
                 matching.add(index);
             }
         }
@@ -197,6 +195,7 @@ public class SecondaryIndexManager
         for (SecondaryIndexSearcher searcher : searchers)
             if (!searcher.isIndexing(clause))
                 return false;
+
         return true;
     }
 
@@ -322,16 +321,14 @@ public class SecondaryIndexManager
      */
     public List<String> getBuiltIndexes()
     {
-        List<String> indexList = new ArrayList<String>();
+        List<String> indexList = new ArrayList<>();
 
         for (Map.Entry<ByteBuffer, SecondaryIndex> entry : indexesByColumn.entrySet())
         {
             SecondaryIndex index = entry.getValue();
 
             if (index.isIndexBuilt(entry.getKey()))
-            {
                 indexList.add(entry.getValue().getIndexName());
-            }
         }
 
         return indexList;
@@ -342,7 +339,7 @@ public class SecondaryIndexManager
      */
     public Collection<ColumnFamilyStore> getIndexesBackedByCfs()
     {
-        ArrayList<ColumnFamilyStore> cfsList = new ArrayList<ColumnFamilyStore>();
+        ArrayList<ColumnFamilyStore> cfsList = new ArrayList<>();
 
         for (SecondaryIndex index: indexesByColumn.values())
         {
@@ -405,7 +402,7 @@ public class SecondaryIndexManager
             if (index instanceof PerRowSecondaryIndex)
             {
                 if (appliedRowLevelIndexes == null)
-                    appliedRowLevelIndexes = new HashSet<Class<? extends SecondaryIndex>>();
+                    appliedRowLevelIndexes = new HashSet<>();
 
                 if (appliedRowLevelIndexes.add(index.getClass()))
                     ((PerRowSecondaryIndex)index).index(key, cf);
@@ -413,10 +410,8 @@ public class SecondaryIndexManager
             else
             {
                 for (Column column : cf)
-                {
                     if (index.indexes(column.name()))
                         ((PerColumnSecondaryIndex) index).insert(key, column);
-                }
             }
         }
     }
@@ -441,7 +436,7 @@ public class SecondaryIndexManager
             if (index instanceof PerRowSecondaryIndex)
             {
                 if (cleanedRowLevelIndexes == null)
-                    cleanedRowLevelIndexes = new HashSet<Class<? extends SecondaryIndex>>();
+                    cleanedRowLevelIndexes = new HashSet<>();
 
                 if (cleanedRowLevelIndexes.add(index.getClass()))
                     ((PerRowSecondaryIndex)index).delete(key);
@@ -455,15 +450,24 @@ public class SecondaryIndexManager
 
     /**
      * This helper acts as a closure around the indexManager
-     * and row key to ensure that down in Memtable's ColumnFamily implementation, the index
-     * can get updated. Note: only a CF backed by AtomicSortedColumns implements this behaviour
-     * fully, other types simply ignore the index updater.
+     * and updated cf data to ensure that down in
+     * Memtable's ColumnFamily implementation, the index
+     * can get updated. Note: only a CF backed by AtomicSortedColumns implements
+     * this behaviour fully, other types simply ignore the index updater.
      */
-    public Updater updaterFor(final DecoratedKey key)
+    public Updater updaterFor(DecoratedKey key, ColumnFamily cf)
     {
         return (indexesByColumn.isEmpty() && rowLevelIndexMap.isEmpty())
                 ? nullUpdater
-                : new StandardUpdater(key);
+                : new StandardUpdater(key, cf);
+    }
+
+    /**
+     * Updated closure with only the modified row key.
+     */
+    public Updater updaterFor(DecoratedKey key)
+    {
+        return updaterFor(key, null);
     }
 
     /**
@@ -473,7 +477,7 @@ public class SecondaryIndexManager
      */
     private List<SecondaryIndexSearcher> getIndexSearchersForQuery(List<IndexExpression> clause)
     {
-        Map<String, Set<ByteBuffer>> groupByIndexType = new HashMap<String, Set<ByteBuffer>>();
+        Map<String, Set<ByteBuffer>> groupByIndexType = new HashMap<>();
 
         //Group columns by type
         for (IndexExpression ix : clause)
@@ -487,14 +491,14 @@ public class SecondaryIndexManager
 
             if (columns == null)
             {
-                columns = new HashSet<ByteBuffer>();
+                columns = new HashSet<>();
                 groupByIndexType.put(index.getClass().getCanonicalName(), columns);
             }
 
             columns.add(ix.column);
         }
 
-        List<SecondaryIndexSearcher> indexSearchers = new ArrayList<SecondaryIndexSearcher>(groupByIndexType.size());
+        List<SecondaryIndexSearcher> indexSearchers = new ArrayList<>(groupByIndexType.size());
 
         //create searcher per type
         for (Set<ByteBuffer> column : groupByIndexType.values())
@@ -526,12 +530,10 @@ public class SecondaryIndexManager
 
     public Collection<SecondaryIndex> getIndexesByNames(Set<String> idxNames)
     {
-        List<SecondaryIndex> result = new ArrayList<SecondaryIndex>();
+        List<SecondaryIndex> result = new ArrayList<>();
         for (SecondaryIndex index : indexesByColumn.values())
-        {
             if (idxNames.contains(index.getIndexName()))
                 result.add(index);
-        }
         return result;
     }
 
@@ -550,7 +552,7 @@ public class SecondaryIndexManager
     public boolean validate(Column column)
     {
         SecondaryIndex index = getIndexForColumn(column.name());
-        return index != null ? index.validate(column) : true;
+        return index == null || index.validate(column);
     }
 
     public static interface Updater
@@ -571,10 +573,12 @@ public class SecondaryIndexManager
     private class StandardUpdater implements Updater
     {
         private final DecoratedKey key;
+        private final ColumnFamily cf;
 
-        public StandardUpdater(DecoratedKey key)
+        public StandardUpdater(DecoratedKey key, ColumnFamily cf)
         {
             this.key = key;
+            this.cf = cf;
         }
 
         public void insert(Column column)
@@ -583,10 +587,8 @@ public class SecondaryIndexManager
                 return;
 
             for (SecondaryIndex index : indexFor(column.name()))
-            {
                 if (index instanceof PerColumnSecondaryIndex)
                     ((PerColumnSecondaryIndex) index).insert(key.key, column);
-            }
         }
 
         public void update(Column oldColumn, Column column)
@@ -613,16 +615,14 @@ public class SecondaryIndexManager
                 return;
 
             for (SecondaryIndex index : indexFor(column.name()))
-            {
                 if (index instanceof PerColumnSecondaryIndex)
                    ((PerColumnSecondaryIndex) index).delete(key.key, column);
-            }
         }
 
         public void updateRowLevelIndexes()
         {
             for (SecondaryIndex index : rowLevelIndexMap.values())
-                ((PerRowSecondaryIndex) index).index(key.key);
+                ((PerRowSecondaryIndex) index).index(key.key, cf);
         }
     }
 }
