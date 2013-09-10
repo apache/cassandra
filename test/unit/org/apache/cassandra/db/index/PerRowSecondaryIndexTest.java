@@ -49,7 +49,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
     @Before
     public void clearTestStub()
     {
-        TestIndex.reset();
+        PerRowSecondaryIndexTest.TestIndex.reset();
     }
 
     @Test
@@ -61,7 +61,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         rm.add("Indexed1", ByteBufferUtil.bytes("indexed"), ByteBufferUtil.bytes("foo"), 1);
         rm.apply();
 
-        ColumnFamily indexedRow = TestIndex.LAST_INDEXED_ROW;
+        ColumnFamily indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_ROW;
         assertNotNull(indexedRow);
         assertEquals(ByteBufferUtil.bytes("foo"), indexedRow.getColumn(ByteBufferUtil.bytes("indexed")).value());
 
@@ -70,10 +70,10 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         rm.add("Indexed1", ByteBufferUtil.bytes("indexed"), ByteBufferUtil.bytes("bar"), 2);
         rm.apply();
 
-        indexedRow = TestIndex.LAST_INDEXED_ROW;
+        indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_ROW;
         assertNotNull(indexedRow);
         assertEquals(ByteBufferUtil.bytes("bar"), indexedRow.getColumn(ByteBufferUtil.bytes("indexed")).value());
-        assertTrue(Arrays.equals("k1".getBytes(), TestIndex.LAST_INDEXED_KEY.array()));
+        assertTrue(Arrays.equals("k1".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
     }
 
     @Test
@@ -85,14 +85,14 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         rm.delete("Indexed1", ByteBufferUtil.bytes("indexed"), 1);
         rm.apply();
 
-        ColumnFamily indexedRow = TestIndex.LAST_INDEXED_ROW;
+        ColumnFamily indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_ROW;
         assertNotNull(indexedRow);
 
         for (Column column : indexedRow.getSortedColumns())
         {
             assertTrue(column.isMarkedForDelete(System.currentTimeMillis()));
         }
-        assertTrue(Arrays.equals("k2".getBytes(), TestIndex.LAST_INDEXED_KEY.array()));
+        assertTrue(Arrays.equals("k2".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
     }
 
     @Test
@@ -104,13 +104,13 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         rm.delete("Indexed1", 1);
         rm.apply();
 
-        ColumnFamily indexedRow = TestIndex.LAST_INDEXED_ROW;
+        ColumnFamily indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_ROW;
         assertNotNull(indexedRow);
         for (Column column : indexedRow.getSortedColumns())
         {
             assertTrue(column.isMarkedForDelete(System.currentTimeMillis()));
         }
-        assertTrue(Arrays.equals("k3".getBytes(), TestIndex.LAST_INDEXED_KEY.array()));
+        assertTrue(Arrays.equals("k3".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
     }
 
     public static class TestIndex extends PerRowSecondaryIndex
@@ -126,11 +126,6 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
 
         @Override
         public void index(ByteBuffer rowKey, ColumnFamily cf)
-        {
-        }
-
-        @Override
-        public void index(ByteBuffer rowKey)
         {
             QueryFilter filter = QueryFilter.getIdentityFilter(DatabaseDescriptor.getPartitioner().decorateKey(rowKey),
                                                                baseCfs.getColumnFamilyName(),
