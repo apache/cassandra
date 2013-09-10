@@ -53,8 +53,8 @@ public class SecondaryIndexColumnSizeTest
         buffer.flip();
         column.value = buffer;
 
-        MockRowIndex mockRowIndex = new MockRowIndex();
-        MockColumnIndex mockColumnIndex = new MockColumnIndex();
+        SecondaryIndexColumnSizeTest.MockRowIndex mockRowIndex = new SecondaryIndexColumnSizeTest.MockRowIndex();
+        SecondaryIndexColumnSizeTest.MockColumnIndex mockColumnIndex = new SecondaryIndexColumnSizeTest.MockColumnIndex();
 
         assertTrue(mockRowIndex.validate(column));
         assertFalse(mockColumnIndex.validate(column));

@@ -29,6 +29,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
@@ -476,15 +477,24 @@ public class SecondaryIndexManager
 
     /**
      * This helper acts as a closure around the indexManager
-     * and row key to ensure that down in Memtable's ColumnFamily implementation, the index
-     * can get updated. Note: only a CF backed by AtomicSortedColumns implements this behaviour
-     * fully, other types simply ignore the index updater.
+     * and updated cf data to ensure that down in
+     * Memtable's ColumnFamily implementation, the index
+     * can get updated. Note: only a CF backed by AtomicSortedColumns implements
+     * this behaviour fully, other types simply ignore the index updater.
      */
-    public Updater updaterFor(final DecoratedKey key)
+    public Updater updaterFor(DecoratedKey key, ColumnFamily cf)
     {
         return (indexesByColumn.isEmpty() && rowLevelIndexMap.isEmpty())
                 ? nullUpdater
-                : new StandardUpdater(key);
+                : new StandardUpdater(key, cf);
+    }
+
+    /**
+     * Updated closure with only the modified row key.
+     */
+    public Updater updaterFor(DecoratedKey key)
+    {
+        return updaterFor(key, null);
     }
 
     /**
@@ -574,7 +584,7 @@ public class SecondaryIndexManager
     public boolean validate(Column column)
     {
         SecondaryIndex index = getIndexForColumn(column.name);
-        return index != null ? index.validate(column) : true;
+        return index == null || index.validate(column);
     }
 
     public static interface Updater
@@ -595,10 +605,12 @@ public class SecondaryIndexManager
     private class StandardUpdater implements Updater
     {
         private final DecoratedKey key;
+        private final ColumnFamily cf;
 
-        public StandardUpdater(DecoratedKey key)
+        public StandardUpdater(DecoratedKey key, ColumnFamily cf)
         {
             this.key = key;
+            this.cf = cf;
         }
 
         public void insert(IColumn column)
@@ -649,7 +661,7 @@ public class SecondaryIndexManager
         public void updateRowLevelIndexes()
         {
             for (SecondaryIndex index : rowLevelIndexMap.values())
-                ((PerRowSecondaryIndex) index).index(key.key);
+                ((PerRowSecondaryIndex) index).index(key.key, cf);
         }
     }
 }
