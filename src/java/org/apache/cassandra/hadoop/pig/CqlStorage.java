@@ -35,6 +35,7 @@ import org.apache.pig.Expression;
 import org.apache.pig.Expression.OpType;
 import org.apache.pig.ResourceSchema;
 import org.apache.pig.ResourceSchema.ResourceFieldSchema;
+import org.apache.pig.backend.executionengine.ExecException;
 import org.apache.pig.backend.hadoop.executionengine.mapReduceLayer.PigSplit;
 import org.apache.pig.data.*;
 import org.apache.pig.impl.util.UDFContext;
@@ -107,10 +108,11 @@ public class CqlStorage extends AbstractCassandraStorage
                 if (columnValue != null)
                 {
                     IColumn column = new Column(cdef.name, columnValue);
-                    tuple.set(i, columnToTuple(column, cfDef, UTF8Type.instance));
+                    AbstractType<?> validator = getValidatorMap(cfDef).get(column.name());
+                    setTupleValue(tuple, i, cqlColumnToObj(column, cfDef), validator);
                 }
                 else
-                    tuple.set(i, TupleFactory.getInstance().newTuple());
+                    tuple.set(i, null);
                 i++;
             }
             return tuple;
@@ -119,6 +121,74 @@ public class CqlStorage extends AbstractCassandraStorage
         {
             throw new IOException(e.getMessage());
         }
+    }
+
+    /** set the value to the position of the tuple */
+    private void setTupleValue(Tuple tuple, int position, Object value, AbstractType<?> validator) throws ExecException
+    {
+        if (validator instanceof CollectionType)
+            setCollectionTupleValues(tuple, position, value, validator);
+        else
+           setTupleValue(tuple, position, value);
+    }
+
+    /** set the values of set/list at and after the position of the tuple */
+    private void setCollectionTupleValues(Tuple tuple, int position, Object value, AbstractType<?> validator) throws ExecException
+    {
+        if (validator instanceof MapType)
+        {
+            setMapTupleValues(tuple, position, value, validator);
+            return;
+        }
+        AbstractType<?> elementValidator;
+        if (validator instanceof SetType)
+            elementValidator = ((SetType<?>) validator).elements;
+        else if (validator instanceof ListType)
+            elementValidator = ((ListType<?>) validator).elements;
+        else 
+            return;
+        
+        int i = 0;
+        Tuple innerTuple = TupleFactory.getInstance().newTuple(((Collection<?>) value).size());
+        for (Object entry : (Collection<?>) value)
+        {
+            setTupleValue(innerTuple, i, entry, elementValidator);
+            i++;
+        }
+        tuple.set(position, innerTuple);
+    }
+
+    /** set the values of set/list at and after the position of the tuple */
+    private void setMapTupleValues(Tuple tuple, int position, Object value, AbstractType<?> validator) throws ExecException
+    {
+        AbstractType<?> keyValidator = ((MapType<?, ?>) validator).keys;
+        AbstractType<?> valueValidator = ((MapType<?, ?>) validator).values;
+        
+        int i = 0;
+        Tuple innerTuple = TupleFactory.getInstance().newTuple(((Map<?,?>) value).size());
+        for(Map.Entry<?,?> entry :  ((Map<Object, Object>)value).entrySet())
+        {
+            Tuple mapEntryTuple = TupleFactory.getInstance().newTuple(2);
+            setTupleValue(mapEntryTuple, 0, entry.getKey(), keyValidator);
+            setTupleValue(mapEntryTuple, 1, entry.getValue(), valueValidator);
+            innerTuple.set(i, mapEntryTuple);
+            i++;
+        }
+        tuple.set(position, innerTuple);
+    }
+
+    /** convert a cql column to an object */
+    private Object cqlColumnToObj(IColumn col, CfDef cfDef) throws IOException
+    {
+        // standard
+        Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
+        if (validators.get(col.name()) == null)
+        {
+            Map<MarshallerType, AbstractType> marshallers = getDefaultMarshallers(cfDef);
+            return marshallers.get(MarshallerType.DEFAULT_VALIDATOR).compose(col.value());
+        }
+        else
+            return validators.get(col.name()).compose(col.value());
     }
 
     /** set read configuration settings */
@@ -410,7 +480,7 @@ public class CqlStorage extends AbstractCassandraStorage
 
                 // output prepared statement
                 if (urlQuery.containsKey("output_query"))
-                    outputQuery = urlQuery.get("output_query").replaceAll("#", "?").replaceAll("@", "=");
+                    outputQuery = urlQuery.get("output_query");
 
                 // user defined where clause
                 if (urlQuery.containsKey("where_clause"))
@@ -457,7 +527,7 @@ public class CqlStorage extends AbstractCassandraStorage
         String name = be.getLhs().toString();
         String value = be.getRhs().toString();
         OpType op = expression.getOpType();
-        String opString = op.name();
+        String opString = op.toString();
         switch (op)
         {
             case OP_EQ:
