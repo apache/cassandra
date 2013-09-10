@@ -103,10 +103,12 @@ public class CompositesSearcher extends SecondaryIndexSearcher
             private ByteBuffer lastSeenPrefix = startPrefix;
             private Deque<Column> indexColumns;
             private int columnsRead = Integer.MAX_VALUE;
+            private int limit = filter.currentLimit();
+            private int columnsCount = 0;
 
-            private final int meanColumns = Math.max(index.getIndexCfs().getMeanColumns(), 1);
+            private int meanColumns = Math.max(index.getIndexCfs().getMeanColumns(), 1);
             // We shouldn't fetch only 1 row as this provides buggy paging in case the first row doesn't satisfy all clauses
-            private final int rowsPerQuery = Math.max(Math.min(filter.maxRows(), filter.maxColumns() / meanColumns), 2);
+            private int rowsPerQuery = Math.max(Math.min(filter.maxRows(), filter.maxColumns() / meanColumns), 2);
 
             public boolean needsFiltering()
             {
@@ -116,32 +118,26 @@ public class CompositesSearcher extends SecondaryIndexSearcher
             private Row makeReturn(DecoratedKey key, ColumnFamily data)
             {
                 if (data == null)
-                {
                     return endOfData();
-                }
-                else
-                {
-                    assert key != null;
-                    return new Row(key, data);
-                }
+
+                assert key != null;
+                return new Row(key, data);
             }
 
             protected Row computeNext()
             {
                 /*
-                 * Our internal index code is wired toward internal rows. So we need to acumulate all results for a given
+                 * Our internal index code is wired toward internal rows. So we need to accumulate all results for a given
                  * row before returning from this method. Which unfortunately means that this method has to do what
                  * CFS.filter does for KeysIndex.
                  */
                 DecoratedKey currentKey = null;
                 ColumnFamily data = null;
-                int columnsCount = 0;
-                int limit = filter.currentLimit();
 
                 while (true)
                 {
-                    // Did we got more columns that needed to respect the user limit?
-                    // (but we still need to return what was fetch already)
+                    // Did we get more columns that needed to respect the user limit?
+                    // (but we still need to return what has been fetched already)
                     if (columnsCount > limit)
                         return makeReturn(currentKey, data);
 
@@ -170,7 +166,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
 
                         Collection<Column> sortedColumns = indexRow.getSortedColumns();
                         columnsRead = sortedColumns.size();
-                        indexColumns = new ArrayDeque<Column>(sortedColumns);
+                        indexColumns = new ArrayDeque<>(sortedColumns);
                         Column firstColumn = sortedColumns.iterator().next();
 
                         // Paging is racy, so it is possible the first column of a page is not the last seen one.
