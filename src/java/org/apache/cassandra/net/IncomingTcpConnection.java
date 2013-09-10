@@ -73,10 +73,12 @@ public class IncomingTcpConnection extends Thread
     {
         try
         {
-            if (version < MessagingService.VERSION_12)
-                handleLegacyVersion();
-            else
-                handleModernVersion();
+            if (version < MessagingService.VERSION_20)
+                throw new UnsupportedOperationException(String.format("Unable to read obsolete message version %s; "
+                                                                      + "The earliest version supported is 2.0.0",
+                                                                      version));
+
+            handleModernVersion();
         }
         catch (EOFException e)
         {
@@ -139,11 +141,6 @@ public class IncomingTcpConnection extends Thread
             MessagingService.validateMagic(in.readInt());
             receiveMessage(in, version);
         }
-    }
-
-    private void handleLegacyVersion()
-    {
-        throw new UnsupportedOperationException("Unable to read obsolete message version " + version + "; the earliest version supported is 1.2.0");
     }
 
     private InetAddress receiveMessage(DataInputStream input, int version) throws IOException

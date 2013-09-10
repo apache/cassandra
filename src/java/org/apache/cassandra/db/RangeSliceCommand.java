@@ -20,16 +20,15 @@ package org.apache.cassandra.db;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.google.common.base.Objects;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
@@ -46,37 +45,37 @@ public class RangeSliceCommand extends AbstractRangeCommand implements Pageable
     public final boolean isPaging;
 
     public RangeSliceCommand(String keyspace,
-                             String column_family,
+                             String columnFamily,
                              long timestamp,
                              IDiskAtomFilter predicate,
                              AbstractBounds<RowPosition> range,
                              int maxResults)
     {
-        this(keyspace, column_family, timestamp, predicate, range, null, maxResults, false, false);
+        this(keyspace, columnFamily, timestamp, predicate, range, null, maxResults, false, false);
     }
 
     public RangeSliceCommand(String keyspace,
-                             String column_family,
+                             String columnFamily,
                              long timestamp,
                              IDiskAtomFilter predicate,
                              AbstractBounds<RowPosition> range,
                              List<IndexExpression> row_filter,
                              int maxResults)
     {
-        this(keyspace, column_family, timestamp, predicate, range, row_filter, maxResults, false, false);
+        this(keyspace, columnFamily, timestamp, predicate, range, row_filter, maxResults, false, false);
     }
 
     public RangeSliceCommand(String keyspace,
-                             String column_family,
+                             String columnFamily,
                              long timestamp,
                              IDiskAtomFilter predicate,
                              AbstractBounds<RowPosition> range,
-                             List<IndexExpression> row_filter,
+                             List<IndexExpression> rowFilter,
                              int maxResults,
                              boolean countCQL3Rows,
                              boolean isPaging)
     {
-        super(keyspace, column_family, timestamp, range, predicate, row_filter);
+        super(keyspace, columnFamily, timestamp, range, predicate, rowFilter);
         this.maxResults = maxResults;
         this.countCQL3Rows = countCQL3Rows;
         this.isPaging = isPaging;
@@ -84,7 +83,7 @@ public class RangeSliceCommand extends AbstractRangeCommand implements Pageable
 
     public MessageOut<RangeSliceCommand> createMessage()
     {
-        return new MessageOut<RangeSliceCommand>(MessagingService.Verb.RANGE_SLICE, this, serializer);
+        return new MessageOut<>(MessagingService.Verb.RANGE_SLICE, this, serializer);
     }
 
     public AbstractRangeCommand forSubRange(AbstractBounds<RowPosition> subRange)
@@ -137,16 +136,16 @@ public class RangeSliceCommand extends AbstractRangeCommand implements Pageable
     @Override
     public String toString()
     {
-        return "RangeSliceCommand{" +
-               "keyspace='" + keyspace + '\'' +
-               ", columnFamily='" + columnFamily + '\'' +
-               ", timestamp=" + timestamp +
-               ", predicate=" + predicate +
-               ", range=" + keyRange +
-               ", rowFilter =" + rowFilter +
-               ", maxResults=" + maxResults +
-               ", countCQL3Rows=" + countCQL3Rows +
-               "}";
+        return Objects.toStringHelper(this)
+                      .add("keyspace", keyspace)
+                      .add("columnFamily", columnFamily)
+                      .add("predicate", predicate)
+                      .add("keyRange", keyRange)
+                      .add("rowFilter", rowFilter)
+                      .add("maxResults", maxResults)
+                      .add("counterCQL3Rows", countCQL3Rows)
+                      .add("timestamp", timestamp)
+                      .toString();
     }
 }
 
@@ -156,31 +155,9 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
     {
         out.writeUTF(sliceCommand.keyspace);
         out.writeUTF(sliceCommand.columnFamily);
+        out.writeLong(sliceCommand.timestamp);
 
-        if (version >= MessagingService.VERSION_20)
-            out.writeLong(sliceCommand.timestamp);
-
-        IDiskAtomFilter filter = sliceCommand.predicate;
-        if (version < MessagingService.VERSION_20)
-        {
-            // Pre-2.0, we need to know if it's a super column. If it is, we
-            // must extract the super column name from the predicate (and
-            // modify the predicate accordingly)
-            ByteBuffer sc = null;
-            CFMetaData metadata = Schema.instance.getCFMetaData(sliceCommand.getKeyspace(), sliceCommand.columnFamily);
-            if (metadata.cfType == ColumnFamilyType.Super)
-            {
-                SuperColumns.SCFilter scFilter = SuperColumns.filterToSC((CompositeType)metadata.comparator, filter);
-                sc = scFilter.scName;
-                filter = scFilter.updatedFilter;
-            }
-
-            out.writeInt(sc == null ? 0 : sc.remaining());
-            if (sc != null)
-                ByteBufferUtil.write(sc, out);
-        }
-
-        IDiskAtomFilter.Serializer.instance.serialize(filter, out, version);
+        IDiskAtomFilter.Serializer.instance.serialize(sliceCommand.predicate, out, version);
 
         if (sliceCommand.rowFilter == null)
         {
@@ -206,47 +183,15 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
     {
         String keyspace = in.readUTF();
         String columnFamily = in.readUTF();
-
-        long timestamp = version < MessagingService.VERSION_20 ? System.currentTimeMillis() : in.readLong();
+        long timestamp = in.readLong();
 
         CFMetaData metadata = Schema.instance.getCFMetaData(keyspace, columnFamily);
 
-        IDiskAtomFilter predicate;
-        if (version < MessagingService.VERSION_20)
-        {
-            int scLength = in.readInt();
-            ByteBuffer superColumn = null;
-            if (scLength > 0)
-            {
-                byte[] buf = new byte[scLength];
-                in.readFully(buf);
-                superColumn = ByteBuffer.wrap(buf);
-            }
-
-            AbstractType<?> comparator;
-            if (metadata.cfType == ColumnFamilyType.Super)
-            {
-                CompositeType type = (CompositeType)metadata.comparator;
-                comparator = superColumn == null ? type.types.get(0) : type.types.get(1);
-            }
-            else
-            {
-                comparator = metadata.comparator;
-            }
-
-            predicate = IDiskAtomFilter.Serializer.instance.deserialize(in, version, comparator);
-
-            if (metadata.cfType == ColumnFamilyType.Super)
-                predicate = SuperColumns.fromSCFilter((CompositeType)metadata.comparator, superColumn, predicate);
-        }
-        else
-        {
-            predicate = IDiskAtomFilter.Serializer.instance.deserialize(in, version, metadata.comparator);
-        }
+        IDiskAtomFilter predicate = IDiskAtomFilter.Serializer.instance.deserialize(in, version, metadata.comparator);
 
         List<IndexExpression> rowFilter;
         int filterCount = in.readInt();
-        rowFilter = new ArrayList<IndexExpression>(filterCount);
+        rowFilter = new ArrayList<>(filterCount);
         for (int i = 0; i < filterCount; i++)
         {
             IndexExpression expr;
@@ -267,32 +212,9 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
     {
         long size = TypeSizes.NATIVE.sizeof(rsc.keyspace);
         size += TypeSizes.NATIVE.sizeof(rsc.columnFamily);
-
-        if (version >= MessagingService.VERSION_20)
-            size += TypeSizes.NATIVE.sizeof(rsc.timestamp);
+        size += TypeSizes.NATIVE.sizeof(rsc.timestamp);
 
         IDiskAtomFilter filter = rsc.predicate;
-        if (version < MessagingService.VERSION_20)
-        {
-            ByteBuffer sc = null;
-            CFMetaData metadata = Schema.instance.getCFMetaData(rsc.keyspace, rsc.columnFamily);
-            if (metadata.cfType == ColumnFamilyType.Super)
-            {
-                SuperColumns.SCFilter scFilter = SuperColumns.filterToSC((CompositeType)metadata.comparator, filter);
-                sc = scFilter.scName;
-                filter = scFilter.updatedFilter;
-            }
-
-            if (sc != null)
-            {
-                size += TypeSizes.NATIVE.sizeof(sc.remaining());
-                size += sc.remaining();
-            }
-            else
-            {
-                size += TypeSizes.NATIVE.sizeof(0);
-            }
-        }
 
         size += IDiskAtomFilter.Serializer.instance.serializedSize(filter, version);
 
