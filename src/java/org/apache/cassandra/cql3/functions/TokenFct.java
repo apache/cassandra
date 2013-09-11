@@ -62,8 +62,13 @@ public class TokenFct extends AbstractFunction
     public ByteBuffer execute(List<ByteBuffer> parameters) throws InvalidRequestException
     {
         ColumnNameBuilder builder = cfDef.getKeyNameBuilder();
-        for (ByteBuffer bb : parameters)
+        for (int i = 0; i < parameters.size(); i++)
+        {
+            ByteBuffer bb = parameters.get(i);
+            if (bb == null)
+                return null;
             builder.add(bb);
+        }
         return partitioner.getTokenFactory().toByteArray(partitioner.getToken(builder.build()));
     }
 }

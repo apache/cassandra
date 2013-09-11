@@ -12,6 +12,7 @@
  * Pig: handle CQL collections (CASSANDRA-5867)
  * Pass the updated cf to the PRSI index() method (CASSANDRA-5999)
  * Allow empty CQL3 batches (as no-op) (CASSANDRA-5994)
+ * Support null in CQL3 functions (CASSANDRA-5910)
 
 
 1.2.9
