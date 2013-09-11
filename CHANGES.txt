@@ -11,6 +11,7 @@
  * Correctly handle limits in CompositesSearcher (CASSANDRA-5975)
  * Pig: handle CQL collections (CASSANDRA-5867)
  * Pass the updated cf to the PRSI index() method (CASSANDRA-5999)
+ * Allow empty CQL3 batches (as no-op) (CASSANDRA-5994)
 
 
 1.2.9
