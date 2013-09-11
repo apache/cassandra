@@ -419,7 +419,7 @@ batchStatement returns [BatchStatement.Parsed expr]
     : K_BEGIN
       ( K_UNLOGGED { type = BatchStatement.Type.UNLOGGED; } | K_COUNTER { type = BatchStatement.Type.COUNTER; } )?
       K_BATCH ( usingClause[attrs] )?
-          ( s=batchStatementObjective ';'? { statements.add(s); } )+
+          ( s=batchStatementObjective ';'? { statements.add(s); } )*
       K_APPLY K_BATCH
       {
           return new BatchStatement.Parsed(type, attrs, statements);

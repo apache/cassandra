@@ -47,7 +47,11 @@ public abstract class TimeuuidFcts
     {
         public ByteBuffer execute(List<ByteBuffer> parameters)
         {
-            return ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.minTimeUUID(TimestampType.instance.compose(parameters.get(0)).getTime())));
+            ByteBuffer bb = parameters.get(0);
+            if (bb == null)
+                return null;
+
+            return ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.minTimeUUID(TimestampType.instance.compose(bb).getTime())));
         }
     };
 
@@ -55,7 +59,11 @@ public abstract class TimeuuidFcts
     {
         public ByteBuffer execute(List<ByteBuffer> parameters)
         {
-            return ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.maxTimeUUID(TimestampType.instance.compose(parameters.get(0)).getTime())));
+            ByteBuffer bb = parameters.get(0);
+            if (bb == null)
+                return null;
+
+            return ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.maxTimeUUID(TimestampType.instance.compose(bb).getTime())));
         }
     };
 
@@ -63,7 +71,11 @@ public abstract class TimeuuidFcts
     {
         public ByteBuffer execute(List<ByteBuffer> parameters)
         {
-            return TimestampType.instance.decompose(new Date(UUIDGen.unixTimestamp(UUIDGen.getUUID(parameters.get(0)))));
+            ByteBuffer bb = parameters.get(0);
+            if (bb == null)
+                return null;
+
+            return TimestampType.instance.decompose(new Date(UUIDGen.unixTimestamp(UUIDGen.getUUID(bb))));
         }
     };
 
@@ -71,7 +83,11 @@ public abstract class TimeuuidFcts
     {
         public ByteBuffer execute(List<ByteBuffer> parameters)
         {
-            return ByteBufferUtil.bytes(UUIDGen.unixTimestamp(UUIDGen.getUUID(parameters.get(0))));
+            ByteBuffer bb = parameters.get(0);
+            if (bb == null)
+                return null;
+
+            return ByteBufferUtil.bytes(UUIDGen.unixTimestamp(UUIDGen.getUUID(bb)));
         }
     };
 }
