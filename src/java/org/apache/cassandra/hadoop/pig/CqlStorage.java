@@ -26,6 +26,7 @@ import java.util.*;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.hadoop.*;
 import org.apache.cassandra.hadoop.cql3.CqlConfigHelper;
 import org.apache.cassandra.thrift.*;
@@ -432,7 +433,10 @@ public class CqlStorage extends AbstractCassandraStorage
             TimedOutException,
             SchemaDisagreementException,
             TException,
-            CharacterCodingException
+            CharacterCodingException,
+            org.apache.cassandra.exceptions.InvalidRequestException,
+            ConfigurationException,
+            NotFoundException
     {
         List<ColumnDef> keyColumns = null;
         // get key columns
@@ -440,13 +444,13 @@ public class CqlStorage extends AbstractCassandraStorage
         {
             keyColumns = getKeysMeta(client);
         }
-        catch(IOException e)
+        catch(Exception e)
         {
             logger.error("Error in retrieving key columns" , e);   
         }
 
         // get other columns
-        List<ColumnDef> columns = getColumnMeta(client);
+        List<ColumnDef> columns = getColumnMeta(client, false);
 
         // combine all columns in a list
         if (keyColumns != null && columns != null)
