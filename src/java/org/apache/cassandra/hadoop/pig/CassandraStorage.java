@@ -22,27 +22,15 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.hadoop.*;
-import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.CfDef;
-import org.apache.cassandra.thrift.ColumnDef;
-import org.apache.cassandra.thrift.ColumnOrSuperColumn;
-import org.apache.cassandra.thrift.Deletion;
-import org.apache.cassandra.thrift.IndexClause;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.Mutation;
-import org.apache.cassandra.thrift.SchemaDisagreementException;
-import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.SliceRange;
-import org.apache.cassandra.thrift.SuperColumn;
-import org.apache.cassandra.thrift.TimedOutException;
-import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
@@ -57,8 +45,6 @@ import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
 import org.apache.thrift.protocol.TBinaryProtocol;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A LoadStoreFunc for retrieving data from and storing data to Cassandra
@@ -714,18 +700,10 @@ public class CassandraStorage extends AbstractCassandraStorage
 
     /** get a list of column for the column family */
     protected List<ColumnDef> getColumnMetadata(Cassandra.Client client, boolean cql3Table) 
-            throws InvalidRequestException, 
-            UnavailableException, 
-            TimedOutException, 
-            SchemaDisagreementException, 
-            TException,
-            CharacterCodingException,
-            org.apache.cassandra.exceptions.InvalidRequestException,
-            ConfigurationException,
-            NotFoundException
+    throws TException, CharacterCodingException, InvalidRequestException, ConfigurationException
     {
         if (cql3Table)
-            return new ArrayList<ColumnDef>();
+            return new ArrayList<>();
         
         return getColumnMeta(client, true);
     }
