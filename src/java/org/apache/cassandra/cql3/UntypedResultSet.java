@@ -77,7 +77,8 @@ public class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
     public static class Row
     {
-        Map<String, ByteBuffer> data = new HashMap<String, ByteBuffer>();
+        final Map<String, ByteBuffer> data = new HashMap<String, ByteBuffer>();
+        final List<ColumnSpecification> columns;
 
         public Row(Map<String, ByteBuffer> data)
         {
@@ -86,6 +87,7 @@ public class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public Row(List<ColumnSpecification> names, List<ByteBuffer> columns)
         {
+            this.columns = names;
             for (int i = 0; i < names.size(); i++)
                 data.put(names.get(i).toString(), columns.get(i));
         }
@@ -147,10 +149,21 @@ public class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             return raw == null ? null : SetType.getInstance(type).compose(raw);
         }
 
+        public <T> List<T> getList(String column, AbstractType<T> type)
+        {
+            ByteBuffer raw = data.get(column);
+            return raw == null ? null : ListType.getInstance(type).compose(raw);
+        }
+
         public <K, V> Map<K, V> getMap(String column, AbstractType<K> keyType, AbstractType<V> valueType)
         {
             ByteBuffer raw = data.get(column);
             return raw == null ? null : MapType.getInstance(keyType, valueType).compose(raw);
+        }
+
+        public List<ColumnSpecification> getColumns()
+        {
+            return columns;
         }
 
         @Override
