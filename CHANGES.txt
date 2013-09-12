@@ -31,6 +31,7 @@ Merged from 1.2:
  * Allow empty CQL3 batches (as no-op) (CASSANDRA-5994)
  * Support null in CQL3 functions (CASSANDRA-5910)
  * Replace the deprecated MapMaker with CacheLoader (CASSANDRA-6007)
+ * Add SSTableDeletingNotification to DataTracker (CASSANDRA-6010)
 
 
 2.0.0

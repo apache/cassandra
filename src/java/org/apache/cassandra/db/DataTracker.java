@@ -35,6 +35,7 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
+import org.apache.cassandra.notifications.SSTableDeletingNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
@@ -425,11 +426,16 @@ public class DataTracker
 
     public void notifyAdded(SSTableReader added)
     {
+        INotification notification = new SSTableAddedNotification(added);
         for (INotificationConsumer subscriber : subscribers)
-        {
-            INotification notification = new SSTableAddedNotification(added);
             subscriber.handleNotification(notification, this);
-        }
+    }
+
+    public void notifyDeleting(SSTableReader deleting)
+    {
+        INotification notification = new SSTableDeletingNotification(deleting);
+        for (INotificationConsumer subscriber : subscribers)
+            subscriber.handleNotification(notification, this);
     }
 
     public void subscribe(INotificationConsumer consumer)
