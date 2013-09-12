@@ -20,13 +20,7 @@ package org.apache.cassandra.cql3;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
 
@@ -77,8 +71,8 @@ public class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
     public static class Row
     {
-        final Map<String, ByteBuffer> data = new HashMap<String, ByteBuffer>();
-        final List<ColumnSpecification> columns;
+        private final Map<String, ByteBuffer> data = new HashMap<>();
+        private final List<ColumnSpecification> columns = new ArrayList<>();
 
         public Row(Map<String, ByteBuffer> data)
         {
@@ -87,7 +81,7 @@ public class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public Row(List<ColumnSpecification> names, List<ByteBuffer> columns)
         {
-            this.columns = names;
+            this.columns.addAll(names);
             for (int i = 0; i < names.size(); i++)
                 data.put(names.get(i).toString(), columns.get(i));
         }

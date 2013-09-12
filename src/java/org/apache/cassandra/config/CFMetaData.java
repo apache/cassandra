@@ -935,7 +935,9 @@ public final class CFMetaData
             for (org.apache.cassandra.thrift.Column column : row.getColumns())
                 columns.put(ByteBufferUtil.string(column.bufferForName()), column.value);
         }
-        catch (CharacterCodingException ignore) {}
+        catch (CharacterCodingException ignore)
+        {
+        }
         UntypedResultSet.Row cql3row = new UntypedResultSet.Row(columns);
         return fromSchemaNoColumnsNoTriggers(cql3row);
     }
