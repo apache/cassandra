@@ -28,8 +28,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import com.google.common.base.Function;
 import com.google.common.base.Predicate;
+import com.google.common.cache.CacheLoader;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.lang3.StringUtils;
@@ -80,17 +80,15 @@ public class StorageProxy implements StorageProxyMBean
 
     public static final StorageProxy instance = new StorageProxy();
 
-    private static volatile boolean hintedHandoffEnabled = DatabaseDescriptor.hintedHandoffEnabled();
-    private static volatile int maxHintWindow = DatabaseDescriptor.getMaxHintWindow();
     private static volatile int maxHintsInProgress = 1024 * FBUtilities.getAvailableProcessors();
     private static final AtomicInteger totalHintsInProgress = new AtomicInteger();
-    private static final Map<InetAddress, AtomicInteger> hintsInProgress = new MapMaker().concurrencyLevel(1).makeComputingMap(new Function<InetAddress, AtomicInteger>()
+    private static final CacheLoader<InetAddress, AtomicInteger> hintsInProgress = new CacheLoader<InetAddress, AtomicInteger>()
     {
-        public AtomicInteger apply(InetAddress inetAddress)
+        public AtomicInteger load(InetAddress inetAddress)
         {
             return new AtomicInteger(0);
         }
-    });
+    };
     private static final AtomicLong totalHints = new AtomicLong();
     private static final ClientRequestMetrics readMetrics = new ClientRequestMetrics("Read");
     private static final ClientRequestMetrics rangeMetrics = new ClientRequestMetrics("RangeSlice");
@@ -818,7 +816,7 @@ public class StorageProxy implements StorageProxyMBean
             // a small number of nodes causing problems, so we should avoid shutting down writes completely to
             // healthy nodes.  Any node with no hintsInProgress is considered healthy.
             if (totalHintsInProgress.get() > maxHintsInProgress
-                && (hintsInProgress.get(destination).get() > 0 && shouldHint(destination)))
+                && (getHintsInProgressFor(destination).get() > 0 && shouldHint(destination)))
             {
                 throw new OverloadedException("Too many in flight hints: " + totalHintsInProgress.get());
             }
@@ -876,6 +874,18 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
+    private static AtomicInteger getHintsInProgressFor(InetAddress destination)
+    {
+        try
+        {
+            return hintsInProgress.load(destination);
+        }
+        catch (Exception e)
+        {
+            throw new AssertionError(e);
+        }
+    }
+
     public static Future<Void> submitHint(final RowMutation mutation,
                                           final InetAddress target,
                                           final AbstractWriteResponseHandler responseHandler,
@@ -910,7 +920,7 @@ public class StorageProxy implements StorageProxyMBean
     private static Future<Void> submitHint(HintRunnable runnable)
     {
         totalHintsInProgress.incrementAndGet();
-        hintsInProgress.get(runnable.target).incrementAndGet();
+        getHintsInProgressFor(runnable.target).incrementAndGet();
         return (Future<Void>) StageManager.getStage(Stage.MUTATION).submit(runnable);
     }
 
@@ -1953,7 +1963,7 @@ public class StorageProxy implements StorageProxyMBean
             finally
             {
                 totalHintsInProgress.decrementAndGet();
-                hintsInProgress.get(target).decrementAndGet();
+                getHintsInProgressFor(target).decrementAndGet();
             }
         }
 
