@@ -463,9 +463,10 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     private int calculatePageSize()
     {
         // read less columns (mutations) per page if they are very large
-        if (hintStore.getMeanColumns() > 0)
+        int meanColumnCount = hintStore.getMeanColumns();
+        if (meanColumnCount > 0)
         {
-            int averageColumnSize = (int) (hintStore.getMeanRowSize() / hintStore.getMeanColumns());
+            int averageColumnSize = (int) (hintStore.getMeanRowSize() / meanColumnCount);
             // page size of 1 does not allow actual paging b/c of >= behavior on startColumn
             return Math.max(2, Math.min(PAGE_SIZE, DatabaseDescriptor.getInMemoryCompactionLimit() / averageColumnSize));
         }
