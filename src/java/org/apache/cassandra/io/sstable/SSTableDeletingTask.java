@@ -41,13 +41,15 @@ public class SSTableDeletingTask implements Runnable
     // will be recognized as GCable.
     private static final Set<SSTableDeletingTask> failedTasks = new CopyOnWriteArraySet<SSTableDeletingTask>();
 
-    public final Descriptor desc;
-    public final Set<Component> components;
+    private final SSTableReader referent;
+    private final Descriptor desc;
+    private final Set<Component> components;
     private DataTracker tracker;
     private final long size;
 
     public SSTableDeletingTask(SSTableReader referent)
     {
+        this.referent = referent;
         this.desc = referent.descriptor;
         this.components = referent.components;
         this.size = referent.bytesOnDisk();
@@ -65,6 +67,8 @@ public class SSTableDeletingTask implements Runnable
 
     public void run()
     {
+        tracker.notifyDeleting(referent);
+
         // If we can't successfully delete the DATA component, set the task to be retried later: see above
         File datafile = new File(desc.filenameFor(Component.DATA));
         if (!datafile.delete())
