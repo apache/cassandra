@@ -1,4 +1,5 @@
 1.2.10
+ * (Hadoop) Fix CQLRW for thrift tables (CASSANDRA-6002)
  * Fix possible divide-by-zero in HHOM (CASSANDRA-5990)
  * Allow local batchlog writes for CL.ANY (CASSANDRA-5967)
  * Optimize name query performance in wide rows (CASSANDRA-5966)

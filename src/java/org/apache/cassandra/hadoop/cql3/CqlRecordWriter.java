@@ -376,11 +376,15 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
                 CFMetaData cfMeta = CFMetaData.fromThrift(cfDef);
                 CFDefinition cfDefinition = new CFDefinition(cfMeta);
                 int i = 0;
+                partitionKeyColumns = new String[cfDefinition.keys.keySet().size()];
                 for (ColumnIdentifier column : cfDefinition.keys.keySet())
                 {
                     partitionKeyColumns[i] = column.toString();
                     i++;
                 }
+                clusterColumns = new ArrayList<String>();
+                for (ColumnIdentifier column : cfDefinition.columns.keySet())
+                    clusterColumns.add(column.toString()); 
                 return;
             }
         }
