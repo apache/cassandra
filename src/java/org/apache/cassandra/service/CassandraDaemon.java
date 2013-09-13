@@ -48,6 +48,7 @@ import org.apache.cassandra.db.compaction.LegacyLeveledManifest;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.thrift.ThriftServer;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CLibrary;
@@ -127,8 +128,6 @@ public class CassandraDaemon
 
     private static final CassandraDaemon instance = new CassandraDaemon();
 
-    static final AtomicInteger exceptions = new AtomicInteger();
-
     public Server thriftServer;
     public Server nativeServer;
 
@@ -182,7 +181,7 @@ public class CassandraDaemon
         {
             public void uncaughtException(Thread t, Throwable e)
             {
-                exceptions.incrementAndGet();
+                StorageMetrics.exceptions.inc();
                 logger.error("Exception in thread " + t, e);
                 Tracing.trace("Exception in thread " + t, e);
                 for (Throwable e2 = e; e2 != null; e2 = e2.getCause())

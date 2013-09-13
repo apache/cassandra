@@ -37,6 +37,7 @@ Merged from 1.2:
  * Replace the deprecated MapMaker with CacheLoader (CASSANDRA-6007)
  * Add SSTableDeletingNotification to DataTracker (CASSANDRA-6010)
  * Fix snapshots in use get deleted during snapshot repair (CASSANDRA-6011)
+ * Move hints and exception count to o.a.c.metrics (CASSANDRA-6017)
 
 
 2.0.0
