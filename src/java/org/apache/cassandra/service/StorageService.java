@@ -323,7 +323,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isRPCServerRunning()
     {
-        if (daemon == null)
+        if ((daemon == null) || (daemon.thriftServer == null))
         {
             return false;
         }
@@ -358,7 +358,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isNativeTransportRunning()
     {
-        if (daemon == null)
+        if ((daemon == null) || (daemon.nativeServer == null))
         {
             return false;
         }
