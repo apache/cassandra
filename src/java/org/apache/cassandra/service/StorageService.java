@@ -67,6 +67,7 @@ import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.*;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -3558,7 +3559,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getExceptionCount()
     {
-        return CassandraDaemon.exceptions.get();
+        return (int)StorageMetrics.exceptions.count();
     }
 
     public void rescheduleFailedDeletions()

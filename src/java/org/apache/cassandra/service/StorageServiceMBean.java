@@ -398,6 +398,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void joinRing() throws IOException;
     public boolean isJoined();
 
+    @Deprecated
     public int getExceptionCount();
 
     public void setStreamThroughputMbPerSec(int value);
