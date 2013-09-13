@@ -104,36 +104,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         int count = 0;
         long start = System.nanoTime();
 
-        // old cache format that only saves keys
-        File path = getCachePath(cfs.keyspace.getName(), cfs.name, null);
-        if (path.exists())
-        {
-            DataInputStream in = null;
-            try
-            {
-                logger.info(String.format("reading saved cache %s", path));
-                in = new DataInputStream(new LengthAvailableInputStream(new BufferedInputStream(new FileInputStream(path)), path.length()));
-                Set<ByteBuffer> keys = new HashSet<ByteBuffer>();
-                while (in.available() > 0)
-                {
-                    keys.add(ByteBufferUtil.readWithLength(in));
-                    count++;
-                }
-                cacheLoader.load(keys, cfs);
-            }
-            catch (Exception e)
-            {
-                logger.debug(String.format("harmless error reading saved cache %s fully, keys loaded so far: %d", path.getAbsolutePath(), count), e);
-                return count;
-            }
-            finally
-            {
-                FileUtils.closeQuietly(in);
-            }
-        }
-
         // modern format, allows both key and value (so key cache load can be purely sequential)
-        path = getCachePath(cfs.keyspace.getName(), cfs.name, CURRENT_VERSION);
+        File path = getCachePath(cfs.keyspace.getName(), cfs.name, CURRENT_VERSION);
         if (path.exists())
         {
             DataInputStream in = null;
@@ -314,8 +286,5 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         void serialize(K key, DataOutput out) throws IOException;
 
         Future<Pair<K, V>> deserialize(DataInputStream in, ColumnFamilyStore cfs) throws IOException;
-
-        @Deprecated
-        void load(Set<ByteBuffer> buffer, ColumnFamilyStore cfs);
     }
 }
