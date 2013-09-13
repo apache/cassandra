@@ -305,17 +305,6 @@ public class CacheService implements CacheServiceMBean
                 }
             });
         }
-
-        public void load(Set<ByteBuffer> buffers, ColumnFamilyStore cfs)
-        {
-            for (ByteBuffer key : buffers)
-            {
-                DecoratedKey dk = cfs.partitioner.decorateKey(key);
-                ColumnFamily data = cfs.getTopLevelColumns(QueryFilter.getIdentityFilter(dk, cfs.name, Long.MIN_VALUE), Integer.MIN_VALUE);
-                if (data != null)
-                    rowCache.put(new RowCacheKey(cfs.metadata.cfId, dk), data);
-            }
-        }
     }
 
     public class KeyCacheSerializer implements CacheSerializer<KeyCacheKey, RowIndexEntry>
@@ -355,21 +344,6 @@ public class CacheService implements CacheServiceMBean
                     return sstable;
             }
             return null;
-        }
-
-        public void load(Set<ByteBuffer> buffers, ColumnFamilyStore cfs)
-        {
-            for (ByteBuffer key : buffers)
-            {
-                DecoratedKey dk = cfs.partitioner.decorateKey(key);
-
-                for (SSTableReader sstable : cfs.getSSTables())
-                {
-                    RowIndexEntry entry = sstable.getPosition(dk, Operator.EQ, false);
-                    if (entry != null)
-                        keyCache.put(new KeyCacheKey(sstable.descriptor, key), entry);
-                }
-            }
         }
     }
 }
