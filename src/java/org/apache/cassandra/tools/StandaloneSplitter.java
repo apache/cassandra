@@ -205,6 +205,7 @@ public class StandaloneSplitter
                 opts.debug = cmd.hasOption(DEBUG_OPTION);
                 opts.verbose = cmd.hasOption(VERBOSE_OPTION);
                 opts.snapshot = !cmd.hasOption(NO_SNAPSHOT_OPTION);
+                opts.sizeInMB = DEFAULT_SSTABLE_SIZE;
 
                 if (cmd.hasOption(SIZE_OPTION))
                     opts.sizeInMB = Integer.valueOf(cmd.getOptionValue(SIZE_OPTION));
