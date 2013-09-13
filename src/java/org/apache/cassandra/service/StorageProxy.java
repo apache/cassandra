@@ -357,7 +357,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             long ballotMillis = summary == null
                               ? System.currentTimeMillis()
-                              : Math.max(System.currentTimeMillis(), 1 + UUIDGen.unixTimestamp(summary.inProgressCommit.ballot));
+                              : Math.max(System.currentTimeMillis(), 1 + UUIDGen.unixTimestamp(summary.mostRecentInProgressCommit.ballot));
             UUID ballot = UUIDGen.getTimeUUID(ballotMillis);
 
             // prepare
@@ -372,7 +372,7 @@ public class StorageProxy implements StorageProxyMBean
                 continue;
             }
 
-            Commit inProgress = summary.inProgressCommit;
+            Commit inProgress = summary.mostRecentInProgressCommitWithUpdate;
             Commit mostRecent = summary.mostRecentCommit;
 
             // If we have an in-progress ballot greater than the MRC we know, then it's an in-progress round that
