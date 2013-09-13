@@ -770,8 +770,8 @@ public class CompactionManager implements CompactionManagerMBean
         {
             SSTableReader.releaseReferences(sstables);
             iter.close();
-            if (cfs.table.snapshotExists(validator.request.sessionid))
-                cfs.table.clearSnapshot(validator.request.sessionid);
+            if (cfs.snapshotExists(validator.request.sessionid))
+                cfs.clearSnapshot(validator.request.sessionid);
 
             metrics.finishCompaction(ci);
         }

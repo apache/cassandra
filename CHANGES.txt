@@ -17,6 +17,7 @@
  * Support null in CQL3 functions (CASSANDRA-5910)
  * Replace the deprecated MapMaker with CacheLoader (CASSANDRA-6007)
  * Add SSTableDeletingNotification to DataTracker (CASSANDRA-6010)
+ * Fix snapshots in use get deleted during snapshot repair (CASSANDRA-6011)
 
 
 1.2.9
