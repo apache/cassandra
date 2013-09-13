@@ -29,7 +29,6 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.db.Directories.DataDirectory;
-import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
@@ -72,8 +71,6 @@ public class DirectoriesTest
 
             createFakeSSTable(dir, cf, 1, false, fs);
             createFakeSSTable(dir, cf, 2, true, fs);
-            // leveled manifest
-            new File(dir, cf + LeveledManifest.EXTENSION).createNewFile();
 
             File backupDir = new File(dir, Directories.BACKUPS_SUBDIR);
             backupDir.mkdir();
@@ -164,16 +161,6 @@ public class DirectoriesTest
         }
     }
 
-    @Test
-    public void testLeveledManifestPath()
-    {
-        for (String cf : CFS)
-        {
-            Directories directories = Directories.create(KS, cf);
-            File manifest = new File(cfDir(cf), cf + LeveledManifest.EXTENSION);
-            Assert.assertEquals(manifest, directories.tryGetLeveledManifest());
-        }
-    }
 
     @Test
     public void testDiskFailurePolicy_best_effort() throws IOException

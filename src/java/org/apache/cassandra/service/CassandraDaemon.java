@@ -41,7 +41,6 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.compaction.LegacyLeveledManifest;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.util.FileUtils;
@@ -187,22 +186,7 @@ public class CassandraDaemon
         for (String keyspaceName : Schema.instance.getKeyspaces())
         {
             for (CFMetaData cfm : Schema.instance.getKeyspaceMetaData(keyspaceName).values())
-            {
-                if (LegacyLeveledManifest.manifestNeedsMigration(keyspaceName,cfm.cfName))
-                {
-                    try
-                    {
-                        LegacyLeveledManifest.migrateManifests(keyspaceName, cfm.cfName);
-                    }
-                    catch (IOException e)
-                    {
-                        logger.error("Could not migrate old leveled manifest. Move away the .json file in the data directory", e);
-                        System.exit(100);
-                    }
-                }
-
                 ColumnFamilyStore.scrubDataDirectories(keyspaceName, cfm.cfName);
-            }
         }
         // clean up compaction leftovers
         SetMultimap<Pair<String, String>, Integer> unfinishedCompactions = SystemKeyspace.getUnfinishedCompactions();

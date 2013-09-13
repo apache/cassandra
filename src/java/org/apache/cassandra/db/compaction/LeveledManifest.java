@@ -45,8 +45,6 @@ public class LeveledManifest
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledManifest.class);
 
-    public static final String EXTENSION = ".json";
-
     /**
      * limit the number of L0 sstables we do at once, because compaction bloom filter creation
      * uses a pessimistic estimate of how many keys overlap (none), so we risk wasting memory

@@ -92,13 +92,6 @@ public class StandaloneScrubber
             }
             System.out.println(String.format("Pre-scrub sstables snapshotted into snapshot %s", snapshotName));
 
-            // if old-style json manifest, snapshot it
-            if (cfs.directories.tryGetLeveledManifest() != null)
-            {
-                cfs.directories.snapshotLeveledManifest(snapshotName);
-                System.out.println(String.format("Leveled manifest snapshotted into snapshot %s", snapshotName));
-            }
-
             LeveledManifest manifest = null;
             // If leveled, load the manifest
             if (cfs.getCompactionStrategy() instanceof LeveledCompactionStrategy)

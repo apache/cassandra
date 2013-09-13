@@ -1734,9 +1734,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     if (logger.isDebugEnabled())
                         logger.debug("Snapshot for {} keyspace data file {} created in {}", keyspace, ssTable.getFilename(), snapshotDirectory);
                 }
-
-                if (cfs.compactionStrategy instanceof LeveledCompactionStrategy)
-                    cfs.directories.snapshotLeveledManifest(snapshotName);
             }
             finally
             {

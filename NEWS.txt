@@ -13,6 +13,16 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+2.1
+===
+Upgrading
+---------
+   - Rolling upgrades from anything pre-2.0 is not supported.
+   - 2.0 must be atleast started before upgrading to 2.1 due to
+     the fact that the old JSON leveled manifest is migrated into
+     the sstable metadata files on startup in 2.0 and this code is
+     gone from 2.1.
+
 2.0.0
 =====
 

@@ -393,34 +393,6 @@ public class Directories
         }
     }
 
-    @Deprecated
-    public File tryGetLeveledManifest()
-    {
-        for (File dir : sstableDirectories)
-        {
-            File manifestFile = new File(dir, cfname + LeveledManifest.EXTENSION);
-            if (manifestFile.exists())
-            {
-                logger.debug("Found manifest at {}", manifestFile);
-                return manifestFile;
-            }
-        }
-        logger.debug("No level manifest found");
-        return null;
-    }
-
-    @Deprecated
-    public void snapshotLeveledManifest(String snapshotName)
-    {
-        File manifest = tryGetLeveledManifest();
-        if (manifest != null)
-        {
-            File snapshotDirectory = getOrCreate(manifest.getParentFile(), SNAPSHOT_SUBDIR, snapshotName);
-            File target = new File(snapshotDirectory, manifest.getName());
-            FileUtils.createHardLink(manifest, target);
-        }
-    }
-
     public boolean snapshotExists(String snapshotName)
     {
         for (File dir : sstableDirectories)
