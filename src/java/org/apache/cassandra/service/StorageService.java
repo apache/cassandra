@@ -3859,7 +3859,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getExceptionCount()
     {
-        return CassandraDaemon.exceptions.get();
+        return (int)StorageMetrics.exceptions.count();
     }
 
     public void rescheduleFailedDeletions()

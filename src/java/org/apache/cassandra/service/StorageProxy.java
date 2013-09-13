@@ -61,6 +61,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -82,7 +83,6 @@ public class StorageProxy implements StorageProxyMBean
     public static final StorageProxy instance = new StorageProxy();
 
     private static volatile int maxHintsInProgress = 1024 * FBUtilities.getAvailableProcessors();
-    private static final AtomicInteger totalHintsInProgress = new AtomicInteger();
     private static final CacheLoader<InetAddress, AtomicInteger> hintsInProgress = new CacheLoader<InetAddress, AtomicInteger>()
     {
         public AtomicInteger load(InetAddress inetAddress)
@@ -90,7 +90,6 @@ public class StorageProxy implements StorageProxyMBean
             return new AtomicInteger(0);
         }
     };
-    private static final AtomicLong totalHints = new AtomicLong();
     private static final ClientRequestMetrics readMetrics = new ClientRequestMetrics("Read");
     private static final ClientRequestMetrics rangeMetrics = new ClientRequestMetrics("RangeSlice");
     private static final ClientRequestMetrics writeMetrics = new ClientRequestMetrics("Write");
@@ -488,10 +487,10 @@ public class StorageProxy implements StorageProxyMBean
             // The idea is that if we have over maxHintsInProgress hints in flight, this is probably due to
             // a small number of nodes causing problems, so we should avoid shutting down writes completely to
             // healthy nodes.  Any node with no hintsInProgress is considered healthy.
-            if (totalHintsInProgress.get() > maxHintsInProgress
+            if (StorageMetrics.totalHintsInProgress.count() > maxHintsInProgress
                 && (getHintsInProgressFor(destination).get() > 0 && shouldHint(destination)))
             {
-                throw new OverloadedException("Too many in flight hints: " + totalHintsInProgress.get());
+                throw new OverloadedException("Too many in flight hints: " + StorageMetrics.totalHintsInProgress.count());
             }
 
             if (FailureDetector.instance.isAlive(destination))
@@ -583,7 +582,7 @@ public class StorageProxy implements StorageProxyMBean
 
     private static Future<Void> submitHint(HintRunnable runnable)
     {
-        totalHintsInProgress.incrementAndGet();
+        StorageMetrics.totalHintsInProgress.inc();
         getHintsInProgressFor(runnable.target).incrementAndGet();
         return (Future<Void>) StageManager.getStage(Stage.MUTATION).submit(runnable);
     }
@@ -599,7 +598,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         assert hostId != null : "Missing host ID for " + target.getHostAddress();
         mutation.toHint(ttl, hostId).apply();
-        totalHints.incrementAndGet();
+        StorageMetrics.totalHints.inc();
     }
 
     private static void sendMessagesToOneDC(MessageOut message, Collection<InetAddress> targets, boolean localDC, AbstractWriteResponseHandler handler)
@@ -1685,7 +1684,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             finally
             {
-                totalHintsInProgress.decrementAndGet();
+                StorageMetrics.totalHintsInProgress.dec();
                 getHintsInProgressFor(target).decrementAndGet();
             }
         }
@@ -1695,7 +1694,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public long getTotalHints()
     {
-        return totalHints.get();
+        return StorageMetrics.totalHints.count();
     }
 
     public int getMaxHintsInProgress()
@@ -1710,7 +1709,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public int getHintsInProgress()
     {
-        return totalHintsInProgress.get();
+        return (int) StorageMetrics.totalHintsInProgress.count();
     }
 
     public void verifyNoHintsInProgress()
