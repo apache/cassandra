@@ -28,6 +28,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.compaction.Scrubber;
 import org.apache.cassandra.io.sstable.*;
@@ -91,13 +92,17 @@ public class StandaloneScrubber
             }
             System.out.println(String.format("Pre-scrub sstables snapshotted into snapshot %s", snapshotName));
 
-            // If leveled, load the manifest
-            LeveledManifest manifest = null;
+            // if old-style json manifest, snapshot it
             if (cfs.directories.tryGetLeveledManifest() != null)
             {
                 cfs.directories.snapshotLeveledManifest(snapshotName);
                 System.out.println(String.format("Leveled manifest snapshotted into snapshot %s", snapshotName));
+            }
 
+            LeveledManifest manifest = null;
+            // If leveled, load the manifest
+            if (cfs.getCompactionStrategy() instanceof LeveledCompactionStrategy)
+            {
                 int maxSizeInMB = (int)((cfs.getCompactionStrategy().getMaxSSTableSize()) / (1024L * 1024L));
                 manifest = LeveledManifest.create(cfs, maxSizeInMB, sstables);
             }
