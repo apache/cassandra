@@ -27,6 +27,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Map;
 import java.util.Properties;
+import java.util.TimeZone;
 import java.util.concurrent.*;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
@@ -43,12 +44,19 @@ import com.google.common.base.Strings;
 public class CommitLogArchiver
 {
     private static final Logger logger = LoggerFactory.getLogger(CommitLogArchiver.class);
+    public static final SimpleDateFormat format = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss");
+    static
+    {
+        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+    }
+
     public final Map<String, Future<?>> archivePending = new ConcurrentHashMap<String, Future<?>>();
     public final ExecutorService executor = new JMXEnabledThreadPoolExecutor("commitlog_archiver");
     private final String archiveCommand;
     private final String restoreCommand;
     private final String restoreDirectories;
     public final long restorePointInTime;
+    public final TimeUnit precision;
 
     public CommitLogArchiver()
     {
@@ -65,6 +73,7 @@ public class CommitLogArchiver
                 restoreCommand = null;
                 restoreDirectories = null;
                 restorePointInTime = Long.MAX_VALUE;
+                precision = TimeUnit.MILLISECONDS;
             }
             else
             {
@@ -73,9 +82,10 @@ public class CommitLogArchiver
                 restoreCommand = commitlog_commands.getProperty("restore_command");
                 restoreDirectories = commitlog_commands.getProperty("restore_directories");
                 String targetTime = commitlog_commands.getProperty("restore_point_in_time");
+                precision = TimeUnit.valueOf(commitlog_commands.getProperty("precision", "MILLISECONDS"));
                 try
                 {
-                    restorePointInTime = Strings.isNullOrEmpty(targetTime) ? Long.MAX_VALUE : new SimpleDateFormat("yyyy:MM:dd HH:mm:ss").parse(targetTime).getTime();
+                    restorePointInTime = Strings.isNullOrEmpty(targetTime) ? Long.MAX_VALUE : format.parse(targetTime).getTime();
                 }
                 catch (ParseException e)
                 {
