@@ -281,7 +281,7 @@ public class CommitLogReplayer
 
         for (ColumnFamily families : frm.getColumnFamilies())
         {
-            if (families.maxTimestamp() > restoreTarget)
+            if (CommitLog.instance.archiver.precision.toMillis(families.maxTimestamp()) > restoreTarget)
                 return true;
         }
         return false;

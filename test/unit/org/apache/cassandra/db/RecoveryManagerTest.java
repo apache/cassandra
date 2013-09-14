@@ -19,13 +19,17 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.Util;
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.commitlog.CommitLogArchiver;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.Util.column;
@@ -100,5 +104,30 @@ public class RecoveryManagerTest extends SchemaLoader
 
         assert c != null;
         assert ((CounterColumn)c).total() == 10L;
+    }
+
+    @Test
+    public void testRecoverPIT() throws Exception
+    {
+        Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
+        long timeMS = date.getTime() - 5000;
+
+        Table keyspace1 = Table.open("Keyspace1");
+        DecoratedKey dk = Util.dk("dkey");
+        for (int i = 0; i < 10; ++i)
+        {
+            long ts = TimeUnit.MILLISECONDS.toMicros(timeMS + (i * 1000));
+            ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+            cf.addColumn(column("name-" + i, "value", ts));
+            RowMutation rm = new RowMutation("Keyspace1", dk.key);
+            rm.add(cf);
+            rm.apply();
+        }
+        keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();
+        CommitLog.instance.resetUnsafe(); // disassociate segments from live CL
+        CommitLog.instance.recover();
+
+        ColumnFamily cf = Util.getColumnFamily(keyspace1, dk, "Standard1");
+        Assert.assertEquals(6, cf.getColumnCount());
     }
 }
