@@ -109,15 +109,14 @@ public class RecoveryManagerTest extends SchemaLoader
         Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
         long timeMS = date.getTime() - 5000;
 
-        Table keyspace1 = Table.open("Keyspace1");
+        Keyspace keyspace1 = Keyspace.open("Keyspace1");
         DecoratedKey dk = Util.dk("dkey");
         for (int i = 0; i < 10; ++i)
         {
             long ts = TimeUnit.MILLISECONDS.toMicros(timeMS + (i * 1000));
-            ColumnFamily cf = ColumnFamily.create("Keyspace1", "Standard1");
+            ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
             cf.addColumn(column("name-" + i, "value", ts));
-            RowMutation rm = new RowMutation("Keyspace1", dk.key);
-            rm.add(cf);
+            RowMutation rm = new RowMutation("Keyspace1", dk.key, cf);
             rm.apply();
         }
         keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();

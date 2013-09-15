@@ -73,7 +73,7 @@ public class CommitLogArchiver
                 restoreCommand = null;
                 restoreDirectories = null;
                 restorePointInTime = Long.MAX_VALUE;
-                precision = TimeUnit.MILLISECONDS;
+                precision = TimeUnit.MICROSECONDS;
             }
             else
             {
@@ -82,7 +82,7 @@ public class CommitLogArchiver
                 restoreCommand = commitlog_commands.getProperty("restore_command");
                 restoreDirectories = commitlog_commands.getProperty("restore_directories");
                 String targetTime = commitlog_commands.getProperty("restore_point_in_time");
-                precision = TimeUnit.valueOf(commitlog_commands.getProperty("precision", "MILLISECONDS"));
+                precision = TimeUnit.valueOf(commitlog_commands.getProperty("precision", "MICROSECONDS"));
                 try
                 {
                     restorePointInTime = Strings.isNullOrEmpty(targetTime) ? Long.MAX_VALUE : format.parse(targetTime).getTime();
