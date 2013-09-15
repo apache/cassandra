@@ -86,6 +86,8 @@ Operations
       use DESCRIBE FULL SCHEMA if you need the schema of system_* keyspaces.
     - CQL2 has been deprecated, and will be removed entirely in 2.2. See
       CASSANDRA-5918 for details.
+    - Commit log archiver now assumes the client time stamp to be in microsecond 
+      precision, during restore. Please refer to commitlog_archiving.properties.
 
 
 Features
