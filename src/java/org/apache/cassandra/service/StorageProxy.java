@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -255,7 +254,7 @@ public class StorageProxy implements StorageProxyMBean
             // TODO turn null updates into delete?
             Commit proposal = Commit.newProposal(key, ballot, updates);
             Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
-            if (proposePaxos(proposal, liveEndpoints, requiredParticipants))
+            if (proposePaxos(proposal, liveEndpoints, requiredParticipants, true))
             {
                 if (consistencyForCommit == ConsistencyLevel.ANY)
                     sendCommit(proposal, liveEndpoints);
@@ -380,7 +379,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 Tracing.trace("Finishing incomplete paxos round {}", inProgress);
                 Commit refreshedInProgress = Commit.newProposal(inProgress.key, ballot, inProgress.update);
-                if (proposePaxos(refreshedInProgress, liveEndpoints, requiredParticipants))
+                if (proposePaxos(refreshedInProgress, liveEndpoints, requiredParticipants, false))
                 {
                     commitPaxos(refreshedInProgress, ConsistencyLevel.QUORUM);
                 }
@@ -436,16 +435,23 @@ public class StorageProxy implements StorageProxyMBean
         return callback;
     }
 
-    private static boolean proposePaxos(Commit proposal, List<InetAddress> endpoints, int requiredParticipants)
+    private static boolean proposePaxos(Commit proposal, List<InetAddress> endpoints, int requiredParticipants, boolean timeoutIfPartial)
     throws WriteTimeoutException
     {
-        ProposeCallback callback = new ProposeCallback(requiredParticipants);
+        ProposeCallback callback = new ProposeCallback(endpoints.size(), requiredParticipants, !timeoutIfPartial);
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_PROPOSE, proposal, Commit.serializer);
         for (InetAddress target : endpoints)
             MessagingService.instance().sendRR(message, target, callback);
+
         callback.await();
 
-        return callback.getSuccessful() >= requiredParticipants;
+        if (callback.isSuccessful())
+            return true;
+
+        if (timeoutIfPartial && !callback.isFullyRefused())
+            throw new WriteTimeoutException(WriteType.CAS, ConsistencyLevel.SERIAL, callback.getAcceptCount(), requiredParticipants);
+
+        return false;
     }
 
     private static void commitPaxos(Commit proposal, ConsistencyLevel consistencyLevel) throws WriteTimeoutException
