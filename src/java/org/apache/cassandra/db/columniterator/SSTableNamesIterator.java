@@ -157,7 +157,6 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
                                    SortedSet<ByteBuffer> columnNames,
                                    List<OnDiskAtom> result,
                                    int columnCount)
-    throws IOException
     {
         AbstractType<?> comparator = metadata.comparator;
         Iterator<OnDiskAtom> atomIterator = cf.metadata().getOnDiskIterator(file, columnCount, sstable.descriptor.version);
