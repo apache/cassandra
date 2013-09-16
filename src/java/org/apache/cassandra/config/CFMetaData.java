@@ -252,6 +252,7 @@ public final class CFMetaData
                                                      + "row_key blob,"
                                                      + "cf_id UUID,"
                                                      + "in_progress_ballot timeuuid,"
+                                                     + "proposal_ballot timeuuid,"
                                                      + "proposal blob,"
                                                      + "most_recent_commit_at timeuuid,"
                                                      + "most_recent_commit blob,"

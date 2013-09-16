@@ -782,14 +782,16 @@ public class SystemKeyspace
         if (results.isEmpty())
             return new PaxosState(key, metadata);
         UntypedResultSet.Row row = results.one();
-        Commit inProgress = new Commit(key,
-                                       row.getUUID("in_progress_ballot"),
-                                       row.has("proposal") ? ColumnFamily.fromBytes(row.getBytes("proposal")) : EmptyColumns.factory.create(metadata));
+        Commit promised = new Commit(key, row.getUUID("in_progress_ballot"), EmptyColumns.factory.create(metadata));
+        // either we have both a recently accepted ballot and update or we have neither
+        Commit accepted = row.has("proposal")
+                        ? new Commit(key, row.getUUID("proposal_ballot"), ColumnFamily.fromBytes(row.getBytes("proposal")))
+                        : Commit.emptyCommit(key, metadata);
         // either most_recent_commit and most_recent_commit_at will both be set, or neither
         Commit mostRecent = row.has("most_recent_commit")
                           ? new Commit(key, row.getUUID("most_recent_commit_at"), ColumnFamily.fromBytes(row.getBytes("most_recent_commit")))
                           : Commit.emptyCommit(key, metadata);
-        return new PaxosState(inProgress, mostRecent);
+        return new PaxosState(promised, accepted, mostRecent);
     }
 
     public static void savePaxosPromise(Commit promise)
@@ -804,16 +806,16 @@ public class SystemKeyspace
                                       promise.update.id()));
     }
 
-    public static void savePaxosProposal(Commit commit)
+    public static void savePaxosProposal(Commit proposal)
     {
-        processInternal(String.format("UPDATE %s USING TIMESTAMP %d AND TTL %d SET in_progress_ballot = %s, proposal = 0x%s WHERE row_key = 0x%s AND cf_id = %s",
+        processInternal(String.format("UPDATE %s USING TIMESTAMP %d AND TTL %d SET proposal_ballot = %s, proposal = 0x%s WHERE row_key = 0x%s AND cf_id = %s",
                                       PAXOS_CF,
-                                      UUIDGen.microsTimestamp(commit.ballot),
-                                      paxosTtl(commit.update.metadata),
-                                      commit.ballot,
-                                      ByteBufferUtil.bytesToHex(commit.update.toBytes()),
-                                      ByteBufferUtil.bytesToHex(commit.key),
-                                      commit.update.id()));
+                                      UUIDGen.microsTimestamp(proposal.ballot),
+                                      paxosTtl(proposal.update.metadata),
+                                      proposal.ballot,
+                                      ByteBufferUtil.bytesToHex(proposal.update.toBytes()),
+                                      ByteBufferUtil.bytesToHex(proposal.key),
+                                      proposal.update.id()));
     }
 
     private static int paxosTtl(CFMetaData metadata)
@@ -822,17 +824,15 @@ public class SystemKeyspace
         return Math.max(3 * 3600, metadata.getGcGraceSeconds());
     }
 
-    public static void savePaxosCommit(Commit commit, UUID inProgressBallot)
+    public static void savePaxosCommit(Commit commit)
     {
-        String preserveCql = "UPDATE %s USING TIMESTAMP %d AND TTL %d SET in_progress_ballot = %s, most_recent_commit_at = %s, most_recent_commit = 0x%s WHERE row_key = 0x%s AND cf_id = %s";
-        // identical except adds proposal = null
-        String eraseCql = "UPDATE %s USING TIMESTAMP %d AND TTL %d SET proposal = null, in_progress_ballot = %s, most_recent_commit_at = %s, most_recent_commit = 0x%s WHERE row_key = 0x%s AND cf_id = %s";
-        boolean proposalAfterCommit = inProgressBallot.timestamp() > commit.ballot.timestamp();
-        processInternal(String.format(proposalAfterCommit ? preserveCql : eraseCql,
+        // We always erase the last proposal (with the commit timestamp to no erase more recent proposal in case the commit is old)
+        // even though that's really just an optimization  since SP.beginAndRepairPaxos will exclude accepted proposal older than the mrc.
+        String cql = "UPDATE %s USING TIMESTAMP %d AND TTL %d SET proposal_ballot = null, proposal = null, most_recent_commit_at = %s, most_recent_commit = 0x%s WHERE row_key = 0x%s AND cf_id = %s";
+        processInternal(String.format(cql,
                                       PAXOS_CF,
                                       UUIDGen.microsTimestamp(commit.ballot),
                                       paxosTtl(commit.update.metadata),
-                                      proposalAfterCommit ? inProgressBallot : commit.ballot,
                                       commit.ballot,
                                       ByteBufferUtil.bytesToHex(commit.update.toBytes()),
                                       ByteBufferUtil.bytesToHex(commit.key),

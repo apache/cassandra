@@ -23,8 +23,8 @@ package org.apache.cassandra.service.paxos;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
@@ -43,7 +43,7 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
     public Commit mostRecentInProgressCommit;
     public Commit mostRecentInProgressCommitWithUpdate;
 
-    private Map<InetAddress, Commit> commitsByReplica = new HashMap<InetAddress, Commit>();
+    private final Map<InetAddress, Commit> commitsByReplica = new ConcurrentHashMap<InetAddress, Commit>();
 
     public PrepareCallback(ByteBuffer key, CFMetaData metadata, int targets)
     {
@@ -73,6 +73,7 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
             return;
         }
 
+        commitsByReplica.put(message.from, response.mostRecentCommit);
         if (response.mostRecentCommit.isAfter(mostRecentCommit))
             mostRecentCommit = response.mostRecentCommit;
 
@@ -80,8 +81,6 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
         // the the highest commit that actually have an update
         if (response.inProgressCommit.isAfter(mostRecentInProgressCommitWithUpdate) && !response.inProgressCommit.update.isEmpty())
             mostRecentInProgressCommitWithUpdate = response.inProgressCommit;
-
-
 
         latch.countDown();
     }

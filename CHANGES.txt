@@ -15,7 +15,7 @@
  * Require superuser status for adding triggers (CASSANDRA-5963)
  * Make standalone scrubber handle old and new style leveled manifest
    (CASSANDRA-6005)
- * Fix paxos bugs (CASSANDRA-6012, 6013)
+ * Fix paxos bugs (CASSANDRA-6012, 6013, 6023)
 Merged from 1.2:
 1.2.10
  * Fix possible divide-by-zero in HHOM (CASSANDRA-5990)
