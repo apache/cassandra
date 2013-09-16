@@ -23,6 +23,7 @@
  * Make standalone scrubber handle old and new style leveled manifest
    (CASSANDRA-6005)
  * Fix paxos bugs (CASSANDRA-6012, 6013, 6023)
+ * Fix paged ranges with multiple replicas (CASSANDRA-6004)
 Merged from 1.2:
 1.2.10
  * Fix possible divide-by-zero in HHOM (CASSANDRA-5990)
