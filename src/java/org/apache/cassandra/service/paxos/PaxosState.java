@@ -48,20 +48,22 @@ public class PaxosState
         return locks[(0x7FFFFFFF & key.hashCode()) % locks.length];
     }
 
-    private final Commit inProgressCommit;
+    private final Commit promised;
+    private final Commit accepted;
     private final Commit mostRecentCommit;
 
     public PaxosState(ByteBuffer key, CFMetaData metadata)
     {
-        this(Commit.emptyCommit(key, metadata), Commit.emptyCommit(key, metadata));
+        this(Commit.emptyCommit(key, metadata), Commit.emptyCommit(key, metadata), Commit.emptyCommit(key, metadata));
     }
 
-    public PaxosState(Commit inProgressCommit, Commit mostRecentCommit)
+    public PaxosState(Commit promised, Commit accepted, Commit mostRecentCommit)
     {
-        assert inProgressCommit.key == mostRecentCommit.key;
-        assert inProgressCommit.update.metadata() == inProgressCommit.update.metadata();
+        assert promised.key == accepted.key && accepted.key == mostRecentCommit.key;
+        assert promised.update.metadata() == accepted.update.metadata() && accepted.update.metadata() == mostRecentCommit.update.metadata();
 
-        this.inProgressCommit = inProgressCommit;
+        this.promised = promised;
+        this.accepted = accepted;
         this.mostRecentCommit = mostRecentCommit;
     }
 
@@ -70,17 +72,17 @@ public class PaxosState
         synchronized (lockFor(toPrepare.key))
         {
             PaxosState state = SystemKeyspace.loadPaxosState(toPrepare.key, toPrepare.update.metadata());
-            if (toPrepare.isAfter(state.inProgressCommit))
+            if (toPrepare.isAfter(state.promised))
             {
                 Tracing.trace("Promising ballot {}", toPrepare.ballot);
                 SystemKeyspace.savePaxosPromise(toPrepare);
-                // return the pre-promise ballot so coordinator can pick the most recent in-progress value to resume
-                return new PrepareResponse(true, state.inProgressCommit, state.mostRecentCommit);
+                return new PrepareResponse(true, state.accepted, state.mostRecentCommit);
             }
             else
             {
-                Tracing.trace("Promise rejected; {} is not sufficiently newer than {}", toPrepare, state.inProgressCommit);
-                return new PrepareResponse(false, state.inProgressCommit, state.mostRecentCommit);
+                Tracing.trace("Promise rejected; {} is not sufficiently newer than {}", toPrepare, state.promised);
+                // return the currently promised ballot (not the last accepted one) so the coordinator can make sure it uses newer ballot next time (#5667)
+                return new PrepareResponse(false, state.promised, state.mostRecentCommit);
             }
         }
     }
@@ -90,7 +92,7 @@ public class PaxosState
         synchronized (lockFor(proposal.key))
         {
             PaxosState state = SystemKeyspace.loadPaxosState(proposal.key, proposal.update.metadata());
-            if (proposal.hasBallot(state.inProgressCommit.ballot) || proposal.isAfter(state.inProgressCommit))
+            if (proposal.hasBallot(state.promised.ballot) || proposal.isAfter(state.promised))
             {
                 Tracing.trace("Accepting proposal {}", proposal);
                 SystemKeyspace.savePaxosProposal(proposal);
@@ -98,7 +100,7 @@ public class PaxosState
             }
             else
             {
-                Tracing.trace("Rejecting proposal for {} because inProgress is now {}", proposal, state.inProgressCommit);
+                Tracing.trace("Rejecting proposal for {} because inProgress is now {}", proposal, state.promised);
                 return false;
             }
         }
@@ -115,10 +117,7 @@ public class PaxosState
         RowMutation rm = proposal.makeMutation();
         Keyspace.open(rm.getKeyspaceName()).apply(rm, true);
 
-        synchronized (lockFor(proposal.key))
-        {
-            PaxosState state = SystemKeyspace.loadPaxosState(proposal.key, proposal.update.metadata());
-            SystemKeyspace.savePaxosCommit(proposal, state.inProgressCommit.ballot);
-        }
+        // We don't need to lock, we're just blindly updating
+        SystemKeyspace.savePaxosCommit(proposal);
     }
 }
