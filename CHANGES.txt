@@ -1,4 +1,5 @@
 2.0.1
+ * add file_cache_size_in_mb setting (CASSANDRA-5661)
  * Improve error message when yaml contains invalid properties (CASSANDRA-5958)
  * Improve leveled compaction's ability to find non-overlapping L0 compactions
    to work on concurrently (CASSANDRA-5921)
@@ -20,7 +21,6 @@
  * Fix potential AssertionError during tracing (CASSANDRA-6041)
  * Fix NPE in sstablesplit (CASSANDRA-6027)
 Merged from 1.2:
- * add file_cache_size_in_mb setting (CASSANDRA-5661)
  * Tuning knobs for dealing with large blobs and many CFs (CASSANDRA-5982)
  * (Hadoop) Fix CQLRW for thrift tables (CASSANDRA-6002)
  * Fix possible divide-by-zero in HHOM (CASSANDRA-5990)
