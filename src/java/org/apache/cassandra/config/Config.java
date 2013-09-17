@@ -167,11 +167,13 @@ public class Config
     public String memory_allocator = NativeAllocator.class.getSimpleName();
     public boolean populate_io_cache_on_flush = false;
 
-    public boolean inter_dc_tcp_nodelay = false;
-
     private static boolean isClientMode = false;
 
     public boolean preheat_kernel_page_cache = false;
+
+    public Integer file_cache_size_in_mb;
+
+    public boolean inter_dc_tcp_nodelay = true;
 
     public String memtable_allocator = "SlabAllocator";
 
