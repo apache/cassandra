@@ -33,7 +33,7 @@ class PeriodicCommitLogExecutorService implements ICommitLogExecutorService
 
     public PeriodicCommitLogExecutorService(final CommitLog commitLog)
     {
-        queue = new LinkedBlockingQueue<Runnable>(1024 * FBUtilities.getAvailableProcessors());
+        queue = new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getCommitLogPeriodicQueueSize());
         Runnable runnable = new WrappedRunnable()
         {
             public void runMayThrow() throws Exception

@@ -1047,8 +1047,14 @@ public class DatabaseDescriptor
         return conf.commitlog_sync_batch_window_in_ms;
     }
 
-    public static int getCommitLogSyncPeriod() {
+    public static int getCommitLogSyncPeriod()
+    {
         return conf.commitlog_sync_period_in_ms;
+    }
+
+    public static int getCommitLogPeriodicQueueSize()
+    {
+        return conf.commitlog_periodic_queue_size;
     }
 
     public static Config.CommitLogSync getCommitLogSync()
