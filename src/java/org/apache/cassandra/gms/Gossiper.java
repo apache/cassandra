@@ -488,7 +488,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             throw new AssertionError(e);
         }
-        logger.warn("Finished killing {}", endpoint);
+        logger.warn("Finished assassinating {}", endpoint);
     }
 
     public boolean isKnownEndpoint(InetAddress endpoint)
