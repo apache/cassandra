@@ -475,7 +475,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.left(tokens, computeExpireTime()));
         handleMajorStateChange(endpoint, epState);
         Uninterruptibles.sleepUninterruptibly(intervalInMillis * 4, TimeUnit.MILLISECONDS);
-        logger.warn("Finished killing {}", endpoint);
+        logger.warn("Finished assassinating {}", endpoint);
     }
 
     public boolean isKnownEndpoint(InetAddress endpoint)
