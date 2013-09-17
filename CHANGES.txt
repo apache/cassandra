@@ -1,4 +1,5 @@
 1.2.10
+ * add file_cache_size_in_mb setting (CASSANDRA-5661)
  * Tuning knobs for dealing with large blobs and many CFs (CASSANDRA-5982)
  * (Hadoop) Fix CQLRW for thrift tables (CASSANDRA-6002)
  * Fix possible divide-by-zero in HHOM (CASSANDRA-5990)
