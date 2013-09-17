@@ -67,7 +67,8 @@ public class SSTableDeletingTask implements Runnable
 
     public void run()
     {
-        tracker.notifyDeleting(referent);
+        if (tracker != null)
+            tracker.notifyDeleting(referent);
 
         // If we can't successfully delete the DATA component, set the task to be retried later: see above
         File datafile = new File(desc.filenameFor(Component.DATA));
