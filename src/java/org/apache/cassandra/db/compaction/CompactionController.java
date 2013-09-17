@@ -100,6 +100,10 @@ public class CompactionController
     public static Set<SSTableReader> getFullyExpiredSSTables(ColumnFamilyStore cfStore, Set<SSTableReader> compacting, Set<SSTableReader> overlapping, int gcBefore)
     {
         logger.debug("Checking droppable sstables in {}", cfStore);
+
+        if (compacting == null)
+            return Collections.<SSTableReader>emptySet();
+
         List<SSTableReader> candidates = new ArrayList<SSTableReader>();
 
         long minTimestamp = Integer.MAX_VALUE;

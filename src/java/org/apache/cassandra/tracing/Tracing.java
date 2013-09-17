@@ -205,7 +205,7 @@ public class Tracing
             public void runMayThrow() throws Exception
             {
                 CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
-                ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfMeta);
+                ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfMeta);
                 addColumn(cf, buildName(cfMeta, bytes("coordinator")), FBUtilities.getBroadcastAddress());
                 addParameterColumns(cf, parameters);
                 addColumn(cf, buildName(cfMeta, bytes("request")), request);
