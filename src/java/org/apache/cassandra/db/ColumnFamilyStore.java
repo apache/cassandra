@@ -107,7 +107,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public final Directories directories;
 
     /** ratio of in-memory memtable size, to serialized size */
-    volatile double liveRatio = 1.0;
+    volatile double liveRatio = 10.0; // reasonable default until we compute what it is based on actual data
     /** ops count last time we computed liveRatio */
     private final AtomicLong liveRatioComputedAt = new AtomicLong(32);
 
@@ -1102,7 +1102,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return (int) metric.memtableSwitchCount.count();
     }
 
-    private Memtable getMemtableThreadSafe()
+    Memtable getMemtableThreadSafe()
     {
         return data.getMemtable();
     }
