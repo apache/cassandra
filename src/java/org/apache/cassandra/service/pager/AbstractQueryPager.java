@@ -116,7 +116,7 @@ abstract class AbstractQueryPager implements QueryPager
                 List<Row> newResult = new ArrayList<Row>(result.size() - 1);
                 for (Row row2 : result)
                 {
-                    if (row.cf == null || row.cf.getColumnCount() == 0)
+                    if (row2.cf == null || row2.cf.getColumnCount() == 0)
                         continue;
 
                     newResult.add(row2);
