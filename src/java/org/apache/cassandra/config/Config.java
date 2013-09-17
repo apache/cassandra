@@ -169,8 +169,6 @@ public class Config
     public String row_cache_provider = SerializingCacheProvider.class.getSimpleName();
     public boolean populate_io_cache_on_flush = false;
 
-    public Integer file_cache_size_in_mb;
-
     public boolean inter_dc_tcp_nodelay = true;
 
     public String memtable_allocator = "SlabAllocator";

@@ -17,10 +17,13 @@
  */
 package org.apache.cassandra.io.util;
 
-import org.apache.cassandra.service.FileCacheService;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public abstract class PoolingSegmentedFile extends SegmentedFile
 {
+    public final Queue<RandomAccessReader> pool = new ConcurrentLinkedQueue<RandomAccessReader>();
+
     protected PoolingSegmentedFile(String path, long length)
     {
         super(path, length);
@@ -33,11 +36,9 @@ public abstract class PoolingSegmentedFile extends SegmentedFile
 
     public FileDataInput getSegment(long position)
     {
-        RandomAccessReader reader = FileCacheService.instance.get(path);
-
+        RandomAccessReader reader = pool.poll();
         if (reader == null)
             reader = createReader(path);
-
         reader.seek(position);
         return reader;
     }
@@ -46,11 +47,12 @@ public abstract class PoolingSegmentedFile extends SegmentedFile
 
     public void recycle(RandomAccessReader reader)
     {
-        FileCacheService.instance.put(reader);
+        pool.add(reader);
     }
 
     public void cleanup()
     {
-        FileCacheService.instance.invalidate(path);
+        for (RandomAccessReader reader : pool)
+            reader.deallocate();
     }
 }

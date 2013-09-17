@@ -272,9 +272,6 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("concurrent_replicates must be at least 2");
             }
 
-            if (conf.file_cache_size_in_mb == null)
-                conf.file_cache_size_in_mb = Math.min(512, (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
-
             if (conf.memtable_total_space_in_mb == null)
                 conf.memtable_total_space_in_mb = (int) (Runtime.getRuntime().maxMemory() / (3 * 1048576));
             if (conf.memtable_total_space_in_mb <= 0)
@@ -1210,11 +1207,6 @@ public class DatabaseDescriptor
     public static int getFlushQueueSize()
     {
         return conf.memtable_flush_queue_size;
-    }
-
-    public static int getFileCacheSizeInMB()
-    {
-        return conf.file_cache_size_in_mb;
     }
 
     public static int getTotalMemtableSpaceInMB()
