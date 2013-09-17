@@ -271,7 +271,7 @@ public abstract class ResultMessage extends Message.Response
                 size += CBUtil.sizeOfBytes(prepared.statementId.bytes);
                 size += ResultSet.Metadata.codec.encodedSize(prepared.metadata, version);
                 if (version > 1)
-                    ResultSet.Metadata.codec.encodedSize(prepared.resultMetadata, version);
+                    size += ResultSet.Metadata.codec.encodedSize(prepared.resultMetadata, version);
                 return size;
             }
         };
