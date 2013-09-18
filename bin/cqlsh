@@ -915,6 +915,10 @@ class Shell(cmd.Cmd):
 
         if statement[:6].lower() == 'select':
             self.print_result(self.cursor, with_default_limit)
+        elif self.cursor.rowcount == 1:
+            # CAS INSERT/UPDATE
+            self.writeresult("")
+            self.print_static_result(self.cursor)
         self.flush_output()
         return True
 
