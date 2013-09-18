@@ -209,7 +209,7 @@ public interface CQL3Type
                     return "set<" + ((SetType)type).elements.asCQL3Type() + ">";
                 case MAP:
                     MapType mt = (MapType)type;
-                    return "set<" + mt.keys.asCQL3Type() + ", " + mt.values.asCQL3Type() + ">";
+                    return "map<" + mt.keys.asCQL3Type() + ", " + mt.values.asCQL3Type() + ">";
             }
             throw new AssertionError();
         }
