@@ -487,6 +487,7 @@ bc(syntax)..
 
 <relation> ::= <identifier> '=' <term>
              | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
+             | <identifier> IN '?'
 
 <option> ::= TIMESTAMP <integer>
            | TTL <integer>
@@ -537,6 +538,7 @@ bc(syntax)..
 
 <relation> ::= <identifier> '=' <term>
              | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
+             | <identifier> IN '?'
 p. 
 __Sample:__
 
@@ -1087,6 +1089,7 @@ The following describes the addition/changes brought for each version of CQL.
 h3. 3.1.1
 
 * @SELECT@ statement now allows listing the partition keys (using the @DISTINCT@ modifier). See "CASSANDRA-4536":https://issues.apache.org/jira/browse/CASSANDRA-4536.
+* The syntax @c IN ?@ is now supported in @WHERE@ clauses. In that case, the value expected for the bind variable will be a list of whatever type @c@ is.
 
 h3. 3.1.0
 

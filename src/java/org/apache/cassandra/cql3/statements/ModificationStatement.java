@@ -50,7 +50,7 @@ public abstract class ModificationStatement implements CQLStatement
     public final CFMetaData cfm;
     private final Attributes attrs;
 
-    private final Map<ColumnIdentifier, List<Term>> processedKeys = new HashMap<ColumnIdentifier, List<Term>>();
+    private final Map<ColumnIdentifier, Restriction> processedKeys = new HashMap<ColumnIdentifier, Restriction>();
     private final List<Operation> columnOperations = new ArrayList<Operation>();
 
     private List<Operation> columnConditions;
@@ -135,7 +135,7 @@ public abstract class ModificationStatement implements CQLStatement
         ifNotExists = true;
     }
 
-    private void addKeyValues(ColumnIdentifier name, List<Term> values) throws InvalidRequestException
+    private void addKeyValues(ColumnIdentifier name, Restriction values) throws InvalidRequestException
     {
         if (processedKeys.put(name, values) != null)
             throw new InvalidRequestException(String.format("Multiple definitions found for PRIMARY KEY part %s", name));
@@ -143,7 +143,7 @@ public abstract class ModificationStatement implements CQLStatement
 
     public void addKeyValue(ColumnIdentifier name, Term value) throws InvalidRequestException
     {
-        addKeyValues(name, Collections.singletonList(value));
+        addKeyValues(name, new Restriction.EQ(value, false));
     }
 
     public void processWhereClause(List<Relation> whereClause, ColumnSpecification[] names) throws InvalidRequestException
@@ -159,22 +159,40 @@ public abstract class ModificationStatement implements CQLStatement
             {
                 case KEY_ALIAS:
                 case COLUMN_ALIAS:
-                    List<Term.Raw> rawValues;
-                    if (rel.operator() == Relation.Type.EQ)
-                        rawValues = Collections.singletonList(rel.getValue());
-                    else if (name.kind == CFDefinition.Name.Kind.KEY_ALIAS && rel.operator() == Relation.Type.IN)
-                        rawValues = rel.getInValues();
-                    else
-                        throw new InvalidRequestException(String.format("Invalid operator %s for PRIMARY KEY part %s", rel.operator(), name));
+                    Restriction restriction;
 
-                    List<Term> values = new ArrayList<Term>(rawValues.size());
-                    for (Term.Raw raw : rawValues)
+                    if (rel.operator() == Relation.Type.EQ)
                     {
-                        Term t = raw.prepare(name);
+                        Term t = rel.getValue().prepare(name);
                         t.collectMarkerSpecification(names);
-                        values.add(t);
+                        restriction = new Restriction.EQ(t, false);
                     }
-                    addKeyValues(name.name, values);
+                    else if (name.kind == CFDefinition.Name.Kind.KEY_ALIAS && rel.operator() == Relation.Type.IN)
+                    {
+                        if (rel.getValue() != null)
+                        {
+                            Term t = rel.getValue().prepare(name);
+                            t.collectMarkerSpecification(names);
+                            restriction = Restriction.IN.create(t);
+                        }
+                        else
+                        {
+                            List<Term> values = new ArrayList<Term>(rel.getInValues().size());
+                            for (Term.Raw raw : rel.getInValues())
+                            {
+                                Term t = raw.prepare(name);
+                                t.collectMarkerSpecification(names);
+                                values.add(t);
+                            }
+                            restriction = Restriction.IN.create(values);
+                        }
+                    }
+                    else
+                    {
+                        throw new InvalidRequestException(String.format("Invalid operator %s for PRIMARY KEY part %s", rel.operator(), name));
+                    }
+
+                    addKeyValues(name.name, restriction);
                     break;
                 case VALUE_ALIAS:
                 case COLUMN_METADATA:
@@ -191,15 +209,16 @@ public abstract class ModificationStatement implements CQLStatement
         List<ByteBuffer> keys = new ArrayList<ByteBuffer>();
         for (CFDefinition.Name name : cfDef.keys.values())
         {
-            List<Term> values = processedKeys.get(name.name);
-            if (values == null)
+            Restriction r = processedKeys.get(name.name);
+            if (r == null)
                 throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", name));
+
+            List<ByteBuffer> values = r.values(variables);
 
             if (keyBuilder.remainingCount() == 1)
             {
-                for (Term t : values)
+                for (ByteBuffer val : values)
                 {
-                    ByteBuffer val = t.bindAndGet(variables);
                     if (val == null)
                         throw new InvalidRequestException(String.format("Invalid null value for partition key part %s", name));
                     keys.add(keyBuilder.copy().add(val).build());
@@ -207,9 +226,9 @@ public abstract class ModificationStatement implements CQLStatement
             }
             else
             {
-                if (values.isEmpty() || values.size() > 1)
+                if (values.size() != 1)
                     throw new InvalidRequestException("IN is only supported on the last column of the partition key");
-                ByteBuffer val = values.get(0).bindAndGet(variables);
+                ByteBuffer val = values.get(0);
                 if (val == null)
                     throw new InvalidRequestException(String.format("Invalid null value for partition key part %s", name));
                 keyBuilder.add(val);
@@ -226,8 +245,8 @@ public abstract class ModificationStatement implements CQLStatement
         CFDefinition.Name firstEmptyKey = null;
         for (CFDefinition.Name name : cfDef.columns.values())
         {
-            List<Term> values = processedKeys.get(name.name);
-            if (values == null)
+            Restriction r = processedKeys.get(name.name);
+            if (r == null)
             {
                 firstEmptyKey = name;
                 if (requireFullClusteringKey() && cfDef.isComposite && !cfDef.isCompact)
@@ -239,8 +258,9 @@ public abstract class ModificationStatement implements CQLStatement
             }
             else
             {
+                List<ByteBuffer> values = r.values(variables);
                 assert values.size() == 1; // We only allow IN for row keys so far
-                ByteBuffer val = values.get(0).bindAndGet(variables);
+                ByteBuffer val = values.get(0);
                 if (val == null)
                     throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", name));
                 builder.add(val);
@@ -253,8 +273,7 @@ public abstract class ModificationStatement implements CQLStatement
     {
         for (CFDefinition.Name name : cfm.getCfDef().columns.values())
         {
-            List<Term> values = processedKeys.get(name.name);
-            if (values == null || values.isEmpty())
+            if (processedKeys.get(name.name) == null)
                 return name;
         }
         return null;

@@ -853,6 +853,7 @@ relation[List<Relation> clauses]
             for (ColumnIdentifier id : l)
                 $clauses.add(new Relation(id, type, t, true));
         }
+    | name=cident K_IN QMARK { $clauses.add(new Relation(name, Relation.Type.IN, new AbstractMarker.INRaw(++currentBindMarkerIdx))); }
     | name=cident K_IN { Relation rel = Relation.createInRelation($name.id); }
        '(' ( f1=term { rel.addInValue(f1); } (',' fN=term { rel.addInValue(fN); } )* )? ')' { $clauses.add(rel); }
     ;
