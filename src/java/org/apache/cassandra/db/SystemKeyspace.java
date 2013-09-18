@@ -97,6 +97,8 @@ public class SystemKeyspace
     {
         setupVersion();
 
+        copyAllAliasesToColumnsProper();
+
         // add entries to system schema columnfamilies for the hardcoded system definitions
         for (String ksname : Schema.systemKeyspaceNames)
         {
@@ -111,6 +113,31 @@ public class SystemKeyspace
 
             // (+1 to timestamp to make sure we don't get shadowed by the tombstones we just added)
             ksmd.toSchema(FBUtilities.timestampMicros() + 1).apply();
+        }
+    }
+
+    // Starting with 2.0 (CASSANDRA-5125) we keep all the 'aliases' in system.schema_columns together with the regular columns,
+    // but only for the newly-created tables. This migration is for the pre-2.0 created tables.
+    private static void copyAllAliasesToColumnsProper()
+    {
+        for (UntypedResultSet.Row row : processInternal(String.format("SELECT * FROM system.%s", SCHEMA_COLUMNFAMILIES_CF)))
+        {
+            CFMetaData table = CFMetaData.fromSchema(row);
+            String query = String.format("SELECT writetime(type) "
+                                         + "FROM system.%s "
+                                         + "WHERE keyspace_name = '%s' AND columnfamily_name = '%s'",
+                                         SCHEMA_COLUMNFAMILIES_CF,
+                                         table.ksName,
+                                         table.cfName);
+            long timestamp = processInternal(query).one().getLong("writetime(type)");
+            try
+            {
+                table.toSchema(timestamp).apply();
+            }
+            catch (ConfigurationException e)
+            {
+                // shouldn't happen
+            }
         }
     }
 

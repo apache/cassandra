@@ -20,6 +20,9 @@
  * Fix paged ranges with multiple replicas (CASSANDRA-6004)
  * Fix potential AssertionError during tracing (CASSANDRA-6041)
  * Fix NPE in sstablesplit (CASSANDRA-6027)
+ * Migrate pre-2.0 key/value/column aliases to system.schema_columns
+   (CASSANDRA-6009)
+ * Paging filter empty rows too agressively (CASSANDRA-6040)
 Merged from 1.2:
  * Tuning knobs for dealing with large blobs and many CFs (CASSANDRA-5982)
  * (Hadoop) Fix CQLRW for thrift tables (CASSANDRA-6002)
