@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.io.File;
 import java.io.FileFilter;
+import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -132,9 +133,9 @@ public class Directories
         return null;
     }
 
-    public File getDirectoryForNewSSTables(long estimatedSize)
+    public File getDirectoryForNewSSTables()
     {
-        File path = getLocationWithMaximumAvailableSpace(estimatedSize);
+        File path = getWriteableLocationAsFile();
 
         // Requesting GC has a chance to free space only if we're using mmap and a non SUN jvm
         if (path == null
@@ -154,67 +155,36 @@ public class Directories
             {
                 throw new AssertionError(e);
             }
-            path = getLocationWithMaximumAvailableSpace(estimatedSize);
+            path = getWriteableLocationAsFile();
         }
 
         return path;
     }
 
-    /*
-     * Loop through all the disks to see which disk has the max free space
-     * return the disk with max free space for compactions. If the size of the expected
-     * compacted file is greater than the max disk space available return null, we cannot
-     * do compaction in this case.
-     */
-    public File getLocationWithMaximumAvailableSpace(long estimatedSize)
+    public File getWriteableLocationAsFile()
     {
-        long maxFreeDisk = 0;
-        File maxLocation = null;
-
-        for (File dir : sstableDirectories)
-        {
-            if (BlacklistedDirectories.isUnwritable(dir))
-                continue;
-
-            long usableSpace = dir.getUsableSpace();
-            if (maxFreeDisk < usableSpace)
-            {
-                maxFreeDisk = usableSpace;
-                maxLocation = dir;
-            }
-        }
-        // Load factor of 0.9 we do not want to use the entire disk that is too risky.
-        maxFreeDisk = (long) (0.9 * maxFreeDisk);
-        logger.debug(String.format("expected data files size is %d; largest free partition (%s) has %d bytes free",
-                                   estimatedSize, maxLocation, maxFreeDisk));
-
-        return estimatedSize < maxFreeDisk ? maxLocation : null;
+        return getLocationForDisk(getWriteableLocation());
     }
 
     /**
-     * Finds location which is capable of holding given {@code estimatedSize}.
-     * Picks a non-blacklisted directory with most free space and least current tasks.
-     * If no directory can hold given {@code estimatedSize}, then returns null.
+     * @return a non-blacklisted directory with the most free space and least current tasks.
      *
-     * @param estimatedSize estimated size you need to find location to fit
-     * @return directory capable of given estimated size, or null if none found
+     * @throws IOError if all directories are blacklisted.
      */
-    public DataDirectory getLocationCapableOfSize(long estimatedSize)
+    public DataDirectory getWriteableLocation()
     {
         List<DataDirectory> candidates = new ArrayList<DataDirectory>();
 
         // pick directories with enough space and so that resulting sstable dirs aren't blacklisted for writes.
         for (DataDirectory dataDir : dataFileLocations)
         {
-            File sstableDir = getLocationForDisk(dataDir);
-
-            if (BlacklistedDirectories.isUnwritable(sstableDir))
+            if (BlacklistedDirectories.isUnwritable(getLocationForDisk(dataDir)))
                 continue;
-
-            // need a separate check for sstableDir itself - could be a mounted separate disk or SSD just for this CF.
-            if (dataDir.getEstimatedAvailableSpace() > estimatedSize && sstableDir.getUsableSpace() * 0.9 > estimatedSize)
-                candidates.add(dataDir);
+            candidates.add(dataDir);
         }
+
+        if (candidates.isEmpty())
+            throw new IOError(new IOException("All configured data directories have been blacklisted as unwritable for erroring out"));
 
         // sort directories by free space, in _descending_ order.
         Collections.sort(candidates);
@@ -228,7 +198,7 @@ public class Directories
             }
         });
 
-        return candidates.isEmpty() ? null : candidates.get(0);
+        return candidates.get(0);
     }
 
 
@@ -265,7 +235,7 @@ public class Directories
         public long getEstimatedAvailableSpace()
         {
             // Load factor of 0.9 we do not want to use the entire disk that is too risky.
-            return (long)(0.9 * location.getUsableSpace()) - estimatedWorkingSize.get();
+            return location.getUsableSpace() - estimatedWorkingSize.get();
         }
 
         public int compareTo(DataDirectory o)

@@ -107,7 +107,7 @@ public class DirectoriesTest
         for (String cf : CFS)
         {
             Directories directories = Directories.create(KS, cf);
-            Assert.assertEquals(cfDir(cf), directories.getDirectoryForNewSSTables(0));
+            Assert.assertEquals(cfDir(cf), directories.getDirectoryForNewSSTables());
 
             Descriptor desc = new Descriptor(cfDir(cf), KS, cf, 1, false);
             File snapshotDir = new File(cfDir(cf),  File.separator + Directories.SNAPSHOT_SUBDIR + File.separator + "42");
@@ -180,7 +180,7 @@ public class DirectoriesTest
     {
         /* files not matching the pattern should just be ignored, with a log warning */
         Directories directories = Directories.create(KS, "bad");
-        File dir = directories.getDirectoryForNewSSTables(1);
+        File dir = directories.getDirectoryForNewSSTables();
         File f = File.createTempFile("bad", "file", dir.getParentFile());
         Directories.migrateSSTables();
         Assert.assertTrue(f.isFile());

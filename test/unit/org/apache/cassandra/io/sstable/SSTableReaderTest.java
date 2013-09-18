@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.*;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -230,7 +229,7 @@ public class SSTableReaderTest extends SchemaLoader
         File rootDir = new File(root + File.separator + "hb" + File.separator + "Keyspace1");
         assert rootDir.isDirectory();
 
-        File destDir = Directories.create("Keyspace1", "Indexed1").getDirectoryForNewSSTables(0);
+        File destDir = Directories.create("Keyspace1", "Indexed1").getDirectoryForNewSSTables();
         assert destDir != null;
 
         FileUtils.createDirectory(destDir);

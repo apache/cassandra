@@ -55,7 +55,7 @@ public class ScrubTest extends SchemaLoader
         File rootDir = new File(root);
         assert rootDir.isDirectory();
 
-        File destDir = Directories.create(TABLE, cf).getDirectoryForNewSSTables(1);
+        File destDir = Directories.create(TABLE, cf).getDirectoryForNewSSTables();
 
         String corruptSSTableName = null;
 
