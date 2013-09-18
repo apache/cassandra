@@ -5,7 +5,7 @@
     <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
       <fileNamePattern>/var/log/cassandra/system.log.%i.zip</fileNamePattern>
       <minIndex>1</minIndex>
-      <maxIndex>50</maxIndex>
+      <maxIndex>20</maxIndex>
     </rollingPolicy>
 
     <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">

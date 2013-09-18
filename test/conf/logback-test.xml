@@ -4,7 +4,7 @@
     <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
       <fileNamePattern>./build/test/logs/system.log.%i.zip</fileNamePattern>
       <minIndex>1</minIndex>
-      <maxIndex>50</maxIndex>
+      <maxIndex>20</maxIndex>
     </rollingPolicy>
 
     <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
@@ -23,9 +23,19 @@
       <level>WARN</level>
     </filter>
   </appender>
+  
+  <appender name="STDOUT" target="System.out" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%-5level %date{HH:mm:ss,SSS} %msg%n</pattern>
+    </encoder>
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+      <level>WARN</level>
+    </filter>
+  </appender>
         
   <root level="DEBUG">
     <appender-ref ref="FILE" />
     <appender-ref ref="STDERR" />
+    <appender-ref ref="STDOUT" />
   </root>
 </configuration>
