@@ -757,7 +757,8 @@ public class CompactionManager implements CompactionManagerMBean
         Collection<SSTableReader> sstables;
         String snapshotName = validator.desc.sessionId.toString();
         int gcBefore;
-        if (cfs.snapshotExists(snapshotName))
+        boolean isSnapshotValidation = cfs.snapshotExists(snapshotName);
+        if (isSnapshotValidation)
         {
             // If there is a snapshot created for the session then read from there.
             sstables = cfs.getSnapshotSSTableReader(snapshotName);
@@ -800,10 +801,17 @@ public class CompactionManager implements CompactionManagerMBean
         }
         finally
         {
-            SSTableReader.releaseReferences(sstables);
             iter.close();
-            if (cfs.snapshotExists(snapshotName))
+            if (isSnapshotValidation)
+            {
+                for (SSTableReader sstable : sstables)
+                    FileUtils.closeQuietly(sstable);
                 cfs.clearSnapshot(snapshotName);
+            }
+            else
+            {
+                SSTableReader.releaseReferences(sstables);
+            }
 
             metrics.finishCompaction(ci);
         }
