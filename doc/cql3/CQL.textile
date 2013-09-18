@@ -602,7 +602,7 @@ bc(syntax)..
 
 <relation> ::= <identifier> ('=' | '<' | '>' | '<=' | '>=') <term>
              | <identifier> IN '(' ( <term> ( ',' <term>)* )? ')'
-             | TOKEN '(' <identifier> ')' ('=' | '<' | '>' | '<=' | '>=') (<term> | TOKEN '(' <term> ')' )
+             | TOKEN '(' <identifier> ( ',' <identifer>)* ')' ('=' | '<' | '>' | '<=' | '>=') <term>
 
 <order-by> ::= <ordering> ( ',' <odering> )*
 <ordering> ::= <identifer> ( ASC | DESC )?
