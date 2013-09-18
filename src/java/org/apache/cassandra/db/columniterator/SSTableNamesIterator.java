@@ -141,7 +141,7 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
         if (indexList.isEmpty())
         {
             int columnCount = sstable.descriptor.version.hasRowSizeAndColumnCount ? file.readInt() : Integer.MAX_VALUE;
-            readSimpleColumns(sstable.metadata, file, columns, result, columnCount);
+            readSimpleColumns(file, columns, result, columnCount);
         }
         else
         {
@@ -152,34 +152,26 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
         iter = result.iterator();
     }
 
-    private void readSimpleColumns(CFMetaData metadata,
-                                   FileDataInput file,
-                                   SortedSet<ByteBuffer> columnNames,
-                                   List<OnDiskAtom> result,
-                                   int columnCount)
+    private void readSimpleColumns(FileDataInput file, SortedSet<ByteBuffer> columnNames, List<OnDiskAtom> result, int columnCount)
     {
-        AbstractType<?> comparator = metadata.comparator;
         Iterator<OnDiskAtom> atomIterator = cf.metadata().getOnDiskIterator(file, columnCount, sstable.descriptor.version);
-        ByteBuffer maximalColumnName = columnNames.last();
+        int n = 0;
         while (atomIterator.hasNext())
         {
             OnDiskAtom column = atomIterator.next();
-            ByteBuffer columnName = column.name();
             if (column instanceof Column)
             {
-                if (columnNames.contains(columnName))
+                if (columnNames.contains(column.name()))
                 {
                     result.add(column);
+                    if (++n >= columns.size())
+                        break;
                 }
             }
             else
             {
                 result.add(column);
             }
-
-            // Already consumed all of this block that's going to have columns that apply to this query.
-            if (comparator.compare(columnName, maximalColumnName) >= 0)
-                break;
         }
     }
 
@@ -215,12 +207,6 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
         {
             long positionToSeek = basePosition + indexInfo.offset;
 
-            // SortedSet.subSet() is end-exclusive, so we special-case that
-            // if it's one of the columns we're looking for
-            ByteBuffer maximalColumnName = columnNames.contains(indexInfo.lastName)
-                                         ? indexInfo.lastName
-                                         : columnNames.subSet(indexInfo.firstName, indexInfo.lastName).last();
-
             // With new promoted indexes, our first seek in the data file will happen at that point.
             if (file == null)
                 file = createFileDataInput(positionToSeek);
@@ -229,19 +215,13 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
             Iterator<OnDiskAtom> atomIterator = cf.metadata().getOnDiskIterator(file, Integer.MAX_VALUE, sstable.descriptor.version);
             file.seek(positionToSeek);
             FileMark mark = file.mark();
-
             // TODO only completely deserialize columns we are interested in
             while (file.bytesPastMark(mark) < indexInfo.width)
             {
                 OnDiskAtom column = atomIterator.next();
-                ByteBuffer columnName = column.name();
                 // we check vs the original Set, not the filtered List, for efficiency
-                if (!(column instanceof Column) || columnNames.contains(columnName))
+                if (!(column instanceof Column) || columnNames.contains(column.name()))
                     result.add(column);
-
-                // Already consumed all of this block that's going to have columns that apply to this query.
-                if (comparator.compare(columnName, maximalColumnName) >= 0)
-                    break;
             }
         }
     }
