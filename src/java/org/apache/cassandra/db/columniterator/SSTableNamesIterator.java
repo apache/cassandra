@@ -153,7 +153,7 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         List<OnDiskAtom> result = new ArrayList<OnDiskAtom>();
         if (indexList.isEmpty())
         {
-            readSimpleColumns(sstable.metadata, file, columns, result);
+            readSimpleColumns(file, columns, result);
         }
         else
         {
@@ -175,37 +175,27 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         iter = result.iterator();
     }
 
-    private void readSimpleColumns(CFMetaData metadata,
-                                   FileDataInput file,
-                                   SortedSet<ByteBuffer> columnNames,
-                                   List<OnDiskAtom> result)
-    throws IOException
+    private void readSimpleColumns(FileDataInput file, SortedSet<ByteBuffer> columnNames, List<OnDiskAtom> result) throws IOException
     {
-        AbstractType<?> comparator = metadata.comparator;
         OnDiskAtom.Serializer atomSerializer = cf.getOnDiskSerializer();
-        ByteBuffer maximalColumnName = columnNames.last();
         int count = file.readInt();
-
+        int n = 0;
         for (int i = 0; i < count; i++)
         {
             OnDiskAtom column = atomSerializer.deserializeFromSSTable(file, sstable.descriptor.version);
-            ByteBuffer columnName = column.name();
-
             if (column instanceof IColumn)
             {
-                if (columnNames.contains(columnName))
+                if (columnNames.contains(column.name()))
                 {
                     result.add(column);
+                    if (++n >= columns.size())
+                        break;
                 }
             }
             else
             {
                 result.add(column);
             }
-
-            // Already consumed all of this block that's going to have columns that apply to this query.
-            if (comparator.compare(columnName, maximalColumnName) >= 0)
-                break;
         }
     }
 
@@ -241,12 +231,6 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
         {
             long positionToSeek = basePosition + indexInfo.offset;
 
-            // SortedSet.subSet() is end-exclusive, so we special-case that
-            // if it's one of the columns we're looking for
-            ByteBuffer maximalColumnName = columnNames.contains(indexInfo.lastName)
-                                         ? indexInfo.lastName
-                                         : columnNames.subSet(indexInfo.firstName, indexInfo.lastName).last();
-
             // With new promoted indexes, our first seek in the data file will happen at that point.
             if (file == null)
                 file = createFileDataInput(positionToSeek);
@@ -254,20 +238,13 @@ public class SSTableNamesIterator extends SimpleAbstractColumnIterator implement
             OnDiskAtom.Serializer atomSerializer = cf.getOnDiskSerializer();
             file.seek(positionToSeek);
             FileMark mark = file.mark();
-
             // TODO only completely deserialize columns we are interested in
             while (file.bytesPastMark(mark) < indexInfo.width)
             {
                 OnDiskAtom column = atomSerializer.deserializeFromSSTable(file, sstable.descriptor.version);
-                ByteBuffer columnName = column.name();
-
                 // we check vs the original Set, not the filtered List, for efficiency
-                if (!(column instanceof IColumn) || columnNames.contains(columnName))
+                if (!(column instanceof IColumn) || columnNames.contains(column.name()))
                     result.add(column);
-
-                // Already consumed all of this block that's going to have columns that apply to this query.
-                if (comparator.compare(columnName, maximalColumnName) >= 0)
-                    break;
             }
         }
     }
