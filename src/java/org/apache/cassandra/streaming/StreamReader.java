@@ -104,7 +104,7 @@ public class StreamReader
 
     protected SSTableWriter createWriter(ColumnFamilyStore cfs, long totalSize) throws IOException
     {
-        Directories.DataDirectory localDir = cfs.directories.getLocationCapableOfSize(totalSize);
+        Directories.DataDirectory localDir = cfs.directories.getWriteableLocation();
         if (localDir == null)
             throw new IOException("Insufficient disk space to store " + totalSize + " bytes");
         desc = Descriptor.fromFilename(cfs.getTempSSTablePath(cfs.directories.getLocationForDisk(localDir)));

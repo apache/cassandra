@@ -43,7 +43,7 @@ public class SSTableSimpleWriterTest extends SchemaLoader
         String cfname = "StandardInteger1";
 
         Keyspace t = Keyspace.open(keyspaceName); // make sure we create the directory
-        File dir = Directories.create(keyspaceName, cfname).getDirectoryForNewSSTables(0);
+        File dir = Directories.create(keyspaceName, cfname).getDirectoryForNewSSTables();
         assert dir.exists();
 
         IPartitioner partitioner = StorageService.getPartitioner();
