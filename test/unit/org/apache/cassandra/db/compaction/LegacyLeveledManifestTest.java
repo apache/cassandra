@@ -47,7 +47,7 @@ public class LegacyLeveledManifestTest
     @Before
     public void setup()
     {
-        destDir = Directories.create(KS, CF).getDirectoryForNewSSTables(0);
+        destDir = Directories.create(KS, CF).getDirectoryForNewSSTables();
         FileUtils.createDirectory(destDir);
         for (File srcFile : getLegacySSTableDir(LEGACY_VERSION).listFiles())
         {

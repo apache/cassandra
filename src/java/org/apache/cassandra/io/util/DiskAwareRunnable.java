@@ -34,7 +34,7 @@ public abstract class DiskAwareRunnable extends WrappedRunnable
         while (true)
         {
             writeSize = getExpectedWriteSize();
-            directory = getDirectories().getLocationCapableOfSize(writeSize);
+            directory = getDirectories().getWriteableLocation();
             if (directory != null || !reduceScopeForLimitedSpace())
                 break;
         }
