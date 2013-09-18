@@ -68,7 +68,7 @@ public class SelectStatement implements CQLStatement
 
     // The name of all restricted names not covered by the key or index filter
     private final Set<CFDefinition.Name> restrictedNames = new HashSet<CFDefinition.Name>();
-    private Restriction sliceRestriction;
+    private Restriction.Slice sliceRestriction;
 
     private boolean isReversed;
     private boolean onToken;
@@ -80,23 +80,6 @@ public class SelectStatement implements CQLStatement
 
     // Used by forSelection below
     private static final Parameters defaultParameters = new Parameters(Collections.<ColumnIdentifier, Boolean>emptyMap(), false, false, null, false);
-
-    private static enum Bound
-    {
-        START(0), END(1);
-
-        public final int idx;
-
-        Bound(int idx)
-        {
-            this.idx = idx;
-        }
-
-        public static Bound reverse(Bound b)
-        {
-            return b == START ? END : START;
-        }
-    }
 
     public SelectStatement(CFDefinition cfDef, int boundTerms, Parameters parameters, Selection selection, Term limit)
     {
@@ -456,12 +439,14 @@ public class SelectStatement implements CQLStatement
         for (CFDefinition.Name name : cfDef.keys.values())
         {
             Restriction r = keyRestrictions[name.position];
-            assert r != null;
+            assert r != null && !r.isSlice();
+
+            List<ByteBuffer> values = r.values(variables);
+
             if (builder.remainingCount() == 1)
             {
-                for (Term t : r.eqValues)
+                for (ByteBuffer val : values)
                 {
-                    ByteBuffer val = t.bindAndGet(variables);
                     if (val == null)
                         throw new InvalidRequestException(String.format("Invalid null value for partition key part %s", name));
                     keys.add(builder.copy().add(val).build());
@@ -469,9 +454,10 @@ public class SelectStatement implements CQLStatement
             }
             else
             {
-                if (r.isINRestriction())
+                // Note: for backward compatibility reasons, we let INs with 1 value slide
+                if (values.size() != 1)
                     throw new InvalidRequestException("IN is only supported on the last column of the partition key");
-                ByteBuffer val = r.eqValues.get(0).bindAndGet(variables);
+                ByteBuffer val = values.get(0);
                 if (val == null)
                     throw new InvalidRequestException(String.format("Invalid null value for partition key part %s", name));
                 builder.add(val);
@@ -497,14 +483,20 @@ public class SelectStatement implements CQLStatement
         assert onToken;
 
         Restriction keyRestriction = keyRestrictions[0];
-        Term t = keyRestriction.isEquality()
-               ? keyRestriction.eqValues.get(0)
-               : keyRestriction.bound(b);
+        ByteBuffer value;
+        if (keyRestriction.isEQ())
+        {
+            value = keyRestriction.values(variables).get(0);
+        }
+        else
+        {
+            Restriction.Slice slice = (Restriction.Slice)keyRestriction;
+            if (!slice.hasBound(b))
+                return p.getMinimumToken();
 
-        if (t == null)
-            return p.getMinimumToken();
+            value = slice.bound(b, variables);
+        }
 
-        ByteBuffer value = t.bindAndGet(variables);
         if (value == null)
             throw new InvalidRequestException("Invalid null token value");
         return p.getTokenFactory().fromByteArray(value);
@@ -516,8 +508,8 @@ public class SelectStatement implements CQLStatement
         {
             if (r == null)
                 return true;
-            else if (!r.isEquality())
-                return r.isInclusive(b);
+            else if (r.isSlice())
+                return ((Restriction.Slice)r).isInclusive(b);
         }
         // All equality
         return true;
@@ -534,7 +526,7 @@ public class SelectStatement implements CQLStatement
         // it is a range query if it has at least one the column alias for which no relation is defined or is not EQ.
         for (Restriction r : columnRestrictions)
         {
-            if (r == null || !r.isEquality())
+            if (r == null || r.isSlice())
                 return true;
         }
         return false;
@@ -549,21 +541,29 @@ public class SelectStatement implements CQLStatement
         for (Restriction r : columnRestrictions)
         {
             ColumnIdentifier id = idIter.next();
-            assert r != null && r.isEquality();
-            if (r.isINRestriction())
+            assert r != null && !r.isSlice();
+
+            List<ByteBuffer> values = r.values(variables);
+            if (values.size() == 1)
+            {
+                ByteBuffer val = values.get(0);
+                if (val == null)
+                    throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", id));
+                builder.add(val);
+            }
+            else
             {
                 // We have a IN, which we only support for the last column.
                 // If compact, just add all values and we're done. Otherwise,
                 // for each value of the IN, creates all the columns corresponding to the selection.
-                if (r.eqValues.isEmpty())
+                if (values.isEmpty())
                     return null;
                 SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfDef.cfm.comparator);
-                Iterator<Term> iter = r.eqValues.iterator();
+                Iterator<ByteBuffer> iter = values.iterator();
                 while (iter.hasNext())
                 {
-                    Term v = iter.next();
+                    ByteBuffer val = iter.next();
                     ColumnNameBuilder b = iter.hasNext() ? builder.copy() : builder;
-                    ByteBuffer val = v.bindAndGet(variables);
                     if (val == null)
                         throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", id));
                     b.add(val);
@@ -573,13 +573,6 @@ public class SelectStatement implements CQLStatement
                         columns.addAll(addSelectedColumns(b));
                 }
                 return columns;
-            }
-            else
-            {
-                ByteBuffer val = r.eqValues.get(0).bindAndGet(variables);
-                if (val == null)
-                    throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", id));
-                builder.add(val);
             }
         }
 
@@ -661,7 +654,7 @@ public class SelectStatement implements CQLStatement
             // But if the actual comparator itself is reversed, we must inversed the bounds too.
             Bound b = isReversed == isReversedType(name) ? bound : Bound.reverse(bound);
             Restriction r = restrictions[name.position];
-            if (r == null || (!r.isEquality() && r.bound(b) == null))
+            if (r == null || (r.isSlice() && !((Restriction.Slice)r).hasBound(b)))
             {
                 // There wasn't any non EQ relation on that key, we select all records having the preceding component as prefix.
                 // For composites, if there was preceding component and we're computing the end, we must change the last component
@@ -671,18 +664,27 @@ public class SelectStatement implements CQLStatement
                                                  : builder.build());
             }
 
-            if (r.isEquality())
+            if (r.isSlice())
             {
-                if (r.isINRestriction())
+                Restriction.Slice slice = (Restriction.Slice)r;
+                assert slice.hasBound(b);
+                ByteBuffer val = slice.bound(b, variables);
+                if (val == null)
+                    throw new InvalidRequestException(String.format("Invalid null clustering key part %s", name));
+                return Collections.singletonList(builder.add(val, slice.getRelation(eocBound, b)).build());
+            }
+            else
+            {
+                List<ByteBuffer> values = r.values(variables);
+                if (values.size() != 1)
                 {
                     // IN query, we only support it on the clustering column
                     assert name.position == names.size() - 1;
                     // The IN query might not have listed the values in comparator order, so we need to re-sort
                     // the bounds lists to make sure the slices works correctly (also, to avoid duplicates).
                     TreeSet<ByteBuffer> s = new TreeSet<ByteBuffer>(isReversed ? cfDef.cfm.comparator.reverseComparator : cfDef.cfm.comparator);
-                    for (Term t : r.eqValues)
+                    for (ByteBuffer val : values)
                     {
-                        ByteBuffer val = t.bindAndGet(variables);
                         if (val == null)
                             throw new InvalidRequestException(String.format("Invalid null clustering key part %s", name));
                         ColumnNameBuilder copy = builder.copy().add(val);
@@ -692,19 +694,10 @@ public class SelectStatement implements CQLStatement
                     return new ArrayList<ByteBuffer>(s);
                 }
 
-                ByteBuffer val = r.eqValues.get(0).bindAndGet(variables);
+                ByteBuffer val = values.get(0);
                 if (val == null)
                     throw new InvalidRequestException(String.format("Invalid null clustering key part %s", name));
                 builder.add(val);
-            }
-            else
-            {
-                Term t = r.bound(b);
-                assert t != null;
-                ByteBuffer val = t.bindAndGet(variables);
-                if (val == null)
-                    throw new InvalidRequestException(String.format("Invalid null clustering key part %s", name));
-                return Collections.singletonList(builder.add(val, r.getRelation(eocBound, b)).build());
             }
         }
         // Means no relation at all or everything was an equal
@@ -747,30 +740,35 @@ public class SelectStatement implements CQLStatement
                     throw new AssertionError();
             }
 
-            if (restriction.isEquality())
+            if (restriction.isSlice())
             {
-                assert restriction.eqValues.size() == 1; // IN is not supported for indexed columns.
-                ByteBuffer value = restriction.eqValues.get(0).bindAndGet(variables);
+                Restriction.Slice slice = (Restriction.Slice)restriction;
+                for (Bound b : Bound.values())
+                {
+                    if (slice.hasBound(b))
+                    {
+                        ByteBuffer value = slice.bound(b, variables);
+                        if (value == null)
+                            throw new InvalidRequestException(String.format("Unsupported null value for indexed column %s", name));
+                        if (value.remaining() > 0xFFFF)
+                            throw new InvalidRequestException("Index expression values may not be larger than 64K");
+                        expressions.add(new IndexExpression(name.name.key, slice.getIndexOperator(b), value));
+                    }
+                }
+            }
+            else
+            {
+                List<ByteBuffer> values = restriction.values(variables);
+
+                if (values.size() != 1)
+                    throw new InvalidRequestException("IN restrictions are not supported on indexed columns");
+
+                ByteBuffer value = values.get(0);
                 if (value == null)
                     throw new InvalidRequestException(String.format("Unsupported null value for indexed column %s", name));
                 if (value.remaining() > 0xFFFF)
                     throw new InvalidRequestException("Index expression values may not be larger than 64K");
                 expressions.add(new IndexExpression(name.name.key, IndexExpression.Operator.EQ, value));
-            }
-            else
-            {
-                for (Bound b : Bound.values())
-                {
-                    if (restriction.bound(b) != null)
-                    {
-                        ByteBuffer value = restriction.bound(b).bindAndGet(variables);
-                        if (value == null)
-                            throw new InvalidRequestException(String.format("Unsupported null value for indexed column %s", name));
-                        if (value.remaining() > 0xFFFF)
-                            throw new InvalidRequestException("Index expression values may not be larger than 64K");
-                        expressions.add(new IndexExpression(name.name.key, restriction.getIndexOperator(b), value));
-                    }
-                }
             }
         }
         return expressions;
@@ -785,20 +783,22 @@ public class SelectStatement implements CQLStatement
         // If the restriction for the last column alias is an IN, respect
         // requested order
         Restriction last = columnRestrictions[columnRestrictions.length - 1];
-        if (last == null || !last.isEquality())
+        if (last == null || last.isSlice())
             return cf.getSortedColumns();
 
         ColumnNameBuilder builder = cfDef.getColumnNameBuilder();
         for (int i = 0; i < columnRestrictions.length - 1; i++)
-            builder.add(columnRestrictions[i].eqValues.get(0).bindAndGet(variables));
+            builder.add(columnRestrictions[i].values(variables).get(0));
 
-        final List<ByteBuffer> requested = new ArrayList<ByteBuffer>(last.eqValues.size());
-        Iterator<Term> iter = last.eqValues.iterator();
+
+        List<ByteBuffer> values = last.values(variables);
+        final List<ByteBuffer> requested = new ArrayList<ByteBuffer>(values.size());
+        Iterator<ByteBuffer> iter = values.iterator();
         while (iter.hasNext())
         {
-            Term t = iter.next();
+            ByteBuffer t = iter.next();
             ColumnNameBuilder b = iter.hasNext() ? builder.copy() : builder;
-            requested.add(b.add(t.bindAndGet(variables)).build());
+            requested.add(b.add(t).build());
         }
 
         return new Iterable<Column>()
@@ -879,9 +879,9 @@ public class SelectStatement implements CQLStatement
                 else if (sliceRestriction != null)
                 {
                     // For dynamic CF, the column could be out of the requested bounds, filter here
-                    if (!sliceRestriction.isInclusive(Bound.START) && c.name().equals(sliceRestriction.bound(Bound.START).bindAndGet(variables)))
+                    if (!sliceRestriction.isInclusive(Bound.START) && c.name().equals(sliceRestriction.bound(Bound.START, variables)))
                         continue;
-                    if (!sliceRestriction.isInclusive(Bound.END) && c.name().equals(sliceRestriction.bound(Bound.END).bindAndGet(variables)))
+                    if (!sliceRestriction.isInclusive(Bound.END) && c.name().equals(sliceRestriction.bound(Bound.END, variables)))
                         continue;
                 }
 
@@ -1175,7 +1175,7 @@ public class SelectStatement implements CQLStatement
                     }
                     throw new InvalidRequestException(String.format("partition key part %s cannot be restricted (preceding part %s is either not restricted or by a non-EQ relation)", cname, previous));
                 }
-                else if (restriction.onToken)
+                else if (restriction.isOnToken())
                 {
                     // If this is a query on tokens, it's necessarily a range query (there can be more than one key per token).
                     stmt.isKeyRange = true;
@@ -1185,9 +1185,9 @@ public class SelectStatement implements CQLStatement
                 {
                     throw new InvalidRequestException(String.format("The token() function must be applied to all partition key components or none of them"));
                 }
-                else if (restriction.isEquality())
+                else if (!restriction.isSlice())
                 {
-                    if (restriction.isINRestriction())
+                    if (restriction.isIN())
                     {
                         // We only support IN for the last name so far
                         if (i != stmt.keyRestrictions.length - 1)
@@ -1233,15 +1233,16 @@ public class SelectStatement implements CQLStatement
                     }
                     throw new InvalidRequestException(String.format("PRIMARY KEY part %s cannot be restricted (preceding part %s is either not restricted or by a non-EQ relation)", cname, previous));
                 }
-                else if (!restriction.isEquality())
+                else if (restriction.isSlice())
                 {
                     canRestrictFurtherComponents = false;
+                    Restriction.Slice slice = (Restriction.Slice)restriction;
                     // For non-composite slices, we don't support internally the difference between exclusive and
                     // inclusive bounds, so we deal with it manually.
-                    if (!cfDef.isComposite && (!restriction.isInclusive(Bound.START) || !restriction.isInclusive(Bound.END)))
-                        stmt.sliceRestriction = restriction;
+                    if (!cfDef.isComposite && (!slice.isInclusive(Bound.START) || !slice.isInclusive(Bound.END)))
+                        stmt.sliceRestriction = slice;
                 }
-                else if (restriction.isINRestriction())
+                else if (restriction.isIN())
                 {
                     // We only support IN for the last name and for compact storage so far
                     // TODO: #3885 allows us to extend to non compact as well, but that remains to be done
@@ -1437,21 +1438,32 @@ public class SelectStatement implements CQLStatement
                             throw new InvalidRequestException(String.format("%s cannot be restricted by more than one relation if it includes an Equal", name));
                         Term t = newRel.getValue().prepare(receiver);
                         t.collectMarkerSpecification(boundNames);
-                        restriction = new Restriction(t, newRel.onToken);
+                        restriction = new Restriction.EQ(t, newRel.onToken);
                     }
                     break;
                 case IN:
                     if (restriction != null)
                         throw new InvalidRequestException(String.format("%s cannot be restricted by more than one relation if it includes a IN", name));
-                    List<Term> inValues = new ArrayList<Term>(newRel.getInValues().size());
-                    for (Term.Raw raw : newRel.getInValues())
-                    {
-                        Term t = raw.prepare(receiver);
-                        t.collectMarkerSpecification(boundNames);
-                        inValues.add(t);
-                    }
-                    restriction = new Restriction(inValues);
 
+                    if (newRel.getInValues() == null)
+                    {
+                        // Means we have a "SELECT ... IN ?"
+                        assert newRel.getValue() != null;
+                        Term t = newRel.getValue().prepare(receiver);
+                        t.collectMarkerSpecification(boundNames);
+                        restriction = Restriction.IN.create(t);
+                    }
+                    else
+                    {
+                        List<Term> inValues = new ArrayList<Term>(newRel.getInValues().size());
+                        for (Term.Raw raw : newRel.getInValues())
+                        {
+                            Term t = raw.prepare(receiver);
+                            t.collectMarkerSpecification(boundNames);
+                            inValues.add(t);
+                        }
+                        restriction = Restriction.IN.create(inValues);
+                    }
                     break;
                 case GT:
                 case GTE:
@@ -1459,10 +1471,12 @@ public class SelectStatement implements CQLStatement
                 case LTE:
                     {
                         if (restriction == null)
-                            restriction = new Restriction(newRel.onToken);
+                            restriction = new Restriction.Slice(newRel.onToken);
+                        else if (!restriction.isSlice())
+                            throw new InvalidRequestException(String.format("%s cannot be restricted by both an equal and an inequal relation", name));
                         Term t = newRel.getValue().prepare(receiver);
                         t.collectMarkerSpecification(boundNames);
-                        restriction.setBound(name.name, newRel.operator(), t);
+                        ((Restriction.Slice)restriction).setBound(name.name, newRel.operator(), t);
                     }
                     break;
             }
@@ -1479,144 +1493,6 @@ public class SelectStatement implements CQLStatement
                           .add("isDistinct", parameters.isDistinct)
                           .add("isCount", parameters.isCount)
                           .toString();
-        }
-    }
-
-    // A rather raw class that simplify validation and query for select
-    // Don't made public as this can be easily badly used
-    private static class Restriction
-    {
-        // for equality
-        List<Term> eqValues; // if null, it's a restriction by bounds
-
-        // for bounds
-        private final Term[] bounds;
-        private final boolean[] boundInclusive;
-
-        final boolean onToken;
-
-
-        Restriction(List<Term> values, boolean onToken)
-        {
-            this.eqValues = values;
-            this.bounds = null;
-            this.boundInclusive = null;
-            this.onToken = onToken;
-        }
-
-        Restriction(List<Term> values)
-        {
-            this(values, false);
-        }
-
-        Restriction(Term value, boolean onToken)
-        {
-            this(Collections.singletonList(value), onToken);
-        }
-
-        Restriction(boolean onToken)
-        {
-            this.eqValues = null;
-            this.bounds = new Term[2];
-            this.boundInclusive = new boolean[2];
-            this.onToken = onToken;
-        }
-
-        boolean isEquality()
-        {
-            return eqValues != null;
-        }
-
-        boolean isINRestriction()
-        {
-            return isEquality() && (eqValues.isEmpty() || eqValues.size() > 1);
-        }
-
-        public Term bound(Bound b)
-        {
-            return bounds[b.idx];
-        }
-
-        public boolean isInclusive(Bound b)
-        {
-            return bounds[b.idx] == null || boundInclusive[b.idx];
-        }
-
-        public Relation.Type getRelation(Bound eocBound, Bound inclusiveBound)
-        {
-            switch (eocBound)
-            {
-                case START:
-                    return boundInclusive[inclusiveBound.idx] ? Relation.Type.GTE : Relation.Type.GT;
-                case END:
-                    return boundInclusive[inclusiveBound.idx] ? Relation.Type.LTE : Relation.Type.LT;
-            }
-            throw new AssertionError();
-        }
-
-        public IndexExpression.Operator getIndexOperator(Bound b)
-        {
-            switch (b)
-            {
-                case START:
-                    return boundInclusive[b.idx] ? IndexExpression.Operator.GTE : IndexExpression.Operator.GT;
-                case END:
-                    return boundInclusive[b.idx] ? IndexExpression.Operator.LTE : IndexExpression.Operator.LT;
-            }
-            throw new AssertionError();
-        }
-
-        public void setBound(ColumnIdentifier name, Relation.Type type, Term t) throws InvalidRequestException
-        {
-            Bound b;
-            boolean inclusive;
-            switch (type)
-            {
-                case GT:
-                    b = Bound.START;
-                    inclusive = false;
-                    break;
-                case GTE:
-                    b = Bound.START;
-                    inclusive = true;
-                    break;
-                case LT:
-                    b = Bound.END;
-                    inclusive = false;
-                    break;
-                case LTE:
-                    b = Bound.END;
-                    inclusive = true;
-                    break;
-                default:
-                    throw new AssertionError();
-            }
-
-            if (bounds == null)
-                throw new InvalidRequestException(String.format("%s cannot be restricted by both an equal and an inequal relation", name));
-
-            if (bounds[b.idx] != null)
-                throw new InvalidRequestException(String.format("Invalid restrictions found on %s", name));
-            bounds[b.idx] = t;
-            boundInclusive[b.idx] = inclusive;
-        }
-
-        @Override
-        public String toString()
-        {
-            String s;
-            if (eqValues == null)
-            {
-                s = String.format("SLICE(%s %s, %s %s)", boundInclusive[0] ? ">=" : ">",
-                                                            bounds[0],
-                                                            boundInclusive[1] ? "<=" : "<",
-                                                            bounds[1]);
-            }
-            else
-            {
-                s = String.format("EQ(%s)", eqValues);
-            }
-            return onToken ? s + "*" : s;
         }
     }
 

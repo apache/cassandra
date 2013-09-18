@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 
@@ -80,6 +81,30 @@ public abstract class AbstractMarker extends Term.NonTerminal
         public String toString()
         {
             return "?";
+        }
+    }
+
+    // A raw that stands for multiple values, i.e. when we have 'IN ?'
+    public static class INRaw extends Raw
+    {
+        public INRaw(int bindIndex)
+        {
+            super(bindIndex);
+        }
+
+        private static ColumnSpecification makeInReceiver(ColumnSpecification receiver)
+        {
+            ColumnIdentifier inName = new ColumnIdentifier("in(" + receiver.name + ")", true);
+            return new ColumnSpecification(receiver.ksName, receiver.cfName, inName, ListType.getInstance(receiver.type));
+        }
+
+        @Override
+        public AbstractMarker prepare(ColumnSpecification receiver) throws InvalidRequestException
+        {
+            if (receiver.type instanceof CollectionType)
+                throw new InvalidRequestException("Invalid IN relation on collection column");
+
+            return new Lists.Marker(bindIndex, makeInReceiver(receiver));
         }
     }
 }

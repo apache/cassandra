@@ -81,7 +81,7 @@ public class Relation
 
     public Term.Raw getValue()
     {
-        assert relationType != Type.IN;
+        assert relationType != Type.IN || value == null || value instanceof AbstractMarker.INRaw;
         return value;
     }
 
