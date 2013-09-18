@@ -62,7 +62,7 @@ import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR
  * SSTableReaders are open()ed by Table.onStart; after that they are created by SSTableWriter.renameAndOpen.
  * Do not re-call open() on existing SSTable files; use the references kept by ColumnFamilyStore post-start instead.
  */
-public class SSTableReader extends SSTable
+public class SSTableReader extends SSTable implements Closeable
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
@@ -343,6 +343,20 @@ public class SSTableReader extends SSTable
         this.dfile = dfile;
         this.indexSummary = indexSummary;
         this.bf = bloomFilter;
+    }
+
+    /**
+     * Clean up all opened resources.
+     *
+     * @throws IOException
+     */
+    public void close() throws IOException
+    {
+        // Force finalizing mmapping if necessary
+        ifile.cleanup();
+        dfile.cleanup();
+        // close the BF so it can be opened later.
+        bf.close();
     }
 
     public void setTrackedBy(DataTracker tracker)
@@ -969,17 +983,17 @@ public class SSTableReader extends SSTable
         }
     }
 
+    /**
+     * Release reference to this SSTableReader.
+     * If there is no one referring to this SSTable, and is marked as compacted,
+     * all resources are cleaned up and files are deleted eventually.
+     */
     public void releaseReference()
     {
         if (references.decrementAndGet() == 0 && isCompacted.get())
         {
-            // Force finalizing mmapping if necessary
-            ifile.cleanup();
-            dfile.cleanup();
-
+            FileUtils.closeQuietly(this);
             deletingTask.schedule();
-            // close the BF so it can be opened later.
-            FileUtils.closeQuietly(bf);
         }
         assert references.get() >= 0 : "Reference counter " +  references.get() + " for " + dfile.path;
     }
