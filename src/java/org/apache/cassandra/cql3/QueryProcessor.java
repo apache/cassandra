@@ -250,10 +250,15 @@ public class QueryProcessor
 
     public static UntypedResultSet resultify(String query, Row row)
     {
+        return resultify(query, Collections.singletonList(row));
+    }
+
+    public static UntypedResultSet resultify(String query, List<Row> rows)
+    {
         try
         {
             SelectStatement ss = (SelectStatement) getStatement(query, null).statement;
-            ResultSet cqlRows = ss.process(Collections.singletonList(row));
+            ResultSet cqlRows = ss.process(rows);
             return new UntypedResultSet(cqlRows);
         }
         catch (RequestValidationException e)

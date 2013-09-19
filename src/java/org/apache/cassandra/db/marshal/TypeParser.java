@@ -32,6 +32,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * Parse a string containing an Type definition.
@@ -258,16 +259,7 @@ public class TypeParser
                 return map;
             }
 
-            String bbHex = readNextIdentifier();
-            ByteBuffer bb = null;
-            try
-            {
-                 bb = ByteBufferUtil.hexToBytes(bbHex);
-            }
-            catch (NumberFormatException e)
-            {
-                throwSyntaxError(e.getMessage());
-            }
+            ByteBuffer bb = fromHex(readNextIdentifier());
 
             skipBlank();
             if (str.charAt(idx) != ':')
@@ -281,6 +273,60 @@ public class TypeParser
                 if (!(type instanceof CollectionType))
                     throw new SyntaxException(type.toString() + " is not a collection type");
                 map.put(bb, (CollectionType)type);
+            }
+            catch (SyntaxException e)
+            {
+                SyntaxException ex = new SyntaxException(String.format("Exception while parsing '%s' around char %d", str, idx));
+                ex.initCause(e);
+                throw ex;
+            }
+        }
+        throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
+    }
+
+    private ByteBuffer fromHex(String hex) throws SyntaxException
+    {
+        try
+        {
+            return ByteBufferUtil.hexToBytes(hex);
+        }
+        catch (NumberFormatException e)
+        {
+            throwSyntaxError(e.getMessage());
+            return null;
+        }
+    }
+
+    public Pair<ByteBuffer, List<Pair<ByteBuffer, AbstractType>>> getUserTypeParameters() throws SyntaxException, ConfigurationException
+    {
+
+        if (isEOS() || str.charAt(idx) != '(')
+            throw new IllegalStateException();
+
+        ++idx; // skipping '('
+
+        skipBlankAndComma();
+        ByteBuffer typeName = fromHex(readNextIdentifier());
+        List<Pair<ByteBuffer, AbstractType>> defs = new ArrayList<>();
+
+        while (skipBlankAndComma())
+        {
+            if (str.charAt(idx) == ')')
+            {
+                ++idx;
+                return Pair.create(typeName, defs);
+            }
+
+            ByteBuffer name = fromHex(readNextIdentifier());
+            skipBlank();
+            if (str.charAt(idx) != ':')
+                throwSyntaxError("expecting ':' token");
+            ++idx;
+            skipBlank();
+            try
+            {
+                AbstractType type = parse();
+                defs.add(Pair.create(name, type));
             }
             catch (SyntaxException e)
             {
@@ -510,6 +556,21 @@ public class TypeParser
             first = false;
             sb.append(ByteBufferUtil.bytesToHex(entry.getKey())).append(":");
             entry.getValue().appendToStringBuilder(sb);
+        }
+        sb.append(')');
+        return sb.toString();
+    }
+
+    public static String stringifyUserTypeParameters(ByteBuffer typeName, List<ByteBuffer> columnNames, List<AbstractType<?>> columnTypes)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append('(').append(ByteBufferUtil.bytesToHex(typeName));
+
+        for (int i = 0; i < columnNames.size(); i++)
+        {
+            sb.append(',');
+            sb.append(ByteBufferUtil.bytesToHex(columnNames.get(i))).append(":");
+            sb.append(columnTypes.get(i).toString());
         }
         sb.append(')');
         return sb.toString();

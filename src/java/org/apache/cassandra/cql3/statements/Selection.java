@@ -35,6 +35,8 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -117,6 +119,26 @@ public abstract class Selection
                 metadata.add(makeWritetimeOrTTLSpec(cfm, tot, raw.alias));
             return new WritetimeOrTTLSelector(def.name.toString(), addAndGetIndex(def, defs), tot.isWritetime);
         }
+        else if (raw.selectable instanceof Selectable.WithFieldSelection)
+        {
+            Selectable.WithFieldSelection withField = (Selectable.WithFieldSelection)raw.selectable;
+            Selector selected = makeSelector(cfm, new RawSelector(withField.selected, null), defs, null);
+            AbstractType<?> type = selected.getType();
+            if (!(type instanceof UserType))
+                throw new InvalidRequestException(String.format("Invalid field selection: %s of type %s is not a user type", withField.selected, type.asCQL3Type()));
+
+            UserType ut = (UserType)type;
+            for (int i = 0; i < ut.types.size(); i++)
+            {
+                if (!ut.columnNames.get(i).equals(withField.field.bytes))
+                    continue;
+
+                if (metadata != null)
+                    metadata.add(makeFieldSelectSpec(cfm, withField, ut.types.get(i), raw.alias));
+                return new FieldSelector(ut, i, selected);
+            }
+            throw new InvalidRequestException(String.format("%s of type %s has no field %s", withField.selected, type.asCQL3Type(), withField.field));
+        }
         else
         {
             Selectable.WithFunction withFun = (Selectable.WithFunction)raw.selectable;
@@ -141,6 +163,14 @@ public abstract class Selection
                                        cfm.cfName,
                                        alias == null ? new ColumnIdentifier(tot.toString(), true) : alias,
                                        tot.isWritetime ? LongType.instance : Int32Type.instance);
+    }
+
+    private static ColumnSpecification makeFieldSelectSpec(CFMetaData cfm, Selectable.WithFieldSelection s, AbstractType<?> type, ColumnIdentifier alias)
+    {
+        return new ColumnSpecification(cfm.ksName,
+                                       cfm.cfName,
+                                       alias == null ? new ColumnIdentifier(s.toString(), true) : alias,
+                                       type);
     }
 
     private static ColumnSpecification makeFunctionSpec(CFMetaData cfm,
@@ -331,12 +361,18 @@ public abstract class Selection
         }
     }
 
-    private interface Selector extends AssignementTestable
+    private static abstract class Selector implements AssignementTestable
     {
-        public ByteBuffer compute(ResultSetBuilder rs) throws InvalidRequestException;
+        public abstract ByteBuffer compute(ResultSetBuilder rs) throws InvalidRequestException;
+        public abstract AbstractType<?> getType();
+
+        public boolean isAssignableTo(ColumnSpecification receiver)
+        {
+            return getType().asCQL3Type().equals(receiver.type.asCQL3Type());
+        }
     }
 
-    private static class SimpleSelector implements Selector
+    private static class SimpleSelector extends Selector
     {
         private final String columnName;
         private final int idx;
@@ -354,9 +390,9 @@ public abstract class Selection
             return rs.current.get(idx);
         }
 
-        public boolean isAssignableTo(ColumnSpecification receiver)
+        public AbstractType<?> getType()
         {
-            return type.asCQL3Type().equals(receiver.type.asCQL3Type());
+            return type;
         }
 
         @Override
@@ -366,7 +402,7 @@ public abstract class Selection
         }
     }
 
-    private static class FunctionSelector implements Selector
+    private static class FunctionSelector extends Selector
     {
         private final Function fun;
         private final List<Selector> argSelectors;
@@ -386,9 +422,9 @@ public abstract class Selection
             return fun.execute(args);
         }
 
-        public boolean isAssignableTo(ColumnSpecification receiver)
+        public AbstractType<?> getType()
         {
-            return fun.returnType().asCQL3Type().equals(receiver.type.asCQL3Type());
+            return fun.returnType();
         }
 
         @Override
@@ -406,7 +442,38 @@ public abstract class Selection
         }
     }
 
-    private static class WritetimeOrTTLSelector implements Selector
+    private static class FieldSelector extends Selector
+    {
+        private final UserType type;
+        private final int field;
+        private final Selector selected;
+
+        public FieldSelector(UserType type, int field, Selector selected)
+        {
+            this.type = type;
+            this.field = field;
+            this.selected = selected;
+        }
+
+        public ByteBuffer compute(ResultSetBuilder rs) throws InvalidRequestException
+        {
+            ByteBuffer[] buffers = type.split(selected.compute(rs));
+            return field < buffers.length ? buffers[field] : null;
+        }
+
+        public AbstractType<?> getType()
+        {
+            return type.types.get(field);
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("%s.%s", selected, UTF8Type.instance.getString(type.columnNames.get(field)));
+        }
+    }
+
+    private static class WritetimeOrTTLSelector extends Selector
     {
         private final String columnName;
         private final int idx;
@@ -431,9 +498,9 @@ public abstract class Selection
             return ttl > 0 ? ByteBufferUtil.bytes(ttl) : null;
         }
 
-        public boolean isAssignableTo(ColumnSpecification receiver)
+        public AbstractType<?> getType()
         {
-            return receiver.type.asCQL3Type().equals(isWritetime ? CQL3Type.Native.BIGINT : CQL3Type.Native.INT);
+            return isWritetime ? LongType.instance : Int32Type.instance;
         }
 
         @Override

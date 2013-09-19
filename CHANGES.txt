@@ -7,6 +7,8 @@
  * Remove leveled json manifest migration code (CASSANDRA-5996)
  * Remove CFDefinition (CASSANDRA-6253)
  * Use AtomicIntegerFieldUpdater in RefCountedMemory (CASSANDRA-6278)
+ * User-defined types for CQL3 (5590)
+
 
 2.0.3
  * Avoid flushing compaction_history after each operation (CASSANDRA-6287)

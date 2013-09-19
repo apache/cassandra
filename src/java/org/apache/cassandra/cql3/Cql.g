@@ -30,6 +30,7 @@ options {
     import java.util.Arrays;
     import java.util.Collections;
     import java.util.EnumSet;
+    import java.util.HashSet;
     import java.util.HashMap;
     import java.util.LinkedHashMap;
     import java.util.List;
@@ -52,6 +53,18 @@ options {
 @members {
     private final List<String> recognitionErrors = new ArrayList<String>();
     private final List<ColumnIdentifier> bindVariables = new ArrayList<ColumnIdentifier>();
+
+    public static final Set<String> reservedTypeNames = new HashSet<String>()
+    {{
+        add("byte");
+        add("smallint");
+        add("complex");
+        add("enum");
+        add("date");
+        add("interval");
+        add("macaddr");
+        add("bitstring");
+    }};
 
     public AbstractMarker.Raw newBindVariables(ColumnIdentifier name)
     {
@@ -209,6 +222,9 @@ cqlStatement returns [ParsedStatement stmt]
     | st22=listUsersStatement          { $stmt = st22; }
     | st23=createTriggerStatement      { $stmt = st23; }
     | st24=dropTriggerStatement        { $stmt = st24; }
+    | st25=createTypeStatement         { $stmt = st25; }
+    | st26=alterTypeStatement          { $stmt = st26; }
+    | st27=dropTypeStatement           { $stmt = st27; }
     ;
 
 /*
@@ -261,17 +277,19 @@ selector returns [RawSelector s]
     ;
 
 unaliasedSelector returns [Selectable s]
-    : c=cident                                  { $s = c; }
-    | K_WRITETIME '(' c=cident ')'              { $s = new Selectable.WritetimeOrTTL(c, true); }
-    | K_TTL       '(' c=cident ')'              { $s = new Selectable.WritetimeOrTTL(c, false); }
-    | f=functionName args=selectionFunctionArgs { $s = new Selectable.WithFunction(f, args); }
+    @init { Selectable tmp = null; }
+    :  ( c=cident                                  { tmp = c; }
+       | K_WRITETIME '(' c=cident ')'              { tmp = new Selectable.WritetimeOrTTL(c, true); }
+       | K_TTL       '(' c=cident ')'              { tmp = new Selectable.WritetimeOrTTL(c, false); }
+       | f=functionName args=selectionFunctionArgs { tmp = new Selectable.WithFunction(f, args); }
+       ) ( '.' fi=cident { tmp = new Selectable.WithFieldSelection(tmp, fi); } )* { $s = tmp; }
     ;
 
 selectionFunctionArgs returns [List<Selectable> a]
     : '(' ')' { $a = Collections.emptyList(); }
     | '(' s1=unaliasedSelector { List<Selectable> args = new ArrayList<Selectable>(); args.add(s1); }
           ( ',' sn=unaliasedSelector { args.add(sn); } )*
-       ')' { $a = args; }
+      ')' { $a = args; }
     ;
 
 selectCountClause returns [List<RawSelector> expr]
@@ -498,6 +516,26 @@ cfamOrdering[CreateTableStatement.RawStatement expr]
     : k=cident (K_ASC | K_DESC { reversed=true;} ) { $expr.setOrdering(k, reversed); }
     ;
 
+
+/**
+ * CREATE TYPE foo (
+ *    <name1> <type1>,
+ *    <name2> <type2>,
+ *    ....
+ * )
+ */
+createTypeStatement returns [CreateTypeStatement expr]
+    @init { boolean ifNotExists = false; }
+    : K_CREATE K_TYPE (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
+         tn=non_type_ident { $expr = new CreateTypeStatement(tn, ifNotExists); }
+         '(' typeColumns[expr] ( ',' typeColumns[expr]? )* ')'
+    ;
+
+typeColumns[CreateTypeStatement expr]
+    : k=cident v=comparatorType { $expr.addDefinition(k, v); }
+    ;
+
+
 /**
  * CREATE INDEX [IF NOT EXISTS] [indexName] ON <columnFamily> (<columnName>);
  * CREATE CUSTOM INDEX [IF NOT EXISTS] [indexName] ON <columnFamily> (<columnName>) USING <indexClass>;
@@ -567,6 +605,25 @@ alterTableStatement returns [AlterTableStatement expr]
     ;
 
 /**
+ * ALTER TYPE <name> ALTER <field> TYPE <newtype>;
+ * ALTER TYPE <name> ADD <field> <newtype>;
+ * ALTER TYPE <name> RENAME <field> TO <newtype> AND ...;
+ */
+alterTypeStatement returns [AlterTypeStatement expr]
+    : K_ALTER K_TYPE name=non_type_ident
+          ( K_ALTER f=cident K_TYPE v=comparatorType { $expr = AlterTypeStatement.alter(name, f, v); }
+          | K_ADD   f=cident v=comparatorType        { $expr = AlterTypeStatement.addition(name, f, v); }
+          | K_RENAME K_TO new_name=non_type_ident    { $expr = AlterTypeStatement.typeRename(name, new_name); }
+          | K_RENAME
+               { Map<ColumnIdentifier, ColumnIdentifier> renames = new HashMap<ColumnIdentifier, ColumnIdentifier>(); }
+                 id1=cident K_TO toId1=cident { renames.put(id1, toId1); }
+                 ( K_AND idn=cident K_TO toIdn=cident { renames.put(idn, toIdn); } )*
+               { $expr = AlterTypeStatement.renames(name, renames); }
+          )
+    ;
+
+
+/**
  * DROP KEYSPACE [IF EXISTS] <KSP>;
  */
 dropKeyspaceStatement returns [DropKeyspaceStatement ksp]
@@ -580,6 +637,14 @@ dropKeyspaceStatement returns [DropKeyspaceStatement ksp]
 dropTableStatement returns [DropTableStatement stmt]
     @init { boolean ifExists = false; }
     : K_DROP K_COLUMNFAMILY (K_IF K_EXISTS { ifExists = true; } )? cf=columnFamilyName { $stmt = new DropTableStatement(cf, ifExists); }
+    ;
+
+/**
+ * DROP TYPE <name>;
+ */
+dropTypeStatement returns [DropTypeStatement stmt]
+    @init { boolean ifExists = false; }
+    : K_DROP K_TYPE (K_IF K_EXISTS { ifExists = true; } )? name=non_type_ident { $stmt = new DropTypeStatement(name, ifExists); }
     ;
 
 /**
@@ -769,9 +834,17 @@ collection_literal returns [Term.Raw value]
     | '{' '}' { $value = new Sets.Literal(Collections.<Term.Raw>emptyList()); }
     ;
 
+usertype_literal returns [UserTypes.Literal ut]
+    @init{ Map<ColumnIdentifier, Term.Raw> m = new HashMap<ColumnIdentifier, Term.Raw>(); }
+    @after{ $ut = new UserTypes.Literal(m); }
+    // We don't allow empty literals because that conflicts with sets/maps and is currently useless since we don't allow empty user types
+    : '{' k1=cident ':' v1=term { m.put(k1, v1); } ( ',' kn=cident ':' vn=term { m.put(kn, vn); } )* '}'
+    ;
+
 value returns [Term.Raw value]
     : c=constant           { $value = c; }
     | l=collection_literal { $value = l; }
+    | u=usertype_literal   { $value = u; }
     | K_NULL               { $value = Constants.NULL_LITERAL; }
     | ':' id=cident        { $value = newBindVariables(id); }
     | QMARK                { $value = newBindVariables(null); }
@@ -879,6 +952,7 @@ relation[List<Relation> clauses]
 comparatorType returns [CQL3Type t]
     : c=native_type     { $t = c; }
     | c=collection_type { $t = c; }
+    | id=non_type_ident  { try { $t = CQL3Type.UserDefined.create(id); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); }}
     | s=STRING_LITERAL
       {
         try {
@@ -928,12 +1002,25 @@ username
     | STRING_LITERAL
     ;
 
+// Basically the same than cident, but we need to exlude existing CQL3 types
+// (which for some reason are not reserved otherwise)
+non_type_ident returns [ColumnIdentifier id]
+    : t=IDENT                    { if (reservedTypeNames.contains($t.text)) addRecognitionError("Invalid (reserved) user type name " + $t.text); $id = new ColumnIdentifier($t.text, false); }
+    | t=QUOTED_NAME              { $id = new ColumnIdentifier($t.text, true); }
+    | k=basic_unreserved_keyword { $id = new ColumnIdentifier(k, false); }
+    ;
+
 unreserved_keyword returns [String str]
     : u=unreserved_function_keyword     { $str = u; }
     | k=(K_TTL | K_COUNT | K_WRITETIME) { $str = $k.text; }
     ;
 
 unreserved_function_keyword returns [String str]
+    : u=basic_unreserved_keyword { $str = u; }
+    | t=native_type              { $str = t.toString(); }
+    ;
+
+basic_unreserved_keyword returns [String str]
     : k=( K_KEY
         | K_AS
         | K_CLUSTERING
@@ -958,7 +1045,6 @@ unreserved_function_keyword returns [String str]
         | K_TRIGGER
         | K_DISTINCT
         ) { $str = $k.text; }
-    | t=native_type { $str = t.toString(); }
     ;
 
 

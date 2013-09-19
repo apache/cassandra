@@ -66,4 +66,22 @@ public interface Selectable
             return sb.append(")").toString();
         }
     }
+
+    public static class WithFieldSelection implements Selectable
+    {
+        public final Selectable selected;
+        public final ColumnIdentifier field;
+
+        public WithFieldSelection(Selectable selected, ColumnIdentifier field)
+        {
+            this.selected = selected;
+            this.field = field;
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("%s.%s", selected, field);
+        }
+    }
 }

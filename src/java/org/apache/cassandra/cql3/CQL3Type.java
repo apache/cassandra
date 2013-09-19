@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.nio.ByteBuffer;
+
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -26,6 +29,7 @@ public interface CQL3Type
 {
     public boolean isCollection();
     public boolean isCounter();
+    public boolean isUserType();
     public AbstractType<?> getType();
 
     public enum Native implements CQL3Type
@@ -69,6 +73,11 @@ public interface CQL3Type
             return this == COUNTER;
         }
 
+        public boolean isUserType()
+        {
+            return false;
+        }
+
         @Override
         public String toString()
         {
@@ -101,6 +110,11 @@ public interface CQL3Type
         }
 
         public boolean isCounter()
+        {
+            return false;
+        }
+
+        public boolean isUserType()
         {
             return false;
         }
@@ -182,6 +196,11 @@ public interface CQL3Type
             return false;
         }
 
+        public boolean isUserType()
+        {
+            return false;
+        }
+
         @Override
         public final boolean equals(Object o)
         {
@@ -212,6 +231,75 @@ public interface CQL3Type
                     return "map<" + mt.keys.asCQL3Type() + ", " + mt.values.asCQL3Type() + ">";
             }
             throw new AssertionError();
+        }
+    }
+
+    public static class UserDefined implements CQL3Type
+    {
+        // Keeping this separatly from type just to simplify toString()
+        ColumnIdentifier name;
+        UserType type;
+
+        private UserDefined(ColumnIdentifier name, UserType type)
+        {
+            this.name = name;
+            this.type = type;
+        }
+
+        public static UserDefined create(ByteBuffer name, UserType type)
+        {
+            return new UserDefined(new ColumnIdentifier(name, UTF8Type.instance), type);
+        }
+
+        public static UserDefined create(ColumnIdentifier name) throws InvalidRequestException
+        {
+            UserType type = Schema.instance.userTypes.getType(name);
+            if (type == null)
+                throw new InvalidRequestException("Unknown type " + name);
+
+            return new UserDefined(name, type);
+        }
+
+        public boolean isUserType()
+        {
+            return true;
+        }
+
+        public boolean isCollection()
+        {
+            return false;
+        }
+
+        public boolean isCounter()
+        {
+            return false;
+        }
+
+        public AbstractType<?> getType()
+        {
+            return type;
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof UserDefined))
+                return false;
+
+            UserDefined that = (UserDefined)o;
+            return type.equals(that.type);
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            return type.hashCode();
+        }
+
+        @Override
+        public String toString()
+        {
+            return name.toString();
         }
     }
 }

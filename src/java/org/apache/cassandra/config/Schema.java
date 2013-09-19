@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.tracing.Tracing;
@@ -59,6 +60,8 @@ public class Schema
 
     /* metadata map for faster ColumnFamily lookup */
     private final BiMap<Pair<String, String>, UUID> cfIdMap = HashBiMap.create();
+
+    public final UTMetaData userTypes = new UTMetaData();
 
     private volatile UUID version;
 
@@ -113,6 +116,24 @@ public class Schema
 
         setKeyspaceDefinition(keyspaceDef);
 
+        return this;
+    }
+
+    public Schema loadUserTypes()
+    {
+        userTypes.addAll(UTMetaData.fromSchema(SystemKeyspace.serializedSchema(SystemKeyspace.SCHEMA_USER_TYPES_CF)));
+        return this;
+    }
+
+    public Schema loadType(UserType newType)
+    {
+        userTypes.addType(newType);
+        return this;
+    }
+
+    public Schema dropType(UserType droppedType)
+    {
+        userTypes.removeType(droppedType);
         return this;
     }
 
@@ -400,7 +421,8 @@ public class Schema
     {
         try
         {
-            return systemKeyspaceNames.contains(ByteBufferUtil.string(row.key.key));
+            return !row.cf.metadata().cfName.equals(SystemKeyspace.SCHEMA_USER_TYPES_CF)
+                && systemKeyspaceNames.contains(ByteBufferUtil.string(row.key.key));
         }
         catch (CharacterCodingException e)
         {
