@@ -1,4 +1,5 @@
 2.0.1
+ * Fix bug that could allow reading deleted data temporarily (CASSANDRA-6025)
  * Improve memory use defaults (CASSANDRA-5069)
  * Make ThriftServer more easlly extensible (CASSANDRA-6058)
  * Remove Hadoop dependency from ITransportFactory (CASSANDRA-6062)
