@@ -20,6 +20,7 @@ package org.apache.cassandra.thrift;
 
 import java.net.InetSocketAddress;
 
+import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.transport.TTransportFactory;
@@ -32,7 +33,7 @@ public interface TServerFactory
     {
         public InetSocketAddress addr;
         public CassandraServer cassandraServer;
-        public Cassandra.Processor processor;
+        public TProcessor processor;
         public TProtocolFactory tProtocolFactory;
         public TTransportFactory inTransportFactory;
         public TTransportFactory outTransportFactory;
