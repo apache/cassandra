@@ -81,7 +81,7 @@ public class ThriftServer implements CassandraDaemon.Server
     }
 
     /*
-     * These methods are intended to be overriden to provide DSE specific implementations
+     * These methods are intended to be overridden to provide custom implementations.
      */
     protected CassandraServer getCassandraServer()
     {
