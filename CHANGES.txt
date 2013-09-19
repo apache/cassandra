@@ -6,15 +6,10 @@
  * Remove leveled json manifest migration code (CASSANDRA-5996)
 
 
-2.0.2
+2.0.1
  * Improve memory use defaults (CASSANDRA-5069)
  * Make ThriftServer more easlly extensible (CASSANDRA-6058)
  * Remove Hadoop dependency from ITransportFactory (CASSANDRA-6062)
-Merged from 1.2:
- * Allow cache-keys-to-save to be set at runtime (CASSANDRA-5980)
-
-
-2.0.1
  * add file_cache_size_in_mb setting (CASSANDRA-5661)
  * Improve error message when yaml contains invalid properties (CASSANDRA-5958)
  * Improve leveled compaction's ability to find non-overlapping L0 compactions
@@ -44,6 +39,7 @@ Merged from 1.2:
  * Fix validation of IN clauses with 2ndary indexes (CASSANDRA-6050)
  * Support named bind variables in CQL (CASSANDRA-6033)
 Merged from 1.2:
+ * Allow cache-keys-to-save to be set at runtime (CASSANDRA-5980)
  * Avoid second-guessing out-of-space state (CASSANDRA-5605)
  * Tuning knobs for dealing with large blobs and many CFs (CASSANDRA-5982)
  * (Hadoop) Fix CQLRW for thrift tables (CASSANDRA-6002)
