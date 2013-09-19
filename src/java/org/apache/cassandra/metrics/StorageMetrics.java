@@ -19,15 +19,16 @@ package org.apache.cassandra.metrics;
 
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Counter;
-import com.yammer.metrics.core.MetricName;
 
 /**
  * Metrics related to Storage.
  */
 public class StorageMetrics
 {
-    public static final Counter load = Metrics.newCounter(new MetricName("org.apache.cassandra.metrics", "Storage", "Load"));
-    public static final Counter exceptions = Metrics.newCounter(new MetricName("org.apache.cassandra.metrics", "Storage", "Exceptions"));
-    public static final Counter totalHintsInProgress  = Metrics.newCounter(new MetricName("org.apache.cassandra.metrics", "Storage", "TotalHintsInProgress"));
-    public static final Counter totalHints = Metrics.newCounter(new MetricName("org.apache.cassandra.metrics", "Storage", "TotalHints"));
+    private static final MetricNameFactory factory = new DefaultNameFactory("Storage");
+
+    public static final Counter load = Metrics.newCounter(factory.createMetricName("Load"));
+    public static final Counter exceptions = Metrics.newCounter(factory.createMetricName("Exceptions"));
+    public static final Counter totalHintsInProgress  = Metrics.newCounter(factory.createMetricName("TotalHintsInProgress"));
+    public static final Counter totalHints = Metrics.newCounter(factory.createMetricName("TotalHints"));
 }
