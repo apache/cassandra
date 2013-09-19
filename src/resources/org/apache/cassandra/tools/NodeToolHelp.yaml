@@ -185,6 +185,9 @@ commands:
   - name: setcachecapacity <key-cache-capacity> <row-cache-capacity>
     help: |
       Set global key and row cache capacities (in MB units).
+  - name: setcachekeystosave <key-cache-keys-to-save> <row-cache-keys-to-save>
+    help: |
+      Set number of keys saved by each cache for faster post-restart warmup. 0 to disable.
   - name: getendpoints <keyspace> <cf> <key>
     help: |
       Print the end points that owns the key

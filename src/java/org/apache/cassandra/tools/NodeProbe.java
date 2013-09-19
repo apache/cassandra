@@ -526,6 +526,22 @@ public class NodeProbe
         }
     }
 
+    public void setCacheKeysToSave(int keyCacheKeysToSave, int rowCacheKeysToSave)
+    {
+        try
+        {
+            String keyCachePath = "org.apache.cassandra.db:type=Caches";
+            CacheServiceMBean cacheMBean = JMX.newMBeanProxy(mbeanServerConn, new ObjectName(keyCachePath), CacheServiceMBean.class);
+            cacheMBean.setKeyCacheKeysToSave(keyCacheKeysToSave);
+            cacheMBean.setRowCacheKeysToSave(rowCacheKeysToSave);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+
     public List<InetAddress> getEndpoints(String keyspace, String cf, String key)
     {
         return ssProxy.getNaturalEndpoints(keyspace, cf, key);

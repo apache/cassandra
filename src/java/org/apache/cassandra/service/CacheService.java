@@ -207,13 +207,13 @@ public class CacheService implements CacheServiceMBean
         return DatabaseDescriptor.getRowCacheSavePeriod();
     }
 
-    public void setRowCacheSavePeriodInSeconds(int rcspis)
+    public void setRowCacheSavePeriodInSeconds(int seconds)
     {
-        if (rcspis < 0)
+        if (seconds < 0)
             throw new RuntimeException("RowCacheSavePeriodInSeconds must be non-negative.");
 
-        DatabaseDescriptor.setRowCacheSavePeriod(rcspis);
-        rowCache.scheduleSaving(rcspis, DatabaseDescriptor.getRowCacheKeysToSave());
+        DatabaseDescriptor.setRowCacheSavePeriod(seconds);
+        rowCache.scheduleSaving(seconds, DatabaseDescriptor.getRowCacheKeysToSave());
     }
 
     public int getKeyCacheSavePeriodInSeconds()
@@ -221,13 +221,39 @@ public class CacheService implements CacheServiceMBean
         return DatabaseDescriptor.getKeyCacheSavePeriod();
     }
 
-    public void setKeyCacheSavePeriodInSeconds(int kcspis)
+    public void setKeyCacheSavePeriodInSeconds(int seconds)
     {
-        if (kcspis < 0)
+        if (seconds < 0)
             throw new RuntimeException("KeyCacheSavePeriodInSeconds must be non-negative.");
 
-        DatabaseDescriptor.setKeyCacheSavePeriod(kcspis);
-        keyCache.scheduleSaving(kcspis, DatabaseDescriptor.getKeyCacheKeysToSave());
+        DatabaseDescriptor.setKeyCacheSavePeriod(seconds);
+        keyCache.scheduleSaving(seconds, DatabaseDescriptor.getKeyCacheKeysToSave());
+    }
+
+    public int getRowCacheKeysToSave()
+    {
+        return DatabaseDescriptor.getRowCacheKeysToSave();
+    }
+
+    public void setRowCacheKeysToSave(int count)
+    {
+        if (count < 0)
+            throw new RuntimeException("RowCacheKeysToSave must be non-negative.");
+        DatabaseDescriptor.setRowCacheKeysToSave(count);
+        rowCache.scheduleSaving(getRowCacheSavePeriodInSeconds(), count);
+    }
+
+    public int getKeyCacheKeysToSave()
+    {
+        return DatabaseDescriptor.getKeyCacheKeysToSave();
+    }
+
+    public void setKeyCacheKeysToSave(int count)
+    {
+        if (count < 0)
+            throw new RuntimeException("KeyCacheKeysToSave must be non-negative.");
+        DatabaseDescriptor.setKeyCacheKeysToSave(count);
+        keyCache.scheduleSaving(getKeyCacheSavePeriodInSeconds(), count);
     }
 
     public void invalidateKeyCache()

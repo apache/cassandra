@@ -1,3 +1,7 @@
+1.2.11
+ * Allow cache-keys-to-save to be set at runtime (CASSANDRA-5980)
+
+
 1.2.10
  * Avoid second-guessing out-of-space state (CASSANDRA-5605)
  * Tuning knobs for dealing with large blobs and many CFs (CASSANDRA-5982)

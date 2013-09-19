@@ -164,7 +164,8 @@ public class NodeCmd
         RESETLOCALSCHEMA,
         PREDICTCONSISTENCY,
         ENABLEBACKUP,
-        DISABLEBACKUP
+        DISABLEBACKUP,
+        SETCACHEKEYSTOSAVE
     }
 
 
@@ -1269,6 +1270,11 @@ public class NodeCmd
                 case SETCACHECAPACITY :
                     if (arguments.length != 2) { badUse("setcachecapacity requires key-cache-capacity, and row-cache-capacity args."); }
                     probe.setCacheCapacities(Integer.parseInt(arguments[0]), Integer.parseInt(arguments[1]));
+                    break;
+
+                case SETCACHEKEYSTOSAVE :
+                    if (arguments.length != 2) { badUse("setcachekeystosave requires key-cache-keys-to-save, and row-cache-keys-to-save args."); }
+                    probe.setCacheKeysToSave(Integer.parseInt(arguments[0]), Integer.parseInt(arguments[1]));
                     break;
 
                 case SETCOMPACTIONTHRESHOLD :
