@@ -1124,7 +1124,12 @@ public class SelectStatement implements CQLStatement
                     case VALUE_ALIAS:
                         throw new InvalidRequestException(String.format("Predicates on the non-primary-key column (%s) of a COMPACT table are not yet supported", name.name));
                     case COLUMN_METADATA:
-                        stmt.metadataRestrictions.put(name, updateRestriction(name, stmt.metadataRestrictions.get(name), rel, names));
+                        // We only all IN on the row key and last clustering key so far, never on non-PK columns, and this even if there's an index
+                        Restriction r = updateRestriction(name, stmt.metadataRestrictions.get(name), rel, names);
+                        if (r.isIN() && !((Restriction.IN)r).canHaveOnlyOneValue())
+                            // Note: for backward compatibility reason, we conside a IN of 1 value the same as a EQ, so we let that slide.
+                            throw new InvalidRequestException(String.format("IN predicates on non-primary-key columns (%s) is not yet supported", name));
+                        stmt.metadataRestrictions.put(name, r);
                         break;
                 }
             }

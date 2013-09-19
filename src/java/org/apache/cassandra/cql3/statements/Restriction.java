@@ -112,6 +112,12 @@ public interface Restriction
             return true;
         }
 
+        // Used when we need to know if it's a IN with just one value before we have
+        // the bind variables. This is ugly and only there for backward compatiblity
+        // because we used to treate IN with 1 value like an EQ and need to preserve
+        // this behavior.
+        public abstract boolean canHaveOnlyOneValue();
+
         public boolean isOnToken()
         {
             return false;
@@ -132,6 +138,11 @@ public interface Restriction
                 for (Term value : values)
                     buffers.add(value.bindAndGet(variables));
                 return buffers;
+            }
+
+            public boolean canHaveOnlyOneValue()
+            {
+                return values.size() == 1;
             }
 
             @Override
@@ -156,6 +167,11 @@ public interface Restriction
                 if (lval == null)
                     throw new InvalidRequestException("Invalid null value for IN restriction");
                 return lval.elements;
+            }
+
+            public boolean canHaveOnlyOneValue()
+            {
+                return false;
             }
 
             @Override
