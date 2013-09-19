@@ -105,7 +105,7 @@ public class Attributes
         return ttl;
     }
 
-    public void collectMarkerSpecification(ColumnSpecification[] boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames)
     {
         if (timestamp != null)
             timestamp.collectMarkerSpecification(boundNames);

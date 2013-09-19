@@ -187,7 +187,7 @@ public abstract class Maps
             return false;
         }
 
-        public void collectMarkerSpecification(ColumnSpecification[] boundNames)
+        public void collectMarkerSpecification(VariableSpecifications boundNames)
         {
         }
 
@@ -261,7 +261,7 @@ public abstract class Maps
         }
 
         @Override
-        public void collectMarkerSpecification(ColumnSpecification[] boundNames)
+        public void collectMarkerSpecification(VariableSpecifications boundNames)
         {
             super.collectMarkerSpecification(boundNames);
             k.collectMarkerSpecification(boundNames);

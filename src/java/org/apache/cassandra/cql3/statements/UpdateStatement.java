@@ -124,9 +124,9 @@ public class UpdateStatement extends ModificationStatement
             this.columnValues = columnValues;
         }
 
-        protected ModificationStatement prepareInternal(CFDefinition cfDef, ColumnSpecification[] boundNames, Attributes attrs) throws InvalidRequestException
+        protected ModificationStatement prepareInternal(CFDefinition cfDef, VariableSpecifications boundNames, Attributes attrs) throws InvalidRequestException
         {
-            UpdateStatement stmt = new UpdateStatement(getBoundsTerms(), cfDef.cfm, attrs);
+            UpdateStatement stmt = new UpdateStatement(boundNames.size(), cfDef.cfm, attrs);
 
             // Created from an INSERT
             if (stmt.isCounter())
@@ -194,9 +194,9 @@ public class UpdateStatement extends ModificationStatement
             this.whereClause = whereClause;
         }
 
-        protected ModificationStatement prepareInternal(CFDefinition cfDef, ColumnSpecification[] boundNames, Attributes attrs) throws InvalidRequestException
+        protected ModificationStatement prepareInternal(CFDefinition cfDef, VariableSpecifications boundNames, Attributes attrs) throws InvalidRequestException
         {
-            UpdateStatement stmt = new UpdateStatement(getBoundsTerms(), cfDef.cfm, attrs);
+            UpdateStatement stmt = new UpdateStatement(boundNames.size(), cfDef.cfm, attrs);
 
             for (Pair<ColumnIdentifier, Operation.RawUpdate> entry : updates)
             {

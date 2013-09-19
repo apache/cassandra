@@ -96,6 +96,7 @@ bc(syntax)..
                | <boolean>
                | <hex>
   <variable> ::= '?'
+               | ':' <identifier>
       <term> ::= <constant>
                | <collection-literal>
                | <variable>
@@ -115,7 +116,7 @@ bc(syntax)..
 p. 
 Please note that not every possible productions of the grammar above will be valid in practice. Most notably, @<variable>@ and nested @<collection-literal>@ are currently not allowed inside @<collection-literal>@.
 
-p. The question mark (@?@) of @<variable>@ is a bind variables for "prepared statements":#preparedStatement.
+p. A @<variable>@ can be either anonymous (a question mark (@?@)) or named (an identifier preceded by @:@). Both declare a bind variables for "prepared statements":#preparedStatement. The only difference between an anymous and a named variable is that a named one will be easier to refer to (how exactly depends on the client driver used).
 
 p. The @<properties>@ production is use by statement that create and alter keyspaces and tables. Each @<property>@ is either a _simple_ one, in which case it just has a value, or a _map_ one, in which case it's value is a map grouping sub-options. The following will refer to one or the other as the _kind_ (_simple_ or _map_) of the property.
 
@@ -128,7 +129,7 @@ h3(#preparedStatement). Prepared Statement
 
 CQL supports _prepared statements_. Prepared statement is an optimization that allows to parse a query only once but execute it multiple times with different concrete values.
 
-In a statement, each time a column value is expected (in the data manipulation and query statements), a bind variable marker (denoted by a @?@ symbol) can be used instead. A statement with bind variables must then be _prepared_. Once it has been prepared, it can executed by providing concrete values for the bind variables (values for bind variables must be provided in the order the bind variables are defined in the query string). The exact procedure to prepare a statement and execute a prepared statement depends on the CQL driver used and is beyond the scope of this document.
+In a statement, each time a column value is expected (in the data manipulation and query statements), a @<variable>@ (see above) can be used instead. A statement with bind variables must then be _prepared_. Once it has been prepared, it can executed by providing concrete values for the bind variables. The exact procedure to prepare a statement and execute a prepared statement depends on the CQL driver used and is beyond the scope of this document.
 
 
 h2(#dataDefinition). Data Definition
@@ -1090,6 +1091,7 @@ h3. 3.1.1
 
 * @SELECT@ statement now allows listing the partition keys (using the @DISTINCT@ modifier). See "CASSANDRA-4536":https://issues.apache.org/jira/browse/CASSANDRA-4536.
 * The syntax @c IN ?@ is now supported in @WHERE@ clauses. In that case, the value expected for the bind variable will be a list of whatever type @c@ is.
+* It is now possible to use named bind variables (using @:name@ instead of @?@).
 
 h3. 3.1.0
 

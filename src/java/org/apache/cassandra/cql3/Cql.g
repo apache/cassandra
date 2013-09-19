@@ -50,8 +50,22 @@ options {
 }
 
 @members {
-    private List<String> recognitionErrors = new ArrayList<String>();
-    private int currentBindMarkerIdx = -1;
+    private final List<String> recognitionErrors = new ArrayList<String>();
+    private final List<ColumnIdentifier> bindVariables = new ArrayList<ColumnIdentifier>();
+
+    public AbstractMarker.Raw newBindVariables(ColumnIdentifier name)
+    {
+        AbstractMarker.Raw marker = new AbstractMarker.Raw(bindVariables.size());
+        bindVariables.add(name);
+        return marker;
+    }
+
+    public AbstractMarker.INRaw newINBindVariables(ColumnIdentifier name)
+    {
+        AbstractMarker.INRaw marker = new AbstractMarker.INRaw(bindVariables.size());
+        bindVariables.add(name);
+        return marker;
+    }
 
     public void displayRecognitionError(String[] tokenNames, RecognitionException e)
     {
@@ -170,7 +184,7 @@ query returns [ParsedStatement stmnt]
     ;
 
 cqlStatement returns [ParsedStatement stmt]
-    @after{ if (stmt != null) stmt.setBoundTerms(currentBindMarkerIdx + 1); }
+    @after{ if (stmt != null) stmt.setBoundVariables(bindVariables); }
     : st1= selectStatement             { $stmt = st1; }
     | st2= insertStatement             { $stmt = st2; }
     | st3= updateStatement             { $stmt = st3; }
@@ -759,13 +773,15 @@ value returns [Term.Raw value]
     : c=constant           { $value = c; }
     | l=collection_literal { $value = l; }
     | K_NULL               { $value = Constants.NULL_LITERAL; }
-    | QMARK                { $value = new AbstractMarker.Raw(++currentBindMarkerIdx); }
+    | ':' id=cident        { $value = newBindVariables(id); }
+    | QMARK                { $value = newBindVariables(null); }
     ;
 
 intValue returns [Term.Raw value]
     :
-    | t=INTEGER { $value = Constants.Literal.integer($t.text); }
-    | QMARK     { $value = new AbstractMarker.Raw(++currentBindMarkerIdx); }
+    | t=INTEGER     { $value = Constants.Literal.integer($t.text); }
+    | ':' id=cident { $value = newBindVariables(id); }
+    | QMARK         { $value = newBindVariables(null); }
     ;
 
 functionName returns [String s]
@@ -853,7 +869,8 @@ relation[List<Relation> clauses]
             for (ColumnIdentifier id : l)
                 $clauses.add(new Relation(id, type, t, true));
         }
-    | name=cident K_IN QMARK { $clauses.add(new Relation(name, Relation.Type.IN, new AbstractMarker.INRaw(++currentBindMarkerIdx))); }
+    | name=cident K_IN { Term.Raw marker = null; } (QMARK { marker = newINBindVariables(null); } | ':' mid=cident { marker = newINBindVariables(mid); })
+        { $clauses.add(new Relation(name, Relation.Type.IN, marker)); }
     | name=cident K_IN { Relation rel = Relation.createInRelation($name.id); }
        '(' ( f1=term { rel.addInValue(f1); } (',' fN=term { rel.addInValue(fN); } )* )? ')' { $clauses.add(rel); }
     ;

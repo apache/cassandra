@@ -191,7 +191,7 @@ public class BatchStatement implements CQLStatement
 
         public ParsedStatement.Prepared prepare() throws InvalidRequestException
         {
-            ColumnSpecification[] boundNames = new ColumnSpecification[getBoundsTerms()];
+            VariableSpecifications boundNames = getBoundsVariables();
 
             List<ModificationStatement> statements = new ArrayList<ModificationStatement>(parsedStatements.size());
             for (ModificationStatement.Parsed parsed : parsedStatements)
@@ -212,7 +212,7 @@ public class BatchStatement implements CQLStatement
             Attributes prepAttrs = attrs.prepare("[batch]", "[batch]");
             prepAttrs.collectMarkerSpecification(boundNames);
 
-            return new ParsedStatement.Prepared(new BatchStatement(getBoundsTerms(), type, statements, prepAttrs), Arrays.<ColumnSpecification>asList(boundNames));
+            return new ParsedStatement.Prepared(new BatchStatement(boundNames.size(), type, statements, prepAttrs), boundNames);
         }
     }
 }

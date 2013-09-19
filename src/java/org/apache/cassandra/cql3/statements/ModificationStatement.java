@@ -146,7 +146,7 @@ public abstract class ModificationStatement implements CQLStatement
         addKeyValues(name, new Restriction.EQ(value, false));
     }
 
-    public void processWhereClause(List<Relation> whereClause, ColumnSpecification[] names) throws InvalidRequestException
+    public void processWhereClause(List<Relation> whereClause, VariableSpecifications names) throws InvalidRequestException
     {
         CFDefinition cfDef = cfm.getCfDef();
         for (Relation rel : whereClause)
@@ -565,12 +565,12 @@ public abstract class ModificationStatement implements CQLStatement
 
         public ParsedStatement.Prepared prepare() throws InvalidRequestException
         {
-            ColumnSpecification[] boundNames = new ColumnSpecification[getBoundsTerms()];
+            VariableSpecifications boundNames = getBoundsVariables();
             ModificationStatement statement = prepare(boundNames);
-            return new ParsedStatement.Prepared(statement, Arrays.<ColumnSpecification>asList(boundNames));
+            return new ParsedStatement.Prepared(statement, boundNames);
         }
 
-        public ModificationStatement prepare(ColumnSpecification[] boundNames) throws InvalidRequestException
+        public ModificationStatement prepare(VariableSpecifications boundNames) throws InvalidRequestException
         {
             CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
             CFDefinition cfDef = metadata.getCfDef();
@@ -633,6 +633,6 @@ public abstract class ModificationStatement implements CQLStatement
             return stmt;
         }
 
-        protected abstract ModificationStatement prepareInternal(CFDefinition cfDef, ColumnSpecification[] boundNames, Attributes attrs) throws InvalidRequestException;
+        protected abstract ModificationStatement prepareInternal(CFDefinition cfDef, VariableSpecifications boundNames, Attributes attrs) throws InvalidRequestException;
     }
 }

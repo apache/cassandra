@@ -174,7 +174,7 @@ public abstract class Lists
             return false;
         }
 
-        public void collectMarkerSpecification(ColumnSpecification[] boundNames)
+        public void collectMarkerSpecification(VariableSpecifications boundNames)
         {
         }
 
@@ -289,7 +289,7 @@ public abstract class Lists
         }
 
         @Override
-        public void collectMarkerSpecification(ColumnSpecification[] boundNames)
+        public void collectMarkerSpecification(VariableSpecifications boundNames)
         {
             super.collectMarkerSpecification(boundNames);
             idx.collectMarkerSpecification(boundNames);

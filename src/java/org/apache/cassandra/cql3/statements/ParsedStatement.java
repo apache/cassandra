@@ -25,17 +25,17 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 
 public abstract class ParsedStatement
 {
-    private int boundTerms;
+    private VariableSpecifications variables;
 
-    public int getBoundsTerms()
+    public VariableSpecifications getBoundsVariables()
     {
-        return boundTerms;
+        return variables;
     }
 
     // Used by the parser and preparable statement
-    public void setBoundTerms(int boundTerms)
+    public void setBoundVariables(List<ColumnIdentifier> boundNames)
     {
-        this.boundTerms = boundTerms;
+        this.variables = new VariableSpecifications(boundNames);
     }
 
     public abstract Prepared prepare() throws RequestValidationException;
@@ -49,6 +49,11 @@ public abstract class ParsedStatement
         {
             this.statement = statement;
             this.boundNames = boundNames;
+        }
+
+        public Prepared(CQLStatement statement, VariableSpecifications names)
+        {
+            this(statement, names.getSpecifications());
         }
 
         public Prepared(CQLStatement statement)

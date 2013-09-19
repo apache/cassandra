@@ -1061,7 +1061,7 @@ public class SelectStatement implements CQLStatement
 
             CFDefinition cfDef = cfm.getCfDef();
 
-            ColumnSpecification[] names = new ColumnSpecification[getBoundsTerms()];
+            VariableSpecifications names = getBoundsVariables();
 
             // Select clause
             if (parameters.isCount && !selectClause.isEmpty())
@@ -1081,7 +1081,7 @@ public class SelectStatement implements CQLStatement
                 prepLimit.collectMarkerSpecification(names);
             }
 
-            SelectStatement stmt = new SelectStatement(cfDef, getBoundsTerms(), parameters, selection, prepLimit);
+            SelectStatement stmt = new SelectStatement(cfDef, names.size(), parameters, selection, prepLimit);
 
             /*
              * WHERE clause. For a given entity, rules are:
@@ -1392,7 +1392,7 @@ public class SelectStatement implements CQLStatement
                                                     + "If you want to execute this query despite the performance unpredictability, use ALLOW FILTERING");
             }
 
-            return new ParsedStatement.Prepared(stmt, Arrays.<ColumnSpecification>asList(names));
+            return new ParsedStatement.Prepared(stmt, names);
         }
 
         private void validateDistinctSelection(Collection<CFDefinition.Name> requestedColumns, Collection<CFDefinition.Name> partitionKey)
@@ -1423,7 +1423,7 @@ public class SelectStatement implements CQLStatement
             return new ColumnSpecification(keyspace(), columnFamily(), new ColumnIdentifier("[limit]", true), Int32Type.instance);
         }
 
-        Restriction updateRestriction(CFDefinition.Name name, Restriction restriction, Relation newRel, ColumnSpecification[] boundNames) throws InvalidRequestException
+        Restriction updateRestriction(CFDefinition.Name name, Restriction restriction, Relation newRel, VariableSpecifications boundNames) throws InvalidRequestException
         {
             ColumnSpecification receiver = name;
             if (newRel.onToken)

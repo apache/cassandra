@@ -69,7 +69,7 @@ public abstract class Operation
      * @param boundNames the list of column specification where to collect the
      * bind variables of this term in.
      */
-    public void collectMarkerSpecification(ColumnSpecification[] boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames)
     {
         if (t != null)
             t.collectMarkerSpecification(boundNames);

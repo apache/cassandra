@@ -497,15 +497,21 @@ Table of Contents
           <flags>. If present, it is composed of two [string] representing the
           (unique) keyspace name and table name the columns return are of.
         - <col_spec_i> specifies the columns returned in the query. There is
-          <column_count> such column specification that are composed of:
-            (<ksname><tablename>)?<column_name><type>
+          <column_count> such column specifications that are composed of:
+            (<ksname><tablename>)?<name><type>
           The initial <ksname> and <tablename> are two [string] are only present
           if the Global_tables_spec flag is not set. The <column_name> is a
-          [string] and <type> is an [option] that correspond to the column name
-          and type. The option for <type> is either a native type (see below),
-          in which case the option has no value, or a 'custom' type, in which
-          case the value is a [string] representing the full qualified class
-          name of the type represented. Valid option ids are:
+          [string] and <type> is an [option] that correspond to the description
+          (what this description is depends a bit on the context: in results to
+          selects, this will be either the user chosen alias or the selection used
+          (often a colum name, but it can be a function call too). In results to
+          a PREPARE, this will be either the name of the bind variable corresponding
+          or the column name for the variable if it is "anonymous") and type of
+          the corresponding result. The option for <type> is either a native
+          type (see below), in which case the option has no value, or a
+          'custom' type, in which case the value is a [string] representing
+          the full qualified class name of the type represented. Valid option
+          ids are:
             0x0000    Custom: the value is a [string], see above.
             0x0001    Ascii
             0x0002    Bigint

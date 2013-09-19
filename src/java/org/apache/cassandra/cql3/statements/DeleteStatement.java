@@ -103,9 +103,9 @@ public class DeleteStatement extends ModificationStatement
             this.whereClause = whereClause;
         }
 
-        protected ModificationStatement prepareInternal(CFDefinition cfDef, ColumnSpecification[] boundNames, Attributes attrs) throws InvalidRequestException
+        protected ModificationStatement prepareInternal(CFDefinition cfDef, VariableSpecifications boundNames, Attributes attrs) throws InvalidRequestException
         {
-            DeleteStatement stmt = new DeleteStatement(getBoundsTerms(), cfDef.cfm, attrs);
+            DeleteStatement stmt = new DeleteStatement(boundNames.size(), cfDef.cfm, attrs);
 
             for (Operation.RawDeletion deletion : deletions)
             {

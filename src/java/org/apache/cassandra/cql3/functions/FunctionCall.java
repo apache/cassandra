@@ -21,12 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.Constants;
-import org.apache.cassandra.cql3.Lists;
-import org.apache.cassandra.cql3.Maps;
-import org.apache.cassandra.cql3.Sets;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.ListType;
@@ -45,7 +40,7 @@ public class FunctionCall extends Term.NonTerminal
         this.terms = terms;
     }
 
-    public void collectMarkerSpecification(ColumnSpecification[] boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames)
     {
         for (Term t : terms)
             t.collectMarkerSpecification(boundNames);

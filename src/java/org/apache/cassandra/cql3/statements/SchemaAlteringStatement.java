@@ -44,6 +44,11 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
         this.isColumnFamilyLevel = true;
     }
 
+    public int getBoundsTerms()
+    {
+        return 0;
+    }
+
     @Override
     public void prepareKeyspace(ClientState state) throws InvalidRequestException
     {
