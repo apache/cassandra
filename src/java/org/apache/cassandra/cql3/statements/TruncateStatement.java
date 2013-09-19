@@ -36,6 +36,11 @@ public class TruncateStatement extends CFStatement implements CQLStatement
         super(name);
     }
 
+    public int getBoundsTerms()
+    {
+        return 0;
+    }
+
     public Prepared prepare() throws InvalidRequestException
     {
         return new Prepared(this);

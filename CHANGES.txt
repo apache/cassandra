@@ -33,6 +33,7 @@
  * Support variadic parameters for IN clauses (CASSANDRA-4210)
  * cqlsh: return the result of CAS writes (CASSANDRA-5796)
  * Fix validation of IN clauses with 2ndary indexes (CASSANDRA-6050)
+ * Support named bind variables in CQL (CASSANDRA-6033)
 Merged from 1.2:
  * Avoid second-guessing out-of-space state (CASSANDRA-5605)
  * Tuning knobs for dealing with large blobs and many CFs (CASSANDRA-5982)

@@ -35,10 +35,10 @@ public interface Term
      * Collects the column specification for the bind variables in this Term.
      * This is obviously a no-op if the term is Terminal.
      *
-     * @param boundNames the list of column specification where to collect the
+     * @param boundNames the variables specification where to collect the
      * bind variables of this term in.
      */
-    public void collectMarkerSpecification(ColumnSpecification[] boundNames);
+    public void collectMarkerSpecification(VariableSpecifications boundNames);
 
     /**
      * Bind the values in this term to the values contained in {@code values}.
@@ -107,7 +107,7 @@ public interface Term
      */
     public abstract class Terminal implements Term
     {
-        public void collectMarkerSpecification(ColumnSpecification[] boundNames) {}
+        public void collectMarkerSpecification(VariableSpecifications boundNames) {}
         public Terminal bind(List<ByteBuffer> values) { return this; }
 
         // While some NonTerminal may not have bind markers, no Term can be Terminal

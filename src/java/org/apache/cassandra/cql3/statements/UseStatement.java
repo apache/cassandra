@@ -34,6 +34,11 @@ public class UseStatement extends ParsedStatement implements CQLStatement
         this.keyspace = keyspace;
     }
 
+    public int getBoundsTerms()
+    {
+        return 0;
+    }
+
     public Prepared prepare() throws InvalidRequestException
     {
         return new Prepared(this);

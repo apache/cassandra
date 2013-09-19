@@ -36,9 +36,9 @@ public abstract class AbstractMarker extends Term.NonTerminal
         this.receiver = receiver;
     }
 
-    public void collectMarkerSpecification(ColumnSpecification[] boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames)
     {
-        boundNames[bindIndex] = receiver;
+        boundNames.add(bindIndex, receiver);
     }
 
     public boolean containsBindMarker()

@@ -179,7 +179,7 @@ public abstract class Sets
             return false;
         }
 
-        public void collectMarkerSpecification(ColumnSpecification[] boundNames)
+        public void collectMarkerSpecification(VariableSpecifications boundNames)
         {
         }
 

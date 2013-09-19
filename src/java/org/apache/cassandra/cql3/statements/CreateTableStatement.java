@@ -196,7 +196,6 @@ public class CreateTableStatement extends SchemaAlteringStatement
             properties.validate();
 
             CreateTableStatement stmt = new CreateTableStatement(cfName, properties, ifNotExists);
-            stmt.setBoundTerms(getBoundsTerms());
 
             Map<ByteBuffer, CollectionType> definedCollections = null;
             for (Map.Entry<ColumnIdentifier, CQL3Type> entry : definitions.entrySet())
