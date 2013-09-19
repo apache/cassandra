@@ -28,17 +28,17 @@ import com.yammer.metrics.core.Meter;
 
 public class ClientRequestMetrics extends LatencyMetrics
 {
-    @Deprecated public static final Counter readTimeouts = Metrics.newCounter(ClientRequestMetrics.class, "ReadTimeouts");
-    @Deprecated public static final Counter writeTimeouts = Metrics.newCounter(ClientRequestMetrics.class, "WriteTimeouts");
-    @Deprecated public static final Counter readUnavailables = Metrics.newCounter(ClientRequestMetrics.class, "ReadUnavailables");
-    @Deprecated public static final Counter writeUnavailables = Metrics.newCounter(ClientRequestMetrics.class, "WriteUnavailables");
+    @Deprecated public static final Counter readTimeouts = Metrics.newCounter(DefaultNameFactory.createMetricName("ClientRequestMetrics", "ReadTimeouts", null));
+    @Deprecated public static final Counter writeTimeouts = Metrics.newCounter(DefaultNameFactory.createMetricName("ClientRequestMetrics", "WriteTimeouts", null));
+    @Deprecated public static final Counter readUnavailables = Metrics.newCounter(DefaultNameFactory.createMetricName("ClientRequestMetrics", "ReadUnavailables", null));
+    @Deprecated public static final Counter writeUnavailables = Metrics.newCounter(DefaultNameFactory.createMetricName("ClientRequestMetrics", "WriteUnavailables", null));
 
     public final Meter timeouts;
     public final Meter unavailables;
 
     public ClientRequestMetrics(String scope)
     {
-        super("org.apache.cassandra.metrics", "ClientRequest", scope);
+        super("ClientRequest", scope);
 
         timeouts = Metrics.newMeter(factory.createMetricName("Timeouts"), "timeouts", TimeUnit.SECONDS);
         unavailables = Metrics.newMeter(factory.createMetricName("Unavailables"), "unavailables", TimeUnit.SECONDS);

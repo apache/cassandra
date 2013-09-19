@@ -22,7 +22,6 @@ import java.util.concurrent.ConcurrentMap;
 
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Counter;
-import com.yammer.metrics.core.MetricName;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
@@ -30,14 +29,13 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
  */
 public class StreamingMetrics
 {
-    public static final String GROUP_NAME = "org.apache.cassandra.metrics";
     public static final String TYPE_NAME = "Streaming";
 
     private static final ConcurrentMap<InetAddress, StreamingMetrics> instances = new NonBlockingHashMap<InetAddress, StreamingMetrics>();
 
-    public static final Counter activeStreamsOutbound = Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "ActiveOutboundStreams"));
-    public static final Counter totalIncomingBytes = Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "TotalIncomingBytes"));
-    public static final Counter totalOutgoingBytes = Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "TotalOutgoingBytes"));
+    public static final Counter activeStreamsOutbound = Metrics.newCounter(DefaultNameFactory.createMetricName(TYPE_NAME, "ActiveOutboundStreams", null));
+    public static final Counter totalIncomingBytes = Metrics.newCounter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalIncomingBytes", null));
+    public static final Counter totalOutgoingBytes = Metrics.newCounter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalOutgoingBytes", null));
     public final Counter incomingBytes;
     public final Counter outgoingBytes;
 
@@ -54,7 +52,8 @@ public class StreamingMetrics
 
     public StreamingMetrics(final InetAddress peer)
     {
-        incomingBytes = Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "IncomingBytes", peer.getHostAddress().replaceAll(":", ".")));
-        outgoingBytes= Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "OutgoingBytes", peer.getHostAddress().replaceAll(":", ".")));
+        MetricNameFactory factory = new DefaultNameFactory("Streaming", peer.getHostAddress().replaceAll(":", "."));
+        incomingBytes = Metrics.newCounter(factory.createMetricName("IncomingBytes"));
+        outgoingBytes= Metrics.newCounter(factory.createMetricName("OutgoingBytes"));
     }
 }

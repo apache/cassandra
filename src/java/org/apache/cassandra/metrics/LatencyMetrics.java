@@ -21,7 +21,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Counter;
-import com.yammer.metrics.core.MetricName;
 import com.yammer.metrics.core.Timer;
 
 import org.apache.cassandra.utils.EstimatedHistogram;
@@ -47,26 +46,24 @@ public class LatencyMetrics
     /**
      * Create LatencyMetrics with given group, type, and scope. Name prefix for each metric will be empty.
      *
-     * @param group Group name
      * @param type Type name
      * @param scope Scope
      */
-    public LatencyMetrics(String group, String type, String scope)
+    public LatencyMetrics(String type, String scope)
     {
-        this(group, type, "", scope);
+        this(type, "", scope);
     }
 
     /**
      * Create LatencyMetrics with given group, type, prefix to append to each metric name, and scope.
      *
-     * @param group Group name
      * @param type Type name
      * @param namePrefix Prefix to append to each metric name
      * @param scope Scope of metrics
      */
-    public LatencyMetrics(String group, String type, String namePrefix, String scope)
+    public LatencyMetrics(String type, String namePrefix, String scope)
     {
-        this(new LatencyMetricNameFactory(group, type, scope), namePrefix);
+        this(new DefaultNameFactory(type, scope), namePrefix);
     }
 
     /**
@@ -118,25 +115,6 @@ public class LatencyMetrics
         {
             lastLatency = n;
             lastOpCount = ops;
-        }
-    }
-
-    static class LatencyMetricNameFactory implements MetricNameFactory
-    {
-        private final String group;
-        private final String type;
-        private final String scope;
-
-        LatencyMetricNameFactory(String group, String type, String scope)
-        {
-            this.group = group;
-            this.type = type;
-            this.scope = scope;
-        }
-
-        public MetricName createMetricName(String metricName)
-        {
-            return new MetricName(group, type, metricName, scope);
         }
     }
 }

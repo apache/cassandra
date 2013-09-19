@@ -38,7 +38,7 @@ class WeightedQueue implements WeightedQueueMBean
         this.key = key;
         this.weight = weight;
         this.queue = new SynchronousQueue<Entry>(true);
-        this.metric =  new LatencyMetrics("org.apache.cassandra.metrics", "scheduler", "WeightedQueue", key);
+        this.metric =  new LatencyMetrics("scheduler", "WeightedQueue", key);
     }
 
     public void register()
