@@ -1,4 +1,5 @@
 2.0.2
+ * Improve memory use defaults (CASSANDRA-5069)
  * Make ThriftServer more easlly extensible (CASSANDRA-6058)
  * Remove Hadoop dependency from ITransportFactory (CASSANDRA-6062)
 Merged from 1.2:

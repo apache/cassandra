@@ -56,7 +56,7 @@ public class Config
 
     public Long range_request_timeout_in_ms = new Long(10000);
 
-    public Long write_request_timeout_in_ms = new Long(10000);
+    public Long write_request_timeout_in_ms = new Long(2000);
 
     public Long cas_contention_timeout_in_ms = new Long(1000);
 
