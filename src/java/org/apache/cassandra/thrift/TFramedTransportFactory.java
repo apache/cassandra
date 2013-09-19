@@ -1,5 +1,3 @@
-package org.apache.cassandra.thrift;
-
 /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -20,35 +18,38 @@ package org.apache.cassandra.thrift;
  * under the License.
  *
  */
+package org.apache.cassandra.thrift;
 
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
-import org.apache.hadoop.conf.Configuration;
-
 public class TFramedTransportFactory implements ITransportFactory
 {
-    public TTransport openTransport(String host, int port, Configuration conf) throws TTransportException
+    private static final String THRIFT_FRAMED_TRANSPORT_SIZE_IN_MB = "cassandra.thrift.framed.size_mb";
+    private int thriftFramedTransportSizeMb = 15; // 15Mb is the default for C* & Hadoop ConfigHelper
+
+    public TTransport openTransport(String host, int port) throws TTransportException
     {
         TSocket socket = new TSocket(host, port);
-        TTransport transport = new TFramedTransport(socket, ConfigHelper.getThriftFramedTransportSize(conf));
+        TTransport transport = new TFramedTransport(socket, thriftFramedTransportSizeMb * 1024 * 1024);
         transport.open();
         return transport;
     }
 
     public void setOptions(Map<String, String> options)
     {
+        if (options.containsKey(THRIFT_FRAMED_TRANSPORT_SIZE_IN_MB))
+            thriftFramedTransportSizeMb = Integer.parseInt(options.get(THRIFT_FRAMED_TRANSPORT_SIZE_IN_MB));
     }
 
     public Set<String> supportedOptions()
     {
-        return Collections.emptySet();
+        return Collections.singleton(THRIFT_FRAMED_TRANSPORT_SIZE_IN_MB);
     }
 }

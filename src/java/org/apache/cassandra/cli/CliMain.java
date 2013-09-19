@@ -24,16 +24,15 @@ import java.io.IOException;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
-import jline.ConsoleReader;
-import jline.History;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
+import jline.ConsoleReader;
+import jline.History;
 
 /**
  * Cassandra Command Line Interface (CLI) Main
@@ -58,19 +57,12 @@ public class CliMain
      */
     public static void connect(String server, int port)
     {
-        TSocket socket = new TSocket(server, port);
-
         if (transport != null)
             transport.close();
 
-        transport = sessionState.transportFactory.getTransport(socket);
-        TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport, true, true);
-        Cassandra.Client cassandraClient = new Cassandra.Client(binaryProtocol);
-
         try
         {
-            if (!transport.isOpen())
-                transport.open();
+            transport = sessionState.transportFactory.openTransport(server, port);
         }
         catch (Exception e)
         {
@@ -80,7 +72,8 @@ public class CliMain
             throw new RuntimeException("Exception connecting to " + server + "/" + port + ". Reason: " + error + ".");
         }
 
-        thriftClient = cassandraClient;
+        TBinaryProtocol binaryProtocol = new TBinaryProtocol(transport, true, true);
+        thriftClient = new Cassandra.Client(binaryProtocol);
         cliClient = new CliClient(sessionState, thriftClient);
 
         if ((sessionState.username != null) && (sessionState.password != null))
@@ -125,12 +118,7 @@ public class CliMain
                 cliClient.setKeySpace(sessionState.keyspace);
                 updateCompletor(CliUtils.getCfNamesByKeySpace(cliClient.getKSMetaData(sessionState.keyspace)));
             }
-            catch (InvalidRequestException e)
-            {
-                sessionState.err.println("Keyspace " + sessionState.keyspace + " not found");
-                return;
-            }
-            catch (NotFoundException e)
+            catch (InvalidRequestException | NotFoundException e)
             {
                 sessionState.err.println("Keyspace " + sessionState.keyspace + " not found");
                 return;
@@ -201,7 +189,7 @@ public class CliMain
         completer.setCandidateStrings(strs);
     }
 
-    public static void processStatement(String query) throws CharacterCodingException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException
+    public static void processStatement(String query) throws CharacterCodingException, TException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException
     {
         cliClient.executeCLIStatement(query);
     }
@@ -361,7 +349,7 @@ public class CliMain
 
     private static void evaluateFileStatements(BufferedReader reader) throws IOException
     {
-        String line = "";
+        String line;
         String currentStatement = "";
 
         boolean commentedBlock = false;

@@ -120,7 +120,7 @@ public abstract class AbstractColumnFamilyOutputFormat<K, Y> extends OutputForma
     public static Cassandra.Client createAuthenticatedClient(String host, int port, Configuration conf) throws Exception
     {
         logger.debug("Creating authenticated client for CF output format");
-        TTransport transport = ConfigHelper.getClientTransportFactory(conf).openTransport(host, port, conf);
+        TTransport transport = ConfigHelper.getClientTransportFactory(conf).openTransport(host, port);
         TProtocol binaryProtocol = new TBinaryProtocol(transport, true, true);
         Cassandra.Client client = new Cassandra.Client(binaryProtocol);
         client.set_keyspace(ConfigHelper.getOutputKeyspace(conf));
