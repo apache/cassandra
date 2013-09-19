@@ -160,8 +160,17 @@ public class SSTableReader extends SSTable implements Closeable
                                                   partitioner,
                                                   System.currentTimeMillis(),
                                                   sstableMetadata);
-        // don't save index summary to disk if we needed to build one
-        sstable.load(false, false);
+
+        // special implementation of load to use non-pooled SegmentedFile builders
+        SegmentedFile.Builder ibuilder = new BufferedSegmentedFile.Builder();
+        SegmentedFile.Builder dbuilder = sstable.compression
+                                       ? new CompressedSegmentedFile.Builder()
+                                       : new BufferedSegmentedFile.Builder();
+        if (!loadSummary(sstable, ibuilder, dbuilder, sstable.metadata))
+            sstable.buildSummary(false, ibuilder, dbuilder, false);
+        sstable.ifile = ibuilder.complete(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX));
+        sstable.dfile = dbuilder.complete(sstable.descriptor.filenameFor(Component.DATA));
+
         sstable.bf = FilterFactory.AlwaysPresent;
         return sstable;
     }
@@ -410,7 +419,6 @@ public class SSTableReader extends SSTable implements Closeable
         SegmentedFile.Builder dbuilder = compression
                                          ? SegmentedFile.getCompressedBuilder()
                                          : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
-
 
         boolean summaryLoaded = loadSummary(this, ibuilder, dbuilder, metadata);
         if (recreateBloomFilter || !summaryLoaded)
