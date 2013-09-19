@@ -1187,6 +1187,11 @@ public class DatabaseDescriptor
         return conf.key_cache_keys_to_save;
     }
 
+    public static void setKeyCacheKeysToSave(int keyCacheKeysToSave)
+    {
+        conf.key_cache_keys_to_save = keyCacheKeysToSave;
+    }
+
     public static long getRowCacheSizeInMB()
     {
         return conf.row_cache_size_in_mb;
@@ -1210,6 +1215,11 @@ public class DatabaseDescriptor
     public static IAllocator getoffHeapMemoryAllocator()
     {
         return memoryAllocator;
+    }
+
+    public static void setRowCacheKeysToSave(int rowCacheKeysToSave)
+    {
+        conf.row_cache_keys_to_save = rowCacheKeysToSave;
     }
 
     public static int getStreamingSocketTimeout()
