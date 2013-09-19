@@ -1,5 +1,3 @@
-package org.apache.cassandra.thrift;
-
 /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -20,13 +18,12 @@ package org.apache.cassandra.thrift;
  * under the License.
  *
  */
-
-import org.apache.hadoop.conf.Configuration;
-import org.apache.thrift.transport.TTransport;
+package org.apache.cassandra.thrift;
 
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.thrift.transport.TTransport;
 
 /**
  * Transport factory for establishing thrift connections from clients to a remote server.
@@ -34,8 +31,6 @@ import java.util.Set;
 public interface ITransportFactory
 {
     static final String PROPERTY_KEY = "cassandra.client.transport.factory";
-    static final String LONG_OPTION = "transport-factory";
-    static final String SHORT_OPTION = "tr";
 
     /**
      * Opens a client transport to a thrift server.
@@ -48,16 +43,15 @@ public interface ITransportFactory
      *
      * @param host fully qualified hostname of the server
      * @param port RPC port of the server
-     * @param conf Hadoop configuration
      * @return open and ready to use transport
      * @throws Exception implementation defined; usually throws TTransportException or IOException
      *         if the connection cannot be established
      */
-    TTransport openTransport(String host, int port, Configuration conf) throws Exception;
+    TTransport openTransport(String host, int port) throws Exception;
 
     /**
      * Sets an implementation defined set of options.
-     * Keys in this map must conform to the set set returned by TClientTransportFactory#supportedOptions.
+     * Keys in this map must conform to the set set returned by ITransportFactory#supportedOptions.
      * @param options option map
      */
     void setOptions(Map<String, String> options);

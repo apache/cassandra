@@ -20,11 +20,11 @@ package org.apache.cassandra.cli;
 import java.io.InputStream;
 import java.io.PrintStream;
 
-import org.apache.cassandra.cli.transport.FramedTransportFactory;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
+import org.apache.cassandra.thrift.ITransportFactory;
+import org.apache.cassandra.thrift.TFramedTransportFactory;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.thrift.transport.TTransportFactory;
 
 /**
  * Used to hold the state for the CLI.
@@ -44,7 +44,7 @@ public class CliSessionState
     public String  jmxUsername;   // JMX service username
     public String  jmxPassword;   // JMX service password
     public boolean verbose = false; // verbose output
-    public TTransportFactory transportFactory = new FramedTransportFactory();
+    public ITransportFactory transportFactory = new TFramedTransportFactory();
     public EncryptionOptions encOptions = new ClientEncryptionOptions();
 
     /*

@@ -18,7 +18,8 @@
 package org.apache.cassandra.cli;
 
 import org.apache.commons.cli.*;
-import org.apache.thrift.transport.TTransportFactory;
+
+import org.apache.cassandra.thrift.ITransportFactory;
 
 /**
  *
@@ -74,7 +75,7 @@ public class CliOptions
         options.addOption(null, JMX_PORT_OPTION, "JMX-PORT", "JMX service port");
         options.addOption(null, JMX_USERNAME_OPTION, "JMX-USERNAME", "JMX service username");
         options.addOption(null, JMX_PASSWORD_OPTION, "JMX-PASSWORD", "JMX service password");
-        options.addOption("tf", TRANSPORT_FACTORY, "TRANSPORT-FACTORY", "Fully-qualified TTransportFactory class name for creating a connection to cassandra");
+        options.addOption("tf", TRANSPORT_FACTORY, "TRANSPORT-FACTORY", "Fully-qualified ITransportFactory class name for creating a connection to cassandra");
 
         // ssl connection-related options
         options.addOption("ts", SSL_TRUSTSTORE, "TRUSTSTORE", "SSL: full path to truststore");
@@ -265,17 +266,15 @@ public class CliOptions
         }
     }
 
-    private static TTransportFactory validateAndSetTransportFactory(String transportFactory)
+    private static ITransportFactory validateAndSetTransportFactory(String transportFactory)
     {
         try
         {
             Class<?> factory = Class.forName(transportFactory);
-
-            if(!TTransportFactory.class.isAssignableFrom(factory))
+            if (!ITransportFactory.class.isAssignableFrom(factory))
                 throw new IllegalArgumentException(String.format("transport factory '%s' " +
-                                                                 "not derived from TTransportFactory", transportFactory));
-
-            return (TTransportFactory) factory.newInstance();
+                                                                 "not derived from ITransportFactory", transportFactory));
+            return (ITransportFactory) factory.newInstance();
         }
         catch (Exception e)
         {
