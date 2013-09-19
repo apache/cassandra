@@ -23,7 +23,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Gauge;
 import com.yammer.metrics.core.Meter;
-import com.yammer.metrics.core.MetricName;
 import com.yammer.metrics.util.RatioGauge;
 
 import org.apache.cassandra.cache.ICache;
@@ -33,9 +32,6 @@ import org.apache.cassandra.cache.ICache;
  */
 public class CacheMetrics
 {
-    public static final String GROUP_NAME = "org.apache.cassandra.metrics";
-    public static final String TYPE_NAME = "Cache";
-
     /** Cache capacity in bytes */
     public final Gauge<Long> capacity;
     /** Total number of cache hits */
@@ -60,16 +56,18 @@ public class CacheMetrics
      */
     public CacheMetrics(String type, final ICache cache)
     {
-        capacity = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "Capacity", type), new Gauge<Long>()
+        MetricNameFactory factory = new DefaultNameFactory("Cache", type);
+
+        capacity = Metrics.newGauge(factory.createMetricName("Capacity"), new Gauge<Long>()
         {
             public Long value()
             {
                 return cache.capacity();
             }
         });
-        hits = Metrics.newMeter(new MetricName(GROUP_NAME, TYPE_NAME, "Hits", type), "hits", TimeUnit.SECONDS);
-        requests = Metrics.newMeter(new MetricName(GROUP_NAME, TYPE_NAME, "Requests", type), "requests", TimeUnit.SECONDS);
-        hitRate = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "HitRate", type), new RatioGauge()
+        hits = Metrics.newMeter(factory.createMetricName("Hits"), "hits", TimeUnit.SECONDS);
+        requests = Metrics.newMeter(factory.createMetricName("Requests"), "requests", TimeUnit.SECONDS);
+        hitRate = Metrics.newGauge(factory.createMetricName("HitRate"), new RatioGauge()
         {
             protected double getNumerator()
             {
@@ -81,14 +79,14 @@ public class CacheMetrics
                 return requests.count();
             }
         });
-        size = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "Size", type), new Gauge<Long>()
+        size = Metrics.newGauge(factory.createMetricName("Size"), new Gauge<Long>()
         {
             public Long value()
             {
                 return cache.weightedSize();
             }
         });
-        entries = Metrics.newGauge(new MetricName(GROUP_NAME, TYPE_NAME, "Entries", type), new Gauge<Integer>()
+        entries = Metrics.newGauge(factory.createMetricName("Entries"), new Gauge<Integer>()
         {
             public Integer value()
             {

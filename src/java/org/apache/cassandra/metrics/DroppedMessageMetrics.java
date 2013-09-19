@@ -21,7 +21,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Meter;
-import com.yammer.metrics.core.MetricName;
 
 import org.apache.cassandra.net.MessagingService;
 
@@ -30,9 +29,6 @@ import org.apache.cassandra.net.MessagingService;
  */
 public class DroppedMessageMetrics
 {
-    public static final String GROUP_NAME = "org.apache.cassandra.metrics";
-    public static final String TYPE_NAME = "DroppedMessage";
-
     /** Number of dropped messages */
     public final Meter dropped;
 
@@ -40,7 +36,8 @@ public class DroppedMessageMetrics
 
     public DroppedMessageMetrics(MessagingService.Verb verb)
     {
-        dropped = Metrics.newMeter(new MetricName(GROUP_NAME, TYPE_NAME, "Dropped", verb.toString()), "dropped", TimeUnit.SECONDS);
+        MetricNameFactory factory = new DefaultNameFactory("DroppedMessage", verb.toString());
+        dropped = Metrics.newMeter(factory.createMetricName("Dropped"), "dropped", TimeUnit.SECONDS);
     }
 
     @Deprecated

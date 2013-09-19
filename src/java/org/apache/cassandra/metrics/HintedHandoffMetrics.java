@@ -32,7 +32,6 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Counter;
-import com.yammer.metrics.core.MetricName;
 
 /**
  * Metrics for {@link HintedHandOffManager}.
@@ -41,8 +40,7 @@ public class HintedHandoffMetrics
 {
     private static final Logger logger = LoggerFactory.getLogger(HintedHandoffMetrics.class);
 
-    public static final String GROUP_NAME = "org.apache.cassandra.metrics";
-    public static final String TYPE_NAME = "HintedHandOffManager";
+    private final MetricNameFactory factory;
 
     /** Total number of hints which are not stored, This is not a cache. */
     private final LoadingCache<InetAddress, DifferencingCounter> notStored = CacheBuilder.newBuilder().build(new CacheLoader<InetAddress, DifferencingCounter>()
@@ -52,6 +50,11 @@ public class HintedHandoffMetrics
             return new DifferencingCounter(address);
         }
     });
+
+    public HintedHandoffMetrics()
+    {
+        factory = new DefaultNameFactory("HintedHandOffManager");
+    }
 
     public void incrPastWindow(InetAddress address)
     {
@@ -84,7 +87,7 @@ public class HintedHandoffMetrics
 
         public DifferencingCounter(InetAddress address)
         {
-            this.meter = Metrics.newCounter(new MetricName(GROUP_NAME, TYPE_NAME, "Hints_not_stored-" + address.toString()));
+            this.meter = Metrics.newCounter(factory.createMetricName("Hints_not_stored-" + address.toString()));
         }
 
         public long diffrence()
