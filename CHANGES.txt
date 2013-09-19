@@ -21,6 +21,7 @@
  * Fix snapshots in use get deleted during snapshot repair (CASSANDRA-6011)
  * Move hints and exception count to o.a.c.metrics (CASSANDRA-6017)
  * Fix memory leak in snapshot repair (CASSANDRA-6047)
+ * Fix sstable2sjon for CQL3 tables (CASSANDRA-5852)
 
 
 1.2.9
