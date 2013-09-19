@@ -148,6 +148,7 @@ public class SchemaLoader
                                            standardCFMD(ks1, "Standard2"),
                                            standardCFMD(ks1, "Standard3"),
                                            standardCFMD(ks1, "Standard4"),
+                                           standardCFMD(ks1, "StandardGCGS0").gcGraceSeconds(0),
                                            standardCFMD(ks1, "StandardLong1"),
                                            standardCFMD(ks1, "StandardLong2"),
                                            new CFMetaData(ks1,
