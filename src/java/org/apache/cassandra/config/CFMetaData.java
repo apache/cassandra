@@ -1175,7 +1175,18 @@ public final class CFMetaData
             ByteBuffer[] components = composite.split(columnName);
             for (ColumnDefinition def : column_metadata.values())
             {
-                ByteBuffer toCompare = def.componentIndex == null ? columnName : components[def.componentIndex];
+                ByteBuffer toCompare;
+                if (def.componentIndex == null)
+                {
+                    toCompare = columnName;
+                }
+                else
+                {
+                    if (def.componentIndex >= components.length)
+                        break;
+
+                    toCompare = components[def.componentIndex];
+                }
                 if (def.name.equals(toCompare))
                     return def;
             }
@@ -1186,6 +1197,8 @@ public final class CFMetaData
             return column_metadata.get(columnName);
         }
     }
+
+
 
     public ColumnDefinition getColumnDefinitionForIndex(String indexName)
     {

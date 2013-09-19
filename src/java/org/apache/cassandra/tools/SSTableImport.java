@@ -152,7 +152,7 @@ public class SSTableImport
                 }
 
                 value = isDeleted() ? ByteBufferUtil.hexToBytes((String) fields.get(1))
-                                    : stringAsType((String) fields.get(1), meta.getValueValidator(name.duplicate()));
+                                    : stringAsType((String) fields.get(1), meta.getValueValidator(meta.getColumnDefinitionFromColumnName(name)));
             }
         }
 
@@ -247,6 +247,11 @@ public class SSTableImport
             {
                 ByteBuffer end = superName == null ? col.getValue() : CompositeType.build(superName, col.getValue());
                 cfamily.addAtom(new RangeTombstone(cname, end, col.timestamp, col.localExpirationTime));
+            }
+            // cql3 row marker, see CASSANDRA-5852
+            else if (!cname.hasRemaining())
+            {
+                cfamily.addColumn(ByteBuffer.wrap(new byte[3]), col.getValue(), col.timestamp);
             }
             else
             {
