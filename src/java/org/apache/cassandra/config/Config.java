@@ -52,7 +52,7 @@ public class Config
 
     public volatile Long request_timeout_in_ms = new Long(10000);
 
-    public Long read_request_timeout_in_ms = new Long(10000);
+    public Long read_request_timeout_in_ms = new Long(5000);
 
     public Long range_request_timeout_in_ms = new Long(10000);
 
