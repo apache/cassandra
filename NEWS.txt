@@ -18,10 +18,21 @@ using the provided 'sstableupgrade' tool.
 Upgrading
 ---------
    - Rolling upgrades from anything pre-2.0 is not supported.
-   - 2.0 must be atleast started before upgrading to 2.1 due to
-     the fact that the old JSON leveled manifest is migrated into
-     the sstable metadata files on startup in 2.0 and this code is
-     gone from 2.1.
+   - For leveled compaction users, 2.0 must be atleast started before
+     upgrading to 2.1 due to the fact that the old JSON leveled
+     manifest is migrated into the sstable metadata files on startup
+     in 2.0 and this code is gone from 2.1.
+
+
+2.0.2
+=====
+
+Upgrading
+---------
+    - The default memtable allocation has changed from 1/3 of heap to 1/4
+      of heap.  Also, default (single-partition) read and write timeouts
+      have been reduced from 10s to 5s and 2s, respectively.
+
 
 2.0.0
 =====
