@@ -8,6 +8,8 @@
 
 2.0.2
  * Make ThriftServer more easlly extensible (CASSANDRA-6058)
+Merged from 1.2:
+ * Allow cache-keys-to-save to be set at runtime (CASSANDRA-5980)
 
 
 2.0.1
