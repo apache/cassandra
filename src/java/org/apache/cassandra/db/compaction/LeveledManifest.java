@@ -125,9 +125,9 @@ public class LeveledManifest
         return newLevel;
     }
 
-    public synchronized void replace(Iterable<SSTableReader> removed, Iterable<SSTableReader> added)
+    public synchronized void replace(Collection<SSTableReader> removed, Collection<SSTableReader> added)
     {
-        assert !Iterables.isEmpty(removed); // use add() instead of promote when adding new sstables
+        assert !removed.isEmpty(); // use add() instead of promote when adding new sstables
         logDistribution();
         if (logger.isDebugEnabled())
             logger.debug("Replacing [{}]", toString(removed));
@@ -138,7 +138,7 @@ public class LeveledManifest
             remove(sstable);
 
         // it's valid to do a remove w/o an add (e.g. on truncate)
-        if (!added.iterator().hasNext())
+        if (added.isEmpty())
             return;
 
         if (logger.isDebugEnabled())
@@ -196,7 +196,7 @@ public class LeveledManifest
         }
     }
 
-    private String toString(Iterable<SSTableReader> sstables)
+    private String toString(Collection<SSTableReader> sstables)
     {
         StringBuilder builder = new StringBuilder();
         for (SSTableReader sstable : sstables)

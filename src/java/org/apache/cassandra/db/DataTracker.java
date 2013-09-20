@@ -44,14 +44,14 @@ public class DataTracker
 {
     private static final Logger logger = LoggerFactory.getLogger(DataTracker.class);
 
-    public final Collection<INotificationConsumer> subscribers = new CopyOnWriteArrayList<INotificationConsumer>();
+    public final Collection<INotificationConsumer> subscribers = new CopyOnWriteArrayList<>();
     public final ColumnFamilyStore cfstore;
     private final AtomicReference<View> view;
 
     public DataTracker(ColumnFamilyStore cfstore)
     {
         this.cfstore = cfstore;
-        this.view = new AtomicReference<View>();
+        this.view = new AtomicReference<>();
         this.init();
     }
 
@@ -231,7 +231,7 @@ public class DataTracker
         notifySSTablesChanged(sstables, Collections.<SSTableReader>emptyList(), compactionType);
     }
 
-    public void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements, OperationType compactionType)
+    public void replaceCompactedSSTables(Collection<SSTableReader> sstables, Collection<SSTableReader> replacements, OperationType compactionType)
     {
         replace(sstables, replacements);
         notifySSTablesChanged(sstables, replacements, compactionType);
@@ -285,15 +285,13 @@ public class DataTracker
     void removeUnreadableSSTables(File directory)
     {
         View currentView, newView;
-        List<SSTableReader> remaining = new ArrayList<SSTableReader>();
+        List<SSTableReader> remaining = new ArrayList<>();
         do
         {
             currentView = view.get();
             for (SSTableReader r : currentView.nonCompactingSStables())
-            {
                 if (!r.descriptor.directory.equals(directory))
                     remaining.add(r);
-            }
 
             if (remaining.size() == currentView.nonCompactingSStables().size())
                 return;
@@ -379,9 +377,7 @@ public class DataTracker
     {
         long n = 0;
         for (SSTableReader sstable : getSSTables())
-        {
             n += sstable.estimatedKeys();
-        }
         return n;
     }
 
@@ -415,13 +411,11 @@ public class DataTracker
         return 0;
     }
 
-    public void notifySSTablesChanged(Iterable<SSTableReader> removed, Iterable<SSTableReader> added, OperationType compactionType)
+    public void notifySSTablesChanged(Collection<SSTableReader> removed, Collection<SSTableReader> added, OperationType compactionType)
     {
+        INotification notification = new SSTableListChangedNotification(added, removed, compactionType);
         for (INotificationConsumer subscriber : subscribers)
-        {
-            INotification notification = new SSTableListChangedNotification(added, removed, compactionType);
             subscriber.handleNotification(notification, this);
-        }
     }
 
     public void notifyAdded(SSTableReader added)
@@ -451,7 +445,7 @@ public class DataTracker
 
     public static SSTableIntervalTree buildIntervalTree(Iterable<SSTableReader> sstables)
     {
-        List<Interval<RowPosition, SSTableReader>> intervals = new ArrayList<Interval<RowPosition, SSTableReader>>(Iterables.size(sstables));
+        List<Interval<RowPosition, SSTableReader>> intervals = new ArrayList<>(Iterables.size(sstables));
         for (SSTableReader sstable : sstables)
             intervals.add(Interval.<RowPosition, SSTableReader>create(sstable.first, sstable.last, sstable));
         return new SSTableIntervalTree(intervals);
@@ -519,8 +513,8 @@ public class DataTracker
         {
             Set<Memtable> newPending = ImmutableSet.copyOf(Sets.difference(memtablesPendingFlush, Collections.singleton(flushedMemtable)));
             Set<SSTableReader> newSSTables = newSSTable == null
-                                            ? sstables
-                                            : newSSTables(newSSTable);
+                                           ? sstables
+                                           : newSSTables(newSSTable);
             SSTableIntervalTree intervalTree = buildIntervalTree(newSSTables);
             return new View(memtable, newPending, newSSTables, compacting, intervalTree);
         }
@@ -556,12 +550,12 @@ public class DataTracker
             ImmutableSet<SSTableReader> oldSet = ImmutableSet.copyOf(oldSSTables);
             int newSSTablesSize = sstables.size() - oldSSTables.size() + Iterables.size(replacements);
             assert newSSTablesSize >= Iterables.size(replacements) : String.format("Incoherent new size %d replacing %s by %s in %s", newSSTablesSize, oldSSTables, replacements, this);
-            Set<SSTableReader> newSSTables = new HashSet<SSTableReader>(newSSTablesSize);
+            Set<SSTableReader> newSSTables = new HashSet<>(newSSTablesSize);
+
             for (SSTableReader sstable : sstables)
-            {
                 if (!oldSet.contains(sstable))
                     newSSTables.add(sstable);
-            }
+
             Iterables.addAll(newSSTables, replacements);
             assert newSSTables.size() == newSSTablesSize : String.format("Expecting new size of %d, got %d while replacing %s by %s in %s", newSSTablesSize, newSSTables.size(), oldSSTables, replacements, this);
             return ImmutableSet.copyOf(newSSTables);

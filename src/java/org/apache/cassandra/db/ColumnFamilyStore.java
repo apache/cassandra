@@ -1065,7 +1065,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         data.markObsolete(sstables, compactionType);
     }
 
-    public void replaceCompactedSSTables(Collection<SSTableReader> sstables, Iterable<SSTableReader> replacements, OperationType compactionType)
+    public void replaceCompactedSSTables(Collection<SSTableReader> sstables, Collection<SSTableReader> replacements, OperationType compactionType)
     {
         data.replaceCompactedSSTables(sstables, replacements, compactionType);
     }
