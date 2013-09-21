@@ -432,45 +432,48 @@ public final class MessagingService implements MessagingServiceMBean
             logger.info("Starting Encrypted Messaging Service on SSL port {}", DatabaseDescriptor.getSSLStoragePort());
         }
 
-        ServerSocketChannel serverChannel;
-        try
+        if (DatabaseDescriptor.getServerEncryptionOptions().internode_encryption != ServerEncryptionOptions.InternodeEncryption.all)
         {
-            serverChannel = ServerSocketChannel.open();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        ServerSocket socket = serverChannel.socket();
-        try
-        {
-            socket.setReuseAddress(true);
-        }
-        catch (SocketException e)
-        {
-            throw new ConfigurationException("Insufficient permissions to setReuseAddress", e);
-        }
-        InetSocketAddress address = new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort());
-        try
-        {
-            socket.bind(address);
-        }
-        catch (BindException e)
-        {
-            if (e.getMessage().contains("in use"))
-                throw new ConfigurationException(address + " is in use by another process.  Change listen_address:storage_port in cassandra.yaml to values that do not conflict with other services");
-            else if (e.getMessage().contains("Cannot assign requested address"))
-                throw new ConfigurationException("Unable to bind to address " + address
-                                                 + ". Set listen_address in cassandra.yaml to an interface you can bind to, e.g., your private IP address on EC2");
-            else
+            ServerSocketChannel serverChannel = null;
+            try
+            {
+                serverChannel = ServerSocketChannel.open();
+            }
+            catch (IOException e)
+            {
                 throw new RuntimeException(e);
+            }
+            ServerSocket socket = serverChannel.socket();
+            try
+            {
+                socket.setReuseAddress(true);
+            }
+            catch (SocketException e)
+            {
+                throw new ConfigurationException("Insufficient permissions to setReuseAddress", e);
+            }
+            InetSocketAddress address = new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort());
+            try
+            {
+                socket.bind(address);
+            }
+            catch (BindException e)
+            {
+                if (e.getMessage().contains("in use"))
+                    throw new ConfigurationException(address + " is in use by another process.  Change listen_address:storage_port in cassandra.yaml to values that do not conflict with other services");
+                else if (e.getMessage().contains("Cannot assign requested address"))
+                    throw new ConfigurationException("Unable to bind to address " + address
+                                                     + ". Set listen_address in cassandra.yaml to an interface you can bind to, e.g., your private IP address on EC2");
+                else
+                    throw new RuntimeException(e);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+            logger.info("Starting Messaging Service on port {}", DatabaseDescriptor.getStoragePort());
+            ss.add(socket);
         }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        logger.info("Starting Messaging Service on port {}", DatabaseDescriptor.getStoragePort());
-        ss.add(socket);
         return ss;
     }
 
