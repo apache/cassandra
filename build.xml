@@ -380,6 +380,7 @@
           <dependency groupId="edu.stanford.ppl" artifactId="snaptree" version="0.1" />
           <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.3m" />
           <dependency groupId="io.netty" artifactId="netty" version="3.6.6.Final" />
+          <dependency groupId="com.google.code.findbugs" artifactId="jsr305" version="2.0.1" />
         </dependencyManagement>
         <developer id="alakshman" name="Avinash Lakshman"/>
         <developer id="antelder" name="Anthony Elder"/>
@@ -410,6 +411,7 @@
         <dependency groupId="org.apache.pig" artifactId="pig"/>
 
         <dependency groupId="net.java.dev.jna" artifactId="jna"/>
+      	<dependency groupId="com.google.code.findbugs" artifactId="jsr305"/>
       </artifact:pom>
 
       <artifact:pom id="coverage-deps-pom"
