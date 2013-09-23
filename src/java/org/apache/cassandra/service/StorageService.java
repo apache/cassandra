@@ -3651,4 +3651,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         return DatabaseDescriptor.getPartitionerName();
     }
+
+    public int getTombstoneDebugThreshold()
+    {
+        return DatabaseDescriptor.getTombstoneDebugThreshold();
+    }
+
+    public void setTombstoneDebugThreshold(int tombstoneDebugThreshold)
+    {
+        DatabaseDescriptor.setTombstoneDebugThreshold(tombstoneDebugThreshold);
+    }
 }

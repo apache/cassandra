@@ -405,6 +405,11 @@ snapshot_before_compaction: false
 # lose data on truncation or drop.
 auto_snapshot: true
 
+# Log a debug message if more than this many tombstones are scanned
+# in a single-partition query.  Set the threshold on SliceQueryFilter
+# to debug to enable.
+tombstone_debug_threshold: 10000
+
 # Add column indexes to a row after its contents reach this size.
 # Increase if your column values are large, or if you have a very large
 # number of columns.  The competing causes are, Cassandra has to

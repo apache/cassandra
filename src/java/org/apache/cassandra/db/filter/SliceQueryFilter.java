@@ -21,16 +21,12 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.SSTableSliceIterator;
@@ -202,6 +198,8 @@ public class SliceQueryFilter implements IDiskAtomFilter
         }
 
         Tracing.trace("Read {} live and {} tombstoned cells", columnCounter.live(), columnCounter.ignored());
+        if (columnCounter.ignored() > DatabaseDescriptor.getTombstoneDebugThreshold())
+            logger.debug("Read {} live and {} tombstoned cells", columnCounter.live(), columnCounter.ignored());
     }
 
     public int getLiveCount(ColumnFamily cf, long now)
@@ -263,6 +261,16 @@ public class SliceQueryFilter implements IDiskAtomFilter
     }
 
     public int lastCounted()
+    {
+        return columnCounter == null ? 0 : columnCounter.live();
+    }
+
+    public int lastIgnored()
+    {
+        return columnCounter == null ? 0 : columnCounter.ignored();
+    }
+
+    public int lastLive()
     {
         return columnCounter == null ? 0 : columnCounter.live();
     }
