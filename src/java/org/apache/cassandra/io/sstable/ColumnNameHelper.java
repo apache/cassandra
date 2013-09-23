@@ -27,6 +27,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ColumnToCollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 
+import static org.apache.cassandra.utils.ByteBufferUtil.minimalBufferFor;
+
 public class ColumnNameHelper
 {
     /**
@@ -174,7 +176,7 @@ public class ColumnNameHelper
     public static List<ByteBuffer> mergeMin(List<ByteBuffer> minColumnNames, List<ByteBuffer> candidates, AbstractType<?> columnNameComparator)
     {
         if (minColumnNames.isEmpty())
-            return candidates;
+            return minimalBuffersFor(candidates);
 
         if (candidates.isEmpty())
             return minColumnNames;
@@ -190,16 +192,24 @@ public class ColumnNameHelper
             List<ByteBuffer> retList = new ArrayList<ByteBuffer>(maxSize);
 
             for (int i = 0; i < minSize; i++)
-                retList.add(min(minColumnNames.get(i), candidates.get(i), ct.types.get(i)));
+                retList.add(minimalBufferFor(min(minColumnNames.get(i), candidates.get(i), ct.types.get(i))));
             for (int i = minSize; i < maxSize; i++)
-                retList.add(biggest.get(i));
+                retList.add(minimalBufferFor(biggest.get(i)));
 
             return retList;
         }
         else
         {
-            return Collections.singletonList(min(minColumnNames.get(0), candidates.get(0), columnNameComparator));
+            return Collections.singletonList(minimalBufferFor(min(minColumnNames.get(0), candidates.get(0), columnNameComparator)));
         }
+    }
+
+    private static List<ByteBuffer> minimalBuffersFor(List<ByteBuffer> candidates)
+    {
+        List<ByteBuffer> minimalBuffers = new ArrayList<ByteBuffer>(candidates.size());
+        for (ByteBuffer byteBuffer : candidates)
+            minimalBuffers.add(minimalBufferFor(byteBuffer));
+        return minimalBuffers;
     }
 
     /**
@@ -217,7 +227,7 @@ public class ColumnNameHelper
     public static List<ByteBuffer> mergeMax(List<ByteBuffer> maxColumnNames, List<ByteBuffer> candidates, AbstractType<?> columnNameComparator)
     {
         if (maxColumnNames.isEmpty())
-            return candidates;
+            return minimalBuffersFor(candidates);
 
         if (candidates.isEmpty())
             return maxColumnNames;
@@ -232,15 +242,15 @@ public class ColumnNameHelper
             List<ByteBuffer> retList = new ArrayList<ByteBuffer>(maxSize);
 
             for (int i = 0; i < minSize; i++)
-                retList.add(max(maxColumnNames.get(i), candidates.get(i), ct.types.get(i)));
+                retList.add(minimalBufferFor(max(maxColumnNames.get(i), candidates.get(i), ct.types.get(i))));
             for (int i = minSize; i < maxSize; i++)
-                retList.add(biggest.get(i));
+                retList.add(minimalBufferFor(biggest.get(i)));
 
             return retList;
         }
         else
         {
-            return Collections.singletonList(max(maxColumnNames.get(0), candidates.get(0), columnNameComparator));
+            return Collections.singletonList(minimalBufferFor(max(maxColumnNames.get(0), candidates.get(0), columnNameComparator)));
         }
 
     }
