@@ -116,7 +116,10 @@ public class Commit
     {
         ColumnFamily cf = updates.cloneMeShallow();
         long t = UUIDGen.microsTimestamp(ballot);
-        cf.deletionInfo().updateAllTimestamp(t);
+        // For the tombstones, we use t-1 so that when insert a collection literall, the range tombstone that deletes the previous values of
+        // the collection and we want that to have a lower timestamp and our new values. Since tombstones wins over normal insert, using t-1
+        // should not be a problem in general (see #6069).
+        cf.deletionInfo().updateAllTimestamp(t-1);
         for (Column column : updates)
             cf.addAtom(column.withUpdatedTimestamp(t));
         return cf;
