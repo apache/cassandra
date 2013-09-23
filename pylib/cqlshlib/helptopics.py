@@ -226,7 +226,7 @@ class CQLHelpTopics(object):
         CollatingOrderPreservingPartitioner both require UTF-8 keys.
 
         In cql3 mode, a table can have multiple columns composing the primary
-        key (see HELP COMPOSITE_PRIMARY_KEYS).
+        key (see HELP COMPOUND_PRIMARY_KEYS).
 
         For more information, see one of the following:
 
@@ -234,6 +234,22 @@ class CQLHelpTopics(object):
           HELP CREATE_TABLE_OPTIONS;
         """
     help_create_columnfamily = help_create_table
+
+    def help_compound_primary_keys(self):
+        print """
+        CREATE TABLE <cfname> ( <partition_key> <type>, <clustering_key1> type, <clustering_key2> type,
+                                [, ...]], PRIMARY KEY (<partition_key>, <clustering_key1>, <clustering_key2>);
+
+        CREATE TABLE allows a primary key composed of multiple columns. When this is the case, specify
+        the columns that take part in the compound key after all columns have been specified.
+
+        , PRIMARY KEY( <key1>, <key2>, ... )
+
+        The partitioning key itself can be a compound key, in which case the first element of the PRIMARY KEY
+        phrase should be parenthesized, as
+
+        PRIMARY KEY ((<partition_key_part1>, <partition_key_part2>), <clustering_key>)
+        """
 
     def help_create_table_types(self):
         print """
