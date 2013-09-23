@@ -49,10 +49,7 @@ import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.filter.ExtendedFilter;
-import org.apache.cassandra.db.filter.IDiskAtomFilter;
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -1221,6 +1218,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 result = cf.isSuper() ? removeDeleted(cf, gcBefore) : removeDeletedCF(cf, gcBefore);
 
             }
+
+            if (filter.filter instanceof SliceQueryFilter)
+            {
+                // Log the number of tombstones scanned on single key queries
+                metric.tombstoneScannedHistogram.update(((SliceQueryFilter) filter.filter).lastIgnored());
+                metric.liveScannedHistogram.update(((SliceQueryFilter) filter.filter).lastLive());
+            }
         }
         finally
         {
@@ -1905,6 +1909,22 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public boolean isCompactionDisabled()
     {
         return getMinimumCompactionThreshold() <= 0 || getMaximumCompactionThreshold() <= 0;
+    }
+
+    public long getTombstonesPerLastRead()
+    {
+        return metric.tombstoneScannedHistogram.count();
+    }
+
+    public float getPercentageTombstonesPerLastRead()
+    {
+        long total = metric.tombstoneScannedHistogram.count() + metric.liveScannedHistogram.count();
+        return (metric.tombstoneScannedHistogram.count() / total);
+    }
+
+    public long getLiveCellsPerLastRead()
+    {
+        return metric.liveScannedHistogram.count();
     }
 
     // End JMX get/set.

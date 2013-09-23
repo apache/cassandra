@@ -3,6 +3,7 @@
  * Allow where clause conditions to be in parenthesis (CASSANDRA-6037)
  * Do not open non-ssl storage port if encryption option is all (CASSANDRA-3916)
  * Improve memory usage of metadata min/max column names (CASSANDRA-6077)
+ * Add tombstone debug threshold and histogram (CASSANDRA-6042, 6057)
 
 
 1.2.10
