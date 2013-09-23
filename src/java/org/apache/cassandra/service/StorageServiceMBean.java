@@ -476,4 +476,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String getClusterName();
     /** Returns the cluster partitioner */
     public String getPartitionerName();
+
+    /** Returns the threshold for returning debugging queries with many tombstones */
+    public int getTombstoneDebugThreshold();
+    /** Sets the threshold for returning debugging queries with many tombstones */
+    public void setTombstoneDebugThreshold(int tombstoneDebugThreshold);
 }

@@ -33,6 +33,7 @@ import com.google.common.base.Function;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,11 +50,7 @@ import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.*;
-import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.filter.ExtendedFilter;
-import org.apache.cassandra.db.filter.IDiskAtomFilter;
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -72,7 +69,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import static org.apache.cassandra.config.CFMetaData.Caching;
 
@@ -1300,6 +1296,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
 
             removeDroppedColumns(result);
+
+            if (filter.filter instanceof SliceQueryFilter)
+            {
+                // Log the number of tombstones scanned on single key queries
+                metric.tombstoneScannedHistogram.update(((SliceQueryFilter) filter.filter).lastIgnored());
+                metric.liveScannedHistogram.update(((SliceQueryFilter) filter.filter).lastLive());
+            }
         }
         finally
         {
@@ -2171,6 +2174,22 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (maxThreshold == 0 || minThreshold == 0)
             throw new RuntimeException("Disabling compaction by setting min_compaction_threshold or max_compaction_threshold to 0 " +
                     "is deprecated, set the compaction strategy option 'enabled' to 'false' instead or use the nodetool command 'disableautocompaction'.");
+    }
+
+    public long getTombstonesPerLastRead()
+    {
+        return metric.tombstoneScannedHistogram.count();
+    }
+
+    public float getPercentageTombstonesPerLastRead()
+    {
+        long total = metric.tombstoneScannedHistogram.count() + metric.liveScannedHistogram.count();
+        return (metric.tombstoneScannedHistogram.count() / total);
+    }
+
+    public long getLiveCellsPerLastRead()
+    {
+        return metric.liveScannedHistogram.count();
     }
 
     // End JMX get/set.

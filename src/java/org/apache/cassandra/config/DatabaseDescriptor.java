@@ -880,6 +880,20 @@ public class DatabaseDescriptor
     }
 
     /**
+     * How many tombstones need to be scanned before we log a
+     * debug message
+     */
+    public static int getTombstoneDebugThreshold()
+    {
+        return conf.tombstone_debug_threshold;
+    }
+
+    public static void setTombstoneDebugThreshold(int tombstoneDebugThreshold)
+    {
+        conf.tombstone_debug_threshold = tombstoneDebugThreshold;
+    }
+
+    /**
      * size of commitlog segments to allocate
      */
     public static int getCommitLogSegmentSize()
