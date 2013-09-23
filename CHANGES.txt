@@ -6,6 +6,10 @@
  * Remove leveled json manifest migration code (CASSANDRA-5996)
 
 
+2.0.2
+ * Improve memory usage of metadata min/max column names (CASSANDRA-6077)
+
+
 2.0.1
  * Fix bug that could allow reading deleted data temporarily (CASSANDRA-6025)
  * Improve memory use defaults (CASSANDRA-5069)
