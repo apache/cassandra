@@ -7,6 +7,7 @@
 
 
 2.0.2
+ * Move batchlog replay to its own executor (CASSANDRA-6079)
  * Improve memory usage of metadata min/max column names (CASSANDRA-6077)
 
 
