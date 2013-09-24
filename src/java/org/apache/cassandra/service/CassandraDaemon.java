@@ -297,6 +297,10 @@ public class CassandraDaemon
             logger.warn("Unable to start GCInspector (currently only supported on the Sun JVM)");
         }
 
+        // MeteredFlusher can block if flush queue fills up, so don't put on scheduledTasks
+        // Start it before commit log, so memtables can flush during commit log replay
+        StorageService.optionalTasks.scheduleWithFixedDelay(new MeteredFlusher(), 1000, 1000, TimeUnit.MILLISECONDS);
+
         // replay the log if necessary
         try
         {
@@ -334,9 +338,6 @@ public class CassandraDaemon
             }
         };
         StorageService.optionalTasks.schedule(runnable, 5 * 60, TimeUnit.SECONDS);
-
-        // MeteredFlusher can block if flush queue fills up, so don't put on scheduledTasks
-        StorageService.optionalTasks.scheduleWithFixedDelay(new MeteredFlusher(), 1000, 1000, TimeUnit.MILLISECONDS);
 
         SystemTable.finishStartup();
 
