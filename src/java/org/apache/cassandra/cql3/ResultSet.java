@@ -102,13 +102,16 @@ public class ResultSet
         return makeCountResult(ksName, cfName, count, alias);
     }
 
-    public static ResultSet makeCountResult(String ksName, String cfName, long count, ColumnIdentifier alias)
+    public static ResultSet.Metadata makeCountMetadata(String ksName, String cfName, ColumnIdentifier alias)
     {
         ColumnSpecification spec = new ColumnSpecification(ksName, cfName, alias == null ? COUNT_COLUMN : alias, LongType.instance);
-        Metadata newMetadata = new Metadata(Collections.singletonList(spec));
-        List<List<ByteBuffer>> newRows = Collections.singletonList(Collections.singletonList(ByteBufferUtil.bytes(count)));
+        return new Metadata(Collections.singletonList(spec));
+    }
 
-        return new ResultSet(newMetadata, newRows);
+    public static ResultSet makeCountResult(String ksName, String cfName, long count, ColumnIdentifier alias)
+    {
+        List<List<ByteBuffer>> newRows = Collections.singletonList(Collections.singletonList(ByteBufferUtil.bytes(count)));
+        return new ResultSet(makeCountMetadata(ksName, cfName, alias), newRows);
     }
 
     public CqlResult toThriftResult()

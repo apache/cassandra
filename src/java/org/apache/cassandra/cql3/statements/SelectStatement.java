@@ -102,7 +102,9 @@ public class SelectStatement implements CQLStatement
 
     public ResultSet.Metadata getResultMetadata()
     {
-        return selection.getResultMetadata();
+        return parameters.isCount
+             ? ResultSet.makeCountMetadata(keyspace(), columnFamily(), parameters.countAlias)
+             : selection.getResultMetadata();
     }
 
     public int getBoundsTerms()
