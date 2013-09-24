@@ -126,8 +126,7 @@ public class QueryProcessor
     {
         try
         {
-            QueryState state = new QueryState(new ClientState(true));
-            ResultMessage result = process(query, state, new QueryOptions(cl, Collections.<ByteBuffer>emptyList()));
+            ResultMessage result = process(query, QueryState.forInternalCalls(), new QueryOptions(cl, Collections.<ByteBuffer>emptyList()));
             if (result instanceof ResultMessage.Rows)
                 return new UntypedResultSet(((ResultMessage.Rows)result).result);
             else
@@ -143,7 +142,7 @@ public class QueryProcessor
     {
         try
         {
-            ClientState state = new ClientState(true);
+            ClientState state = ClientState.forInternalCalls();
             QueryState qState = new QueryState(state);
             state.setKeyspace(Keyspace.SYSTEM_KS);
             CQLStatement statement = getStatement(query, state).statement;

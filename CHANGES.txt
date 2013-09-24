@@ -2,6 +2,8 @@
  * Improve memory usage of metadata min/max column names (CASSANDRA-6077)
  * Fix thrift validation refusing row markers on CQL3 tables (CASSANDRA-6081)
  * Fix insertion of collections with CAS (CASSANDRA-6069)
+ * Correctly send metadata on SELECT COUNT (CASSANDRA-6080)
+ * Track clients' remote addresses in ClientState (CASSANDRA-6070)
 Merged from 1.2:
  * Start MeteredFlusher earlier to prevent OOM during CL replay (CASSANDRA-6087)
  * Avoid sending Truncate command to fat clients (CASSANDRA-6088)

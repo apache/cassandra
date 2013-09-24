@@ -107,7 +107,7 @@ public class PasswordAuthenticator implements ISaslAwareAuthenticator
         UntypedResultSet result;
         try
         {
-            ResultMessage.Rows rows = authenticateStatement.execute(new QueryState(new ClientState(true)),
+            ResultMessage.Rows rows = authenticateStatement.execute(QueryState.forInternalCalls(),
                                                                     new QueryOptions(consistencyForUser(username),
                                                                                      Lists.newArrayList(ByteBufferUtil.bytes(username))));
             result = new UntypedResultSet(rows.result);

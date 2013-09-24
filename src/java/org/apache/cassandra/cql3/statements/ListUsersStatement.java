@@ -42,6 +42,6 @@ public class ListUsersStatement extends AuthenticationStatement
     {
         return QueryProcessor.process(String.format("SELECT * FROM %s.%s", Auth.AUTH_KS, Auth.USERS_CF),
                                       ConsistencyLevel.QUORUM,
-                                      new QueryState(new ClientState(true)));
+                                      QueryState.forInternalCalls());
     }
 }
