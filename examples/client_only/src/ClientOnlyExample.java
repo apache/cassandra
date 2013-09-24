@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,22 +16,18 @@
  * limitations under the License.
  */
 
-import java.nio.ByteBuffer;
-import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.exceptions.RequestValidationException;
-import org.apache.cassandra.service.*;
-import org.apache.cassandra.transport.messages.ResultMessage;
-
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.service.*;
 
 public class ClientOnlyExample
 {
@@ -47,24 +43,15 @@ public class ClientOnlyExample
 
     private static void testWriting() throws Exception
     {
-        ClientState state = new ClientState(false);
-        state.setKeyspace(KEYSPACE);
         // do some writing.
         for (int i = 0; i < 100; i++)
         {
-            QueryProcessor.process(
-                    new StringBuilder()
-                            .append("INSERT INTO ")
-                            .append(COLUMN_FAMILY)
-                            .append(" (id, name, value) VALUES ( 'key")
-                            .append(i)
-                            .append("', 'colb', 'value")
-                            .append(i)
-                            .append("' )")
-                            .toString(),
-                    ConsistencyLevel.QUORUM,
-                    new QueryState(state)
-            );
+            QueryProcessor.process(String.format("INSERT INTO %s.%s (id, name, value) VALUES ( 'key%d', 'colb', 'value%d')",
+                                                 KEYSPACE,
+                                                 COLUMN_FAMILY,
+                                                 i,
+                                                 i),
+                                   ConsistencyLevel.QUORUM);
 
             System.out.println("wrote key" + i);
         }
@@ -74,33 +61,14 @@ public class ClientOnlyExample
     private static void testReading() throws Exception
     {
         // do some queries.
-        ClientState state = new ClientState(false);
-        state.setKeyspace(KEYSPACE);
         for (int i = 0; i < 100; i++)
         {
-            List<List<ByteBuffer>> rows = ((ResultMessage.Rows)QueryProcessor.process(
-                    new StringBuilder()
-                    .append("SELECT id, name, value FROM ")
-                    .append(COLUMN_FAMILY)
-                    .append(" WHERE id = 'key")
-                    .append(i)
-                    .append("'")
-                    .toString(),
-                    ConsistencyLevel.QUORUM,
-                    new QueryState(state)
-            )).result.rows;
-
-            assert rows.size() == 1;
-            List<ByteBuffer> r = rows.get(0);
-            assert r.size() == 3;
-            System.out.println(new StringBuilder()
-                    .append("ID: ")
-                    .append(AsciiType.instance.compose(r.get(0)))
-                    .append(", Name: ")
-                    .append(AsciiType.instance.compose(r.get(1)))
-                    .append(", Value: ")
-                    .append(AsciiType.instance.compose(r.get(2)))
-                    .toString());
+            String query = String.format("SELECT id, name, value FROM %s.%s WHERE id = 'key%d'",
+                                         KEYSPACE,
+                                         COLUMN_FAMILY,
+                                         i);
+            UntypedResultSet.Row row = QueryProcessor.process(query, ConsistencyLevel.QUORUM).one();
+            System.out.println(String.format("ID: %s, Name: %s, Value: %s", row.getString("id"), row.getString("name"), row.getString("value")));
         }
     }
 
@@ -137,41 +105,10 @@ public class ClientOnlyExample
 
     private static void setupKeyspace() throws RequestExecutionException, RequestValidationException, InterruptedException
     {
-        if (QueryProcessor.process(
-                new StringBuilder()
-                        .append("SELECT * FROM system.schema_keyspaces WHERE keyspace_name='")
-                        .append(KEYSPACE)
-                        .append("'")
-                        .toString(), ConsistencyLevel.QUORUM)
-                .isEmpty())
-        {
-            QueryProcessor.process(new StringBuilder()
-                    .append("CREATE KEYSPACE ")
-                    .append(KEYSPACE)
-                    .append(" WITH replication = { 'class': 'SimpleStrategy', 'replication_factor': '1' }")
-                    .toString(), ConsistencyLevel.QUORUM);
-            Thread.sleep(1000);
-        }
-
-        if (QueryProcessor.process(
-                new StringBuilder()
-                        .append("SELECT * FROM system.schema_columnfamilies WHERE keyspace_name='")
-                        .append(KEYSPACE)
-                        .append("' AND columnfamily_name='")
-                        .append(COLUMN_FAMILY)
-                        .append("'")
-                        .toString(), ConsistencyLevel.QUORUM)
-                .isEmpty())
-        {
-            ClientState state = new ClientState();
-            state.setKeyspace(KEYSPACE);
-
-            QueryProcessor.process(new StringBuilder()
-                    .append("CREATE TABLE ")
-                    .append(COLUMN_FAMILY)
-                    .append(" ( id ascii PRIMARY KEY, name ascii, value ascii )")
-                    .toString(), ConsistencyLevel.QUORUM, new QueryState(state));
-            Thread.sleep(1000);
-        }
+        QueryProcessor.process("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}",
+                               ConsistencyLevel.ANY);
+        QueryProcessor.process("CREATE TABLE IF NOT EXISTS " + KEYSPACE + "." + COLUMN_FAMILY + " (id ascii PRIMARY KEY, name ascii, value ascii )",
+                               ConsistencyLevel.ANY);
+        TimeUnit.MILLISECONDS.sleep(1000);
     }
 }

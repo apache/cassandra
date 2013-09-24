@@ -23,16 +23,16 @@ import org.jboss.netty.channel.Channel;
 
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.ISaslAwareAuthenticator;
+import org.apache.cassandra.auth.ISaslAwareAuthenticator.SaslAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 
-import org.apache.cassandra.auth.ISaslAwareAuthenticator.SaslAuthenticator;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class ServerConnection extends Connection
 {
-    private enum State { UNINITIALIZED, AUTHENTICATION, READY; }
+    private enum State { UNINITIALIZED, AUTHENTICATION, READY }
 
     private volatile SaslAuthenticator saslAuthenticator;
     private final ClientState clientState;
@@ -43,7 +43,7 @@ public class ServerConnection extends Connection
     public ServerConnection(Channel channel, int version, Connection.Tracker tracker)
     {
         super(channel, version, tracker);
-        this.clientState = new ClientState();
+        this.clientState = ClientState.forExternalCalls(channel.getRemoteAddress());
         this.state = State.UNINITIALIZED;
     }
 

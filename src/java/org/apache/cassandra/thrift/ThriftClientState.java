@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.thrift;
 
+import java.net.SocketAddress;
 import java.util.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -38,15 +39,17 @@ public class ThriftClientState extends ClientState
     private final QueryState queryState;
 
     // An LRU map of prepared statements
-    private final Map<Integer, CQLStatement> prepared = new LinkedHashMap<Integer, CQLStatement>(16, 0.75f, true) {
-        protected boolean removeEldestEntry(Map.Entry<Integer, CQLStatement> eldest) {
+    private final Map<Integer, CQLStatement> prepared = new LinkedHashMap<Integer, CQLStatement>(16, 0.75f, true)
+    {
+        protected boolean removeEldestEntry(Map.Entry<Integer, CQLStatement> eldest)
+        {
             return size() > MAX_CACHE_PREPARED;
         }
     };
 
-    public ThriftClientState()
+    public ThriftClientState(SocketAddress remoteAddress)
     {
-        super();
+        super(remoteAddress);
         this.queryState = new QueryState(this);
     }
 
