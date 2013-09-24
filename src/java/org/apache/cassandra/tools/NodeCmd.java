@@ -31,6 +31,7 @@ import java.util.concurrent.ExecutionException;
 import com.google.common.base.Joiner;
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Maps;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.cli.*;
 import org.yaml.snakeyaml.Loader;
@@ -278,6 +279,12 @@ public class NodeCmd
         catch (UnknownHostException e)
         {
             throw new RuntimeException(e);
+        }
+
+        if(DatabaseDescriptor.getNumTokens() > 1)
+        {
+            outs.println("  Warning: \"nodetool ring\" is used to output all the tokens of a node.");
+            outs.println("  To view status related info of a node use \"nodetool status\" instead.\n");
         }
     }
 
