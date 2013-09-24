@@ -234,8 +234,9 @@ public class Auth
     {
         try
         {
-            ResultMessage.Rows rows = selectUserStatement.execute(new QueryState(new ClientState(true)),
-                                                                  new QueryOptions(consistencyForUser(username), Lists.newArrayList(ByteBufferUtil.bytes(username))));
+            ResultMessage.Rows rows = selectUserStatement.execute(QueryState.forInternalCalls(),
+                                                                  new QueryOptions(consistencyForUser(username),
+                                                                                   Lists.newArrayList(ByteBufferUtil.bytes(username))));
             return new UntypedResultSet(rows.result);
         }
         catch (RequestValidationException e)

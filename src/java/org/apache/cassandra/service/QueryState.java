@@ -36,6 +36,14 @@ public class QueryState
         this.clientState = clientState;
     }
 
+    /**
+     * @return a QueryState object for internal C* calls (not limited by any kind of auth).
+     */
+    public static QueryState forInternalCalls()
+    {
+        return new QueryState(ClientState.forInternalCalls());
+    }
+
     public ClientState getClientState()
     {
         return clientState;
