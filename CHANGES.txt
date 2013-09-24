@@ -11,11 +11,14 @@
  * Fix thrift validation refusing row markers on CQL3 tables (CASSANDRA-6081)
  * Fix insertion of collections with CAS (CASSANDRA-6069)
 Merged from 1.2:
+ * Avoid sending Truncate command to fat clients (CASSANDRA-6088)
+ * Allow cache-keys-to-save to be set at runtime (CASSANDRA-5980)
  * Allow where clause conditions to be in parenthesis (CASSANDRA-6037)
  * Do not open non-ssl storage port if encryption option is all (CASSANDRA-3916)
  * Move batchlog replay to its own executor (CASSANDRA-6079)
  * Add tombstone debug threshold and histogram (CASSANDRA-6042, 6057)
  * Enable tcp keepalive on incoming connections (CASSANDRA-4053)
+
 
 2.0.1
  * Fix bug that could allow reading deleted data temporarily (CASSANDRA-6025)
