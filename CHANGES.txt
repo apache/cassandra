@@ -7,7 +7,7 @@ Merged from 1.2:
  * Do not open non-ssl storage port if encryption option is all (CASSANDRA-3916)
  * Move batchlog replay to its own executor (CASSANDRA-6079)
  * Add tombstone debug threshold and histogram (CASSANDRA-6042, 6057)
-
+ * Enable tcp keepalive on incoming connections (CASSANDRA-4053)
 
 2.0.1
  * Fix bug that could allow reading deleted data temporarily (CASSANDRA-6025)

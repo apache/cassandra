@@ -820,6 +820,7 @@ public final class MessagingService implements MessagingServiceMBean
                     Socket socket = server.accept();
                     if (authenticate(socket))
                     {
+                        socket.setKeepAlive(true);
                         // determine the connection type to decide whether to buffer
                         DataInputStream in = new DataInputStream(socket.getInputStream());
                         MessagingService.validateMagic(in.readInt());
