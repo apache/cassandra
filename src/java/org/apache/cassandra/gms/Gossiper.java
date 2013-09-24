@@ -218,10 +218,22 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public Set<InetAddress> getLiveMembers()
     {
-        Set<InetAddress> liveMbrs = new HashSet<InetAddress>(liveEndpoints);
-        if (!liveMbrs.contains(FBUtilities.getBroadcastAddress()))
-            liveMbrs.add(FBUtilities.getBroadcastAddress());
-        return liveMbrs;
+        Set<InetAddress> liveMembers = new HashSet<InetAddress>(liveEndpoints);
+        if (!liveMembers.contains(FBUtilities.getBroadcastAddress()))
+            liveMembers.add(FBUtilities.getBroadcastAddress());
+        return liveMembers;
+    }
+
+    public Set<InetAddress> getLiveTokenOwners()
+    {
+        Set<InetAddress> tokenOwners = new HashSet<InetAddress>();
+        for (InetAddress member : getLiveMembers())
+        {
+            EndpointState epState = endpointStateMap.get(member);
+            if (epState != null && !isDeadState(epState) && StorageService.instance.getTokenMetadata().isMember(member))
+                tokenOwners.add(member);
+        }
+        return tokenOwners;
     }
 
     public Set<InetAddress> getUnreachableMembers()
