@@ -1834,7 +1834,8 @@ public class StorageProxy implements StorageProxyMBean
             throw new UnavailableException(ConsistencyLevel.ALL, liveMembers + Gossiper.instance.getUnreachableMembers().size(), liveMembers);
         }
 
-        Set<InetAddress> allEndpoints = Gossiper.instance.getLiveMembers();
+        Set<InetAddress> allEndpoints = Gossiper.instance.getLiveTokenOwners();
+        
         int blockFor = allEndpoints.size();
         final TruncateResponseHandler responseHandler = new TruncateResponseHandler(blockFor);
 
