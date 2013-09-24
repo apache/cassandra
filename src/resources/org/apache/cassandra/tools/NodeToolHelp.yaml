@@ -144,7 +144,7 @@ commands:
       Flush one or more column families
   - name: repair [keyspace] [cfnames]
     help: |
-      Repair one or more column families (use -pr to repair only the first range returned by the partitioner)
+      Repair one or more column families (use -pr to repair only the first range returned by the partitioner; -snapshot to repair one node at a time sequentially using snapshots)
   - name: cleanup [keyspace] [cfnames]
     help: |
       Run cleanup on one or more column families
