@@ -5,3 +5,4 @@ usr/bin
 etc/cassandra
 var/lib/cassandra
 var/log/cassandra
+var/run/cassandra
