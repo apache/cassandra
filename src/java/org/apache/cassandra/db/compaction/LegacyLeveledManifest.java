@@ -134,6 +134,8 @@ public class LegacyLeveledManifest
         if (manifestFile != null)
         {
             File snapshotDirectory = new File(new File(manifestFile.getParentFile(), Directories.SNAPSHOT_SUBDIR), snapshotName);
+            if (!snapshotDirectory.exists())
+                snapshotDirectory.mkdirs();
             File target = new File(snapshotDirectory, manifestFile.getName());
             FileUtils.createHardLink(manifestFile, target);
         }

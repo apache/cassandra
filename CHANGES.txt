@@ -4,6 +4,8 @@
  * Fix insertion of collections with CAS (CASSANDRA-6069)
  * Correctly send metadata on SELECT COUNT (CASSANDRA-6080)
  * Track clients' remote addresses in ClientState (CASSANDRA-6070)
+ * Create snapshot dir if it does not exist when migrating
+   leveled manifest (CASSANDRA-6093)
 Merged from 1.2:
  * Allow estimated memtable size to exceed slab allocator size (CASSANDRA-6078)
  * Start MeteredFlusher earlier to prevent OOM during CL replay (CASSANDRA-6087)
