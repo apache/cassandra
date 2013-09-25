@@ -230,7 +230,7 @@ public class CqlStorage extends AbstractCassandraStorage
             }
             catch (NumberFormatException e)
             {
-                throw new RuntimeException("PIG_INPUT_SPLIT_SIZE is not a number", e);
+                throw new IOException("PIG_INPUT_SPLIT_SIZE is not a number", e);
             }           
         }
 
@@ -306,7 +306,7 @@ public class CqlStorage extends AbstractCassandraStorage
         return schema;
     }
 
-    public void setPartitionFilter(Expression partitionFilter)
+    public void setPartitionFilter(Expression partitionFilter) throws IOException
     {
         UDFContext context = UDFContext.getUDFContext();
         Properties property = context.getUDFProperties(AbstractCassandraStorage.class);
@@ -526,7 +526,7 @@ public class CqlStorage extends AbstractCassandraStorage
      * Return cql where clauses for the corresponding partition filter. Make sure the data format matches 
      * Only support the following Pig data types: int, long, float, double, boolean and chararray
      * */
-    private String partitionFilterToWhereClauseString(Expression expression)
+    private String partitionFilterToWhereClauseString(Expression expression) throws IOException
     {
         Expression.BinaryExpression be = (Expression.BinaryExpression) expression;
         OpType op = expression.getOpType();
@@ -545,7 +545,7 @@ public class CqlStorage extends AbstractCassandraStorage
             case OP_AND:
                 return String.format("%s AND %s", partitionFilterToWhereClauseString(be.getLhs()), partitionFilterToWhereClauseString(be.getRhs()));
             default:
-                throw new RuntimeException("Unsupported expression type: " + opString);
+                throw new IOException("Unsupported expression type: " + opString);
         }
     }
 }

@@ -154,7 +154,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     }
 
     /** get the columnfamily definition for the signature */
-    protected CfDef getCfDef(String signature)
+    protected CfDef getCfDef(String signature) throws IOException
     {
         UDFContext context = UDFContext.getUDFContext();
         Properties property = context.getUDFProperties(AbstractCassandraStorage.class);
@@ -232,7 +232,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     }
 
     @Override
-    public InputFormat getInputFormat()
+    public InputFormat getInputFormat() throws IOException
     {
         try
         {
@@ -240,7 +240,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         }
         catch (ConfigurationException e)
         {
-            throw new RuntimeException(e);
+            throw new IOException(e);
         }
     }
 
@@ -356,7 +356,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     }
 
     /** output format */
-    public OutputFormat getOutputFormat()
+    public OutputFormat getOutputFormat() throws IOException
     {
         try
         {
@@ -364,7 +364,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         }
         catch (ConfigurationException e)
         {
-            throw new RuntimeException(e);
+            throw new IOException(e);
         }
     }
 
@@ -463,7 +463,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     }
 
     /** Methods to get the column family schema from Cassandra */
-    protected void initSchema(String signature)
+    protected void initSchema(String signature) throws IOException
     {
         Properties properties = UDFContext.getUDFContext().getUDFProperties(AbstractCassandraStorage.class);
 
@@ -488,7 +488,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
                     catch (AuthenticationException e)
                     {
                         logger.error("Authentication exception: invalid username and/or password");
-                        throw new RuntimeException(e);
+                        throw new IOException(e);
                     }
                     catch (AuthorizationException e)
                     {
@@ -502,19 +502,19 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
                 if (cfDef != null)
                     properties.setProperty(signature, cfdefToString(cfDef));
                 else
-                    throw new RuntimeException(String.format("Column family '%s' not found in keyspace '%s'",
+                    throw new IOException(String.format("Column family '%s' not found in keyspace '%s'",
                                                              column_family,
                                                              keyspace));
             }
             catch (Exception e)
             {
-                throw new RuntimeException(e);
+                throw new IOException(e);
             }
         }
     }
 
     /** convert CfDef to string */
-    protected static String cfdefToString(CfDef cfDef)
+    protected static String cfdefToString(CfDef cfDef) throws IOException
     {
         assert cfDef != null;
         // this is so awful it's kind of cool!
@@ -525,12 +525,12 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         }
         catch (TException e)
         {
-            throw new RuntimeException(e);
+            throw new IOException(e);
         }
     }
 
     /** convert string back to CfDef */
-    protected static CfDef cfdefFromString(String st)
+    protected static CfDef cfdefFromString(String st) throws IOException
     {
         assert st != null;
         TDeserializer deserializer = new TDeserializer(new TBinaryProtocol.Factory());
@@ -541,7 +541,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         }
         catch (TException e)
         {
-            throw new RuntimeException(e);
+            throw new IOException(e);
         }
         return cfDef;
     }
@@ -844,7 +844,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     }
 
     /** return partition keys */
-    public String[] getPartitionKeys(String location, Job job)
+    public String[] getPartitionKeys(String location, Job job) throws IOException
     {
         if (!usePartitionFilter)
             return null;
@@ -858,7 +858,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     }
 
     /** get a list of columns with defined index*/
-    protected List<ColumnDef> getIndexes()
+    protected List<ColumnDef> getIndexes() throws IOException
     {
         CfDef cfdef = getCfDef(loadSignature);
         List<ColumnDef> indexes = new ArrayList<ColumnDef>();
