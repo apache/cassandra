@@ -292,7 +292,7 @@ public class CassandraStorage extends AbstractCassandraStorage
             }
             catch (NumberFormatException e)
             {
-                throw new RuntimeException("PIG_INPUT_SPLIT_SIZE is not a number", e);
+                throw new IOException("PIG_INPUT_SPLIT_SIZE is not a number", e);
             }           
         } 
 
@@ -456,7 +456,7 @@ public class CassandraStorage extends AbstractCassandraStorage
     }
 
     /** set partition filter */
-    public void setPartitionFilter(Expression partitionFilter)
+    public void setPartitionFilter(Expression partitionFilter) throws IOException
     {
         UDFContext context = UDFContext.getUDFContext();
         Properties property = context.getUDFProperties(AbstractCassandraStorage.class);
@@ -618,7 +618,7 @@ public class CassandraStorage extends AbstractCassandraStorage
     }
 
     /** get a list of Cassandra IndexExpression from Pig expression */
-    private List<IndexExpression> filterToIndexExpressions(Expression expression)
+    private List<IndexExpression> filterToIndexExpressions(Expression expression) throws IOException
     {
         List<IndexExpression> indexExpressions = new ArrayList<IndexExpression>();
         Expression.BinaryExpression be = (Expression.BinaryExpression)expression;
@@ -646,13 +646,13 @@ public class CassandraStorage extends AbstractCassandraStorage
                 indexExpressions.addAll(filterToIndexExpressions(be.getRhs()));
                 break;
             default:
-                throw new RuntimeException("Unsupported expression type: " + expression.getOpType().name());
+                throw new IOException("Unsupported expression type: " + expression.getOpType().name());
         }
         return indexExpressions;
     }
 
     /** convert a list of index expression to string */
-    private static String indexExpressionsToString(List<IndexExpression> indexExpressions)
+    private static String indexExpressionsToString(List<IndexExpression> indexExpressions) throws IOException
     {
         assert indexExpressions != null;
         // oh, you thought cfdefToString was awful?
@@ -666,12 +666,12 @@ public class CassandraStorage extends AbstractCassandraStorage
         }
         catch (TException e)
         {
-            throw new RuntimeException(e);
+            throw new IOException(e);
         }
     }
 
     /** convert string to a list of index expression */
-    private static List<IndexExpression> indexExpressionsFromString(String ie)
+    private static List<IndexExpression> indexExpressionsFromString(String ie) throws IOException
     {
         assert ie != null;
         TDeserializer deserializer = new TDeserializer(new TBinaryProtocol.Factory());
@@ -682,13 +682,13 @@ public class CassandraStorage extends AbstractCassandraStorage
         }
         catch (TException e)
         {
-            throw new RuntimeException(e);
+            throw new IOException(e);
         }
         return indexClause.getExpressions();
     }
 
     /** get a list of index expression */
-    private List<IndexExpression> getIndexExpressions()
+    private List<IndexExpression> getIndexExpressions() throws IOException
     {
         UDFContext context = UDFContext.getUDFContext();
         Properties property = context.getUDFProperties(AbstractCassandraStorage.class);
