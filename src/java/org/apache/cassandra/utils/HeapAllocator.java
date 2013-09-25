@@ -38,9 +38,4 @@ public final class HeapAllocator extends Allocator
     {
         return 0;
     }
-
-    public long getMaximumSize()
-    {
-        return Long.MAX_VALUE;
-    }
 }

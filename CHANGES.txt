@@ -13,6 +13,7 @@
  * Correctly send metadata on SELECT COUNT (CASSANDRA-6080)
  * Track clients' remote addresses in ClientState (CASSANDRA-6070)
 Merged from 1.2:
+ * Allow estimated memtable size to exceed slab allocator size (CASSANDRA-6078)
  * Start MeteredFlusher earlier to prevent OOM during CL replay (CASSANDRA-6087)
  * Avoid sending Truncate command to fat clients (CASSANDRA-6088)
  * Allow cache-keys-to-save to be set at runtime (CASSANDRA-5980)
