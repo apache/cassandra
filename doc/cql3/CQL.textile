@@ -61,13 +61,13 @@ h3. Comments
 
 A comment in CQL is a line beginning by either double dashes (@--@) or double slash (@//@).
 
-Multi-line comments are also supported through enclosure withing @/*@ and @*/@ (but nesting is not supported).
+Multi-line comments are also supported through enclosure within @/*@ and @*/@ (but nesting is not supported).
 
 bc(sample). 
 -- This is a comment
 // This is a comment too
 /* This is
-   a multiline comment */
+   a multi-line comment */
 
 h3(#statements). Statements
 
@@ -306,7 +306,7 @@ Table creation supports the following other @<property>@:
 |@dclocal_read_repair_chance@ | _simple_ | 0           | The probability with which to query extra nodes (e.g. more nodes than required by the consistency level) belonging to the same data center than the read coordinator for the purpose of read repairs.|
 |@gc_grace_seconds@           | _simple_ | 864000      | Time to wait before garbage collecting tombstones (deletion markers).|
 |@bloom_filter_fp_chance@     | _simple_ | 0.00075     | The target probability of false positive of the sstable bloom filters. Said bloom filters will be sized to provide the provided probability (thus lowering this value impact the size of bloom filters in-memory and on-disk)|
-|@compaction@                 | _map_    | _see below_ | The compaction otpions to use, see below.|
+|@compaction@                 | _map_    | _see below_ | The compaction options to use, see below.|
 |@compression@                | _map_    | _see below_ | Compression options, see below. |
 |@replicate_on_write@         | _simple_ | true        | Whether to replicate data on write. This can only be set to false for tables with counters values. Disabling this is dangerous and can result in random lose of counters, don't disable unless you are sure to know what you are doing|
 |@caching@                    | _simple_ | keys_only   | Whether to cache keys ("key cache") and/or rows ("row cache") for this table. Valid values are: @all@, @keys_only@, @rows_only@ and @none@. |
@@ -318,7 +318,7 @@ The @compaction@ property must at least define the @'class'@ sub-option, that de
 
 |_. option                        |_. supported compaction strategy |_. default |_. description |
 | @tombstone_threshold@           | _all_                           | 0.2       | A ratio such that if a sstable has more than this ratio of gcable tombstones over all contained columns, the sstable will be compacted (with no other sstables) for the purpose of purging those tombstones. |
-| @tombstone_compaction_interval@ | _all_                           | 1 day     | The mininum time to wait after an sstable creation time before considering it for "tombstone compaction", where "tombstone compaction" is the compaction triggered if the sstable has more gcable tombstones than @tombstone_threshold@. |
+| @tombstone_compaction_interval@ | _all_                           | 1 day     | The minimum time to wait after an sstable creation time before considering it for "tombstone compaction", where "tombstone compaction" is the compaction triggered if the sstable has more gcable tombstones than @tombstone_threshold@. |
 | @min_sstable_size@              | SizeTieredCompactionStrategy    | 50MB      | The size tiered strategy groups SSTables to compact in buckets. A bucket groups SSTables that differs from less than 50% in size.  However, for small sizes, this would result in a bucketing that is too fine grained. @min_sstable_size@ defines a size threshold (in bytes) below which all SSTables belong to one unique bucket|
 | @min_threshold@                 | SizeTieredCompactionStrategy    | 4         | Minimum number of SSTables needed to start a minor compaction.|
 | @max_threshold@                 | SizeTieredCompactionStrategy    | 32        | Maximum number of SSTables processed by one minor compaction.|
@@ -685,7 +685,7 @@ bc(sample).
 // Needs a blog_title to be set to select ranges of posted_at
 SELECT entry_title, content FROM posts WHERE userid='john doe' AND posted_at >= '2012-01-01' AND posted_at < '2012-01-31'
 
-When specifying relations, the @TOKEN@ function can be used on the @PARTITION KEY@ column to query. In that case, rows will be selected based on the token of their @PARTITION_KEY@ rather than on the value. Note that the token of a key depends on the partitioner in use, and that in particular the RandomPartitioner won't yeld a meaningful order. Also note that ordering partitioners always order token values by bytes (so even if the partition key is of type int, @token(-1) > token(0)@ in particular). Example:
+When specifying relations, the @TOKEN@ function can be used on the @PARTITION KEY@ column to query. In that case, rows will be selected based on the token of their @PARTITION_KEY@ rather than on the value. Note that the token of a key depends on the partitioner in use, and that in particular the RandomPartitioner won't yield a meaningful order. Also note that ordering partitioners always order token values by bytes (so even if the partition key is of type int, @token(-1) > token(0)@ in particular). Example:
 
 bc(sample). 
 SELECT * FROM posts WHERE token(userid) > token('tom') AND token(userid) < token('bob')
@@ -706,7 +706,7 @@ h4(#selectAllowFiltering). @ALLOW FILTERING@
 
 By default, CQL only allows select queries that don't involve "filtering" server side, i.e. queries where we know that all (live) record read will be returned (maybe partly) in the result set. The reasoning is that those "non filtering" queries have predictable performance in the sense that they will execute in a time that is proportional to the amount of data *returned* by the query (which can be controlled through @LIMIT@).
 
-The @ALLOW FILTERING@ option allows to explicitely allow (some) queries that require filtering. Please note that a query using @ALLOW FILTERING@ may thus have unpredictable performance (for the definition above), i.e. even a query that selects a handful of records *may* exhibit performance that depends on the total amount of data stored in the cluster.
+The @ALLOW FILTERING@ option allows to explicitly allow (some) queries that require filtering. Please note that a query using @ALLOW FILTERING@ may thus have unpredictable performance (for the definition above), i.e. even a query that selects a handful of records *may* exhibit performance that depends on the total amount of data stored in the cluster.
 
 For instance, considering the following table holding user profiles with their year of birth (with a secondary index on it) and country of residence:
 
@@ -728,7 +728,7 @@ bc(sample).
 SELECT * FROM users;
 SELECT firstname, lastname FROM users WHERE birth_year = 1981;
 
-because in both case, Cassandra guarantees that these queries performance will be proportional to the amount of data returned. In particular, if no users are born in 1981, then the second query performance will not depend of the number of user profile stored in the database (not directly at least: due to 2ndary index implementation consideration, this query may still depend on the number of node in the cluster, which indirectly depends on the amount of data stored.  Nevertheless, the number of nodes will always be multiple number of magnitude lower than the number of user profile stored). Of course, both query may return very large result set in practice, but the amount of data returned can always be controlled by adding a @LIMIT@.
+because in both case, Cassandra guarantees that these queries performance will be proportional to the amount of data returned. In particular, if no users are born in 1981, then the second query performance will not depend of the number of user profile stored in the database (not directly at least: due to secondary index implementation consideration, this query may still depend on the number of node in the cluster, which indirectly depends on the amount of data stored.  Nevertheless, the number of nodes will always be multiple number of magnitude lower than the number of user profile stored). Of course, both query may return very large result set in practice, but the amount of data returned can always be controlled by adding a @LIMIT@.
 
 However, the following query will be rejected:
 
@@ -932,7 +932,7 @@ Lists also provides the following operation: setting an element by its position 
 bc(sample). 
 UPDATE plays SET scores[1] = 7 WHERE id = '123-afde';                // sets the 2nd element of scores to 7 (raises an error is scores has less than 2 elements)
 DELETE scores[1] FROM plays WHERE id = '123-afde';                   // deletes the 2nd element of scores (raises an error is scores has less than 2 elements)
-UPDATE plays SET scores = scores - [ 12, 21 ] WHERE id = '123-afde'; // removes all occurences of 12 and 21 from scores
+UPDATE plays SET scores = scores - [ 12, 21 ] WHERE id = '123-afde'; // removes all occurrences of 12 and 21 from scores
 
 As with "maps":#map, TTLs if used only apply to the newly inserted/updated _values_.
 
@@ -979,13 +979,13 @@ The @minTimeuuid@ (resp. @maxTimeuuid@) function takes a @timestamp@ value @t@ (
 bc(sample). 
 SELECT * FROM myTable WHERE t > maxTimeuuid('2013-01-01 00:05+0000') AND t < minTimeuuid('2013-02-02 10:00+0000')
  
-will select all rows where the @timeuuid@ column @t@ is strictly older than '2013-01-01 00:05+0000' but stricly younger than '2013-02-02 10:00+0000'.  Please note that @t >= maxTimeuuid('2013-01-01 00:05+0000')@ would still _not_ select a @timeuuid@ generated exactly at '2013-01-01 00:05+0000' and is essentially equivalent to @t > maxTimeuuid('2013-01-01 00:05+0000')@.
+will select all rows where the @timeuuid@ column @t@ is strictly older than '2013-01-01 00:05+0000' but strictly younger than '2013-02-02 10:00+0000'.  Please note that @t >= maxTimeuuid('2013-01-01 00:05+0000')@ would still _not_ select a @timeuuid@ generated exactly at '2013-01-01 00:05+0000' and is essentially equivalent to @t > maxTimeuuid('2013-01-01 00:05+0000')@.
 
 _Warning_: We called the values generated by @minTimeuuid@ and @maxTimeuuid@ _fake_ UUID because they do no respect the Time-Based UUID generation process specified by the "RFC 4122":http://www.ietf.org/rfc/rfc4122.txt. In particular, the value returned by these 2 methods will not be unique. This means you should only use those methods for querying (as in the example above). Inserting the result of those methods is almost certainly _a bad idea_.
 
 h4. @dateOf@ and @unixTimestampOf@
 
-The @dateOf@ and @unixTimestampOf@ functions take a @timeuuid@ argument and extract the embeded timestamp. However, while the @dateof@ function return it with the @timestamp@ type (that most client, including cqlsh, interpret as a date), the @unixTimestampOf@ function returns it as a @bigint@ raw value.
+The @dateOf@ and @unixTimestampOf@ functions take a @timeuuid@ argument and extract the embedded timestamp. However, while the @dateof@ function return it with the @timestamp@ type (that most client, including cqlsh, interpret as a date), the @unixTimestampOf@ function returns it as a @bigint@ raw value.
 
 h3(#blobFun). Blob conversion functions
 
@@ -1098,7 +1098,7 @@ h3. 3.1.0
 * "ALTER TABLE":#alterTableStmt @DROP@ option has been reenabled for CQL3 tables and has new semantics now: the space formerly used by dropped columns will now be eventually reclaimed (post-compaction). You should not readd previously dropped columns unless you use timestamps with microsecond precision (see "CASSANDRA-3919":https://issues.apache.org/jira/browse/CASSANDRA-3919 for more details).
 * @SELECT@ statement now supports aliases in select clause. Aliases in WHERE and ORDER BY clauses are not supported. See the "section on select"#selectStmt for details.
 * @CREATE@ statements for @KEYSPACE@, @TABLE@ and @INDEX@ now supports an @IF NOT EXISTS@ condition. Similarly, @DROP@ statements support a @IF EXISTS@ condition.
-* @INSERT@ statements optionally supports a @IF NOT EXISTS@ condition and @UDPATE@ supports @IF@ conditions.
+* @INSERT@ statements optionally supports a @IF NOT EXISTS@ condition and @UPDATE@ supports @IF@ conditions.
 
 h3. 3.0.5
 
@@ -1116,7 +1116,7 @@ h3. 3.0.3
 h3. 3.0.2
 
 * Type validation for the "constants":#constants has been fixed. For instance, the implementation used to allow @'2'@ as a valid value for an @int@ column (interpreting it has the equivalent of @2@), or @42@ as a valid @blob@ value (in which case @42@ was interpreted as an hexadecimal representation of the blob). This is no longer the case, type validation of constants is now more strict. See the "data types":#types section for details on which constant is allowed for which type.
-* The type validation fixed of the previous point has lead to the introduction of "blobs constants":#constants to allow inputing blobs. Do note that while inputing blobs as strings constant is still supported by this version (to allow smoother transition to blob constant), it is now deprecated (in particular the "data types":#types section does not list strings constants as valid blobs) and will be removed by a future version. If you were using strings as blobs, you should thus update your client code asap to switch blob constants.
+* The type validation fixed of the previous point has lead to the introduction of "blobs constants":#constants to allow inputing blobs. Do note that while inputing blobs as strings constant is still supported by this version (to allow smoother transition to blob constant), it is now deprecated (in particular the "data types":#types section does not list strings constants as valid blobs) and will be removed by a future version. If you were using strings as blobs, you should thus update your client code ASAP to switch blob constants.
 * A number of functions to convert native types to blobs have also been introduced. Furthermore the token function is now also allowed in select clauses. See the "section on functions":#functions for details.
 
 h3. 3.0.1
