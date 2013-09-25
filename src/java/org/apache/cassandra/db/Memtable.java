@@ -141,11 +141,9 @@ public class Memtable
     {
         long estimatedSize = (long) (currentSize.get() * cfs.liveRatio);
 
-        // cap the estimate at both ends by what the allocator can tell us
+        // liveRatio is just an estimate; we can get a lower bound directly from the allocator
         if (estimatedSize < allocator.getMinimumSize())
             return allocator.getMinimumSize();
-        if (estimatedSize > allocator.getMaximumSize())
-            return allocator.getMaximumSize();
 
         return estimatedSize;
     }
