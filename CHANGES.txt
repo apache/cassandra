@@ -7,6 +7,7 @@
  * Do not open non-ssl storage port if encryption option is all (CASSANDRA-3916)
  * Move batchlog replay to its own executor (CASSANDRA-6079)
  * Add tombstone debug threshold and histogram (CASSANDRA-6042, 6057)
+ * Fix fat client schema pull NPE (CASSANDRA-6089)
 
 
 1.2.10
