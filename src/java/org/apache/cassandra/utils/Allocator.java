@@ -38,6 +38,4 @@ public abstract class Allocator
     public abstract ByteBuffer allocate(int size);
 
     public abstract long getMinimumSize();
-
-    public abstract long getMaximumSize();
 }

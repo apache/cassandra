@@ -117,14 +117,6 @@ public class SlabAllocator extends Allocator
     }
 
     /**
-     * @return an upper bound on how much space has been allocated
-     */
-    public long getMaximumSize()
-    {
-        return unslabbed.get() + regionCount.get() * (long)REGION_SIZE;
-    }
-
-    /**
      * A region of memory out of which allocations are sliced.
      *
      * This serves two purposes:
