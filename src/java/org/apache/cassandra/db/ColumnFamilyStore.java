@@ -2184,7 +2184,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public float getPercentageTombstonesPerLastRead()
     {
         long total = metric.tombstoneScannedHistogram.count() + metric.liveScannedHistogram.count();
-        return (metric.tombstoneScannedHistogram.count() / total);
+        return ((float) metric.tombstoneScannedHistogram.count() / total);
     }
 
     public long getLiveCellsPerLastRead()
