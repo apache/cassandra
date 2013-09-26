@@ -50,7 +50,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
     public final IResponseResolver<TMessage, TResolved> resolver;
     private final SimpleCondition condition = new SimpleCondition();
     final long start;
-    private final int blockfor;
+    final int blockfor;
     final List<InetAddress> endpoints;
     private final IReadCommand command;
     private final ConsistencyLevel consistencyLevel;
