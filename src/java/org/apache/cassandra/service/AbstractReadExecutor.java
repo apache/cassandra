@@ -321,7 +321,7 @@ public abstract class AbstractReadExecutor
         @Override
         public void executeAsync()
         {
-            makeDataRequests(targetReplicas.subList(0, 2));
+            makeDataRequests(targetReplicas.subList(0, targetReplicas.size() > 1 ? 2 : 1));
             if (targetReplicas.size() > 2)
                 makeDigestRequests(targetReplicas.subList(2, targetReplicas.size()));
             cfs.metric.speculativeRetry.inc();
