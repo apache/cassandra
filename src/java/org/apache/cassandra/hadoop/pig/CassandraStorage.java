@@ -711,7 +711,7 @@ public class CassandraStorage extends AbstractCassandraStorage
         if (cql3Table)
             return new ArrayList<ColumnDef>();
         
-        return getColumnMeta(client, true);
+        return getColumnMeta(client, true, true);
     }
 
     /** convert key to a tuple */

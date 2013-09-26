@@ -23,6 +23,8 @@ import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 
+import org.apache.cassandra.cql3.CFDefinition;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.*;
@@ -31,6 +33,8 @@ import org.apache.cassandra.hadoop.*;
 import org.apache.cassandra.hadoop.cql3.CqlConfigHelper;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+
 import org.apache.hadoop.mapreduce.*;
 import org.apache.pig.Expression;
 import org.apache.pig.Expression.OpType;
@@ -61,7 +65,8 @@ public class CqlStorage extends AbstractCassandraStorage
     private String columns;
     private String outputQuery;
     private String whereClause;
-
+    private boolean hasCompactValueAlias = false;
+        
     public CqlStorage()
     {
         this(1000);
@@ -450,7 +455,7 @@ public class CqlStorage extends AbstractCassandraStorage
         }
 
         // get other columns
-        List<ColumnDef> columns = getColumnMeta(client, false);
+        List<ColumnDef> columns = getColumnMeta(client, false, !hasCompactValueAlias);
 
         // combine all columns in a list
         if (keyColumns != null && columns != null)
@@ -458,7 +463,140 @@ public class CqlStorage extends AbstractCassandraStorage
 
         return keyColumns;
     }
-    
+
+    /** get keys meta data */
+    protected List<ColumnDef> getKeysMeta(Cassandra.Client client)
+            throws Exception
+    {
+        String query = "SELECT key_aliases, " +
+                "       column_aliases, " +
+                "       key_validator, " +
+                "       comparator, " +
+                "       keyspace_name, " +
+                "       value_alias, " +
+                "       default_validator " +
+                "FROM system.schema_columnfamilies " +
+                "WHERE keyspace_name = '%s'" +
+                "  AND columnfamily_name = '%s' ";
+
+        CqlResult result = client.execute_cql3_query(
+                ByteBufferUtil.bytes(String.format(query, keyspace, column_family)),
+                Compression.NONE,
+                ConsistencyLevel.ONE);
+
+        if (result == null || result.rows == null || result.rows.isEmpty())
+            return null;
+
+        Iterator<CqlRow> iteraRow = result.rows.iterator();
+        List<ColumnDef> keys = new ArrayList<ColumnDef>();
+        if (iteraRow.hasNext())
+        {
+            CqlRow cqlRow = iteraRow.next();
+            String name = ByteBufferUtil.string(cqlRow.columns.get(4).value);
+            logger.debug("Found ksDef name: {}", name);
+            String keyString = ByteBufferUtil.string(ByteBuffer.wrap(cqlRow.columns.get(0).getValue()));
+
+            logger.debug("partition keys: {}", keyString);
+            List<String> keyNames = FBUtilities.fromJsonList(keyString);
+
+            Iterator<String> iterator = keyNames.iterator();
+            while (iterator.hasNext())
+            {
+                ColumnDef cDef = new ColumnDef();
+                cDef.name = ByteBufferUtil.bytes(iterator.next());
+                keys.add(cDef);
+            }
+            // classic thrift tables
+            if (keys.size() == 0)
+            {
+                CFDefinition cfDefinition = getCfDefinition(keyspace, column_family, client);
+                for (ColumnIdentifier column : cfDefinition.keys.keySet())
+                {
+                    String key = column.toString();
+                    logger.debug("name: {} ", key);
+                    ColumnDef cDef = new ColumnDef();
+                    cDef.name = ByteBufferUtil.bytes(key);
+                    keys.add(cDef);
+                }
+                for (ColumnIdentifier column : cfDefinition.columns.keySet())
+                {
+                    String key = column.toString();
+                    logger.debug("name: {} ", key);
+                    ColumnDef cDef = new ColumnDef();
+                    cDef.name = ByteBufferUtil.bytes(key);
+                    keys.add(cDef);
+                }
+            }
+
+            keyString = ByteBufferUtil.string(ByteBuffer.wrap(cqlRow.columns.get(1).getValue()));
+
+            logger.debug("cluster keys: {}", keyString);
+            keyNames = FBUtilities.fromJsonList(keyString);
+
+            iterator = keyNames.iterator();
+            while (iterator.hasNext())
+            {
+                ColumnDef cDef = new ColumnDef();
+                cDef.name = ByteBufferUtil.bytes(iterator.next());
+                keys.add(cDef);
+            }
+
+            String validator = ByteBufferUtil.string(ByteBuffer.wrap(cqlRow.columns.get(2).getValue()));
+            logger.debug("row key validator: {}", validator);
+            AbstractType<?> keyValidator = parseType(validator);
+
+            Iterator<ColumnDef> keyItera = keys.iterator();
+            if (keyValidator instanceof CompositeType)
+            {
+                Iterator<AbstractType<?>> typeItera = ((CompositeType) keyValidator).types.iterator();
+                while (typeItera.hasNext())
+                    keyItera.next().validation_class = typeItera.next().toString();
+            }
+            else
+                keyItera.next().validation_class = keyValidator.toString();
+
+            validator = ByteBufferUtil.string(ByteBuffer.wrap(cqlRow.columns.get(3).getValue()));
+            logger.debug("cluster key validator: {}", validator);
+
+            if (keyItera.hasNext() && validator != null && !validator.isEmpty())
+            {
+                AbstractType<?> clusterKeyValidator = parseType(validator);
+
+                if (clusterKeyValidator instanceof CompositeType)
+                {
+                    Iterator<AbstractType<?>> typeItera = ((CompositeType) clusterKeyValidator).types.iterator();
+                    while (keyItera.hasNext())
+                        keyItera.next().validation_class = typeItera.next().toString();
+                }
+                else
+                    keyItera.next().validation_class = clusterKeyValidator.toString();
+            }
+
+            // compact value_alias column
+            if (cqlRow.columns.get(5).value != null)
+            {
+                try
+                {
+                    String compactValidator = ByteBufferUtil.string(ByteBuffer.wrap(cqlRow.columns.get(6).getValue()));
+                    logger.debug("default validator: {}", compactValidator);
+                    AbstractType<?> defaultValidator = parseType(compactValidator);
+
+                    ColumnDef cDef = new ColumnDef();
+                    cDef.name = cqlRow.columns.get(5).value;
+                    cDef.validation_class = defaultValidator.toString();
+                    keys.add(cDef);
+                    hasCompactValueAlias = true;
+                }
+                catch (Exception e)
+                {
+                    // no compact column at value_alias
+                }
+            }
+
+        }
+        return keys;
+    }
+
     /** cql://[username:password@]<keyspace>/<columnfamily>[?[page_size=<size>]
      * [&columns=<col1,col2>][&output_query=<prepared_statement_query>][&where_clause=<clause>]
      * [&split_size=<size>][&partitioner=<partitioner>][&use_secondary=true|false]] */
