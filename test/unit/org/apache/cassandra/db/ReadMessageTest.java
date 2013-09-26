@@ -150,11 +150,12 @@ public class ReadMessageTest extends SchemaLoader
 
     private boolean isEmptyCommitLog(BufferedInputStream is) throws IOException
     {
+        DataInputStream dis = new DataInputStream(is);
         byte[] lookahead = new byte[100];
 
-        is.mark(100);
-        is.read(lookahead);
-        is.reset();
+        dis.mark(100);
+        dis.readFully(lookahead);
+        dis.reset();
 
         for (int i = 0; i < 100; i++)
         {
