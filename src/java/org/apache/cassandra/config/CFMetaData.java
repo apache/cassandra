@@ -345,7 +345,8 @@ public final class CFMetaData
             switch (type)
             {
             case PERCENTILE:
-                return value + "PERCENTILE";
+                // TODO switch to BigDecimal so round-tripping isn't lossy
+                return (value * 100) + "PERCENTILE";
             case CUSTOM:
                 return value + "ms";
             default:

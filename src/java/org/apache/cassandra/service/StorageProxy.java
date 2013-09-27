@@ -1181,7 +1181,11 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            readMetrics.addNano(System.nanoTime() - start);
+            long latency = System.nanoTime() - start;
+            readMetrics.addNano(latency);
+            // TODO avoid giving every command the same latency number.  Can fix this in CASSADRA-5329
+            for (ReadCommand command : commands)
+                Keyspace.open(command.ksName).getColumnFamilyStore(command.cfName).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
         }
         return rows;
     }
@@ -1560,7 +1564,9 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            rangeMetrics.addNano(System.nanoTime() - startTime);
+            long latency = System.nanoTime() - startTime;
+            rangeMetrics.addNano(latency);
+            Keyspace.open(command.keyspace).getColumnFamilyStore(command.columnFamily).metric.coordinatorScanLatency.update(latency, TimeUnit.NANOSECONDS);
         }
         return trim(command, rows);
     }
@@ -1576,7 +1582,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public Map<String, List<String>> getSchemaVersions()
     {
-        return this.describeSchemaVersions();
+        return describeSchemaVersions();
     }
 
     /**

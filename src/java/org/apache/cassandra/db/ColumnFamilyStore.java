@@ -109,7 +109,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private final AtomicLong liveRatioComputedAt = new AtomicLong(32);
 
     public final ColumnFamilyMetrics metric;
-    public volatile long sampleLatency = Long.MAX_VALUE;
+    public volatile long sampleLatencyNanos;
 
     public void reload()
     {
@@ -244,6 +244,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.indexManager = new SecondaryIndexManager(this);
         this.metric = new ColumnFamilyMetrics(this);
         fileIndexGenerator.set(generation);
+        sampleLatencyNanos = DatabaseDescriptor.getReadRpcTimeout() / 2;
 
         Caching caching = metadata.getCaching();
 
@@ -300,19 +301,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     case PERCENTILE:
                         // get percentile in nanos
-                        assert metric.readLatency.latency.durationUnit() == TimeUnit.MICROSECONDS;
-                        sampleLatency = (long) (metric.readLatency.latency.getSnapshot().getValue(retryPolicy.value) * 1000d);
+                        assert metric.coordinatorReadLatency.durationUnit() == TimeUnit.MICROSECONDS;
+                        logger.info("retryPolicy is {}", retryPolicy.value);
+                        sampleLatencyNanos = (long) (metric.coordinatorReadLatency.getSnapshot().getValue(retryPolicy.value) * 1000d);
                         break;
                     case CUSTOM:
                         // convert to nanos, since configuration is in millisecond
-                        sampleLatency = (long) (retryPolicy.value * 1000d * 1000d);
+                        sampleLatencyNanos = (long) (retryPolicy.value * 1000d * 1000d);
                         break;
                     default:
-                        sampleLatency = Long.MAX_VALUE;
+                        sampleLatencyNanos = Long.MAX_VALUE;
                         break;
                 }
             }
-        }, 30, 30, TimeUnit.SECONDS);
+        }, DatabaseDescriptor.getReadRpcTimeout(), DatabaseDescriptor.getReadRpcTimeout(), TimeUnit.MILLISECONDS);
     }
 
     /** call when dropping or renaming a CF. Performs mbean housekeeping and invalidates CFS to other operations */
