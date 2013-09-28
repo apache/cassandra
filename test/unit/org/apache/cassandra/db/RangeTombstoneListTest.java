@@ -109,10 +109,10 @@ public class RangeTombstoneListTest
         assert !iter.hasNext();
 
         RangeTombstoneList l2 = new RangeTombstoneList(cmp, initialCapacity);
-        l.add(rt(4, 10, 12L));
-        l.add(rt(0, 8, 25L));
+        l2.add(rt(4, 10, 12L));
+        l2.add(rt(0, 8, 25L));
 
-        assertEquals(25L, l.search(b(8)).markedForDeleteAt);
+        assertEquals(25L, l2.search(b(8)).markedForDeleteAt);
     }
 
     @Test
