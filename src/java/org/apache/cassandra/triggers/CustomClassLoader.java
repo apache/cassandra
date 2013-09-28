@@ -86,7 +86,7 @@ public class CustomClassLoader extends URLClassLoader
                 out.deleteOnExit();
                 logger.info("Loading new jar {}", inputJar.getAbsolutePath());
                 Files.copy(inputJar, out);
-                addURL(out.toURL());
+                addURL(out.toURI().toURL());
             }
             catch (IOException ex)
             {
