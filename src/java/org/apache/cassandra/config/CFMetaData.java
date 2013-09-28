@@ -258,6 +258,15 @@ public final class CFMetaData
                                                      + "PRIMARY KEY (row_key, cf_id)"
                                                      + ") WITH COMMENT='in-progress paxos proposals'");
 
+    public static final CFMetaData SSTableActivityCF = compile("CREATE TABLE " + SystemKeyspace.SSTABLE_ACTIVITY_CF + " ("
+                                                               + "keyspace_name text,"
+                                                               + "columnfamily_name text,"
+                                                               + "generation int,"
+                                                               + "rate_15m double,"
+                                                               + "rate_120m double,"
+                                                               + "PRIMARY KEY ((keyspace_name, columnfamily_name, generation))"
+                                                               + ") WITH COMMENT='historic sstable read rates'");
+
     public enum Caching
     {
         ALL, KEYS_ONLY, ROWS_ONLY, NONE;

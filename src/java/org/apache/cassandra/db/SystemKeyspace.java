@@ -28,6 +28,8 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.transport.Server;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -77,6 +79,7 @@ public class SystemKeyspace
     public static final String SCHEMA_TRIGGERS_CF = "schema_triggers";
     public static final String COMPACTION_LOG = "compactions_in_progress";
     public static final String PAXOS_CF = "paxos";
+    public static final String SSTABLE_ACTIVITY_CF = "sstable_activity";
 
     private static final String LOCAL_KEY = "local";
     private static final ByteBuffer ALL_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("Local");
@@ -837,5 +840,55 @@ public class SystemKeyspace
                                       ByteBufferUtil.bytesToHex(commit.update.toBytes()),
                                       ByteBufferUtil.bytesToHex(commit.key),
                                       commit.update.id()));
+    }
+
+    /**
+     * Returns a RestorableMeter tracking the average read rate of a particular SSTable, restoring the last-seen rate
+     * from values in system.sstable_activity if present.
+     * @param keyspace the keyspace the sstable belongs to
+     * @param table the table the sstable belongs to
+     * @param generation the generation number for the sstable
+     */
+    public static RestorableMeter getSSTableReadMeter(String keyspace, String table, int generation)
+    {
+        String cql = "SELECT * FROM %s WHERE keyspace_name='%s' and columnfamily_name='%s' and generation=%d";
+        UntypedResultSet results = processInternal(String.format(cql,
+                                                                 SSTABLE_ACTIVITY_CF,
+                                                                 keyspace,
+                                                                 table,
+                                                                 generation));
+
+        if (results.isEmpty())
+            return new RestorableMeter();
+
+        UntypedResultSet.Row row = results.one();
+        double m15rate = row.getDouble("rate_15m");
+        double m120rate = row.getDouble("rate_120m");
+        return new RestorableMeter(m15rate, m120rate);
+    }
+
+    /**
+     * Writes the current read rates for a given SSTable to system.sstable_activity
+     */
+    public static void persistSSTableReadMeter(String keyspace, String table, int generation, RestorableMeter meter)
+    {
+        // Store values with a one-day TTL to handle corner cases where cleanup might not occur
+        String cql = "INSERT INTO %s (keyspace_name, columnfamily_name, generation, rate_15m, rate_120m) VALUES ('%s', '%s', %d, %f, %f) USING TTL 864000";
+        processInternal(String.format(cql,
+                                      SSTABLE_ACTIVITY_CF,
+                                      keyspace,
+                                      table,
+                                      generation,
+                                      meter.fifteenMinuteRate(),
+                                      meter.twoHourRate()));
+    }
+
+    /**
+     * Clears persisted read rates from system.sstable_activity for SSTables that have been deleted.
+     */
+    public static void clearSSTableReadMeter(String keyspace, String table, int generation)
+    {
+        String cql = "DELETE FROM %s WHERE keyspace_name='%s' AND columnfamily_name='%s' and generation=%d";
+        processInternal(String.format(cql, SSTABLE_ACTIVITY_CF, keyspace, table, generation));
     }
 }
