@@ -1,4 +1,5 @@
 2.0.2
+ * Track and persist sstable read activity (CASSANDRA-5515)
  * Fixes for speculative retry (CASSANDRA-5932)
  * Improve memory usage of metadata min/max column names (CASSANDRA-6077)
  * Fix thrift validation refusing row markers on CQL3 tables (CASSANDRA-6081)

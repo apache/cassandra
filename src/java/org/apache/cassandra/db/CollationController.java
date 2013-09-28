@@ -246,6 +246,7 @@ public class CollationController
                     continue;
                 }
 
+                sstable.incrementReadCount();
                 OnDiskAtomIterator iter = filter.getSSTableColumnIterator(sstable);
                 iterators.add(iter);
                 if (iter.getColumnFamily() != null)
@@ -268,6 +269,7 @@ public class CollationController
                     if (sstable.getMaxTimestamp() <= minTimestamp)
                         continue;
 
+                    sstable.incrementReadCount();
                     OnDiskAtomIterator iter = filter.getSSTableColumnIterator(sstable);
                     if (iter.getColumnFamily() == null)
                         continue;
