@@ -144,7 +144,9 @@ commands:
       Flush one or more column families
   - name: repair [keyspace] [cfnames]
     help: |
-      Repair one or more column families (use -pr to repair only the first range returned by the partitioner; -snapshot to repair one node at a time sequentially using snapshots)
+      Repair one or more column families
+         Use -pr to repair only the first range returned by the partitioner.
+         Use -par to carry out a parallel repair.
   - name: cleanup [keyspace] [cfnames]
     help: |
       Run cleanup on one or more column families
@@ -157,7 +159,7 @@ commands:
   - name: upgradesstables [-a|--include-all-sstables] [keyspace] [cfnames]
     help: |
       Rewrite sstables (for the requested column families) that are not on the current version (thus upgrading them to said current version).
-      Use -a to include all sstables, even those already on the current version.
+         Use -a to include all sstables, even those already on the current version.
   - name: setcompactionthreshold <keyspace> <cfname>
     help: |
       Set min and max compaction thresholds for a given column family
