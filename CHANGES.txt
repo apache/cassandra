@@ -9,6 +9,7 @@
  * Create snapshot dir if it does not exist when migrating
    leveled manifest (CASSANDRA-6093)
  * make sequential nodetool repair the default (CASSANDRA-5950)
+ * Add more hooks for compaction strategy implementations (CASSANDRA-6111)
 Merged from 1.2:
  * Allow estimated memtable size to exceed slab allocator size (CASSANDRA-6078)
  * Start MeteredFlusher earlier to prevent OOM during CL replay (CASSANDRA-6087)

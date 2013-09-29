@@ -33,11 +33,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.notifications.INotification;
-import org.apache.cassandra.notifications.INotificationConsumer;
-import org.apache.cassandra.notifications.SSTableAddedNotification;
-import org.apache.cassandra.notifications.SSTableDeletingNotification;
-import org.apache.cassandra.notifications.SSTableListChangedNotification;
+import org.apache.cassandra.notifications.*;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
 
@@ -133,6 +129,7 @@ public class DataTracker
             newView = currentView.renewMemtable(newMemtable);
         }
         while (!view.compareAndSet(currentView, newView));
+        notifyRenewed(currentView.memtable);
     }
 
     public void replaceFlushed(Memtable memtable, SSTableReader sstable)
@@ -429,6 +426,13 @@ public class DataTracker
     public void notifyDeleting(SSTableReader deleting)
     {
         INotification notification = new SSTableDeletingNotification(deleting);
+        for (INotificationConsumer subscriber : subscribers)
+            subscriber.handleNotification(notification, this);
+    }
+
+    public void notifyRenewed(Memtable renewed)
+    {
+        INotification notification = new MemtableRenewedNotification(renewed);
         for (INotificationConsumer subscriber : subscribers)
             subscriber.handleNotification(notification, this);
     }

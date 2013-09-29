@@ -23,7 +23,6 @@ import java.util.Comparator;
 import java.util.List;
 
 import com.google.common.collect.Iterables;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,7 +58,7 @@ public class MeteredFlusher implements Runnable
                                                             + DatabaseDescriptor.getFlushWriters()
                                                             + DatabaseDescriptor.getFlushQueueSize())
                                                   / (1 + cfs.indexManager.getIndexesBackedByCfs().size()));
-                if (totalMemtableBytesUnused > 0 && size > totalMemtableBytesUnused / maxInFlight)
+                if (cfs.getCompactionStrategy().isAffectedByMeteredFlusher() && totalMemtableBytesUnused > 0 && size > totalMemtableBytesUnused / maxInFlight)
                 {
                     logger.info("flushing high-traffic column family {} (estimated {} bytes)", cfs, size);
                     cfs.forceFlush();
@@ -102,12 +101,15 @@ public class MeteredFlusher implements Runnable
                     break;
 
                 ColumnFamilyStore cfs = sorted.remove(sorted.size() - 1);
-                long size = cfs.getTotalMemtableLiveSize();
-                if (size == 0)
-                    break;
-                logger.info("flushing {} to free up {} bytes", cfs, size);
-                liveBytes -= size;
-                cfs.forceFlush();
+                if (cfs.getCompactionStrategy().isAffectedByMeteredFlusher())
+                {
+                    long size = cfs.getTotalMemtableLiveSize();
+                    if (size == 0)
+                        break;
+                    logger.info("flushing {} to free up {} bytes", cfs, size);
+                    liveBytes -= size;
+                    cfs.forceFlush();
+                }
             }
         }
         finally
