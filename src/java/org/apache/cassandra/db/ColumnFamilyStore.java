@@ -1070,9 +1070,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     void replaceFlushed(Memtable memtable, SSTableReader sstable)
     {
-        data.replaceFlushed(memtable, sstable);
-        if (sstable != null)
-            CompactionManager.instance.submitBackground(this);
+        compactionStrategy.replaceFlushed(memtable, sstable);
     }
 
     public boolean isValid()
@@ -1405,7 +1403,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             List<SSTableReader> findSSTables(DataTracker.View view)
             {
-                return view.intervalTree.search(key);
+                return compactionStrategy.filterSSTablesForReads(view.intervalTree.search(key));
             }
         });
     }
@@ -1420,7 +1418,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             List<SSTableReader> findSSTables(DataTracker.View view)
             {
-                return sstablesForRowBounds(rowBounds, view);
+                return compactionStrategy.filterSSTablesForReads(sstablesForRowBounds(rowBounds, view));
             }
         });
     }
@@ -1916,25 +1914,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);
         }
-        else
+
+        // nuke the memtable data w/o writing to disk first
+        Keyspace.switchLock.writeLock().lock();
+        try
         {
-            // just nuke the memtable data w/o writing to disk first
-            Keyspace.switchLock.writeLock().lock();
-            try
+            for (ColumnFamilyStore cfs : concatWithIndexes())
             {
-                for (ColumnFamilyStore cfs : concatWithIndexes())
-                {
-                    Memtable mt = cfs.getMemtableThreadSafe();
-                    if (!mt.isClean())
-                    {
-                        mt.cfs.data.renewMemtable();
-                    }
-                }
+                Memtable mt = cfs.getMemtableThreadSafe();
+                if (!mt.isClean())
+                    mt.cfs.data.renewMemtable();
             }
-            finally
-            {
-                Keyspace.switchLock.writeLock().unlock();
-            }
+        }
+        finally
+        {
+            Keyspace.switchLock.writeLock().unlock();
         }
 
         Runnable truncateRunnable = new Runnable()
