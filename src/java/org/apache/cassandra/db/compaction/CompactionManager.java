@@ -525,7 +525,7 @@ public class CompactionManager implements CompactionManagerMBean
             return;
         }
 
-        boolean hasIndexes = !cfs.indexManager.getIndexes().isEmpty();
+        boolean hasIndexes = cfs.indexManager.hasIndexes();
         CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfs, ranges, renewer);
 
         for (SSTableReader sstable : sstables)
@@ -623,7 +623,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         public static CleanupStrategy get(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, CounterId.OneShotRenewer renewer)
         {
-            if (!cfs.indexManager.getIndexes().isEmpty() || cfs.metadata.getDefaultValidator().isCommutative())
+            if (cfs.indexManager.hasIndexes() || cfs.metadata.getDefaultValidator().isCommutative())
                 return new Full(cfs, ranges, renewer);
 
             return new Bounded(cfs, ranges);
