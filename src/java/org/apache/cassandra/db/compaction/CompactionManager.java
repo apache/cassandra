@@ -558,7 +558,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
 
         boolean isCommutative = cfs.metadata.getDefaultValidator().isCommutative();
-        boolean hasIndexes = !cfs.indexManager.getIndexes().isEmpty();
+        boolean hasIndexes = cfs.indexManager.hasIndexes();
 
         for (SSTableReader sstable : sstables)
         {

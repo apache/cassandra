@@ -401,6 +401,14 @@ public class SecondaryIndexManager
     }
 
     /**
+     * @return if there are ANY indexes for this table..
+     */
+    public boolean hasIndexes()
+    {
+        return !indexesByColumn.isEmpty();
+    }
+
+    /**
      * @return total current ram size of all indexes
      */
     public long getTotalLiveSize()

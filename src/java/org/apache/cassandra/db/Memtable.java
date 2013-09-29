@@ -423,7 +423,11 @@ public class Memtable
                         // But it can result in unexpected behaviour where deletes never make it to disk,
                         // as they are lost and so cannot override existing column values. So we only remove deleted columns if there
                         // is a CF level tombstone to ensure the delete makes it into an SSTable.
-                        ColumnFamilyStore.removeDeletedColumnsOnly(cf, Integer.MIN_VALUE);
+                        // We also shouldn't be dropping any columns obsoleted by partition and/or range tombstones in case
+                        // the table has secondary indexes, or else the stale entries wouldn't be cleaned up during compaction,
+                        // and will only be dropped during 2i query read-repair, if at all.
+                        if (!cfs.indexManager.hasIndexes())
+                            ColumnFamilyStore.removeDeletedColumnsOnly(cf, Integer.MIN_VALUE);
                     }
                     writer.append((DecoratedKey)entry.getKey(), cf);
                 }
