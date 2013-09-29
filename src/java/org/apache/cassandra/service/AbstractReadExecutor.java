@@ -18,7 +18,6 @@
 package org.apache.cassandra.service;
 
 import java.net.InetAddress;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -265,10 +264,10 @@ public abstract class AbstractReadExecutor
         public void maybeTryAdditionalReplicas()
         {
             // no latency information, or we're overloaded
-            if (cfs.sampleLatency > TimeUnit.MILLISECONDS.toNanos(command.getTimeout()))
+            if (cfs.sampleLatencyNanos > TimeUnit.MILLISECONDS.toNanos(command.getTimeout()))
                 return;
 
-            if (!handler.await(cfs.sampleLatency, TimeUnit.NANOSECONDS))
+            if (!handler.await(cfs.sampleLatencyNanos, TimeUnit.NANOSECONDS))
             {
                 // Could be waiting on the data, or on enough digests.
                 ReadCommand retryCommand = command;
@@ -283,7 +282,7 @@ public abstract class AbstractReadExecutor
                 MessagingService.instance().sendRR(retryCommand.createMessage(), extraReplica, handler);
                 speculated = true;
 
-                cfs.metric.speculativeRetry.inc();
+                cfs.metric.speculativeRetries.inc();
             }
         }
 
@@ -324,7 +323,7 @@ public abstract class AbstractReadExecutor
             makeDataRequests(targetReplicas.subList(0, targetReplicas.size() > 1 ? 2 : 1));
             if (targetReplicas.size() > 2)
                 makeDigestRequests(targetReplicas.subList(2, targetReplicas.size()));
-            cfs.metric.speculativeRetry.inc();
+            cfs.metric.speculativeRetries.inc();
         }
     }
 }

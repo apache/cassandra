@@ -17,11 +17,10 @@
  */
 package org.apache.cassandra.metrics;
 
+import java.util.concurrent.TimeUnit;
+
 import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Counter;
-import com.yammer.metrics.core.Gauge;
-import com.yammer.metrics.core.Histogram;
-import com.yammer.metrics.core.MetricName;
+import com.yammer.metrics.core.*;
 import com.yammer.metrics.util.RatioGauge;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -49,9 +48,9 @@ public class ColumnFamilyMetrics
     public final Gauge<long[]> estimatedColumnCountHistogram;
     /** Histogram of the number of sstable data files accessed per read */
     public final Histogram sstablesPerReadHistogram;
-    /** Read metrics */
+    /** (Local) read metrics */
     public final LatencyMetrics readLatency;
-    /** Write metrics */
+    /** (Local) write metrics */
     public final LatencyMetrics writeLatency;
     /** Estimated number of tasks pending for this column family */
     public final Gauge<Integer> pendingTasks;
@@ -84,9 +83,12 @@ public class ColumnFamilyMetrics
     /** Live cells scanned in queries on this CF */
     public final Histogram liveScannedHistogram;
 
+    public final Timer coordinatorReadLatency;
+    public final Timer coordinatorScanLatency;
+
     private final MetricNameFactory factory;
 
-    public final Counter speculativeRetry;
+    public final Counter speculativeRetries;
 
     // for backward compatibility
     @Deprecated public final EstimatedHistogram sstablesPerRead = new EstimatedHistogram(35);
@@ -159,7 +161,7 @@ public class ColumnFamilyMetrics
                         total++;
                     }
                 }
-                return total != 0 ? (double)sum/total: 0;
+                return total != 0 ? (double) sum / total : 0;
             }
         });
         readLatency = new LatencyMetrics(factory, "Read");
@@ -283,7 +285,7 @@ public class ColumnFamilyMetrics
                 return total;
             }
         });
-        speculativeRetry = Metrics.newCounter(factory.createMetricName("SpeculativeRetry"));
+        speculativeRetries = Metrics.newCounter(factory.createMetricName("SpeculativeRetries"));
         keyCacheHitRate = Metrics.newGauge(factory.createMetricName("KeyCacheHitRate"), new RatioGauge()
         {
             protected double getNumerator()
@@ -304,6 +306,8 @@ public class ColumnFamilyMetrics
         });
         tombstoneScannedHistogram = Metrics.newHistogram(factory.createMetricName("TombstoneScannedHistogram"));
         liveScannedHistogram = Metrics.newHistogram(factory.createMetricName("LiveScannedHistogram"));
+        coordinatorReadLatency = Metrics.newTimer(factory.createMetricName("CoordinatorReadLatency"), TimeUnit.MICROSECONDS, TimeUnit.SECONDS);
+        coordinatorScanLatency = Metrics.newTimer(factory.createMetricName("CoordinatorScanLatency"), TimeUnit.MICROSECONDS, TimeUnit.SECONDS);
     }
 
     public void updateSSTableIterated(int count)
@@ -343,6 +347,8 @@ public class ColumnFamilyMetrics
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("SpeculativeRetry"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("TombstoneScannedHistogram"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("LiveScannedHistogram"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("CoordinatorReadLatency"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("CoordinatorScanLatency"));
     }
 
     class ColumnFamilyMetricNameFactory implements MetricNameFactory

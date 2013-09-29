@@ -26,6 +26,15 @@ Upgrading
      in 2.0 and this code is gone from 2.1.
 
 
+2.0.2
+=====
+
+New features
+------------
+    - Speculative retry defaults to 99th percentile
+      (See blog post at TODO)
+
+
 2.0.1
 =====
 
