@@ -297,7 +297,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             public void run()
             {
                 SpeculativeRetry retryPolicy = ColumnFamilyStore.this.metadata.getSpeculativeRetry();
-                logger.debug("retryPolicy is {}", retryPolicy.value);
+                logger.debug("retryPolicy for {} is {}", name, retryPolicy.value);
                 switch (retryPolicy.type)
                 {
                     case PERCENTILE:
