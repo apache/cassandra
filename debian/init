@@ -133,7 +133,7 @@ do_start()
     heap_dump_f="$cassandra_home/java_`date +%s`.hprof"
     error_log_f="$cassandra_home/hs_err_`date +%s`.log"
 
-    [ -e `dirname "PIDFILE"` ] || \
+    [ -e `dirname "$PIDFILE"` ] || \
         install -d -ocassandra -gcassandra -m750 `dirname $PIDFILE`
 
     start-stop-daemon -S -c cassandra -a /usr/sbin/cassandra -q -p "$PIDFILE" -t >/dev/null || return 1
