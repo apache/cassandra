@@ -45,10 +45,14 @@ public class TokenMetadata
 {
     private static final Logger logger = LoggerFactory.getLogger(TokenMetadata.class);
 
-    /* Maintains token to endpoint map of every node in the cluster. */
+    /**
+     * Maintains token to endpoint map of every node in the cluster.
+     * Each Token is associated with exactly one Address, but each Address may have
+     * multiple tokens.  Hence, the BiMultiValMap collection.
+     */
     private final BiMultiValMap<Token, InetAddress> tokenToEndpointMap;
 
-    /* Maintains endpoint to host ID map of every node in the cluster */
+    /** Maintains endpoint to host ID map of every node in the cluster */
     private final BiMap<InetAddress, UUID> endpointToHostIdMap;
 
     // Prior to CASSANDRA-603, we just had <tt>Map<Range, InetAddress> pendingRanges<tt>,
@@ -235,10 +239,10 @@ public class TokenMetadata
                                                              hostId));
                 }
             }
-    
+
             UUID storedId = endpointToHostIdMap.get(endpoint);
             if ((storedId != null) && (!storedId.equals(hostId)))
-                logger.warn("Changing {}'s host ID from {} to {}", new Object[] {endpoint, storedId, hostId});
+                logger.warn("Changing {}'s host ID from {} to {}", endpoint, storedId, hostId);
     
             endpointToHostIdMap.forcePut(endpoint, hostId);
         }
@@ -761,7 +765,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
-            return new HashSet<>(endpointToHostIdMap.keySet());
+            return ImmutableSet.copyOf(endpointToHostIdMap.keySet());
         }
         finally
         {
@@ -775,7 +779,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
-            return new HashSet<>(leavingEndpoints);
+            return ImmutableSet.copyOf(leavingEndpoints);
         }
         finally
         {
@@ -792,7 +796,7 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
-            return new HashSet<>(movingEndpoints);
+            return ImmutableSet.copyOf(movingEndpoints);
         }
         finally
         {
@@ -1004,9 +1008,7 @@ public class TokenMetadata
      */
     public Collection<InetAddress> getWriteEndpoints(Token token, String table, Collection<InetAddress> naturalEndpoints)
     {
-        ArrayList<InetAddress> endpoints = new ArrayList<InetAddress>();
-        Iterables.addAll(endpoints, Iterables.concat(naturalEndpoints, pendingEndpointsFor(token, table)));
-        return endpoints;
+        return ImmutableList.copyOf(Iterables.concat(naturalEndpoints, pendingEndpointsFor(token, table)));
     }
 
     /** @return an endpoint to token multimap representation of tokenToEndpointMap (a copy) */
