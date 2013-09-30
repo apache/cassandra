@@ -221,43 +221,76 @@ public class TokenMetadata
         assert hostId != null;
         assert endpoint != null;
 
-        InetAddress storedEp = endpointToHostIdMap.inverse().get(hostId);
-        if (storedEp != null)
+        lock.writeLock().lock();
+        try
         {
-            if (!storedEp.equals(endpoint) && (FailureDetector.instance.isAlive(storedEp)))
+            InetAddress storedEp = endpointToHostIdMap.inverse().get(hostId);
+            if (storedEp != null)
             {
-                throw new RuntimeException(String.format("Host ID collision between active endpoint %s and %s (id=%s)",
-                                                         storedEp,
-                                                         endpoint,
-                                                         hostId));
+                if (!storedEp.equals(endpoint) && (FailureDetector.instance.isAlive(storedEp)))
+                {
+                    throw new RuntimeException(String.format("Host ID collision between active endpoint %s and %s (id=%s)",
+                                                             storedEp,
+                                                             endpoint,
+                                                             hostId));
+                }
             }
+    
+            UUID storedId = endpointToHostIdMap.get(endpoint);
+            if ((storedId != null) && (!storedId.equals(hostId)))
+                logger.warn("Changing {}'s host ID from {} to {}", new Object[] {endpoint, storedId, hostId});
+    
+            endpointToHostIdMap.forcePut(endpoint, hostId);
+        }
+        finally
+        {
+            lock.writeLock().unlock();
         }
 
-        UUID storedId = endpointToHostIdMap.get(endpoint);
-        if ((storedId != null) && (!storedId.equals(hostId)))
-            logger.warn("Changing {}'s host ID from {} to {}", new Object[] {endpoint, storedId, hostId});
-
-        endpointToHostIdMap.forcePut(endpoint, hostId);
     }
 
     /** Return the unique host ID for an end-point. */
     public UUID getHostId(InetAddress endpoint)
     {
-        return endpointToHostIdMap.get(endpoint);
+        lock.readLock().lock();
+        try
+        {
+            return endpointToHostIdMap.get(endpoint);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
     }
 
     /** Return the end-point for a unique host ID */
     public InetAddress getEndpointForHostId(UUID hostId)
     {
-        return endpointToHostIdMap.inverse().get(hostId);
+        lock.readLock().lock();
+        try
+        {
+            return endpointToHostIdMap.inverse().get(hostId);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
     }
 
     /** @return a copy of the endpoint-to-id map for read-only operations */
     public Map<InetAddress, UUID> getEndpointToHostIdMapForReading()
     {
-        Map<InetAddress, UUID> readMap = new HashMap<InetAddress, UUID>();
-        readMap.putAll(endpointToHostIdMap);
-        return readMap;
+        lock.readLock().lock();
+        try
+        {
+            Map<InetAddress, UUID> readMap = new HashMap<InetAddress, UUID>();
+            readMap.putAll(endpointToHostIdMap);
+            return readMap;
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
     }
 
     @Deprecated
@@ -725,13 +758,29 @@ public class TokenMetadata
 
     public Set<InetAddress> getAllEndpoints()
     {
-        return endpointToHostIdMap.keySet();
+        lock.readLock().lock();
+        try
+        {
+            return new HashSet<>(endpointToHostIdMap.keySet());
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
     }
 
     /** caller should not modify leavingEndpoints */
     public Set<InetAddress> getLeavingEndpoints()
     {
-        return leavingEndpoints;
+        lock.readLock().lock();
+        try
+        {
+            return new HashSet<>(leavingEndpoints);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
     }
 
     /**
@@ -740,7 +789,15 @@ public class TokenMetadata
      */
     public Set<Pair<Token, InetAddress>> getMovingEndpoints()
     {
-        return movingEndpoints;
+        lock.readLock().lock();
+        try
+        {
+            return new HashSet<>(movingEndpoints);
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
     }
 
     /**
