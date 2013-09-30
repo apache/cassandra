@@ -296,12 +296,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             public void run()
             {
                 SpeculativeRetry retryPolicy = ColumnFamilyStore.this.metadata.getSpeculativeRetry();
+                logger.debug("retryPolicy is {}", retryPolicy.value);
                 switch (retryPolicy.type)
                 {
                     case PERCENTILE:
                         // get percentile in nanos
                         assert metric.coordinatorReadLatency.durationUnit() == TimeUnit.MICROSECONDS;
-                        logger.info("retryPolicy is {}", retryPolicy.value);
                         sampleLatencyNanos = (long) (metric.coordinatorReadLatency.getSnapshot().getValue(retryPolicy.value) * 1000d);
                         break;
                     case CUSTOM:
