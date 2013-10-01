@@ -890,18 +890,24 @@ public class DatabaseDescriptor
         return conf.commitlog_directory;
     }
 
-    /**
-     * How many tombstones need to be scanned before we log a
-     * debug message
-     */
-    public static int getTombstoneDebugThreshold()
+    public static int getTombstoneWarnThreshold()
     {
-        return conf.tombstone_debug_threshold;
+        return conf.tombstone_warn_threshold;
     }
 
-    public static void setTombstoneDebugThreshold(int tombstoneDebugThreshold)
+    public static void setTombstoneWarnThreshold(int threshold)
     {
-        conf.tombstone_debug_threshold = tombstoneDebugThreshold;
+        conf.tombstone_warn_threshold = threshold;
+    }
+
+    public static int getTombstoneFailureThreshold()
+    {
+        return conf.tombstone_failure_threshold;
+    }
+
+    public static void setTombstoneFailureThreshold(int threshold)
+    {
+        conf.tombstone_failure_threshold = threshold;
     }
 
     /**

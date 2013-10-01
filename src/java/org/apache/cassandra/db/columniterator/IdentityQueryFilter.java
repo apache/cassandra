@@ -29,4 +29,10 @@ public class IdentityQueryFilter extends SliceQueryFilter
     {
         super(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, Integer.MAX_VALUE);
     }
+
+    @Override
+    protected boolean respectTombstoneFailures()
+    {
+        return false;
+    }
 }

@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
 
 import org.apache.cassandra.db.AbstractRangeCommand;
 import org.apache.cassandra.db.RangeSliceReply;
+import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
@@ -38,6 +39,10 @@ public class RangeSliceVerbHandler implements IVerbHandler<AbstractRangeCommand>
             RangeSliceReply reply = new RangeSliceReply(message.payload.executeLocally());
             Tracing.trace("Enqueuing response to {}", message.from);
             MessagingService.instance().sendReply(reply.createMessage(), id, message.from);
+        }
+        catch (TombstoneOverwhelmingException e)
+        {
+            // error already logged.  Drop the request
         }
         catch (Exception ex)
         {

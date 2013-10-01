@@ -179,7 +179,8 @@ public class Config
 
     private static boolean outboundBindAny = false;
 
-    public volatile int tombstone_debug_threshold = 10000;
+    public volatile int tombstone_warn_threshold = 1000;
+    public volatile int tombstone_failure_threshold = 100000;
 
     public static boolean getOutboundBindAny()
     {

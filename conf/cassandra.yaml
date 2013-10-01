@@ -404,10 +404,17 @@ snapshot_before_compaction: false
 # lose data on truncation or drop.
 auto_snapshot: true
 
-# Log a debug message if more than this many tombstones are scanned
-# in a single-partition query.  Set the threshold on SliceQueryFilter
-# to debug to enable.
-tombstone_debug_threshold: 10000
+# When executing a scan, within or across a partition, we need to keep the
+# tombstones seen in memory so we can return them to the coordinator, which
+# will use them to make sure other replicas also know about the deleted rows.
+# With workloads that generate a lot of tombstones, this can cause performance
+# problems and even exaust the server heap.
+# (http://www.datastax.com/dev/blog/cassandra-anti-patterns-queues-and-queue-like-datasets)
+# Adjust the thresholds here if you understand the dangers and want to
+# scan more tombstones anyway.  These thresholds may also be adjusted at runtime
+# using the StorageService mbean.
+tombstone_warn_threshold: 1000
+tombstone_failure_threshold: 100000
 
 # Add column indexes to a row after its contents reach this size.
 # Increase if your column values are large, or if you have a very large
