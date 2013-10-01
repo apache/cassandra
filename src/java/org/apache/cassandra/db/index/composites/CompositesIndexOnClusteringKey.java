@@ -110,7 +110,6 @@ public class CompositesIndexOnClusteringKey extends CompositesIndex
 
     public boolean isStale(IndexedEntry entry, ColumnFamily data, long now)
     {
-        return data == null || data.hasOnlyTombstones(now);
+        return data.hasOnlyTombstones(now);
     }
 }
-

@@ -554,6 +554,54 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assertEquals(0, rows.size());
     }
 
+    // See CASSANDRA-6098
+    @Test
+    public void testDeleteCompositeIndex() throws Exception
+    {
+        String keySpace = "Keyspace2";
+        String cfName = "Indexed3"; // has gcGrace 0
+
+        Keyspace keyspace = Keyspace.open(keySpace);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
+        cfs.truncateBlocking();
+
+        ByteBuffer rowKey = ByteBufferUtil.bytes("k1");
+        ByteBuffer clusterKey = ByteBufferUtil.bytes("ck1");
+        ByteBuffer colName = ByteBufferUtil.bytes("col1");
+        CompositeType baseComparator = (CompositeType)cfs.getComparator();
+        CompositeType.Builder builder = baseComparator.builder();
+        builder.add(clusterKey);
+        builder.add(colName);
+        ByteBuffer compositeName = builder.build();
+
+        ByteBuffer val1 = ByteBufferUtil.bytes("v2");
+
+        // Insert indexed value.
+        RowMutation rm;
+        rm = new RowMutation(keySpace, rowKey);
+        rm.add(cfName, compositeName, val1, 0);
+        rm.apply();
+
+        // Now delete the value and flush too.
+        rm = new RowMutation(keySpace, rowKey);
+        rm.delete(cfName, 1);
+        rm.apply();
+
+        // We want the data to be gcable, but even if gcGrace == 0, we still need to wait 1 second
+        // since we won't gc on a tie.
+        try { Thread.sleep(1000); } catch (Exception e) {}
+
+        // Read the index and we check we do get no value (and no NPE)
+        // Note: the index will return the entry because it hasn't been deleted (we
+        // haven't read yet nor compacted) but the data read itself will return null
+        IndexExpression expr = new IndexExpression(colName, IndexOperator.EQ, val1);
+        List<IndexExpression> clause = Arrays.asList(expr);
+        IDiskAtomFilter filter = new IdentityQueryFilter();
+        Range<RowPosition> range = Util.range("", "");
+        List<Row> rows = keyspace.getColumnFamilyStore(cfName).search(range, clause, filter, 100);
+        assertEquals(0, rows.size());
+    }
+
     // See CASSANDRA-2628
     @Test
     public void testIndexScanWithLimitOne() throws IOException

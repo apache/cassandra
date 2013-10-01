@@ -222,7 +222,8 @@ public class SchemaLoader
                                            superCFMD(ks2, "Super3", bytes),
                                            superCFMD(ks2, "Super4", TimeUUIDType.instance),
                                            indexCFMD(ks2, "Indexed1", true),
-                                           compositeIndexCFMD(ks2, "Indexed2", true, withOldCfIds)));
+                                           compositeIndexCFMD(ks2, "Indexed2", true, withOldCfIds),
+                                           compositeIndexCFMD(ks2, "Indexed3", true, withOldCfIds).gcGraceSeconds(0)));
 
         // Keyspace 3
         schema.add(KSMetaData.testMetadata(ks3,
