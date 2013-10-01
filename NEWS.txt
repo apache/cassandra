@@ -33,6 +33,8 @@ New features
 ------------
     - Speculative retry defaults to 99th percentile
       (See blog post at TODO)
+    - Configurable metrics reporting
+      (see conf/metrics-reporter-config-sample.yaml)
 
 Upgrading
 ---------
