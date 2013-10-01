@@ -239,7 +239,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                                                                            Integer.MAX_VALUE,
                                                                            baseCfs.metadata.clusteringKeyColumns().size());
                         ColumnFamily newData = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, dataFilter, filter.timestamp));
-                        if (index.isStale(entry, newData, filter.timestamp))
+                        if (newData == null || index.isStale(entry, newData, filter.timestamp))
                         {
                             index.delete(entry);
                             continue;
