@@ -31,6 +31,8 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
 
+import com.addthis.metrics.reporter.config.ReporterConfig;
+
 import com.google.common.collect.Iterables;
 import com.google.common.collect.SetMultimap;
 
@@ -351,6 +353,22 @@ public class CassandraDaemon
         }
 
         Mx4jTool.maybeLoad();
+
+        // Metrics
+        String metricsReporterConfigFile = System.getProperty("cassandra.metricsReporterConfigFile");
+        if (metricsReporterConfigFile != null)
+        {
+            logger.info("Trying to load metrics-reporter-config from file: {}", metricsReporterConfigFile);
+            try
+            {
+                String reportFileLocation = CassandraDaemon.class.getClassLoader().getResource(metricsReporterConfigFile).getFile();
+                ReporterConfig.loadFromFile(reportFileLocation).enableAll();
+            }
+            catch (Exception e)
+            {
+                logger.warn("Failed to load metrics-reporter-config, metric sinks will not be activated", e);
+            }
+        }
 
         // Thift
         InetAddress rpcAddr = DatabaseDescriptor.getRpcAddress();

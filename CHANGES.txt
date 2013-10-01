@@ -1,4 +1,5 @@
 2.0.2
+ * Add configurable metrics reporting (CASSANDRA-4430)
  * drop queries exceeding a configurable number of tombstones (CASSANDRA-6117)
  * Track and persist sstable read activity (CASSANDRA-5515)
  * Fixes for speculative retry (CASSANDRA-5932)
