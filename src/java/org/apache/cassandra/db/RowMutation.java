@@ -56,6 +56,11 @@ public class RowMutation implements IMutation
         this(table, key, new HashMap<UUID, ColumnFamily>());
     }
 
+    public RowMutation(String keyspaceName, ByteBuffer key, ColumnFamily cf)
+    {
+        this(keyspaceName, key, Collections.singletonMap(cf.id(), cf));
+    }
+
     public RowMutation(String table, Row row)
     {
         this(table, row.key.key);
