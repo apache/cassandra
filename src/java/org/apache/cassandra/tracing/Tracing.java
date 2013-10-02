@@ -170,16 +170,7 @@ public class Tracing
                     CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
                     ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfMeta);
                     addColumn(cf, buildName(cfMeta, bytes("duration")), elapsed);
-<<<<<<< HEAD
-                    RowMutation mutation = new RowMutation(TRACE_KS, sessionIdBytes, cf);
-                    StorageProxy.mutate(Arrays.asList(mutation), ConsistencyLevel.ANY);
-||||||| merged common ancestors
-                    RowMutation mutation = new RowMutation(TRACE_KS, sessionIdBytes);
-                    mutation.add(cf);
-                    StorageProxy.mutate(Arrays.asList(mutation), ConsistencyLevel.ANY);
-=======
                     mutateWithCatch(new RowMutation(TRACE_KS, sessionIdBytes, cf));
->>>>>>> cassandra-1.2
                 }
             });
 
