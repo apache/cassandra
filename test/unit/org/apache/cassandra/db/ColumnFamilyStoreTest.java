@@ -595,7 +595,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         // Read the index and we check we do get no value (and no NPE)
         // Note: the index will return the entry because it hasn't been deleted (we
         // haven't read yet nor compacted) but the data read itself will return null
-        IndexExpression expr = new IndexExpression(colName, IndexOperator.EQ, val1);
+        IndexExpression expr = new IndexExpression(colName, IndexExpression.Operator.EQ, val1);
         List<IndexExpression> clause = Arrays.asList(expr);
         IDiskAtomFilter filter = new IdentityQueryFilter();
         Range<RowPosition> range = Util.range("", "");
