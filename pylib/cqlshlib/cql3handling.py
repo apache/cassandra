@@ -43,7 +43,7 @@ class UnexpectedTableStructure(UserWarning):
         return 'Unexpected table structure; may not translate correctly to CQL. ' + self.msg
 
 SYSTEM_KEYSPACES = ('system', 'system_traces', 'system_auth')
-NONALTERBALE_KEYSPACES = ('system', 'system_traces')
+NONALTERBALE_KEYSPACES = ('system')
 
 class Cql3ParsingRuleSet(CqlParsingRuleSet):
     keywords = set((

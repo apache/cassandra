@@ -742,6 +742,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
 
+        // if we don't have system_traces keyspace at this point, then create it manually
+        if (Schema.instance.getKSMetaData(Tracing.TRACE_KS) == null)
+        {
+            KSMetaData tracingKeyspace = KSMetaData.traceKeyspace();
+            MigrationManager.announceNewKeyspace(tracingKeyspace, 0);
+        }
+
         if (!isSurveyMode)
         {
             // start participating in the ring.
@@ -2298,7 +2305,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int forceRepairAsync(final String keyspace, final boolean isSequential, final boolean isLocal, final Collection<Range<Token>> ranges, final String... columnFamilies)
     {
-        if (Keyspace.SYSTEM_KS.equals(keyspace) || Tracing.TRACE_KS.equals(keyspace) || ranges.isEmpty())
+        if (Keyspace.SYSTEM_KS.equals(keyspace) || ranges.isEmpty())
             return 0;
 
         final int cmd = nextRepairCommand.incrementAndGet();
@@ -2348,7 +2355,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void forceKeyspaceRepairRange(final String keyspaceName, final Collection<Range<Token>> ranges, boolean isSequential, boolean isLocal, final String... columnFamilies) throws IOException
     {
-        if (Schema.systemKeyspaceNames.contains(keyspaceName))
+        if (Keyspace.SYSTEM_KS.equalsIgnoreCase(keyspaceName))
             return;
         createRepairTask(nextRepairCommand.incrementAndGet(), keyspaceName, ranges, isSequential, isLocal, columnFamilies).run();
     }
