@@ -329,8 +329,7 @@ public final class MessagingService implements MessagingServiceMBean
 
                 if (expiredCallbackInfo.shouldHint())
                 {
-                    assert expiredCallbackInfo.sentMessage != null;
-                    RowMutation rm = (RowMutation) expiredCallbackInfo.sentMessage.payload;
+                    RowMutation rm = (RowMutation) ((WriteCallbackInfo) expiredCallbackInfo).sentMessage.payload;
                     return StorageProxy.submitHint(rm, expiredCallbackInfo.target, null, null);
                 }
 
@@ -522,15 +521,18 @@ public final class MessagingService implements MessagingServiceMBean
 
     public String addCallback(IMessageCallback cb, MessageOut message, InetAddress to, long timeout)
     {
+        assert message.verb != Verb.MUTATION; // mutations need to call the overload with a ConsistencyLevel
         String messageId = nextId();
-        CallbackInfo previous;
+        CallbackInfo previous = callbacks.put(messageId, new CallbackInfo(to, cb, callbackDeserializers.get(message.verb)), timeout);
+        assert previous == null;
+        return messageId;
+    }
 
-        // If HH is enabled and this is a mutation message => store the message to track for potential hints.
-        if (DatabaseDescriptor.hintedHandoffEnabled() && message.verb == Verb.MUTATION)
-            previous = callbacks.put(messageId, new CallbackInfo(to, cb, message, callbackDeserializers.get(message.verb)), timeout);
-        else
-            previous = callbacks.put(messageId, new CallbackInfo(to, cb, callbackDeserializers.get(message.verb)), timeout);
-
+    public String addCallback(IMessageCallback cb, MessageOut message, InetAddress to, long timeout, ConsistencyLevel consistencyLevel)
+    {
+        assert message.verb == Verb.MUTATION;
+        String messageId = nextId();
+        CallbackInfo previous = callbacks.put(messageId, new WriteCallbackInfo(to, cb, message, callbackDeserializers.get(message.verb), consistencyLevel), timeout);
         assert previous == null;
         return messageId;
     }
