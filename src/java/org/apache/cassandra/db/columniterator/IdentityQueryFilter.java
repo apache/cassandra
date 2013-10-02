@@ -31,7 +31,7 @@ public class IdentityQueryFilter extends SliceQueryFilter
     }
 
     @Override
-    protected boolean respectTombstoneFailures()
+    protected boolean respectTombstoneThresholds()
     {
         return false;
     }
