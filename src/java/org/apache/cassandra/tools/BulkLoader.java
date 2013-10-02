@@ -21,6 +21,7 @@ import java.io.File;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.cli.*;
@@ -84,8 +85,8 @@ public class BulkLoader
     // Return true when everything is at 100%
     static class ProgressIndicator implements StreamEventHandler
     {
-        private final Map<InetAddress, SessionInfo> sessionsByHost = new HashMap<>();
-        private final Map<InetAddress, Set<ProgressInfo>> progressByHost = new HashMap<>();
+        private final Map<InetAddress, SessionInfo> sessionsByHost = new ConcurrentHashMap<>();
+        private final Map<InetAddress, Set<ProgressInfo>> progressByHost = new ConcurrentHashMap<>();
 
         private long start;
         private long lastProgress;
