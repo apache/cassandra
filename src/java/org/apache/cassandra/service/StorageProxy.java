@@ -201,6 +201,9 @@ public class StorageProxy implements StorageProxyMBean
         {
             if (consistency_level == ConsistencyLevel.ANY)
             {
+                // hint all the mutations (except counters, which can't be safely retried).  This means
+                // we'll re-hint any successful ones; doesn't seem worth it to track individual success
+                // just for this unusual case.
                 for (IMutation mutation : mutations)
                 {
                     if (mutation instanceof CounterMutation)
