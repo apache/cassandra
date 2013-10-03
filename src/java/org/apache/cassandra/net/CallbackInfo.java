@@ -20,7 +20,6 @@ package org.apache.cassandra.net;
 import java.net.InetAddress;
 
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.service.StorageProxy;
 
 /**
  * Encapsulates the callback information.
@@ -31,7 +30,6 @@ public class CallbackInfo
 {
     protected final InetAddress target;
     protected final IAsyncCallback callback;
-    protected final MessageOut<?> sentMessage;
     protected final IVersionedSerializer<?> serializer;
 
     /**
@@ -43,25 +41,13 @@ public class CallbackInfo
      */
     public CallbackInfo(InetAddress target, IAsyncCallback callback, IVersionedSerializer<?> serializer)
     {
-        this(target, callback, null, serializer);
-    }
-
-    public CallbackInfo(InetAddress target, IAsyncCallback callback, MessageOut<?> sentMessage, IVersionedSerializer<?> serializer)
-    {
         this.target = target;
         this.callback = callback;
-        this.sentMessage = sentMessage;
         this.serializer = serializer;
     }
 
-    /**
-     * @return TRUE iff a hint should be written for this target.
-     *
-     * NOTE:
-     * Assumes it is only called after the write of "sentMessage" to "target" has timed out.
-     */
     public boolean shouldHint()
     {
-        return sentMessage != null && StorageProxy.shouldHint(target);
+        return false;
     }
 }
