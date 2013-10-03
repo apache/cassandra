@@ -38,6 +38,7 @@ import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DefsTable;
 import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSWriteError;
@@ -839,6 +840,8 @@ public class DatabaseDescriptor
             case READ_REPAIR:
             case MUTATION:
                 return getWriteRpcTimeout();
+            case BOOTSTRAP_TOKEN:
+                return BootStrapper.BOOTSTRAP_TIMEOUT;
             default:
                 return getRpcTimeout();
         }

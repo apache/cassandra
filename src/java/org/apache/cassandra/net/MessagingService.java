@@ -550,7 +550,7 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public String sendRR(MessageOut message, InetAddress to, IMessageCallback cb)
     {
-        return sendRR(message, to, cb, message.getTimeout());
+        return sendRR(message, to, cb, message.getTimeout(), null);
     }
 
     /**
@@ -567,9 +567,11 @@ public final class MessagingService implements MessagingServiceMBean
      * @param timeout the timeout used for expiration
      * @return an reference to message id used to match with the result
      */
-    public String sendRR(MessageOut message, InetAddress to, IMessageCallback cb, long timeout)
+    public String sendRR(MessageOut message, InetAddress to, IMessageCallback cb, long timeout, ConsistencyLevel consistencyLevel)
     {
-        String id = addCallback(cb, message, to, timeout);
+        String id = consistencyLevel == null
+                  ? addCallback(cb, message, to, timeout)
+                  : addCallback(cb, message, to, timeout, consistencyLevel);
 
         if (cb instanceof AbstractWriteResponseHandler)
         {

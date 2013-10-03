@@ -642,7 +642,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             // yes, the loop and non-loop code here are the same; this is clunky but we want to avoid
             // creating a second iterator since we already have a perfectly good one
-            MessagingService.instance().sendRR(message, target, handler);
+            MessagingService.instance().sendRR(message, target, handler, message.getTimeout(), handler.consistencyLevel);
             while (iter.hasNext())
             {
                 target = iter.next();
