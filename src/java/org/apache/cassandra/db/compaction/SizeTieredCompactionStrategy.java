@@ -34,6 +34,30 @@ import org.apache.cassandra.utils.Pair;
 public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(SizeTieredCompactionStrategy.class);
+    
+    private static Comparator<SSTableReader> generationComparator = new Comparator<SSTableReader>()
+    {
+        public int compare(SSTableReader o1, SSTableReader o2)
+        {
+            return o1.descriptor.generation - o2.descriptor.generation;
+        }
+    };
+    
+    private static Comparator<List<SSTableReader>> avgBucketSizeComparator = new Comparator<List<SSTableReader>>()
+    {
+        public int compare(List<SSTableReader> o1, List<SSTableReader> o2)
+        {
+            return Longs.compare(avgSize(o1), avgSize(o2));
+        }
+
+        private long avgSize(List<SSTableReader> sstables)
+        {
+            long n = 0;
+            for (SSTableReader sstable : sstables)
+                n += sstable.bytesOnDisk();
+            return n / sstables.size();
+        }
+    };
 
     protected SizeTieredCompactionStrategyOptions options;
     protected volatile int estimatedRemainingTasks;
@@ -86,35 +110,15 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             if (bucket.size() < minThreshold)
                 continue;
 
-            Collections.sort(bucket, new Comparator<SSTableReader>()
-            {
-                public int compare(SSTableReader o1, SSTableReader o2)
-                {
-                    return o1.descriptor.generation - o2.descriptor.generation;
-                }
-            });
+            Collections.sort(bucket, generationComparator);
             List<SSTableReader> prunedBucket = bucket.subList(0, Math.min(bucket.size(), maxThreshold));
             prunedBuckets.add(prunedBucket);
         }
         if (prunedBuckets.isEmpty())
             return Collections.emptyList();
-
+        
         // prefer compacting buckets with smallest average size; that will yield the fastest improvement for read performance
-        return Collections.min(prunedBuckets, new Comparator<List<SSTableReader>>()
-        {
-            public int compare(List<SSTableReader> o1, List<SSTableReader> o2)
-            {
-                return Longs.compare(avgSize(o1), avgSize(o2));
-            }
-
-            private long avgSize(List<SSTableReader> sstables)
-            {
-                long n = 0;
-                for (SSTableReader sstable : sstables)
-                    n += sstable.bytesOnDisk();
-                return n / sstables.size();
-            }
-        });
+        return Collections.min(prunedBuckets, avgBucketSizeComparator);
     }
 
     public synchronized AbstractCompactionTask getNextBackgroundTask(int gcBefore)
