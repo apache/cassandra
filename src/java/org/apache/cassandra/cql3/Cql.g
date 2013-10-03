@@ -1096,7 +1096,7 @@ STRING_LITERAL
 QUOTED_NAME
     @init{ StringBuilder b = new StringBuilder(); }
     @after{ setText(b.toString()); }
-    : '\"' (c=~('\"') { b.appendCodePoint(c); } | '\"' '\"' { b.appendCodePoint('\"'); })* '\"'
+    : '\"' (c=~('\"') { b.appendCodePoint(c); } | '\"' '\"' { b.appendCodePoint('\"'); })+ '\"'
     ;
 
 fragment DIGIT
