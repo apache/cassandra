@@ -880,17 +880,17 @@ public class NodeCmd
                 outs.println("\t\tMemtable cell count: " + cfstore.getMemtableColumnsCount());
                 outs.println("\t\tMemtable data size, bytes: " + cfstore.getMemtableDataSize());
                 outs.println("\t\tMemtable switch count: " + cfstore.getMemtableSwitchCount());
-                outs.println("\t\tRead count: " + cfstore.getReadCount());
-                outs.println("\t\tRead latency, micros: " + String.format("%01.3f", cfstore.getRecentReadLatencyMicros() / 1000) + " ms.");
-                outs.println("\t\tWrite count: " + cfstore.getWriteCount());
-                outs.println("\t\tWrite latency, micros: " + String.format("%01.3f", cfstore.getRecentWriteLatencyMicros() / 1000) + " ms.");
+                outs.println("\t\tLocal read count: " + cfstore.getReadCount());
+                outs.printf("\t\tLocal read latency: %01.3f ms%n", cfstore.getRecentReadLatencyMicros() / 1000);
+                outs.println("\t\tLocal write count: " + cfstore.getWriteCount());
+                outs.printf("\t\tLocal write latency: %01.3f ms%n", cfstore.getRecentWriteLatencyMicros() / 1000);
                 outs.println("\t\tPending tasks: " + cfstore.getPendingTasks());
                 outs.println("\t\tBloom filter false positives: " + cfstore.getBloomFilterFalsePositives());
                 outs.println("\t\tBloom filter false ratio: " + String.format("%01.5f", cfstore.getRecentBloomFilterFalseRatio()));
                 outs.println("\t\tBloom filter space used, bytes: " + cfstore.getBloomFilterDiskSpaceUsed());
-                outs.println("\t\tCompacted partition minimum size, bytes: " + cfstore.getMinRowSize());
-                outs.println("\t\tCompacted partition maximum size, bytes: " + cfstore.getMaxRowSize());
-                outs.println("\t\tCompacted partition mean size, bytes: " + cfstore.getMeanRowSize());
+                outs.println("\t\tCompacted partition minimum bytes: " + cfstore.getMinRowSize());
+                outs.println("\t\tCompacted partition maximum bytes: " + cfstore.getMaxRowSize());
+                outs.println("\t\tCompacted partition mean bytes: " + cfstore.getMeanRowSize());
 
                 outs.println("");
             }
