@@ -24,6 +24,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.Sets;
 import org.apache.commons.cli.*;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
@@ -115,7 +116,7 @@ public class BulkLoader
                 Set<ProgressInfo> progresses = progressByHost.get(progressInfo.peer);
                 if (progresses == null)
                 {
-                    progresses = new HashSet<>();
+                    progresses = Sets.newSetFromMap(new ConcurrentHashMap<ProgressInfo, Boolean>());
                     progressByHost.put(progressInfo.peer, progresses);
                 }
                 if (progresses.contains(progressInfo))

@@ -23,6 +23,7 @@
  * Fix potential NPE on composite 2ndary indexes (CASSANDRA-6098)
  * Delete can potentially be skipped in batch (CASSANDRA-6115)
  * Allow alter keyspace on system_traces (CASSANDRA-6016)
+ * Disallow empty column names in cql (CASSANDRA-6136)
 Merged from 1.2:
  * Never return WriteTimeout for CL.ANY (CASSANDRA-6032)
  * Tracing should log write failure rather than raw exceptions (CASSANDRA-6133)
