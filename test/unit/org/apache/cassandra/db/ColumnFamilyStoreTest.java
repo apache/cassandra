@@ -1160,6 +1160,204 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
     @SuppressWarnings("unchecked")
     @Test
+    public void testMultiRangeSomeEmptyNoIndex() throws Throwable
+    {
+        // in order not to change thrift interfaces at this stage we build SliceQueryFilter
+        // directly instead of using QueryFilter to build it for us
+        ColumnSlice[] ranges = new ColumnSlice[] {
+                new ColumnSlice(ByteBuffer.wrap(EMPTY_BYTE_ARRAY), bytes("colA")),
+                new ColumnSlice(bytes("colC"), bytes("colE")),
+                new ColumnSlice(bytes("colF"), bytes("colF")),
+                new ColumnSlice(bytes("colG"), bytes("colG")),
+                new ColumnSlice(bytes("colI"), ByteBuffer.wrap(EMPTY_BYTE_ARRAY)) };
+
+        ColumnSlice[] rangesReversed = new ColumnSlice[] {
+                new ColumnSlice(ByteBuffer.wrap(EMPTY_BYTE_ARRAY), bytes("colI")),
+                new ColumnSlice(bytes("colG"), bytes("colG")),
+                new ColumnSlice(bytes("colF"), bytes("colF")),
+                new ColumnSlice(bytes("colE"), bytes("colC")),
+                new ColumnSlice(bytes("colA"), ByteBuffer.wrap(EMPTY_BYTE_ARRAY)) };
+
+        String tableName = "Keyspace1";
+        String cfName = "Standard1";
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        cfs.clearUnsafe();
+
+        String[] letters = new String[] { "a", "b", "c", "d", "i" };
+        Column[] cols = new Column[letters.length];
+        for (int i = 0; i < cols.length; i++)
+        {
+            cols[i] = new Column(ByteBufferUtil.bytes("col" + letters[i].toUpperCase()),
+                    ByteBuffer.wrap(new byte[1]), 1);
+        }
+
+        putColsStandard(cfs, dk("a"), cols);
+
+        cfs.forceBlockingFlush();
+
+        SliceQueryFilter multiRangeForward = new SliceQueryFilter(ranges, false, 100);
+        SliceQueryFilter multiRangeForwardWithCounting = new SliceQueryFilter(ranges, false, 3);
+        SliceQueryFilter multiRangeReverse = new SliceQueryFilter(rangesReversed, true, 100);
+        SliceQueryFilter multiRangeReverseWithCounting = new SliceQueryFilter(rangesReversed, true, 3);
+
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeForward, "a", "colA", "colC", "colD", "colI");
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeForwardWithCounting, "a", "colA", "colC", "colD");
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeReverse, "a", "colI", "colD", "colC", "colA");
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeReverseWithCounting, "a", "colI", "colD", "colC");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testMultiRangeSomeEmptyIndexed() throws Throwable
+    {
+        // in order not to change thrift interfaces at this stage we build SliceQueryFilter
+        // directly instead of using QueryFilter to build it for us
+        ColumnSlice[] ranges = new ColumnSlice[] {
+                new ColumnSlice(ByteBuffer.wrap(EMPTY_BYTE_ARRAY), bytes("colA")),
+                new ColumnSlice(bytes("colC"), bytes("colE")),
+                new ColumnSlice(bytes("colF"), bytes("colF")),
+                new ColumnSlice(bytes("colG"), bytes("colG")),
+                new ColumnSlice(bytes("colI"), ByteBuffer.wrap(EMPTY_BYTE_ARRAY)) };
+
+        ColumnSlice[] rangesReversed = new ColumnSlice[] {
+                new ColumnSlice(ByteBuffer.wrap(EMPTY_BYTE_ARRAY), bytes("colI")),
+                new ColumnSlice(bytes("colG"), bytes("colG")),
+                new ColumnSlice(bytes("colF"), bytes("colF")),
+                new ColumnSlice(bytes("colE"), bytes("colC")),
+                new ColumnSlice(bytes("colA"), ByteBuffer.wrap(EMPTY_BYTE_ARRAY)) };
+
+        String tableName = "Keyspace1";
+        String cfName = "Standard1";
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        cfs.clearUnsafe();
+
+        String[] letters = new String[] { "a", "b", "c", "d", "i" };
+        Column[] cols = new Column[letters.length];
+        for (int i = 0; i < cols.length; i++)
+        {
+            cols[i] = new Column(ByteBufferUtil.bytes("col" + letters[i].toUpperCase()),
+                    ByteBuffer.wrap(new byte[1366]), 1);
+        }
+
+        putColsStandard(cfs, dk("a"), cols);
+
+        cfs.forceBlockingFlush();
+
+        SliceQueryFilter multiRangeForward = new SliceQueryFilter(ranges, false, 100);
+        SliceQueryFilter multiRangeForwardWithCounting = new SliceQueryFilter(ranges, false, 3);
+        SliceQueryFilter multiRangeReverse = new SliceQueryFilter(rangesReversed, true, 100);
+        SliceQueryFilter multiRangeReverseWithCounting = new SliceQueryFilter(rangesReversed, true, 3);
+
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeForward, "a", "colA", "colC", "colD", "colI");
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeForwardWithCounting, "a", "colA", "colC", "colD");
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeReverse, "a", "colI", "colD", "colC", "colA");
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeReverseWithCounting, "a", "colI", "colD", "colC");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testMultiRangeContiguousNoIndex() throws Throwable
+    {
+        // in order not to change thrift interfaces at this stage we build SliceQueryFilter
+        // directly instead of using QueryFilter to build it for us
+        ColumnSlice[] ranges = new ColumnSlice[] {
+                new ColumnSlice(ByteBuffer.wrap(EMPTY_BYTE_ARRAY), bytes("colA")),
+                new ColumnSlice(bytes("colC"), bytes("colE")),
+                new ColumnSlice(bytes("colF"), bytes("colF")),
+                new ColumnSlice(bytes("colG"), bytes("colG")),
+                new ColumnSlice(bytes("colI"), ByteBuffer.wrap(EMPTY_BYTE_ARRAY)) };
+
+        ColumnSlice[] rangesReversed = new ColumnSlice[] {
+                new ColumnSlice(ByteBuffer.wrap(EMPTY_BYTE_ARRAY), bytes("colI")),
+                new ColumnSlice(bytes("colG"), bytes("colG")),
+                new ColumnSlice(bytes("colF"), bytes("colF")),
+                new ColumnSlice(bytes("colE"), bytes("colC")),
+                new ColumnSlice(bytes("colA"), ByteBuffer.wrap(EMPTY_BYTE_ARRAY)) };
+
+        String tableName = "Keyspace1";
+        String cfName = "Standard1";
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        cfs.clearUnsafe();
+
+        String[] letters = new String[] { "a", "b", "c", "d", "e", "f", "g", "h", "i" };
+        Column[] cols = new Column[letters.length];
+        for (int i = 0; i < cols.length; i++)
+        {
+            cols[i] = new Column(ByteBufferUtil.bytes("col" + letters[i].toUpperCase()),
+                    ByteBuffer.wrap(new byte[1]), 1);
+        }
+
+        putColsStandard(cfs, dk("a"), cols);
+
+        cfs.forceBlockingFlush();
+
+        SliceQueryFilter multiRangeForward = new SliceQueryFilter(ranges, false, 100);
+        SliceQueryFilter multiRangeForwardWithCounting = new SliceQueryFilter(ranges, false, 3);
+        SliceQueryFilter multiRangeReverse = new SliceQueryFilter(rangesReversed, true, 100);
+        SliceQueryFilter multiRangeReverseWithCounting = new SliceQueryFilter(rangesReversed, true, 3);
+
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeForward, "a", "colA", "colC", "colD", "colE", "colF", "colG", "colI");
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeForwardWithCounting, "a", "colA", "colC", "colD");
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeReverse, "a", "colI", "colG", "colF", "colE", "colD", "colC", "colA");
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeReverseWithCounting, "a", "colI", "colG", "colF");
+
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testMultiRangeContiguousIndexed() throws Throwable
+    {
+        // in order not to change thrift interfaces at this stage we build SliceQueryFilter
+        // directly instead of using QueryFilter to build it for us
+        ColumnSlice[] ranges = new ColumnSlice[] {
+                new ColumnSlice(ByteBuffer.wrap(EMPTY_BYTE_ARRAY), bytes("colA")),
+                new ColumnSlice(bytes("colC"), bytes("colE")),
+                new ColumnSlice(bytes("colF"), bytes("colF")),
+                new ColumnSlice(bytes("colG"), bytes("colG")),
+                new ColumnSlice(bytes("colI"), ByteBuffer.wrap(EMPTY_BYTE_ARRAY)) };
+
+        ColumnSlice[] rangesReversed = new ColumnSlice[] {
+                new ColumnSlice(ByteBuffer.wrap(EMPTY_BYTE_ARRAY), bytes("colI")),
+                new ColumnSlice(bytes("colG"), bytes("colG")),
+                new ColumnSlice(bytes("colF"), bytes("colF")),
+                new ColumnSlice(bytes("colE"), bytes("colC")),
+                new ColumnSlice(bytes("colA"), ByteBuffer.wrap(EMPTY_BYTE_ARRAY)) };
+
+        String tableName = "Keyspace1";
+        String cfName = "Standard1";
+        Table table = Table.open(tableName);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
+        cfs.clearUnsafe();
+
+        String[] letters = new String[] { "a", "b", "c", "d", "e", "f", "g", "h", "i" };
+        Column[] cols = new Column[letters.length];
+        for (int i = 0; i < cols.length; i++)
+        {
+            cols[i] = new Column(ByteBufferUtil.bytes("col" + letters[i].toUpperCase()),
+                    ByteBuffer.wrap(new byte[1366]), 1);
+        }
+
+        putColsStandard(cfs, dk("a"), cols);
+
+        cfs.forceBlockingFlush();
+
+        SliceQueryFilter multiRangeForward = new SliceQueryFilter(ranges, false, 100);
+        SliceQueryFilter multiRangeForwardWithCounting = new SliceQueryFilter(ranges, false, 3);
+        SliceQueryFilter multiRangeReverse = new SliceQueryFilter(rangesReversed, true, 100);
+        SliceQueryFilter multiRangeReverseWithCounting = new SliceQueryFilter(rangesReversed, true, 3);
+
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeForward, "a", "colA", "colC", "colD", "colE", "colF", "colG", "colI");
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeForwardWithCounting, "a", "colA", "colC", "colD");
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeReverse, "a", "colI", "colG", "colF", "colE", "colD", "colC", "colA");
+        findRowGetSlicesAndAssertColsFound(cfs, multiRangeReverseWithCounting, "a", "colI", "colG", "colF");
+
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
     public void testMultiRangeIndexed() throws Throwable
     {
         // in order not to change thrift interfaces at this stage we build SliceQueryFilter

@@ -391,7 +391,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
 
             // scan from index start
             OnDiskAtom column = null;
-            while (file.bytesPastMark(mark) < currentIndex.width)
+            while (file.bytesPastMark(mark) < currentIndex.width || column != null)
             {
                 // Only fetch a new column if we haven't dealt with the previous one.
                 if (column == null)
@@ -467,20 +467,31 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             OnDiskAtom.Serializer atomSerializer = emptyColumnFamily.getOnDiskSerializer();
             int columns = file.readInt();
 
-            for (int i = 0; i < columns; i++)
+            OnDiskAtom column = null;
+            int i = 0;
+            while (i < columns || column != null)
             {
-                OnDiskAtom column = atomSerializer.deserializeFromSSTable(file, sstable.descriptor.version);
+                // Only fetch a new column if we haven't dealt with the previous one.
+                if (column == null)
+                {
+                    column = atomSerializer.deserializeFromSSTable(file, sstable.descriptor.version);
+                    i++;
+                }
 
                 // col is before slice
                 // (If in slice, don't bother checking that until we change slice)
                 if (!inSlice && isColumnBeforeSliceStart(column))
+                {
+                    column = null;
                     continue;
+                }
 
                 // col is within slice
                 if (isColumnBeforeSliceFinish(column))
                 {
                     inSlice = true;
                     addColumn(column);
+                    column = null;
                 }
                 // col is after slice. more slices?
                 else

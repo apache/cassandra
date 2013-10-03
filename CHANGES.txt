@@ -12,6 +12,7 @@
  * Add tombstone debug threshold and histogram (CASSANDRA-6042, 6057)
  * Fix fat client schema pull NPE (CASSANDRA-6089)
  * Fix memtable flushing for indexed tables (CASSANDRA-6112)
+ * Fix skipping columns with multiple slices (CASSANDRA-6119)
 
 
 1.2.10
