@@ -1322,7 +1322,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         String tableName = "Keyspace1";
         String cfName = "Standard1";
-        Table table = Table.open(tableName);
+        Keyspace table = Keyspace.open(tableName);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
         cfs.clearUnsafe();
 
@@ -1371,7 +1371,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         String tableName = "Keyspace1";
         String cfName = "Standard1";
-        Table table = Table.open(tableName);
+        Keyspace table = Keyspace.open(tableName);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
         cfs.clearUnsafe();
 
@@ -1420,7 +1420,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         String tableName = "Keyspace1";
         String cfName = "Standard1";
-        Table table = Table.open(tableName);
+        Keyspace table = Keyspace.open(tableName);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
         cfs.clearUnsafe();
 
@@ -1470,7 +1470,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         String tableName = "Keyspace1";
         String cfName = "Standard1";
-        Table table = Table.open(tableName);
+        Keyspace table = Keyspace.open(tableName);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(cfName);
         cfs.clearUnsafe();
 
