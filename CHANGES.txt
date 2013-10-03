@@ -19,6 +19,7 @@
  * Update sstablesPerReadHistogram to use biased sampling (CASSANDRA-6164)
  * Log UnknownColumnfamilyException when closing socket (CASSANDRA-5725)
  * Properly error out on CREATE INDEX for counters table (CASSANDRA-6160)
+ * Handle JMX notification failure for repair (CASSANDRA-6097)
 
 
 1.2.10
