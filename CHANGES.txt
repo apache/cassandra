@@ -38,6 +38,7 @@ Merged from 1.2:
  * Enable tcp keepalive on incoming connections (CASSANDRA-4053)
  * Fix fat client schema pull NPE (CASSANDRA-6089)
  * Fix memtable flushing for indexed tables (CASSANDRA-6112)
+ * Fix skipping columns with multiple slices (CASSANDRA-6119)
 
 
 2.0.1
