@@ -18,3 +18,5 @@ done
 for jar in /usr/share/cassandra/*.jar; do
     CLASSPATH=$CLASSPATH:$jar
 done
+
+CLASSPATH="$CLASSPATH:$EXTRA_CLASSPATH"
