@@ -513,14 +513,31 @@ public class StorageProxy implements StorageProxyMBean
             {
                 responseHandler.get();
             }
-
         }
         catch (WriteTimeoutException ex)
         {
-            writeMetrics.timeouts.mark();
-            ClientRequestMetrics.writeTimeouts.inc();
-            Tracing.trace("Write timeout; received {} of {} required replies", ex.received, ex.blockFor);
-            throw ex;
+            if (consistency_level == ConsistencyLevel.ANY)
+            {
+                for (IMutation mutation : mutations)
+                {
+                    if (mutation instanceof CounterMutation)
+                        continue;
+
+                    Token tk = StorageService.getPartitioner().getToken(mutation.key());
+                    List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(mutation.getKeyspaceName(), tk);
+                    Collection<InetAddress> pendingEndpoints = StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, mutation.getKeyspaceName());
+                    for (InetAddress target : Iterables.concat(naturalEndpoints, pendingEndpoints))
+                        submitHint((RowMutation) mutation, target, null, consistency_level);
+                }
+                Tracing.trace("Wrote hint to satisfy CL.ANY after no replicas acknowledged the write");
+            }
+            else
+            {
+                writeMetrics.timeouts.mark();
+                ClientRequestMetrics.writeTimeouts.inc();
+                Tracing.trace("Write timeout; received {} of {} required replies", ex.received, ex.blockFor);
+                throw ex;
+            }
         }
         catch (UnavailableException e)
         {
