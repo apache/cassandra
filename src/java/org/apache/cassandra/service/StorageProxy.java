@@ -659,7 +659,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             InetAddress destination = iter.next();
             CompactEndpointSerializationHelper.serialize(destination, dos);
-            String id = MessagingService.instance().addCallback(handler, message, destination, message.getTimeout());
+            String id = MessagingService.instance().addCallback(handler, message, destination, message.getTimeout(), handler.consistencyLevel);
             dos.writeUTF(id);
         }
         message = message.withParameter(RowMutation.FORWARD_TO, bos.toByteArray());
