@@ -45,6 +45,8 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.index.SecondaryIndex;
+import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
@@ -91,6 +93,8 @@ public class StorageProxy implements StorageProxyMBean
     private static final ClientRequestMetrics readMetrics = new ClientRequestMetrics("Read");
     private static final ClientRequestMetrics rangeMetrics = new ClientRequestMetrics("RangeSlice");
     private static final ClientRequestMetrics writeMetrics = new ClientRequestMetrics("Write");
+
+    private static final double CONCURRENT_SUBREQUESTS_MARGIN = 0.10;
 
     private StorageProxy() {}
 
@@ -1441,6 +1445,46 @@ public class StorageProxy implements StorageProxyMBean
         return inter;
     }
 
+    /**
+     * Estimate the number of result rows (either cql3 rows or storage rows, as called for by the command) per
+     * range in the ring based on our local data.  This assumes that ranges are uniformly distributed across the cluster
+     * and that the queried data is also uniformly distributed.
+     */
+    private static float estimateResultRowsPerRange(AbstractRangeCommand command, Keyspace keyspace)
+    {
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.columnFamily);
+        float resultRowsPerRange;
+        if (command.rowFilter != null && !command.rowFilter.isEmpty())
+        {
+            // secondary index query (cql3 or otherwise)
+            SecondaryIndexSearcher searcher = Iterables.getOnlyElement(cfs.indexManager.getIndexSearchersForQuery(command.rowFilter));
+            SecondaryIndex highestSelectivityIndex = searcher.highestSelectivityIndex(command.rowFilter);
+            // use our own mean column count as our estimate for how many matching rows each node will have
+            resultRowsPerRange = highestSelectivityIndex.getIndexCfs().getMeanColumns();
+        }
+        else if (!command.countCQL3Rows())
+        {
+            // non-cql3 query
+            resultRowsPerRange = cfs.estimateKeys();
+        }
+        else
+        {
+            if (cfs.metadata.getCfDef().isCompact)
+            {
+                // one storage row per result row, so use key estimate directly
+                resultRowsPerRange = cfs.estimateKeys();
+            }
+            else
+            {
+                float resultRowsPerStorageRow = cfs.getMeanColumns() / cfs.metadata.regularColumns().size();
+                resultRowsPerRange = resultRowsPerStorageRow * (cfs.estimateKeys());
+            }
+        }
+
+        // adjust resultRowsPerRange by the number of tokens this node has and the replication factor for this ks
+        return (resultRowsPerRange / DatabaseDescriptor.getNumTokens()) / keyspace.getReplicationStrategy().getReplicationFactor();
+    }
+
     public static List<Row> getRangeSlice(AbstractRangeCommand command, ConsistencyLevel consistency_level)
     throws UnavailableException, ReadTimeoutException
     {
@@ -1455,114 +1499,156 @@ public class StorageProxy implements StorageProxyMBean
             int cql3RowCount = 0;
             rows = new ArrayList<Row>();
             List<AbstractBounds<RowPosition>> ranges = getRestrictedRanges(command.keyRange);
+
+            // our estimate of how many result rows there will be per-range
+            float resultRowsPerRange = estimateResultRowsPerRange(command, keyspace);
+            // underestimate how many rows we will get per-range in order to increase the likelihood that we'll
+            // fetch enough rows in the first round
+            resultRowsPerRange -= resultRowsPerRange * CONCURRENT_SUBREQUESTS_MARGIN;
+            int concurrencyFactor = resultRowsPerRange == 0.0
+                                  ? 1
+                                  : Math.max(1, Math.min(ranges.size(), (int) Math.ceil(command.limit() / resultRowsPerRange)));
+            logger.debug("Estimated result rows per range: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
+                         resultRowsPerRange, command.limit(), ranges.size(), concurrencyFactor);
+
+            boolean haveSufficientRows = false;
             int i = 0;
             AbstractBounds<RowPosition> nextRange = null;
             List<InetAddress> nextEndpoints = null;
             List<InetAddress> nextFilteredEndpoints = null;
             while (i < ranges.size())
             {
-                AbstractBounds<RowPosition> range = nextRange == null
-                                                  ? ranges.get(i)
-                                                  : nextRange;
-                List<InetAddress> liveEndpoints = nextEndpoints == null
-                                                ? getLiveSortedEndpoints(keyspace, range.right)
-                                                : nextEndpoints;
-                List<InetAddress> filteredEndpoints = nextFilteredEndpoints == null
-                                                    ? consistency_level.filterForQuery(keyspace, liveEndpoints)
-                                                    : nextFilteredEndpoints;
-                ++i;
-
-                // getRestrictedRange has broken the queried range into per-[vnode] token ranges, but this doesn't take
-                // the replication factor into account. If the intersection of live endpoints for 2 consecutive ranges
-                // still meets the CL requirements, then we can merge both ranges into the same RangeSliceCommand.
-                while (i < ranges.size())
+                List<Pair<AbstractRangeCommand, ReadCallback<RangeSliceReply, Iterable<Row>>>> scanHandlers = new ArrayList<>(concurrencyFactor);
+                int concurrentFetchStartingIndex = i;
+                while ((i - concurrentFetchStartingIndex) < concurrencyFactor)
                 {
-                    nextRange = ranges.get(i);
-                    nextEndpoints = getLiveSortedEndpoints(keyspace, nextRange.right);
-                    nextFilteredEndpoints = consistency_level.filterForQuery(keyspace, nextEndpoints);
-
-                    /*
-                     * If the current range right is the min token, we should stop merging because CFS.getRangeSlice
-                     * don't know how to deal with a wrapping range.
-                     * Note: it would be slightly more efficient to have CFS.getRangeSlice on the destination nodes unwraps
-                     * the range if necessary and deal with it. However, we can't start sending wrapped range without breaking
-                     * wire compatibility, so It's likely easier not to bother;
-                     */
-                    if (range.right.isMinimum())
-                        break;
-
-                    List<InetAddress> merged = intersection(liveEndpoints, nextEndpoints);
-
-                    // Check if there is enough endpoint for the merge to be possible.
-                    if (!consistency_level.isSufficientLiveNodes(keyspace, merged))
-                        break;
-
-                    List<InetAddress> filteredMerged = consistency_level.filterForQuery(keyspace, merged);
-
-                    // Estimate whether merging will be a win or not
-                    if (!DatabaseDescriptor.getEndpointSnitch().isWorthMergingForRangeQuery(filteredMerged, filteredEndpoints, nextFilteredEndpoints))
-                        break;
-
-                    // If we get there, merge this range and the next one
-                    range = range.withNewRight(nextRange.right);
-                    liveEndpoints = merged;
-                    filteredEndpoints = filteredMerged;
+                    AbstractBounds<RowPosition> range = nextRange == null
+                                                      ? ranges.get(i)
+                                                      : nextRange;
+                    List<InetAddress> liveEndpoints = nextEndpoints == null
+                                                    ? getLiveSortedEndpoints(keyspace, range.right)
+                                                    : nextEndpoints;
+                    List<InetAddress> filteredEndpoints = nextFilteredEndpoints == null
+                                                        ? consistency_level.filterForQuery(keyspace, liveEndpoints)
+                                                        : nextFilteredEndpoints;
                     ++i;
-                }
 
-                AbstractRangeCommand nodeCmd = command.forSubRange(range);
-
-                // collect replies and resolve according to consistency level
-                RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(nodeCmd.keyspace, command.timestamp);
-                ReadCallback<RangeSliceReply, Iterable<Row>> handler = new ReadCallback(resolver, consistency_level, nodeCmd, filteredEndpoints);
-                handler.assureSufficientLiveNodes();
-                resolver.setSources(filteredEndpoints);
-                if (filteredEndpoints.size() == 1
-                    && filteredEndpoints.get(0).equals(FBUtilities.getBroadcastAddress())
-                    && OPTIMIZE_LOCAL_REQUESTS)
-                {
-                    StageManager.getStage(Stage.READ).execute(new LocalRangeSliceRunnable(nodeCmd, handler));
-                }
-                else
-                {
-                    MessageOut<? extends AbstractRangeCommand> message = nodeCmd.createMessage();
-                    for (InetAddress endpoint : filteredEndpoints)
+                    // getRestrictedRange has broken the queried range into per-[vnode] token ranges, but this doesn't take
+                    // the replication factor into account. If the intersection of live endpoints for 2 consecutive ranges
+                    // still meets the CL requirements, then we can merge both ranges into the same RangeSliceCommand.
+                    while (i < ranges.size())
                     {
-                        Tracing.trace("Enqueuing request to {}", endpoint);
-                        MessagingService.instance().sendRR(message, endpoint, handler);
+                        nextRange = ranges.get(i);
+                        nextEndpoints = getLiveSortedEndpoints(keyspace, nextRange.right);
+                        nextFilteredEndpoints = consistency_level.filterForQuery(keyspace, nextEndpoints);
+
+                        // If the current range right is the min token, we should stop merging because CFS.getRangeSlice
+                        // don't know how to deal with a wrapping range.
+                        // Note: it would be slightly more efficient to have CFS.getRangeSlice on the destination nodes unwraps
+                        // the range if necessary and deal with it. However, we can't start sending wrapped range without breaking
+                        // wire compatibility, so It's likely easier not to bother;
+                        if (range.right.isMinimum())
+                            break;
+
+                        List<InetAddress> merged = intersection(liveEndpoints, nextEndpoints);
+
+                        // Check if there is enough endpoint for the merge to be possible.
+                        if (!consistency_level.isSufficientLiveNodes(keyspace, merged))
+                            break;
+
+                        List<InetAddress> filteredMerged = consistency_level.filterForQuery(keyspace, merged);
+
+                        // Estimate whether merging will be a win or not
+                        if (!DatabaseDescriptor.getEndpointSnitch().isWorthMergingForRangeQuery(filteredMerged, filteredEndpoints, nextFilteredEndpoints))
+                            break;
+
+                        // If we get there, merge this range and the next one
+                        range = range.withNewRight(nextRange.right);
+                        liveEndpoints = merged;
+                        filteredEndpoints = filteredMerged;
+                        ++i;
+                    }
+
+                    AbstractRangeCommand nodeCmd = command.forSubRange(range);
+
+                    // collect replies and resolve according to consistency level
+                    RangeSliceResponseResolver resolver = new RangeSliceResponseResolver(nodeCmd.keyspace, command.timestamp);
+                    ReadCallback<RangeSliceReply, Iterable<Row>> handler = new ReadCallback<>(resolver, consistency_level, nodeCmd, filteredEndpoints);
+                    handler.assureSufficientLiveNodes();
+                    resolver.setSources(filteredEndpoints);
+                    if (filteredEndpoints.size() == 1
+                        && filteredEndpoints.get(0).equals(FBUtilities.getBroadcastAddress())
+                        && OPTIMIZE_LOCAL_REQUESTS)
+                    {
+                        StageManager.getStage(Stage.READ).execute(new LocalRangeSliceRunnable(nodeCmd, handler));
+                    }
+                    else
+                    {
+                        MessageOut<? extends AbstractRangeCommand> message = nodeCmd.createMessage();
+                        for (InetAddress endpoint : filteredEndpoints)
+                        {
+                            Tracing.trace("Enqueuing request to {}", endpoint);
+                            MessagingService.instance().sendRR(message, endpoint, handler);
+                        }
+                    }
+                    scanHandlers.add(Pair.create(nodeCmd, handler));
+                }
+
+                List<AsyncOneResponse> repairResponses = new ArrayList<>();
+                for (Pair<AbstractRangeCommand, ReadCallback<RangeSliceReply, Iterable<Row>>> cmdPairHandler : scanHandlers)
+                {
+                    AbstractRangeCommand nodeCmd = cmdPairHandler.left;
+                    ReadCallback<RangeSliceReply, Iterable<Row>> handler = cmdPairHandler.right;
+                    RangeSliceResponseResolver resolver = (RangeSliceResponseResolver)handler.resolver;
+
+                    try
+                    {
+                        for (Row row : handler.get())
+                        {
+                            rows.add(row);
+                            if (nodeCmd.countCQL3Rows())
+                                cql3RowCount += row.getLiveCount(command.predicate, command.timestamp);
+                        }
+                        repairResponses.addAll(resolver.repairResults);
+                    }
+                    catch (ReadTimeoutException ex)
+                    {
+                        // we timed out waiting for responses
+                        int blockFor = consistency_level.blockFor(keyspace);
+                        int responseCount = resolver.responses.size();
+                        String gotData = responseCount > 0
+                                         ? resolver.isDataPresent() ? " (including data)" : " (only digests)"
+                                         : "";
+
+                        if (Tracing.isTracing())
+                        {
+                            Tracing.trace("Timed out; received {} of {} responses{} for range {} of {}",
+                                          new Object[]{ responseCount, blockFor, gotData, i, ranges.size() });
+                        }
+                        else if (logger.isDebugEnabled())
+                        {
+                            logger.debug("Range slice timeout; received {} of {} responses{} for range {} of {}",
+                                         responseCount, blockFor, gotData, i, ranges.size());
+                        }
+                        throw ex;
+                    }
+                    catch (DigestMismatchException e)
+                    {
+                        throw new AssertionError(e); // no digests in range slices yet
+                    }
+
+                    // if we're done, great, otherwise, move to the next range
+                    int count = nodeCmd.countCQL3Rows() ? cql3RowCount : rows.size();
+                    if (count >= nodeCmd.limit())
+                    {
+                        haveSufficientRows = true;
+                        break;
                     }
                 }
 
                 try
                 {
-                    for (Row row : handler.get())
-                    {
-                        rows.add(row);
-                        if (nodeCmd.countCQL3Rows())
-                            cql3RowCount += row.getLiveCount(command.predicate, command.timestamp);
-                    }
-                    FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getWriteRpcTimeout());
-                }
-                catch (ReadTimeoutException ex)
-                {
-                    // we timed out waiting for responses
-                    int blockFor = consistency_level.blockFor(keyspace);
-                    int responseCount = resolver.responses.size();
-                    String gotData = responseCount > 0
-                                     ? resolver.isDataPresent() ? " (including data)" : " (only digests)"
-                                     : "";
-
-                    if (Tracing.isTracing())
-                    {
-                        Tracing.trace("Timed out; received {} of {} responses{} for range {} of {}",
-                                new Object[]{ responseCount, blockFor, gotData, i, ranges.size() });
-                    }
-                    else if (logger.isDebugEnabled())
-                    {
-                        logger.debug("Range slice timeout; received {} of {} responses{} for range {} of {}",
-                                responseCount, blockFor, gotData, i, ranges.size());
-                    }
-                    throw ex;
+                    FBUtilities.waitOnFutures(repairResponses, DatabaseDescriptor.getWriteRpcTimeout());
                 }
                 catch (TimeoutException ex)
                 {
@@ -1574,15 +1660,31 @@ public class StorageProxy implements StorageProxyMBean
                         logger.debug("Range slice timeout while read-repairing after receiving all {} data and digest responses", blockFor);
                     throw new ReadTimeoutException(consistency_level, blockFor, blockFor, true);
                 }
-                catch (DigestMismatchException e)
-                {
-                    throw new AssertionError(e); // no digests in range slices yet
-                }
 
-                // if we're done, great, otherwise, move to the next range
-                int count = nodeCmd.countCQL3Rows() ? cql3RowCount : rows.size();
-                if (count >= nodeCmd.limit())
-                    break;
+                if (haveSufficientRows)
+                    return trim(command, rows);
+
+                // we didn't get enough rows in our concurrent fetch; recalculate our concurrency factor
+                // based on the results we've seen so far (as long as we still have ranges left to query)
+                if (i < ranges.size())
+                {
+                    float fetchedRows = command.countCQL3Rows() ? cql3RowCount : rows.size();
+                    float remainingRows = command.limit() - fetchedRows;
+                    float actualRowsPerRange;
+                    if (fetchedRows == 0.0)
+                    {
+                        // we haven't actually gotten any results, so query all remaining ranges at once
+                        actualRowsPerRange = 0.0f;
+                        concurrencyFactor = ranges.size() - i;
+                    }
+                    else
+                    {
+                        actualRowsPerRange = i / fetchedRows;
+                        concurrencyFactor = Math.max(1, Math.min(ranges.size() - i, Math.round(remainingRows / actualRowsPerRange)));
+                    }
+                    logger.debug("Didn't get enough response rows; actual rows per range: {}; remaining rows: {}, new concurrent requests: {}",
+                                 actualRowsPerRange, (int) remainingRows, concurrencyFactor);
+                }
             }
         }
         finally

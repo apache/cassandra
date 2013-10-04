@@ -36,6 +36,12 @@ public abstract class SecondaryIndexSearcher
         this.baseCfs = indexManager.baseCfs;
     }
 
+    public SecondaryIndex highestSelectivityIndex(List<IndexExpression> clause)
+    {
+        IndexExpression expr = highestSelectivityPredicate(clause);
+        return expr == null ? null : indexManager.getIndexForColumn(expr.column);
+    }
+
     public abstract List<Row> search(ExtendedFilter filter);
 
     /**
