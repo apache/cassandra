@@ -665,7 +665,7 @@ public class StorageProxy implements StorageProxyMBean
         message = message.withParameter(RowMutation.FORWARD_TO, bos.toByteArray());
         // send the combined message + forward headers
         Tracing.trace("Enqueuing message to {}", target);
-        MessagingService.instance().sendRR(message, target, handler);
+        MessagingService.instance().sendRR(message, target, handler, message.getTimeout(), handler.consistencyLevel);
     }
 
     private static void insertLocal(final RowMutation rm, final AbstractWriteResponseHandler responseHandler)
