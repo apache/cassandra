@@ -1039,7 +1039,9 @@ public class StorageProxy implements StorageProxyMBean
             AbstractWriteResponseHandler responseHandler = new WriteResponseHandler(endpoint, WriteType.COUNTER);
 
             Tracing.trace("Enqueuing counter update to {}", endpoint);
-            MessagingService.instance().sendRR(cm.makeMutationMessage(), endpoint, responseHandler);
+            MessageOut<CounterMutation> message = cm.makeMutationMessage();
+            int id = MessagingService.instance().addCallback(responseHandler, message, endpoint, message.getTimeout(), cm.consistency());
+            MessagingService.instance().sendOneWay(message, id, endpoint);
             return responseHandler;
         }
     }
