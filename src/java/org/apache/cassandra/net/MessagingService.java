@@ -329,7 +329,8 @@ public final class MessagingService implements MessagingServiceMBean
 
                 if (expiredCallbackInfo.shouldHint())
                 {
-                    RowMutation rm = (RowMutation) ((WriteCallbackInfo) expiredCallbackInfo).sentMessage.payload;
+                    assert expiredCallbackInfo.sentMessage != null;
+                    RowMutation rm = (RowMutation) expiredCallbackInfo.sentMessage.payload;
                     return StorageProxy.submitHint(rm, expiredCallbackInfo.target, null, null);
                 }
 
@@ -521,18 +522,15 @@ public final class MessagingService implements MessagingServiceMBean
 
     public String addCallback(IMessageCallback cb, MessageOut message, InetAddress to, long timeout)
     {
-        assert message.verb != Verb.MUTATION; // mutations need to call the overload with a ConsistencyLevel
         String messageId = nextId();
-        CallbackInfo previous = callbacks.put(messageId, new CallbackInfo(to, cb, callbackDeserializers.get(message.verb)), timeout);
-        assert previous == null;
-        return messageId;
-    }
+        CallbackInfo previous;
 
-    public String addCallback(IMessageCallback cb, MessageOut message, InetAddress to, long timeout, ConsistencyLevel consistencyLevel)
-    {
-        assert message.verb == Verb.MUTATION;
-        String messageId = nextId();
-        CallbackInfo previous = callbacks.put(messageId, new WriteCallbackInfo(to, cb, message, callbackDeserializers.get(message.verb), consistencyLevel), timeout);
+        // If HH is enabled and this is a mutation message => store the message to track for potential hints.
+        if (DatabaseDescriptor.hintedHandoffEnabled() && message.verb == Verb.MUTATION)
+            previous = callbacks.put(messageId, new CallbackInfo(to, cb, message, callbackDeserializers.get(message.verb)), timeout);
+        else
+            previous = callbacks.put(messageId, new CallbackInfo(to, cb, callbackDeserializers.get(message.verb)), timeout);
+
         assert previous == null;
         return messageId;
     }
@@ -550,7 +548,7 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public String sendRR(MessageOut message, InetAddress to, IMessageCallback cb)
     {
-        return sendRR(message, to, cb, message.getTimeout(), null);
+        return sendRR(message, to, cb, message.getTimeout());
     }
 
     /**
@@ -567,11 +565,9 @@ public final class MessagingService implements MessagingServiceMBean
      * @param timeout the timeout used for expiration
      * @return an reference to message id used to match with the result
      */
-    public String sendRR(MessageOut message, InetAddress to, IMessageCallback cb, long timeout, ConsistencyLevel consistencyLevel)
+    public String sendRR(MessageOut message, InetAddress to, IMessageCallback cb, long timeout)
     {
-        String id = consistencyLevel == null
-                  ? addCallback(cb, message, to, timeout)
-                  : addCallback(cb, message, to, timeout, consistencyLevel);
+        String id = addCallback(cb, message, to, timeout);
 
         if (cb instanceof AbstractWriteResponseHandler)
         {

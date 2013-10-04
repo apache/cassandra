@@ -31,6 +31,7 @@ public class CallbackInfo
 {
     protected final InetAddress target;
     protected final IMessageCallback callback;
+    protected final MessageOut<?> sentMessage;
     protected final IVersionedSerializer<?> serializer;
 
     /**
@@ -40,15 +41,27 @@ public class CallbackInfo
      * @param callback
      * @param serializer serializer to deserialize response message
      */
-   public CallbackInfo(InetAddress target, IMessageCallback callback, IVersionedSerializer<?> serializer)
+    public CallbackInfo(InetAddress target, IMessageCallback callback, IVersionedSerializer<?> serializer)
+    {
+        this(target, callback, null, serializer);
+    }
+
+    public CallbackInfo(InetAddress target, IMessageCallback callback, MessageOut<?> sentMessage, IVersionedSerializer<?> serializer)
     {
         this.target = target;
         this.callback = callback;
+        this.sentMessage = sentMessage;
         this.serializer = serializer;
     }
 
+    /**
+     * @return TRUE iff a hint should be written for this target.
+     *
+     * NOTE:
+     * Assumes it is only called after the write of "sentMessage" to "target" has timed out.
+     */
     public boolean shouldHint()
     {
-        return false;
+        return sentMessage != null && StorageProxy.shouldHint(target);
     }
 }

@@ -196,34 +196,14 @@ public class StorageProxy implements StorageProxyMBean
             {
                 responseHandler.get();
             }
+
         }
         catch (WriteTimeoutException ex)
         {
-            if (consistency_level == ConsistencyLevel.ANY)
-            {
-                // hint all the mutations (except counters, which can't be safely retried).  This means
-                // we'll re-hint any successful ones; doesn't seem worth it to track individual success
-                // just for this unusual case.
-                for (IMutation mutation : mutations)
-                {
-                    if (mutation instanceof CounterMutation)
-                        continue;
-
-                    Token tk = StorageService.getPartitioner().getToken(mutation.key());
-                    List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(mutation.getTable(), tk);
-                    Collection<InetAddress> pendingEndpoints = StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, mutation.getTable());
-                    for (InetAddress target : Iterables.concat(naturalEndpoints, pendingEndpoints))
-                        submitHint((RowMutation) mutation, target, null, consistency_level);
-                }
-                Tracing.trace("Wrote hint to satisfy CL.ANY after no replicas acknowledged the write");
-            }
-            else
-            {
-                writeMetrics.timeouts.mark();
-                ClientRequestMetrics.writeTimeouts.inc();
-                Tracing.trace("Write timeout; received {} of {} required replies", ex.received, ex.blockFor);
-                throw ex;
-            }
+            writeMetrics.timeouts.mark();
+            ClientRequestMetrics.writeTimeouts.inc();
+            Tracing.trace("Write timeout; received {} of {} required replies", ex.received, ex.blockFor);
+            throw ex;
         }
         catch (UnavailableException e)
         {
@@ -642,11 +622,11 @@ public class StorageProxy implements StorageProxyMBean
         {
             // yes, the loop and non-loop code here are the same; this is clunky but we want to avoid
             // creating a second iterator since we already have a perfectly good one
-            MessagingService.instance().sendRR(message, target, handler, message.getTimeout(), handler.consistencyLevel);
+            MessagingService.instance().sendRR(message, target, handler);
             while (iter.hasNext())
             {
                 target = iter.next();
-                MessagingService.instance().sendRR(message, target, handler, message.getTimeout(), handler.consistencyLevel);
+                MessagingService.instance().sendRR(message, target, handler);
             }
             return;
         }
@@ -659,13 +639,13 @@ public class StorageProxy implements StorageProxyMBean
         {
             InetAddress destination = iter.next();
             CompactEndpointSerializationHelper.serialize(destination, dos);
-            String id = MessagingService.instance().addCallback(handler, message, destination, message.getTimeout(), handler.consistencyLevel);
+            String id = MessagingService.instance().addCallback(handler, message, destination, message.getTimeout());
             dos.writeUTF(id);
         }
         message = message.withParameter(RowMutation.FORWARD_TO, bos.toByteArray());
         // send the combined message + forward headers
         Tracing.trace("Enqueuing message to {}", target);
-        MessagingService.instance().sendRR(message, target, handler, message.getTimeout(), handler.consistencyLevel);
+        MessagingService.instance().sendRR(message, target, handler);
     }
 
     private static void insertLocal(final RowMutation rm, final AbstractWriteResponseHandler responseHandler)

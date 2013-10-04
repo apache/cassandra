@@ -48,8 +48,6 @@ import org.apache.cassandra.net.*;
 
 public class BootStrapper
 {
-    public static final long BOOTSTRAP_TIMEOUT = 30000; // default bootstrap timeout of 30s
-
     private static final Logger logger = LoggerFactory.getLogger(BootStrapper.class);
 
     /* endpoint that needs to be bootstrapped */
@@ -57,6 +55,7 @@ public class BootStrapper
     /* token of the node being bootstrapped. */
     protected final Collection<Token> tokens;
     protected final TokenMetadata tokenMetadata;
+    private static final long BOOTSTRAP_TIMEOUT = 30000; // default bootstrap timeout of 30s
 
     public BootStrapper(InetAddress address, Collection<Token> tokens, TokenMetadata tmd)
     {
@@ -188,12 +187,13 @@ public class BootStrapper
     {
         MessageOut message = new MessageOut(MessagingService.Verb.BOOTSTRAP_TOKEN);
         int retries = 5;
+        long timeout = Math.max(DatabaseDescriptor.getRpcTimeout(), BOOTSTRAP_TIMEOUT);
 
         while (retries > 0)
         {
             BootstrapTokenCallback btc = new BootstrapTokenCallback();
-            MessagingService.instance().sendRR(message, maxEndpoint, btc);
-            Token token = btc.getToken(BOOTSTRAP_TIMEOUT);
+            MessagingService.instance().sendRR(message, maxEndpoint, btc, timeout);
+            Token token = btc.getToken(timeout);
             if (token != null)
                 return token;
 
