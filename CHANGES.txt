@@ -16,6 +16,7 @@
  * Delete can potentially be skipped in batch (CASSANDRA-6115)
  * Allow alter keyspace on system_traces (CASSANDRA-6016)
  * Disallow empty column names in cql (CASSANDRA-6136)
+ * Use Java7 file-handling APIs and fix file moving on Windows (CASSANDRA-5383)
 Merged from 1.2:
  * Never return WriteTimeout for CL.ANY (CASSANDRA-6032)
  * Tracing should log write failure rather than raw exceptions (CASSANDRA-6133)

@@ -39,6 +39,7 @@ import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 public class LeveledManifest
@@ -595,6 +596,9 @@ public class LeveledManifest
         SSTableMetadata.serializer.legacySerialize(metadata, oldMetadata.right, descriptor, out);
         out.flush();
         out.close();
+        // we cant move a file on top of another file in windows:
+        if (!FBUtilities.isUnix())
+            FileUtils.delete(filename);
         FileUtils.renameWithConfirm(filename + "-tmp", filename);
     }
 }
