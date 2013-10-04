@@ -76,8 +76,6 @@ public final class CLibrary
     private static native int mlockall(int flags) throws LastErrorException;
     private static native int munlockall() throws LastErrorException;
 
-    private static native int link(String from, String to) throws LastErrorException;
-
     // fcntl - manipulate file descriptor, `man 2 fcntl`
     public static native int fcntl(int fd, int command, long flags) throws LastErrorException;
 

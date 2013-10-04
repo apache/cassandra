@@ -52,7 +52,6 @@ public class BackgroundActivityMonitor
     public static final int IRQ_INDEX = 5;
     public static final int SOFTIRQ_INDEX = 6;
 
-    private static final String OPERATING_SYSTEM = System.getProperty("os.name").toLowerCase();
     private static final int NUM_CPUS = Runtime.getRuntime().availableProcessors();
     private static final String PROC_STAT_PATH = "/proc/stat";
 
@@ -71,16 +70,11 @@ public class BackgroundActivityMonitor
         }
         catch (IOException ex)
         {
-            if (isUnix())
+            if (FBUtilities.isUnix())
                 logger.warn("Couldn't open /proc/stats");
             statsFile = null;
         }
         reportThread.scheduleAtFixedRate(new BackgroundActivityReporter(), 1, 1, TimeUnit.SECONDS);
-    }
-
-    public static boolean isUnix()
-    {
-        return OPERATING_SYSTEM.contains("nix") || OPERATING_SYSTEM.contains("nux") || OPERATING_SYSTEM.contains("aix");
     }
 
     private long[] readAndCompute() throws IOException
@@ -155,7 +149,7 @@ public class BackgroundActivityMonitor
             catch (IOException e)
             {
                 // ignore;
-                if (isUnix())
+                if (FBUtilities.isUnix())
                     logger.warn("Couldn't read /proc/stats");
             }
             if (report == -1d)
