@@ -71,11 +71,11 @@ public class Memtable
     // max liveratio seen w/ 1-byte columns on a 64-bit jvm was 19. If it gets higher than 64 something is probably broken.
     private static final double MAX_SANE_LIVE_RATIO = 64.0;
 
-    // we want to limit the amount of concurrently running and/or queued meterings, because counting is slow (can be
-    // minutes, for a large memtable and a busy server). so we could keep memtables
-    // alive after they're flushed and would otherwise be GC'd. the approach we take is to bound the number of
-    // outstanding/running meterings to a maximum of one per CFS using this set; the executor's queue is unbounded but
-    // will implicitly be bounded by the number of CFS:s.
+    // We need to take steps to avoid retaining inactive membtables in memory, because counting is slow (can be
+    // minutes, for a large memtable and a busy server).  A strictly FIFO Memtable queue could keep memtables
+    // alive waiting for metering after they're flushed and would otherwise be GC'd.  Instead, the approach we take
+    // is to enqueue the CFS instead of the memtable, and to meter whatever the active memtable is when the executor
+    // starts to work on it.  We use a Set to make sure we don't enqueue redundant tasks for the same CFS.
     private static final Set<ColumnFamilyStore> meteringInProgress = new NonBlockingHashSet<ColumnFamilyStore>();
     private static final ExecutorService meterExecutor = new JMXEnabledThreadPoolExecutor(1,
                                                                                           Integer.MAX_VALUE,
