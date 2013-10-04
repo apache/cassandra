@@ -646,7 +646,7 @@ public class StorageProxy implements StorageProxyMBean
             while (iter.hasNext())
             {
                 target = iter.next();
-                MessagingService.instance().sendRR(message, target, handler);
+                MessagingService.instance().sendRR(message, target, handler, message.getTimeout(), handler.consistencyLevel);
             }
             return;
         }
