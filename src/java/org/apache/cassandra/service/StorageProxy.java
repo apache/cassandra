@@ -978,7 +978,8 @@ public class StorageProxy implements StorageProxyMBean
             }
             message = message.withParameter(RowMutation.FORWARD_TO, out.getData());
             // send the combined message + forward headers
-            int id = MessagingService.instance().sendRR(message, target, handler);
+            int id = MessagingService.instance().addCallback(handler, message, target, message.getTimeout(), handler.consistencyLevel);
+            MessagingService.instance().sendOneWay(message, id, target);
             logger.trace("Sending message to {}@{}", id, target);
         }
         catch (IOException e)
