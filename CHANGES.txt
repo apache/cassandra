@@ -8,6 +8,7 @@
 
 
 2.0.2
+ * Fix race conditions in bulk loader (CASSANDRA-6129)
  * Add configurable metrics reporting (CASSANDRA-4430)
  * drop queries exceeding a configurable number of tombstones (CASSANDRA-6117)
  * Track and persist sstable read activity (CASSANDRA-5515)
