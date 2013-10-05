@@ -628,9 +628,8 @@ public class CliClient
             }
             catch (RequestValidationException ce)
             {
-                StringBuilder errorMessage = new StringBuilder("Unknown comparator '" + compareWith + "'. ");
-                errorMessage.append("Available functions: ");
-                throw new RuntimeException(errorMessage.append(Function.getFunctionNames()).toString(), e);
+                String message = String.format("Unknown comparator '%s'. Available functions: %s", compareWith, Function.getFunctionNames());
+                throw new RuntimeException(message, e);
             }
         }
 
@@ -1766,7 +1765,7 @@ public class CliClient
             String prefix = "";
             for (Map.Entry<String, String> opt : ksDef.strategy_options.entrySet())
             {
-                opts.append(prefix + CliUtils.escapeSQLString(opt.getKey()) + " : " + CliUtils.escapeSQLString(opt.getValue()));
+                opts.append(prefix).append(CliUtils.escapeSQLString(opt.getKey())).append(" : ").append(CliUtils.escapeSQLString(opt.getValue()));
                 prefix = ", ";
             }
             opts.append("}");
@@ -1778,7 +1777,7 @@ public class CliClient
         output.append(";").append(NEWLINE);
         output.append(NEWLINE);
 
-        output.append("use " + CliUtils.maybeEscapeName(ksDef.name) + ";");
+        output.append("use ").append(CliUtils.maybeEscapeName(ksDef.name)).append(";");
         output.append(NEWLINE);
         output.append(NEWLINE);
 
@@ -2828,9 +2827,8 @@ public class CliClient
         }
         catch (IllegalArgumentException e)
         {
-            StringBuilder errorMessage = new StringBuilder("Function '" + functionName + "' not found. ");
-            errorMessage.append("Available functions: ");
-            throw new RuntimeException(errorMessage.append(Function.getFunctionNames()).toString(), e);
+            String message = String.format("Function '%s' not found. Available functions: %", functionName, Function.getFunctionNames());
+            throw new RuntimeException(message, e);
         }
 
         return function.getValidator();
