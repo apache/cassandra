@@ -73,4 +73,9 @@ public class ThriftSessionManager
         if (logger.isTraceEnabled())
             logger.trace("ClientState removed for socket addr {}", socket);
     }
+    
+    public int getConnectedClients()
+    {
+        return activeSocketSessions.size();
+    }
 }

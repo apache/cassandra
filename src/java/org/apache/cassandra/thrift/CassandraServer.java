@@ -22,6 +22,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
@@ -50,13 +51,14 @@ import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
+import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.scheduler.IRequestScheduler;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageProxy;
@@ -87,6 +89,7 @@ public class CassandraServer implements Cassandra.Iface
     public CassandraServer()
     {
         requestScheduler = DatabaseDescriptor.getRequestScheduler();
+        registerMetrics();
     }
 
     public ThriftClientState state()
@@ -1958,7 +1961,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             ThriftClientState cState = state();
-            String queryString = uncompress(query,compression);
+            String queryString = uncompress(query, compression);
             return QueryProcessor.prepare(queryString, cState);
         }
         catch (RequestValidationException e)
@@ -2118,5 +2121,16 @@ public class CassandraServer implements Cassandra.Iface
         return false;
     }
 
+    private void registerMetrics()
+    {
+        ClientMetrics.instance.addCounter("connectedThriftClients", new Callable<Integer>()
+        {
+            @Override
+            public Integer call() throws Exception
+            {
+                return ThriftSessionManager.instance.getConnectedClients();
+            }
+        });
+    }
     // main method moved to CassandraDaemon
 }
