@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.AbstractFuture;
@@ -48,7 +49,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
 
     public final UUID planId;
     public final String description;
-    private final List<StreamEventHandler> eventListeners = Collections.synchronizedList(new ArrayList<StreamEventHandler>());
+    private final Collection<StreamEventHandler> eventListeners = new ConcurrentLinkedQueue<>();
 
     private final Map<InetAddress, StreamSession> ongoingSessions;
     private final Map<InetAddress, SessionInfo> sessionStates = new NonBlockingHashMap<>();
