@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.EnumMap;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.SSLContext;
@@ -32,19 +33,12 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.security.SSLFactory;
-import org.apache.cassandra.service.CassandraDaemon;
-import org.apache.cassandra.service.IEndpointLifecycleSubscriber;
-import org.apache.cassandra.service.IMigrationListener;
-import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.*;
 import org.apache.cassandra.transport.messages.EventMessage;
 import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFactory;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.Channels;
+import org.jboss.netty.channel.*;
 import org.jboss.netty.channel.group.ChannelGroup;
 import org.jboss.netty.channel.group.DefaultChannelGroup;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
@@ -76,6 +70,7 @@ public class Server implements CassandraDaemon.Server
         EventNotifier notifier = new EventNotifier(this);
         StorageService.instance.register(notifier);
         MigrationManager.instance.register(notifier);
+        registerMetrics();
     }
 
     public Server(String hostname, int port)
@@ -140,6 +135,18 @@ public class Server implements CassandraDaemon.Server
         connectionTracker.allChannels.add(channel);
     }
 
+    private void registerMetrics()
+    {
+        ClientMetrics.instance.addCounter("connectedNativeClients", new Callable<Integer>()
+        {
+            @Override
+            public Integer call() throws Exception
+            {
+                return connectionTracker.getConnectedClients();
+            }
+        });
+    }
+
     private void close()
     {
         // Close opened connections
@@ -186,6 +193,16 @@ public class Server implements CassandraDaemon.Server
         public void closeAll()
         {
             allChannels.close().awaitUninterruptibly();
+        }
+
+        public int getConnectedClients()
+        {
+            /*
+              - When server is running: allChannels contains all clients' connections (channels) 
+                plus one additional channel used for the server's own bootstrap.
+               - When server is stopped: the size is 0
+            */
+            return allChannels.size() != 0 ? allChannels.size() - 1 : 0;
         }
     }
 

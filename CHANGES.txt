@@ -12,6 +12,7 @@
  * Fix fat client schema pull NPE (CASSANDRA-6089)
  * Fix memtable flushing for indexed tables (CASSANDRA-6112)
  * Fix skipping columns with multiple slices (CASSANDRA-6119)
+ * Expose connected thrift + native client counts (CASSANDRA-5084)
 
 
 1.2.10
