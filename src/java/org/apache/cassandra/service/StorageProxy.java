@@ -1476,7 +1476,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             else
             {
-                float resultRowsPerStorageRow = cfs.getMeanColumns() / cfs.metadata.regularColumns().size();
+                float resultRowsPerStorageRow = ((float) cfs.getMeanColumns()) / cfs.metadata.regularColumns().size();
                 resultRowsPerRange = resultRowsPerStorageRow * (cfs.estimateKeys());
             }
         }
