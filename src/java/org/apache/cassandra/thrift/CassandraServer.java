@@ -1827,8 +1827,8 @@ public class CassandraServer implements Cassandra.Iface
             if (statement == null)
                 throw new InvalidRequestException(String.format("Prepared query with ID %d not found" +
                                                                 " (either the query was not prepared on this host (maybe the host has been restarted?)" +
-                                                                " or you have prepared more than %d queries and queries %d has been evicted from the internal cache)",
-                                                                itemId, org.apache.cassandra.cql3.QueryProcessor.MAX_CACHE_PREPARED, itemId));
+                                                                " or you have prepared too many queries and it has been evicted from the internal cache)",
+                                                                itemId));
             logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId, statement.getBoundsTerms());
 
             return org.apache.cassandra.cql3.QueryProcessor.processPrepared(statement, ThriftConversion.fromThrift(cLevel), cState.getQueryState(), bindVariables).toThriftResult();
