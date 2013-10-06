@@ -20,8 +20,12 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.primitives.Ints;
+
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
+import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
 import org.antlr.runtime.*;
+import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,15 +45,36 @@ public class QueryProcessor
     public static final SemanticVersion CQL_VERSION = new SemanticVersion("3.0.5");
 
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
+    private static final MemoryMeter meter = new MemoryMeter();
+    private static final long MAX_CACHE_PREPARED_MEMORY = Runtime.getRuntime().maxMemory() / 256;
 
-    public static final int MAX_CACHE_PREPARED = 100000; // Enough to keep buggy clients from OOM'ing us
-    private static final Map<MD5Digest, CQLStatement> preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, CQLStatement>()
-                                                                               .maximumWeightedCapacity(MAX_CACHE_PREPARED)
-                                                                               .build();
+    private static EntryWeigher<MD5Digest, CQLStatement> cqlMemoryUsageWeigher = new EntryWeigher<MD5Digest, CQLStatement>()
+    {
+        @Override
+        public int weightOf(MD5Digest key, CQLStatement value)
+        {
+            return Ints.checkedCast(meter.measureDeep(key) + meter.measureDeep(value));
+        }
+    };
 
-    private static final Map<Integer, CQLStatement> thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, CQLStatement>()
-                                                                                   .maximumWeightedCapacity(MAX_CACHE_PREPARED)
-                                                                                   .build();
+    private static final ConcurrentLinkedHashMap<MD5Digest, CQLStatement> preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, CQLStatement>()
+                                                                                               .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
+                                                                                               .weigher(cqlMemoryUsageWeigher)
+                                                                                               .build();
+
+    private static EntryWeigher<Integer, CQLStatement> thriftMemoryUsageWeigher = new EntryWeigher<Integer, CQLStatement>()
+    {
+        @Override
+        public int weightOf(Integer key, CQLStatement value)
+        {
+            return Ints.checkedCast(meter.measureDeep(key) + meter.measureDeep(value));
+        }
+    };
+
+    private static final ConcurrentLinkedHashMap<Integer, CQLStatement> thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, CQLStatement>()
+                                                                                                   .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
+                                                                                                   .weigher(thriftMemoryUsageWeigher)
+                                                                                                   .build();
 
 
     public static CQLStatement getPrepared(MD5Digest id)
@@ -178,10 +203,18 @@ public class QueryProcessor
     }
 
     private static ResultMessage.Prepared storePreparedStatement(String queryString, String keyspace, ParsedStatement.Prepared prepared, boolean forThrift)
+    throws InvalidRequestException
     {
         // Concatenate the current keyspace so we don't mix prepared statements between keyspace (#5352).
         // (if the keyspace is null, queryString has to have a fully-qualified keyspace so it's fine.
         String toHash = keyspace == null ? queryString : keyspace + queryString;
+        long statementSize = meter.measureDeep(prepared.statement);
+        // don't execute the statement if it's bigger than the allowed threshold
+        if (statementSize > MAX_CACHE_PREPARED_MEMORY)
+            throw new InvalidRequestException(String.format("Prepared statement of size %d bytes is larger than allowed maximum of %d bytes.",
+                                                            statementSize,
+                                                            MAX_CACHE_PREPARED_MEMORY));
+
         if (forThrift)
         {
             int statementId = toHash.hashCode();
@@ -194,10 +227,10 @@ public class QueryProcessor
         else
         {
             MD5Digest statementId = MD5Digest.compute(toHash);
-            logger.trace(String.format("Stored prepared statement %s with %d bind markers",
-                                       statementId,
-                                       prepared.statement.getBoundsTerms()));
             preparedStatements.put(statementId, prepared.statement);
+            logger.trace(String.format("Stored prepared statement %s with %d bind markers",
+                         statementId,
+                         prepared.statement.getBoundsTerms()));
             return new ResultMessage.Prepared(statementId, prepared.boundNames);
         }
     }

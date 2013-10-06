@@ -1,4 +1,5 @@
 1.2.11
+ * Limit CQL prepared statement cache by size instead of count (CASSANDRA-6107)
  * Tracing should log write failure rather than raw exceptions (CASSANDRA-6133)
  * lock access to TM.endpointToHostIdMap (CASSANDRA-6103)
  * Allow estimated memtable size to exceed slab allocator size (CASSANDRA-6078)
