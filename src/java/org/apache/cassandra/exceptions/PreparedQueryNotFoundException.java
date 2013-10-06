@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.exceptions;
 
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.utils.MD5Digest;
 
 public class PreparedQueryNotFoundException extends RequestValidationException
@@ -34,7 +33,7 @@ public class PreparedQueryNotFoundException extends RequestValidationException
     {
         return String.format("Prepared query with ID %s not found" +
                              " (either the query was not prepared on this host (maybe the host has been restarted?)" +
-                             " or you have prepared more than %d queries and query %s has been evicted from the internal cache)",
-                             id, QueryProcessor.MAX_CACHE_PREPARED, id);
+                             " or you have prepared too many queries and it has been evicted from the internal cache)",
+                             id);
     }
 }
