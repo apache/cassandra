@@ -823,7 +823,7 @@ public class StorageProxy implements StorageProxyMBean
      * | off            |       >=1      | --> DO NOT fire hints. And DO NOT wait for them to complete.
      * | off            |       ANY      | --> DO NOT fire hints. And DO NOT wait for them to complete.
      *
-     * @throws TimeoutException if the hints cannot be written/enqueued
+     * @throws OverloadedException if the hints cannot be written/enqueued
      */
     public static void sendToHintedEndpoints(final RowMutation rm,
                                              Iterable<InetAddress> targets,
