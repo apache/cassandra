@@ -335,7 +335,7 @@ rpc_port: 9160
 # enable or disable keepalive on rpc connections
 rpc_keepalive: true
 
-# Cassandra provides three out-of-the-box options for the RPC Server:
+# Cassandra provides two out-of-the-box options for the RPC Server:
 #
 # sync  -> One thread per thrift connection. For a very large number of clients, memory
 #          will be your limiting factor. On a 64 bit JVM, 180KB is the minimum stack size
