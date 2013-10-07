@@ -110,7 +110,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         List<CompositeComponent> result = comparator.deconstruct(name);
         Tuple t = TupleFactory.getInstance().newTuple(result.size());
         for (int i=0; i<result.size(); i++)
-            setTupleValue(t, i, result.get(i).comparator.compose(result.get(i).value));
+            setTupleValue(t, i, cassandraToObj(result.get(i).comparator, result.get(i).value));
 
         return t;
     }
@@ -124,7 +124,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         if(comparator instanceof AbstractCompositeType)
             setTupleValue(pair, 0, composeComposite((AbstractCompositeType)comparator,col.name()));
         else
-            setTupleValue(pair, 0, comparator.compose(col.name()));
+            setTupleValue(pair, 0, cassandraToObj(comparator, col.name()));
 
         // value
         if (col instanceof Column)
@@ -134,10 +134,10 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
             if (validators.get(col.name()) == null)
             {
                 Map<MarshallerType, AbstractType> marshallers = getDefaultMarshallers(cfDef);
-                setTupleValue(pair, 1, marshallers.get(MarshallerType.DEFAULT_VALIDATOR).compose(col.value()));
+                setTupleValue(pair, 1, cassandraToObj(marshallers.get(MarshallerType.DEFAULT_VALIDATOR), col.value()));
             }
             else
-                setTupleValue(pair, 1, validators.get(col.name()).compose(col.value()));
+                setTupleValue(pair, 1, cassandraToObj(validators.get(col.name()), col.value()));
             return pair;
         }
         else
@@ -327,9 +327,12 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
             return DataType.LONG;
         else if (type instanceof IntegerType || type instanceof Int32Type) // IntegerType will overflow at 2**31, but is kept for compatibility until pig has a BigInteger
             return DataType.INTEGER;
-        else if (type instanceof AsciiType)
-            return DataType.CHARARRAY;
-        else if (type instanceof UTF8Type)
+        else if (type instanceof AsciiType || 
+                type instanceof UTF8Type ||
+                type instanceof DecimalType ||
+                type instanceof InetAddressType ||
+                type instanceof LexicalUUIDType ||
+                type instanceof UUIDType )
             return DataType.CHARARRAY;
         else if (type instanceof FloatType)
             return DataType.FLOAT;
@@ -771,6 +774,19 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
                 return new CFDefinition(CFMetaData.fromThrift(cfDef));
         }
         return null;
+    }
+
+    protected Object cassandraToObj(AbstractType validator, ByteBuffer value)
+    {
+        if (validator instanceof DecimalType ||
+                validator instanceof InetAddressType ||
+                validator instanceof LexicalUUIDType ||
+                validator instanceof UUIDType)
+        {
+            return validator.getString(value);
+        }
+        else
+            return validator.compose(value);
     }
 }
 
