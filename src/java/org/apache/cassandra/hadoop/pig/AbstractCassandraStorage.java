@@ -127,6 +127,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
             setTupleValue(pair, 0, cassandraToObj(comparator, col.name()));
 
         // value
+        Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
         if (validators.get(col.name()) == null)
         {
             Map<MarshallerType, AbstractType> marshallers = getDefaultMarshallers(cfDef);
