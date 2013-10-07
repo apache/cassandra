@@ -49,6 +49,9 @@ commands:
   - name: compactionstats
     help: |
       Print statistics on compactions
+  - name: compactionhistory
+    help: |
+      Print history of compaction
   - name: disablebinary
     help: |
       Disable native transport (binary protocol)

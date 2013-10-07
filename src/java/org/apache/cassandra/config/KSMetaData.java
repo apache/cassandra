@@ -90,6 +90,7 @@ public final class KSMetaData
                                                 CFMetaData.SchemaColumnFamiliesCf,
                                                 CFMetaData.SchemaColumnsCf,
                                                 CFMetaData.CompactionLogCf,
+                                                CFMetaData.CompactionHistoryCf,
                                                 CFMetaData.PaxosCf,
                                                 CFMetaData.SSTableActivityCF);
         return new KSMetaData(Keyspace.SYSTEM_KS, LocalStrategy.class, Collections.<String, String>emptyMap(), true, cfDefs);

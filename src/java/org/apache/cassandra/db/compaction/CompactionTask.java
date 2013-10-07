@@ -244,34 +244,34 @@ public class CompactionTask extends AbstractCompactionTask
         for (SSTableReader sstable : sstables)
             sstable.preheat(cachedKeyMap.get(sstable.descriptor));
 
-        if (logger.isInfoEnabled())
+        // log a bunch of statistics about the result and save to system table compaction_history
+        long dTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        long startsize = SSTable.getTotalBytes(toCompact);
+        long endsize = SSTable.getTotalBytes(sstables);
+        double ratio = (double) endsize / (double) startsize;
+
+        StringBuilder builder = new StringBuilder();
+        for (SSTableReader reader : sstables)
+            builder.append(reader.descriptor.baseFilename()).append(",");
+
+        double mbps = dTime > 0 ? (double) endsize / (1024 * 1024) / ((double) dTime / 1000) : 0;
+        long totalSourceRows = 0;
+        long[] counts = ci.getMergedRowCounts();
+        StringBuilder mergeSummary = new StringBuilder(counts.length * 10);
+        Map<Integer, Long> mergedRows = new HashMap<Integer, Long>();
+        for (int i = 0; i < counts.length; i++)
         {
-            // log a bunch of statistics about the result
-            long dTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
-            long startsize = SSTable.getTotalBytes(toCompact);
-            long endsize = SSTable.getTotalBytes(sstables);
-            double ratio = (double)endsize / (double)startsize;
-
-            StringBuilder builder = new StringBuilder();
-            for (SSTableReader reader : sstables)
-                builder.append(reader.descriptor.baseFilename()).append(",");
-
-            double mbps = dTime > 0 ? (double)endsize/(1024*1024)/((double)dTime/1000) : 0;
-            long totalSourceRows = 0;
-            long[] counts = ci.getMergedRowCounts();
-            StringBuilder mergeSummary = new StringBuilder(counts.length * 10);
-            for (int i = 0; i < counts.length; i++)
-            {
-                int rows = i + 1;
-                long count = counts[i];
-                totalSourceRows += rows * count;
-                mergeSummary.append(String.format("%d:%d, ", rows, count));
-            }
-
-            logger.info(String.format("Compacted %d sstables to [%s].  %,d bytes to %,d (~%d%% of original) in %,dms = %fMB/s.  %,d total rows, %,d unique.  Row merge counts were {%s}",
-                                      toCompact.size(), builder.toString(), startsize, endsize, (int) (ratio * 100), dTime, mbps, totalSourceRows, totalkeysWritten, mergeSummary.toString()));
-            logger.debug(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
+            int rows = i + 1;
+            long count = counts[i];
+            totalSourceRows += rows * count;
+            mergeSummary.append(String.format("%d:%d, ", rows, count));
+            mergedRows.put(rows, count);
         }
+
+        SystemKeyspace.updateCompactionHistory(cfs.keyspace.getName(), cfs.name, start, startsize, endsize, mergedRows);
+        logger.info(String.format("Compacted %d sstables to [%s].  %,d bytes to %,d (~%d%% of original) in %,dms = %fMB/s.  %,d total rows, %,d unique.  Row merge counts were {%s}",
+                                  toCompact.size(), builder.toString(), startsize, endsize, (int) (ratio * 100), dTime, mbps, totalSourceRows, totalkeysWritten, mergeSummary.toString()));
+        logger.debug(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
     }
 
     private SSTableWriter createCompactionWriter(File sstableDirectory, long keysPerSSTable)

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
+import javax.management.openmbean.*;
 
 import com.google.common.base.Function;
 import com.google.common.collect.HashMultimap;
@@ -29,6 +30,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.transport.Server;
 import org.apache.commons.lang3.StringUtils;
@@ -80,6 +82,7 @@ public class SystemKeyspace
     public static final String COMPACTION_LOG = "compactions_in_progress";
     public static final String PAXOS_CF = "paxos";
     public static final String SSTABLE_ACTIVITY_CF = "sstable_activity";
+    public static final String COMPACTION_HISTORY_CF = "compaction_history";
 
     private static final String LOCAL_KEY = "local";
     private static final ByteBuffer ALL_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("Local");
@@ -218,6 +221,28 @@ public class SystemKeyspace
     {
         ColumnFamilyStore compactionLog = Keyspace.open(Keyspace.SYSTEM_KS).getColumnFamilyStore(COMPACTION_LOG);
         compactionLog.truncateBlocking();
+    }
+
+    public static void updateCompactionHistory(String ksname,
+                                               String cfname,
+                                               long compactedAt,
+                                               long bytesIn,
+                                               long bytesOut,
+                                               Map<Integer, Long> rowsMerged)
+    {
+        // don't write anything when the history table itself is compacted, since that would in turn cause new compactions
+        if (ksname.equals("system") && cfname.equals(COMPACTION_HISTORY_CF))
+            return;
+        String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, compacted_at, bytes_in, bytes_out, rows_merged) "
+                     + "VALUES (%s, '%s', '%s', %d, %d, %d, {%s})";
+        processInternal(String.format(req, COMPACTION_HISTORY_CF, UUIDGen.getTimeUUID().toString(), ksname, cfname, compactedAt, bytesIn, bytesOut, FBUtilities.toString(rowsMerged)));
+            forceBlockingFlush(COMPACTION_HISTORY_CF);
+    }
+
+    public static TabularData getCompactionHistory() throws OpenDataException
+    {
+        UntypedResultSet queryResultSet = processInternal("SELECT * from system.compaction_history");
+        return CompactionHistoryTabularData.from(queryResultSet);
     }
 
     public static void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, ReplayPosition position)

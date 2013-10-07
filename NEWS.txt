@@ -23,6 +23,9 @@ New features
       (See blog post at TODO)
     - Configurable metrics reporting
       (see conf/metrics-reporter-config-sample.yaml)
+    - Compaction history and stats are now saved to system keyspace
+      (system.compaction_history table). You can access historiy via
+      new 'nodetool compactionhistory' command or CQL.
 
 Upgrading
 ---------
