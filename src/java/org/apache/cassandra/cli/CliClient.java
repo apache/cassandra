@@ -2827,7 +2827,7 @@ public class CliClient
         }
         catch (IllegalArgumentException e)
         {
-            String message = String.format("Function '%s' not found. Available functions: %", functionName, Function.getFunctionNames());
+            String message = String.format("Function '%s' not found. Available functions: %s", functionName, Function.getFunctionNames());
             throw new RuntimeException(message, e);
         }
 
