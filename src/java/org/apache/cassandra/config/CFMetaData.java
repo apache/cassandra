@@ -267,6 +267,17 @@ public final class CFMetaData
                                                                + "PRIMARY KEY ((keyspace_name, columnfamily_name, generation))"
                                                                + ") WITH COMMENT='historic sstable read rates'");
 
+    public static final CFMetaData CompactionHistoryCf = compile("CREATE TABLE " + SystemKeyspace.COMPACTION_HISTORY_CF + " ("
+                                                                 + "id uuid,"
+                                                                 + "keyspace_name text,"
+                                                                 + "columnfamily_name text,"
+                                                                 + "compacted_at timestamp,"
+                                                                 + "bytes_in bigint,"
+                                                                 + "bytes_out bigint,"
+                                                                 + "rows_merged map<int, bigint>,"
+                                                                 + "PRIMARY KEY (id)"
+                                                                 + ") WITH COMMENT='show all compaction history' AND DEFAULT_TIME_TO_LIVE=604800");
+
     public enum Caching
     {
         ALL, KEYS_ONLY, ROWS_ONLY, NONE;

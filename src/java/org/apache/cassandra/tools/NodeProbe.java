@@ -36,6 +36,7 @@ import javax.management.openmbean.CompositeData;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
+import javax.management.openmbean.TabularData;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
@@ -863,6 +864,11 @@ public class NodeProbe
     public long getReadRepairRepairedBackground()
     {
         return spProxy.getReadRepairRepairedBackground();
+    }
+
+    public TabularData compactionHistory()
+    {
+        return compactionProxy.getCompactionHistory();
     }
 }
 

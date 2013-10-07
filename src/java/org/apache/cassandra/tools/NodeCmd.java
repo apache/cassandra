@@ -27,6 +27,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
+import javax.management.openmbean.TabularData;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.LinkedHashMultimap;
@@ -109,6 +110,7 @@ public class NodeCmd
         CLEARSNAPSHOT,
         COMPACT,
         COMPACTIONSTATS,
+        COMPACTIONHISTORY,
         DECOMMISSION,
         DESCRIBECLUSTER,
         DISABLEBINARY,
@@ -1085,6 +1087,7 @@ public class NodeCmd
                 case TPSTATS         : nodeCmd.printThreadPoolStats(System.out); break;
                 case VERSION         : nodeCmd.printReleaseVersion(System.out); break;
                 case COMPACTIONSTATS : nodeCmd.printCompactionStats(System.out); break;
+                case COMPACTIONHISTORY:nodeCmd.printCompactionHistory(System.out); break;
                 case DESCRIBECLUSTER : nodeCmd.printClusterDescription(System.out, host); break;
                 case DISABLEBINARY   : probe.stopNativeTransport(); break;
                 case ENABLEBINARY    : probe.startNativeTransport(); break;
@@ -1302,6 +1305,29 @@ public class NodeCmd
             }
         }
         System.exit(probe.isFailed() ? 1 : 0);
+    }
+
+    private void printCompactionHistory(PrintStream out)
+    {
+        out.println("Compaction History: ");
+
+        TabularData tabularData = this.probe.compactionHistory();
+        if (tabularData.isEmpty())
+        {
+            out.printf("There is no compaction history");
+            return;
+        }
+
+        String format = "%-41s%-19s%-29s%-26s%-15s%-15s%s%n";
+        List<String> indexNames = tabularData.getTabularType().getIndexNames();
+        out.printf(format, indexNames.toArray(new String[indexNames.size()]));
+
+        Set<?> values = tabularData.keySet();
+        for (Object eachValue : values)
+        {
+            List<?> value = (List<?>) eachValue;
+            out.printf(format, value.toArray(new Object[value.size()]));
+        }
     }
 
     private static void printHistory(String[] args, ToolCommandLine cmd)

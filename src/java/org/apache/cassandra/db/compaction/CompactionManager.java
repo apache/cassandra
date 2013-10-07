@@ -24,6 +24,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
+import javax.management.openmbean.OpenDataException;
+import javax.management.openmbean.TabularData;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.*;
@@ -1014,6 +1016,18 @@ public class CompactionManager implements CompactionManagerMBean
         for (CompactionInfo.Holder ci : compactionHolders)
             out.add(ci.getCompactionInfo().toString());
         return out;
+    }
+
+    public TabularData getCompactionHistory()
+    {
+        try
+        {
+            return SystemKeyspace.getCompactionHistory();
+        }
+        catch (OpenDataException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public long getTotalBytesCompacted()

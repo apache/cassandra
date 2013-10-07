@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.List;
 import java.util.Map;
+import javax.management.openmbean.TabularData;
 
 public interface CompactionManagerMBean
 {
@@ -27,6 +28,9 @@ public interface CompactionManagerMBean
 
     /** List of running compaction summary strings. */
     public List<String> getCompactionSummary();
+
+    /** compaction history **/
+    public TabularData getCompactionHistory();
 
     /**
      * @see org.apache.cassandra.metrics.CompactionMetrics#pendingTasks
