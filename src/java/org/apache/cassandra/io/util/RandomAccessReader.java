@@ -152,7 +152,7 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
         return filePath;
     }
 
-    public int getBufferSize()
+    public int getTotalBufferSize()
     {
         return buffer.length;
     }

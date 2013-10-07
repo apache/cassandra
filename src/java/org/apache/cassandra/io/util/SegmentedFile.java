@@ -19,6 +19,7 @@ package org.apache.cassandra.io.util;
 
 import java.io.DataInput;
 import java.io.DataOutput;
+import java.io.File;
 import java.io.IOException;
 import java.nio.MappedByteBuffer;
 import java.util.Iterator;
@@ -57,7 +58,7 @@ public abstract class SegmentedFile
 
     protected SegmentedFile(String path, long length, long onDiskLength)
     {
-        this.path = path;
+        this.path = new File(path).getAbsolutePath();
         this.length = length;
         this.onDiskLength = onDiskLength;
     }

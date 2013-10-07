@@ -154,6 +154,11 @@ public class CompressedRandomAccessReader extends RandomAccessReader
         return checksumBytes.getInt(0);
     }
 
+    public int getTotalBufferSize()
+    {
+        return super.getTotalBufferSize() + compressed.capacity();
+    }
+
     @Override
     public long length()
     {
