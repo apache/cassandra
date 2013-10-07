@@ -563,12 +563,14 @@ public final class MessagingService implements MessagingServiceMBean
         return idGen.incrementAndGet();
     }
 
-    /*
-     * @see #sendRR(Message message, InetAddress to, IAsyncCallback cb, long timeout)
-     */
     public int sendRR(MessageOut message, InetAddress to, IAsyncCallback cb)
     {
         return sendRR(message, to, cb, message.getTimeout());
+    }
+
+    public int sendRR(MessageOut message, InetAddress to, IAsyncCallback cb, long timeout)
+    {
+        return sendRR(message, to, cb, timeout, null);
     }
 
     /**
@@ -584,11 +586,14 @@ public final class MessagingService implements MessagingServiceMBean
      *                suggest that a timeout occurred to the invoker of the send().
      *                suggest that a timeout occurred to the invoker of the send().
      * @param timeout the timeout used for expiration
+     * @param consistencyLevel the consistency level, for mutations; must be null otherwise
      * @return an reference to message id used to match with the result
      */
-    public int sendRR(MessageOut message, InetAddress to, IAsyncCallback cb, long timeout)
+    public int sendRR(MessageOut message, InetAddress to, IAsyncCallback cb, long timeout, ConsistencyLevel consistencyLevel)
     {
-        int id = addCallback(cb, message, to, timeout);
+        int id = consistencyLevel == null
+               ? addCallback(cb, message, to, timeout)
+               : addCallback(cb, message, to, timeout, consistencyLevel);
         sendOneWay(message, id, to);
         return id;
     }

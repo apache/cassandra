@@ -681,7 +681,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             MessageOut<RowMutation> message = rm.createMessage();
             for (InetAddress target : endpoints)
-                MessagingService.instance().sendRR(message, target, handler);
+                MessagingService.instance().sendRR(message, target, handler, message.getTimeout(), ConsistencyLevel.ONE);
         }
     }
 
@@ -866,7 +866,7 @@ public class StorageProxy implements StorageProxyMBean
                     // (1.1 knows how to forward old-style String message IDs; updated to int in 2.0)
                     if (localDataCenter.equals(dc))
                     {
-                        MessagingService.instance().sendRR(message, destination, responseHandler);
+                        MessagingService.instance().sendRR(message, destination, responseHandler, message.getTimeout(), consistency_level);
                     }
                     else
                     {
@@ -982,8 +982,7 @@ public class StorageProxy implements StorageProxyMBean
             }
             message = message.withParameter(RowMutation.FORWARD_TO, out.getData());
             // send the combined message + forward headers
-            int id = MessagingService.instance().addCallback(handler, message, target, message.getTimeout(), handler.consistencyLevel);
-            MessagingService.instance().sendOneWay(message, id, target);
+            int id = MessagingService.instance().sendRR(message, target, handler, message.getTimeout(), handler.consistencyLevel);
             logger.trace("Sending message to {}@{}", id, target);
         }
         catch (IOException e)
@@ -1044,8 +1043,7 @@ public class StorageProxy implements StorageProxyMBean
 
             Tracing.trace("Enqueuing counter update to {}", endpoint);
             MessageOut<CounterMutation> message = cm.makeMutationMessage();
-            int id = MessagingService.instance().addCallback(responseHandler, message, endpoint, message.getTimeout(), cm.consistency());
-            MessagingService.instance().sendOneWay(message, id, endpoint);
+            MessagingService.instance().sendRR(message, endpoint, responseHandler, message.getTimeout(), cm.consistency());
             return responseHandler;
         }
     }
