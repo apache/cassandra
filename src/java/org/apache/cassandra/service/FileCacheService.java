@@ -22,11 +22,9 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
+import com.google.common.cache.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,37 +41,47 @@ public class FileCacheService
 
     public static FileCacheService instance = new FileCacheService();
 
-    private final Cache<String, Queue<RandomAccessReader>> cache;
-    private final FileCacheMetrics metrics = new FileCacheMetrics();
-    public final Callable<Queue<RandomAccessReader>> cacheForPathCreator = new Callable<Queue<RandomAccessReader>>()
+    private static final Callable<Queue<RandomAccessReader>> cacheForPathCreator = new Callable<Queue<RandomAccessReader>>()
     {
         @Override
-        public Queue<RandomAccessReader> call() throws Exception
+        public Queue<RandomAccessReader> call()
         {
             return new ConcurrentLinkedQueue<RandomAccessReader>();
         }
     };
 
+    private static final AtomicInteger memoryUsage = new AtomicInteger();
+
+    private final Cache<String, Queue<RandomAccessReader>> cache;
+    private final FileCacheMetrics metrics = new FileCacheMetrics();
+
     protected FileCacheService()
     {
+        RemovalListener<String, Queue<RandomAccessReader>> onRemove = new RemovalListener<String, Queue<RandomAccessReader>>()
+        {
+            @Override
+            public void onRemoval(RemovalNotification<String, Queue<RandomAccessReader>> notification)
+            {
+                Queue<RandomAccessReader> cachedInstances = notification.getValue();
+                if (cachedInstances == null)
+                    return;
+
+                if (cachedInstances.size() > 0)
+                    logger.debug("Evicting cold readers for {}", cachedInstances.peek().getPath());
+
+                for (RandomAccessReader reader : cachedInstances)
+                {
+                    memoryUsage.addAndGet(-1 * reader.getTotalBufferSize());
+                    reader.deallocate();
+                }
+            }
+        };
+
         cache = CacheBuilder.<String, Queue<RandomAccessReader>>newBuilder()
-                            .expireAfterAccess(AFTER_ACCESS_EXPIRATION, TimeUnit.MILLISECONDS)
-                            .concurrencyLevel(DatabaseDescriptor.getConcurrentReaders())
-                            .removalListener(new RemovalListener<String, Queue<RandomAccessReader>>()
-                            {
-                                @Override
-                                public void onRemoval(RemovalNotification<String, Queue<RandomAccessReader>> notification)
-                                {
-                                    Queue<RandomAccessReader> cachedInstances = notification.getValue();
-
-                                    if (cachedInstances == null)
-                                        return;
-
-                                    for (RandomAccessReader reader : cachedInstances)
-                                        reader.deallocate();
-                                }
-                            })
-                            .build();
+                .expireAfterAccess(AFTER_ACCESS_EXPIRATION, TimeUnit.MILLISECONDS)
+                .concurrencyLevel(DatabaseDescriptor.getConcurrentReaders())
+                .removalListener(onRemove)
+                .build();
     }
 
     public RandomAccessReader get(String path)
@@ -81,12 +89,7 @@ public class FileCacheService
         metrics.requests.mark();
 
         Queue<RandomAccessReader> instances = getCacheFor(path);
-
-        if (instances == null)
-            return null;
-
         RandomAccessReader result = instances.poll();
-
         if (result != null)
             metrics.hits.mark();
 
@@ -101,30 +104,30 @@ public class FileCacheService
         }
         catch (ExecutionException e)
         {
-            // if something bad happened, let's just carry on and return null
-            // as dysfunctional queue should not interrupt normal operation
-            logger.debug("Exception fetching cache", e);
+            throw new AssertionError(e);
         }
-
-        return null;
     }
 
     public void put(RandomAccessReader instance)
     {
-        // This wouldn't be precise sometimes when CRAR is used because
-        // there is a way for users to dynamically change the size of the buffer,
-        // but we don't expect that to happen frequently in production.
-        // Doing accounting this way also allows us to avoid atomic CAS operation on read path.
-        long memoryUsage = (cache.size() + 1) * instance.getBufferSize();
+        int memoryUsed = memoryUsage.get();
+        if (logger.isDebugEnabled())
+            logger.debug("Estimated memory usage is {} compared to actual usage {}", memoryUsed, sizeInBytes());
 
-        if (memoryUsage >= MEMORY_USAGE_THRESHOLD)
+        if (memoryUsed >= MEMORY_USAGE_THRESHOLD)
+        {
             instance.deallocate();
+        }
         else
+        {
+            memoryUsage.addAndGet(instance.getTotalBufferSize());
             getCacheFor(instance.getPath()).add(instance);
+        }
     }
 
     public void invalidate(String path)
     {
+        logger.debug("Invalidating cache for {}", path);
         cache.invalidate(path);
     }
 
@@ -133,7 +136,7 @@ public class FileCacheService
         long n = 0;
         for (Queue<RandomAccessReader> queue : cache.asMap().values())
             for (RandomAccessReader reader : queue)
-                n += reader.getBufferSize();
+                n += reader.getTotalBufferSize();
         return n;
     }
 }

@@ -725,7 +725,7 @@ public class CassandraStorage extends AbstractCassandraStorage
         }
         else
         {
-            setTupleValue(tuple, 0, getDefaultMarshallers(cfDef).get(MarshallerType.KEY_VALIDATOR).compose(key));
+            setTupleValue(tuple, 0, cassandraToObj(getDefaultMarshallers(cfDef).get(MarshallerType.KEY_VALIDATOR), key));
         }
 
     }
