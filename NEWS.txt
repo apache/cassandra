@@ -13,6 +13,16 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+
+1.2.11
+======
+
+Upgrading
+---------
+    - ColumnFamilyMetrics#sstablesPerReadHistogram switched from uniform sampling
+      to biased-to-last-five-minutes sampling.
+
+
 1.2.10
 ======
 
