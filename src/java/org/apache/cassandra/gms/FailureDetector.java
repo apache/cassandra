@@ -90,6 +90,28 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         return nodesStatus;
     }
 
+    public int getDownEndpointCount()
+    {
+        int count = 0;
+        for (Map.Entry<InetAddress, EndpointState> entry : Gossiper.instance.endpointStateMap.entrySet())
+        {
+            if (!entry.getValue().isAlive())
+                count++;
+        }
+        return count;
+    }
+
+    public int getUpEndpointCount()
+    {
+        int count = 0;
+        for (Map.Entry<InetAddress, EndpointState> entry : Gossiper.instance.endpointStateMap.entrySet())
+        {
+            if (entry.getValue().isAlive())
+                count++;
+        }
+        return count;
+    }
+
     public String getEndpointState(String address) throws UnknownHostException
     {
         StringBuilder sb = new StringBuilder();

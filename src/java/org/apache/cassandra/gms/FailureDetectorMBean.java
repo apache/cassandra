@@ -33,4 +33,8 @@ public interface FailureDetectorMBean
     public String getEndpointState(String address) throws UnknownHostException;
 
     public Map<String, String> getSimpleStates();
+
+    public int getDownEndpointCount();
+
+    public int getUpEndpointCount();
 }
