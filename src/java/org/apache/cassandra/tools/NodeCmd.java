@@ -916,6 +916,8 @@ public class NodeCmd
                 outs.println("\t\tCompacted row minimum size: " + cfstore.getMinRowSize());
                 outs.println("\t\tCompacted row maximum size: " + cfstore.getMaxRowSize());
                 outs.println("\t\tCompacted row mean size: " + cfstore.getMeanRowSize());
+                outs.println("\t\tAverage live cells per slice (last five minutes): " + cfstore.getLiveCellsPerSlice());
+                outs.println("\t\tAverage tombstones per slice (last five minutes): " + cfstore.getTombstonesPerSlice());
 
                 outs.println("");
             }
