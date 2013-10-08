@@ -16,6 +16,7 @@
  * Expose connected thrift + native client counts (CASSANDRA-5084)
  * Optimize auth setup (CASSANDRA-6122)
  * Trace index selection (CASSANDRA-6001)
+ * Update sstablesPerReadHistogram to use biased sampling (CASSANDRA-6164)
 
 
 1.2.10

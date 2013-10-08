@@ -287,13 +287,10 @@ public interface ColumnFamilyStoreMBean
     public void disableAutoCompaction();
 
     /** Number of tombstoned cells retreived during the last slicequery */
-    public long getTombstonesPerLastRead();
-
-    /** Percentage of tombstoned cells retreived during the last slicequery */
-    public float getPercentageTombstonesPerLastRead();
+    public double getTombstonesPerSlice();
 
     /** Number of live cells retreived during the last slicequery */
-    public long getLiveCellsPerLastRead();
+    public double getLiveCellsPerSlice();
 
     public long estimateKeys();
 

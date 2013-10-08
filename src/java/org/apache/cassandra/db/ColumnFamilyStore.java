@@ -1911,20 +1911,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getMinimumCompactionThreshold() <= 0 || getMaximumCompactionThreshold() <= 0;
     }
 
-    public long getTombstonesPerLastRead()
+    public double getTombstonesPerSlice()
     {
-        return metric.tombstoneScannedHistogram.count();
+        return metric.tombstoneScannedHistogram.getSnapshot().getMedian();
     }
 
-    public float getPercentageTombstonesPerLastRead()
+    public double getLiveCellsPerSlice()
     {
-        long total = metric.tombstoneScannedHistogram.count() + metric.liveScannedHistogram.count();
-        return ((float) metric.tombstoneScannedHistogram.count() / total);
-    }
-
-    public long getLiveCellsPerLastRead()
-    {
-        return metric.liveScannedHistogram.count();
+        return metric.liveScannedHistogram.getSnapshot().getMedian();
     }
 
     // End JMX get/set.
