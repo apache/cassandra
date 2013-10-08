@@ -38,7 +38,7 @@ public abstract class AbstractWriteResponseHandler implements IAsyncCallback
     protected final Keyspace keyspace;
     protected final long start;
     protected final Collection<InetAddress> naturalEndpoints;
-    protected final ConsistencyLevel consistencyLevel;
+    public final ConsistencyLevel consistencyLevel;
     protected final Runnable callback;
     protected final Collection<InetAddress> pendingEndpoints;
     private final WriteType writeType;

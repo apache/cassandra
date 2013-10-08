@@ -39,14 +39,6 @@ New features
       (system.compaction_history table). You can access historiy via
       new 'nodetool compactionhistory' command or CQL.
 
-Upgrading
----------
-    - tombstone_debug_threshold from 1.2.11 has been changed to
-      tombstone_warn_threshold and tombstone_failure_threshold.
-      Adjust these if your application relies on scanning a large
-      number of tombstones; see the comments in cassandra.yaml for why
-      this is dangerous.
-
 
 2.0.1
 =====
