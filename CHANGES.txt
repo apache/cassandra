@@ -15,6 +15,7 @@
  * Fix skipping columns with multiple slices (CASSANDRA-6119)
  * Expose connected thrift + native client counts (CASSANDRA-5084)
  * Optimize auth setup (CASSANDRA-6122)
+ * Trace index selection (CASSANDRA-6001)
 
 
 1.2.10
