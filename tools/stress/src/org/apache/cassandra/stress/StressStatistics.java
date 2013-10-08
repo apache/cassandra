@@ -19,7 +19,6 @@
 package org.apache.cassandra.stress;
 
 import java.io.PrintStream;
-
 import org.apache.commons.lang3.time.DurationFormatUtils;
 
 import com.yammer.metrics.stats.Snapshot;
@@ -30,7 +29,6 @@ import com.yammer.metrics.stats.Snapshot;
  */
 public class StressStatistics
 {
-    private static final double NANOS_PER_MILLI = 1_000_000.0;
     
     private Session client;
     private PrintStream output;
@@ -95,11 +93,11 @@ public class StressStatistics
                 tallyOpRateCount += 1;
                 tallyKeyRateSum += intervalKeyRate;
                 tallyKeyRateCount += 1;
-                tallyLatencySum += nanosToMillis(latency.getMedian());
+                tallyLatencySum += latency.getMedian();
                 tallyLatencyCount += 1;
-                tally95thLatencySum += nanosToMillis(latency.get95thPercentile());
+                tally95thLatencySum += latency.get95thPercentile();
                 tally95thLatencyCount += 1;
-                tally999thLatencySum += nanosToMillis(latency.get999thPercentile());
+                tally999thLatencySum += latency.get999thPercentile();
                 tally999thLatencyCount += 1;
             }
         durationInSeconds = currentTimeInSeconds;
@@ -123,11 +121,6 @@ public class StressStatistics
         }
         output.println("Total operation time      : " + DurationFormatUtils.formatDuration(
             durationInSeconds*1000, "HH:mm:ss", true));
-    }
-    
-    public static double nanosToMillis(double nanos)
-    {
-        return nanos / NANOS_PER_MILLI;
     }
 
 }

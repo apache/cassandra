@@ -140,9 +140,7 @@ public class StressAction extends Thread
                                              total,
                                              opDelta / interval,
                                              keyDelta / interval,
-                                             StressStatistics.nanosToMillis(latency.getMedian()), 
-                                             StressStatistics.nanosToMillis(latency.get95thPercentile()), 
-                                             StressStatistics.nanosToMillis(latency.get999thPercentile()),
+                                             latency.getMedian(), latency.get95thPercentile(), latency.get999thPercentile(),
                                              currentTimeInSeconds));
 
                 if (client.outputStatistics()) {
