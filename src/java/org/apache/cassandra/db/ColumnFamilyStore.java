@@ -2172,20 +2172,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     "is deprecated, set the compaction strategy option 'enabled' to 'false' instead or use the nodetool command 'disableautocompaction'.");
     }
 
-    public long getTombstonesPerLastRead()
+    public double getTombstonesPerSlice()
     {
-        return metric.tombstoneScannedHistogram.count();
+        return metric.tombstoneScannedHistogram.getSnapshot().getMedian();
     }
 
-    public float getPercentageTombstonesPerLastRead()
+    public double getLiveCellsPerSlice()
     {
-        long total = metric.tombstoneScannedHistogram.count() + metric.liveScannedHistogram.count();
-        return ((float) metric.tombstoneScannedHistogram.count() / total);
-    }
-
-    public long getLiveCellsPerLastRead()
-    {
-        return metric.liveScannedHistogram.count();
+        return metric.liveScannedHistogram.getSnapshot().getMedian();
     }
 
     // End JMX get/set.
