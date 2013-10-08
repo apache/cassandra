@@ -47,6 +47,7 @@ Merged from 1.2:
  * Fix memtable flushing for indexed tables (CASSANDRA-6112)
  * Fix skipping columns with multiple slices (CASSANDRA-6119)
  * Expose connected thrift + native client counts (CASSANDRA-5084)
+ * Optimize auth setup (CASSANDRA-6122)
 
 
 2.0.1
