@@ -216,8 +216,8 @@ public class PasswordAuthenticator implements IAuthenticator
     {
         try
         {
-            // insert a default superuser if AUTH_KS.CREDENTIALS_CF is empty.
-            if (process(String.format("SELECT * FROM %s.%s", Auth.AUTH_KS, CREDENTIALS_CF), ConsistencyLevel.QUORUM).isEmpty())
+            // insert the default superuser if AUTH_KS.CREDENTIALS_CF is empty.
+            if (!hasExistingUsers())
             {
                 process(String.format("INSERT INTO %s.%s (username, salted_hash) VALUES ('%s', '%s') USING TIMESTAMP 0",
                                       Auth.AUTH_KS,
@@ -232,6 +232,14 @@ public class PasswordAuthenticator implements IAuthenticator
         {
             logger.warn("PasswordAuthenticator skipped default user setup: some nodes were not ready");
         }
+    }
+
+    private static boolean hasExistingUsers() throws RequestExecutionException
+    {
+        // Try looking up the 'cassandra' default user first, to avoid the range query if possible.
+        String defaultSUQuery = String.format("SELECT * FROM %s.%s WHERE username = '%s'", Auth.AUTH_KS, CREDENTIALS_CF, DEFAULT_USER_NAME);
+        String allUsersQuery = String.format("SELECT * FROM %s.%s LIMIT 1", Auth.AUTH_KS, CREDENTIALS_CF);
+        return !process(defaultSUQuery, ConsistencyLevel.QUORUM).isEmpty() || !process(allUsersQuery, ConsistencyLevel.QUORUM).isEmpty();
     }
 
     private static String hashpw(String password)

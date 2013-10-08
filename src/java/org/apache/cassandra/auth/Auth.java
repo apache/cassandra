@@ -206,7 +206,7 @@ public class Auth
         try
         {
             // insert a default superuser if AUTH_KS.USERS_CF is empty.
-            if (QueryProcessor.process(String.format("SELECT * FROM %s.%s", AUTH_KS, USERS_CF), ConsistencyLevel.QUORUM).isEmpty())
+            if (!hasExistingUsers())
             {
                 QueryProcessor.process(String.format("INSERT INTO %s.%s (name, super) VALUES ('%s', %s) USING TIMESTAMP 0",
                                                      AUTH_KS,
@@ -221,6 +221,15 @@ public class Auth
         {
             logger.warn("Skipped default superuser setup: some nodes were not ready");
         }
+    }
+
+    private static boolean hasExistingUsers() throws RequestExecutionException
+    {
+        // Try looking up the 'cassandra' default super user first, to avoid the range query if possible.
+        String defaultSUQuery = String.format("SELECT * FROM %s.%s WHERE name = '%s'", AUTH_KS, USERS_CF, DEFAULT_SUPERUSER_NAME);
+        String allUsersQuery = String.format("SELECT * FROM %s.%s LIMIT 1", AUTH_KS, USERS_CF);
+        return !QueryProcessor.process(defaultSUQuery, ConsistencyLevel.QUORUM).isEmpty()
+            || !QueryProcessor.process(allUsersQuery, ConsistencyLevel.QUORUM).isEmpty();
     }
 
     // we only worry about one character ('). Make sure it's properly escaped.
