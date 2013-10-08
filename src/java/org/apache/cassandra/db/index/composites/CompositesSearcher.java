@@ -56,7 +56,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
     {
         IndexExpression best = null;
         int bestMeanCount = Integer.MAX_VALUE;
-        Map<SecondaryIndex, Integer> candidates = new HashMap<>();
+        Map<SecondaryIndex, Integer> candidates = new HashMap<SecondaryIndex, Integer>();
 
         for (IndexExpression expression : clause)
         {
