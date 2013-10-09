@@ -1322,7 +1322,7 @@ public class NodeCmd
 
         String format = "%-41s%-19s%-29s%-26s%-15s%-15s%s%n";
         List<String> indexNames = tabularData.getTabularType().getIndexNames();
-        out.printf(format, indexNames.toArray(new String[indexNames.size()]));
+        out.printf(format, (Object[]) indexNames.toArray(new String[indexNames.size()]));
 
         Set<?> values = tabularData.keySet();
         for (Object eachValue : values)
