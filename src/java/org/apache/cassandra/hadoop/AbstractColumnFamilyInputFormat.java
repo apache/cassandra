@@ -27,8 +27,10 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.dht.IPartitioner;
@@ -123,7 +125,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
         logger.debug("partitioner is " + partitioner);
 
         // cannonical ranges, split into pieces, fetching the splits in parallel
-        ExecutorService executor = Executors.newCachedThreadPool();
+        ExecutorService executor = new ThreadPoolExecutor(0, 128, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
         List<InputSplit> splits = new ArrayList<InputSplit>();
 
         try
