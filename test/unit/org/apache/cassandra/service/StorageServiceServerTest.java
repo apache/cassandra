@@ -263,4 +263,11 @@ public class StorageServiceServerTest
         assert primaryRanges.size() == 1;
         assert primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
     }
+    
+    @Test
+    public void testGetOperationMode()
+    {
+    	String operationMode = StorageService.instance.getOperationMode();
+    	assert operationMode.equals("STARTING");
+    }
 }
