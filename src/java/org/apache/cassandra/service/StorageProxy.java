@@ -116,7 +116,7 @@ public class StorageProxy implements StorageProxyMBean
             throws OverloadedException
             {
                 assert mutation instanceof RowMutation;
-                sendToHintedEndpoints((RowMutation) mutation, targets, responseHandler, localDataCenter, consistency_level);
+                sendToHintedEndpoints((RowMutation) mutation, targets, responseHandler, localDataCenter);
             }
         };
 
@@ -530,7 +530,7 @@ public class StorageProxy implements StorageProxyMBean
                     List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(mutation.getKeyspaceName(), tk);
                     Collection<InetAddress> pendingEndpoints = StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, mutation.getKeyspaceName());
                     for (InetAddress target : Iterables.concat(naturalEndpoints, pendingEndpoints))
-                        submitHint((RowMutation) mutation, target, null, consistency_level);
+                        submitHint((RowMutation) mutation, target, null);
                 }
                 Tracing.trace("Wrote hint to satisfy CL.ANY after no replicas acknowledged the write");
             }
@@ -689,7 +689,7 @@ public class StorageProxy implements StorageProxyMBean
         for (WriteResponseHandlerWrapper wrapper : wrappers)
         {
             Iterable<InetAddress> endpoints = Iterables.concat(wrapper.handler.naturalEndpoints, wrapper.handler.pendingEndpoints);
-            sendToHintedEndpoints(wrapper.mutation, endpoints, wrapper.handler, localDataCenter, consistencyLevel);
+            sendToHintedEndpoints(wrapper.mutation, endpoints, wrapper.handler, localDataCenter);
         }
 
         for (WriteResponseHandlerWrapper wrapper : wrappers)
@@ -824,8 +824,7 @@ public class StorageProxy implements StorageProxyMBean
     public static void sendToHintedEndpoints(final RowMutation rm,
                                              Iterable<InetAddress> targets,
                                              AbstractWriteResponseHandler responseHandler,
-                                             String localDataCenter,
-                                             ConsistencyLevel consistency_level)
+                                             String localDataCenter)
     throws OverloadedException
     {
         // extra-datacenter replicas, grouped by dc
@@ -884,7 +883,7 @@ public class StorageProxy implements StorageProxyMBean
                     continue;
 
                 // Schedule a local hint
-                submitHint(rm, destination, responseHandler, consistency_level);
+                submitHint(rm, destination, responseHandler);
             }
         }
 
@@ -913,8 +912,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public static Future<Void> submitHint(final RowMutation mutation,
                                           final InetAddress target,
-                                          final AbstractWriteResponseHandler responseHandler,
-                                          final ConsistencyLevel consistencyLevel)
+                                          final AbstractWriteResponseHandler responseHandler)
     {
         // local write that time out should be handled by LocalMutationRunnable
         assert !target.equals(FBUtilities.getBroadcastAddress()) : target;
@@ -929,7 +927,7 @@ public class StorageProxy implements StorageProxyMBean
                     logger.debug("Adding hint for {}", target);
                     writeHintForMutation(mutation, ttl, target);
                     // Notify the handler only for CL == ANY
-                    if (responseHandler != null && consistencyLevel == ConsistencyLevel.ANY)
+                    if (responseHandler != null && responseHandler.consistencyLevel == ConsistencyLevel.ANY)
                         responseHandler.response(null);
                 }
                 else
@@ -1124,7 +1122,7 @@ public class StorageProxy implements StorageProxyMBean
                         public void runMayThrow() throws OverloadedException
                         {
                             // send mutation to other replica
-                            sendToHintedEndpoints(cm.makeReplicationMutation(), remotes, responseHandler, localDataCenter, consistency_level);
+                            sendToHintedEndpoints(cm.makeReplicationMutation(), remotes, responseHandler, localDataCenter);
                         }
                     });
                 }
