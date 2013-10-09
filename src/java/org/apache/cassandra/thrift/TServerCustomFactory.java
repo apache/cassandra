@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.thrift.server.TServer;
 
 /**
- * Helper implementation to create a thrift TServer based on one of the common types we support (sync, async, hsha),
+ * Helper implementation to create a thrift TServer based on one of the common types we support (sync, hsha),
  * or a custom type by setting the fully qualified java class name in the rpc_server_type setting.
  */
 public class TServerCustomFactory implements TServerFactory
