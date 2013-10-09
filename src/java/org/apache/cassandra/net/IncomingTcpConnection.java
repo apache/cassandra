@@ -24,13 +24,14 @@ import java.net.SocketException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xerial.snappy.SnappyInputStream;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.streaming.IncomingStreamReader;
 import org.apache.cassandra.streaming.StreamHeader;
-import org.xerial.snappy.SnappyInputStream;
+import org.apache.cassandra.db.UnknownColumnFamilyException;
 
 public class IncomingTcpConnection extends Thread
 {
@@ -85,6 +86,10 @@ public class IncomingTcpConnection extends Thread
         {
             logger.trace("eof reading from socket; closing", e);
             // connection will be reset so no need to throw an exception.
+        }
+        catch (UnknownColumnFamilyException e)
+        {
+            logger.warn("UnknownColumnFamilyException reading from socket; closing", e);
         }
         catch (IOException e)
         {
