@@ -42,6 +42,7 @@ Merged from 1.2:
  * Optimize auth setup (CASSANDRA-6122)
  * Trace index selection (CASSANDRA-6001)
  * Update sstablesPerReadHistogram to use biased sampling (CASSANDRA-6164)
+ * Log UnknownColumnfamilyException when closing socket (CASSANDRA-5725)
 
 
 2.0.1
