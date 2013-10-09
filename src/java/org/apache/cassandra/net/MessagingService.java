@@ -349,7 +349,7 @@ public final class MessagingService implements MessagingServiceMBean
                 if (expiredCallbackInfo.shouldHint())
                 {
                     RowMutation rm = (RowMutation) ((WriteCallbackInfo) expiredCallbackInfo).sentMessage.payload;
-                    return StorageProxy.submitHint(rm, expiredCallbackInfo.target, null, null);
+                    return StorageProxy.submitHint(rm, expiredCallbackInfo.target, null);
                 }
 
                 return null;

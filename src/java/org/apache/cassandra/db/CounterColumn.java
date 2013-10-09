@@ -362,7 +362,7 @@ public class CounterColumn extends Column
                 Set<InetAddress> remotes = Sets.difference(ImmutableSet.copyOf(targets), ImmutableSet.of(local));
                 // Fake local response to be a good lad but we won't wait on the responseHandler
                 responseHandler.response(null);
-                StorageProxy.sendToHintedEndpoints((RowMutation) mutation, remotes, responseHandler, localDataCenter, consistency_level);
+                StorageProxy.sendToHintedEndpoints((RowMutation) mutation, remotes, responseHandler, localDataCenter);
             }
         }, null, WriteType.SIMPLE);
 
