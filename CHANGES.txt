@@ -54,6 +54,7 @@ Merged from 1.2:
  * Log UnknownColumnfamilyException when closing socket (CASSANDRA-5725)
  * Properly error out on CREATE INDEX for counters table (CASSANDRA-6160)
  * Handle JMX notification failure for repair (CASSANDRA-6097)
+ * (Hadoop) Fetch no more than 128 splits in parallel (CASSANDRA-6169)
 
 
 2.0.1
