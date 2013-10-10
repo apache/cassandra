@@ -90,7 +90,6 @@ public class TraceState
     public static void trace(final ByteBuffer sessionIdBytes, final String message, final int elapsed)
     {
         final ByteBuffer eventId = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
-        final String threadName = Thread.currentThread().getName();
 
         StageManager.getStage(Stage.TRACING).execute(new WrappedRunnable()
         {
