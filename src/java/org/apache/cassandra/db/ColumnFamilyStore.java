@@ -1190,12 +1190,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (isRowCacheEnabled())
             {
-                UUID cfId = Schema.instance.getId(table.name, columnFamily);
-                if (cfId == null)
-                {
-                    logger.trace("no id found for {}.{}", table.name, columnFamily);
-                    return null;
-                }
+                assert !isIndex(); // CASSANDRA-5732
+                UUID cfId = metadata.cfId;
 
                 ColumnFamily cached = getThroughCache(cfId, filter);
                 if (cached == null)
