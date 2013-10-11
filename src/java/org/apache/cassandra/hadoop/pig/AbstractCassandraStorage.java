@@ -97,7 +97,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     protected String outputFormatClass;
     protected int splitSize = 64 * 1024;
     protected String partitionerClass;
-    protected boolean usePartitionFilter = false;
+    protected boolean usePartitionFilter = false; 
 
     public AbstractCassandraStorage()
     {
@@ -116,9 +116,8 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     }
 
     /** convert a column to a tuple */
-    protected Tuple columnToTuple(IColumn col, CfInfo cfInfo, AbstractType comparator) throws IOException
+    protected Tuple columnToTuple(Column col, CfDef cfDef, AbstractType comparator) throws IOException
     {
-        CfDef cfDef = cfInfo.cfDef;
         Tuple pair = TupleFactory.getInstance().newTuple(2);
 
         // name
@@ -131,34 +130,11 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
         if (validators.get(col.name()) == null)
         {
-            // standard
-            Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
-            ByteBuffer colName;
-            if (cfInfo.cql3Table && !cfInfo.compactCqlTable)
-            {
-                ByteBuffer[] names = ((AbstractCompositeType) parseType(cfDef.comparator_type)).split(col.name());
-                colName = names[names.length-1];
-            }
-            else
-                colName = col.name();
-            if (validators.get(colName) == null)
-            {
-                Map<MarshallerType, AbstractType> marshallers = getDefaultMarshallers(cfDef);
-                setTupleValue(pair, 1, cassandraToObj(marshallers.get(MarshallerType.DEFAULT_VALIDATOR), col.value()));
-            }
-            else
-                setTupleValue(pair, 1, cassandraToObj(validators.get(colName), col.value()));
-            return pair;
+            Map<MarshallerType, AbstractType> marshallers = getDefaultMarshallers(cfDef);
+            setTupleValue(pair, 1, cassandraToObj(marshallers.get(MarshallerType.DEFAULT_VALIDATOR), col.value()));
         }
         else
-        {
-            // super
-            ArrayList<Tuple> subcols = new ArrayList<Tuple>();
-            for (IColumn subcol : col.getSubColumns())
-                subcols.add(columnToTuple(subcol, cfInfo, parseType(cfDef.getSubcomparator_type())));
-
-            pair.set(1, new DefaultDataBag(subcols));
-        }
+            setTupleValue(pair, 1, cassandraToObj(validators.get(col.name()), col.value()));
         return pair;
     }
 
@@ -178,16 +154,11 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     }
 
     /** get the columnfamily definition for the signature */
-    protected CfInfo getCfInfo(String signature) throws IOException
+    protected CfDef getCfDef(String signature) throws IOException
     {
         UDFContext context = UDFContext.getUDFContext();
         Properties property = context.getUDFProperties(AbstractCassandraStorage.class);
-        String prop = property.getProperty(signature);
-        CfInfo cfInfo = new CfInfo();
-        cfInfo.cfDef = cfdefFromString(prop.substring(2));
-        cfInfo.compactCqlTable = prop.charAt(0) == '1' ? true : false;
-        cfInfo.cql3Table = prop.charAt(1) == '1' ? true : false;
-        return cfInfo;
+        return cfdefFromString(property.getProperty(signature));
     }
 
     /** construct a map to store the mashaller type to cassandra data type mapping */
@@ -344,7 +315,10 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
             return DataType.INTEGER;
         else if (type instanceof AsciiType || 
                 type instanceof UTF8Type ||
-                type instanceof DecimalType || type instanceof InetAddressType )
+                type instanceof DecimalType ||
+                type instanceof InetAddressType ||
+                type instanceof LexicalUUIDType ||
+                type instanceof UUIDType )
             return DataType.CHARARRAY;
         else if (type instanceof FloatType)
             return DataType.FLOAT;
@@ -525,15 +499,11 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
                     }
                 }
 
-                // compose the CfInfo for the columfamily
-                CfInfo cfInfo = getCfInfo(client);
+                // compose the CfDef for the columfamily
+                CfDef cfDef = getCfDef(client);
 
-                if (cfInfo.cfDef != null)
-                {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append(cfInfo.compactCqlTable ? 1 : 0).append(cfInfo.cql3Table ? 1: 0).append(cfdefToString(cfInfo.cfDef));
-                    properties.setProperty(signature, sb.toString());
-                }
+                if (cfDef != null)
+                    properties.setProperty(signature, cfdefToString(cfDef));
                 else
                     throw new IOException(String.format("Column family '%s' not found in keyspace '%s'",
                                                              column_family,
@@ -579,17 +549,17 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         return cfDef;
     }
 
-    /** return the CfInf for the column family */
-    protected CfInfo getCfInfo(Cassandra.Client client)
+    /** return the CfDef for the column family */
+    protected CfDef getCfDef(Cassandra.Client client)
             throws InvalidRequestException,
                    UnavailableException,
                    TimedOutException,
                    SchemaDisagreementException,
                    TException,
+                   CharacterCodingException,
                    NotFoundException,
                    org.apache.cassandra.exceptions.InvalidRequestException,
-                   ConfigurationException,
-                   IOException
+                   ConfigurationException
     {
         // get CF meta data
         String query = "SELECT type," +
@@ -643,19 +613,12 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
             else
                 cql3Table = true;
         }
-        cfDef.column_metadata = getColumnMetadata(client);
-        CfInfo cfInfo = new CfInfo();
-        cfInfo.cfDef = cfDef;
-        if (cql3Table && !(parseType(cfDef.comparator_type) instanceof AbstractCompositeType))
-            cfInfo.compactCqlTable = true;
-
-        if (cql3Table)
-            cfInfo.cql3Table = true;
-        return cfInfo;
+        cfDef.column_metadata = getColumnMetadata(client, cql3Table);
+        return cfDef;
     }
 
     /** get a list of columns */
-    protected abstract List<ColumnDef> getColumnMetadata(Cassandra.Client client)
+    protected abstract List<ColumnDef> getColumnMetadata(Cassandra.Client client, boolean cql3Table)
             throws InvalidRequestException,
             UnavailableException,
             TimedOutException,
@@ -772,7 +735,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     /** get a list of columns with defined index*/
     protected List<ColumnDef> getIndexes() throws IOException
     {
-        CfDef cfdef = getCfInfo(loadSignature).cfDef;
+        CfDef cfdef = getCfDef(loadSignature);
         List<ColumnDef> indexes = new ArrayList<ColumnDef>();
         for (ColumnDef cdef : cfdef.column_metadata)
         {
@@ -801,17 +764,15 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
 
     protected Object cassandraToObj(AbstractType validator, ByteBuffer value)
     {
-        if (validator instanceof DecimalType || validator instanceof InetAddressType)
+        if (validator instanceof DecimalType ||
+                validator instanceof InetAddressType ||
+                validator instanceof LexicalUUIDType ||
+                validator instanceof UUIDType)
+        {
             return validator.getString(value);
+        }
         else
             return validator.compose(value);
-    }
-
-    protected class CfInfo
-    {
-        boolean compactCqlTable = false;
-        boolean cql3Table = false;
-        CfDef cfDef;
     }
 }
 

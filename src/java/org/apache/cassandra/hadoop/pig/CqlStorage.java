@@ -94,8 +94,7 @@ public class CqlStorage extends AbstractCassandraStorage
             if (!reader.nextKeyValue())
                 return null;
 
-            CfInfo cfInfo = getCfInfo(loadSignature);
-            CfDef cfDef = cfInfo.cfDef;
+            CfDef cfDef = getCfDef(loadSignature);
             Map<String, ByteBuffer> keys = reader.getCurrentKey();
             Map<String, ByteBuffer> columns = reader.getCurrentValue();
             assert keys != null && columns != null;
@@ -281,8 +280,7 @@ public class CqlStorage extends AbstractCassandraStorage
     public ResourceSchema getSchema(String location, Job job) throws IOException
     {
         setLocation(location, job);
-        CfInfo cfInfo = getCfInfo(loadSignature);
-        CfDef cfDef = cfInfo.cfDef;
+        CfDef cfDef = getCfDef(loadSignature);
 
         // top-level schema, no type
         ResourceSchema schema = new ResourceSchema();
@@ -432,7 +430,7 @@ public class CqlStorage extends AbstractCassandraStorage
     }
     
     /** include key columns */
-    protected List<ColumnDef> getColumnMetadata(Cassandra.Client client)
+    protected List<ColumnDef> getColumnMetadata(Cassandra.Client client, boolean cql3Table)
             throws InvalidRequestException,
             UnavailableException,
             TimedOutException,
