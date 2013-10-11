@@ -93,7 +93,7 @@ public class StatusLogger
             pendingResponses += n;
         }
         logger.info(String.format("%-25s%10s%10s",
-                                  "MessagingService", "n/a", pendingCommands + "," + pendingResponses));
+                                  "MessagingService", "n/a", pendingCommands + "/" + pendingResponses));
 
         // Global key/row cache information
         AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = CacheService.instance.keyCache;
