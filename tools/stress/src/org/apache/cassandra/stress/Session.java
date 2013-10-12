@@ -25,6 +25,8 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.yammer.metrics.Metrics;
+
+import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.cli.transport.FramedTransportFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.EncryptionOptions;
@@ -114,7 +116,9 @@ public class Session implements Serializable
         availableOptions.addOption("alg", SSL_ALGORITHM,         true, "SSL: algorithm (default: SunX509)");
         availableOptions.addOption("st", SSL_STORE_TYPE,         true, "SSL: type of store");
         availableOptions.addOption("ciphers", SSL_CIPHER_SUITES, true, "SSL: comma-separated list of encryption suites to use");
-        availableOptions.addOption("th",  "throttle",            true,   "Throttle the total number of operations per second to a maximum amount.");
+        availableOptions.addOption("th", "throttle",             true, "Throttle the total number of operations per second to a maximum amount.");
+        availableOptions.addOption("un", "username",             true, "Username for authentication.");
+        availableOptions.addOption("pw", "password",             true, "Password for authentication.");
     }
 
     private int numKeys          = 1000 * 1000;
@@ -131,6 +135,8 @@ public class Session implements Serializable
     private int superColumns     = 1;
     private String compression   = null;
     private String compactionStrategy = null;
+    private String username      = null;
+    private String password      = null;
 
     private int progressInterval  = 10;
     private int keysPerCall       = 1000;
@@ -438,6 +444,11 @@ public class Session implements Serializable
             if (cmd.hasOption("tf"))
                 transportFactory = validateAndSetTransportFactory(cmd.getOptionValue("tf"));
 
+            if (cmd.hasOption("un"))
+                username = cmd.getOptionValue("un");
+
+            if (cmd.hasOption("pw"))
+                password = cmd.getOptionValue("pw");
         }
         catch (ParseException e)
         {
@@ -725,16 +736,31 @@ public class Session implements Serializable
 
         try
         {
-            if(!transport.isOpen())
+            if (!transport.isOpen())
                 transport.open();
 
             if (enable_cql)
                 client.set_cql_version(cqlVersion);
 
             if (setKeyspace)
-            {
                 client.set_keyspace("Keyspace1");
+
+            if (username != null && password != null)
+            {
+                Map<String, String> credentials = new HashMap<String, String>();
+                credentials.put(IAuthenticator.USERNAME_KEY, username);
+                credentials.put(IAuthenticator.PASSWORD_KEY, password);
+                AuthenticationRequest authenticationRequest = new AuthenticationRequest(credentials);
+                client.login(authenticationRequest);
             }
+        }
+        catch (AuthenticationException e)
+        {
+            throw new RuntimeException(e.getWhy());
+        }
+        catch (AuthorizationException e)
+        {
+            throw new RuntimeException(e.getWhy());
         }
         catch (InvalidRequestException e)
         {
