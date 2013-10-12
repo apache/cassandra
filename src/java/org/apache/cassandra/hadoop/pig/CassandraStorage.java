@@ -103,7 +103,8 @@ public class CassandraStorage extends AbstractCassandraStorage
     /** read wide row*/
     public Tuple getNextWide() throws IOException
     {
-        CfDef cfDef = getCfDef(loadSignature);
+        CfInfo cfInfo = getCfInfo(loadSignature);
+        CfDef cfDef = cfInfo.cfDef;
         ByteBuffer key = null;
         Tuple tuple = null; 
         DefaultDataBag bag = new DefaultDataBag();
@@ -126,7 +127,7 @@ public class CassandraStorage extends AbstractCassandraStorage
                         }
                         for (Map.Entry<ByteBuffer, Column> entry : lastRow.entrySet())
                         {
-                            bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
+                            bag.add(columnToTuple(entry.getValue(), cfInfo, parseType(cfDef.getComparator_type())));
                         }
                         lastKey = null;
                         lastRow = null;
@@ -164,7 +165,7 @@ public class CassandraStorage extends AbstractCassandraStorage
                             addKeyToTuple(tuple, lastKey, cfDef, parseType(cfDef.getKey_validation_class()));
                         for (Map.Entry<ByteBuffer, Column> entry : lastRow.entrySet())
                         {
-                            bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
+                            bag.add(columnToTuple(entry.getValue(), cfInfo, parseType(cfDef.getComparator_type())));
                         }
                         tuple.append(bag);
                         lastKey = key;
@@ -181,14 +182,14 @@ public class CassandraStorage extends AbstractCassandraStorage
                 {
                     for (Map.Entry<ByteBuffer, Column> entry : lastRow.entrySet())
                     {
-                        bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
+                        bag.add(columnToTuple(entry.getValue(), cfInfo, parseType(cfDef.getComparator_type())));
                     }
                     lastKey = null;
                     lastRow = null;
                 }
                 for (Map.Entry<ByteBuffer, Column> entry : row.entrySet())
                 {
-                    bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
+                    bag.add(columnToTuple(entry.getValue(), cfInfo, parseType(cfDef.getComparator_type())));
                 }
             }
         }
@@ -210,7 +211,8 @@ public class CassandraStorage extends AbstractCassandraStorage
             if (!reader.nextKeyValue())
                 return null;
 
-            CfDef cfDef = getCfDef(loadSignature);
+            CfInfo cfInfo = getCfInfo(loadSignature);
+            CfDef cfDef = cfInfo.cfDef;
             ByteBuffer key = reader.getCurrentKey();
             Map<ByteBuffer, Column> cf = reader.getCurrentValue();
             assert key != null && cf != null;
@@ -220,17 +222,26 @@ public class CassandraStorage extends AbstractCassandraStorage
 
             Tuple tuple = keyToTuple(key, cfDef, parseType(cfDef.getKey_validation_class()));
             DefaultDataBag bag = new DefaultDataBag();
-
             // we must add all the indexed columns first to match the schema
             Map<ByteBuffer, Boolean> added = new HashMap<ByteBuffer, Boolean>();
             // take care to iterate these in the same order as the schema does
             for (ColumnDef cdef : cfDef.column_metadata)
             {
-                if (cf.containsKey(cdef.name))
+                boolean hasColumn = false;
+                boolean cql3Table = false;
+                try
                 {
-                    tuple.append(columnToTuple(cf.get(cdef.name), cfDef, parseType(cfDef.getComparator_type())));
+                    hasColumn = cf.containsKey(cdef.name);
                 }
-                else
+                catch (Exception e)
+                {
+                    cql3Table = true;                  
+                }
+                if (hasColumn)
+                {
+                    tuple.append(columnToTuple(cf.get(cdef.name), cfInfo, parseType(cfDef.getComparator_type())));
+                }
+                else if (!cql3Table)
                 {   // otherwise, we need to add an empty tuple to take its place
                     tuple.append(TupleFactory.getInstance().newTuple());
                 }
@@ -240,7 +251,7 @@ public class CassandraStorage extends AbstractCassandraStorage
             for (Map.Entry<ByteBuffer, Column> entry : cf.entrySet())
             {
                 if (!added.containsKey(entry.getKey()))
-                    bag.add(columnToTuple(entry.getValue(), cfDef, parseType(cfDef.getComparator_type())));
+                    bag.add(columnToTuple(entry.getValue(), cfInfo, parseType(cfDef.getComparator_type())));
             }
             tuple.append(bag);
             // finally, special top-level indexes if needed
@@ -248,7 +259,7 @@ public class CassandraStorage extends AbstractCassandraStorage
             {
                 for (ColumnDef cdef : getIndexes())
                 {
-                    Tuple throwaway = columnToTuple(cf.get(cdef.name), cfDef, parseType(cfDef.getComparator_type()));
+                    Tuple throwaway = columnToTuple(cf.get(cdef.name), cfInfo, parseType(cfDef.getComparator_type()));
                     tuple.append(throwaway.get(1));
                 }
             }
@@ -358,8 +369,8 @@ public class CassandraStorage extends AbstractCassandraStorage
     public ResourceSchema getSchema(String location, Job job) throws IOException
     {
         setLocation(location, job);
-        CfDef cfDef = getCfDef(loadSignature);
-
+        CfInfo cfInfo = getCfInfo(loadSignature);
+        CfDef cfDef = cfInfo.cfDef;
         if (cfDef.column_type.equals("Super"))
             return null;
         /*
@@ -405,7 +416,7 @@ public class CassandraStorage extends AbstractCassandraStorage
         // add the key first, then the indexed columns, and finally the bag
         allSchemaFields.add(keyFieldSchema);
 
-        if (!widerows)
+        if (!widerows && (cfInfo.compactCqlTable || !cfInfo.cql3Table))
         {
             // defined validators/indexes
             for (ColumnDef cdef : cfDef.column_metadata)
@@ -699,12 +710,9 @@ public class CassandraStorage extends AbstractCassandraStorage
     }
 
     /** get a list of column for the column family */
-    protected List<ColumnDef> getColumnMetadata(Cassandra.Client client, boolean cql3Table) 
+    protected List<ColumnDef> getColumnMetadata(Cassandra.Client client) 
     throws TException, CharacterCodingException, InvalidRequestException, ConfigurationException
-    {
-        if (cql3Table)
-            return new ArrayList<>();
-        
+    {   
         return getColumnMeta(client, true, true);
     }
 
