@@ -222,7 +222,6 @@ public class CassandraStorage extends AbstractCassandraStorage
 
             Tuple tuple = keyToTuple(key, cfDef, parseType(cfDef.getKey_validation_class()));
             DefaultDataBag bag = new DefaultDataBag();
-
             // we must add all the indexed columns first to match the schema
             Map<ByteBuffer, Boolean> added = new HashMap<ByteBuffer, Boolean>();
             // take care to iterate these in the same order as the schema does
@@ -372,7 +371,6 @@ public class CassandraStorage extends AbstractCassandraStorage
         setLocation(location, job);
         CfInfo cfInfo = getCfInfo(loadSignature);
         CfDef cfDef = cfInfo.cfDef;
-
         if (cfDef.column_type.equals("Super"))
             return null;
         /*
@@ -713,16 +711,8 @@ public class CassandraStorage extends AbstractCassandraStorage
 
     /** get a list of column for the column family */
     protected List<ColumnDef> getColumnMetadata(Cassandra.Client client) 
-            throws InvalidRequestException, 
-            UnavailableException, 
-            TimedOutException, 
-            SchemaDisagreementException, 
-            TException,
-            CharacterCodingException,
-            org.apache.cassandra.exceptions.InvalidRequestException,
-            ConfigurationException,
-            NotFoundException
-    {
+    throws TException, CharacterCodingException, InvalidRequestException, ConfigurationException
+    {   
         return getColumnMeta(client, true, true);
     }
 
@@ -807,5 +797,6 @@ public class CassandraStorage extends AbstractCassandraStorage
             		                        "[&comparator=<comparator>][&split_size=<size>][&partitioner=<partitioner>]]': " + e.getMessage());
         }
     }
+
 }
 

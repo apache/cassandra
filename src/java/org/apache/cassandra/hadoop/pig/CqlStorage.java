@@ -283,7 +283,6 @@ public class CqlStorage extends AbstractCassandraStorage
         setLocation(location, job);
         CfInfo cfInfo = getCfInfo(loadSignature);
         CfDef cfDef = cfInfo.cfDef;
-
         // top-level schema, no type
         ResourceSchema schema = new ResourceSchema();
 
