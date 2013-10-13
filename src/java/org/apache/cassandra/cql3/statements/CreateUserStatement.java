@@ -57,7 +57,7 @@ public class CreateUserStatement extends AuthenticationStatement
     public void checkAccess(ClientState state) throws UnauthorizedException
     {
         if (!state.getUser().isSuper())
-            throw new UnauthorizedException("Only superusers are allowed to perfrom CREATE USER queries");
+            throw new UnauthorizedException("Only superusers are allowed to perform CREATE USER queries");
     }
 
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
