@@ -20,7 +20,7 @@ using the provided 'sstableupgrade' tool.
 New features
 ------------
     - Speculative retry defaults to 99th percentile
-      (See blog post at TODO)
+      (See blog post at http://www.datastax.com/dev/blog/rapid-read-protection-in-cassandra-2-0-2)
     - Configurable metrics reporting
       (see conf/metrics-reporter-config-sample.yaml)
     - Compaction history and stats are now saved to system keyspace
@@ -43,6 +43,7 @@ Upgrading
 
 Upgrading
 ---------
+    - Java 7 is now *required*!
     - Upgrading is ONLY supported from Cassandra 1.2.9 or later. This
       goes for sstable compatibility as well as network.  When
       upgrading from an earlier release, upgrade to 1.2.9 first and
