@@ -52,25 +52,6 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
                                                              indexedCfMetadata.cfName,
                                                              new LocalPartitioner(columnDef.getValidator()),
                                                              indexedCfMetadata);
-
-        // enable and initialize row cache based on parent's setting and indexed column's cardinality
-        CFMetaData.Caching baseCaching = baseCfs.metadata.getCaching();
-        if (baseCaching == CFMetaData.Caching.ALL || baseCaching == CFMetaData.Caching.ROWS_ONLY)
-        {
-            /*
-             * # of index CF's key = cardinality of indexed column.
-             * if # of keys stored in index CF is more than average column counts (means tall keyspaceName),
-             * then consider it as high cardinality.
-             */
-            double estimatedKeys = indexCfs.estimateKeys();
-            double averageColumnCount = indexCfs.getMeanColumns();
-            if (averageColumnCount > 0 && estimatedKeys / averageColumnCount > 1)
-            {
-                logger.debug("turning row cache on for {}", indexCfs.name);
-                indexCfs.metadata.caching(baseCaching);
-                indexCfs.initRowCache();
-            }
-        }
     }
 
     protected abstract ByteBuffer makeIndexColumnName(ByteBuffer rowKey, Column column);

@@ -455,7 +455,13 @@ public final class CFMetaData
     @VisibleForTesting
     CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType<?> comp,  UUID id)
     {
-        // Final fields must be set in constructor
+        assert keyspace != null;
+        assert name != null;
+        assert type != null;
+        assert id != null;
+        // (subcc may be null for non-supercolumns)
+        // (comp may also be null for custom indexes, which is kind of broken if you ask me)
+
         ksName = keyspace;
         cfName = name;
         cfType = type;
@@ -519,7 +525,7 @@ public final class CFMetaData
     public static CFMetaData newIndexMetadata(CFMetaData parent, ColumnDefinition info, AbstractType<?> columnComparator)
     {
         // Depends on parent's cache setting, turn on its index CF's cache.
-        // Here, only key cache is enabled, but later (in KeysIndex) row cache will be turned on depending on cardinality.
+        // Row caching is never enabled; see CASSANDRA-5732
         Caching indexCaching = parent.getCaching() == Caching.ALL || parent.getCaching() == Caching.KEYS_ONLY
                              ? Caching.KEYS_ONLY
                              : Caching.NONE;
