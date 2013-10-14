@@ -85,6 +85,11 @@ public class BatchStatement implements CQLStatement
         }
     }
 
+    public List<ModificationStatement> getStatements()
+    {
+        return statements;
+    }
+
     private Collection<? extends IMutation> getMutations(List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
     throws RequestExecutionException, RequestValidationException
     {
