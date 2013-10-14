@@ -146,6 +146,7 @@ else
 fi
 
 if [ "x$MALLOC_ARENA_MAX" = "x" ]
+then
     MALLOC_ARENA_MAX=4
 fi
 
