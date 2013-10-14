@@ -25,6 +25,7 @@ import java.util.Map;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.statements.ColumnGroupMap;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -51,23 +52,29 @@ public class UpdateParameters
         this.prefetchedLists = prefetchedLists;
     }
 
-    public Column makeColumn(ByteBuffer name, ByteBuffer value)
+    public Column makeColumn(ByteBuffer name, ByteBuffer value) throws InvalidRequestException
     {
+        QueryProcessor.validateCellName(name);
         return Column.create(name, value, timestamp, ttl, metadata);
     }
 
-    public Column makeTombstone(ByteBuffer name)
+    public Column makeTombstone(ByteBuffer name) throws InvalidRequestException
     {
+        QueryProcessor.validateCellName(name);
         return new DeletedColumn(name, localDeletionTime, timestamp);
     }
 
-    public RangeTombstone makeRangeTombstone(ByteBuffer start, ByteBuffer end)
+    public RangeTombstone makeRangeTombstone(ByteBuffer start, ByteBuffer end) throws InvalidRequestException
     {
+        QueryProcessor.validateCellName(start);
+        QueryProcessor.validateCellName(end);
         return new RangeTombstone(start, end, timestamp, localDeletionTime);
     }
 
-    public RangeTombstone makeTombstoneForOverwrite(ByteBuffer start, ByteBuffer end)
+    public RangeTombstone makeTombstoneForOverwrite(ByteBuffer start, ByteBuffer end) throws InvalidRequestException
     {
+        QueryProcessor.validateCellName(start);
+        QueryProcessor.validateCellName(end);
         return new RangeTombstone(start, end, timestamp - 1, localDeletionTime);
     }
 

@@ -102,18 +102,21 @@ public class QueryProcessor
         }
     }
 
-    public static void validateColumnNames(Iterable<ByteBuffer> columns)
-    throws InvalidRequestException
+    public static void validateCellNames(Iterable<ByteBuffer> cellNames) throws InvalidRequestException
     {
-        for (ByteBuffer name : columns)
-        {
-            if (name.remaining() > Column.MAX_NAME_LENGTH)
-                throw new InvalidRequestException(String.format("column name is too long (%s > %s)",
-                                                                name.remaining(),
-                                                                Column.MAX_NAME_LENGTH));
-            if (name.remaining() == 0)
-                throw new InvalidRequestException("zero-length column name");
-        }
+        for (ByteBuffer name : cellNames)
+            validateCellName(name);
+    }
+
+    public static void validateCellName(ByteBuffer name) throws InvalidRequestException
+    {
+        if (name.remaining() > Column.MAX_NAME_LENGTH)
+            throw new InvalidRequestException(String.format("The sum of all clustering columns is too long (%s > %s)",
+                                                            name.remaining(),
+                                                            Column.MAX_NAME_LENGTH));
+
+        if (name.remaining() == 0)
+            throw new InvalidRequestException("Invalid empty value for clustering column of COMPACT TABLE");
     }
 
     private static ResultMessage processStatement(CQLStatement statement, QueryState queryState, QueryOptions options)
