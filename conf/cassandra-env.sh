@@ -132,6 +132,10 @@ esac
 #MAX_HEAP_SIZE="4G"
 #HEAP_NEWSIZE="800M"
 
+# Set this to control the amount of arenas per-thread in glibc
+#MALLOC_ARENA_MAX=4
+
+
 if [ "x$MAX_HEAP_SIZE" = "x" ] && [ "x$HEAP_NEWSIZE" = "x" ]; then
     calculate_heap_sizes
 else
@@ -139,6 +143,10 @@ else
         echo "please set or unset MAX_HEAP_SIZE and HEAP_NEWSIZE in pairs (see cassandra-env.sh)"
         exit 1
     fi
+fi
+
+if [ "x$MALLOC_ARENA_MAX" = "x" ]
+    MALLOC_ARENA_MAX=4
 fi
 
 # Specifies the default port over which Cassandra will be available for
