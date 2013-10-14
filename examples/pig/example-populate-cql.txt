@@ -1,0 +1,24 @@
+CREATE KEYSPACE libdata WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1 };
+USE libdata;
+
+CREATE TABLE libout ("STABR" TEXT, "FSCSKEY" TEXT, "FSCS_SEQ" TEXT,
+                 "LIBID" TEXT, "LIBNAME" TEXT, "ADDRESS" TEXT, "CITY" TEXT,
+                 "ZIP" TEXT, "ZIP4" TEXT, "CNTY" TEXT, "PHONE" TEXT, "C_OUT_TY" TEXT,
+                 "C_MSA" TEXT, "SQ_FEET" INT, "F_SQ_FT" TEXT, "L_NUM_BM" INT,
+                 "F_BKMOB" TEXT, "HOURS" INT, "F_HOURS" TEXT, "WKS_OPEN" INT,
+                 "F_WKSOPN" TEXT, "YR_SUB" INT, "STATSTRU" INT, "STATNAME" INT,
+                 "STATADDR" INT, "LONGITUD" FLOAT, "LATITUDE" FLOAT, "FIPSST" INT,
+                 "FIPSCO" INT, "FIPSPLAC" INT, "CNTYPOP" INT, "LOCALE" TEXT,
+                 "CENTRACT" FLOAT, "CENBLOCK" INT, "CDCODE" TEXT, "MAT_CENT" TEXT,
+                 "MAT_TYPE" INT, "CBSA" INT, "MICROF" TEXT,
+                 PRIMARY KEY ("FSCSKEY", "FSCS_SEQ"));
+
+COPY libout ("STABR","FSCSKEY","FSCS_SEQ","LIBID","LIBNAME",
+                 "ADDRESS","CITY","ZIP","ZIP4","CNTY","PHONE","C_OUT_TY",
+                 "C_MSA","SQ_FEET","F_SQ_FT","L_NUM_BM","F_BKMOB","HOURS",
+                 "F_HOURS","WKS_OPEN","F_WKSOPN","YR_SUB","STATSTRU","STATNAME",
+                 "STATADDR","LONGITUD","LATITUDE","FIPSST","FIPSCO","FIPSPLAC",
+                 "CNTYPOP","LOCALE","CENTRACT","CENBLOCK","CDCODE","MAT_CENT",
+                 "MAT_TYPE","CBSA","MICROF") FROM 'libdata.csv' WITH HEADER=TRUE;
+                 
+CREATE TABLE libsqft (year INT, state TEXT, sqft BIGINT, PRIMARY KEY (year, state));
