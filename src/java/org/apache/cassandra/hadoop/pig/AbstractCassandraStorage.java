@@ -98,6 +98,8 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     protected int splitSize = 64 * 1024;
     protected String partitionerClass;
     protected boolean usePartitionFilter = false;
+    protected String initHostAddress;
+    protected String rpcPort;
 
     public AbstractCassandraStorage()
     {
