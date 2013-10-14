@@ -25,6 +25,7 @@
  * Fix indexed queries with row cache enabled on parent table (CASSANDRA-5732)
  * Fix compaction race during columnfamily drop (CASSANDRA-5957)
  * Fix validation of empty column names for compact tables (CASSANDRA-6152)
+ * Skip replaying mutations that pass CRC but fail to deserialize (CASSANDRA-6183)
 
 
 1.2.10

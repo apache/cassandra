@@ -18,10 +18,7 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.DataInputStream;
-import java.io.EOFException;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -200,6 +197,10 @@ public class CommitLogReplayer
                     // assuming version here. We've gone to lengths to make sure what gets written to the CL is in
                     // the current version. so do make sure the CL is drained prior to upgrading a node.
                     rm = RowMutation.serializer.deserialize(new DataInputStream(bufIn), version, IColumnSerializer.Flag.LOCAL);
+                    // doublecheck that what we read is [still] valid for the current schema
+                    for (ColumnFamily cf : rm.getColumnFamilies())
+                        for (IColumn cell : cf)
+                            cf.getComparator().validate(cell.name());
                 }
                 catch (UnknownColumnFamilyException ex)
                 {
@@ -213,6 +214,23 @@ public class CommitLogReplayer
                     }
                     else
                         i.incrementAndGet();
+                    continue;
+                }
+                catch (Throwable t)
+                {
+                    File f = File.createTempFile("mutation", "dat");
+                    DataOutputStream out = new DataOutputStream(new FileOutputStream(f));
+                    try
+                    {
+                        out.write(buffer, 0, serializedSize);
+                    }
+                    finally
+                    {
+                        out.close();
+                    }
+                    String st = String.format("Unexpected error deserializing mutation; saved to %s and ignored.  This may be caused by replaying a mutation against a table with the same name but incompatible schema.  Exception follows: ",
+                                              f.getAbsolutePath());
+                    logger.error(st, t);
                     continue;
                 }
 
