@@ -24,6 +24,7 @@
  * stress: add username/password authentication support (CASSANDRA-6068)
  * Fix indexed queries with row cache enabled on parent table (CASSANDRA-5732)
  * Fix compaction race during columnfamily drop (CASSANDRA-5957)
+ * Fix validation of empty column names for compact tables (CASSANDRA-6152)
 
 
 1.2.10
