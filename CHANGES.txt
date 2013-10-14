@@ -48,6 +48,7 @@ Merged from 1.2:
  * (Hadoop) Fetch no more than 128 splits in parallel (CASSANDRA-6169)
  * stress: add username/password authentication support (CASSANDRA-6068)
  * Fix indexed queries with row cache enabled on parent table (CASSANDRA-5732)
+ * Fix compaction race during columnfamily drop (CASSANDRA-5957)
 
 
 2.0.1

@@ -1102,8 +1102,8 @@ public class SSTableReader extends SSTable implements Closeable
      * When calling this function, the caller must ensure that the SSTableReader is not referenced anywhere
      * except for threads holding a reference.
      *
-     * @return true if the this is the first time the file was marked compacted.  Calling this
-     * multiple times would be buggy.
+     * @return true if the this is the first time the file was marked obsolete.  Calling this
+     * multiple times is usually buggy (see exceptions in DataTracker.unmarkCompacting and removeOldSSTablesSize).
      */
     public boolean markObsolete()
     {

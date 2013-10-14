@@ -204,7 +204,8 @@ public class DataTracker
      */
     public void unmarkCompacting(Iterable<SSTableReader> unmark)
     {
-        if (!cfstore.isValid())
+        boolean isValid = cfstore.isValid();
+        if (!isValid)
         {
             // The CF has been dropped.  We don't know if the original compaction suceeded or failed,
             // which makes it difficult to know if the sstable reference has already been released.
@@ -221,6 +222,14 @@ public class DataTracker
             newView = currentView.unmarkCompacting(unmark);
         }
         while (!view.compareAndSet(currentView, newView));
+
+        if (!isValid)
+        {
+            // when the CFS is invalidated, it will call unreferenceSSTables().  However, unreferenceSSTables only deals
+            // with sstables that aren't currently being compacted.  If there are ongoing compactions that finish or are
+            // interrupted after the CFS is invalidated, those sstables need to be unreferenced as well, so we do that here.
+            unreferenceSSTables();
+        }
     }
 
     public void markObsolete(Collection<SSTableReader> sstables, OperationType compactionType)
@@ -273,7 +282,7 @@ public class DataTracker
             return;
         }
         notifySSTablesChanged(notCompacting, Collections.<SSTableReader>emptySet(), OperationType.UNKNOWN);
-        postReplace(notCompacting, Collections.<SSTableReader>emptySet());
+        postReplace(notCompacting, Collections.<SSTableReader>emptySet(), true);
     }
 
     /**
@@ -314,7 +323,7 @@ public class DataTracker
     {
         if (!cfstore.isValid())
         {
-            removeOldSSTablesSize(replacements);
+            removeOldSSTablesSize(replacements, false);
             replacements = Collections.emptyList();
         }
 
@@ -326,13 +335,13 @@ public class DataTracker
         }
         while (!view.compareAndSet(currentView, newView));
 
-        postReplace(oldSSTables, replacements);
+        postReplace(oldSSTables, replacements, false);
     }
 
-    private void postReplace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
+    private void postReplace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements, boolean tolerateCompacted)
     {
         addNewSSTablesSize(replacements);
-        removeOldSSTablesSize(oldSSTables);
+        removeOldSSTablesSize(oldSSTables, tolerateCompacted);
     }
 
     private void addNewSSTablesSize(Iterable<SSTableReader> newSSTables)
@@ -350,7 +359,7 @@ public class DataTracker
         }
     }
 
-    private void removeOldSSTablesSize(Iterable<SSTableReader> oldSSTables)
+    private void removeOldSSTablesSize(Iterable<SSTableReader> oldSSTables, boolean tolerateCompacted)
     {
         for (SSTableReader sstable : oldSSTables)
         {
@@ -360,8 +369,13 @@ public class DataTracker
             long size = sstable.bytesOnDisk();
             StorageMetrics.load.dec(size);
             cfstore.metric.liveDiskSpaceUsed.dec(size);
+
+            // tolerateCompacted will be true when the CFS is no longer valid (dropped). If there were ongoing
+            // compactions when it was invalidated, sstables may already be marked compacted, so we should
+            // tolerate that (see CASSANDRA-5957)
             boolean firstToCompact = sstable.markObsolete();
-            assert firstToCompact : sstable + " was already marked compacted";
+            assert (tolerateCompacted || firstToCompact) : sstable + " was already marked compacted";
+
             sstable.releaseReference();
         }
     }
