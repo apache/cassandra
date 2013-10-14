@@ -48,7 +48,7 @@ public abstract class ModificationStatement implements CQLStatement
 
     private final int boundTerms;
     public final CFMetaData cfm;
-    private final Attributes attrs;
+    public final Attributes attrs;
 
     private final Map<ColumnIdentifier, Restriction> processedKeys = new HashMap<ColumnIdentifier, Restriction>();
     private final List<Operation> columnOperations = new ArrayList<Operation>();
@@ -63,7 +63,7 @@ public abstract class ModificationStatement implements CQLStatement
         this.attrs = attrs;
     }
 
-    protected abstract boolean requireFullClusteringKey();
+    public abstract boolean requireFullClusteringKey();
     public abstract ColumnFamily updateForKey(ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params) throws InvalidRequestException;
 
     public int getBoundsTerms()

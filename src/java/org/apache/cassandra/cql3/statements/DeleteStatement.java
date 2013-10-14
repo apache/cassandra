@@ -36,7 +36,7 @@ public class DeleteStatement extends ModificationStatement
         super(boundTerms, cfm, attrs);
     }
 
-    protected boolean requireFullClusteringKey()
+    public boolean requireFullClusteringKey()
     {
         return false;
     }

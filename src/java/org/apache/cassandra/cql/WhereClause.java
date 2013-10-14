@@ -172,6 +172,11 @@ public class WhereClause
         }
     }
 
+    public List<Relation> getClauseRelations()
+    {
+        return clauseRelations;
+    }
+
     public String toString()
     {
         return String.format("WhereClause [keys=%s, startKey=%s, finishKey=%s, columns=%s, includeStartKey=%s, includeFinishKey=%s, multiKey=%s, keyAlias=%s]",

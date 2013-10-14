@@ -40,7 +40,7 @@ public class UpdateStatement extends ModificationStatement
         super(boundTerms, cfm, attrs);
     }
 
-    protected boolean requireFullClusteringKey()
+    public boolean requireFullClusteringKey()
     {
         return true;
     }

@@ -92,6 +92,11 @@ public abstract class AbstractModification
         return timeToLive;
     }
 
+    public String getKeyName()
+    {
+        return keyName;
+    }
+
     /**
      * Convert statement into a list of mutations to apply on the server
      *

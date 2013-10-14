@@ -182,6 +182,11 @@ public class SelectStatement
         return Schema.instance.getValueValidator(keyspace, columnFamily, column);
     }
 
+    public List<Relation> getClauseRelations()
+    {
+        return clause.getClauseRelations();
+    }
+
     public String toString()
     {
         return String.format("SelectStatement [expression=%s, isCountOper=%s, columnFamily=%s, keyspace=%s, cLevel=%s, clause=%s, numRecords=%s]",

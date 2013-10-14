@@ -75,6 +75,11 @@ public class BatchStatement
         return timeToLive;
     }
 
+    public long getTimestamp()
+    {
+        return timestamp;
+    }
+
     public List<IMutation> getMutations(String keyspace, ThriftClientState clientState, List<ByteBuffer> variables)
     throws InvalidRequestException, UnauthorizedException
     {
