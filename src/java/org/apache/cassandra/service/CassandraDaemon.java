@@ -108,7 +108,7 @@ public class CassandraDaemon
                 File configFile = new File(configFileName);
                 // then try alternative approach which works for all hierarchical URLs with or without spaces
                 if (!configFile.exists())
-                    configFileName = new File(configLocation.toURI()).getCanonicalPath();
+                    configFileName = new File(configLocation.toURI()).getPath();
             }
             catch (Exception e)
             {
