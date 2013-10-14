@@ -206,6 +206,10 @@ public class CqlStorage extends AbstractCassandraStorage
             ConfigHelper.setInputSplitSize(conf, splitSize);
         if (partitionerClass!= null)
             ConfigHelper.setInputPartitioner(conf, partitionerClass);
+        if (rpcPort != null)
+            ConfigHelper.setInputRpcPort(conf, rpcPort);
+        if (initHostAddress != null)
+            ConfigHelper.setInputInitialAddress(conf, initHostAddress);
 
         ConfigHelper.setInputColumnFamily(conf, keyspace, column_family);
         setConnectionInformation();
@@ -261,6 +265,16 @@ public class CqlStorage extends AbstractCassandraStorage
             ConfigHelper.setInputSplitSize(conf, splitSize);
         if (partitionerClass!= null)
             ConfigHelper.setOutputPartitioner(conf, partitionerClass);
+        if (rpcPort != null)
+        {
+            ConfigHelper.setOutputRpcPort(conf, rpcPort);
+            ConfigHelper.setInputRpcPort(conf, rpcPort);
+        }
+        if (initHostAddress != null)
+        {
+            ConfigHelper.setOutputInitialAddress(conf, initHostAddress);
+            ConfigHelper.setInputInitialAddress(conf, initHostAddress);
+        }
 
         ConfigHelper.setOutputColumnFamily(conf, keyspace, column_family);
         CqlConfigHelper.setOutputCql(conf, outputQuery);
@@ -633,7 +647,11 @@ public class CqlStorage extends AbstractCassandraStorage
                 if (urlQuery.containsKey("partitioner"))
                     partitionerClass = urlQuery.get("partitioner");
                 if (urlQuery.containsKey("use_secondary"))
-                    usePartitionFilter = Boolean.parseBoolean(urlQuery.get("use_secondary")); 
+                    usePartitionFilter = Boolean.parseBoolean(urlQuery.get("use_secondary"));
+                if (urlQuery.containsKey("init_address"))
+                    initHostAddress = urlQuery.get("init_address");
+                if (urlQuery.containsKey("rpc_port"))
+                    rpcPort = urlQuery.get("rpc_port");
             }
             String[] parts = urlParts[0].split("/+");
             String[] credentialsAndKeyspace = parts[1].split("@");
@@ -653,8 +671,9 @@ public class CqlStorage extends AbstractCassandraStorage
         catch (Exception e)
         {
             throw new IOException("Expected 'cql://[username:password@]<keyspace>/<columnfamily>" +
-            		                         "[?[page_size=<size>][&columns=<col1,col2>][&output_query=<prepared_statement>]" +
-            		                         "[&where_clause=<clause>][&split_size=<size>][&partitioner=<partitioner>][&use_secondary=true|false]]': " + e.getMessage());
+                    "[?[page_size=<size>][&columns=<col1,col2>][&output_query=<prepared_statement>]" +
+                    "[&where_clause=<clause>][&split_size=<size>][&partitioner=<partitioner>][&use_secondary=true|false]" +
+                    "[&init_address=<host>][&rpc_port=<port>]]': " + e.getMessage());
         }
     }
 

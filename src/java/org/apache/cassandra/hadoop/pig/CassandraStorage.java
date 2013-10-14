@@ -317,6 +317,10 @@ public class CassandraStorage extends AbstractCassandraStorage
             ConfigHelper.setInputSplitSize(conf, splitSize);
         if (partitionerClass!= null)
             ConfigHelper.setInputPartitioner(conf, partitionerClass);
+        if (rpcPort != null)
+            ConfigHelper.setInputRpcPort(conf, rpcPort);
+        if (initHostAddress != null)
+            ConfigHelper.setInputInitialAddress(conf, initHostAddress);
 
         ConfigHelper.setInputColumnFamily(conf, keyspace, column_family, widerows);
         setConnectionInformation();
@@ -347,6 +351,16 @@ public class CassandraStorage extends AbstractCassandraStorage
             ConfigHelper.setInputSplitSize(conf, splitSize);
         if (partitionerClass!= null)
             ConfigHelper.setOutputPartitioner(conf, partitionerClass);
+        if (rpcPort != null)
+        {
+            ConfigHelper.setOutputRpcPort(conf, rpcPort);
+            ConfigHelper.setInputRpcPort(conf, rpcPort);
+        }
+        if (initHostAddress != null)
+        {
+            ConfigHelper.setOutputInitialAddress(conf, initHostAddress);
+            ConfigHelper.setInputInitialAddress(conf, initHostAddress);
+        }
 
         ConfigHelper.setOutputColumnFamily(conf, keyspace, column_family);
         setConnectionInformation();
@@ -773,6 +787,10 @@ public class CassandraStorage extends AbstractCassandraStorage
                     splitSize = Integer.parseInt(urlQuery.get("split_size"));
                 if (urlQuery.containsKey("partitioner"))
                     partitionerClass = urlQuery.get("partitioner");
+                if (urlQuery.containsKey("init_address"))
+                    initHostAddress = urlQuery.get("init_address");
+                if (urlQuery.containsKey("rpc_port"))
+                    rpcPort = urlQuery.get("rpc_port");
             }
             String[] parts = urlParts[0].split("/+");
             String[] credentialsAndKeyspace = parts[1].split("@");
@@ -792,9 +810,10 @@ public class CassandraStorage extends AbstractCassandraStorage
         catch (Exception e)
         {
             throw new IOException("Expected 'cassandra://[username:password@]<keyspace>/<columnfamily>" +
-            		                        "[?slice_start=<start>&slice_end=<end>[&reversed=true][&limit=1]" +
-            		                        "[&allow_deletes=true][&widerows=true][&use_secondary=true]" +
-            		                        "[&comparator=<comparator>][&split_size=<size>][&partitioner=<partitioner>]]': " + e.getMessage());
+                    "[?slice_start=<start>&slice_end=<end>[&reversed=true][&limit=1]" +
+                    "[&allow_deletes=true][&widerows=true][&use_secondary=true]" +
+                    "[&comparator=<comparator>][&split_size=<size>][&partitioner=<partitioner>]" +
+                    "[&init_address=<host>][&rpc_port=<port>]]': " + e.getMessage());
         }
     }
 

@@ -369,6 +369,7 @@
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3">
           	<exclusion groupId="org.mortbay.jetty" artifactId="servlet-api"/>
           </dependency>
+          <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" version="1.0.3"/>
           <dependency groupId="org.apache.pig" artifactId="pig" version="0.11.1"/>
           <dependency groupId="net.java.dev.jna" artifactId="jna" version="3.2.7"/>
 
@@ -409,6 +410,7 @@
         <dependency groupId="commons-logging" artifactId="commons-logging"/>
         <dependency groupId="org.apache.rat" artifactId="apache-rat"/>
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core"/>
+      	<dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster"/>
         <dependency groupId="org.apache.pig" artifactId="pig"/>
 
         <dependency groupId="net.java.dev.jna" artifactId="jna"/>
@@ -470,6 +472,7 @@
         
         <!-- don't need hadoop classes to run, but if you use the hadoop stuff -->
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" optional="true"/>
+        <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" optional="true"/>
         <dependency groupId="org.apache.pig" artifactId="pig" optional="true"/>
 
         <!-- don't need jna to run, but nice to have -->
@@ -1127,6 +1130,11 @@
   <target name="test-all" 
           depends="test,long-test,test-compression,test-clientutil-jar" 
           description="Run all tests" />
+  <target name="pig-test" depends="build-test" description="Excute Pig tests">
+    <testmacro suitename="unit" inputdir="${test.unit.src}" 
+               timeout="1200000" filter="**/pig/*Test.java">
+    </testmacro>
+  </target>
 
   <!-- instruments the classes to later create code coverage reports -->
   <target name="cobertura-instrument" depends="build,build-test">
