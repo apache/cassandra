@@ -56,7 +56,7 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
   public String strategy_class; // required
   public Map<String,String> strategy_options; // required
   /**
-   * @deprecated, ignored
+   * @deprecated ignored
    */
   public int replication_factor; // required
   public List<CfDef> cf_defs; // required
@@ -68,7 +68,7 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
     STRATEGY_CLASS((short)2, "strategy_class"),
     STRATEGY_OPTIONS((short)3, "strategy_options"),
     /**
-     * @deprecated, ignored
+     * @deprecated ignored
      */
     REPLICATION_FACTOR((short)4, "replication_factor"),
     CF_DEFS((short)5, "cf_defs"),
@@ -319,14 +319,14 @@ public class KsDef implements org.apache.thrift.TBase<KsDef, KsDef._Fields>, jav
   }
 
   /**
-   * @deprecated, ignored
+   * @deprecated ignored
    */
   public int getReplication_factor() {
     return this.replication_factor;
   }
 
   /**
-   * @deprecated, ignored
+   * @deprecated ignored
    */
   public KsDef setReplication_factor(int replication_factor) {
     this.replication_factor = replication_factor;
