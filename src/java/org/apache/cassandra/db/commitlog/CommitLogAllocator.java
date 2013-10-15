@@ -39,6 +39,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 /**
@@ -296,19 +297,30 @@ public class CommitLogAllocator
         {
             for (UUID dirtyCFId : oldestSegment.getDirtyCFIDs())
             {
-                String keypace = Schema.instance.getCF(dirtyCFId).left;
-                final ColumnFamilyStore cfs = Keyspace.open(keypace).getColumnFamilyStore(dirtyCFId);
-                // flush shouldn't run on the commitlog executor, since it acquires Keyspace.switchLock,
-                // which may already be held by a thread waiting for the CL executor (via getContext),
-                // causing deadlock
-                Runnable runnable = new Runnable()
+                Pair<String,String> pair = Schema.instance.getCF(dirtyCFId);
+                if (pair == null)
                 {
-                    public void run()
+                    // even though we remove the schema entry before a final flush when dropping a CF,
+                    // it's still possible for a writer to race and finish his append after the flush.
+                    logger.debug("Marking clean CF {} that doesn't exist anymore", dirtyCFId);
+                    oldestSegment.markClean(dirtyCFId, oldestSegment.getContext());
+                }
+                else
+                {
+                    String keypace = pair.left;
+                    final ColumnFamilyStore cfs = Keyspace.open(keypace).getColumnFamilyStore(dirtyCFId);
+                    // flush shouldn't run on the commitlog executor, since it acquires Table.switchLock,
+                    // which may already be held by a thread waiting for the CL executor (via getContext),
+                    // causing deadlock
+                    Runnable runnable = new Runnable()
                     {
-                        cfs.forceFlush();
-                    }
-                };
-                StorageService.optionalTasks.execute(runnable);
+                        public void run()
+                        {
+                            cfs.forceFlush();
+                        }
+                    };
+                    StorageService.optionalTasks.execute(runnable);
+                }
             }
         }
     }
