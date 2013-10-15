@@ -1,3 +1,6 @@
+1.2.12
+ * Add ability to list specific KS/CF combinations in nodetool cfstats (CASSANDRA-4191)
+
 1.2.11
  * Limit CQL prepared statement cache by size instead of count (CASSANDRA-6107)
  * Tracing should log write failure rather than raw exceptions (CASSANDRA-6133)

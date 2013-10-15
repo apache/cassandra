@@ -72,6 +72,7 @@ public class NodeCmd
     private static final Pair<String, String> END_TOKEN_OPT = Pair.create("et", "end-token");
     private static final Pair<String, String> UPGRADE_ALL_SSTABLE_OPT = Pair.create("a", "include-all-sstables");
     private static final Pair<String, String> NO_SNAPSHOT = Pair.create("ns", "no-snapshot");
+    private static final Pair<String, String> CFSTATS_IGNORE_OPT = Pair.create("i", "ignore");
 
     private static final String DEFAULT_HOST = "127.0.0.1";
     private static final int DEFAULT_PORT = 7199;
@@ -96,6 +97,7 @@ public class NodeCmd
         options.addOption(END_TOKEN_OPT, true, "token at which repair range ends");
         options.addOption(UPGRADE_ALL_SSTABLE_OPT, false, "includes sstables that are already on the most recent version during upgradesstables");
         options.addOption(NO_SNAPSHOT, false, "disables snapshot creation for scrub");
+        options.addOption(CFSTATS_IGNORE_OPT, false, "ignore the supplied list of keyspace.columnfamiles in statistics");
     }
 
     public NodeCmd(NodeProbe probe)
@@ -803,8 +805,9 @@ public class NodeCmd
         }
     }
 
-    public void printColumnFamilyStats(PrintStream outs)
+    public void printColumnFamilyStats(PrintStream outs, boolean ignoreMode, String [] filterList)
     {
+        OptionFilter filter = new OptionFilter(ignoreMode, filterList);
         Map <String, List <ColumnFamilyStoreMBean>> cfstoreMap = new HashMap <String, List <ColumnFamilyStoreMBean>>();
 
         // get a list of column family stores
@@ -816,17 +819,21 @@ public class NodeCmd
             String tableName = entry.getKey();
             ColumnFamilyStoreMBean cfsProxy = entry.getValue();
 
-            if (!cfstoreMap.containsKey(tableName))
+            if (!cfstoreMap.containsKey(tableName) && filter.isColumnFamilyIncluded(entry.getKey(), cfsProxy.getColumnFamilyName()))
             {
                 List<ColumnFamilyStoreMBean> columnFamilies = new ArrayList<ColumnFamilyStoreMBean>();
                 columnFamilies.add(cfsProxy);
                 cfstoreMap.put(tableName, columnFamilies);
             }
-            else
+            else if (filter.isColumnFamilyIncluded(entry.getKey(), cfsProxy.getColumnFamilyName()))
             {
                 cfstoreMap.get(tableName).add(cfsProxy);
             }
         }
+
+        // make sure all specified kss and cfs exist
+        filter.verifyKeyspaces(probe.getKeyspaces());
+        filter.verifyColumnFamilies();
 
         // print out the table statistics
         for (Entry<String, List<ColumnFamilyStoreMBean>> entry : cfstoreMap.entrySet())
@@ -1140,7 +1147,11 @@ public class NodeCmd
                     break;
 
                 case INFO            : nodeCmd.printInfo(System.out, cmd); break;
-                case CFSTATS         : nodeCmd.printColumnFamilyStats(System.out); break;
+                case CFSTATS         :
+                    boolean ignoreMode = cmd.hasOption(CFSTATS_IGNORE_OPT.left);
+                    if (arguments.length > 0) { nodeCmd.printColumnFamilyStats(System.out, ignoreMode, arguments); }
+                    else                      { nodeCmd.printColumnFamilyStats(System.out, false, null); }
+                    break;
                 case TPSTATS         : nodeCmd.printThreadPoolStats(System.out); break;
                 case VERSION         : nodeCmd.printReleaseVersion(System.out); break;
                 case COMPACTIONSTATS : nodeCmd.printCompactionStats(System.out); break;
@@ -1163,8 +1174,7 @@ public class NodeCmd
                     
 
                 case STATUS :
-                    if (arguments.length > 0) nodeCmd.printClusterStatus(System.out, arguments[0]);
-                    else                      nodeCmd.printClusterStatus(System.out, null);
+                    nodeCmd.printClusterStatus(System.out, arguments[0]);
                     break;
 
                 case DECOMMISSION :
@@ -1555,6 +1565,86 @@ public class NodeCmd
         }
     }
 
+    /**
+     * Used for filtering keyspaces and columnfamilies to be displayed using the cfstats command.
+     */
+    private static class OptionFilter
+    {
+        private Map<String, List<String>> filter = new HashMap<String, List<String>>();
+        private Map<String, List<String>> verifier = new HashMap<String, List<String>>();
+        private String [] filterList;
+        private boolean ignoreMode;
+
+        public OptionFilter(boolean ignoreMode, String... filterList)
+        {
+            this.filterList = filterList;
+            this.ignoreMode = ignoreMode;
+
+            if(filterList == null)
+                return;
+
+            for(String s : filterList)
+            {
+                String [] keyValues = s.split("\\.", 2);
+
+                // build the map that stores the ks' and cfs to use
+                if(!filter.containsKey(keyValues[0]))
+                {
+                    filter.put(keyValues[0], new ArrayList<String>());
+                    verifier.put(keyValues[0], new ArrayList<String>());
+
+                    if(keyValues.length == 2)
+                    {
+                        filter.get(keyValues[0]).add(keyValues[1]);
+                        verifier.get(keyValues[0]).add(keyValues[1]);
+                    }
+                }
+                else
+                {
+                    if(keyValues.length == 2)
+                    {
+                        filter.get(keyValues[0]).add(keyValues[1]);
+                        verifier.get(keyValues[0]).add(keyValues[1]);
+                    }
+                }
+            }
+        }
+
+        public boolean isColumnFamilyIncluded(String keyspace, String columnFamily)
+        {
+            // supplying empty params list is treated as wanting to display all kss & cfs
+            if(filterList == null)
+                return !ignoreMode;
+
+            List<String> cfs = filter.get(keyspace);
+
+            // no such keyspace is in the map
+            if (cfs == null)
+                return ignoreMode;
+                // only a keyspace with no cfs was supplied
+                // so ignore or include (based on the flag) every column family in specified keyspace
+            else if (cfs.size() == 0)
+                return !ignoreMode;
+
+            // keyspace exists, and it contains specific cfs
+            verifier.get(keyspace).remove(columnFamily);
+            return ignoreMode ^ cfs.contains(columnFamily);
+        }
+
+        public void verifyKeyspaces(List<String> keyspaces)
+        {
+            for(String ks : verifier.keySet())
+                if(!keyspaces.contains(ks))
+                    throw new RuntimeException("Unknown keyspace: " + ks);
+        }
+
+        public void verifyColumnFamilies()
+        {
+            for(String ks : filter.keySet())
+                if(verifier.get(ks).size() > 0)
+                    throw new RuntimeException("Unknown column families: " + verifier.get(ks).toString() + " in keyspace: " + ks);
+        }
+    }
 
     private static class ToolOptions extends Options
     {

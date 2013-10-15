@@ -28,9 +28,9 @@ commands:
   - name: status
     help: |
       Print cluster information (state, load, IDs, ...)
-  - name: cfstats
+  - name: cfstats [keyspace].[cfname] ...
     help: |
-      Print statistics on column families
+      Print statistics on column families. Use the -i flag to ignore the list of column families and display the remaining cfs.
   - name: version
     help: |
       Print cassandra version
