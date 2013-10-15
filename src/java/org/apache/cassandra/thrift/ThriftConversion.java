@@ -40,6 +40,7 @@ public class ThriftConversion
             case ALL: return ConsistencyLevel.ALL;
             case LOCAL_QUORUM: return ConsistencyLevel.LOCAL_QUORUM;
             case EACH_QUORUM: return ConsistencyLevel.EACH_QUORUM;
+            case LOCAL_ONE: return ConsistencyLevel.LOCAL_ONE;
         }
         throw new AssertionError();
     }
@@ -56,6 +57,7 @@ public class ThriftConversion
             case ALL: return org.apache.cassandra.db.ConsistencyLevel.ALL;
             case LOCAL_QUORUM: return org.apache.cassandra.db.ConsistencyLevel.LOCAL_QUORUM;
             case EACH_QUORUM: return org.apache.cassandra.db.ConsistencyLevel.EACH_QUORUM;
+            case LOCAL_ONE: return org.apache.cassandra.db.ConsistencyLevel.LOCAL_ONE;
         }
         throw new AssertionError();
     }

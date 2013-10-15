@@ -120,7 +120,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
      */
     private boolean waitingFor(MessageIn message)
     {
-        return consistencyLevel == ConsistencyLevel.LOCAL_QUORUM
+        return consistencyLevel.isDatacenterLocal()
              ? DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(message.from))
              : true;
     }
