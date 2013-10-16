@@ -1120,7 +1120,8 @@ public class NodeCmd
                     
 
                 case STATUS :
-                    nodeCmd.printClusterStatus(System.out, arguments[0]);
+                    if (arguments.length > 0) nodeCmd.printClusterStatus(System.out, arguments[0]);
+                    else                      nodeCmd.printClusterStatus(System.out, null);
                     break;
 
                 case DECOMMISSION :
