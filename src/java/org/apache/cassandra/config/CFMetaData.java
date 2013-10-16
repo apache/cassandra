@@ -455,10 +455,6 @@ public final class CFMetaData
     @VisibleForTesting
     CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType<?> comp,  UUID id)
     {
-        assert keyspace != null;
-        assert name != null;
-        assert type != null;
-        assert id != null;
         // (subcc may be null for non-supercolumns)
         // (comp may also be null for custom indexes, which is kind of broken if you ask me)
 
