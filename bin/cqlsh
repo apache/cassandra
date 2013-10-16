@@ -240,6 +240,7 @@ cqlsh_extra_syntax_rules = r'''
                      | "THREE"
                      | "QUORUM"
                      | "ALL"
+                     | "LOCAL_ONE"
                      | "LOCAL_QUORUM"
                      | "EACH_QUORUM"
                      ;
@@ -1757,7 +1758,7 @@ class Shell(cmd.Cmd):
 
            Valid consistency levels:
 
-           ANY, ONE, TWO, THREE, QUORUM, ALL, LOCAL_QUORUM and EACH_QUORUM.
+           ANY, ONE, TWO, THREE, QUORUM, ALL, LOCAL_ONE, LOCAL_QUORUM and EACH_QUORUM.
 
         CONSISTENCY
 

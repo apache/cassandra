@@ -42,7 +42,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
                                           WriteType writeType)
     {
         super(naturalEndpoints, pendingEndpoints, consistencyLevel, keyspace, callback, writeType);
-        assert consistencyLevel == ConsistencyLevel.LOCAL_QUORUM;
+        assert consistencyLevel.isDatacenterLocal();
     }
 
     @Override

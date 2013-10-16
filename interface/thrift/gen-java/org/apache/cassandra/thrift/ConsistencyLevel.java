@@ -60,6 +60,7 @@ import org.apache.thrift.TEnum;
  *   TWO          Ensure that the write has been written to at least 2 node's commit log and memory table
  *   THREE        Ensure that the write has been written to at least 3 node's commit log and memory table
  *   QUORUM       Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes
+ *   LOCAL_ONE    Ensure that the write has been written to 1 node within the local datacenter (requires NetworkTopologyStrategy)
  *   LOCAL_QUORUM Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes, within the local datacenter (requires NetworkTopologyStrategy)
  *   EACH_QUORUM  Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes in each datacenter (requires NetworkTopologyStrategy)
  *   ALL          Ensure that the write is written to <code>&lt;ReplicationFactor&gt;</code> nodes before responding to the client.
@@ -70,6 +71,7 @@ import org.apache.thrift.TEnum;
  *   TWO          Returns the record with the most recent timestamp once two replicas have replied.
  *   THREE        Returns the record with the most recent timestamp once three replicas have replied.
  *   QUORUM       Returns the record with the most recent timestamp once a majority of replicas have replied.
+ *   LOCAL_ONE    Returns the record with the most recent timestamp once a single replica within the local datacenter have replied.
  *   LOCAL_QUORUM Returns the record with the most recent timestamp once a majority of replicas within the local datacenter have replied.
  *   EACH_QUORUM  Returns the record with the most recent timestamp once a majority of replicas within each datacenter have replied.
  *   ALL          Returns the record with the most recent timestamp once all replicas have replied (implies no replica may be down)..
@@ -84,7 +86,8 @@ public enum ConsistencyLevel implements org.apache.thrift.TEnum {
   TWO(7),
   THREE(8),
   SERIAL(9),
-  LOCAL_SERIAL(10);
+  LOCAL_SERIAL(10),
+  LOCAL_ONE(11);
 
   private final int value;
 
@@ -125,6 +128,8 @@ public enum ConsistencyLevel implements org.apache.thrift.TEnum {
         return SERIAL;
       case 10:
         return LOCAL_SERIAL;
+      case 11:
+        return LOCAL_ONE;
       default:
         return null;
     }

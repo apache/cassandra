@@ -220,6 +220,7 @@ Table of Contents
                      0x0007    EACH_QUORUM
                      0x0008    SERIAL
                      0x0009    LOCAL_SERIAL
+                     0x0010    LOCAL_ONE
 
     [string map]      A [short] n, followed by n pair <k><v> where <k> and <v>
                       are [string].
