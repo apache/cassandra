@@ -32,12 +32,10 @@
  * Save compaction history to system keyspace (CASSANDRA-5078)
  * Fix NPE if StorageService.getOperationMode() is executed before full startup (CASSANDRA-6166)
 Merged from 1.2:
+ * Add a warning for small LCS sstable size (CASSANDRA-6191)
  * Add ability to list specific KS/CF combinations in nodetool cfstats (CASSANDRA-4191)
  * Mark CF clean if a mutation raced the drop and got it marked dirty 
  * Add a LOCAL_ONE consistency level (CASSANDRA-6202)
-
-
-1.2.11
  * Limit CQL prepared statement cache by size instead of count (CASSANDRA-6107)
  * Tracing should log write failure rather than raw exceptions (CASSANDRA-6133)
  * lock access to TM.endpointToHostIdMap (CASSANDRA-6103)
