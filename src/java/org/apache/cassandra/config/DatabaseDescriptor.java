@@ -279,15 +279,6 @@ public class DatabaseDescriptor
             }
         }
 
-        try
-        {
-            listenAddress = InetAddress.getByName(conf.listen_address);
-        }
-        catch (UnknownHostException e)
-        {
-            throw new ConfigurationException("Unknown listen_address '" + conf.listen_address + "'");
-        }
-
         /* Gossip Address to broadcast */
         if (conf.broadcast_address != null)
         {
