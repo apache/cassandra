@@ -58,10 +58,14 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
             if (options.containsKey(SSTABLE_SIZE_OPTION))
             {
                 configuredMaxSSTableSize = Integer.parseInt(options.get(SSTABLE_SIZE_OPTION));
-                if (configuredMaxSSTableSize >= 1000)
+                if (!Boolean.getBoolean("cassandra.tolerate_sstable_size"))
                 {
-                    // Yes, people have done this
-                    logger.warn("Max sstable size of {}MB is configured; having a unit of compaction this large is probably a bad idea", configuredMaxSSTableSize);
+                    if (configuredMaxSSTableSize >= 1000)
+                        logger.warn("Max sstable size of {}MB is configured for {}.{}; having a unit of compaction this large is probably a bad idea",
+                                    configuredMaxSSTableSize, cfs.table.name, cfs.getColumnFamilyName());
+                    if (configuredMaxSSTableSize < 50)
+                        logger.warn("Max sstable size of {}MB is configured for {}.{}.  Testing done for CASSANDRA-5727 indicates that performance improves up to 160MB",
+                                    configuredMaxSSTableSize, cfs.table.name, cfs.getColumnFamilyName());
                 }
             }
         }
