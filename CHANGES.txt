@@ -1,6 +1,7 @@
 1.2.12
  * Add ability to list specific KS/CF combinations in nodetool cfstats (CASSANDRA-4191)
  * Mark CF clean if a mutation raced the drop and got it marked dirty 
+ * Add a LOCAL_ONE consistency level (CASSANDRA-6202)
 
 
 1.2.11
