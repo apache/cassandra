@@ -1039,6 +1039,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @KEYSPACE@     | yes |
 | @LEVEL@        | no  |
 | @LIMIT@        | yes |
+| @LOCAL_ONE@    | yes |
 | @LOCAL_QUORUM@ | yes |
 | @MODIFY@       | yes |
 | @NORECURSIVE@  | yes |
