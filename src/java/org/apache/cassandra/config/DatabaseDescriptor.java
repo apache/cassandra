@@ -267,6 +267,8 @@ public class DatabaseDescriptor
         /* Local IP or hostname to bind services to */
         if (conf.listen_address != null)
         {
+            if (conf.listen_address.equals("0.0.0.0"))
+                throw new ConfigurationException("listen_address cannot be 0.0.0.0!");
             try
             {
                 listenAddress = InetAddress.getByName(conf.listen_address);
@@ -276,8 +278,6 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("Unknown listen_address '" + conf.listen_address + "'");
             }
         }
-        if (conf.listen_address.equals("0.0.0.0"))
-            throw new ConfigurationException("listen_address cannot be 0.0.0.0!");
 
         try
         {
