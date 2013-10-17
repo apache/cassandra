@@ -476,6 +476,10 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     {
     }
 
+    public void cleanupOnSuccess(String location, Job job) throws IOException {
+    }
+
+
     /** Methods to get the column family schema from Cassandra */
     protected void initSchema(String signature) throws IOException
     {
