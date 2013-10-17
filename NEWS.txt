@@ -38,6 +38,8 @@ New features
     - Compaction history and stats are now saved to system keyspace
       (system.compaction_history table). You can access historiy via
       new 'nodetool compactionhistory' command or CQL.
+    - Added a new consistenct level, LOCAL_ONE, that forces all CL.ONE operations to
+      execute only in the local datacenter.
 
 
 2.0.1
