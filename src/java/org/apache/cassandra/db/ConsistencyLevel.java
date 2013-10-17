@@ -46,15 +46,17 @@ public enum ConsistencyLevel
     THREE       (3),
     QUORUM      (4),
     ALL         (5),
-    LOCAL_QUORUM(6),
+    LOCAL_QUORUM(6, true),
     EACH_QUORUM (7),
     SERIAL      (8),
-    LOCAL_SERIAL(9);
+    LOCAL_SERIAL(9),
+    LOCAL_ONE   (10, true);
 
     private static final Logger logger = LoggerFactory.getLogger(ConsistencyLevel.class);
 
     // Used by the binary protocol
     public final int code;
+    private final boolean isDCLocal;
     private static final ConsistencyLevel[] codeIdx;
     static
     {
@@ -72,7 +74,13 @@ public enum ConsistencyLevel
 
     private ConsistencyLevel(int code)
     {
+        this(code, false);
+    }
+
+    private ConsistencyLevel(int code, boolean isDCLocal)
+    {
         this.code = code;
+        this.isDCLocal = isDCLocal;
     }
 
     public static ConsistencyLevel fromCode(int code)
@@ -92,6 +100,7 @@ public enum ConsistencyLevel
         switch (this)
         {
             case ONE:
+            case LOCAL_ONE:
                 return 1;
             case ANY:
                 return 1;
@@ -114,6 +123,11 @@ public enum ConsistencyLevel
             default:
                 throw new UnsupportedOperationException("Invalid consistency level: " + toString());
         }
+    }
+
+    public boolean isDatacenterLocal()
+    {
+        return isDCLocal;
     }
 
     private boolean isLocal(InetAddress endpoint)
@@ -155,11 +169,11 @@ public enum ConsistencyLevel
     {
         /*
          * Endpoints are expected to be restricted to live replicas, sorted by snitch preference.
-         * For LOCAL_QORUM, move local-DC replicas in front first as we need them there whether
+         * For LOCAL_QUORUM, move local-DC replicas in front first as we need them there whether
          * we do read repair (since the first replica gets the data read) or not (since we'll take
          * the blockFor first ones).
          */
-        if (this == LOCAL_QUORUM)
+        if (isDCLocal)
             Collections.sort(liveEndpoints, DatabaseDescriptor.getLocalComparator());
 
         switch (readRepair)
@@ -195,6 +209,8 @@ public enum ConsistencyLevel
             case ANY:
                 // local hint is acceptable, and local node is always live
                 return true;
+            case LOCAL_ONE:
+                return countLocalEndpoints(liveEndpoints) >= 1;
             case LOCAL_QUORUM:
                 return countLocalEndpoints(liveEndpoints) >= blockFor(keyspace);
             case EACH_QUORUM:
@@ -260,6 +276,7 @@ public enum ConsistencyLevel
         switch (this)
         {
             case LOCAL_QUORUM:
+            case LOCAL_ONE:
                 requireNetworkTopologyStrategy(keyspaceName);
                 break;
             case ANY:
@@ -275,6 +292,7 @@ public enum ConsistencyLevel
         {
             case LOCAL_QUORUM:
             case EACH_QUORUM:
+            case LOCAL_ONE:
                 requireNetworkTopologyStrategy(keyspaceName);
                 break;
             case SERIAL:
@@ -290,6 +308,7 @@ public enum ConsistencyLevel
         {
             case LOCAL_QUORUM:
             case EACH_QUORUM:
+            case LOCAL_ONE:
                 requireNetworkTopologyStrategy(keyspaceName);
                 break;
             case SERIAL:
@@ -315,7 +334,7 @@ public enum ConsistencyLevel
         {
             throw new InvalidRequestException("Consistency level ANY is not yet supported for counter columnfamily " + metadata.cfName);
         }
-        else if (!metadata.getReplicateOnWrite() && this != ConsistencyLevel.ONE)
+        else if (!metadata.getReplicateOnWrite() && !(this == ConsistencyLevel.ONE || this == ConsistencyLevel.LOCAL_ONE))
         {
             throw new InvalidRequestException("cannot achieve CL > CL.ONE without replicate_on_write on columnfamily " + metadata.cfName);
         }

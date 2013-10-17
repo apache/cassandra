@@ -122,7 +122,7 @@ public abstract class AbstractReplicationStrategy
 
     public AbstractWriteResponseHandler getWriteResponseHandler(Collection<InetAddress> naturalEndpoints, Collection<InetAddress> pendingEndpoints, ConsistencyLevel consistency_level, Runnable callback, WriteType writeType)
     {
-        if (consistency_level == ConsistencyLevel.LOCAL_QUORUM)
+        if (consistency_level.isDatacenterLocal())
         {
             // block for in this context will be localnodes block.
             return new DatacenterWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType);
