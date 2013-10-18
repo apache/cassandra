@@ -399,7 +399,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             throw new RuntimeException(e);
         }
-        SystemTable.setLocalHostId(hostId); // use the replacee's host Id as our own so we receive hints, etc
+        SystemKeyspace.setLocalHostId(hostId); // use the replacee's host Id as our own so we receive hints, etc
         MessagingService.instance().shutdown();
         Gossiper.instance.resetEndpointStateMap(); // clean up since we have what we need
         return tokens;
