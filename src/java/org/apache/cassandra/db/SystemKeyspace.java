@@ -624,8 +624,15 @@ public class SystemKeyspace
         // ID not found, generate a new one, persist, and then return it.
         hostId = UUID.randomUUID();
         logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
+        return setLocalHostId(hostId);
+    }
 
-        req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', %s)";
+    /**
+     * Sets the local host ID explicitly.  Should only be called outside of SystemTable when replacing a node.
+     */
+    public static UUID setLocalHostId(UUID hostId)
+    {
+        String req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', %s)";
         processInternal(String.format(req, LOCAL_CF, LOCAL_KEY, hostId));
         return hostId;
     }

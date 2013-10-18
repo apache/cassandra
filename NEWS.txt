@@ -40,11 +40,12 @@ New features
       new 'nodetool compactionhistory' command or CQL.
     - Added a new consistenct level, LOCAL_ONE, that forces all CL.ONE operations to
       execute only in the local datacenter.
-
+    - New replace_address to supplant the (now removed) replace_token and
+      replace_node workflows to replace a dead node in place.  Works like the
+      old options, but takes the IP address of the node to be replaced.
 
 2.0.1
 =====
-
 Upgrading
 ---------
     - The default memtable allocation has changed from 1/3 of heap to 1/4
