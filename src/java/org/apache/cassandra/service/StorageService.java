@@ -932,6 +932,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             // Dont set any state for the node which is bootstrapping the existing token...
             tokenMetadata.updateNormalTokens(tokens, FBUtilities.getBroadcastAddress());
+            SystemTable.removeEndpoint(DatabaseDescriptor.getReplaceAddress());
         }
         if (!Gossiper.instance.seenAnySeed())
             throw new IllegalStateException("Unable to contact any seeds!");
