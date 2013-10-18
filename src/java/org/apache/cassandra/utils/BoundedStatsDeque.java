@@ -24,16 +24,16 @@ import java.util.concurrent.LinkedBlockingDeque;
 /**
  * bounded threadsafe deque
  */
-public class BoundedStatsDeque implements Iterable<Double>
+public class BoundedStatsDeque implements Iterable<Long>
 {
-    protected final LinkedBlockingDeque<Double> deque;
+    protected final LinkedBlockingDeque<Long> deque;
 
     public BoundedStatsDeque(int size)
     {
-        deque = new LinkedBlockingDeque<Double>(size);
+        deque = new LinkedBlockingDeque<Long>(size);
     }
 
-    public Iterator<Double> iterator()
+    public Iterator<Long> iterator()
     {
         return deque.iterator();
     }
@@ -48,7 +48,7 @@ public class BoundedStatsDeque implements Iterable<Double>
         deque.clear();
     }
 
-    public void add(double i)
+    public void add(long i)
     {
         if (!deque.offer(i))
         {
@@ -67,7 +67,7 @@ public class BoundedStatsDeque implements Iterable<Double>
     public double sum()
     {
         double sum = 0d;
-        for (Double interval : deque)
+        for (Long interval : deque)
         {
             sum += interval;
         }
