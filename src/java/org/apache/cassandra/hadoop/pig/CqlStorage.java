@@ -146,7 +146,7 @@ public class CqlStorage extends AbstractCassandraStorage
             setMapTupleValues(tuple, position, value, validator);
             return;
         }
-        AbstractType<?> elementValidator;
+        AbstractType elementValidator;
         if (validator instanceof SetType)
             elementValidator = ((SetType<?>) validator).elements;
         else if (validator instanceof ListType)
@@ -158,7 +158,7 @@ public class CqlStorage extends AbstractCassandraStorage
         Tuple innerTuple = TupleFactory.getInstance().newTuple(((Collection<?>) value).size());
         for (Object entry : (Collection<?>) value)
         {
-            setTupleValue(innerTuple, i, entry, elementValidator);
+            setTupleValue(innerTuple, i, cassandraToPigData(entry, elementValidator), elementValidator);
             i++;
         }
         tuple.set(position, innerTuple);
@@ -175,8 +175,8 @@ public class CqlStorage extends AbstractCassandraStorage
         for(Map.Entry<?,?> entry :  ((Map<Object, Object>)value).entrySet())
         {
             Tuple mapEntryTuple = TupleFactory.getInstance().newTuple(2);
-            setTupleValue(mapEntryTuple, 0, entry.getKey(), keyValidator);
-            setTupleValue(mapEntryTuple, 1, entry.getValue(), valueValidator);
+            setTupleValue(mapEntryTuple, 0, cassandraToPigData(entry.getKey(), keyValidator), keyValidator);
+            setTupleValue(mapEntryTuple, 1, cassandraToPigData(entry.getValue(), valueValidator), valueValidator);
             innerTuple.set(i, mapEntryTuple);
             i++;
         }
@@ -702,6 +702,13 @@ public class CqlStorage extends AbstractCassandraStorage
             default:
                 throw new IOException("Unsupported expression type: " + opString);
         }
+    }
+
+    private Object cassandraToPigData(Object obj, AbstractType validator)
+    {
+        if (validator instanceof DecimalType || validator instanceof InetAddressType)
+            return validator.getString(validator.decompose(obj));
+        return obj;
     }
 }
 
