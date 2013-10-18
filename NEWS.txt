@@ -16,6 +16,7 @@ using the provided 'sstableupgrade' tool.
 
 1.2.11
 ======
+
 Features
 --------
     - Added a new consistenct level, LOCAL_ONE, that forces all CL.ONE operations to
