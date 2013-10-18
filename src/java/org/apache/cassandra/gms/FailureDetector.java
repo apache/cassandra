@@ -188,7 +188,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     {
         if (logger.isTraceEnabled())
             logger.trace("reporting {}", ep);
-        long now = System.currentTimeMillis();
+        long now = System.nanoTime();
         ArrivalWindow heartbeatWindow = arrivalSamples.get(ep);
         if (heartbeatWindow == null)
         {
@@ -205,7 +205,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         {
             return;
         }
-        long now = System.currentTimeMillis();
+        long now = System.nanoTime();
         double phi = hbWnd.phi(now);
         if (logger.isTraceEnabled())
             logger.trace("PHI for " + ep + " : " + phi);
@@ -270,7 +270,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 class ArrivalWindow
 {
     private static final Logger logger = LoggerFactory.getLogger(ArrivalWindow.class);
-    private double tLast = 0L;
+    private long tLast = 0L;
     private final BoundedStatsDeque arrivalIntervals;
 
     // this is useless except to provide backwards compatibility in phi_convict_threshold,
@@ -279,28 +279,31 @@ class ArrivalWindow
     // change.
     private final double PHI_FACTOR = 1.0 / Math.log(10.0);
 
+    private static final long MILLI_TO_NANO = 1000000L;
+
     // in the event of a long partition, never record an interval longer than the rpc timeout,
     // since if a host is regularly experiencing connectivity problems lasting this long we'd
     // rather mark it down quickly instead of adapting
-    private final double MAX_INTERVAL_IN_MS = DatabaseDescriptor.getRpcTimeout();
+    private final long MAX_INTERVAL_IN_NANO = DatabaseDescriptor.getRpcTimeout() * MILLI_TO_NANO;
 
     ArrivalWindow(int size)
     {
         arrivalIntervals = new BoundedStatsDeque(size);
     }
 
-    synchronized void add(double value)
+    synchronized void add(long value)
     {
-        double interArrivalTime;
-        if (tLast > 0L)
+        long interArrivalTime;
+        if (tLast != 0L)
         {
             interArrivalTime = (value - tLast);
         }
         else
         {
-            interArrivalTime = Gossiper.intervalInMillis / 2;
+            interArrivalTime = (Gossiper.intervalInMillis * MILLI_TO_NANO) / 2;
         }
-        if (interArrivalTime <= MAX_INTERVAL_IN_MS)
+
+        if (interArrivalTime <= MAX_INTERVAL_IN_NANO)
             arrivalIntervals.add(interArrivalTime);
         else
             logger.debug("Ignoring interval time of {}", interArrivalTime);
@@ -321,9 +324,9 @@ class ArrivalWindow
     double phi(long tnow)
     {
         int size = arrivalIntervals.size();
-        double t = tnow - tLast;
+        long t = tnow - tLast;
         return (size > 0)
-               ? PHI_FACTOR * t / mean()
+               ? PHI_FACTOR * (t / mean())
                : 0.0;
     }
 

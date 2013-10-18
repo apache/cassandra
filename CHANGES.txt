@@ -1,4 +1,5 @@
 2.0.2
+ * Update FailureDetector to use nanontime (CASSANDRA-4925)
  * Fix FileCacheService regressions (CASSANDRA-6149)
  * Never return WriteTimeout for CL.ANY (CASSANDRA-6032)
  * Fix race conditions in bulk loader (CASSANDRA-6129)

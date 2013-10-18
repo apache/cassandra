@@ -27,23 +27,23 @@ import org.junit.Test;
 
 public class ArrivalWindowTest
 {
-
     @Test
-    public void test()
+    public void testWithNanoTime()
     {
-        ArrivalWindow window = new ArrivalWindow(4);
-        //base readings
-        window.add(111);
-        window.add(222);
-        window.add(333);
-        window.add(444);
-        window.add(555);
+        final ArrivalWindow windowWithNano = new ArrivalWindow(4);
+        final long toNano = 1000000L;
 
-        //all good
-        assertEquals(0.4342, window.phi(666), 0.01);
+        windowWithNano.add(111 * toNano);
+        windowWithNano.add(222 * toNano);
+        windowWithNano.add(333 * toNano);
+        windowWithNano.add(444 * toNano);
+        windowWithNano.add(555 * toNano);
 
+
+        assertEquals(0.4342, windowWithNano.phi(666 * toNano), 0.01);
         //oh noes, a much higher timestamp, something went wrong!
-        assertEquals(9.566, window.phi(3000), 0.01);
+        assertEquals(9.566, windowWithNano.phi(3000 * toNano), 0.01);
+
     }
 
 

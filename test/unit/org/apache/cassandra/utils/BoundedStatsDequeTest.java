@@ -41,22 +41,22 @@ public class BoundedStatsDequeTest
         assertEquals(0, bsd.sum(), 0.001d);
         assertEquals(0, bsd.mean(), 0.001d);
 
-        bsd.add(1d); //this one falls out, over limit
-        bsd.add(2d);
-        bsd.add(3d);
-        bsd.add(4d);
-        bsd.add(5d);
+        bsd.add(1L); //this one falls out, over limit
+        bsd.add(2L);
+        bsd.add(3L);
+        bsd.add(4L);
+        bsd.add(5L);
 
         //verify that everything is in there
-        Iterator<Double> iter = bsd.iterator();
+        Iterator<Long> iter = bsd.iterator();
         assertTrue(iter.hasNext());
-        assertEquals(2d, iter.next(), 0);
+        assertEquals(2L, iter.next(), 0);
         assertTrue(iter.hasNext());
-        assertEquals(3d, iter.next(), 0);
+        assertEquals(3L, iter.next(), 0);
         assertTrue(iter.hasNext());
-        assertEquals(4d, iter.next(), 0);
+        assertEquals(4L, iter.next(), 0);
         assertTrue(iter.hasNext());
-        assertEquals(5d, iter.next(), 0);
+        assertEquals(5L, iter.next(), 0);
         assertFalse(iter.hasNext());
 
         //check results
