@@ -54,33 +54,20 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         super(cfs, options);
         int configuredMaxSSTableSize = 160;
         SizeTieredCompactionStrategyOptions localOptions = new SizeTieredCompactionStrategyOptions(options);
-        if (options.containsKey(SSTABLE_SIZE_OPTION))
-        {
-            configuredMaxSSTableSize = Integer.parseInt(options.get(SSTABLE_SIZE_OPTION));
-            if (configuredMaxSSTableSize >= 1000)
-            {
-<<<<<<< HEAD
-                // Yes, people have done this
-                logger.warn("Max sstable size of {}MB is configured; having a unit of compaction this large is probably a bad idea", configuredMaxSSTableSize);
-||||||| merged common ancestors
-                configuredMaxSSTableSize = Integer.parseInt(options.get(SSTABLE_SIZE_OPTION));
-                if (configuredMaxSSTableSize >= 1000)
-                {
-                    // Yes, people have done this
-                    logger.warn("Max sstable size of {}MB is configured; having a unit of compaction this large is probably a bad idea", configuredMaxSSTableSize);
-                }
-=======
-                configuredMaxSSTableSize = Integer.parseInt(options.get(SSTABLE_SIZE_OPTION));
-                if (!Boolean.getBoolean("cassandra.tolerate_sstable_size"))
-                {
+        if (options != null)
+        {             
+            if (options.containsKey(SSTABLE_SIZE_OPTION))             
+            {                 
+                configuredMaxSSTableSize = Integer.parseInt(options.get(SSTABLE_SIZE_OPTION));                 
+                if (!Boolean.getBoolean("cassandra.tolerate_sstable_size"))                 
+                {                     
                     if (configuredMaxSSTableSize >= 1000)
                         logger.warn("Max sstable size of {}MB is configured for {}.{}; having a unit of compaction this large is probably a bad idea",
-                                    configuredMaxSSTableSize, cfs.table.name, cfs.getColumnFamilyName());
-                    if (configuredMaxSSTableSize < 50)
+                                configuredMaxSSTableSize, cfs.name, cfs.getColumnFamilyName());
+                    if (configuredMaxSSTableSize < 50)  
                         logger.warn("Max sstable size of {}MB is configured for {}.{}.  Testing done for CASSANDRA-5727 indicates that performance improves up to 160MB",
-                                    configuredMaxSSTableSize, cfs.table.name, cfs.getColumnFamilyName());
+                                configuredMaxSSTableSize, cfs.name, cfs.getColumnFamilyName());
                 }
->>>>>>> cassandra-1.2
             }
         }
         maxSSTableSizeInMB = configuredMaxSSTableSize;
