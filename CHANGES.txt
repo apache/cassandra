@@ -64,6 +64,7 @@ Merged from 1.2:
  * Fix compaction race during columnfamily drop (CASSANDRA-5957)
  * Fix validation of empty column names for compact tables (CASSANDRA-6152)
  * Skip replaying mutations that pass CRC but fail to deserialize (CASSANDRA-6183)
+ * Rework token replacement to use replace_address (CASSANDRA-5916)
 
 
 2.0.1
