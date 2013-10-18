@@ -39,7 +39,7 @@ public class GossipDigestAckVerbHandler implements IVerbHandler<GossipDigestAck>
         InetAddress from = message.from;
         if (logger.isTraceEnabled())
             logger.trace("Received a GossipDigestAckMessage from {}", from);
-        if (!Gossiper.instance.isEnabled())
+        if (!Gossiper.instance.isEnabled() && !Gossiper.instance.isInShadowRound())
         {
             if (logger.isTraceEnabled())
                 logger.trace("Ignoring GossipDigestAckMessage because gossip is disabled");
@@ -49,6 +49,7 @@ public class GossipDigestAckVerbHandler implements IVerbHandler<GossipDigestAck>
         GossipDigestAck gDigestAckMessage = message.payload;
         List<GossipDigest> gDigestList = gDigestAckMessage.getGossipDigestList();
         Map<InetAddress, EndpointState> epStateMap = gDigestAckMessage.getEndpointStateMap();
+        logger.trace("Received ack with {} digests and {} states", gDigestList.size(), epStateMap.size());
 
         if (epStateMap.size() > 0)
         {
@@ -58,6 +59,13 @@ public class GossipDigestAckVerbHandler implements IVerbHandler<GossipDigestAck>
         }
 
         Gossiper.instance.checkSeedContact(from);
+        if (Gossiper.instance.isInShadowRound())
+        {
+            if (logger.isDebugEnabled())
+                logger.debug("Finishing shadow round with {}", from);
+            Gossiper.instance.finishShadowRound();
+            return; // don't bother doing anything else, we have what we came for
+        }
 
         /* Get the state required to send to this gossipee - construct GossipDigestAck2Message */
         Map<InetAddress, EndpointState> deltaEpStateMap = new HashMap<InetAddress, EndpointState>();
