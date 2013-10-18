@@ -724,6 +724,21 @@ public class DatabaseDescriptor
         return conf.num_tokens;
     }
 
+    public static InetAddress getReplaceAddress()
+    {
+        try
+        {
+            if (System.getProperty("cassandra.replace_address", null) != null)
+                return InetAddress.getByName(System.getProperty("cassandra.replace_address", null));
+            else
+                return null;
+        }
+        catch (UnknownHostException e)
+        {
+            return null;
+        }
+    }
+
     public static Collection<String> getReplaceTokens()
     {
         return tokensFromString(System.getProperty("cassandra.replace_token", null));
@@ -742,7 +757,7 @@ public class DatabaseDescriptor
 
     public static boolean isReplacing()
     {
-        return 0 != getReplaceTokens().size() || getReplaceNode() != null;
+        return getReplaceAddress() != null;
     }
 
     public static String getClusterName()
