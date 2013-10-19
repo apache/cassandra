@@ -32,6 +32,7 @@ New features
       replace_node workflows to replace a dead node in place.  Works like the
       old options, but takes the IP address of the node to be replaced.
 
+
 2.0.1
 =====
 Upgrading

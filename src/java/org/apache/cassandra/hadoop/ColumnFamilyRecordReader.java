@@ -145,6 +145,9 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         cfName = ConfigHelper.getInputColumnFamily(conf);
         consistencyLevel = ConsistencyLevel.valueOf(ConfigHelper.getReadConsistencyLevel(conf));
         keyspace = ConfigHelper.getInputKeyspace(conf);
+        
+        if (batchSize < 2)
+            throw new IllegalArgumentException("Minimum batchSize is 2.  Suggested batchSize is 100 or more");
 
         try
         {
