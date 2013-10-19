@@ -21,6 +21,7 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.util.zip.Adler32;
+import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import org.apache.cassandra.io.FSReadError;
@@ -192,6 +193,17 @@ public class CompressedSequentialWriter extends SequentialWriter
         {
             out.seek(chunkOffset);
             out.readFully(compressed.buffer, 0, chunkSize);
+
+            try
+            {
+                // repopulate buffer
+                compressor.uncompress(compressed.buffer, 0, chunkSize, buffer, 0);
+            }
+            catch (IOException e)
+            {
+                throw new CorruptBlockException(getPath(), chunkOffset, chunkSize);
+            }
+
             checksum.update(compressed.buffer, 0, chunkSize);
 
             if (out.readInt() != (int) checksum.getValue())
