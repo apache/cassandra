@@ -1,3 +1,7 @@
+1.2.12
+ * (Hadoop) Require CFRR batchSize to be at least 2 (CASSANDRA-6114)
+
+
 1.2.11
  * Add a warning for small LCS sstable size (CASSANDRA-6191)
  * Add ability to list specific KS/CF combinations in nodetool cfstats (CASSANDRA-4191)
