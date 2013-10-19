@@ -156,6 +156,7 @@ public class Memory
 
     public long size()
     {
+        assert peer != 0;
         return size;
     }
 
