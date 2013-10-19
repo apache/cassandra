@@ -57,5 +57,6 @@ public class CompressedSegmentedFile extends SegmentedFile implements ICompresse
 
     public void cleanup()
     {
+        metadata.close();
     }
 }
