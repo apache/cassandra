@@ -204,8 +204,8 @@ public class SSTableExportTest extends SchemaLoader
         QueryFilter qf = QueryFilter.getNamesFilter(Util.dk("rowA"), "Standard1", ByteBufferUtil.bytes("name"), System.currentTimeMillis());
         ColumnFamily cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         qf.collateOnDiskAtom(cf, qf.getSSTableColumnIterator(reader), Integer.MIN_VALUE);
-        assertTrue(cf != null);
-        assertTrue(cf.getColumn(ByteBufferUtil.bytes("name")).value().equals(hexToBytes("76616c")));
+        assertNotNull(cf);
+        assertEquals(hexToBytes("76616c"), cf.getColumn(ByteBufferUtil.bytes("name")).value());
 
         qf = QueryFilter.getNamesFilter(Util.dk("rowExclude"), "Standard1", ByteBufferUtil.bytes("name"), System.currentTimeMillis());
         cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
