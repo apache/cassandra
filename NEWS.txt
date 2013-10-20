@@ -26,7 +26,7 @@ New features
     - Compaction history and stats are now saved to system keyspace
       (system.compaction_history table). You can access historiy via
       new 'nodetool compactionhistory' command or CQL.
-    - Added a new consistenct level, LOCAL_ONE, that forces all CL.ONE operations to
+    - Added a new consistency level, LOCAL_ONE, that forces all CL.ONE operations to
       execute only in the local datacenter.
     - New replace_address to supplant the (now removed) replace_token and
       replace_node workflows to replace a dead node in place.  Works like the
@@ -124,6 +124,16 @@ Features
     - Numerous improvements to CQL3 and a new version of the native protocol. See
       http://www.datastax.com/dev/blog/cql-in-cassandra-2-0 for details.
 
+1.2.11
+======
+
+Features
+--------
+    - Added a new consistenct level, LOCAL_ONE, that forces all CL.ONE operations to
+      execute only in the local datacenter.
+    - New replace_address to supplant the (now removed) replace_token and
+      replace_node workflows to replace a dead node in place.  Works like the
+      old options, but takes the IP address of the node to be replaced.
 
 1.2.9
 =====
