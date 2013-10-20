@@ -223,35 +223,35 @@ public class MoveTest
 
         Multimap<InetAddress, Range<Token>> keyspace1ranges = keyspaceStrategyMap.get("Keyspace1").getAddressRanges();
         Collection<Range<Token>> ranges1 = keyspace1ranges.get(InetAddress.getByName("127.0.0.1"));
-        assertEquals(collectionSize(ranges1), 1);
-        assertTrue(ranges1.iterator().next().equals(generateRange(97, 0)));
+        assertEquals(1, collectionSize(ranges1));
+        assertEquals(generateRange(97, 0), ranges1.iterator().next());
         Collection<Range<Token>> ranges2 = keyspace1ranges.get(InetAddress.getByName("127.0.0.2"));
-        assertEquals(collectionSize(ranges2), 1);
-        assertTrue(ranges2.iterator().next().equals(generateRange(0, 10)));
+        assertEquals(1, collectionSize(ranges2));
+        assertEquals(generateRange(0, 10), ranges2.iterator().next());
         Collection<Range<Token>> ranges3 = keyspace1ranges.get(InetAddress.getByName("127.0.0.3"));
-        assertEquals(collectionSize(ranges3), 1);
-        assertTrue(ranges3.iterator().next().equals(generateRange(10, 20)));
+        assertEquals(1, collectionSize(ranges3));
+        assertEquals(generateRange(10, 20), ranges3.iterator().next());
         Collection<Range<Token>> ranges4 = keyspace1ranges.get(InetAddress.getByName("127.0.0.4"));
-        assertEquals(collectionSize(ranges4), 1);
-        assertTrue(ranges4.iterator().next().equals(generateRange(20, 30)));
+        assertEquals(1, collectionSize(ranges4));
+        assertEquals(generateRange(20, 30), ranges4.iterator().next());
         Collection<Range<Token>> ranges5 = keyspace1ranges.get(InetAddress.getByName("127.0.0.5"));
-        assertEquals(collectionSize(ranges5), 1);
-        assertTrue(ranges5.iterator().next().equals(generateRange(30, 40)));
+        assertEquals(1, collectionSize(ranges5));
+        assertEquals(generateRange(30, 40), ranges5.iterator().next());
         Collection<Range<Token>> ranges6 = keyspace1ranges.get(InetAddress.getByName("127.0.0.6"));
-        assertEquals(collectionSize(ranges6), 1);
-        assertTrue(ranges6.iterator().next().equals(generateRange(40, 50)));
+        assertEquals(1, collectionSize(ranges6));
+        assertEquals(generateRange(40, 50), ranges6.iterator().next());
         Collection<Range<Token>> ranges7 = keyspace1ranges.get(InetAddress.getByName("127.0.0.7"));
-        assertEquals(collectionSize(ranges7), 1);
-        assertTrue(ranges7.iterator().next().equals(generateRange(50, 67)));
+        assertEquals(1, collectionSize(ranges7));
+        assertEquals(generateRange(50, 67), ranges7.iterator().next());
         Collection<Range<Token>> ranges8 = keyspace1ranges.get(InetAddress.getByName("127.0.0.8"));
-        assertEquals(collectionSize(ranges8), 1);
-        assertTrue(ranges8.iterator().next().equals(generateRange(67, 70)));
+        assertEquals(1, collectionSize(ranges8));
+        assertEquals(generateRange(67, 70), ranges8.iterator().next());
         Collection<Range<Token>> ranges9 = keyspace1ranges.get(InetAddress.getByName("127.0.0.9"));
-        assertEquals(collectionSize(ranges9), 1);
-        assertTrue(ranges9.iterator().next().equals(generateRange(70, 87)));
+        assertEquals(1, collectionSize(ranges9));
+        assertEquals(generateRange(70, 87), ranges9.iterator().next());
         Collection<Range<Token>> ranges10 = keyspace1ranges.get(InetAddress.getByName("127.0.0.10"));
-        assertEquals(collectionSize(ranges10), 1);
-        assertTrue(ranges10.iterator().next().equals(generateRange(87, 97)));
+        assertEquals(1, collectionSize(ranges10));
+        assertEquals(generateRange(87, 97), ranges10.iterator().next());
 
 
         /**
@@ -405,7 +405,7 @@ public class MoveTest
             for (Token token : keyTokens)
             {
                 endpoints = tmd.getWriteEndpoints(token, keyspaceName, strategy.getNaturalEndpoints(token));
-                assertTrue(expectedEndpoints.get(keyspaceName).get(token).size() == endpoints.size());
+                assertEquals(expectedEndpoints.get(keyspaceName).get(token).size(), endpoints.size());
                 assertTrue(expectedEndpoints.get(keyspaceName).get(token).containsAll(endpoints));
             }
 
@@ -417,7 +417,7 @@ public class MoveTest
             for (int i = 0; i < 3; i++)
             {
                 endpoints = tmd.getWriteEndpoints(keyTokens.get(i), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(i)));
-                assertTrue(endpoints.size() == 3);
+                assertEquals(3, endpoints.size());
                 assertTrue(endpoints.contains(hosts.get(i+1)));
                 assertTrue(endpoints.contains(hosts.get(i+2)));
                 assertTrue(endpoints.contains(hosts.get(i+3)));
@@ -425,7 +425,7 @@ public class MoveTest
 
             // token 35 should go to nodes 4, 5, 6 and boot1
             endpoints = tmd.getWriteEndpoints(keyTokens.get(3), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(3)));
-            assertTrue(endpoints.size() == 4);
+            assertEquals(4, endpoints.size());
             assertTrue(endpoints.contains(hosts.get(4)));
             assertTrue(endpoints.contains(hosts.get(5)));
             assertTrue(endpoints.contains(hosts.get(6)));
@@ -433,7 +433,7 @@ public class MoveTest
 
             // token 45 should go to nodes 5, 6, 7 boot1
             endpoints = tmd.getWriteEndpoints(keyTokens.get(4), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(4)));
-            assertTrue(endpoints.size() == 4);
+            assertEquals(4, endpoints.size());
             assertTrue(endpoints.contains(hosts.get(5)));
             assertTrue(endpoints.contains(hosts.get(6)));
             assertTrue(endpoints.contains(hosts.get(7)));
@@ -441,7 +441,7 @@ public class MoveTest
 
             // token 55 should go to nodes 6, 7, 8 boot1 and boot2
             endpoints = tmd.getWriteEndpoints(keyTokens.get(5), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(5)));
-            assertTrue(endpoints.size() == 5);
+            assertEquals(5, endpoints.size());
             assertTrue(endpoints.contains(hosts.get(6)));
             assertTrue(endpoints.contains(hosts.get(7)));
             assertTrue(endpoints.contains(hosts.get(8)));
@@ -450,7 +450,7 @@ public class MoveTest
 
             // token 65 should go to nodes 6, 7, 8 and boot2
             endpoints = tmd.getWriteEndpoints(keyTokens.get(6), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(6)));
-            assertTrue(endpoints.size() == 4);
+            assertEquals(4, endpoints.size());
             assertTrue(endpoints.contains(hosts.get(6)));
             assertTrue(endpoints.contains(hosts.get(7)));
             assertTrue(endpoints.contains(hosts.get(8)));
@@ -458,7 +458,7 @@ public class MoveTest
 
             // token 75 should to go nodes 8, 9, 0 and boot2
             endpoints = tmd.getWriteEndpoints(keyTokens.get(7), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(7)));
-            assertTrue(endpoints.size() == 4);
+            assertEquals(4, endpoints.size());
             assertTrue(endpoints.contains(hosts.get(8)));
             assertTrue(endpoints.contains(hosts.get(9)));
             assertTrue(endpoints.contains(hosts.get(0)));
@@ -466,14 +466,14 @@ public class MoveTest
 
             // token 85 should go to nodes 8, 9 and 0
             endpoints = tmd.getWriteEndpoints(keyTokens.get(8), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(8)));
-            assertTrue(endpoints.size() == 3);
+            assertEquals(3, endpoints.size());
             assertTrue(endpoints.contains(hosts.get(8)));
             assertTrue(endpoints.contains(hosts.get(9)));
             assertTrue(endpoints.contains(hosts.get(0)));
 
             // token 95 should go to nodes 9, 0 and 1
             endpoints = tmd.getWriteEndpoints(keyTokens.get(9), keyspaceName, strategy.getNaturalEndpoints(keyTokens.get(9)));
-            assertTrue(endpoints.size() == 3);
+            assertEquals(3, endpoints.size());
             assertTrue(endpoints.contains(hosts.get(9)));
             assertTrue(endpoints.contains(hosts.get(0)));
             assertTrue(endpoints.contains(hosts.get(1)));
@@ -510,14 +510,14 @@ public class MoveTest
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.moving(newToken));
 
         assertTrue(tmd.isMoving(hosts.get(2)));
-        assertTrue(tmd.getToken(hosts.get(2)).equals(endpointTokens.get(2)));
+        assertEquals(endpointTokens.get(2), tmd.getToken(hosts.get(2)));
 
         // back to normal
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(newToken)));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(newToken)));
 
         assertTrue(tmd.getMovingEndpoints().isEmpty());
-        assertTrue(tmd.getToken(hosts.get(2)).equals(newToken));
+        assertEquals(newToken, tmd.getToken(hosts.get(2)));
 
         newToken = positionToken(8);
         // node 2 goes through leave and left and then jumps to normal at its new token
@@ -527,7 +527,7 @@ public class MoveTest
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
         assertTrue(tmd.getMovingEndpoints().isEmpty());
-        assertTrue(tmd.getToken(hosts.get(2)).equals(newToken));
+        assertEquals(newToken, tmd.getToken(hosts.get(2)));
     }
 
     private static Collection<InetAddress> makeAddrs(String... hosts) throws UnknownHostException
