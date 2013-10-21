@@ -582,8 +582,7 @@ public class CompactionManager implements CompactionManagerMBean
             SSTableReader newSstable = null;
 
             logger.info("Cleaning up " + sstable);
-            // Calculate the expected compacted filesize
-            long expectedRangeFileSize = cfs.getExpectedCompactedFileSize(Arrays.asList(sstable), OperationType.CLEANUP);
+
             File compactionFileLocation = cfs.directories.getDirectoryForNewSSTables();
             if (compactionFileLocation == null)
                 throw new IOException("disk full");
