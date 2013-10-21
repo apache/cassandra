@@ -2043,7 +2043,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public Long getTruncateRpcTimeout() { return DatabaseDescriptor.getTruncateRpcTimeout(); }
     public void setTruncateRpcTimeout(Long timeoutInMillis) { DatabaseDescriptor.setTruncateRpcTimeout(timeoutInMillis); }
-    public void reloadTriggerClass() { TriggerExecutor.instance.reloadClasses(); }
+    public void reloadTriggerClasses() { TriggerExecutor.instance.reloadClasses(); }
 
     
     public long getReadRepairAttempted() {
