@@ -830,72 +830,6 @@ def create_ks_wat_completer(ctxt, cass):
         return ['KEYSPACE']
     return ['KEYSPACE', 'SCHEMA']
 
-@completer_for('property', 'propname')
-def keyspace_properties_option_name_completer(ctxt, cass):
-    optsseen = ctxt.get_binding('propname', ())
-    if 'replication' not in optsseen:
-        return ['replication']
-    return ["durable_writes"]
-
-@completer_for('propertyValue', 'propsimpleval')
-def property_value_completer(ctxt, cass):
-    optname = ctxt.get_binding('propname')[-1]
-    if optname == 'durable_writes':
-        return ["'true'", "'false'"]
-    if optname == 'replication':
-        return ["{'class': '"]
-    return ()
-
-@completer_for('propertyValue', 'propmapkey')
-def keyspace_properties_map_key_completer(ctxt, cass):
-    optname = ctxt.get_binding('propname')[-1]
-    if optname != 'replication':
-        return ()
-    keysseen = map(dequote_value, ctxt.get_binding('propmapkey', ()))
-    valsseen = map(dequote_value, ctxt.get_binding('propmapval', ()))
-    for k, v in zip(keysseen, valsseen):
-        if k == 'class':
-            repclass = v
-            break
-    else:
-        return ["'class'"]
-    if repclass in CqlRuleSet.replication_factor_strategies:
-        opts = set(('replication_factor',))
-    elif repclass == 'NetworkTopologyStrategy':
-        return [Hint('<dc_name>')]
-    return map(escape_value, opts.difference(keysseen))
-
-@completer_for('propertyValue', 'propmapval')
-def keyspace_properties_map_value_completer(ctxt, cass):
-    optname = ctxt.get_binding('propname')[-1]
-    if optname != 'replication':
-        return ()
-    currentkey = dequote_value(ctxt.get_binding('propmapkey')[-1])
-    if currentkey == 'class':
-        return map(escape_value, CqlRuleSet.replication_strategies)
-    return [Hint('<value>')]
-
-@completer_for('propertyValue', 'ender')
-def keyspace_properties_map_ender_completer(ctxt, cass):
-    optname = ctxt.get_binding('propname')[-1]
-    if optname != 'replication':
-        return [',']
-    keysseen = map(dequote_value, ctxt.get_binding('propmapkey', ()))
-    valsseen = map(dequote_value, ctxt.get_binding('propmapval', ()))
-    for k, v in zip(keysseen, valsseen):
-        if k == 'class':
-            repclass = v
-            break
-    else:
-        return [',']
-    if repclass in CqlRuleSet.replication_factor_strategies:
-        opts = set(('replication_factor',))
-        if 'replication_factor' not in keysseen:
-            return [',']
-    if repclass == 'NetworkTopologyStrategy' and len(keysseen) == 1:
-        return [',']
-    return ['}']
-
 syntax_rules += r'''
 <createColumnFamilyStatement> ::= "CREATE" wat=( "COLUMNFAMILY" | "TABLE" ) ("IF" "NOT" "EXISTS")?
                                     ( ks=<nonSystemKeyspaceName> dot="." )? cf=<cfOrKsName>
@@ -1021,7 +955,7 @@ def drop_index_completer(ctxt, cass):
     return map(maybe_escape_name, cass.get_index_names())
 
 syntax_rules += r'''
-<alterTableStatement> ::= "ALTER" ( "COLUMNFAMILY" | "TABLE" ) cf=<columnFamilyName>
+<alterTableStatement> ::= "ALTER" wat=( "COLUMNFAMILY" | "TABLE" ) cf=<columnFamilyName>
                                <alterInstructions>
                         ;
 <alterInstructions> ::= "ALTER" existcol=<cident> "TYPE" <storageType>
