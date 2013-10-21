@@ -239,7 +239,19 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
      */
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
-        return this == previous;
+        return this.equals(previous);
+    }
+
+    /**
+     * Returns true if values of the previous AbstracType can be read by the this
+     * AbsractType. Note that this is a weaker version of isCompatibleWith, as it
+     * does not require that both type compare values the same way.
+     *
+     * Note that a type should be compatible with at least itself.
+     */
+    public boolean isValueCompatibleWith(AbstractType<?> previous)
+    {
+        return isCompatibleWith(previous);
     }
 
     /**
