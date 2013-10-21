@@ -92,7 +92,7 @@ public interface StorageProxyMBean
     public Long getTruncateRpcTimeout();
     public void setTruncateRpcTimeout(Long timeoutInMillis);
 
-    public void reloadTriggerClass();
+    public void reloadTriggerClasses();
 
     public long getReadRepairAttempted();
     public long getReadRepairRepairedBlocking();

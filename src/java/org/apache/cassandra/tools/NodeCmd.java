@@ -169,7 +169,8 @@ public class NodeCmd
         RESETLOCALSCHEMA,
         ENABLEBACKUP,
         DISABLEBACKUP,
-        SETCACHEKEYSTOSAVE
+        SETCACHEKEYSTOSAVE,
+        RELOADTRIGGERS
     }
 
 
@@ -1297,6 +1298,10 @@ public class NodeCmd
 
                 case RANGEKEYSAMPLE :
                     nodeCmd.printRangeKeySample(System.out);
+                    break;
+
+                case RELOADTRIGGERS :
+                    probe.reloadTriggers();
                     break;
 
                 default :

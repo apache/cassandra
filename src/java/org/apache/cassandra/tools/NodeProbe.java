@@ -875,6 +875,11 @@ public class NodeProbe
     {
         return compactionProxy.getCompactionHistory();
     }
+
+    public void reloadTriggers()
+    {
+        spProxy.reloadTriggerClasses();
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
