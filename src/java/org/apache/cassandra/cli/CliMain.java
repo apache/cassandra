@@ -252,18 +252,22 @@ public class CliMain
         // load statements from file and process them
         if (sessionState.inFileMode())
         {
-            FileReader fileReader;
+            BufferedReader reader = null;
 
             try
             {
-                fileReader = new FileReader(sessionState.filename);
-                evaluateFileStatements(new BufferedReader(fileReader));
+                reader = new BufferedReader(new FileReader(sessionState.filename));
+                evaluateFileStatements(reader);
             }
             catch (IOException e)
             {
                 sessionState.err.println(e.getMessage());
                 System.exit(1);
             }
+            finally
+            {
+                FileUtils.closeQuietly(reader);
+            }      
 
             return;
         }
