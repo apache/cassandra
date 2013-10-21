@@ -264,9 +264,9 @@ public class ColumnDefinition
         if (getIndexType() != null && def.getIndexType() != null)
         {
             // If an index is set (and not drop by this update), the validator shouldn't be change to a non-compatible one
+            // (and we want true comparator compatibility, not just value one, since the validator is used by LocalPartitioner to order index rows)
             if (!def.getValidator().isCompatibleWith(getValidator()))
-                throw new ConfigurationException(String.format("Cannot modify validator to a non-compatible one for column %s since an index is set",
-                                                                comparator.getString(name)));
+                throw new ConfigurationException(String.format("Cannot modify validator to a non-order-compatible one for column %s since an index is set", comparator.getString(name)));
 
             assert getIndexName() != null;
             if (!getIndexName().equals(def.getIndexName()))
