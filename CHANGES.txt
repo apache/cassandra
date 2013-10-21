@@ -23,6 +23,7 @@
  * Use Java7 file-handling APIs and fix file moving on Windows (CASSANDRA-5383)
  * Save compaction history to system keyspace (CASSANDRA-5078)
  * Fix NPE if StorageService.getOperationMode() is executed before full startup (CASSANDRA-6166)
+ * CQL3: support pre-epoch longs for TimestampType (CASSANDRA-6212)
 Merged from 1.2:
  * (Hadoop) Require CFRR batchSize to be at least 2 (CASSANDRA-6114)
  * Add a warning for small LCS sstable size (CASSANDRA-6191)
