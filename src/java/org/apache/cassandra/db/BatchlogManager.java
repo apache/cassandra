@@ -118,7 +118,7 @@ public class BatchlogManager implements BatchlogManagerMBean
                 replayAllFailedBatches();
             }
         };
-        StorageService.optionalTasks.execute(runnable);
+        batchlogTasks.execute(runnable);
     }
 
     public static RowMutation getBatchlogMutationFor(Collection<RowMutation> mutations, UUID uuid)
