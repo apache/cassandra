@@ -20,10 +20,10 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.text.ParseException;
 import java.util.Date;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -43,6 +43,8 @@ public class TimestampType extends AbstractType<Date>
     private static final Logger logger = LoggerFactory.getLogger(TimestampType.class);
 
     public static final TimestampType instance = new TimestampType();
+
+    private static final Pattern timestampPattern = Pattern.compile("^-?\\d+$");
 
     private TimestampType() {} // singleton
 
@@ -69,7 +71,7 @@ public class TimestampType extends AbstractType<Date>
           millis = System.currentTimeMillis();
       }
       // Milliseconds since epoch?
-      else if (source.matches("^\\d+$"))
+      else if (timestampPattern.matcher(source).matches())
       {
           try
           {
