@@ -1329,7 +1329,7 @@ public class NodeCmd
     {
         out.println("Compaction History: ");
 
-        TabularData tabularData = this.probe.compactionHistory();
+        TabularData tabularData = this.probe.getCompactionHistory();
         if (tabularData.isEmpty())
         {
             out.printf("There is no compaction history");
