@@ -1186,8 +1186,8 @@ class CqlTableDef:
         for attr in ('compaction_strategy_options', 'compression_parameters'):
             setattr(cf, attr, json.loads(getattr(cf, attr)))
 
-        # deal with columns
-        columns = map(CqlColumnDef.from_layout, coldefs)
+        # deal with columns, filter out empty column names (see CASSANDRA-6139)
+        columns = filter(lambda c: c.name, map(CqlColumnDef.from_layout, coldefs))
 
         partition_key_cols = filter(lambda c: c.component_type == u'partition_key', columns)
         partition_key_cols.sort(key=lambda c: c.component_index)

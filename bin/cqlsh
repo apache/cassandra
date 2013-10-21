@@ -32,7 +32,7 @@ exit 1
 from __future__ import with_statement
 
 description = "CQL Shell for Apache Cassandra"
-version = "4.0.1"
+version = "4.0.2"
 
 from StringIO import StringIO
 from itertools import groupby
