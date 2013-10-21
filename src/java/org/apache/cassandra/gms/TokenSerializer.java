@@ -60,9 +60,4 @@ public class TokenSerializer
         }
         return tokens;
     }
-
-    public static long serializedSize(Collection<Token> tokens, TypeSizes typeSizes)
-    {
-        throw new UnsupportedOperationException();
-    }
 }
