@@ -1,6 +1,7 @@
 1.2.12
  * (Hadoop) Require CFRR batchSize to be at least 2 (CASSANDRA-6114)
  * Fix altering column types (CASSANDRA-6185)
+ * cqlsh: fix CREATE/ALTER WITH completion (CASSANDRA-6196)
 
 
 1.2.11
