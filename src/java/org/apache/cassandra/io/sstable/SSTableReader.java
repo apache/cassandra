@@ -36,10 +36,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
@@ -327,8 +324,9 @@ public class SSTableReader extends SSTable implements Closeable
 
         deletingTask = new SSTableDeletingTask(this);
 
-        // Don't track read rates for tables in the system keyspace
-        if (Keyspace.SYSTEM_KS.equals(desc.ksname))
+        // Don't track read rates for tables in the system keyspace and don't bother trying to load or persist
+        // the read meter when in client mode
+        if (Keyspace.SYSTEM_KS.equals(desc.ksname) || Config.isClientMode())
         {
             readMeter = null;
             return;
