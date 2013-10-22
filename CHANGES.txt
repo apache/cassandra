@@ -7,7 +7,7 @@
 1.2.11
  * Add a warning for small LCS sstable size (CASSANDRA-6191)
  * Add ability to list specific KS/CF combinations in nodetool cfstats (CASSANDRA-4191)
- * Mark CF clean if a mutation raced the drop and got it marked dirty 
+ * Mark CF clean if a mutation raced the drop and got it marked dirty (CASSANDRA-5946)
  * Add a LOCAL_ONE consistency level (CASSANDRA-6202)
  * Limit CQL prepared statement cache by size instead of count (CASSANDRA-6107)
  * Tracing should log write failure rather than raw exceptions (CASSANDRA-6133)
