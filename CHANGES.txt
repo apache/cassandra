@@ -122,7 +122,7 @@ Merged from 1.1:
  * Race condition in detecting version on a mixed 1.1/1.2 cluster
    (CASSANDRA-5692)
  * Fix skipping range tombstones with reverse queries (CASSANDRA-5712)
- * Expire entries out of ThriftSessionManager (CASSANRDA-5719)
+ * Expire entries out of ThriftSessionManager (CASSANDRA-5719)
  * Don't keep ancestor information in memory (CASSANDRA-5342)
  * cqlsh: fix handling of semicolons inside BATCH queries (CASSANDRA-5697)
  * Expose native protocol server status in nodetool info (CASSANDRA-5735)
@@ -353,7 +353,7 @@ Merged from 1.1:
  * drain should flush system CFs too (CASSANDRA-4446)
  * add inter_dc_tcp_nodelay setting (CASSANDRA-5148)
  * re-allow wrapping ranges for start_token/end_token range pairitspwng (CASSANDRA-5106)
- * fix validation compaction of empty rows (CASSADRA-5136)
+ * fix validation compaction of empty rows (CASSANDRA-5136)
  * nodetool methods to enable/disable hint storage/delivery (CASSANDRA-4750)
  * disallow bloom filter false positive chance of 0 (CASSANDRA-5013)
  * add threadpool size adjustment methods to JMXEnabledThreadPoolExecutor and 
@@ -539,7 +539,7 @@ Merged from 1.1:
  * Add support for batchlog in CQL3 (CASSANDRA-4545, 4738)
  * Add support for multiple column family outputs in CFOF (CASSANDRA-4208)
  * Support repairing only the local DC nodes (CASSANDRA-4747)
- * Use rpc_address for binary protocol and change default port (CASSANRA-4751)
+ * Use rpc_address for binary protocol and change default port (CASSANDRA-4751)
  * Fix use of collections in prepared statements (CASSANDRA-4739)
  * Store more information into peers table (CASSANDRA-4351, 4814)
  * Configurable bucket size for size tiered compaction (CASSANDRA-4704)
@@ -1233,7 +1233,7 @@ Merged from 0.8:
  * fix incorrect query results due to invalid max timestamp (CASSANDRA-3510)
  * make sstableloader recognize compressed sstables (CASSANDRA-3521)
  * avoids race in OutboundTcpConnection in multi-DC setups (CASSANDRA-3530)
- * use SETLOCAL in cassandra.bat (CASANDRA-3506)
+ * use SETLOCAL in cassandra.bat (CASSANDRA-3506)
  * fix ConcurrentModificationException in Table.all() (CASSANDRA-3529)
 Merged from 0.8:
  * fix concurrence issue in the FailureDetector (CASSANDRA-3519)
@@ -1276,7 +1276,7 @@ Merged from 0.8:
  * "defragment" rows for name-based queries under STCS (CASSANDRA-2503)
  * Add timing information to cassandra-cli GET/SET/LIST queries (CASSANDRA-3326)
  * Only create one CompressionMetadata object per sstable (CASSANDRA-3427)
- * cleanup usage of StorageService.setMode() (CASANDRA-3388)
+ * cleanup usage of StorageService.setMode() (CASSANDRA-3388)
  * Avoid large array allocation for compressed chunk offsets (CASSANDRA-3432)
  * fix DecimalType bytebuffer marshalling (CASSANDRA-3421)
  * fix bug that caused first column in per row indexes to be ignored 
@@ -1581,7 +1581,7 @@ Merged from 0.8:
  * Fix divide by zero error in GCInspector (CASSANDRA-3164)
  * allow quoting of the ColumnFamily name in CLI `create column family`
    statement (CASSANDRA-3195)
- * Fix rolling upgrade from 0.7 to 0.8 problem (CASANDRA-3166)
+ * Fix rolling upgrade from 0.7 to 0.8 problem (CASSANDRA-3166)
  * Accomodate missing encryption_options in IncomingTcpConnection.stream
    (CASSANDRA-3212)
 
@@ -1885,7 +1885,7 @@ Merged from 0.8:
  * disallow making schema changes to system keyspace (CASSANDRA-2563)
  * fix sending mutation messages multiple times (CASSANDRA-2557)
  * fix incorrect use of NBHM.size in ReadCallback that could cause
-   reads to time out even when responses were received (CASSAMDRA-2552)
+   reads to time out even when responses were received (CASSANDRA-2552)
  * trigger read repair correctly for LOCAL_QUORUM reads (CASSANDRA-2556)
  * Allow configuring the number of compaction thread (CASSANDRA-2558)
  * forceUserDefinedCompaction will attempt to compact what it is given
