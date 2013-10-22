@@ -249,19 +249,21 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         Gossiper gossiper = Gossiper.instance;
         int waited = 0;
         // first, wait for schema to be gossiped.
-        while (gossiper.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA) == null)
+        while (gossiper.getEndpointStateForEndpoint(endpoint) != null && gossiper.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA) == null)
         {
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
             waited += 1000;
             if (waited > 2 * StorageService.RING_DELAY)
                 throw new TimeoutException("Didin't receive gossiped schema from " + endpoint + " in " + 2 * StorageService.RING_DELAY + "ms");
         }
+        if (gossiper.getEndpointStateForEndpoint(endpoint) == null)
+            throw new TimeoutException("Node " + endpoint + " vanished while waiting for agreement");
         waited = 0;
         // then wait for the correct schema version.
         // usually we use DD.getDefsVersion, which checks the local schema uuid as stored in the system keyspace.
         // here we check the one in gossip instead; this serves as a canary to warn us if we introduce a bug that
         // causes the two to diverge (see CASSANDRA-2946)
-        while (!gossiper.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA).value.equals(
+        while (gossiper.getEndpointStateForEndpoint(endpoint) != null && !gossiper.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.SCHEMA).value.equals(
                 gossiper.getEndpointStateForEndpoint(FBUtilities.getBroadcastAddress()).getApplicationState(ApplicationState.SCHEMA).value))
         {
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
@@ -269,6 +271,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             if (waited > 2 * StorageService.RING_DELAY)
                 throw new TimeoutException("Could not reach schema agreement with " + endpoint + " in " + 2 * StorageService.RING_DELAY + "ms");
         }
+        if (gossiper.getEndpointStateForEndpoint(endpoint) == null)
+            throw new TimeoutException("Node " + endpoint + " vanished while waiting for agreement");
         logger.debug("schema for {} matches local schema", endpoint);
         return waited;
     }

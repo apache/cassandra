@@ -15,6 +15,7 @@ lib/licenses/*.txt
 .settings/**
 **/cassandra.yaml
 **/cassandra-topology.yaml
+**/metrics-reporter-config-sample.yaml
 **/*.db
 .externalToolBuilders/**
 test/data/serialization/*/*
