@@ -1,3 +1,7 @@
+2.0.3
+ * Reject bootstrapping if the node already exists in gossip (CASSANDRA-5571)
+
+
 2.0.2
  * Update FailureDetector to use nanontime (CASSANDRA-4925)
  * Fix FileCacheService regressions (CASSANDRA-6149)
