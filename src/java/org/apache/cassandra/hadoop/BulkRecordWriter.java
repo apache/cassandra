@@ -247,7 +247,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
                 if (loader.getFailedHosts().size() > maxFailures)
                     throw new IOException("Too many hosts failed: " + loader.getFailedHosts());
                 else
-                    logger.warn("Some hosts failed: " + loader.getFailedHosts());
+                    logger.warn("Some hosts failed: {}", loader.getFailedHosts());
             }
         }
     }

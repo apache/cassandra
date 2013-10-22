@@ -239,8 +239,7 @@ public class CommitLogReplayer
                 }
 
                 if (logger.isDebugEnabled())
-                    logger.debug(String.format("replaying mutation for %s.%s: %s", rm.getKeyspaceName(), ByteBufferUtil.bytesToHex(rm.key()), "{" + StringUtils.join(rm.getColumnFamilies().iterator(), ", ")
-                            + "}"));
+                    logger.debug("replaying mutation for {}.{}: {}", rm.getKeyspaceName(), ByteBufferUtil.bytesToHex(rm.key()), "{" + StringUtils.join(rm.getColumnFamilies().iterator(), ", ") + "}");
 
                 final long entryLocation = reader.getFilePointer();
                 final RowMutation frm = rm;

@@ -393,7 +393,7 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void convict(InetAddress ep)
     {
-        logger.debug("Resetting pool for " + ep);
+        logger.debug("Resetting pool for {}", ep);
         getConnectionPool(ep).reset();
     }
 

@@ -303,7 +303,7 @@ public abstract class SSTable
         {
             Component component = new Component(Component.Type.fromRepresentation(componentName), componentName);
             if (!new File(descriptor.filenameFor(component)).exists())
-                logger.error("Missing component: " + descriptor.filenameFor(component));
+                logger.error("Missing component: {}", descriptor.filenameFor(component));
             else
                 components.add(component);
         }

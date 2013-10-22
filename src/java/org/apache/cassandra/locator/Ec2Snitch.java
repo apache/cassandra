@@ -65,7 +65,7 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
 
         String datacenterSuffix = SnitchProperties.get("dc_suffix", "");
         ec2region = ec2region.concat(datacenterSuffix);
-        logger.info("EC2Snitch using region: " + ec2region + ", zone: " + ec2zone + ".");
+        logger.info("EC2Snitch using region: {}, zone: {}.", ec2region, ec2zone);
     }
 
     String awsApiCall(String url) throws IOException, ConfigurationException

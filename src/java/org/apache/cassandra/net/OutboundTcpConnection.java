@@ -219,7 +219,7 @@ public class OutboundTcpConnection extends Thread
             if (e instanceof IOException)
             {
                 if (logger.isDebugEnabled())
-                    logger.debug("error writing to " + poolReference.endPoint(), e);
+                    logger.debug("error writing to {}", poolReference.endPoint(), e);
 
                 // if the message was important, such as a repair acknowledgement, put it back on the queue
                 // to retry after re-connecting.  See CASSANDRA-5393
@@ -238,7 +238,7 @@ public class OutboundTcpConnection extends Thread
             else
             {
                 // Non IO exceptions are likely a programming error so let's not silence them
-                logger.error("error writing to " + poolReference.endPoint(), e);
+                logger.error("error writing to {}", poolReference.endPoint(), e);
             }
         }
     }
@@ -294,7 +294,7 @@ public class OutboundTcpConnection extends Thread
     private boolean connect()
     {
         if (logger.isDebugEnabled())
-            logger.debug("attempting to connect to " + poolReference.endPoint());
+            logger.debug("attempting to connect to {}", poolReference.endPoint());
 
         long start = System.nanoTime();
         long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getRpcTimeout());

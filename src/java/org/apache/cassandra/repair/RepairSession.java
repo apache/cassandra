@@ -159,7 +159,7 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
         assert job.desc.equals(desc);
         if (job.addTree(endpoint, tree) == 0)
         {
-            logger.debug("All response received for " + getId() + "/" + desc.columnFamily);
+            logger.debug("All response received for {}/{}", getId(), desc.columnFamily);
             if (!job.isFailed())
             {
                 syncingJobs.put(job.desc.columnFamily, job);
@@ -249,7 +249,7 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
             {
                 String message = String.format("Cannot proceed on repair because a neighbor (%s) is dead: session failed", endpoint);
                 differencingDone.signalAll();
-                logger.error(String.format("[repair #%s] ", getId()) + message);
+                logger.error("[repair #{}] {}", getId(), message);
                 throw new IOException(message);
             }
         }

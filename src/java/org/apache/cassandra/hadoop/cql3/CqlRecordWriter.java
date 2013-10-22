@@ -334,7 +334,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         
         Column rawPartitionKeys = result.rows.get(0).columns.get(1);
         String keyString = ByteBufferUtil.string(ByteBuffer.wrap(rawPartitionKeys.getValue()));
-        logger.debug("partition keys: " + keyString);
+        logger.debug("partition keys: {}", keyString);
 
         List<String> keys = FBUtilities.fromJsonList(keyString);
         partitionKeyColumns = new String[keys.size()];
@@ -348,7 +348,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         Column rawClusterColumns = result.rows.get(0).columns.get(2);
         String clusterColumnString = ByteBufferUtil.string(ByteBuffer.wrap(rawClusterColumns.getValue()));
 
-        logger.debug("cluster columns: " + clusterColumnString);
+        logger.debug("cluster columns: {}", clusterColumnString);
         clusterColumns = FBUtilities.fromJsonList(clusterColumnString);
     }
 

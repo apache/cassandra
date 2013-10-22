@@ -117,7 +117,7 @@ public class SSTableReader extends SSTable implements Closeable
             int indexKeyCount = sstable.getKeySampleSize();
             count = count + (indexKeyCount + 1) * sstable.indexSummary.getIndexInterval();
             if (logger.isDebugEnabled())
-                logger.debug("index size for bloom filter calc for file  : " + sstable.getFilename() + "   : " + count);
+                logger.debug("index size for bloom filter calc for file  : {}  : {}", sstable.getFilename(), count);
         }
 
         return count;
@@ -239,9 +239,9 @@ public class SSTableReader extends SSTable implements Closeable
     public static void logOpenException(Descriptor descriptor, IOException e)
     {
         if (e instanceof FileNotFoundException)
-            logger.error("Missing sstable component in " + descriptor + "; skipped because of " + e.getMessage());
+            logger.error("Missing sstable component in {}; skipped because of {}", descriptor, e.getMessage());
         else
-            logger.error("Corrupt sstable " + descriptor + "; skipped", e);
+            logger.error("Corrupt sstable {}; skipped", descriptor, e);
     }
 
     public static Collection<SSTableReader> openAll(Set<Map.Entry<Descriptor, Set<Component>>> entries,
@@ -264,7 +264,7 @@ public class SSTableReader extends SSTable implements Closeable
                     }
                     catch (IOException ex)
                     {
-                        logger.error("Corrupt sstable " + entry + "; skipped", ex);
+                        logger.error("Corrupt sstable {}; skipped", entry, ex);
                         return;
                     }
                     sstables.add(sstable);
@@ -1108,7 +1108,7 @@ public class SSTableReader extends SSTable implements Closeable
     public boolean markObsolete()
     {
         if (logger.isDebugEnabled())
-            logger.debug("Marking " + getFilename() + " compacted");
+            logger.debug("Marking {} compacted", getFilename());
 
         return !isCompacted.getAndSet(true);
     }
@@ -1116,7 +1116,7 @@ public class SSTableReader extends SSTable implements Closeable
     public void markSuspect()
     {
         if (logger.isDebugEnabled())
-            logger.debug("Marking " + getFilename() + " as a suspect for blacklisting.");
+            logger.debug("Marking {} as a suspect for blacklisting.", getFilename());
 
         isSuspect.getAndSet(true);
     }

@@ -96,7 +96,7 @@ public class RingCache
             }
             catch (TException e)
             {
-                logger.debug("Error contacting seed list" + ConfigHelper.getOutputInitialAddress(conf) + " " + e.getMessage());
+                logger.debug("Error contacting seed list {} {}", ConfigHelper.getOutputInitialAddress(conf), e.getMessage());
             }
         }
 

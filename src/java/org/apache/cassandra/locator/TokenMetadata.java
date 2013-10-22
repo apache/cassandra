@@ -198,7 +198,7 @@ public class TokenMetadata
                     if (!endpoint.equals(prev))
                     {
                         if (prev != null)
-                            logger.warn("Token " + token + " changing ownership from " + prev + " to " + endpoint);
+                            logger.warn("Token {} changing ownership from {} to {}", token, prev, endpoint);
                         shouldSortTokens = true;
                     }
                 }

@@ -174,7 +174,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
     {
         if (!iter.hasNext())
         {
-            logger.debug("Finished scanning " + iter.rowsRead() + " rows (estimate was: " + totalRowCount + ")");
+            logger.debug("Finished scanning {} rows (estimate was: {})", iter.rowsRead(), totalRowCount);
             return false;
         }
 

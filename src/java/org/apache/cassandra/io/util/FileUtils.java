@@ -110,7 +110,7 @@ public class FileUtils
     {
         assert file.exists() : "attempted to delete non-existing file " + file.getName();
         if (logger.isDebugEnabled())
-            logger.debug("Deleting " + file.getName());
+            logger.debug("Deleting {}", file.getName());
         try
         {
             Files.delete(file.toPath());
@@ -211,7 +211,7 @@ public class FileUtils
         }
         catch (Exception e)
         {
-            logger.warn("Failed closing " + c, e);
+            logger.warn("Failed closing {}", c, e);
         }
     }
 
@@ -233,7 +233,7 @@ public class FileUtils
             catch (IOException ex)
             {
                 e = ex;
-                logger.warn("Failed closing stream " + c, ex);
+                logger.warn("Failed closing stream {}", c, ex);
             }
         }
         if (e != null)

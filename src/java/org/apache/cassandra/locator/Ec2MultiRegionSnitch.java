@@ -48,7 +48,7 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch
     {
         super();
         localPublicAddress = InetAddress.getByName(awsApiCall(PUBLIC_IP_QUERY_URL));
-        logger.info("EC2Snitch using publicIP as identifier: " + localPublicAddress);
+        logger.info("EC2Snitch using publicIP as identifier: {}", localPublicAddress);
         localPrivateAddress = awsApiCall(PRIVATE_IP_QUERY_URL);
         // use the Public IP to broadcast Address to other nodes.
         DatabaseDescriptor.setBroadcastAddress(localPublicAddress);

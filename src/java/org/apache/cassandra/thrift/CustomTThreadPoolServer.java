@@ -119,7 +119,7 @@ public class CustomTThreadPoolServer extends TServer
             }
 
             if (activeClients.get() >= args.maxWorkerThreads)
-                logger.warn("Maximum number of clients " + args.maxWorkerThreads + " reached");
+                logger.warn("Maximum number of clients {} reached", args.maxWorkerThreads);
         }
 
         executorService.shutdown();

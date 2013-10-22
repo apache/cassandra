@@ -119,7 +119,7 @@ public class Validator implements Runnable
                 }
             }
         }
-        logger.debug("Prepared AEService tree of size " + tree.size() + " for " + desc);
+        logger.debug("Prepared AEService tree of size {} for {}", tree.size(), desc);
         ranges = tree.invalids();
     }
 
@@ -211,9 +211,9 @@ public class Validator implements Runnable
         if (logger.isDebugEnabled())
         {
             // log distribution of rows in tree
-            logger.debug("Validated " + validated + " rows into AEService tree for " + desc + " with row count distribution:");
+            logger.debug("Validated {} rows into AEService tree for {} with row count distribution:", validated, desc);
             tree.histogramOfRowCountPerLeaf().log(logger);
-            logger.debug("Validated " + validated + " rows into AEService tree for " + desc + " with row size distribution:");
+            logger.debug("Validated {} rows into AEService tree for {} with row size distribution:", validated, desc);
             tree.histogramOfRowSizePerLeaf().log(logger);
         }
     }
@@ -239,7 +239,7 @@ public class Validator implements Runnable
      */
     public void fail()
     {
-        logger.error("Failed creating a merkle tree for " + desc + ", " + initiator + " (see log for details)");
+        logger.error("Failed creating a merkle tree for {}, {} (see log for details)", desc, initiator);
         // send fail message only to nodes >= version 2.0
         MessagingService.instance().sendOneWay(new ValidationComplete(desc).createMessage(), initiator);
     }

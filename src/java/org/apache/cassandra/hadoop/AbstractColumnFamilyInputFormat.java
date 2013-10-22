@@ -123,7 +123,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
         keyspace = ConfigHelper.getInputKeyspace(context.getConfiguration());
         cfName = ConfigHelper.getInputColumnFamily(context.getConfiguration());
         partitioner = ConfigHelper.getInputPartitioner(context.getConfiguration());
-        logger.debug("partitioner is " + partitioner);
+        logger.debug("partitioner is {}", partitioner);
 
         // cannonical ranges, split into pieces, fetching the splits in parallel
         ExecutorService executor = new ThreadPoolExecutor(0, 128, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
@@ -252,7 +252,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
                                     subSplit.getRow_count(),
                                     endpoints);
 
-                    logger.debug("adding " + split);
+                    logger.debug("adding {}", split);
                     splits.add(split);
                 }
             }
@@ -292,7 +292,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
             }
             catch (IOException e)
             {
-                logger.debug("failed connect to endpoint " + host, e);
+                logger.debug("failed connect to endpoint {}", host, e);
             }
             catch (InvalidRequestException e)
             {

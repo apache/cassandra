@@ -131,8 +131,8 @@ public class CassandraDaemon
             public void uncaughtException(Thread t, Throwable e)
             {
                 StorageMetrics.exceptions.inc();
-                logger.error("Exception in thread " + t, e);
-                Tracing.trace("Exception in thread " + t, e);
+                logger.error("Exception in thread {}", t, e);
+                Tracing.trace("Exception in thread {}", t, e);
                 for (Throwable e2 = e; e2 != null; e2 = e2.getCause())
                 {
                     // some code, like FileChannel.map, will wrap an OutOfMemoryError in another exception
@@ -142,7 +142,7 @@ public class CassandraDaemon
                     if (e2 instanceof FSError)
                     {
                         if (e2 != e) // make sure FSError gets logged exactly once.
-                            logger.error("Exception in thread " + t, e2);
+                            logger.error("Exception in thread {}", t, e2);
                         FileUtils.handleFSError((FSError) e2);
                     }
                 }
@@ -201,7 +201,7 @@ public class CassandraDaemon
         for (String keyspaceName : Schema.instance.getKeyspaces())
         {
             if (logger.isDebugEnabled())
-                logger.debug("opening keyspace " + keyspaceName);
+                logger.debug("opening keyspace {}", keyspaceName);
             // disable auto compaction until commit log replay ends
             for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
             {
@@ -386,7 +386,7 @@ public class CassandraDaemon
             }
             catch (Exception e)
             {
-                logger.error("error registering MBean " + MBEAN_NAME, e);
+                logger.error("error registering MBean {}", MBEAN_NAME, e);
                 //Allow the server to start even if the bean can't be registered
             }
             

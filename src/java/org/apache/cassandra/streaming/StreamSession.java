@@ -407,7 +407,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
      */
     public void onError(Throwable e)
     {
-        logger.error("[Stream #" + planId() + "] Streaming error occurred", e);
+        logger.error("[Stream #{}] Streaming error occurred", planId(), e);
         // send session failure message
         if (handler.isOutgoingConnected())
             handler.sendMessage(new SessionFailedMessage());
@@ -516,7 +516,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
 
     public void doRetry(FileMessageHeader header, Throwable e)
     {
-        logger.warn("[Stream #" + planId() + "] Retrying for following error", e);
+        logger.warn("[Stream #{}] Retrying for following error", planId(), e);
         // retry
         retries++;
         if (retries > DatabaseDescriptor.getMaxStreamingRetries())

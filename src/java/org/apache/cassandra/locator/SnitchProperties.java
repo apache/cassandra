@@ -40,7 +40,7 @@ public class SnitchProperties
         catch (Exception e)
         {
             // do not throw exception here, just consider this a incomplete or a empty property file.
-            logger.warn("Unable to read " + RACKDC_PROPERTY_FILENAME);
+            logger.warn("Unable to read {}", RACKDC_PROPERTY_FILENAME);
         }
         finally
         {

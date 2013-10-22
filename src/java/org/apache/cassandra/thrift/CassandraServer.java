@@ -1364,7 +1364,7 @@ public class CassandraServer implements Cassandra.Iface
             }
             catch (NotFoundException nfe)
             {
-                logger.info("Failed to find metadata for keyspace '" + ks + "'. Continuing... ");
+                logger.info("Failed to find metadata for keyspace '{}'. Continuing... ", ks);
             }
         }
         return ksset;

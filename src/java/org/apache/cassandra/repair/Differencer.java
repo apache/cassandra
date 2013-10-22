@@ -71,7 +71,7 @@ public class Differencer implements Runnable
         }
 
         // non-0 difference: perform streaming repair
-        logger.info(String.format(format, "have " + differences.size() + " range(s) out of sync"));
+        logger.info(format, "have {} range(s) out of sync", differences.size());
         performStreamingRepair();
     }
 

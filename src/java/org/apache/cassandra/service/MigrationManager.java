@@ -322,7 +322,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public static void passiveAnnounce(UUID version)
     {
         Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.schema(version));
-        logger.debug("Gossiping my schema version " + version);
+        logger.debug("Gossiping my schema version {}", version);
     }
 
     /**

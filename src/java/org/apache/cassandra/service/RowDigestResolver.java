@@ -59,7 +59,7 @@ public class RowDigestResolver extends AbstractRowResolver
     public Row resolve() throws DigestMismatchException
     {
         if (logger.isDebugEnabled())
-            logger.debug("resolving " + replies.size() + " responses");
+            logger.debug("resolving {} responses", replies.size());
 
         long start = System.nanoTime();
 

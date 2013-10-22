@@ -135,7 +135,7 @@ public class ConnectionHandler
                     throw e;
 
                 long waitms = DatabaseDescriptor.getRpcTimeout() * (long)Math.pow(2, attempts);
-                logger.warn("Failed attempt " + attempts + " to connect to " + peer + ". Retrying in " + waitms + " ms. (" + e + ")");
+                logger.warn("Failed attempt {} to connect to {}. Retrying in {} ms. ({})", attempts, peer, waitms, e);
                 try
                 {
                     Thread.sleep(waitms);

@@ -78,7 +78,7 @@ public class SSTableDeletingTask implements Runnable
         File datafile = new File(desc.filenameFor(Component.DATA));
         if (!datafile.delete())
         {
-            logger.error("Unable to delete " + datafile + " (it will be removed on server restart; we'll also retry after GC)");
+            logger.error("Unable to delete {} (it will be removed on server restart; we'll also retry after GC)", datafile);
             failedTasks.add(this);
             return;
         }

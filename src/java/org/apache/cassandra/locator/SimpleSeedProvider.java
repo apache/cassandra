@@ -46,7 +46,7 @@ public class SimpleSeedProvider implements SeedProvider
             catch (UnknownHostException ex)
             {
                 // not fatal... DD will bark if there end up being zero seeds.
-                logger.warn("Seed provider couldn't lookup host " + host);
+                logger.warn("Seed provider couldn't lookup host {}", host);
             }
         }
     }
