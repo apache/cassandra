@@ -10,6 +10,7 @@
 2.0.3
  * Reject bootstrapping if the node already exists in gossip (CASSANDRA-5571)
  * Fix NPE while loading paxos state (CASSANDRA-6211)
+ * cqlsh: add SHOW SESSION <tracing-session> command (CASSANDRA-6228)
 Merged from 1.2:
  * Fix altering column types (CASSANDRA-6185)
  * cqlsh: fix CREATE/ALTER WITH completion (CASSANDRA-6196)

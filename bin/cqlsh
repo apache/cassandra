@@ -32,7 +32,7 @@ exit 1
 from __future__ import with_statement
 
 description = "CQL Shell for Apache Cassandra"
-version = "4.0.2"
+version = "4.1.0"
 
 from StringIO import StringIO
 from itertools import groupby
@@ -245,7 +245,7 @@ cqlsh_extra_syntax_rules = r'''
                      | "EACH_QUORUM"
                      ;
 
-<showCommand> ::= "SHOW" what=( "VERSION" | "HOST" )
+<showCommand> ::= "SHOW" what=( "VERSION" | "HOST" | "SESSION" sessionid=<uuid> )
                 ;
 
 <sourceCommand> ::= "SOURCE" fname=<stringLiteral>
@@ -568,6 +568,9 @@ class Shell(cmd.Cmd):
         # set_cql_version.
         vers['cql'] = self.cql_version
         print "[cqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Thrift protocol %(thrift)s]" % vers
+
+    def show_session(self, sessionid):
+        print_trace_session(self, self.cursor, sessionid)
 
     def get_connection_versions(self):
         self.cursor.execute("select * from system.local where key = 'local'")
@@ -1554,6 +1557,10 @@ class Shell(cmd.Cmd):
         SHOW HOST
 
           Shows where cqlsh is currently connected.
+
+        SHOW SESSION <sessionid>
+
+          Pretty-prints the requested tracing session.
         """
         showwhat = parsed.get_binding('what').lower()
         if showwhat == 'version':
@@ -1561,6 +1568,9 @@ class Shell(cmd.Cmd):
             self.show_version()
         elif showwhat == 'host':
             self.show_host()
+        elif showwhat.startswith('session'):
+            session_id = parsed.get_binding('sessionid').lower()
+            self.show_session(session_id)
         else:
             self.printerr('Wait, how do I show %r?' % (showwhat,))
 
