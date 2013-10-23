@@ -1060,6 +1060,7 @@
         <jvmarg value="-Djava.awt.headless=true"/>
         <jvmarg value="-javaagent:${basedir}/lib/jamm-0.2.5.jar" />
         <jvmarg value="-ea"/>
+        <jvmarg value="-Xss256k"/>
         <optjvmargs/>
         <classpath>
           <path refid="cassandra.classpath" />
