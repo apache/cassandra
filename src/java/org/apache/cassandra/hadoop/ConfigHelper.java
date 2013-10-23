@@ -371,7 +371,7 @@ public class ConfigHelper
 
     public static String getReadConsistencyLevel(Configuration conf)
     {
-        return conf.get(READ_CONSISTENCY_LEVEL, "ONE");
+        return conf.get(READ_CONSISTENCY_LEVEL, "LOCAL_ONE");
     }
 
     public static void setReadConsistencyLevel(Configuration conf, String consistencyLevel)
@@ -381,7 +381,7 @@ public class ConfigHelper
 
     public static String getWriteConsistencyLevel(Configuration conf)
     {
-        return conf.get(WRITE_CONSISTENCY_LEVEL, "ONE");
+        return conf.get(WRITE_CONSISTENCY_LEVEL, "LOCAL_ONE");
     }
 
     public static void setWriteConsistencyLevel(Configuration conf, String consistencyLevel)
