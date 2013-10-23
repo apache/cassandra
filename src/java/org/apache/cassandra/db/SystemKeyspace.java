@@ -817,7 +817,9 @@ public class SystemKeyspace
         if (results.isEmpty())
             return new PaxosState(key, metadata);
         UntypedResultSet.Row row = results.one();
-        Commit promised = new Commit(key, row.getUUID("in_progress_ballot"), EmptyColumns.factory.create(metadata));
+        Commit promised = row.has("in_progress_ballot")
+                        ? new Commit(key, row.getUUID("in_progress_ballot"), EmptyColumns.factory.create(metadata))
+                        : Commit.emptyCommit(key, metadata);
         // either we have both a recently accepted ballot and update or we have neither
         Commit accepted = row.has("proposal")
                         ? new Commit(key, row.getUUID("proposal_ballot"), ColumnFamily.fromBytes(row.getBytes("proposal")))
