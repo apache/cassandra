@@ -9,8 +9,11 @@
 
 2.0.3
  * Reject bootstrapping if the node already exists in gossip (CASSANDRA-5571)
-
-
+Merged from 1.2:
+ * Fix altering column types (CASSANDRA-6185)
+ * cqlsh: fix CREATE/ALTER WITH completion (CASSANDRA-6196)
+ * add windows bat files for shell commands (CASSANDRA-6145)
+ 
 2.0.2
  * Update FailureDetector to use nanontime (CASSANDRA-4925)
  * Fix FileCacheService regressions (CASSANDRA-6149)
