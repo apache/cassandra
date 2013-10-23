@@ -27,7 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.jpountz.lz4.LZ4BlockInputStream;
-import net.jpountz.lz4.LZ4Decompressor;
+import net.jpountz.lz4.LZ4FastDecompressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.xxhash.XXHashFactory;
 import org.xerial.snappy.SnappyInputStream;
@@ -117,7 +117,7 @@ public class IncomingTcpConnection extends Thread
                 in = new DataInputStream(new SnappyInputStream(socket.getInputStream()));
             else
             {
-                LZ4Decompressor decompressor = LZ4Factory.fastestInstance().decompressor();
+                LZ4FastDecompressor decompressor = LZ4Factory.fastestInstance().fastDecompressor();
                 Checksum checksum = XXHashFactory.fastestInstance().newStreamingHash32(OutboundTcpConnection.LZ4_HASH_SEED).asChecksum();
                 in = new DataInputStream(new LZ4BlockInputStream(socket.getInputStream(),
                                                                  decompressor,
