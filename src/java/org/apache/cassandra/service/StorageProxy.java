@@ -1292,7 +1292,12 @@ public class StorageProxy implements StorageProxyMBean
 
                     // Do a full data read to resolve the correct response (and repair node that need be)
                     RowDataResolver resolver = new RowDataResolver(exec.command.ksName, exec.command.key, exec.command.filter(), exec.command.timestamp);
-                    ReadCallback<ReadResponse, Row> repairHandler = exec.handler.withNewResolver(resolver);
+                    ReadCallback<ReadResponse, Row> repairHandler = new ReadCallback<>(resolver,
+                                                                                       ConsistencyLevel.ALL,
+                                                                                       exec.getContactedReplicas().size(),
+                                                                                       exec.command,
+                                                                                       Keyspace.open(exec.command.getKeyspace()),
+                                                                                       exec.handler.endpoints);
 
                     if (repairCommands == null)
                     {

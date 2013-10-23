@@ -43,27 +43,9 @@ public abstract class AbstractRowResolver implements IResponseResolver<ReadRespo
         this.keyspaceName = keyspaceName;
     }
 
-    public boolean preprocess(MessageIn<ReadResponse> message)
+    public void preprocess(MessageIn<ReadResponse> message)
     {
-        MessageIn<ReadResponse> toReplace = null;
-        for (MessageIn<ReadResponse> reply : replies)
-        {
-            if (reply.from.equals(message.from))
-            {
-                if (!message.payload.isDigestQuery())
-                    toReplace = reply;
-                break;
-            }
-        }
-        // replace old message
-        if (toReplace != null)
-        {
-            replies.remove(toReplace);
-            replies.add(message);
-            return false;
-        }
         replies.add(message);
-        return true;
     }
 
     public Iterable<MessageIn<ReadResponse>> getMessages()

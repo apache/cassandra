@@ -71,37 +71,23 @@ public class RowDigestResolver extends AbstractRowResolver
         for (MessageIn<ReadResponse> message : replies)
         {
             ReadResponse response = message.payload;
+
+            ByteBuffer newDigest;
             if (response.isDigestQuery())
             {
-                if (digest == null)
-                {
-                    digest = response.digest();
-                }
-                else
-                {
-                    ByteBuffer digest2 = response.digest();
-                    if (!digest.equals(digest2))
-                        throw new DigestMismatchException(key, digest, digest2);
-                }
+                newDigest = response.digest();
             }
             else
             {
+                // note that this allows for multiple data replies, post-CASSANDRA-5932
                 data = response.row().cf;
+                newDigest = ColumnFamily.digest(data);
             }
-        }
 
-        // Compare digest (only one, since we threw earlier if there were different replies)
-        // with the data response. If there is a mismatch then throw an exception so that read repair can happen.
-        //
-        // It's important to note that we do not consider the possibility of multiple data responses --
-        // that can only happen when we're doing the repair post-mismatch, and will be handled by RowDataResolver.
-        if (digest != null)
-        {
-            ByteBuffer digest2 = ColumnFamily.digest(data);
-            if (!digest.equals(digest2))
-                throw new DigestMismatchException(key, digest, digest2);
-            if (logger.isDebugEnabled())
-                logger.debug("digests verified");
+            if (digest == null)
+                digest = newDigest;
+            else if (!digest.equals(newDigest))
+                throw new DigestMismatchException(key, digest, newDigest);
         }
 
         if (logger.isDebugEnabled())

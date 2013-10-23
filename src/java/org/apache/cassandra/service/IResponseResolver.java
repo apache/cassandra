@@ -38,6 +38,6 @@ public interface IResponseResolver<TMessage, TResolved> {
      */
     public TResolved getData();
 
-    public boolean preprocess(MessageIn<TMessage> message);
+    public void preprocess(MessageIn<TMessage> message);
     public Iterable<MessageIn<TMessage>> getMessages();
 }
