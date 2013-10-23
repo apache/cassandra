@@ -24,6 +24,9 @@ EVENTS_CF = 'events'
 
 def print_trace_session(shell, cursor, session_id):
     rows  = fetch_trace_session(cursor, session_id)
+    if not rows:
+        shell.printerr("Session %s wasn't found." % session_id)
+        return
     names = ['activity', 'timestamp', 'source', 'source_elapsed']
     types = [UTF8Type, UTF8Type, InetAddressType, Int32Type]
 
@@ -42,7 +45,10 @@ def fetch_trace_session(cursor, session_id):
                    "FROM %s.%s "
                    "WHERE session_id = %s" % (TRACING_KS, SESSIONS_CF, session_id),
                    consistency_level='ONE')
-    (request, coordinator, started_at, duration) = cursor.fetchone()
+    session = cursor.fetchone()
+    if not session:
+        return []
+    (request, coordinator, started_at, duration) = session
 
     cursor.execute("SELECT activity, event_id, source, source_elapsed "
                    "FROM %s.%s "
