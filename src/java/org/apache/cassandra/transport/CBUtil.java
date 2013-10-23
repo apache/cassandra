@@ -227,7 +227,7 @@ public abstract class CBUtil
         Map<String, String> m = new HashMap<String, String>(length);
         for (int i = 0; i < length; i++)
         {
-            String k = readString(cb).toUpperCase();
+            String k = readString(cb);
             String v = readString(cb);
             m.put(k, v);
         }

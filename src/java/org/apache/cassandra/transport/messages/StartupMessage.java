@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -42,7 +43,7 @@ public class StartupMessage extends Message.Request
     {
         public StartupMessage decode(ChannelBuffer body, int version)
         {
-            return new StartupMessage(CBUtil.readStringMap(body));
+            return new StartupMessage(upperCaseKeys(CBUtil.readStringMap(body)));
         }
 
         public void encode(StartupMessage msg, ChannelBuffer dest, int version)
@@ -106,6 +107,14 @@ public class StartupMessage extends Message.Request
             return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());
         else
             return new ReadyMessage();
+    }
+
+    private static Map<String, String> upperCaseKeys(Map<String, String> options)
+    {
+        Map<String, String> newMap = new HashMap<String, String>(options.size());
+        for (Map.Entry<String, String> entry : options.entrySet())
+            newMap.put(entry.getKey().toUpperCase(), entry.getValue());
+        return newMap;
     }
 
     @Override
