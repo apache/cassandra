@@ -18,6 +18,7 @@
 package org.apache.cassandra.service;
 
 import java.net.InetAddress;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -122,7 +123,7 @@ public abstract class AbstractReadExecutor
      *
      * @return target replicas + the extra replica, *IF* we speculated.
      */
-    public abstract Iterable<InetAddress> getContactedReplicas();
+    public abstract Collection<InetAddress> getContactedReplicas();
 
     /**
      * send the initial set of requests
@@ -216,7 +217,7 @@ public abstract class AbstractReadExecutor
             // no-op
         }
 
-        public Iterable<InetAddress> getContactedReplicas()
+        public Collection<InetAddress> getContactedReplicas()
         {
             return targetReplicas;
         }
@@ -286,7 +287,7 @@ public abstract class AbstractReadExecutor
             }
         }
 
-        public Iterable<InetAddress> getContactedReplicas()
+        public Collection<InetAddress> getContactedReplicas()
         {
             return speculated
                  ? targetReplicas
@@ -312,7 +313,7 @@ public abstract class AbstractReadExecutor
             // no-op
         }
 
-        public Iterable<InetAddress> getContactedReplicas()
+        public Collection<InetAddress> getContactedReplicas()
         {
             return targetReplicas;
         }

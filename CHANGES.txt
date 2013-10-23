@@ -15,7 +15,7 @@
  * Add configurable metrics reporting (CASSANDRA-4430)
  * drop queries exceeding a configurable number of tombstones (CASSANDRA-6117)
  * Track and persist sstable read activity (CASSANDRA-5515)
- * Fixes for speculative retry (CASSANDRA-5932)
+ * Fixes for speculative retry (CASSANDRA-5932, CASSANDRA-6194)
  * Improve memory usage of metadata min/max column names (CASSANDRA-6077)
  * Fix thrift validation refusing row markers on CQL3 tables (CASSANDRA-6081)
  * Fix insertion of collections with CAS (CASSANDRA-6069)

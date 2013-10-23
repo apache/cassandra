@@ -67,7 +67,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
             logger.trace(String.format("Blockfor is %s; setting up requests to %s", blockfor, StringUtils.join(this.endpoints, ",")));
     }
 
-    private ReadCallback(IResponseResolver<TMessage, TResolved> resolver, ConsistencyLevel consistencyLevel, int blockfor, IReadCommand command, Keyspace keyspace, List<InetAddress> endpoints)
+    public ReadCallback(IResponseResolver<TMessage, TResolved> resolver, ConsistencyLevel consistencyLevel, int blockfor, IReadCommand command, Keyspace keyspace, List<InetAddress> endpoints)
     {
         this.command = command;
         this.keyspace = keyspace;
@@ -76,11 +76,6 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         this.resolver = resolver;
         this.start = System.nanoTime();
         this.endpoints = endpoints;
-    }
-
-    public ReadCallback<TMessage, TResolved> withNewResolver(IResponseResolver<TMessage, TResolved> newResolver)
-    {
-        return new ReadCallback<TMessage, TResolved>(newResolver, consistencyLevel, blockfor, command, keyspace, endpoints);
     }
 
     public boolean await(long timePastStart, TimeUnit unit)
@@ -111,8 +106,8 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
 
     public void response(MessageIn<TMessage> message)
     {
-        boolean hasAdded = resolver.preprocess(message);
-        int n = (waitingFor(message) && hasAdded)
+        resolver.preprocess(message);
+        int n = waitingFor(message)
               ? received.incrementAndGet()
               : received.get();
         if (n >= blockfor && resolver.isDataPresent())
