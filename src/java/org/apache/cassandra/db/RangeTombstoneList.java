@@ -127,22 +127,18 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
             return;
         }
 
-        int c = comparator.compare(starts[size-1], start);
+        int c = comparator.compare(ends[size-1], start);
 
         // Fast path if we add in sorted order
         if (c <= 0)
         {
-            // Note that we may still overlap the last range
-            insertFrom(size-1, start, end, markedAt, delTime);
+            addInternal(size, start, end, markedAt, delTime);
         }
         else
         {
-            int pos = Arrays.binarySearch(starts, 0, size, start, comparator);
-            if (pos >= 0)
-                insertFrom(pos, start, end, markedAt, delTime);
-            else
-                // Insertion point (-pos-1) is such start < start[-pos-1], so we should insert from the previous
-                insertFrom(-pos-2, start, end, markedAt, delTime);
+            // Note: insertFrom expect i to be the insertion point in term of interval ends
+            int pos = Arrays.binarySearch(ends, 0, size, start, comparator);
+            insertFrom((pos >= 0 ? pos+1 : -pos-1), start, end, markedAt, delTime);
         }
     }
 
@@ -162,11 +158,11 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
 
         /*
          * We basically have 2 techniques we can use here: either we repeatedly call add() on tombstones values,
-         * or we do a merge of both (sorted) lists. If this lists is bigger enough than the one we add, the
+         * or we do a merge of both (sorted) lists. If this lists is bigger enough than the one we add, then
          * calling add() will be faster, otherwise it's merging that will be faster.
          *
          * Let's note that during memtables updates, it might not be uncommon that a new update has only a few range
-         * tombstones, while the CF we're adding it to (the on in the memtable) has many. In that case, using add() is
+         * tombstones, while the CF we're adding it to (the one in the memtable) has many. In that case, using add() is
          * likely going to be faster.
          *
          * In other cases however, like when diffing responses from multiple nodes, the tombstone lists we "merge" will
@@ -189,9 +185,9 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
             int j = 0;
             while (i < size && j < tombstones.size)
             {
-                if (comparator.compare(tombstones.starts[j], starts[i]) < 0)
+                if (comparator.compare(tombstones.starts[j], ends[i]) < 0)
                 {
-                    insertFrom(i-1, tombstones.starts[j], tombstones.ends[j], tombstones.markedAts[j], tombstones.delTimes[j]);
+                    insertFrom(i, tombstones.starts[j], tombstones.ends[j], tombstones.markedAts[j], tombstones.delTimes[j]);
                     j++;
                 }
                 else
@@ -199,9 +195,9 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
                     i++;
                 }
             }
-            // Addds the remaining ones from tombstones if any (not that insertFrom will increment size if relevant).
+            // Addds the remaining ones from tombstones if any (note that addInternal will increment size if relevant).
             for (; j < tombstones.size; j++)
-                insertFrom(size - 1, tombstones.starts[j], tombstones.ends[j], tombstones.markedAts[j], tombstones.delTimes[j]);
+                addInternal(size, tombstones.starts[j], tombstones.ends[j], tombstones.markedAts[j], tombstones.delTimes[j]);
         }
     }
 
@@ -384,136 +380,106 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
     }
 
     /*
-     * Inserts a new element whose start should be inserted at index i. This method
-     * assumes that:
-     *   - starts[i] <= start
-     *   - start < starts[i+1] or there is no i+1 element.
+     * Inserts a new element starting at index i. This method assumes that i is the insertion point
+     * in term of intervals for start:
+     *    ends[i-1] <= start < ends[i]
      */
     private void insertFrom(int i, ByteBuffer start, ByteBuffer end, long markedAt, int delTime)
     {
-        if (i < 0)
+        while (i < size)
         {
-            insertAfter(i, start, end, markedAt, delTime);
-            return;
-        }
+            assert i == 0 || comparator.compare(start, ends[i-1]) >= 0;
+            assert i >= size || comparator.compare(start, ends[i]) < 0;
 
-        /*
-         * We have elt(i) = [s_i, e_i]@t_i and want to insert X = [s, e]@t, knowing that s_i < s < s_i+1.
-         * We can have 3 cases:
-         *  - s < e_i && e <= e_i: we're fully contained in i.
-         *  - s < e_i && e > e_i: we rewrite X to X1=[s, e_i]@t + X2=[e_i, e]@t. X1 is fully contained
-         *             in i and X2 is the insertAfter() case for i.
-         *  - s >= e_i: we're in the insertAfter() case for i.
-         */
-        if (comparator.compare(start, ends[i]) < 0)
-        {
-            if (comparator.compare(end, ends[i]) <= 0)
+            // Do we overwrite the current element?
+            if (markedAt > markedAts[i])
             {
-                update(i, start, end, markedAt, delTime);
+                // We do overwrite.
+
+                // First deal with what might come before the newly added one.
+                if (comparator.compare(starts[i], start) < 0)
+                {
+                    addInternal(i, starts[i], start, markedAts[i], delTimes[i]);
+                    i++;
+                    // We don't need to do the following line, but in spirit that's what we want to do
+                    // setInternal(i, start, ends[i], markedAts, delTime])
+                }
+
+                // now, start <= starts[i]
+
+                // If the new element stops before the current one, insert it and
+                // we're done
+                if (comparator.compare(end, starts[i]) <= 0)
+                {
+                    addInternal(i, start, end, markedAt, delTime);
+                    return;
+                }
+
+                // Do we overwrite the current element fully?
+                int cmp = comparator.compare(ends[i], end);
+                if (cmp <= 0)
+                {
+                    // We do overwrite fully:
+                    // update the current element until it's end and continue
+                    // on with the next element (with the new inserted start == current end).
+
+                    // If we're on the last element, we can optimize
+                    if (i == size-1)
+                    {
+                        setInternal(i, start, end, markedAt, delTime);
+                        return;
+                    }
+
+                    setInternal(i, start, ends[i], markedAt, delTime);
+                    if (cmp == 0)
+                        return;
+
+                    start = ends[i];
+                    i++;
+                }
+                else
+                {
+                    // We don't ovewrite fully. Insert the new interval, and then update the now next
+                    // one to reflect the not overwritten parts. We're then done.
+                    addInternal(i, start, end, markedAt, delTime);
+                    i++;
+                    setInternal(i, end, ends[i], markedAts[i], delTimes[i]);
+                    return;
+                }
             }
             else
             {
-                insertAfter(i, ends[i], end, markedAt, delTime);
-                update(i, start, ends[i], markedAt, delTime);
+                // we don't overwrite the current element
+
+                // If the new interval starts before the current one, insert that new interval
+                if (comparator.compare(start, starts[i]) < 0)
+                {
+                    // If we stop before the start of the current element, just insert the new
+                    // interval and we're done; otherwise insert until the beginning of the
+                    // current element
+                    if (comparator.compare(end, starts[i]) <= 0)
+                    {
+                        addInternal(i, start, end, markedAt, delTime);
+                        return;
+                    }
+                    addInternal(i, start, starts[i], markedAt, delTime);
+                    i++;
+                }
+
+                // After that, we're overwritten on the current element but might have
+                // some residual parts after ...
+
+                // ... unless we don't extend beyond it.
+                if (comparator.compare(end, ends[i]) <= 0)
+                    return;
+
+                start = ends[i];
+                i++;
             }
         }
-        else
-        {
-            insertAfter(i, start, end, markedAt, delTime);
-        }
-    }
 
-    /*
-     * Inserts a new element knowing that the new element start strictly after
-     * the one at index i, i.e that:
-     *   - ends[i] <= start (or i == -1)
-     */
-    private void insertAfter(int i, ByteBuffer start, ByteBuffer end, long markedAt, int delTime)
-    {
-        if (i == size - 1)
-        {
-            addInternal(i+1, start, end, markedAt, delTime);
-            return;
-        }
-
-        /*
-         * We have the following intervals:
-         *           i            i+1
-         *   ..., [s1, e1]@t1, [s2, e2]@t2, ...
-         *
-         * And we want to insert X = [s, e]@t, knowing that e1 <= s.
-         * We can have 2 cases:
-         *  - s < s2: we rewrite X to X1=[s, s2]@t + X2=[s2, e]@t. X2 meet the weakInsertFrom() condition
-         *            for i+1, and X1 is a new element between i and i+1.
-         *  - s2 <= s: we're in the weakInsertFrom() case for i+1.
-         */
-        if (comparator.compare(start, starts[i+1]) < 0)
-        {
-            /*
-             * If it happens the new element is fully before the current one, we insert it and
-             * we're done
-             */
-            if (comparator.compare(end, starts[i+1]) <= 0)
-            {
-                addInternal(i+1, start, end, markedAt, delTime);
-                return;
-            }
-
-            weakInsertFrom(i+1, starts[i+1], end, markedAt, delTime);
-            addInternal(i+1, start, starts[i+1], markedAt, delTime);
-        }
-        else
-        {
-            weakInsertFrom(i+1, start, end, markedAt, delTime);
-        }
-    }
-
-    /*
-     * Weak version of insertFrom that only assumes the new element starts after index i,
-     * but without knowing about the 2nd condition, i.e. this only assume that:
-     *   - starts[i] <= start
-     */
-    private void weakInsertFrom(int i, ByteBuffer start, ByteBuffer end, long markedAt, int delTime)
-    {
-        /*
-         * Either start is before the next element start, and we're in fact in the insertFrom()
-         * case, or it's not and it's an weakInsertFrom for the next index.
-         */
-        if (i == size - 1 || comparator.compare(start, starts[i+1]) < 0)
-            insertFrom(i, start, end, markedAt, delTime);
-        else
-            weakInsertFrom(i+1, start, end, markedAt, delTime);
-    }
-
-    /*
-     * Update index i with new element, assuming that new element is contained in the element i,
-     * i.e that:
-     *   - starts[i] <= s
-     *   - e <= end[i]
-     */
-    private void update(int i, ByteBuffer start, ByteBuffer end, long markedAt, int delTime)
-    {
-        /*
-         * If the new markedAt is lower than the one of i, we can ignore the
-         * new element, otherwise we split the current element.
-         */
-        if (markedAts[i] < markedAt)
-        {
-            if (comparator.compare(ends[i], end) != 0)
-                addInternal(i+1, end, ends[i], markedAts[i], delTimes[i]);
-
-            if (comparator.compare(starts[i], start) == 0)
-            {
-                markedAts[i] = markedAt;
-                delTimes[i] = delTime;
-                ends[i] = end;
-            }
-            else
-            {
-                addInternal(i+1, start, end, markedAt, delTime);
-                ends[i] = start;
-            }
-        }
+        // If we got there, then just insert the remainder at the end
+        addInternal(i, start, end, markedAt, delTime);
     }
 
     private int capacity()

@@ -103,8 +103,7 @@ public class RangeTombstoneListTest
         assertRT(rt(0, 1, 1), iter.next());
         assertRT(rt(1, 4, 2), iter.next());
         assertRT(rt(4, 8, 3), iter.next());
-        assertRT(rt(8, 10, 4), iter.next());
-        assertRT(rt(10, 13, 4), iter.next());
+        assertRT(rt(8, 13, 4), iter.next());
         assertRT(rt(13, 15, 1), iter.next());
         assert !iter.hasNext();
 
@@ -116,8 +115,16 @@ public class RangeTombstoneListTest
     }
 
     @Test
-    public void overlappingSearchTest()
+    public void largeAdditionTest()
     {
+        int N = 3000;
+        // Test that the StackOverflow from #6181 is fixed
+        RangeTombstoneList l = new RangeTombstoneList(cmp, N);
+        for (int i = 0; i < N; i++)
+            l.add(rt(2*i+1, 2*i+2, 1));
+        assertEquals(l.size(), N);
+
+        l.add(rt(0, 2*N+3, 2));
     }
 
     @Test
@@ -140,6 +147,21 @@ public class RangeTombstoneListTest
         Iterator<RangeTombstone> iter2 = l2.iterator();
         assertRT(rt(0, 10, 3), iter2.next());
         assert !iter2.hasNext();
+    }
+
+    @Test
+    public void overlappingPreviousEndEqualsStartTest()
+    {
+        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        // add a RangeTombstone, so, last insert is not in insertion order
+        l.add(rt(11, 12, 2));
+        l.add(rt(1, 4, 2));
+        l.add(rt(4, 10, 5));
+
+        assertEquals(2, l.search(b(3)).markedForDeleteAt);
+        assertEquals(5, l.search(b(4)).markedForDeleteAt);
+        assertEquals(5, l.search(b(8)).markedForDeleteAt);
+        assertEquals(3, l.size());
     }
 
     @Test
@@ -198,8 +220,7 @@ public class RangeTombstoneListTest
         assertRT(rt(7, 8, 3), iter.next());
         assertRT(rt(8, 10, 2), iter.next());
         assertRT(rt(10, 12, 1), iter.next());
-        assertRT(rt(14, 15, 4), iter.next());
-        assertRT(rt(15, 17, 4), iter.next());
+        assertRT(rt(14, 17, 4), iter.next());
 
         assert !iter.hasNext();
     }
