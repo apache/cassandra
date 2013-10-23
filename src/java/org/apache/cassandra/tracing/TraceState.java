@@ -90,6 +90,7 @@ public class TraceState
     public static void trace(final ByteBuffer sessionIdBytes, final String message, final int elapsed)
     {
         final ByteBuffer eventId = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
+        final String threadName = Thread.currentThread().getName();
 
         StageManager.getStage(Stage.TRACING).execute(new WrappedRunnable()
         {
@@ -101,7 +102,7 @@ public class TraceState
                 Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("source")), FBUtilities.getBroadcastAddress());
                 if (elapsed >= 0)
                     Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("source_elapsed")), elapsed);
-                Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("activity")), message);
+                Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("thread")), threadName);
                 Tracing.mutateWithCatch(new RowMutation(Tracing.TRACE_KS, sessionIdBytes, cf));
             }
         });
