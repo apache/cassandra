@@ -1,15 +1,3 @@
-2.0.3
- * Reject bootstrapping if the node already exists in gossip (CASSANDRA-5571)
- * Fix NPE while loading paxos state (CASSANDRA-6211)
- * cqlsh: add SHOW SESSION <tracing-session> command (CASSANDRA-6228)
-Merged from 1.2:
- * Fix altering column types (CASSANDRA-6185)
- * cqlsh: fix CREATE/ALTER WITH completion (CASSANDRA-6196)
- * add windows bat files for shell commands (CASSANDRA-6145)
- * Fix potential stack overflow during range tombstones insertion (CASSANDRA-6181)
- * (Hadoop) Make LOCAL_ONE the default consistency level (CASSANDRA-6214)
-
-
 2.0.2
  * Update FailureDetector to use nanontime (CASSANDRA-4925)
  * Fix FileCacheService regressions (CASSANDRA-6149)
@@ -39,6 +27,9 @@ Merged from 1.2:
  * Add reloadtriggers command to nodetool (CASSANDRA-4949)
  * cqlsh: ignore empty 'value alias' in DESCRIBE (CASSANDRA-6139)
  * Fix sstable loader (CASSANDRA-6205)
+ * Reject bootstrapping if the node already exists in gossip (CASSANDRA-5571)
+ * Fix NPE while loading paxos state (CASSANDRA-6211)
+ * cqlsh: add SHOW SESSION <tracing-session> command (CASSANDRA-6228)
 Merged from 1.2:
  * (Hadoop) Require CFRR batchSize to be at least 2 (CASSANDRA-6114)
  * Add a warning for small LCS sstable size (CASSANDRA-6191)
@@ -76,6 +67,11 @@ Merged from 1.2:
  * Rework token replacement to use replace_address (CASSANDRA-5916)
  * Fix altering column types (CASSANDRA-6185)
  * cqlsh: fix CREATE/ALTER WITH completion (CASSANDRA-6196)
+ * Fix altering column types (CASSANDRA-6185)
+ * cqlsh: fix CREATE/ALTER WITH completion (CASSANDRA-6196)
+ * add windows bat files for shell commands (CASSANDRA-6145)
+ * Fix potential stack overflow during range tombstones insertion (CASSANDRA-6181)
+ * (Hadoop) Make LOCAL_ONE the default consistency level (CASSANDRA-6214)
 
 
 2.0.1
