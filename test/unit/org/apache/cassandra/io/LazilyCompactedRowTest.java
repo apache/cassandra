@@ -98,33 +98,38 @@ public class LazilyCompactedRowTest extends SchemaLoader
             tmpFile1.deleteOnExit();
             tmpFile2.deleteOnExit();
 
-            new FileOutputStream(tmpFile1).write(out1.getData()); // writing data from row1
-            new FileOutputStream(tmpFile2).write(out2.getData()); // writing data from row2
-
-            MappedFileDataInput in1 = new MappedFileDataInput(new FileInputStream(tmpFile1), tmpFile1.getAbsolutePath(), 0, 0);
-            MappedFileDataInput in2 = new MappedFileDataInput(new FileInputStream(tmpFile2), tmpFile2.getAbsolutePath(), 0, 0);
-
-            // row key
-            assertEquals(ByteBufferUtil.readWithShortLength(in1), ByteBufferUtil.readWithShortLength(in2));
-
-            // cf metadata
-            ColumnFamily cf1 = TreeMapBackedSortedColumns.factory.create(cfs.metadata);
-            ColumnFamily cf2 = TreeMapBackedSortedColumns.factory.create(cfs.metadata);
-            cf1.delete(DeletionTime.serializer.deserialize(in1));
-            cf2.delete(DeletionTime.serializer.deserialize(in2));
-            assertEquals(cf1.deletionInfo(), cf2.deletionInfo());
-            // columns
-            while (true)
+            try (OutputStream os1 = new FileOutputStream(tmpFile1);
+                 OutputStream os2 = new FileOutputStream(tmpFile2))
             {
-                Column c1 = (Column)Column.onDiskSerializer().deserializeFromSSTable(in1, Descriptor.Version.CURRENT);
-                Column c2 = (Column)Column.onDiskSerializer().deserializeFromSSTable(in2, Descriptor.Version.CURRENT);
-                assert Objects.equal(c1, c2) : c1.getString(cfs.metadata.comparator) + " != " + c2.getString(cfs.metadata.comparator);
-                if (c1 == null)
-                    break;
+                os1.write(out1.getData()); // writing data from row1
+                os2.write(out2.getData()); // writing data from row2
             }
-            // that should be everything
-            assert in1.available() == 0;
-            assert in2.available() == 0;
+
+            try (MappedFileDataInput in1 = new MappedFileDataInput(new FileInputStream(tmpFile1), tmpFile1.getAbsolutePath(), 0, 0);
+                 MappedFileDataInput in2 = new MappedFileDataInput(new FileInputStream(tmpFile2), tmpFile2.getAbsolutePath(), 0, 0))
+            {
+                // row key
+                assertEquals(ByteBufferUtil.readWithShortLength(in1), ByteBufferUtil.readWithShortLength(in2));
+    
+                // cf metadata
+                ColumnFamily cf1 = TreeMapBackedSortedColumns.factory.create(cfs.metadata);
+                ColumnFamily cf2 = TreeMapBackedSortedColumns.factory.create(cfs.metadata);
+                cf1.delete(DeletionTime.serializer.deserialize(in1));
+                cf2.delete(DeletionTime.serializer.deserialize(in2));
+                assertEquals(cf1.deletionInfo(), cf2.deletionInfo());
+                // columns
+                while (true)
+                {
+                    Column c1 = (Column)Column.onDiskSerializer().deserializeFromSSTable(in1, Descriptor.Version.CURRENT);
+                    Column c2 = (Column)Column.onDiskSerializer().deserializeFromSSTable(in2, Descriptor.Version.CURRENT);
+                    assert Objects.equal(c1, c2) : c1.getString(cfs.metadata.comparator) + " != " + c2.getString(cfs.metadata.comparator);
+                    if (c1 == null)
+                        break;
+                }
+                // that should be everything
+                assert in1.available() == 0;
+                assert in2.available() == 0;
+            }
         }
     }
 
