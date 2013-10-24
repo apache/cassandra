@@ -706,7 +706,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         InetAddress existing = tokenMetadata.getEndpoint(token);
                         if (existing != null)
                         {
-                            long nanoDelay = delay * 1000000;
+                            long nanoDelay = delay * 1000000L;
                             if (Gossiper.instance.getEndpointStateForEndpoint(existing).getUpdateTimestamp() > (System.nanoTime() - nanoDelay))
                                 throw new UnsupportedOperationException("Cannnot replace a live node... ");
                             current.add(existing);
