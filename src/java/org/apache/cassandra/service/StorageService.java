@@ -318,7 +318,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             throw new IllegalStateException("No configured daemon");
         }
-        daemon.thriftServer.stop();
+        if (daemon.thriftServer != null)
+            daemon.thriftServer.stop();
     }
 
     public boolean isRPCServerRunning()
