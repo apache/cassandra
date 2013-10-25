@@ -710,5 +710,13 @@ public class CqlStorage extends AbstractCassandraStorage
             return validator.getString(validator.decompose(obj));
         return obj;
     }
+
+    /**
+     * Thrift API can't handle null, so use empty byte array
+     */
+    public ByteBuffer nullToBB()
+    {
+        return ByteBuffer.wrap(new byte[0]);
+    }
 }
 

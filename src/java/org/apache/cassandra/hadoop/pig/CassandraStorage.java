@@ -824,5 +824,10 @@ public class CassandraStorage extends AbstractCassandraStorage
                     "[&init_address=<host>][&rpc_port=<port>]]': " + e.getMessage());
         }
     }
+    
+    public ByteBuffer nullToBB()
+    {
+        return (ByteBuffer) null;
+    }
 }
 
