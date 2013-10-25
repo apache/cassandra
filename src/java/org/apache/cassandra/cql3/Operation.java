@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
@@ -109,7 +110,7 @@ public abstract class Operation
          * be a true column.
          * @return the prepared update operation.
          */
-        public Operation prepare(CFDefinition.Name receiver) throws InvalidRequestException;
+        public Operation prepare(ColumnDefinition receiver) throws InvalidRequestException;
 
         /**
          * @return whether this operation can be applied alongside the {@code
@@ -155,7 +156,7 @@ public abstract class Operation
             this.value = value;
         }
 
-        public Operation prepare(CFDefinition.Name receiver) throws InvalidRequestException
+        public Operation prepare(ColumnDefinition receiver) throws InvalidRequestException
         {
             Term v = value.prepare(receiver);
 
@@ -163,7 +164,7 @@ public abstract class Operation
                 throw new InvalidRequestException(String.format("Cannot set the value of counter column %s (counters can only be incremented/decremented, not set)", receiver));
 
             if (!(receiver.type instanceof CollectionType))
-                return new Constants.Setter(receiver.kind == CFDefinition.Name.Kind.VALUE_ALIAS ? null : receiver.name, v);
+                return new Constants.Setter(receiver.kind == ColumnDefinition.Kind.COMPACT_VALUE ? null : receiver.name, v);
 
             switch (((CollectionType)receiver.type).kind)
             {
@@ -201,7 +202,7 @@ public abstract class Operation
             this.value = value;
         }
 
-        public Operation prepare(CFDefinition.Name receiver) throws InvalidRequestException
+        public Operation prepare(ColumnDefinition receiver) throws InvalidRequestException
         {
             if (!(receiver.type instanceof CollectionType))
                 throw new InvalidRequestException(String.format("Invalid operation (%s) for non collection column %s", toString(receiver), receiver));
@@ -244,7 +245,7 @@ public abstract class Operation
             this.value = value;
         }
 
-        public Operation prepare(CFDefinition.Name receiver) throws InvalidRequestException
+        public Operation prepare(ColumnDefinition receiver) throws InvalidRequestException
         {
             Term v = value.prepare(receiver);
 
@@ -252,7 +253,7 @@ public abstract class Operation
             {
                 if (!(receiver.type instanceof CounterColumnType))
                     throw new InvalidRequestException(String.format("Invalid operation (%s) for non counter column %s", toString(receiver), receiver));
-                return new Constants.Adder(receiver.kind == CFDefinition.Name.Kind.VALUE_ALIAS ? null : receiver.name, v);
+                return new Constants.Adder(receiver.kind == ColumnDefinition.Kind.COMPACT_VALUE ? null : receiver.name, v);
             }
 
             switch (((CollectionType)receiver.type).kind)
@@ -287,7 +288,7 @@ public abstract class Operation
             this.value = value;
         }
 
-        public Operation prepare(CFDefinition.Name receiver) throws InvalidRequestException
+        public Operation prepare(ColumnDefinition receiver) throws InvalidRequestException
         {
             Term v = value.prepare(receiver);
 
@@ -295,7 +296,7 @@ public abstract class Operation
             {
                 if (!(receiver.type instanceof CounterColumnType))
                     throw new InvalidRequestException(String.format("Invalid operation (%s) for non counter column %s", toString(receiver), receiver));
-                return new Constants.Substracter(receiver.kind == CFDefinition.Name.Kind.VALUE_ALIAS ? null : receiver.name, v);
+                return new Constants.Substracter(receiver.kind == ColumnDefinition.Kind.COMPACT_VALUE ? null : receiver.name, v);
             }
 
             switch (((CollectionType)receiver.type).kind)
@@ -330,7 +331,7 @@ public abstract class Operation
             this.value = value;
         }
 
-        public Operation prepare(CFDefinition.Name receiver) throws InvalidRequestException
+        public Operation prepare(ColumnDefinition receiver) throws InvalidRequestException
         {
             Term v = value.prepare(receiver);
 

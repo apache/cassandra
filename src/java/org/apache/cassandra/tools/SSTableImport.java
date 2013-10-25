@@ -152,7 +152,7 @@ public class SSTableImport
                 }
 
                 value = isDeleted() ? ByteBufferUtil.hexToBytes((String) fields.get(1))
-                                    : stringAsType((String) fields.get(1), meta.getValueValidator(meta.getColumnDefinitionFromColumnName(name)));
+                                    : stringAsType((String) fields.get(1), meta.getValueValidator(meta.getColumnDefinitionFromCellName(name)));
             }
         }
 

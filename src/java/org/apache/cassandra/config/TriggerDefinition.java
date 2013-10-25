@@ -84,7 +84,7 @@ public class TriggerDefinition
     {
         ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
 
-        ColumnNameBuilder builder = CFMetaData.SchemaTriggersCf.getCfDef().getColumnNameBuilder();
+        ColumnNameBuilder builder = CFMetaData.SchemaTriggersCf.getColumnNameBuilder();
         builder.add(bytes(cfName)).add(bytes(name));
 
         cf.addColumn(builder.copy().add(bytes("")).build(), bytes(""), timestamp); // the row marker
@@ -103,7 +103,7 @@ public class TriggerDefinition
         ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
-        ColumnNameBuilder builder = CFMetaData.SchemaTriggersCf.getCfDef().getColumnNameBuilder();
+        ColumnNameBuilder builder = CFMetaData.SchemaTriggersCf.getColumnNameBuilder();
         builder.add(bytes(cfName)).add(bytes(name));
         cf.addAtom(new RangeTombstone(builder.build(), builder.buildAsEndOfRange(), timestamp, ldt));
     }

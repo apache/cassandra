@@ -25,7 +25,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
@@ -211,8 +210,7 @@ public class ThriftValidation
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("supercolumn specified to ColumnFamily " + metadata.cfName + " containing normal columns");
         }
         AbstractType<?> comparator = SuperColumns.getComparatorFor(metadata, superColumnName);
-        CFDefinition cfDef = metadata.getCfDef();
-        boolean isCQL3Table = cfDef.isComposite && !cfDef.isCompact && !metadata.isSuper();
+        boolean isCQL3Table = metadata.hasCompositeComparator() && !metadata.isDense() && !metadata.isSuper();
         for (ByteBuffer name : column_names)
         {
             if (name.remaining() > maxNameLength)
@@ -233,24 +231,24 @@ public class ThriftValidation
                 // CQL3 table don't support having only part of their composite column names set
                 CompositeType composite = (CompositeType)comparator;
                 ByteBuffer[] components = composite.split(name);
-                int minComponents = composite.types.size() - (cfDef.hasCollections ? 1 : 0);
+                int minComponents = composite.types.size() - (metadata.hasCollections() ? 1 : 0);
                 if (components.length < minComponents)
                     throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Not enough components (found %d but %d expected) for column name since %s is a CQL3 table",
                                                                                                     components.length, minComponents, metadata.cfName));
 
                 // Furthermore, the column name must be a declared one.
-                int columnIndex = composite.types.size() - (cfDef.hasCollections ? 2 : 1);
+                int columnIndex = composite.types.size() - (metadata.hasCollections() ? 2 : 1);
                 ByteBuffer CQL3ColumnName = components[columnIndex];
                 if (!CQL3ColumnName.hasRemaining())
                     continue; // Row marker, ok
 
                 ColumnIdentifier columnId = new ColumnIdentifier(CQL3ColumnName, composite.types.get(columnIndex));
-                if (cfDef.metadata.get(columnId) == null)
+                if (metadata.getColumnDefinition(columnId) == null)
                     throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Invalid cell for CQL3 table %s. The CQL3 column component (%s) does not correspond to a defined CQL3 column",
                                                                                                     metadata.cfName, columnId));
 
                 // On top of that, if we have a collection component, he (CQL3) column must be a collection
-                if (cfDef.hasCollections && components.length == composite.types.size())
+                if (metadata.hasCollections() && components.length == composite.types.size())
                 {
                     assert components.length >= 2;
                     ColumnToCollectionType collectionType = (ColumnToCollectionType)composite.types.get(composite.types.size() - 1);
@@ -436,7 +434,7 @@ public class ThriftValidation
         if (!column.isSetTimestamp())
             throw new org.apache.cassandra.exceptions.InvalidRequestException("Column timestamp is required");
 
-        ColumnDefinition columnDef = metadata.getColumnDefinitionFromColumnName(column.name);
+        ColumnDefinition columnDef = metadata.getColumnDefinitionFromCellName(column.name);
         try
         {
             AbstractType<?> validator = metadata.getValueValidator(columnDef);
@@ -590,7 +588,7 @@ public class ThriftValidation
             if (expression.value.remaining() > 0xFFFF)
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("Index expression values may not be larger than 64K");
 
-            AbstractType<?> valueValidator = Schema.instance.getValueValidator(metadata.ksName, metadata.cfName, expression.column_name);
+            AbstractType<?> valueValidator = metadata.getValueValidatorFromCellName(expression.column_name);
             try
             {
                 valueValidator.validate(expression.value);

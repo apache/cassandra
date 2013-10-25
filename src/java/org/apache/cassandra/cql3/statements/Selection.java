@@ -21,9 +21,13 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.collect.Iterators;
+
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.Functions;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.ExpiringColumn;
 import org.apache.cassandra.db.Column;
@@ -36,12 +40,12 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class Selection
 {
-    private final List<CFDefinition.Name> columnsList;
+    private final List<ColumnDefinition> columnsList;
     private final List<ColumnSpecification> metadata;
     private final boolean collectTimestamps;
     private final boolean collectTTLs;
 
-    protected Selection(List<CFDefinition.Name> columnsList, List<ColumnSpecification> metadata, boolean collectTimestamps, boolean collectTTLs)
+    protected Selection(List<ColumnDefinition> columnsList, List<ColumnSpecification> metadata, boolean collectTimestamps, boolean collectTTLs)
     {
         this.columnsList = columnsList;
         this.metadata = metadata;
@@ -54,15 +58,14 @@ public abstract class Selection
         return new ResultSet.Metadata(metadata);
     }
 
-    public static Selection wildcard(CFDefinition cfDef)
+    public static Selection wildcard(CFMetaData cfm)
     {
-        List<CFDefinition.Name> all = new ArrayList<CFDefinition.Name>();
-        for (CFDefinition.Name name : cfDef)
-            all.add(name);
+        List<ColumnDefinition> all = new ArrayList<ColumnDefinition>(cfm.allColumns().size());
+        Iterators.addAll(all, cfm.allColumnsInSelectOrder());
         return new SimpleSelection(all);
     }
 
-    public static Selection forColumns(List<CFDefinition.Name> columnsList)
+    public static Selection forColumns(List<ColumnDefinition> columnsList)
     {
         return new SimpleSelection(columnsList);
     }
@@ -77,54 +80,54 @@ public abstract class Selection
         return false;
     }
 
-    private static int addAndGetIndex(CFDefinition.Name name, List<CFDefinition.Name> l)
+    private static int addAndGetIndex(ColumnDefinition def, List<ColumnDefinition> l)
     {
-        int idx = l.indexOf(name);
+        int idx = l.indexOf(def);
         if (idx < 0)
         {
             idx = l.size();
-            l.add(name);
+            l.add(def);
         }
         return idx;
     }
 
-    private static Selector makeSelector(CFDefinition cfDef, RawSelector raw, List<CFDefinition.Name> names, List<ColumnSpecification> metadata) throws InvalidRequestException
+    private static Selector makeSelector(CFMetaData cfm, RawSelector raw, List<ColumnDefinition> defs, List<ColumnSpecification> metadata) throws InvalidRequestException
     {
         if (raw.selectable instanceof ColumnIdentifier)
         {
-            CFDefinition.Name name = cfDef.get((ColumnIdentifier)raw.selectable);
-            if (name == null)
+            ColumnDefinition def = cfm.getColumnDefinition((ColumnIdentifier)raw.selectable);
+            if (def == null)
                 throw new InvalidRequestException(String.format("Undefined name %s in selection clause", raw.selectable));
             if (metadata != null)
-                metadata.add(raw.alias == null ? name : makeAliasSpec(cfDef, name.type, raw.alias));
-            return new SimpleSelector(name.toString(), addAndGetIndex(name, names), name.type);
+                metadata.add(raw.alias == null ? def : makeAliasSpec(cfm, def.type, raw.alias));
+            return new SimpleSelector(def.name.toString(), addAndGetIndex(def, defs), def.type);
         }
         else if (raw.selectable instanceof Selectable.WritetimeOrTTL)
         {
             Selectable.WritetimeOrTTL tot = (Selectable.WritetimeOrTTL)raw.selectable;
-            CFDefinition.Name name = cfDef.get(tot.id);
-            if (name == null)
+            ColumnDefinition def = cfm.getColumnDefinition(tot.id);
+            if (def == null)
                 throw new InvalidRequestException(String.format("Undefined name %s in selection clause", tot.id));
-            if (name.kind != CFDefinition.Name.Kind.COLUMN_METADATA && name.kind != CFDefinition.Name.Kind.VALUE_ALIAS)
-                throw new InvalidRequestException(String.format("Cannot use selection function %s on PRIMARY KEY part %s", tot.isWritetime ? "writeTime" : "ttl", name));
-            if (name.type.isCollection())
+            if (def.kind != ColumnDefinition.Kind.REGULAR && def.kind != ColumnDefinition.Kind.COMPACT_VALUE)
+                throw new InvalidRequestException(String.format("Cannot use selection function %s on PRIMARY KEY part %s", tot.isWritetime ? "writeTime" : "ttl", def.name));
+            if (def.type.isCollection())
                 throw new InvalidRequestException(String.format("Cannot use selection function %s on collections", tot.isWritetime ? "writeTime" : "ttl"));
 
             if (metadata != null)
-                metadata.add(makeWritetimeOrTTLSpec(cfDef, tot, raw.alias));
-            return new WritetimeOrTTLSelector(name.toString(), addAndGetIndex(name, names), tot.isWritetime);
+                metadata.add(makeWritetimeOrTTLSpec(cfm, tot, raw.alias));
+            return new WritetimeOrTTLSelector(def.name.toString(), addAndGetIndex(def, defs), tot.isWritetime);
         }
         else
         {
             Selectable.WithFunction withFun = (Selectable.WithFunction)raw.selectable;
             List<Selector> args = new ArrayList<Selector>(withFun.args.size());
             for (Selectable rawArg : withFun.args)
-                args.add(makeSelector(cfDef, new RawSelector(rawArg, null), names, null));
+                args.add(makeSelector(cfm, new RawSelector(rawArg, null), defs, null));
 
-            AbstractType<?> returnType = Functions.getReturnType(withFun.functionName, cfDef.cfm.ksName, cfDef.cfm.cfName);
+            AbstractType<?> returnType = Functions.getReturnType(withFun.functionName, cfm.ksName, cfm.cfName);
             if (returnType == null)
                 throw new InvalidRequestException(String.format("Unknown function '%s'", withFun.functionName));
-            ColumnSpecification spec = makeFunctionSpec(cfDef, withFun, returnType, raw.alias);
+            ColumnSpecification spec = makeFunctionSpec(cfm, withFun, returnType, raw.alias);
             Function fun = Functions.get(withFun.functionName, args, spec);
             if (metadata != null)
                 metadata.add(spec);
@@ -132,15 +135,15 @@ public abstract class Selection
         }
     }
 
-    private static ColumnSpecification makeWritetimeOrTTLSpec(CFDefinition cfDef, Selectable.WritetimeOrTTL tot, ColumnIdentifier alias)
+    private static ColumnSpecification makeWritetimeOrTTLSpec(CFMetaData cfm, Selectable.WritetimeOrTTL tot, ColumnIdentifier alias)
     {
-        return new ColumnSpecification(cfDef.cfm.ksName,
-                                       cfDef.cfm.cfName,
+        return new ColumnSpecification(cfm.ksName,
+                                       cfm.cfName,
                                        alias == null ? new ColumnIdentifier(tot.toString(), true) : alias,
                                        tot.isWritetime ? LongType.instance : Int32Type.instance);
     }
 
-    private static ColumnSpecification makeFunctionSpec(CFDefinition cfDef,
+    private static ColumnSpecification makeFunctionSpec(CFMetaData cfm,
                                                         Selectable.WithFunction fun,
                                                         AbstractType<?> returnType,
                                                         ColumnIdentifier alias) throws InvalidRequestException
@@ -148,31 +151,31 @@ public abstract class Selection
         if (returnType == null)
             throw new InvalidRequestException(String.format("Unknown function %s called in selection clause", fun.functionName));
 
-        return new ColumnSpecification(cfDef.cfm.ksName,
-                                       cfDef.cfm.cfName,
+        return new ColumnSpecification(cfm.ksName,
+                                       cfm.cfName,
                                        alias == null ? new ColumnIdentifier(fun.toString(), true) : alias,
                                        returnType);
     }
 
-    private static ColumnSpecification makeAliasSpec(CFDefinition cfDef, AbstractType<?> type, ColumnIdentifier alias)
+    private static ColumnSpecification makeAliasSpec(CFMetaData cfm, AbstractType<?> type, ColumnIdentifier alias)
     {
-        return new ColumnSpecification(cfDef.cfm.ksName, cfDef.cfm.cfName, alias, type);
+        return new ColumnSpecification(cfm.ksName, cfm.cfName, alias, type);
     }
 
-    public static Selection fromSelectors(CFDefinition cfDef, List<RawSelector> rawSelectors) throws InvalidRequestException
+    public static Selection fromSelectors(CFMetaData cfm, List<RawSelector> rawSelectors) throws InvalidRequestException
     {
         boolean usesFunction = isUsingFunction(rawSelectors);
 
         if (usesFunction)
         {
-            List<CFDefinition.Name> names = new ArrayList<CFDefinition.Name>();
+            List<ColumnDefinition> defs = new ArrayList<ColumnDefinition>();
             List<ColumnSpecification> metadata = new ArrayList<ColumnSpecification>(rawSelectors.size());
             List<Selector> selectors = new ArrayList<Selector>(rawSelectors.size());
             boolean collectTimestamps = false;
             boolean collectTTLs = false;
             for (RawSelector rawSelector : rawSelectors)
             {
-                Selector selector = makeSelector(cfDef, rawSelector, names, metadata);
+                Selector selector = makeSelector(cfm, rawSelector, defs, metadata);
                 selectors.add(selector);
                 if (selector instanceof WritetimeOrTTLSelector)
                 {
@@ -180,22 +183,22 @@ public abstract class Selection
                     collectTTLs |= !((WritetimeOrTTLSelector)selector).isWritetime;
                 }
             }
-            return new SelectionWithFunctions(names, metadata, selectors, collectTimestamps, collectTTLs);
+            return new SelectionWithFunctions(defs, metadata, selectors, collectTimestamps, collectTTLs);
         }
         else
         {
-            List<CFDefinition.Name> names = new ArrayList<CFDefinition.Name>(rawSelectors.size());
+            List<ColumnDefinition> defs = new ArrayList<ColumnDefinition>(rawSelectors.size());
             List<ColumnSpecification> metadata = new ArrayList<ColumnSpecification>(rawSelectors.size());
             for (RawSelector rawSelector : rawSelectors)
             {
                 assert rawSelector.selectable instanceof ColumnIdentifier;
-                CFDefinition.Name name = cfDef.get((ColumnIdentifier)rawSelector.selectable);
-                if (name == null)
+                ColumnDefinition def = cfm.getColumnDefinition((ColumnIdentifier)rawSelector.selectable);
+                if (def == null)
                     throw new InvalidRequestException(String.format("Undefined name %s in selection clause", rawSelector.selectable));
-                names.add(name);
-                metadata.add(rawSelector.alias == null ? name : makeAliasSpec(cfDef, name.type, rawSelector.alias));
+                defs.add(def);
+                metadata.add(rawSelector.alias == null ? def : makeAliasSpec(cfm, def.type, rawSelector.alias));
             }
-            return new SimpleSelection(names, metadata);
+            return new SimpleSelection(defs, metadata);
         }
     }
 
@@ -207,10 +210,10 @@ public abstract class Selection
     public List<ColumnIdentifier> regularColumnsToFetch()
     {
         List<ColumnIdentifier> toFetch = new ArrayList<ColumnIdentifier>();
-        for (CFDefinition.Name name : columnsList)
+        for (ColumnDefinition def : columnsList)
         {
-            if (name.kind == CFDefinition.Name.Kind.COLUMN_METADATA)
-                toFetch.add(name.name);
+            if (def.kind == ColumnDefinition.Kind.REGULAR)
+                toFetch.add(def.name);
         }
         return toFetch;
     }
@@ -218,7 +221,7 @@ public abstract class Selection
     /**
      * @return the list of CQL3 columns value this SelectionClause needs.
      */
-    public List<CFDefinition.Name> getColumnsList()
+    public List<ColumnDefinition> getColumnsList()
     {
         return columnsList;
     }
@@ -307,12 +310,12 @@ public abstract class Selection
     // Special cased selection for when no function is used (this save some allocations).
     private static class SimpleSelection extends Selection
     {
-        public SimpleSelection(List<CFDefinition.Name> columnsList)
+        public SimpleSelection(List<ColumnDefinition> columnsList)
         {
             this(columnsList, new ArrayList<ColumnSpecification>(columnsList));
         }
 
-        public SimpleSelection(List<CFDefinition.Name> columnsList, List<ColumnSpecification> metadata)
+        public SimpleSelection(List<ColumnDefinition> columnsList, List<ColumnSpecification> metadata)
         {
             /*
              * In theory, even a simple selection could have multiple time the same column, so we
@@ -444,7 +447,7 @@ public abstract class Selection
     {
         private final List<Selector> selectors;
 
-        public SelectionWithFunctions(List<CFDefinition.Name> columnsList, List<ColumnSpecification> metadata, List<Selector> selectors, boolean collectTimestamps, boolean collectTTLs)
+        public SelectionWithFunctions(List<ColumnDefinition> columnsList, List<ColumnSpecification> metadata, List<Selector> selectors, boolean collectTimestamps, boolean collectTTLs)
         {
             super(columnsList, metadata, collectTimestamps, collectTTLs);
             this.selectors = selectors;

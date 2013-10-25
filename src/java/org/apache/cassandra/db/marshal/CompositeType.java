@@ -32,6 +32,7 @@ import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.cql3.ColumnNameBuilder;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Relation;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -354,9 +355,16 @@ public class CompositeType extends AbstractCompositeType
             return this;
         }
 
+        @Override
         public Builder add(ByteBuffer bb)
         {
             return add(bb, Relation.Type.EQ);
+        }
+
+        @Override
+        public Builder add(ColumnIdentifier name)
+        {
+            return add(name.bytes);
         }
 
         public int componentCount()

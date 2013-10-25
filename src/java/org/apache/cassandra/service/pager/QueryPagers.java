@@ -175,7 +175,7 @@ public class QueryPagers
         SliceFromReadCommand command = new SliceFromReadCommand(keyspace, key, columnFamily, now, filter);
         final SliceQueryPager pager = new SliceQueryPager(command, consistencyLevel, false);
 
-        ColumnCounter counter = filter.columnCounter(Schema.instance.getComparator(keyspace, columnFamily), now);
+        ColumnCounter counter = filter.columnCounter(Schema.instance.getCFMetaData(keyspace, columnFamily).comparator, now);
         while (!pager.isExhausted())
         {
             List<Row> next = pager.fetchPage(pageSize);

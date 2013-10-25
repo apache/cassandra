@@ -74,7 +74,7 @@ public class AlterTableStatement
         switch (oType)
         {
             case ADD:
-                cfm.addColumnDefinition(ColumnDefinition.regularDef(columnName, TypeParser.parse(validator), null));
+                cfm.addColumnDefinition(ColumnDefinition.regularDef(cfm, columnName, TypeParser.parse(validator), null));
                 break;
 
             case ALTER:
@@ -102,7 +102,7 @@ public class AlterTableStatement
                                     this.columnName,
                                     columnFamily));
 
-                    toUpdate.setValidator(TypeParser.parse(validator));
+                    cfm.addOrReplaceColumnDefinition(toUpdate.withNewType(TypeParser.parse(validator)));
                 }
                 break;
 

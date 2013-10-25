@@ -53,9 +53,9 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
 
     public static CompositesIndex create(ColumnDefinition cfDef)
     {
-        switch (cfDef.type)
+        switch (cfDef.kind)
         {
-            case CLUSTERING_KEY:
+            case CLUSTERING_COLUMN:
                 return new CompositesIndexOnClusteringKey();
             case REGULAR:
                 return new CompositesIndexOnRegular();
@@ -70,9 +70,9 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
     // Check SecondaryIndex.getIndexComparator if you want to know why this is static
     public static CompositeType getIndexComparator(CFMetaData baseMetadata, ColumnDefinition cfDef)
     {
-        switch (cfDef.type)
+        switch (cfDef.kind)
         {
-            case CLUSTERING_KEY:
+            case CLUSTERING_COLUMN:
                 return CompositesIndexOnClusteringKey.buildIndexComparator(baseMetadata, cfDef);
             case REGULAR:
                 return CompositesIndexOnRegular.buildIndexComparator(baseMetadata, cfDef);

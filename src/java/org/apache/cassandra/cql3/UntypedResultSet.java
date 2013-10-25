@@ -83,7 +83,7 @@ public class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         {
             this.columns.addAll(names);
             for (int i = 0; i < names.size(); i++)
-                data.put(names.get(i).toString(), columns.get(i));
+                data.put(names.get(i).name.toString(), columns.get(i));
         }
 
         public boolean has(String column)

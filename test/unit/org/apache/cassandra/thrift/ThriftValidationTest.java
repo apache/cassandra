@@ -57,7 +57,7 @@ public class ThriftValidationTest extends SchemaLoader
         // should not throw IRE here
         try
         {
-            newMetadata.addColumnDefinition(ColumnDefinition.partitionKeyDef(AsciiType.instance.decompose("id"), UTF8Type.instance, null));
+            newMetadata.addColumnDefinition(ColumnDefinition.partitionKeyDef(metaData, AsciiType.instance.decompose("id"), UTF8Type.instance, null));
             newMetadata.validate();
         }
         catch (ConfigurationException e)
@@ -73,7 +73,7 @@ public class ThriftValidationTest extends SchemaLoader
         // add a column with name = "id"
         try
         {
-            newMetadata.addColumnDefinition(ColumnDefinition.regularDef(ByteBufferUtil.bytes("id"), UTF8Type.instance, null));
+            newMetadata.addColumnDefinition(ColumnDefinition.regularDef(metaData, ByteBufferUtil.bytes("id"), UTF8Type.instance, null));
             newMetadata.validate();
         }
         catch (ConfigurationException e)

@@ -78,12 +78,12 @@ public class UpdateParameters
         return new RangeTombstone(start, end, timestamp - 1, localDeletionTime);
     }
 
-    public List<Pair<ByteBuffer, Column>> getPrefetchedList(ByteBuffer rowKey, ByteBuffer cql3ColumnName)
+    public List<Pair<ByteBuffer, Column>> getPrefetchedList(ByteBuffer rowKey, ColumnIdentifier cql3ColumnName)
     {
         if (prefetchedLists == null)
             return Collections.emptyList();
 
         ColumnGroupMap m = prefetchedLists.get(rowKey);
-        return m == null ? Collections.<Pair<ByteBuffer, Column>>emptyList() : m.getCollection(cql3ColumnName);
+        return m == null ? Collections.<Pair<ByteBuffer, Column>>emptyList() : m.getCollection(cql3ColumnName.bytes);
     }
 }

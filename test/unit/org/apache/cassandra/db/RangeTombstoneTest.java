@@ -271,13 +271,8 @@ public class RangeTombstoneTest extends SchemaLoader
         cfs.setCompactionStrategyClass(SizeTieredCompactionStrategy.class.getCanonicalName());
         if (cfs.indexManager.getIndexForColumn(indexedColumnName) == null)
         {
-            ColumnDefinition cd = new ColumnDefinition(indexedColumnName,
-                                                       cfs.getComparator(),
-                                                       IndexType.CUSTOM,
-                                                       ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, TestIndex.class.getName()),
-                                                       "test_index",
-                                                       0,
-                                                       null);
+            ColumnDefinition cd = ColumnDefinition.regularDef(cfs.metadata, indexedColumnName, cfs.getComparator(), 0)
+                                                  .setIndex("test_index", IndexType.CUSTOM, ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, TestIndex.class.getName()));
             cfs.indexManager.addIndexedColumn(cd);
         }
 
@@ -315,13 +310,8 @@ public class RangeTombstoneTest extends SchemaLoader
         cfs.setCompactionStrategyClass(SizeTieredCompactionStrategy.class.getCanonicalName());
         if (cfs.indexManager.getIndexForColumn(indexedColumnName) == null)
         {
-            ColumnDefinition cd = new ColumnDefinition(indexedColumnName,
-                                                       cfs.getComparator(),
-                                                       IndexType.CUSTOM,
-                                                       ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, TestIndex.class.getName()),
-                                                       "test_index",
-                                                       0,
-                                                       null);
+            ColumnDefinition cd = ColumnDefinition.regularDef(cfs.metadata, indexedColumnName, cfs.getComparator(), 0)
+                                                  .setIndex("test_index", IndexType.CUSTOM, ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, TestIndex.class.getName()));
             cfs.indexManager.addIndexedColumn(cd);
         }
 

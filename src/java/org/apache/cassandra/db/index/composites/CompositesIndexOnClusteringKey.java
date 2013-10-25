@@ -29,7 +29,7 @@ import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
 
 /**
- * Index on a CLUSTERING_KEY column definition.
+ * Index on a CLUSTERING_COLUMN column definition.
  *
  * A cell indexed by this index will have the general form:
  *   ck_0 ... ck_n c_name : v
@@ -51,13 +51,13 @@ public class CompositesIndexOnClusteringKey extends CompositesIndex
     {
         // Index cell names are rk ck_0 ... ck_{i-1} ck_{i+1} ck_n, so n
         // components total (where n is the number of clustering keys)
-        int ckCount = baseMetadata.clusteringKeyColumns().size();
+        int ckCount = baseMetadata.clusteringColumns().size();
         List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(ckCount);
         List<AbstractType<?>> ckTypes = baseMetadata.comparator.getComponents();
         types.add(SecondaryIndex.keyComparator);
-        for (int i = 0; i < columnDef.componentIndex; i++)
+        for (int i = 0; i < columnDef.position(); i++)
             types.add(ckTypes.get(i));
-        for (int i = columnDef.componentIndex + 1; i < ckCount; i++)
+        for (int i = columnDef.position() + 1; i < ckCount; i++)
             types.add(ckTypes.get(i));
         return CompositeType.getInstance(types);
     }
@@ -66,36 +66,36 @@ public class CompositesIndexOnClusteringKey extends CompositesIndex
     {
         CompositeType baseComparator = (CompositeType)baseCfs.getComparator();
         ByteBuffer[] components = baseComparator.split(column.name());
-        return components[columnDef.componentIndex];
+        return components[columnDef.position()];
     }
 
     protected ColumnNameBuilder makeIndexColumnNameBuilder(ByteBuffer rowKey, ByteBuffer columnName)
     {
-        int ckCount = baseCfs.metadata.clusteringKeyColumns().size();
+        int ckCount = baseCfs.metadata.clusteringColumns().size();
         CompositeType baseComparator = (CompositeType)baseCfs.getComparator();
         ByteBuffer[] components = baseComparator.split(columnName);
         CompositeType.Builder builder = getIndexComparator().builder();
         builder.add(rowKey);
 
-        for (int i = 0; i < Math.min(components.length, columnDef.componentIndex); i++)
+        for (int i = 0; i < Math.min(components.length, columnDef.position()); i++)
             builder.add(components[i]);
-        for (int i = columnDef.componentIndex + 1; i < Math.min(components.length, ckCount); i++)
+        for (int i = columnDef.position() + 1; i < Math.min(components.length, ckCount); i++)
             builder.add(components[i]);
         return builder;
     }
 
     public IndexedEntry decodeEntry(DecoratedKey indexedValue, Column indexEntry)
     {
-        int ckCount = baseCfs.metadata.clusteringKeyColumns().size();
+        int ckCount = baseCfs.metadata.clusteringColumns().size();
         ByteBuffer[] components = getIndexComparator().split(indexEntry.name());
 
         ColumnNameBuilder builder = getBaseComparator().builder();
-        for (int i = 0; i < columnDef.componentIndex; i++)
+        for (int i = 0; i < columnDef.position(); i++)
             builder.add(components[i + 1]);
 
         builder.add(indexedValue.key);
 
-        for (int i = columnDef.componentIndex + 1; i < ckCount; i++)
+        for (int i = columnDef.position() + 1; i < ckCount; i++)
             builder.add(components[i]);
 
         return new IndexedEntry(indexedValue, indexEntry.name(), indexEntry.timestamp(), components[0], builder);

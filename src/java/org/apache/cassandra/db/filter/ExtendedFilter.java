@@ -180,7 +180,7 @@ public abstract class ExtendedFilter
              * We also don't want to do for paging ranges as the actual filter depends on the row key (it would
              * probably be possible to make it work but we won't really use it so we don't bother).
              */
-            if (cfs.getComparator() instanceof CompositeType || dataRange instanceof DataRange.Paging)
+            if (cfs.metadata.hasCompositeComparator() || dataRange instanceof DataRange.Paging)
                 return null;
 
             IDiskAtomFilter filter = dataRange.columnFilter(null); // ok since not a paging range
@@ -251,7 +251,7 @@ public abstract class ExtendedFilter
              * 2) We don't yet allow non-indexed range slice with filters in CQL3 (i.e. this will never be
              * called by CFS.filter() for composites).
              */
-            assert !(cfs.getComparator() instanceof CompositeType);
+            assert !cfs.metadata.hasCompositeComparator();
 
             if (!needsExtraQuery(rowKey.key, data))
                 return null;
@@ -302,7 +302,7 @@ public abstract class ExtendedFilter
                 else
                 {
                     dataValue = extractDataValue(def, rowKey.key, data, builder);
-                    validator = def.getValidator();
+                    validator = def.type;
                 }
 
                 if (dataValue == null)
@@ -317,16 +317,16 @@ public abstract class ExtendedFilter
 
         private ByteBuffer extractDataValue(ColumnDefinition def, ByteBuffer rowKey, ColumnFamily data, ColumnNameBuilder builder)
         {
-            switch (def.type)
+            switch (def.kind)
             {
                 case PARTITION_KEY:
-                    return def.componentIndex == null
+                    return def.isOnAllComponents()
                          ? rowKey
-                         : ((CompositeType)data.metadata().getKeyValidator()).split(rowKey)[def.componentIndex];
-                case CLUSTERING_KEY:
-                    return builder.get(def.componentIndex);
+                         : ((CompositeType)data.metadata().getKeyValidator()).split(rowKey)[def.position()];
+                case CLUSTERING_COLUMN:
+                    return builder.get(def.position());
                 case REGULAR:
-                    ByteBuffer colName = builder == null ? def.name : builder.copy().add(def.name).build();
+                    ByteBuffer colName = builder == null ? def.name.bytes : builder.copy().add(def.name).build();
                     Column column = data.getColumn(colName);
                     return column == null ? null : column.value();
                 case COMPACT_VALUE:

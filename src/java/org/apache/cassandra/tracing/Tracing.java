@@ -107,7 +107,7 @@ public class Tracing
 
     public static ByteBuffer buildName(CFMetaData meta, ByteBuffer... args)
     {
-        ColumnNameBuilder builder = meta.getCfDef().getColumnNameBuilder();
+        ColumnNameBuilder builder = meta.getColumnNameBuilder();
         for (ByteBuffer arg : args)
             builder.add(arg);
         return builder.build();

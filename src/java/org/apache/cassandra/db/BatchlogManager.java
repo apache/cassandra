@@ -284,7 +284,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     private static ByteBuffer columnName(String name)
     {
-        return CFMetaData.BatchlogCf.getCfDef().getColumnNameBuilder().add(UTF8Type.instance.decompose(name)).build();
+        return CFMetaData.BatchlogCf.getColumnNameBuilder().add(UTF8Type.instance.decompose(name)).build();
     }
 
     // force flush + compaction to reclaim space from the replayed batches

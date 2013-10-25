@@ -23,8 +23,9 @@ package org.apache.cassandra.config;
 
 import org.junit.Test;
 
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnDefinitionTest
@@ -32,18 +33,20 @@ public class ColumnDefinitionTest
     @Test
     public void testSerializeDeserialize() throws Exception
     {
-        ColumnDefinition cd0 = ColumnDefinition.regularDef(ByteBufferUtil.bytes("TestColumnDefinitionName0"), BytesType.instance, null)
+        CFMetaData cfm = new CFMetaData("ks", "cf", ColumnFamilyType.Standard, UTF8Type.instance);
+
+        ColumnDefinition cd0 = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinitionName0"), BytesType.instance, null)
                                                .setIndex("random index name 0", IndexType.KEYS, null);
 
-        ColumnDefinition cd1 = ColumnDefinition.regularDef(ByteBufferUtil.bytes("TestColumnDefinition1"), LongType.instance, null);
+        ColumnDefinition cd1 = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition1"), LongType.instance, null);
 
-        testSerializeDeserialize(cd0);
-        testSerializeDeserialize(cd1);
+        testSerializeDeserialize(cfm, cd0);
+        testSerializeDeserialize(cfm, cd1);
     }
 
-    protected void testSerializeDeserialize(ColumnDefinition cd) throws Exception
+    protected void testSerializeDeserialize(CFMetaData cfm, ColumnDefinition cd) throws Exception
     {
-        ColumnDefinition newCd = ColumnDefinition.fromThrift(cd.toThrift(), false);
+        ColumnDefinition newCd = ColumnDefinition.fromThrift(cfm, cd.toThrift());
         assert cd != newCd;
         assert cd.hashCode() == newCd.hashCode();
         assert cd.equals(newCd);

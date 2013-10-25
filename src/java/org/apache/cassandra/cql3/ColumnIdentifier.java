@@ -29,25 +29,25 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier>
 {
-    public final ByteBuffer key;
+    public final ByteBuffer bytes;
     private final String text;
 
     public ColumnIdentifier(String rawText, boolean keepCase)
     {
         this.text = keepCase ? rawText : rawText.toLowerCase(Locale.US);
-        this.key = ByteBufferUtil.bytes(this.text);
+        this.bytes = ByteBufferUtil.bytes(this.text);
     }
 
-    public ColumnIdentifier(ByteBuffer key, AbstractType type)
+    public ColumnIdentifier(ByteBuffer bytes, AbstractType type)
     {
-        this.key = key;
-        this.text = type.getString(key);
+        this.bytes = bytes;
+        this.text = type.getString(bytes);
     }
 
     @Override
     public final int hashCode()
     {
-        return key.hashCode();
+        return bytes.hashCode();
     }
 
     @Override
@@ -56,7 +56,7 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
         if(!(o instanceof ColumnIdentifier))
             return false;
         ColumnIdentifier that = (ColumnIdentifier)o;
-        return key.equals(that.key);
+        return bytes.equals(that.bytes);
     }
 
     @Override
@@ -67,6 +67,6 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
 
     public int compareTo(ColumnIdentifier other)
     {
-        return key.compareTo(other.key);
+        return bytes.compareTo(other.bytes);
     }
 }

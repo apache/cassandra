@@ -49,7 +49,7 @@ public class CompositesIndexOnRegular extends CompositesIndex
 {
     public static CompositeType buildIndexComparator(CFMetaData baseMetadata, ColumnDefinition columnDef)
     {
-        int prefixSize = columnDef.componentIndex;
+        int prefixSize = columnDef.position();
         List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(prefixSize + 1);
         types.add(SecondaryIndex.keyComparator);
         for (int i = 0; i < prefixSize; i++)
@@ -68,7 +68,7 @@ public class CompositesIndexOnRegular extends CompositesIndex
         ByteBuffer[] components = baseComparator.split(columnName);
         CompositeType.Builder builder = getIndexComparator().builder();
         builder.add(rowKey);
-        for (int i = 0; i < Math.min(columnDef.componentIndex, components.length); i++)
+        for (int i = 0; i < Math.min(columnDef.position(), components.length); i++)
             builder.add(components[i]);
         return builder;
     }
@@ -77,7 +77,7 @@ public class CompositesIndexOnRegular extends CompositesIndex
     {
         ByteBuffer[] components = getIndexComparator().split(indexEntry.name());
         CompositeType.Builder builder = getBaseComparator().builder();
-        for (int i = 0; i < columnDef.componentIndex; i++)
+        for (int i = 0; i < columnDef.position(); i++)
             builder.add(components[i + 1]);
         return new IndexedEntry(indexedValue, indexEntry.name(), indexEntry.timestamp(), components[0], builder);
     }
@@ -87,8 +87,8 @@ public class CompositesIndexOnRegular extends CompositesIndex
     {
         ByteBuffer[] components = getBaseComparator().split(name);
         AbstractType<?> comp = baseCfs.metadata.getColumnDefinitionComparator(columnDef);
-        return components.length > columnDef.componentIndex
-            && comp.compare(components[columnDef.componentIndex], columnDef.name) == 0;
+        return components.length > columnDef.position()
+            && comp.compare(components[columnDef.position()], columnDef.name.bytes) == 0;
     }
 
     public boolean isStale(IndexedEntry entry, ColumnFamily data, long now)
@@ -99,6 +99,6 @@ public class CompositesIndexOnRegular extends CompositesIndex
             return true;
 
         ByteBuffer liveValue = liveColumn.value();
-        return columnDef.getValidator().compare(entry.indexValue.key, liveValue) != 0;
+        return columnDef.type.compare(entry.indexValue.key, liveValue) != 0;
     }
 }

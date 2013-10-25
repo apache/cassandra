@@ -32,6 +32,8 @@ public interface ColumnNameBuilder
      */
     public ColumnNameBuilder add(ByteBuffer bb);
 
+    public ColumnNameBuilder add(ColumnIdentifier name);
+
     /**
      * Add a new ByteBuffer as the next component for this name.
      * @param t the ByteBuffer to add

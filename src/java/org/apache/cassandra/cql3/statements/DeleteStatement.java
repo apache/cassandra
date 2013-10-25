@@ -22,6 +22,7 @@ import java.util.*;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.Pair;
@@ -44,12 +45,11 @@ public class DeleteStatement extends ModificationStatement
     public ColumnFamily updateForKey(ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params)
     throws InvalidRequestException
     {
-        CFDefinition cfDef = cfm.getCfDef();
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfm);
         List<Operation> deletions = getOperations();
 
-        boolean fullKey = builder.componentCount() == cfDef.columns.size();
-        boolean isRange = cfDef.isCompact ? !fullKey : (!fullKey || deletions.isEmpty());
+        boolean fullKey = builder.componentCount() == cfm.clusteringColumns().size();
+        boolean isRange = cfm.isDense() ? !fullKey : (!fullKey || deletions.isEmpty());
 
         if (!deletions.isEmpty() && isRange)
             throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s since %s specified", getFirstEmptyKey(), deletions.get(0).columnName));
@@ -71,7 +71,7 @@ public class DeleteStatement extends ModificationStatement
             else
             {
                 // Delete specific columns
-                if (cfDef.isCompact)
+                if (cfm.isDense())
                 {
                     ByteBuffer columnName = builder.build();
                     cf.addColumn(params.makeTombstone(columnName));
@@ -103,22 +103,22 @@ public class DeleteStatement extends ModificationStatement
             this.whereClause = whereClause;
         }
 
-        protected ModificationStatement prepareInternal(CFDefinition cfDef, VariableSpecifications boundNames, Attributes attrs) throws InvalidRequestException
+        protected ModificationStatement prepareInternal(CFMetaData cfm, VariableSpecifications boundNames, Attributes attrs) throws InvalidRequestException
         {
-            DeleteStatement stmt = new DeleteStatement(boundNames.size(), cfDef.cfm, attrs);
+            DeleteStatement stmt = new DeleteStatement(boundNames.size(), cfm, attrs);
 
             for (Operation.RawDeletion deletion : deletions)
             {
-                CFDefinition.Name name = cfDef.get(deletion.affectedColumn());
-                if (name == null)
+                ColumnDefinition def = cfm.getColumnDefinition(deletion.affectedColumn());
+                if (def == null)
                     throw new InvalidRequestException(String.format("Unknown identifier %s", deletion.affectedColumn()));
 
                 // For compact, we only have one value except the key, so the only form of DELETE that make sense is without a column
                 // list. However, we support having the value name for coherence with the static/sparse case
-                if (name.kind != CFDefinition.Name.Kind.COLUMN_METADATA && name.kind != CFDefinition.Name.Kind.VALUE_ALIAS)
-                    throw new InvalidRequestException(String.format("Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", name));
+                if (def.kind != ColumnDefinition.Kind.REGULAR && def.kind != ColumnDefinition.Kind.COMPACT_VALUE)
+                    throw new InvalidRequestException(String.format("Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", def.name));
 
-                Operation op = deletion.prepare(name);
+                Operation op = deletion.prepare(def);
                 op.collectMarkerSpecification(boundNames);
                 stmt.addOperation(op);
             }

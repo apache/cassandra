@@ -33,11 +33,4 @@ public class ColumnSpecification
         this.name = name;
         this.type = type;
     }
-
-    @Override
-    public String toString()
-    {
-        // Not fully conventional, but convenient (for error message to users in particular)
-        return name.toString();
-    }
 }

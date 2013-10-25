@@ -50,7 +50,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(baseCfs.metadata, columnDef, indexComparator);
         indexCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.keyspace,
                                                              indexedCfMetadata.cfName,
-                                                             new LocalPartitioner(columnDef.getValidator()),
+                                                             new LocalPartitioner(columnDef.type),
                                                              indexedCfMetadata);
     }
 
@@ -66,7 +66,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
                              baseCfs.name,
                              getExpressionComparator().getString(expr.column),
                              expr.operator,
-                             baseCfs.metadata.getColumnDefinition(expr.column).getValidator().getString(expr.value));
+                             baseCfs.metadata.getColumnDefinition(expr.column).type.getString(expr.value));
     }
 
     public void delete(ByteBuffer rowKey, Column column)

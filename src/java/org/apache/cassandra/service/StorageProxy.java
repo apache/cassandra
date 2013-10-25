@@ -1478,7 +1478,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         else
         {
-            if (cfs.metadata.getCfDef().isCompact)
+            if (cfs.metadata.isDense())
             {
                 // one storage row per result row, so use key estimate directly
                 resultRowsPerRange = cfs.estimateKeys();

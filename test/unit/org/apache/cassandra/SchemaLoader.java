@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
@@ -126,12 +127,6 @@ public class SchemaLoader
         aliases.put((byte)'t', TimeUUIDType.instance);
         AbstractType<?> dynamicComposite = DynamicCompositeType.getInstance(aliases);
 
-        // these column definitions will will be applied to the jdbc utf and integer column familes respectively.
-        Map<ByteBuffer, ColumnDefinition> integerColumn = new HashMap<ByteBuffer, ColumnDefinition>();
-        integerColumn.put(IntegerType.instance.fromString("42"), ColumnDefinition.regularDef(IntegerType.instance.fromString("42"), UTF8Type.instance, null));
-        Map<ByteBuffer, ColumnDefinition> utf8Column = new HashMap<ByteBuffer, ColumnDefinition>();
-        utf8Column.put(UTF8Type.instance.fromString("fortytwo"), ColumnDefinition.regularDef(UTF8Type.instance.fromString("fortytwo"), IntegerType.instance, null));
-
         // Make it easy to test compaction
         Map<String, String> compactionOptions = new HashMap<String, String>();
         compactionOptions.put("tombstone_compaction_interval", "1");
@@ -183,8 +178,8 @@ public class SchemaLoader
                                                           bytes)
                                                    .defaultValidator(CounterColumnType.instance),
                                            superCFMD(ks1, "SuperDirectGC", BytesType.instance).gcGraceSeconds(0),
-                                           jdbcCFMD(ks1, "JdbcInteger", IntegerType.instance).columnMetadata(integerColumn),
-                                           jdbcCFMD(ks1, "JdbcUtf8", UTF8Type.instance).columnMetadata(utf8Column),
+                                           jdbcCFMD(ks1, "JdbcInteger", IntegerType.instance).addColumnDefinition(integerColumn("ks1", "JdbcInteger")),
+                                           jdbcCFMD(ks1, "JdbcUtf8", UTF8Type.instance).addColumnDefinition(utf8Column("ks1", "JdbcUtf8")),
                                            jdbcCFMD(ks1, "JdbcLong", LongType.instance),
                                            jdbcCFMD(ks1, "JdbcBytes", bytes),
                                            jdbcCFMD(ks1, "JdbcAscii", AsciiType.instance),
@@ -308,23 +303,43 @@ public class SchemaLoader
         return schema;
     }
 
+    private static ColumnDefinition integerColumn(String ksName, String cfName)
+    {
+        return new ColumnDefinition(ksName,
+                                    cfName,
+                                    new ColumnIdentifier(IntegerType.instance.fromString("42"), IntegerType.instance),
+                                    UTF8Type.instance,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    ColumnDefinition.Kind.REGULAR);
+    }
+
+    private static ColumnDefinition utf8Column(String ksName, String cfName)
+    {
+        return new ColumnDefinition(ksName,
+                                    cfName,
+                                    new ColumnIdentifier("fortytwo", true),
+                                    UTF8Type.instance,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    ColumnDefinition.Kind.REGULAR);
+    }
+
     private static CFMetaData perRowIndexedCFMD(String ksName, String cfName, boolean withOldCfIds)
     {
         final Map<String, String> indexOptions = Collections.singletonMap(
                                                       SecondaryIndex.CUSTOM_INDEX_OPTION_NAME,
                                                       PerRowSecondaryIndexTest.TestIndex.class.getName());
-        return standardCFMD(ksName, cfName)
-                .keyValidator(AsciiType.instance)
-                .columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>()
-                {{
-                        ByteBuffer cName = ByteBuffer.wrap("indexed".getBytes(Charsets.UTF_8));
-                        put(cName, new ColumnDefinition(cName,
-                                AsciiType.instance,
-                                IndexType.CUSTOM,
-                                indexOptions,
-                                ByteBufferUtil.bytesToHex(cName),
-                                null, ColumnDefinition.Type.REGULAR));
-                }});
+
+        CFMetaData cfm =  standardCFMD(ksName, cfName).keyValidator(AsciiType.instance);
+
+        ByteBuffer cName = ByteBufferUtil.bytes("indexed");
+        return cfm.addOrReplaceColumnDefinition(ColumnDefinition.regularDef(cfm, cName, AsciiType.instance, null)
+                                                                .setIndex("indexe1", IndexType.CUSTOM, indexOptions));
     }
 
     private static void useCompression(List<KSMetaData> schema)
@@ -352,30 +367,22 @@ public class SchemaLoader
     }
     private static CFMetaData indexCFMD(String ksName, String cfName, final Boolean withIdxType) throws ConfigurationException
     {
-        return standardCFMD(ksName, cfName)
-               .keyValidator(AsciiType.instance)
-               .columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>()
-                   {{
-                        ByteBuffer cName = ByteBuffer.wrap("birthdate".getBytes(Charsets.UTF_8));
-                        IndexType keys = withIdxType ? IndexType.KEYS : null;
-                        put(cName, ColumnDefinition.regularDef(cName, LongType.instance, null).setIndex(withIdxType ? ByteBufferUtil.bytesToHex(cName) : null, keys, null));
-                    }});
+        CFMetaData cfm = standardCFMD(ksName, cfName).keyValidator(AsciiType.instance);
+
+        ByteBuffer cName = ByteBufferUtil.bytes("birthdate");
+        IndexType keys = withIdxType ? IndexType.KEYS : null;
+        return cfm.addColumnDefinition(ColumnDefinition.regularDef(cfm, cName, LongType.instance, null)
+                                                       .setIndex(withIdxType ? ByteBufferUtil.bytesToHex(cName) : null, keys, null));
     }
     private static CFMetaData compositeIndexCFMD(String ksName, String cfName, final Boolean withIdxType, boolean withOldCfIds) throws ConfigurationException
     {
         final CompositeType composite = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{UTF8Type.instance, UTF8Type.instance})); 
-        return new CFMetaData(ksName,
-                cfName,
-                ColumnFamilyType.Standard,
-                composite,
-                null)
-               .columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>()
-                {{
-                   ByteBuffer cName = ByteBuffer.wrap("col1".getBytes(Charsets.UTF_8));
-                   IndexType idxType = withIdxType ? IndexType.COMPOSITES : null;
-                   put(cName, ColumnDefinition.regularDef(cName, UTF8Type.instance, 1)
-                                              .setIndex(withIdxType ? "col1_idx" : null, idxType, Collections.<String, String>emptyMap()));
-                }});
+        CFMetaData cfm = new CFMetaData(ksName, cfName, ColumnFamilyType.Standard, composite, null);
+
+        ByteBuffer cName = ByteBufferUtil.bytes("col1");
+        IndexType idxType = withIdxType ? IndexType.COMPOSITES : null;
+        return cfm.addColumnDefinition(ColumnDefinition.regularDef(cfm, cName, UTF8Type.instance, 1)
+                                                       .setIndex(withIdxType ? "col1_idx" : null, idxType, Collections.<String, String>emptyMap()));
     }
     
     private static CFMetaData jdbcCFMD(String ksName, String cfName, AbstractType comp)

@@ -240,7 +240,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                                                                            entry.indexedEntryEnd(),
                                                                            false,
                                                                            Integer.MAX_VALUE,
-                                                                           baseCfs.metadata.clusteringKeyColumns().size());
+                                                                           baseCfs.metadata.clusteringColumns().size());
                         ColumnFamily newData = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, dataFilter, filter.timestamp));
                         if (newData == null || index.isStale(entry, newData, filter.timestamp))
                         {

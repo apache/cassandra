@@ -26,6 +26,7 @@ import java.util.Set;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
@@ -122,7 +123,7 @@ public class CreateColumnFamilyStatement
     }
 
     // Column definitions
-    private Map<ByteBuffer, ColumnDefinition> getColumns(AbstractType<?> comparator) throws InvalidRequestException
+    private Map<ByteBuffer, ColumnDefinition> getColumns(CFMetaData cfm) throws InvalidRequestException
     {
         Map<ByteBuffer, ColumnDefinition> columnDefs = new HashMap<ByteBuffer, ColumnDefinition>();
 
@@ -130,12 +131,12 @@ public class CreateColumnFamilyStatement
         {
             try
             {
-                ByteBuffer columnName = comparator.fromStringCQL2(col.getKey().getText());
+                ByteBuffer columnName = cfm.comparator.fromStringCQL2(col.getKey().getText());
                 String validatorClassName = CFPropDefs.comparators.containsKey(col.getValue())
                                           ? CFPropDefs.comparators.get(col.getValue())
                                           : col.getValue();
                 AbstractType<?> validator = TypeParser.parse(validatorClassName);
-                columnDefs.put(columnName, ColumnDefinition.regularDef(columnName, validator, null));
+                columnDefs.put(columnName, ColumnDefinition.regularDef(cfm, columnName, validator, null));
             }
             catch (ConfigurationException e)
             {
@@ -192,7 +193,7 @@ public class CreateColumnFamilyStatement
                    .defaultValidator(cfProps.getValidator())
                    .minCompactionThreshold(minCompactionThreshold)
                    .maxCompactionThreshold(maxCompactionThreshold)
-                   .columnMetadata(getColumns(comparator))
+                   .columnMetadata(getColumns(newCFMD))
                    .keyValidator(TypeParser.parse(CFPropDefs.comparators.get(getKeyType())))
                    .compactionStrategyClass(cfProps.compactionStrategyClass)
                    .compactionStrategyOptions(cfProps.compactionStrategyOptions)
@@ -206,7 +207,7 @@ public class CreateColumnFamilyStatement
 
             // CQL2 can have null keyAliases
             if (keyAlias != null)
-                newCFMD.addColumnDefinition(ColumnDefinition.partitionKeyDef(keyAlias, newCFMD.getKeyValidator(), null));
+                newCFMD.addColumnDefinition(ColumnDefinition.partitionKeyDef(newCFMD, keyAlias, newCFMD.getKeyValidator(), null));
         }
         catch (ConfigurationException e)
         {

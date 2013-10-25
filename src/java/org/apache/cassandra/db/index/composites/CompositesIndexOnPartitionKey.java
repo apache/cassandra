@@ -50,7 +50,7 @@ public class CompositesIndexOnPartitionKey extends CompositesIndex
 {
     public static CompositeType buildIndexComparator(CFMetaData baseMetadata, ColumnDefinition columnDef)
     {
-        int ckCount = baseMetadata.clusteringKeyColumns().size();
+        int ckCount = baseMetadata.clusteringColumns().size();
         List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(ckCount + 1);
         types.add(SecondaryIndex.keyComparator);
         types.addAll(baseMetadata.comparator.getComponents());
@@ -61,12 +61,12 @@ public class CompositesIndexOnPartitionKey extends CompositesIndex
     {
         CompositeType keyComparator = (CompositeType)baseCfs.metadata.getKeyValidator();
         ByteBuffer[] components = keyComparator.split(rowKey);
-        return components[columnDef.componentIndex];
+        return components[columnDef.position()];
     }
 
     protected ColumnNameBuilder makeIndexColumnNameBuilder(ByteBuffer rowKey, ByteBuffer columnName)
     {
-        int ckCount = baseCfs.metadata.clusteringKeyColumns().size();
+        int ckCount = baseCfs.metadata.clusteringColumns().size();
         CompositeType baseComparator = (CompositeType)baseCfs.getComparator();
         ByteBuffer[] components = baseComparator.split(columnName);
         CompositeType.Builder builder = getIndexComparator().builder();
@@ -78,7 +78,7 @@ public class CompositesIndexOnPartitionKey extends CompositesIndex
 
     public IndexedEntry decodeEntry(DecoratedKey indexedValue, Column indexEntry)
     {
-        int ckCount = baseCfs.metadata.clusteringKeyColumns().size();
+        int ckCount = baseCfs.metadata.clusteringColumns().size();
         ByteBuffer[] components = getIndexComparator().split(indexEntry.name());
 
         ColumnNameBuilder builder = getBaseComparator().builder();

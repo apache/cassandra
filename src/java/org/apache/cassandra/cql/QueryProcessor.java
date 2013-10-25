@@ -117,7 +117,7 @@ public class QueryProcessor
         // ...a range (slice) of column names
         else
         {
-            AbstractType<?> comparator = select.getComparator(metadata.ksName);
+            AbstractType<?> comparator = metadata.comparator;
             ByteBuffer start = select.getColumnStart().getByteBuffer(comparator,variables);
             ByteBuffer finish = select.getColumnFinish().getByteBuffer(comparator,variables);
 
@@ -187,7 +187,7 @@ public class QueryProcessor
         {
             // Left and right side of relational expression encoded according to comparator/validator.
             ByteBuffer entity = columnRelation.getEntity().getByteBuffer(metadata.comparator, variables);
-            ByteBuffer value = columnRelation.getValue().getByteBuffer(select.getValueValidator(metadata.ksName, entity), variables);
+            ByteBuffer value = columnRelation.getValue().getByteBuffer(metadata.getValueValidatorFromCellName(entity), variables);
 
             expressions.add(new IndexExpression(entity,
                                                 IndexExpression.Operator.valueOf(columnRelation.operator().toString()),
@@ -264,8 +264,9 @@ public class QueryProcessor
 
         if (select.getColumnRelations().size() > 0)
         {
-            AbstractType<?> comparator = select.getComparator(keyspace);
-            SecondaryIndexManager idxManager = Keyspace.open(keyspace).getColumnFamilyStore(select.getColumnFamily()).indexManager;
+            ColumnFamilyStore cfstore = Keyspace.open(keyspace).getColumnFamilyStore(select.getColumnFamily());
+            AbstractType<?> comparator = cfstore.metadata.comparator;
+            SecondaryIndexManager idxManager = cfstore.indexManager;
             for (Relation relation : select.getColumnRelations())
             {
                 ByteBuffer name = relation.getEntity().getByteBuffer(comparator, variables);
@@ -323,7 +324,7 @@ public class QueryProcessor
     throws InvalidRequestException
     {
         validateColumnName(name);
-        AbstractType<?> validator = metadata.getValueValidator(name);
+        AbstractType<?> validator = metadata.getValueValidatorFromCellName(name);
 
         try
         {
@@ -466,9 +467,9 @@ public class QueryProcessor
                                 if (c.isMarkedForDelete(now))
                                     continue;
 
-                                ColumnDefinition cd = metadata.getColumnDefinitionFromColumnName(c.name());
+                                ColumnDefinition cd = metadata.getColumnDefinitionFromCellName(c.name());
                                 if (cd != null)
-                                    result.schema.value_types.put(c.name(), TypeParser.getShortName(cd.getValidator()));
+                                    result.schema.value_types.put(c.name(), TypeParser.getShortName(cd.type));
 
                                 thriftColumns.add(thriftify(c));
                             }
@@ -504,9 +505,9 @@ public class QueryProcessor
                                 throw new AssertionError(e);
                             }
 
-                            ColumnDefinition cd = metadata.getColumnDefinitionFromColumnName(name);
+                            ColumnDefinition cd = metadata.getColumnDefinitionFromCellName(name);
                             if (cd != null)
-                                result.schema.value_types.put(name, TypeParser.getShortName(cd.getValidator()));
+                                result.schema.value_types.put(name, TypeParser.getShortName(cd.type));
                             org.apache.cassandra.db.Column c = row.cf.getColumn(name);
                             if (c == null || c.isMarkedForDelete(now))
                                 thriftColumns.add(new Column().setName(name));

@@ -23,8 +23,9 @@ import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 
-import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -522,18 +523,18 @@ public class CqlStorage extends AbstractCassandraStorage
             // classic thrift tables
             if (keys.size() == 0)
             {
-                CFDefinition cfDefinition = getCfDefinition(keyspace, column_family, client);
-                for (ColumnIdentifier column : cfDefinition.keys.keySet())
+                CFMetaData cfm = getCFMetaData(keyspace, column_family, client);
+                for (ColumnDefinition def : cfm.partitionKeyColumns())
                 {
-                    String key = column.toString();
+                    String key = def.name.toString();
                     logger.debug("name: {} ", key);
                     ColumnDef cDef = new ColumnDef();
                     cDef.name = ByteBufferUtil.bytes(key);
                     keys.add(cDef);
                 }
-                for (ColumnIdentifier column : cfDefinition.columns.keySet())
+                for (ColumnDefinition def : cfm.clusteringColumns())
                 {
-                    String key = column.toString();
+                    String key = def.name.toString();
                     logger.debug("name: {} ", key);
                     ColumnDef cDef = new ColumnDef();
                     cDef.name = ByteBufferUtil.bytes(key);

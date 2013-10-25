@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.IndexType;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.ExtendedFilter;
@@ -100,7 +101,7 @@ public class SecondaryIndexManager
 
         // TODO: allow all ColumnDefinition type
         for (ColumnDefinition cdef : baseCfs.metadata.allColumns())
-            if (cdef.getIndexType() != null && !indexedColumnNames.contains(cdef.name))
+            if (cdef.getIndexType() != null && !indexedColumnNames.contains(cdef.name.bytes))
                 addIndexedColumn(cdef);
 
         Set<SecondaryIndex> reloadedIndexes = Collections.newSetFromMap(new IdentityHashMap<SecondaryIndex, Boolean>());
@@ -231,8 +232,7 @@ public class SecondaryIndexManager
      */
     public synchronized Future<?> addIndexedColumn(ColumnDefinition cdef)
     {
-
-        if (indexesByColumn.containsKey(cdef.name))
+        if (indexesByColumn.containsKey(cdef.name.bytes))
             return null;
 
         assert cdef.getIndexType() != null;
@@ -278,11 +278,11 @@ public class SecondaryIndexManager
         // so we don't have to lock everything while we do the build. it's up to
         // the operator to wait
         // until the index is actually built before using in queries.
-        indexesByColumn.put(cdef.name, index);
+        indexesByColumn.put(cdef.name.bytes, index);
 
         // if we're just linking in the index to indexedColumns on an
         // already-built index post-restart, we're done
-        if (index.isIndexBuilt(cdef.name))
+        if (index.isIndexBuilt(cdef.name.bytes))
             return null;
 
         return index.buildIndexAsync();

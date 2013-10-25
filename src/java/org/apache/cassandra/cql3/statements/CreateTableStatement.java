@@ -87,11 +87,11 @@ public class CreateTableStatement extends SchemaAlteringStatement
     }
 
     // Column definitions
-    private Map<ByteBuffer, ColumnDefinition> getColumns()
+    private Map<ByteBuffer, ColumnDefinition> getColumns(CFMetaData cfm)
     {
         Map<ByteBuffer, ColumnDefinition> columnDefs = new HashMap<ByteBuffer, ColumnDefinition>();
         Integer componentIndex = null;
-        if (comparator instanceof CompositeType)
+        if (cfm.hasCompositeComparator())
         {
             CompositeType ct = (CompositeType) comparator;
             componentIndex = ct.types.get(ct.types.size() - 1) instanceof ColumnToCollectionType
@@ -101,7 +101,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
         for (Map.Entry<ColumnIdentifier, AbstractType> col : columns.entrySet())
         {
-            columnDefs.put(col.getKey().key, ColumnDefinition.regularDef(col.getKey().key, col.getValue(), componentIndex));
+            columnDefs.put(col.getKey().bytes, ColumnDefinition.regularDef(cfm, col.getKey().bytes, col.getValue(), componentIndex));
         }
 
         return columnDefs;
@@ -148,12 +148,12 @@ public class CreateTableStatement extends SchemaAlteringStatement
     {
         cfmd.defaultValidator(defaultValidator)
             .keyValidator(keyValidator)
-            .columnMetadata(getColumns());
+            .columnMetadata(getColumns(cfmd));
 
-        cfmd.addColumnMetadataFromAliases(keyAliases, keyValidator, ColumnDefinition.Type.PARTITION_KEY);
-        cfmd.addColumnMetadataFromAliases(columnAliases, comparator, ColumnDefinition.Type.CLUSTERING_KEY);
+        cfmd.addColumnMetadataFromAliases(keyAliases, keyValidator, ColumnDefinition.Kind.PARTITION_KEY);
+        cfmd.addColumnMetadataFromAliases(columnAliases, comparator, ColumnDefinition.Kind.CLUSTERING_COLUMN);
         if (valueAlias != null)
-            cfmd.addColumnMetadataFromAliases(Collections.<ByteBuffer>singletonList(valueAlias), defaultValidator, ColumnDefinition.Type.COMPACT_VALUE);
+            cfmd.addColumnMetadataFromAliases(Collections.<ByteBuffer>singletonList(valueAlias), defaultValidator, ColumnDefinition.Kind.COMPACT_VALUE);
 
         properties.applyToCFMetadata(cfmd);
     }
@@ -206,7 +206,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
                 {
                     if (definedCollections == null)
                         definedCollections = new HashMap<ByteBuffer, CollectionType>();
-                    definedCollections.put(id.key, (CollectionType)pt.getType());
+                    definedCollections.put(id.bytes, (CollectionType)pt.getType());
                 }
                 stmt.columns.put(id, pt.getType()); // we'll remove what is not a column below
             }
@@ -221,7 +221,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
             List<AbstractType<?>> keyTypes = new ArrayList<AbstractType<?>>(kAliases.size());
             for (ColumnIdentifier alias : kAliases)
             {
-                stmt.keyAliases.add(alias.key);
+                stmt.keyAliases.add(alias.bytes);
                 AbstractType<?> t = getTypeAndRemove(stmt.columns, alias);
                 if (t instanceof CounterColumnType)
                     throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", alias));
@@ -241,12 +241,12 @@ public class CreateTableStatement extends SchemaAlteringStatement
                     if (definedCollections != null)
                         throw new InvalidRequestException("Collection types are not supported with COMPACT STORAGE");
 
-                    stmt.comparator = CFDefinition.definitionType;
+                    stmt.comparator = UTF8Type.instance;
                 }
                 else
                 {
                     List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(definedCollections == null ? 1 : 2);
-                    types.add(CFDefinition.definitionType);
+                    types.add(UTF8Type.instance);
                     if (definedCollections != null)
                         types.add(ColumnToCollectionType.getInstance(definedCollections));
                     stmt.comparator = CompositeType.getInstance(types);
@@ -260,7 +260,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
                 {
                     if (definedCollections != null)
                         throw new InvalidRequestException("Collection types are not supported with COMPACT STORAGE");
-                    stmt.columnAliases.add(columnAliases.get(0).key);
+                    stmt.columnAliases.add(columnAliases.get(0).bytes);
                     stmt.comparator = getTypeAndRemove(stmt.columns, columnAliases.get(0));
                     if (stmt.comparator instanceof CounterColumnType)
                         throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", stmt.columnAliases.get(0)));
@@ -270,11 +270,11 @@ public class CreateTableStatement extends SchemaAlteringStatement
                     List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(columnAliases.size() + 1);
                     for (ColumnIdentifier t : columnAliases)
                     {
-                        stmt.columnAliases.add(t.key);
+                        stmt.columnAliases.add(t.bytes);
 
                         AbstractType<?> type = getTypeAndRemove(stmt.columns, t);
                         if (type instanceof CounterColumnType)
-                            throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", t.key));
+                            throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", t));
                         types.add(type);
                     }
 
@@ -287,7 +287,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
                     {
                         // For sparse, we must add the last UTF8 component
                         // and the collection type if there is one
-                        types.add(CFDefinition.definitionType);
+                        types.add(UTF8Type.instance);
                         if (definedCollections != null)
                             types.add(ColumnToCollectionType.getInstance(definedCollections));
                     }
@@ -317,7 +317,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
                     Map.Entry<ColumnIdentifier, AbstractType> lastEntry = stmt.columns.entrySet().iterator().next();
                     stmt.defaultValidator = lastEntry.getValue();
-                    stmt.valueAlias = lastEntry.getKey().key;
+                    stmt.valueAlias = lastEntry.getKey().bytes;
                     stmt.columns.remove(lastEntry.getKey());
                 }
             }
