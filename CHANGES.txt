@@ -1,3 +1,7 @@
+2.0.3
+ * Fix modifying column_metadata from thrift (CASSANDRA-6182)
+
+
 2.0.2
  * Update FailureDetector to use nanontime (CASSANDRA-4925)
  * Fix FileCacheService regressions (CASSANDRA-6149)
