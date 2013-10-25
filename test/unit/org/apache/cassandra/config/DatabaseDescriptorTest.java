@@ -31,14 +31,11 @@ import org.junit.runner.RunWith;
 
 import static org.junit.Assert.*;
 
-
-import java.io.IOException;
-
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class DatabaseDescriptorTest
 {
     @Test
-    public void testCFMetaDataSerialization() throws IOException, ConfigurationException, InvalidRequestException
+    public void testCFMetaDataSerialization() throws ConfigurationException, InvalidRequestException
     {
         // test serialization of all defined test CFs.
         for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
@@ -46,21 +43,21 @@ public class DatabaseDescriptorTest
             for (CFMetaData cfm : Schema.instance.getKeyspaceMetaData(keyspaceName).values())
             {
                 CFMetaData cfmDupe = CFMetaData.fromThrift(cfm.toThrift());
-                assert cfmDupe != null;
-                assert cfmDupe.equals(cfm);
+                assertNotNull(cfmDupe);
+                assertEquals(cfm, cfmDupe);
             }
         }
     }
 
     @Test
-    public void testKSMetaDataSerialization() throws IOException, ConfigurationException
+    public void testKSMetaDataSerialization() throws ConfigurationException
     {
         for (KSMetaData ksm : Schema.instance.getKeyspaceDefinitions())
         {
             // Not testing round-trip on the KsDef via serDe() because maps
             KSMetaData ksmDupe = KSMetaData.fromThrift(ksm.toThrift());
-            assert ksmDupe != null;
-            assert ksmDupe.equals(ksm);
+            assertNotNull(ksmDupe);
+            assertEquals(ksm, ksmDupe);
         }
     }
 
@@ -70,7 +67,7 @@ public class DatabaseDescriptorTest
     {
         SchemaLoader.cleanupAndLeaveDirs();
         DatabaseDescriptor.loadSchemas();
-        assert Schema.instance.getNonSystemKeyspaces().size() == 0;
+        assertEquals(0, Schema.instance.getNonSystemKeyspaces().size());
 
         Gossiper.instance.start((int)(System.currentTimeMillis() / 1000));
 
@@ -80,19 +77,19 @@ public class DatabaseDescriptorTest
             MigrationManager.announceNewKeyspace(KSMetaData.testMetadata("ks0", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
             MigrationManager.announceNewKeyspace(KSMetaData.testMetadata("ks1", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
 
-            assert Schema.instance.getKSMetaData("ks0") != null;
-            assert Schema.instance.getKSMetaData("ks1") != null;
+            assertNotNull(Schema.instance.getKSMetaData("ks0"));
+            assertNotNull(Schema.instance.getKSMetaData("ks1"));
 
             Schema.instance.clearKeyspaceDefinition(Schema.instance.getKSMetaData("ks0"));
             Schema.instance.clearKeyspaceDefinition(Schema.instance.getKSMetaData("ks1"));
 
-            assert Schema.instance.getKSMetaData("ks0") == null;
-            assert Schema.instance.getKSMetaData("ks1") == null;
+            assertNull(Schema.instance.getKSMetaData("ks0"));
+            assertNull(Schema.instance.getKSMetaData("ks1"));
 
             DatabaseDescriptor.loadSchemas();
 
-            assert Schema.instance.getKSMetaData("ks0") != null;
-            assert Schema.instance.getKSMetaData("ks1") != null;
+            assertNotNull(Schema.instance.getKSMetaData("ks0"));
+            assertNotNull(Schema.instance.getKSMetaData("ks1"));
         }
         finally
         {
