@@ -387,11 +387,13 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         // we don't care about types, they all get casted to ByteBuffers
     }
 
+    protected abstract ByteBuffer nullToBB();
+
     /** convert object to ByteBuffer */
     protected ByteBuffer objToBB(Object o)
     {
         if (o == null)
-            return (ByteBuffer)o;
+            return nullToBB();
         if (o instanceof java.lang.String)
             return ByteBuffer.wrap(new DataByteArray((String)o).get());
         if (o instanceof Integer)
