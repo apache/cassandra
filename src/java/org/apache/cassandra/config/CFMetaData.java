@@ -1460,7 +1460,7 @@ public final class CFMetaData
             if (fromThrift && cd.type != ColumnDefinition.Type.REGULAR)
                 continue;
 
-            cd.deleteFromSchema(rm, cfName, modificationTimestamp);
+            cd.deleteFromSchema(rm, cfName, getColumnDefinitionComparator(cd), modificationTimestamp);
         }
 
         // newly added columns
@@ -1505,7 +1505,7 @@ public final class CFMetaData
         cf.addAtom(new RangeTombstone(builder.build(), builder.buildAsEndOfRange(), timestamp, ldt));
 
         for (ColumnDefinition cd : column_metadata.values())
-            cd.deleteFromSchema(rm, cfName, timestamp);
+            cd.deleteFromSchema(rm, cfName, getColumnDefinitionComparator(cd), timestamp);
 
         for (TriggerDefinition td : triggers.values())
             td.deleteFromSchema(rm, cfName, timestamp);
