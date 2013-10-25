@@ -54,10 +54,10 @@ public class MmappedSegmentedFile extends SegmentedFile
      */
     private Segment floor(long position)
     {
-        assert 0 <= position && position < length: position + " vs " + length;
+        assert 0 <= position && position < length: String.format("%d >= %d in %s", position, length, path);
         Segment seg = new Segment(position, null);
         int idx = Arrays.binarySearch(segments, seg);
-        assert idx != -1 : "Bad position " + position + " in segments " + Arrays.toString(segments);
+        assert idx != -1 : String.format("Bad position %d for segments %s in %s", position, Arrays.toString(segments), path);
         if (idx < 0)
             // round down to entry at insertion point
             idx = -(idx + 2);
