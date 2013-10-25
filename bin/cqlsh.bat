@@ -16,6 +16,18 @@
 
 @echo off
 
-set DSDIR=%~dp0..
+if "%OS%" == "Windows_NT" setlocal
 
-"%DSDIR%\python\python.exe" "%DSDIR%\apache-cassandra\bin\cqlsh" %*
+python -V >nul 2>&1
+if ERRORLEVEL 1 goto err
+
+python "%~dp0\cqlsh" %*
+goto finally
+
+:err
+echo Can't detect Python version!
+
+:finally
+
+ENDLOCAL
+
