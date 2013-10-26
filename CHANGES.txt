@@ -1,5 +1,6 @@
 2.0.3
  * Fix modifying column_metadata from thrift (CASSANDRA-6182)
+ * cqlsh: fix LIST USERS output (CASSANDRA-6242)
 
 
 2.0.2

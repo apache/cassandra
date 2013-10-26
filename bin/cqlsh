@@ -917,7 +917,7 @@ class Shell(cmd.Cmd):
                 self.printerr(traceback.format_exc())
                 return False
 
-        if statement[:6].lower() == 'select':
+        if statement[:6].lower() == 'select' or statement.lower().startswith("list"):
             self.print_result(self.cursor, with_default_limit)
         elif self.cursor.rowcount == 1:
             # CAS INSERT/UPDATE
