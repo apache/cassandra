@@ -64,6 +64,7 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.paxos.*;
+import org.apache.cassandra.sink.SinkManager;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.*;
@@ -996,8 +997,12 @@ public class StorageProxy implements StorageProxyMBean
         {
             public void runMayThrow()
             {
-                rm.apply();
-                responseHandler.response(null);
+                IMutation processed = SinkManager.processWriteRequest(rm);
+                if (processed != null)
+                {
+                    processed.apply();
+                    responseHandler.response(null);
+                }
             }
         };
         StageManager.getStage(Stage.MUTATION).execute(runnable);
@@ -1108,8 +1113,12 @@ public class StorageProxy implements StorageProxyMBean
         {
             public void runMayThrow()
             {
-                assert mutation instanceof CounterMutation;
-                final CounterMutation cm = (CounterMutation) mutation;
+                IMutation processed = SinkManager.processWriteRequest(mutation);
+                if (processed == null)
+                    return;
+
+                assert processed instanceof CounterMutation;
+                final CounterMutation cm = (CounterMutation) processed;
 
                 // apply mutation
                 cm.apply();

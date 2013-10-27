@@ -62,6 +62,15 @@ public class DataTracker
         return view.get().memtablesPendingFlush;
     }
 
+    /**
+     * @return the active memtable and all the memtables that are pending flush.
+     */
+    public Iterable<Memtable> getAllMemtables()
+    {
+        View snapshot = view.get();
+        return Iterables.concat(snapshot.memtablesPendingFlush, Collections.singleton(snapshot.memtable));
+    }
+
     public Set<SSTableReader> getSSTables()
     {
         return view.get().sstables;

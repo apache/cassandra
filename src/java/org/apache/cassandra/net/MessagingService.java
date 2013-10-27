@@ -53,7 +53,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.metrics.ConnectionMetrics;
 import org.apache.cassandra.metrics.DroppedMessageMetrics;
-import org.apache.cassandra.net.sink.SinkManager;
+import org.apache.cassandra.sink.SinkManager;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.*;
@@ -709,9 +709,13 @@ public final class MessagingService implements MessagingServiceMBean
         if (state != null)
             state.trace("Message received from {}", message.from);
 
+        Verb verb = message.verb;
         message = SinkManager.processInboundMessage(message, id);
         if (message == null)
+        {
+            incrementRejectedMessages(verb);
             return;
+        }
 
         Runnable runnable = new MessageDeliveryTask(message, id, timestamp);
         TracingAwareExecutorService stage = StageManager.getStage(message.getMessageType());
@@ -797,6 +801,20 @@ public final class MessagingService implements MessagingServiceMBean
     {
         assert DROPPABLE_VERBS.contains(verb) : "Verb " + verb + " should not legally be dropped";
         droppedMessages.get(verb).dropped.mark();
+    }
+
+    /**
+     * Same as incrementDroppedMessages(), but allows non-droppable verbs. Called for IMessageSink-caused message drops.
+     */
+    private void incrementRejectedMessages(Verb verb)
+    {
+        DroppedMessageMetrics metrics = droppedMessages.get(verb);
+        if (metrics == null)
+        {
+            metrics = new DroppedMessageMetrics(verb);
+            droppedMessages.put(verb, metrics);
+        }
+        metrics.dropped.mark();
     }
 
     private void logDroppedMessages()

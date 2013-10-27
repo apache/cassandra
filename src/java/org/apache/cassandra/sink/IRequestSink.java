@@ -15,28 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.net.sink;
+package org.apache.cassandra.sink;
 
-import java.net.InetAddress;
+import org.apache.cassandra.db.IMutation;
 
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
-
-public interface IMessageSink
+public interface IRequestSink
 {
     /**
-     * Transform or drop an outgoing message
+     * Transform or drop a write request (represented by a RowMutation).
      *
-     * @return null if the message is dropped, or the transformed message to send, which may be just
-     * the original message
+     * @param mutation the RowMutation to be applied locally.
+     * @return null if the mutation is to be dropped, or the transformed mutation to apply, which may be just
+     * the original mutation.
      */
-    public MessageOut handleMessage(MessageOut message, int id, InetAddress to);
-
-    /**
-     * Transform or drop an incoming message
-     *
-     * @return null if the message is dropped, or the transformed message to receive, which may be just
-     * the original message
-     */
-    public MessageIn handleMessage(MessageIn message, int id, InetAddress to);
+    IMutation handleWriteRequest(IMutation mutation);
 }
