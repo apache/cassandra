@@ -2,6 +2,7 @@
  * Fix modifying column_metadata from thrift (CASSANDRA-6182)
  * cqlsh: fix LIST USERS output (CASSANDRA-6242)
  * Add IRequestSink interface (CASSANDRA-6248)
+ * Update memtable size while flushing (CASSANDRA-6249)
 
 
 2.0.2
