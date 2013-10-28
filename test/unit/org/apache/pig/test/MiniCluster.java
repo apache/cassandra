@@ -20,6 +20,7 @@ package org.apache.pig.test;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
@@ -59,7 +60,10 @@ public class MiniCluster extends MiniGenericCluster {
             m_conf.set("mapred.map.max.attempts", "2");
             m_conf.set("mapred.reduce.max.attempts", "2");
             m_conf.set("pig.jobcontrol.sleep", "100");
-            m_conf.writeXml(new FileOutputStream(conf_file));
+            try (OutputStream os = new FileOutputStream(conf_file))
+            {
+                m_conf.writeXml(os);
+            }
 
             // Set the system properties needed by Pig
             System.setProperty("cluster", m_conf.get("mapred.job.tracker"));
