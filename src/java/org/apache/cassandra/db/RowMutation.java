@@ -45,6 +45,7 @@ public class RowMutation implements IMutation
     public static final RowMutationSerializer serializer = new RowMutationSerializer();
     public static final String FORWARD_TO = "FWD_TO";
     public static final String FORWARD_FROM = "FWD_FRM";
+    static final int maxHintTTL = Integer.parseInt(System.getProperty("cassandra.maxHintTTL", String.valueOf(Integer.MAX_VALUE)));
 
     private final String table;
     private final ByteBuffer key;
@@ -128,7 +129,7 @@ public class RowMutation implements IMutation
      */
     public int calculateHintTTL()
     {
-        int ttl = Integer.MAX_VALUE;
+        int ttl = maxHintTTL;
         for (ColumnFamily cf : getColumnFamilies())
             ttl = Math.min(ttl, cf.metadata().getGcGraceSeconds());
         return ttl;
