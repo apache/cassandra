@@ -723,6 +723,8 @@ public class CassandraServer implements Cassandra.Iface
             ThriftClientState cState = state();
             String keyspace = cState.getKeyspace();
             cState.hasColumnFamilyAccess(keyspace, column_family, Permission.MODIFY);
+            // CAS updates can be used to simulate a get request, so should require Permission.SELECT.
+            cState.hasColumnFamilyAccess(keyspace, column_family, Permission.SELECT);
 
             CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_family, false);
             ThriftValidation.validateKey(metadata, key);
