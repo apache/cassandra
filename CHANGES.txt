@@ -5,6 +5,7 @@
  * add windows bat files for shell commands (CASSANDRA-6145)
  * Fix potential stack overflow during range tombstones insertion (CASSANDRA-6181)
  * (Hadoop) Make LOCAL_ONE the default consistency level (CASSANDRA-6214)
+ * Require logging in for Thrift CQL2/3 statement preparation (CASSANDRA-6254)
 
 
 1.2.11

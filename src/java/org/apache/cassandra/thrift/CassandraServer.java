@@ -1731,10 +1731,12 @@ public class CassandraServer implements Cassandra.Iface
 
         validateCQLVersion(2);
 
+        String queryString = uncompress(query,compression);
+        ThriftClientState cState = state();
+
         try
         {
-            ThriftClientState cState = state();
-            String queryString = uncompress(query,compression);
+            cState.validateLogin();
             return QueryProcessor.prepare(queryString, cState);
         }
         catch (RequestValidationException e)
@@ -1751,10 +1753,12 @@ public class CassandraServer implements Cassandra.Iface
 
         validateCQLVersion(3);
 
+        String queryString = uncompress(query,compression);
+        ThriftClientState cState = state();
+
         try
         {
-            ThriftClientState cState = state();
-            String queryString = uncompress(query,compression);
+            cState.validateLogin();
             return org.apache.cassandra.cql3.QueryProcessor.prepare(queryString, cState, true).toThriftPreparedResult();
         }
         catch (RequestValidationException e)
