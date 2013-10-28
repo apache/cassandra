@@ -103,6 +103,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     private volatile boolean hintedHandOffPaused = false;
 
     static final CompositeType comparator = CompositeType.getInstance(Arrays.<AbstractType<?>>asList(UUIDType.instance, Int32Type.instance));
+    static final int maxHintTTL = Integer.parseInt(System.getProperty("cassandra.maxHintTTL", String.valueOf(Integer.MAX_VALUE)));
 
     private final NonBlockingHashSet<InetAddress> queuedDeliveries = new NonBlockingHashSet<InetAddress>();
 
@@ -146,7 +147,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
      */
     public static int calculateHintTTL(RowMutation mutation)
     {
-        int ttl = Integer.MAX_VALUE;
+        int ttl = maxHintTTL;
         for (ColumnFamily cf : mutation.getColumnFamilies())
             ttl = Math.min(ttl, cf.metadata().getGcGraceSeconds());
         return ttl;
