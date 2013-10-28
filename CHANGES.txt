@@ -4,6 +4,7 @@
  * Add IRequestSink interface (CASSANDRA-6248)
  * Update memtable size while flushing (CASSANDRA-6249)
  * Provide hooks around CQL2/CQL3 statement execution (CASSANDRA-6252)
+ * Require Permission.SELECT for CAS updates (CASSANDRA-6247)
 
 
 2.0.2

@@ -104,6 +104,10 @@ public abstract class ModificationStatement implements CQLStatement
     public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
         state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.MODIFY);
+
+        // CAS updates can be used to simulate a SELECT query, so should require Permission.SELECT as well.
+        if (hasConditions())
+            state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.SELECT);
     }
 
     public void validate(ClientState state) throws InvalidRequestException
