@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import com.google.common.primitives.Ints;
 
@@ -29,6 +30,7 @@ import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.hooks.*;
 import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.db.*;
@@ -76,6 +78,39 @@ public class QueryProcessor
                                                                                                    .weigher(thriftMemoryUsageWeigher)
                                                                                                    .build();
 
+    private static final List<PreExecutionHook> preExecutionHooks = new CopyOnWriteArrayList<>();
+    private static final List<PostExecutionHook> postExecutionHooks = new CopyOnWriteArrayList<>();
+    private static final List<PostPreparationHook> postPreparationHooks = new CopyOnWriteArrayList<>();
+
+    public static void addPreExecutionHook(PreExecutionHook hook)
+    {
+        preExecutionHooks.add(hook);
+    }
+
+    public static void removePreExecutionHook(PreExecutionHook hook)
+    {
+        preExecutionHooks.remove(hook);
+    }
+
+    public static void addPostExecutionHook(PostExecutionHook hook)
+    {
+        postExecutionHooks.add(hook);
+    }
+
+    public static void removePostExecutionHook(PostExecutionHook hook)
+    {
+        postExecutionHooks.remove(hook);
+    }
+
+    public static void addPostPreparationHook(PostPreparationHook hook)
+    {
+        postPreparationHooks.add(hook);
+    }
+
+    public static void removePostPreparationHook(PostPreparationHook hook)
+    {
+        postPreparationHooks.remove(hook);
+    }
 
     public static CQLStatement getPrepared(MD5Digest id)
     {
@@ -119,15 +154,36 @@ public class QueryProcessor
             throw new InvalidRequestException("Invalid empty value for clustering column of COMPACT TABLE");
     }
 
-    private static ResultMessage processStatement(CQLStatement statement, QueryState queryState, QueryOptions options)
+    private static ResultMessage processStatement(CQLStatement statement,
+                                                  QueryState queryState,
+                                                  QueryOptions options,
+                                                  String queryString)
     throws RequestExecutionException, RequestValidationException
     {
         logger.trace("Process {} @CL.{}", statement, options.getConsistency());
         ClientState clientState = queryState.getClientState();
         statement.checkAccess(clientState);
         statement.validate(clientState);
-        ResultMessage result = statement.execute(queryState, options);
+
+        ResultMessage result = preExecutionHooks.isEmpty() && postExecutionHooks.isEmpty()
+                             ? statement.execute(queryState, options)
+                             : executeWithHooks(statement, new ExecutionContext(queryState, queryString, options));
+
         return result == null ? new ResultMessage.Void() : result;
+    }
+
+    private static ResultMessage executeWithHooks(CQLStatement statement, ExecutionContext context)
+    throws RequestExecutionException, RequestValidationException
+    {
+        for (PreExecutionHook hook : preExecutionHooks)
+           statement = hook.processStatement(statement, context);
+
+        ResultMessage result = statement.execute(context.queryState, context.queryOptions);
+
+        for (PostExecutionHook hook : postExecutionHooks)
+            hook.processStatement(statement, context);
+
+        return result;
     }
 
     public static ResultMessage process(String queryString, ConsistencyLevel cl, QueryState queryState)
@@ -142,7 +198,8 @@ public class QueryProcessor
         CQLStatement prepared = getStatement(queryString, queryState.getClientState()).statement;
         if (prepared.getBoundsTerms() != options.getValues().size())
             throw new InvalidRequestException("Invalid amount of bind variables");
-        return processStatement(prepared, queryState, options);
+
+        return processStatement(prepared, queryState, options, queryString);
     }
 
     public static CQLStatement parseStatement(String queryStr, QueryState queryState) throws RequestValidationException
@@ -211,6 +268,13 @@ public class QueryProcessor
         ParsedStatement.Prepared prepared = getStatement(queryString, clientState);
         ResultMessage.Prepared msg = storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared, forThrift);
 
+        if (!postPreparationHooks.isEmpty())
+        {
+            PreparationContext context = new PreparationContext(clientState, queryString, prepared.boundNames);
+            for (PostPreparationHook hook : postPreparationHooks)
+                hook.processStatement(prepared.statement, context);
+        }
+
         assert prepared.statement.getBoundsTerms() == prepared.boundNames.size();
         return msg;
     }
@@ -267,17 +331,38 @@ public class QueryProcessor
                     logger.trace("[{}] '{}'", i+1, variables.get(i));
         }
 
-        return processStatement(statement, queryState, options);
+        return processStatement(statement, queryState, options, null);
     }
 
-    public static ResultMessage processBatch(BatchStatement batch, ConsistencyLevel cl, QueryState queryState, List<List<ByteBuffer>> variables)
+    public static ResultMessage processBatch(BatchStatement batch,
+                                             ConsistencyLevel cl,
+                                             QueryState queryState,
+                                             List<List<ByteBuffer>> variables,
+                                             List<Object> queryOrIdList)
     throws RequestExecutionException, RequestValidationException
     {
         ClientState clientState = queryState.getClientState();
         batch.checkAccess(clientState);
         batch.validate(clientState);
-        batch.executeWithPerStatementVariables(cl, queryState, variables);
+
+        if (preExecutionHooks.isEmpty() && postExecutionHooks.isEmpty())
+            batch.executeWithPerStatementVariables(cl, queryState, variables);
+        else
+            executeBatchWithHooks(batch, cl, new BatchExecutionContext(queryState, queryOrIdList, variables));
+
         return new ResultMessage.Void();
+    }
+
+    private static void executeBatchWithHooks(BatchStatement batch, ConsistencyLevel cl, BatchExecutionContext context)
+    throws RequestExecutionException, RequestValidationException
+    {
+        for (PreExecutionHook hook : preExecutionHooks)
+            batch = hook.processBatch(batch, context);
+
+        batch.executeWithPerStatementVariables(cl, context.queryState, context.variables);
+
+        for (PostExecutionHook hook : postExecutionHooks)
+            hook.processBatch(batch, context);
     }
 
     private static ParsedStatement.Prepared getStatement(String queryStr, ClientState clientState)
