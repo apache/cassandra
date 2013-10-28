@@ -20,15 +20,19 @@ package org.apache.cassandra.cql;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.cassandra.serializers.MarshalException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cli.CliUtils;
+import org.apache.cassandra.cql.hooks.ExecutionContext;
+import org.apache.cassandra.cql.hooks.PostPreparationHook;
+import org.apache.cassandra.cql.hooks.PreExecutionHook;
+import org.apache.cassandra.cql.hooks.PreparationContext;
 import org.apache.cassandra.db.CounterColumn;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
@@ -39,6 +43,7 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.MigrationManager;
@@ -66,6 +71,29 @@ public class QueryProcessor
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
 
     public static final String DEFAULT_KEY_NAME = CFMetaData.DEFAULT_KEY_ALIAS.toUpperCase();
+
+    private static final List<PreExecutionHook> preExecutionHooks = new CopyOnWriteArrayList<>();
+    private static final List<PostPreparationHook> postPreparationHooks = new CopyOnWriteArrayList<>();
+
+    public static void addPreExecutionHook(PreExecutionHook hook)
+    {
+        preExecutionHooks.add(hook);
+    }
+
+    public static void removePreExecutionHook(PreExecutionHook hook)
+    {
+        preExecutionHooks.remove(hook);
+    }
+
+    public static void addPostPreparationHook(PostPreparationHook hook)
+    {
+        postPreparationHooks.add(hook);
+    }
+
+    public static void removePostPreparationHook(PostPreparationHook hook)
+    {
+        postPreparationHooks.remove(hook);
+    }
 
     private static List<org.apache.cassandra.db.Row> getSlice(CFMetaData metadata, SelectStatement select, List<ByteBuffer> variables, long now)
     throws InvalidRequestException, ReadTimeoutException, UnavailableException, IsBootstrappingException
@@ -334,16 +362,22 @@ public class QueryProcessor
             throw new InvalidRequestException("range finish must come after start in traversal order");
     }
 
-    public static CqlResult processStatement(CQLStatement statement,ThriftClientState clientState, List<ByteBuffer> variables )
+    public static CqlResult processStatement(CQLStatement statement, ExecutionContext context)
     throws RequestExecutionException, RequestValidationException
     {
         String keyspace = null;
+        ThriftClientState clientState = context.clientState;
+        List<ByteBuffer> variables = context.variables;
 
         // Some statements won't have (or don't need) a keyspace (think USE, or CREATE).
         if (statement.type != StatementType.SELECT && StatementType.REQUIRES_KEYSPACE.contains(statement.type))
             keyspace = clientState.getKeyspace();
 
         CqlResult result = new CqlResult();
+
+        if (!preExecutionHooks.isEmpty())
+            for (PreExecutionHook hook : preExecutionHooks)
+                statement = hook.processStatement(statement, context);
 
         if (logger.isDebugEnabled()) logger.debug("CQL statement type: {}", statement.type.toString());
         CFMetaData metadata;
@@ -758,11 +792,12 @@ public class QueryProcessor
     throws RequestValidationException, RequestExecutionException
     {
         logger.trace("CQL QUERY: {}", queryString);
-        return processStatement(getStatement(queryString), clientState, new ArrayList<ByteBuffer>(0));
+        return processStatement(getStatement(queryString),
+                                new ExecutionContext(clientState, queryString, Collections.<ByteBuffer>emptyList()));
     }
 
     public static CqlPreparedResult prepare(String queryString, ThriftClientState clientState)
-    throws SyntaxException
+    throws RequestValidationException
     {
         logger.trace("CQL QUERY: {}", queryString);
 
@@ -774,6 +809,13 @@ public class QueryProcessor
         logger.trace(String.format("Stored prepared statement #%d with %d bind markers",
                                    statementId,
                                    statement.boundTerms));
+
+        if (!postPreparationHooks.isEmpty())
+        {
+            PreparationContext context = new PreparationContext(clientState, queryString, statement);
+            for (PostPreparationHook hook : postPreparationHooks)
+                hook.processStatement(statement, context);
+        }
 
         return new CqlPreparedResult(statementId, statement.boundTerms);
     }
@@ -796,7 +838,7 @@ public class QueryProcessor
                     logger.trace("[{}] '{}'", i+1, variables.get(i));
         }
 
-        return processStatement(statement, clientState, variables);
+        return processStatement(statement, new ExecutionContext(clientState, null, variables));
     }
 
     private static final int makeStatementId(String cql)
