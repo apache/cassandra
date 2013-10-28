@@ -610,7 +610,7 @@ public class StorageProxy implements StorageProxyMBean
 
             // write to the batchlog
             Collection<InetAddress> batchlogEndpoints = getBatchlogEndpoints(localDataCenter, consistency_level);
-            UUID batchUUID = UUID.randomUUID();
+            UUID batchUUID = UUIDGen.getTimeUUID();
             syncWriteToBatchlog(mutations, batchlogEndpoints, batchUUID);
 
             // now actually perform the writes and wait for them to complete
