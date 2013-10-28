@@ -299,16 +299,16 @@ Table of Contents
         0x02: Skip_metadata. If present, the Result Set returned as a response
               to that query (if any) will have the NO_METADATA flag (see
               Section 4.2.5.2).
-        0x03: Page_size. In that case, <result_page_size> is an [int]
+        0x04: Page_size. In that case, <result_page_size> is an [int]
               controlling the desired page size of the result (in CQL3 rows).
               See the section on paging (Section 7) for more details.
-        0x04: With_paging_state. If present, <paging_state> should be present.
+        0x08: With_paging_state. If present, <paging_state> should be present.
               <paging_state> is a [bytes] value that should have been returned
               in a result set (Section 4.2.5.2). If provided, the query will be
               executed but starting from a given paging state. This also to
               continue paging on a different node from the one it has been
               started (See Section 7 for more details).
-        0x05: With serial consistency. If present, <serial_consistency> should be
+        0x10: With serial consistency. If present, <serial_consistency> should be
               present. <serial_consistency> is the [consistency] level for the
               serial phase of conditional updates. That consitency can only be
               either SERIAL or LOCAL_SERIAL and if not present, it defaults to
@@ -485,7 +485,7 @@ Table of Contents
                       [bytes] value that should be used in QUERY/EXECUTE to
                       continue paging and retrieve the remained of the result for
                       this query (See Section 7 for more details).
-            0x0003    No_metadata: if set, the <metadata> is only composed of
+            0x0004    No_metadata: if set, the <metadata> is only composed of
                       these <flags>, the <column_count> and optionally the
                       <paging_state> (depending on the Has_more_pages flage) but
                       no other information (so no <global_table_spec> nor <col_spec_i>).
