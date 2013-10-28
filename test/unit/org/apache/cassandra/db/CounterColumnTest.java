@@ -23,10 +23,10 @@ import java.security.MessageDigest;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -56,22 +56,22 @@ public class CounterColumnTest extends SchemaLoader
     }
 
     @Test
-    public void testCreate() throws UnknownHostException
+    public void testCreate()
     {
         long delta = 3L;
         CounterUpdateColumn cuc = new CounterUpdateColumn(ByteBufferUtil.bytes("x"), delta, 1L);
         CounterColumn column = cuc.localCopy(Keyspace.open("Keyspace5").getColumnFamilyStore("Counter1"));
 
-        assert delta == column.total();
-        assert 1 == column.value().getShort(0);
-        assert 0 == column.value().getShort(2);
-        assert CounterId.wrap(column.value(), 4).isLocalId();
-        assert 1L == column.value().getLong(4 + 0*stepLength + idLength);
-        assert delta == column.value().getLong(4 + 0*stepLength + idLength + clockLength);
+        Assert.assertEquals(delta, column.total());
+        Assert.assertEquals(1, column.value().getShort(0));
+        Assert.assertEquals(0, column.value().getShort(2));
+        Assert.assertTrue(CounterId.wrap(column.value(), 4).isLocalId());
+        Assert.assertEquals(1L, column.value().getLong(4 + 0*stepLength + idLength));
+        Assert.assertEquals(delta, column.value().getLong(4 + 0*stepLength + idLength + clockLength));
     }
 
     @Test
-    public void testReconcile() throws UnknownHostException
+    public void testReconcile()
     {
         Column left;
         Column right;
@@ -83,119 +83,119 @@ public class CounterColumnTest extends SchemaLoader
         left  = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 1L);
         right = new DeletedColumn(ByteBufferUtil.bytes("x"), 2, 2L);
 
-        assert left.reconcile(right).getMarkedForDeleteAt() == right.getMarkedForDeleteAt();
-        assert right.reconcile(left).getMarkedForDeleteAt() == right.getMarkedForDeleteAt();
+        Assert.assertEquals(left.reconcile(right).getMarkedForDeleteAt(), right.getMarkedForDeleteAt());
+        Assert.assertEquals(right.reconcile(left).getMarkedForDeleteAt(), right.getMarkedForDeleteAt());
 
         // tombstone > live
         left  = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 2L);
         right = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 1L);
 
-        assert left.reconcile(right) == left;
+        Assert.assertEquals(left.reconcile(right), left);
 
         // tombstone < live last delete
         left  = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 1L);
         right = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 4L, 2L);
 
-        assert left.reconcile(right) == right;
+        Assert.assertEquals(left.reconcile(right), right);
 
         // tombstone == live last delete
         left  = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 2L);
         right = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 4L, 2L);
 
-        assert left.reconcile(right) == right;
+        Assert.assertEquals(left.reconcile(right), right);
 
         // tombstone > live last delete
         left  = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 4L);
         right = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 9L, 1L);
 
         reconciled = left.reconcile(right);
-        assert reconciled.name() == right.name();
-        assert reconciled.value() == right.value();
-        assert reconciled.timestamp() == right.timestamp();
-        assert ((CounterColumn)reconciled).timestampOfLastDelete() == left.getMarkedForDeleteAt();
+        Assert.assertEquals(reconciled.name(), right.name());
+        Assert.assertEquals(reconciled.value(), right.value());
+        Assert.assertEquals(reconciled.timestamp(), right.timestamp());
+        Assert.assertEquals(((CounterColumn)reconciled).timestampOfLastDelete(), left.getMarkedForDeleteAt());
 
         // live < tombstone
         left  = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 1L);
         right = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 2L);
 
-        assert left.reconcile(right) == right;
+        Assert.assertEquals(left.reconcile(right), right);
 
         // live last delete > tombstone
         left  = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 4L, 2L);
         right = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 1L);
 
-        assert left.reconcile(right) == left;
+        Assert.assertEquals(left.reconcile(right), left);
 
         // live last delete == tombstone
         left  = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 4L, 2L);
         right = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 2L);
 
-        assert left.reconcile(right) == left;
+        Assert.assertEquals(left.reconcile(right), left);
 
         // live last delete < tombstone
         left  = new CounterColumn(ByteBufferUtil.bytes("x"), 0L, 9L, 1L);
         right = new DeletedColumn(ByteBufferUtil.bytes("x"), 1, 4L);
 
         reconciled = left.reconcile(right);
-        assert reconciled.name() == left.name();
-        assert reconciled.value() == left.value();
-        assert reconciled.timestamp() == left.timestamp();
-        assert ((CounterColumn)reconciled).timestampOfLastDelete() == right.getMarkedForDeleteAt();
+        Assert.assertEquals(reconciled.name(), left.name());
+        Assert.assertEquals(reconciled.value(), left.value());
+        Assert.assertEquals(reconciled.timestamp(), left.timestamp());
+        Assert.assertEquals(((CounterColumn)reconciled).timestampOfLastDelete(), right.getMarkedForDeleteAt());
 
         // live < live last delete
         left  = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(1), 2L, 3L, false), 1L, Long.MIN_VALUE);
         right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(1), 1L, 1L, false), 4L, 3L);
 
-        assert left.reconcile(right) == right;
+        Assert.assertEquals(left.reconcile(right), right);
 
         // live last delete > live
         left  = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(1), 2L, 3L, false), 6L, 5L);
         right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(1), 1L, 1L, false), 4L, 3L);
 
-        assert left.reconcile(right) == left;
+        Assert.assertEquals(left.reconcile(right), left);
 
         // live + live
         left = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(1), 1L, 1L, false), 4L, Long.MIN_VALUE);
         right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(1), 2L, 3L, false), 1L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
-        assert reconciled.name().equals(left.name());
-        assert ((CounterColumn)reconciled).total() == 3L;
-        assert reconciled.timestamp() == 4L;
+        Assert.assertEquals(reconciled.name(), left.name());
+        Assert.assertEquals(3L, ((CounterColumn)reconciled).total());
+        Assert.assertEquals(4L, reconciled.timestamp());
 
         left = reconciled;
         right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(2), 1L, 5L, false), 2L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
-        assert reconciled.name().equals(left.name());
-        assert ((CounterColumn)reconciled).total() == 8L;
-        assert reconciled.timestamp() == 4L;
+        Assert.assertEquals(reconciled.name(), left.name());
+        Assert.assertEquals(8L, ((CounterColumn)reconciled).total());
+        Assert.assertEquals(4L, reconciled.timestamp());
 
         left = reconciled;
         right = new CounterColumn(ByteBufferUtil.bytes("x"), cc.create(CounterId.fromInt(2), 2L, 2L, false), 6L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
-        assert reconciled.name().equals(left.name());
-        assert ((CounterColumn)reconciled).total() == 5L;
-        assert reconciled.timestamp() == 6L;
+        Assert.assertEquals(reconciled.name(), left.name());
+        Assert.assertEquals(5L, ((CounterColumn)reconciled).total());
+        Assert.assertEquals(6L, reconciled.timestamp());
 
         context = reconciled.value();
         int hd = 2; // header
-        assert hd + 2 * stepLength == context.remaining();
+        Assert.assertEquals(hd + 2 * stepLength, context.remaining());
 
-        assert Util.equalsCounterId(CounterId.fromInt(1), context, hd + 0 * stepLength);
-        assert 2L == context.getLong(hd + 0*stepLength + idLength);
-        assert 3L == context.getLong(hd + 0*stepLength + idLength + clockLength);
+        Assert.assertTrue(Util.equalsCounterId(CounterId.fromInt(1), context, hd + 0 * stepLength));
+        Assert.assertEquals(2L, context.getLong(hd + 0*stepLength + idLength));
+        Assert.assertEquals(3L, context.getLong(hd + 0*stepLength + idLength + clockLength));
 
-        assert Util.equalsCounterId(CounterId.fromInt(2), context, hd + 1 * stepLength);
-        assert 2L == context.getLong(hd + 1*stepLength + idLength);
-        assert 2L == context.getLong(hd + 1*stepLength + idLength + clockLength);
+        Assert.assertTrue(Util.equalsCounterId(CounterId.fromInt(2), context, hd + 1 * stepLength));
+        Assert.assertEquals(2L, context.getLong(hd + 1*stepLength + idLength));
+        Assert.assertEquals(2L, context.getLong(hd + 1*stepLength + idLength + clockLength));
 
-        assert ((CounterColumn)reconciled).timestampOfLastDelete() == Long.MIN_VALUE;
+        Assert.assertEquals(Long.MIN_VALUE, ((CounterColumn)reconciled).timestampOfLastDelete());
     }
 
     @Test
-    public void testDiff() throws UnknownHostException
+    public void testDiff()
     {
         Allocator allocator = HeapAllocator.instance;
         ContextState left;
@@ -208,15 +208,15 @@ public class CounterColumnTest extends SchemaLoader
         leftCol = new CounterColumn(ByteBufferUtil.bytes("x"), 0, 1L);
         rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), 0, 2L);
 
-        assert rightCol == leftCol.diff(rightCol);
-        assert null     == rightCol.diff(leftCol);
+        Assert.assertEquals(rightCol, leftCol.diff(rightCol));
+        Assert.assertNull(rightCol.diff(leftCol));
 
         // timestampOfLastDelete
         leftCol = new CounterColumn(ByteBufferUtil.bytes("x"), 0, 1L, 1L);
         rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), 0, 1L, 2L);
 
-        assert rightCol == leftCol.diff(rightCol);
-        assert null     == rightCol.diff(leftCol);
+        Assert.assertEquals(rightCol, leftCol.diff(rightCol));
+        Assert.assertNull(rightCol.diff(leftCol));
 
         // equality: equal nodes, all counts same
         left = ContextState.allocate(3, 0, allocator);
@@ -227,7 +227,7 @@ public class CounterColumnTest extends SchemaLoader
 
         leftCol  = new CounterColumn(ByteBufferUtil.bytes("x"), left.context,  1L);
         rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), right.context, 1L);
-        assert leftCol.diff(rightCol) == null;
+        Assert.assertNull(leftCol.diff(rightCol));
 
         // greater than: left has superset of nodes (counts equal)
         left = ContextState.allocate(4, 0, allocator);
@@ -243,10 +243,10 @@ public class CounterColumnTest extends SchemaLoader
 
         leftCol  = new CounterColumn(ByteBufferUtil.bytes("x"), left.context,  1L);
         rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), right.context, 1L);
-        assert leftCol.diff(rightCol) == null;
+        Assert.assertNull(leftCol.diff(rightCol));
 
         // less than: right has subset of nodes (counts equal)
-        assert leftCol == rightCol.diff(leftCol);
+        Assert.assertEquals(leftCol, rightCol.diff(leftCol));
 
         // disjoint: right and left have disjoint node sets
         left = ContextState.allocate(3, 0, allocator);
@@ -261,8 +261,8 @@ public class CounterColumnTest extends SchemaLoader
 
         leftCol  = new CounterColumn(ByteBufferUtil.bytes("x"), left.context,  1L);
         rightCol = new CounterColumn(ByteBufferUtil.bytes("x"), right.context, 1L);
-        assert rightCol == leftCol.diff(rightCol);
-        assert leftCol  == rightCol.diff(leftCol);
+        Assert.assertEquals(rightCol, leftCol.diff(rightCol));
+        Assert.assertEquals(leftCol, rightCol.diff(leftCol));
     }
 
     @Test
@@ -276,21 +276,24 @@ public class CounterColumnTest extends SchemaLoader
         state.writeElement(CounterId.fromInt(4), 4L, 4L, true);
 
         CounterColumn original = new CounterColumn(ByteBufferUtil.bytes("x"), state.context, 1L);
-        DataOutputBuffer bufOut = new DataOutputBuffer();
-        Column.serializer.serialize(original, bufOut);
-        byte[] serialized = bufOut.getData();
+        byte[] serialized;
+        try (DataOutputBuffer bufOut = new DataOutputBuffer())
+        {
+            Column.serializer.serialize(original, bufOut);
+            serialized = bufOut.getData();
+        }
 
         ByteArrayInputStream bufIn = new ByteArrayInputStream(serialized, 0, serialized.length);
         CounterColumn deserialized = (CounterColumn) Column.serializer.deserialize(new DataInputStream(bufIn));
-        assert original.equals(deserialized);
+        Assert.assertEquals(original, deserialized);
 
         bufIn = new ByteArrayInputStream(serialized, 0, serialized.length);
         CounterColumn deserializedOnRemote = (CounterColumn) Column.serializer.deserialize(new DataInputStream(bufIn), ColumnSerializer.Flag.FROM_REMOTE);
-        assert deserializedOnRemote.name().equals(original.name());
-        assert deserializedOnRemote.total() == original.total();
-        assert deserializedOnRemote.value().equals(cc.clearAllDelta(original.value()));
-        assert deserializedOnRemote.timestamp() == deserialized.timestamp();
-        assert deserializedOnRemote.timestampOfLastDelete() == deserialized.timestampOfLastDelete();
+        Assert.assertEquals(deserializedOnRemote.name(), original.name());
+        Assert.assertEquals(deserializedOnRemote.total(), original.total());
+        Assert.assertEquals(deserializedOnRemote.value(), cc.clearAllDelta(original.value()));
+        Assert.assertEquals(deserializedOnRemote.timestamp(), deserialized.timestamp());
+        Assert.assertEquals(deserializedOnRemote.timestampOfLastDelete(), deserialized.timestampOfLastDelete());
     }
 
     @Test
@@ -312,6 +315,6 @@ public class CounterColumnTest extends SchemaLoader
         original.updateDigest(digest1);
         cleared.updateDigest(digest2);
 
-        assert Arrays.equals(digest1.digest(), digest2.digest());
+        Assert.assertTrue(Arrays.equals(digest1.digest(), digest2.digest()));
     }
 }
