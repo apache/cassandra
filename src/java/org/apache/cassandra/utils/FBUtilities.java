@@ -466,11 +466,11 @@ public class FBUtilities
         }
         catch (ClassNotFoundException e)
         {
-            throw new ConfigurationException(String.format("Unable to find %s class '%s'", readable, classname));
+            throw new ConfigurationException(String.format("Unable to find %s class '%s'", readable, classname), e);
         }
         catch (NoClassDefFoundError e)
         {
-            throw new ConfigurationException(String.format("Unable to find %s class '%s'", readable, classname));
+            throw new ConfigurationException(String.format("Unable to find %s class '%s'", readable, classname), e);
         }
     }
 
