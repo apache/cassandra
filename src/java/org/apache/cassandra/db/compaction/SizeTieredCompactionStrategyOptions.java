@@ -30,7 +30,7 @@ public final class SizeTieredCompactionStrategyOptions
     protected static final String MIN_SSTABLE_SIZE_KEY = "min_sstable_size";
     protected static final String BUCKET_LOW_KEY = "bucket_low";
     protected static final String BUCKET_HIGH_KEY = "bucket_high";
-    protected static final String MAX_COLD_READS_RATIO_KEY = "max_cold_reads_ratio";
+    protected static final String COLD_READS_TO_OMIT_KEY = "cold_reads_to_omit";
 
     protected long minSSTableSize;
     protected double bucketLow;
@@ -45,7 +45,7 @@ public final class SizeTieredCompactionStrategyOptions
         bucketLow = optionValue == null ? DEFAULT_BUCKET_LOW : Double.parseDouble(optionValue);
         optionValue = options.get(BUCKET_HIGH_KEY);
         bucketHigh = optionValue == null ? DEFAULT_BUCKET_HIGH : Double.parseDouble(optionValue);
-        optionValue = options.get(MAX_COLD_READS_RATIO_KEY);
+        optionValue = options.get(COLD_READS_TO_OMIT_KEY);
         coldReadsToOmit = optionValue == null ? DEFAULT_COLD_READS_TO_OMIT : Double.parseDouble(optionValue);
     }
 
@@ -94,17 +94,17 @@ public final class SizeTieredCompactionStrategyOptions
                                                            BUCKET_HIGH_KEY, bucketHigh, BUCKET_LOW_KEY, bucketLow));
         }
 
-        double maxColdReadsRatio = parseDouble(options, MAX_COLD_READS_RATIO_KEY, DEFAULT_COLD_READS_TO_OMIT);
+        double maxColdReadsRatio = parseDouble(options, COLD_READS_TO_OMIT_KEY, DEFAULT_COLD_READS_TO_OMIT);
         if (maxColdReadsRatio < 0.0 || maxColdReadsRatio > 1.0)
         {
             throw new ConfigurationException(String.format("%s value (%s) should be between between 0.0 and 1.0",
-                                                           MAX_COLD_READS_RATIO_KEY, optionValue));
+                                                           COLD_READS_TO_OMIT_KEY, optionValue));
         }
 
         uncheckedOptions.remove(MIN_SSTABLE_SIZE_KEY);
         uncheckedOptions.remove(BUCKET_LOW_KEY);
         uncheckedOptions.remove(BUCKET_HIGH_KEY);
-        uncheckedOptions.remove(MAX_COLD_READS_RATIO_KEY);
+        uncheckedOptions.remove(COLD_READS_TO_OMIT_KEY);
 
         return uncheckedOptions;
     }
