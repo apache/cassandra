@@ -74,6 +74,9 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
     public void onJoin(InetAddress endpoint, EndpointState epState)
     {}
+    
+    public void beforeChange(InetAddress endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) 
+    {}
 
     public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
     {

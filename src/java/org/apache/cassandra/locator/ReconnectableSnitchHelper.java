@@ -70,6 +70,11 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
             logger.debug(String.format("Intiated reconnect to an Internal IP %s for the %s", localAddress, publicAddress));
         }
     }
+    
+    public void beforeChange(InetAddress endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue)
+    {
+        // no-op
+    }
 
     public void onJoin(InetAddress endpoint, EndpointState epState)
     {
