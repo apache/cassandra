@@ -26,31 +26,48 @@ public final class SizeTieredCompactionStrategyOptions
     protected static final long DEFAULT_MIN_SSTABLE_SIZE = 50L * 1024L * 1024L;
     protected static final double DEFAULT_BUCKET_LOW = 0.5;
     protected static final double DEFAULT_BUCKET_HIGH = 1.5;
+    protected static final double DEFAULT_COLD_READS_TO_OMIT = 0.0;
     protected static final String MIN_SSTABLE_SIZE_KEY = "min_sstable_size";
     protected static final String BUCKET_LOW_KEY = "bucket_low";
     protected static final String BUCKET_HIGH_KEY = "bucket_high";
+    protected static final String MAX_COLD_READS_RATIO_KEY = "max_cold_reads_ratio";
 
     protected long minSSTableSize;
     protected double bucketLow;
     protected double bucketHigh;
+    protected double coldReadsToOmit;
 
     public SizeTieredCompactionStrategyOptions(Map<String, String> options)
     {
-
         String optionValue = options.get(MIN_SSTABLE_SIZE_KEY);
         minSSTableSize = optionValue == null ? DEFAULT_MIN_SSTABLE_SIZE : Long.parseLong(optionValue);
         optionValue = options.get(BUCKET_LOW_KEY);
         bucketLow = optionValue == null ? DEFAULT_BUCKET_LOW : Double.parseDouble(optionValue);
         optionValue = options.get(BUCKET_HIGH_KEY);
         bucketHigh = optionValue == null ? DEFAULT_BUCKET_HIGH : Double.parseDouble(optionValue);
+        optionValue = options.get(MAX_COLD_READS_RATIO_KEY);
+        coldReadsToOmit = optionValue == null ? DEFAULT_COLD_READS_TO_OMIT : Double.parseDouble(optionValue);
     }
 
     public SizeTieredCompactionStrategyOptions()
     {
-
         minSSTableSize = DEFAULT_MIN_SSTABLE_SIZE;
         bucketLow = DEFAULT_BUCKET_LOW;
         bucketHigh = DEFAULT_BUCKET_HIGH;
+        coldReadsToOmit = DEFAULT_COLD_READS_TO_OMIT;
+    }
+
+    private static double parseDouble(Map<String, String> options, String key, double defaultValue) throws ConfigurationException
+    {
+        String optionValue = options.get(key);
+        try
+        {
+            return optionValue == null ? defaultValue : Double.parseDouble(optionValue);
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException(String.format("%s is not a parsable float for %s", optionValue, key), e);
+        }
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options, Map<String, String> uncheckedOptions) throws ConfigurationException
@@ -69,35 +86,25 @@ public final class SizeTieredCompactionStrategyOptions
             throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", optionValue, MIN_SSTABLE_SIZE_KEY), e);
         }
 
-        double bucketLow, bucketHigh;
-        optionValue = options.get(BUCKET_LOW_KEY);
-        try
-        {
-            bucketLow = optionValue == null ? DEFAULT_BUCKET_LOW : Double.parseDouble(optionValue);
-        }
-        catch (NumberFormatException e)
-        {
-            throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", optionValue, DEFAULT_BUCKET_LOW), e);
-        }
-
-        optionValue = options.get(BUCKET_HIGH_KEY);
-        try
-        {
-            bucketHigh = optionValue == null ? DEFAULT_BUCKET_HIGH : Double.parseDouble(optionValue);
-        }
-        catch (NumberFormatException e)
-        {
-            throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", optionValue, DEFAULT_BUCKET_HIGH), e);
-        }
-
+        double bucketLow = parseDouble(options, BUCKET_LOW_KEY, DEFAULT_BUCKET_LOW);
+        double bucketHigh = parseDouble(options, BUCKET_HIGH_KEY, DEFAULT_BUCKET_HIGH);
         if (bucketHigh <= bucketLow)
         {
-            throw new ConfigurationException(String.format("Bucket high value (%s) is less than or equal bucket low value (%s)", bucketHigh, bucketLow));
+            throw new ConfigurationException(String.format("%s value (%s) is less than or equal to the %s value (%s)",
+                                                           BUCKET_HIGH_KEY, bucketHigh, BUCKET_LOW_KEY, bucketLow));
+        }
+
+        double maxColdReadsRatio = parseDouble(options, MAX_COLD_READS_RATIO_KEY, DEFAULT_COLD_READS_TO_OMIT);
+        if (maxColdReadsRatio < 0.0 || maxColdReadsRatio > 1.0)
+        {
+            throw new ConfigurationException(String.format("%s value (%s) should be between between 0.0 and 1.0",
+                                                           MAX_COLD_READS_RATIO_KEY, optionValue));
         }
 
         uncheckedOptions.remove(MIN_SSTABLE_SIZE_KEY);
         uncheckedOptions.remove(BUCKET_LOW_KEY);
         uncheckedOptions.remove(BUCKET_HIGH_KEY);
+        uncheckedOptions.remove(MAX_COLD_READS_RATIO_KEY);
 
         return uncheckedOptions;
     }
