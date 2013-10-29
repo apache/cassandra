@@ -24,6 +24,10 @@ Upgrading
      upgrading to 2.1 due to the fact that the old JSON leveled
      manifest is migrated into the sstable metadata files on startup
      in 2.0 and this code is gone from 2.1.
+   - For size-tiered compaction users, Cassandra now defaults to ignoring
+     the coldest 5% of sstables.  This can be customized with the
+     cold_reads_to_omit compaction option; 0.0 omits nothing (the old
+     behavior) and 1.0 omits everything.
 
 
 2.0.2
