@@ -38,6 +38,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.IFilter;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.StreamingHistogram;
 
 public class SSTableWriter extends SSTable
@@ -307,20 +308,9 @@ public class SSTableWriter extends SSTable
 
     public SSTableReader closeAndOpenReader(long maxDataAge)
     {
-        // index and filter
-        iwriter.close();
-        // main data, close will truncate if necessary
-        dataFile.close();
-        // write sstable statistics
-        SSTableMetadata sstableMetadata = sstableMetadataCollector.finalizeMetadata(partitioner.getClass().getCanonicalName(),
-                                                                                    metadata.getBloomFilterFpChance());
-        writeMetadata(descriptor, sstableMetadata, sstableMetadataCollector.ancestors);
-
-        // save the table of components
-        SSTable.appendTOC(descriptor, components);
-
-        // remove the 'tmp' marker from all components
-        final Descriptor newdesc = rename(descriptor, components);
+        Pair<Descriptor, SSTableMetadata> p = close();
+        Descriptor newdesc = p.left;
+        SSTableMetadata sstableMetadata = p.right;
 
         // finalize in-memory state for the reader
         SegmentedFile ifile = iwriter.builder.complete(newdesc.filenameFor(SSTable.COMPONENT_INDEX));
@@ -342,6 +332,25 @@ public class SSTableWriter extends SSTable
         iwriter = null;
         dbuilder = null;
         return sstable;
+    }
+
+    // Close the writer and return the descriptor to the new sstable and it's metadata
+    public Pair<Descriptor, SSTableMetadata> close()
+    {
+        // index and filter
+        iwriter.close();
+        // main data, close will truncate if necessary
+        dataFile.close();
+        // write sstable statistics
+        SSTableMetadata sstableMetadata = sstableMetadataCollector.finalizeMetadata(partitioner.getClass().getCanonicalName(),
+                                                                                    metadata.getBloomFilterFpChance());
+        writeMetadata(descriptor, sstableMetadata, sstableMetadataCollector.ancestors);
+
+        // save the table of components
+        SSTable.appendTOC(descriptor, components);
+
+        // remove the 'tmp' marker from all components
+        return Pair.create(rename(descriptor, components), sstableMetadata);
     }
 
     private static void writeMetadata(Descriptor desc, SSTableMetadata sstableMetadata,  Set<Integer> ancestors)

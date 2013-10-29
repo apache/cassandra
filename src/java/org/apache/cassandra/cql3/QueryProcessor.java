@@ -365,7 +365,7 @@ public class QueryProcessor
             hook.processBatch(batch, context);
     }
 
-    private static ParsedStatement.Prepared getStatement(String queryStr, ClientState clientState)
+    public static ParsedStatement.Prepared getStatement(String queryStr, ClientState clientState)
     throws RequestValidationException
     {
         Tracing.trace("Parsing {}", queryStr);

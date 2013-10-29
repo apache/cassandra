@@ -193,7 +193,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                     writer = getWriter();
                     for (Map.Entry<DecoratedKey, ColumnFamily> entry : b.entrySet())
                         writer.append(entry.getKey(), entry.getValue());
-                    writer.closeAndOpenReader();
+                    writer.close();
                 }
             }
             catch (Throwable e)

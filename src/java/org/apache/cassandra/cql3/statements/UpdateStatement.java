@@ -45,11 +45,10 @@ public class UpdateStatement extends ModificationStatement
         return true;
     }
 
-    public ColumnFamily updateForKey(ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params)
+    public void addUpdateForKey(ColumnFamily cf, ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params)
     throws InvalidRequestException
     {
         CFDefinition cfDef = cfm.getCfDef();
-        ColumnFamily cf = UnsortedColumns.factory.create(cfm);
 
         // Inserting the CQL row marker (see #4361)
         // We always need to insert a marker, because of the following situation:
@@ -97,7 +96,13 @@ public class UpdateStatement extends ModificationStatement
             for (Operation update : updates)
                 update.execute(key, cf, builder.copy(), params);
         }
+    }
 
+    public ColumnFamily updateForKey(ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params)
+    throws InvalidRequestException
+    {
+        ColumnFamily cf = UnsortedColumns.factory.create(cfm);
+        addUpdateForKey(cf, key, builder, params);
         return cf;
     }
 
