@@ -13,6 +13,13 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+2.0.3
+=====
+Upgrading
+---------
+    - The IEndpointStateChangeSubscriber has a new method, beforeChange, that
+      any custom implemenations using the class will need to implement.
+
 
 2.0.2
 =====
