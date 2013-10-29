@@ -164,6 +164,25 @@ public abstract class AbstractSSTableSimpleWriter
      */
     public abstract void close() throws IOException;
 
+    /**
+     * Package protected for use by AbstractCQLSSTableWriter.
+     * Not meant to be exposed publicly.
+     */
+    ColumnFamily currentColumnFamily()
+    {
+        return columnFamily;
+    }
+
+    /**
+     * Package protected for use by AbstractCQLSSTableWriter.
+     * Not meant to be exposed publicly.
+     */
+    DecoratedKey currentKey()
+    {
+        return currentKey;
+    }
+
+
     protected abstract void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException;
 
     protected abstract ColumnFamily getColumnFamily();

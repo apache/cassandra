@@ -31,6 +31,16 @@ Upgrading
 
 New features
 ------------
+    - A new CQLSSTableWriter class has been added. It is the equivalent of
+      the existing SSTableSimpleWriter/SSTableSimpleUnsortedWriter but is
+      CQL oriented.
+
+
+2.0.2
+=====
+
+New features
+------------
     - Speculative retry defaults to 99th percentile
       (See blog post at http://www.datastax.com/dev/blog/rapid-read-protection-in-cassandra-2-0-2)
     - Configurable metrics reporting

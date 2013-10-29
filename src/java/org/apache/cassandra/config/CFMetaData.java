@@ -475,7 +475,8 @@ public final class CFMetaData
         return compile(cql, Keyspace.SYSTEM_KS);
     }
 
-    private static CFMetaData compile(String cql, String keyspace)
+    @VisibleForTesting
+    public static CFMetaData compile(String cql, String keyspace)
     {
         try
         {

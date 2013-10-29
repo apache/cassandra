@@ -205,7 +205,7 @@ public abstract class ModificationStatement implements CQLStatement
         }
     }
 
-    private List<ByteBuffer> buildPartitionKeyNames(List<ByteBuffer> variables)
+    public List<ByteBuffer> buildPartitionKeyNames(List<ByteBuffer> variables)
     throws InvalidRequestException
     {
         CFDefinition cfDef = cfm.getCfDef();
@@ -241,7 +241,7 @@ public abstract class ModificationStatement implements CQLStatement
         return keys;
     }
 
-    private ColumnNameBuilder createClusteringPrefixBuilder(List<ByteBuffer> variables)
+    public ColumnNameBuilder createClusteringPrefixBuilder(List<ByteBuffer> variables)
     throws InvalidRequestException
     {
         CFDefinition cfDef = cfm.getCfDef();

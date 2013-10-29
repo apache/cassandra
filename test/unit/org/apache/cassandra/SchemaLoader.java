@@ -106,7 +106,7 @@ public class SchemaLoader
         String ks_rcs = "RowCacheSpace";
         String ks_nocommit = "NoCommitlogSpace";
         String ks_prsi = "PerRowSecondaryIndex";
-
+        String ks_cql = "cql_keyspace";
 
         Class<? extends AbstractReplicationStrategy> simple = SimpleStrategy.class;
 
@@ -288,6 +288,18 @@ public class SchemaLoader
                                            simple,
                                            opts_rf1,
                                            perRowIndexedCFMD(ks_prsi, "Indexed1", withOldCfIds)));
+
+        // CQLKeyspace
+        schema.add(KSMetaData.testMetadata(ks_cql,
+                                           simple,
+                                           opts_rf1,
+
+                                           // Column Families
+                                           CFMetaData.compile("CREATE TABLE table1 ("
+                                                              + "k int PRIMARY KEY,"
+                                                              + "v1 text,"
+                                                              + "v2 int"
+                                                              + ")", ks_cql)));
 
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
