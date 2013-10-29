@@ -235,20 +235,6 @@ public abstract class Selection
     protected abstract List<ByteBuffer> handleRow(ResultSetBuilder rs) throws InvalidRequestException;
 
     /**
-     * @return the list of CQL3 "regular" (the "COLUMN_METADATA" ones) column names to fetch.
-     */
-    public List<ColumnIdentifier> regularColumnsToFetch()
-    {
-        List<ColumnIdentifier> toFetch = new ArrayList<ColumnIdentifier>();
-        for (ColumnDefinition def : columnsList)
-        {
-            if (def.kind == ColumnDefinition.Kind.REGULAR)
-                toFetch.add(def.name);
-        }
-        return toFetch;
-    }
-
-    /**
      * @return the list of CQL3 columns value this SelectionClause needs.
      */
     public List<ColumnDefinition> getColumnsList()

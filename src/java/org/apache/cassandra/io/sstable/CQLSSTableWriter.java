@@ -31,12 +31,12 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
-import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.Pair;
@@ -190,14 +190,14 @@ public class CQLSSTableWriter
             throw new InvalidRequestException(String.format("Invalid number of arguments, expecting %d values but got %d", boundNames.size(), values.size()));
 
         List<ByteBuffer> keys = insert.buildPartitionKeyNames(values);
-        ColumnNameBuilder clusteringPrefix = insert.createClusteringPrefixBuilder(values);
+        Composite clusteringPrefix = insert.createClusteringPrefix(values);
 
         long now = System.currentTimeMillis() * 1000;
         UpdateParameters params = new UpdateParameters(insert.cfm,
                                                        values,
                                                        insert.getTimestamp(now, values),
                                                        insert.getTimeToLive(values),
-                                                       Collections.<ByteBuffer, ColumnGroupMap>emptyMap());
+                                                       Collections.<ByteBuffer, CQL3Row>emptyMap());
 
         for (ByteBuffer key: keys)
         {
@@ -321,13 +321,20 @@ public class CQLSSTableWriter
 
                 // We need to register the keyspace/table metadata through Schema, otherwise we won't be able to properly
                 // build the insert statement in using().
-                KSMetaData ksm = KSMetaData.newKeyspace(this.schema.ksName,
-                                                        AbstractReplicationStrategy.getClass("org.apache.cassandra.locator.SimpleStrategy"),
-                                                        ImmutableMap.of("replication_factor", "1"),
-                                                        true,
-                                                        Collections.singleton(this.schema));
+                if (Schema.instance.getKSMetaData(this.schema.ksName) == null)
+                {
+                    KSMetaData ksm = KSMetaData.newKeyspace(this.schema.ksName,
+                                                            AbstractReplicationStrategy.getClass("org.apache.cassandra.locator.SimpleStrategy"),
+                                                            ImmutableMap.of("replication_factor", "1"),
+                                                            true,
+                                                            Collections.singleton(this.schema));
+                    Schema.instance.load(ksm);
+                }
+                else if (Schema.instance.getCFMetaData(this.schema.ksName, this.schema.cfName) == null)
+                {
+                    Schema.instance.load(this.schema);
+                }
 
-                Schema.instance.load(ksm);
                 return this;
             }
             catch (RequestValidationException e)

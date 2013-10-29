@@ -20,6 +20,8 @@ package org.apache.cassandra.db.index.keys;
 import java.nio.ByteBuffer;
 import java.util.Set;
 
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
@@ -38,9 +40,9 @@ public class KeysIndex extends AbstractSimplePerColumnSecondaryIndex
         return column.value();
     }
 
-    protected ByteBuffer makeIndexColumnName(ByteBuffer rowKey, Column column)
+    protected CellName makeIndexColumnName(ByteBuffer rowKey, Column column)
     {
-        return rowKey;
+        return CellNames.simpleDense(rowKey);
     }
 
     public SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns)
@@ -50,7 +52,7 @@ public class KeysIndex extends AbstractSimplePerColumnSecondaryIndex
 
     public boolean isIndexEntryStale(ByteBuffer indexedValue, ColumnFamily data, long now)
     {
-        Column liveColumn = data.getColumn(columnDef.name.bytes);
+        Column liveColumn = data.getColumn(data.getComparator().makeCellName(columnDef.name.bytes));
         if (liveColumn == null || liveColumn.isMarkedForDelete(now))
             return true;
 
@@ -63,8 +65,15 @@ public class KeysIndex extends AbstractSimplePerColumnSecondaryIndex
         // no options used
     }
 
+    public boolean indexes(CellName name)
+    {
+        // This consider the full cellName directly
+        AbstractType<?> comparator = baseCfs.metadata.getColumnDefinitionComparator(columnDef);
+        return comparator.compare(columnDef.name.bytes, name.toByteBuffer()) == 0;
+    }
+
     protected AbstractType getExpressionComparator()
     {
-        return baseCfs.getComparator();
+        return baseCfs.getComparator().asAbstractType();
     }
 }

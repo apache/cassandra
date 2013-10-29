@@ -34,6 +34,8 @@ import org.apache.cassandra.cql3.hooks.*;
 import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -157,21 +159,25 @@ public class QueryProcessor
         }
     }
 
-    public static void validateCellNames(Iterable<ByteBuffer> cellNames) throws InvalidRequestException
+    public static void validateCellNames(Iterable<CellName> cellNames) throws InvalidRequestException
     {
-        for (ByteBuffer name : cellNames)
+        for (CellName name : cellNames)
             validateCellName(name);
     }
 
-    public static void validateCellName(ByteBuffer name) throws InvalidRequestException
+    public static void validateCellName(CellName name) throws InvalidRequestException
     {
-        if (name.remaining() > Column.MAX_NAME_LENGTH)
-            throw new InvalidRequestException(String.format("The sum of all clustering columns is too long (%s > %s)",
-                                                            name.remaining(),
-                                                            Column.MAX_NAME_LENGTH));
-
-        if (name.remaining() == 0)
+        validateComposite(name);
+        if (name.isEmpty())
             throw new InvalidRequestException("Invalid empty value for clustering column of COMPACT TABLE");
+    }
+
+    public static void validateComposite(Composite name) throws InvalidRequestException
+    {
+        if (name.dataSize() > Column.MAX_NAME_LENGTH)
+            throw new InvalidRequestException(String.format("The sum of all clustering columns is too long (%s > %s)",
+                                                            name.dataSize(),
+                                                            Column.MAX_NAME_LENGTH));
     }
 
     private static ResultMessage processStatement(CQLStatement statement,
@@ -233,7 +239,7 @@ public class QueryProcessor
         {
             ResultMessage result = process(query, QueryState.forInternalCalls(), new QueryOptions(cl, Collections.<ByteBuffer>emptyList()));
             if (result instanceof ResultMessage.Rows)
-                return new UntypedResultSet(((ResultMessage.Rows)result).result);
+                return UntypedResultSet.create(((ResultMessage.Rows)result).result);
             else
                 return null;
         }
@@ -254,7 +260,7 @@ public class QueryProcessor
             statement.validate(state);
             ResultMessage result = statement.executeInternal(qState);
             if (result instanceof ResultMessage.Rows)
-                return new UntypedResultSet(((ResultMessage.Rows)result).result);
+                return UntypedResultSet.create(((ResultMessage.Rows)result).result);
             else
                 return null;
         }
@@ -279,7 +285,7 @@ public class QueryProcessor
         {
             SelectStatement ss = (SelectStatement) getStatement(query, null).statement;
             ResultSet cqlRows = ss.process(rows);
-            return new UntypedResultSet(cqlRows);
+            return UntypedResultSet.create(cqlRows);
         }
         catch (RequestValidationException e)
         {

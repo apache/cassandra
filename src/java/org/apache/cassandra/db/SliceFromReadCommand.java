@@ -24,6 +24,8 @@ import java.nio.ByteBuffer;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
@@ -136,7 +138,8 @@ class SliceFromReadCommandSerializer implements IVersionedSerializer<ReadCommand
         ByteBufferUtil.writeWithShortLength(realRM.key, out);
         out.writeUTF(realRM.cfName);
         out.writeLong(realRM.timestamp);
-        SliceQueryFilter.serializer.serialize(realRM.filter, out, version);
+        CFMetaData metadata = Schema.instance.getCFMetaData(realRM.ksName, realRM.cfName);
+        metadata.comparator.sliceQueryFilterSerializer().serialize(realRM.filter, out, version);
     }
 
     public ReadCommand deserialize(DataInput in, int version) throws IOException
@@ -146,7 +149,8 @@ class SliceFromReadCommandSerializer implements IVersionedSerializer<ReadCommand
         ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
         String cfName = in.readUTF();
         long timestamp = in.readLong();
-        SliceQueryFilter filter = SliceQueryFilter.serializer.deserialize(in, version);
+        CFMetaData metadata = Schema.instance.getCFMetaData(keyspaceName, cfName);
+        SliceQueryFilter filter = metadata.comparator.sliceQueryFilterSerializer().deserialize(in, version);
         ReadCommand command = new SliceFromReadCommand(keyspaceName, key, cfName, timestamp, filter);
         command.setDigestQuery(isDigest);
         return command;
@@ -158,12 +162,14 @@ class SliceFromReadCommandSerializer implements IVersionedSerializer<ReadCommand
         SliceFromReadCommand command = (SliceFromReadCommand) cmd;
         int keySize = command.key.remaining();
 
+        CFMetaData metadata = Schema.instance.getCFMetaData(cmd.ksName, cmd.cfName);
+
         int size = sizes.sizeof(cmd.isDigestQuery()); // boolean
         size += sizes.sizeof(command.ksName);
         size += sizes.sizeof((short) keySize) + keySize;
         size += sizes.sizeof(command.cfName);
         size += sizes.sizeof(cmd.timestamp);
-        size += SliceQueryFilter.serializer.serializedSize(command.filter, version);
+        size += metadata.comparator.sliceQueryFilterSerializer().serializedSize(command.filter, version);
 
         return size;
     }

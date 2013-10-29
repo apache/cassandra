@@ -22,14 +22,12 @@ import java.util.*;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.thrift.TriggerDef;
-
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class TriggerDefinition
 {
@@ -84,11 +82,11 @@ public class TriggerDefinition
     {
         ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
 
-        ColumnNameBuilder builder = CFMetaData.SchemaTriggersCf.getColumnNameBuilder();
-        builder.add(bytes(cfName)).add(bytes(name));
+        CFMetaData cfm = CFMetaData.SchemaTriggersCf;
+        Composite prefix = cfm.comparator.make(cfName, name);
+        CFRowAdder adder = new CFRowAdder(cf, prefix, timestamp);
 
-        cf.addColumn(builder.copy().add(bytes("")).build(), bytes(""), timestamp); // the row marker
-        cf.addColumn(builder.copy().add(bytes(TRIGGER_OPTIONS)).add(bytes(CLASS)).build(), bytes(classOption), timestamp);
+        adder.addMapEntry(TRIGGER_OPTIONS, CLASS, classOption);
     }
 
     /**
@@ -103,9 +101,8 @@ public class TriggerDefinition
         ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
-        ColumnNameBuilder builder = CFMetaData.SchemaTriggersCf.getColumnNameBuilder();
-        builder.add(bytes(cfName)).add(bytes(name));
-        cf.addAtom(new RangeTombstone(builder.build(), builder.buildAsEndOfRange(), timestamp, ldt));
+        Composite prefix = CFMetaData.SchemaTriggersCf.comparator.make(cfName, name);
+        cf.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
     }
 
     public static TriggerDefinition fromThrift(TriggerDef thriftDef)

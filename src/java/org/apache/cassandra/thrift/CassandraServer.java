@@ -46,11 +46,11 @@ import org.apache.cassandra.cql.CQLStatement;
 import org.apache.cassandra.cql.QueryProcessor;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
@@ -136,7 +136,7 @@ public class CassandraServer implements Cassandra.Iface
             if (column.isMarkedForDelete(now))
                 continue;
 
-            thriftColumns.add(thriftifyColumnWithName(column, column.name()));
+            thriftColumns.add(thriftifyColumnWithName(column, column.name().toByteBuffer()));
         }
 
         // we have to do the reversing here, since internally we pass results around in ColumnFamily
@@ -159,7 +159,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         assert !(column instanceof org.apache.cassandra.db.CounterColumn);
 
-        Column thrift_column = new Column(column.name()).setValue(column.value()).setTimestamp(column.timestamp());
+        Column thrift_column = new Column(column.name().toByteBuffer()).setValue(column.value()).setTimestamp(column.timestamp());
         if (column instanceof ExpiringColumn)
         {
             thrift_column.setTtl(((ExpiringColumn) column).getTimeToLive());
@@ -183,7 +183,7 @@ public class CassandraServer implements Cassandra.Iface
     private CounterColumn thriftifySubCounter(org.apache.cassandra.db.Column column)
     {
         assert column instanceof org.apache.cassandra.db.CounterColumn;
-        return new CounterColumn(column.name(), CounterContext.instance().total(column.value()));
+        return new CounterColumn(column.name().toByteBuffer(), CounterContext.instance().total(column.value()));
     }
 
     private List<ColumnOrSuperColumn> thriftifySuperColumns(Collection<org.apache.cassandra.db.Column> columns,
@@ -377,28 +377,34 @@ public class CassandraServer implements Cassandra.Iface
 
     private SliceQueryFilter toInternalFilter(CFMetaData metadata, ColumnParent parent, SliceRange range)
     {
-        SliceQueryFilter filter = new SliceQueryFilter(range.start, range.finish, range.reversed, range.count);
+        Composite start = metadata.comparator.fromByteBuffer(range.start);
+        Composite finish = metadata.comparator.fromByteBuffer(range.finish);
+        SliceQueryFilter filter = new SliceQueryFilter(start, finish, range.reversed, range.count);
         if (metadata.isSuper())
-            filter = SuperColumns.fromSCSliceFilter((CompositeType)metadata.comparator, parent.bufferForSuper_column(), filter);
+            filter = SuperColumns.fromSCSliceFilter(metadata.comparator, parent.bufferForSuper_column(), filter);
         return filter;
     }
 
     private IDiskAtomFilter toInternalFilter(CFMetaData metadata, ColumnParent parent, SlicePredicate predicate)
     {
         IDiskAtomFilter filter;
+        CellNameType columnType = metadata.isSuper()
+                                ? new SimpleDenseCellNameType(metadata.comparator.subtype(parent.isSetSuper_column() ? 1 : 0))
+                                : metadata.comparator;
         if (predicate.column_names != null)
         {
             if (metadata.isSuper())
             {
-                CompositeType type = (CompositeType)metadata.comparator;
-                SortedSet s = new TreeSet<ByteBuffer>(parent.isSetSuper_column() ? type.types.get(1) : type.types.get(0));
-                s.addAll(predicate.column_names);
-                filter = SuperColumns.fromSCNamesFilter(type, parent.bufferForSuper_column(), new NamesQueryFilter(s));
+                SortedSet<CellName> s = new TreeSet<CellName>(columnType);
+                for (ByteBuffer bb : predicate.column_names)
+                    s.add(columnType.cellFromByteBuffer(bb));
+                filter = SuperColumns.fromSCNamesFilter(metadata.comparator, parent.bufferForSuper_column(), new NamesQueryFilter(s));
             }
             else
             {
-                SortedSet s = new TreeSet<ByteBuffer>(metadata.comparator);
-                s.addAll(predicate.column_names);
+                SortedSet<CellName> s = new TreeSet<CellName>(metadata.comparator);
+                for (ByteBuffer bb : predicate.column_names)
+                    s.add(metadata.comparator.cellFromByteBuffer(bb));
                 filter = new NamesQueryFilter(s);
             }
         }
@@ -469,15 +475,15 @@ public class CassandraServer implements Cassandra.Iface
             IDiskAtomFilter filter;
             if (metadata.isSuper())
             {
-                CompositeType type = (CompositeType)metadata.comparator;
-                SortedSet names = new TreeSet<ByteBuffer>(column_path.column == null ? type.types.get(0) : type.types.get(1));
+                CellNameType type = metadata.comparator;
+                SortedSet names = new TreeSet<ByteBuffer>(column_path.column == null ? type.subtype(0) : type.subtype(1));
                 names.add(column_path.column == null ? column_path.super_column : column_path.column);
                 filter = SuperColumns.fromSCNamesFilter(type, column_path.column == null ? null : column_path.bufferForSuper_column(), new NamesQueryFilter(names));
             }
             else
             {
-                SortedSet<ByteBuffer> names = new TreeSet<ByteBuffer>(metadata.comparator);
-                names.add(column_path.column);
+                SortedSet<CellName> names = new TreeSet<CellName>(metadata.comparator);
+                names.add(metadata.comparator.cellFromByteBuffer(column_path.column));
                 filter = new NamesQueryFilter(names);
             }
 
@@ -647,14 +653,14 @@ public class CassandraServer implements Cassandra.Iface
             throw new org.apache.cassandra.exceptions.InvalidRequestException("missing mandatory super column name for super CF " + column_parent.column_family);
         }
         ThriftValidation.validateColumnNames(metadata, column_parent, Arrays.asList(column.name));
-        ThriftValidation.validateColumnData(metadata, column, column_parent.super_column != null);
+        ThriftValidation.validateColumnData(metadata, column_parent.super_column, column);
 
         RowMutation rm;
         try
         {
-            ByteBuffer name = column.name;
-            if (metadata.isSuper())
-                name = CompositeType.build(column_parent.super_column, name);
+            CellName name = metadata.isSuper()
+                          ? metadata.comparator.makeCellName(column_parent.super_column, column.name)
+                          : metadata.comparator.cellFromByteBuffer(column.name);
 
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cState.getKeyspace(), column_parent.column_family);
             cf.addColumn(name, column.value, column.timestamp, column.ttl);
@@ -740,12 +746,12 @@ public class CassandraServer implements Cassandra.Iface
             });
             ThriftValidation.validateColumnNames(metadata, new ColumnParent(column_family), names);
             for (Column column : updates)
-                ThriftValidation.validateColumnData(metadata, column, false);
+                ThriftValidation.validateColumnData(metadata, null, column);
 
             CFMetaData cfm = Schema.instance.getCFMetaData(cState.getKeyspace(), column_family);
             UnsortedColumns cfUpdates = UnsortedColumns.factory.create(cfm);
             for (Column column : updates)
-                cfUpdates.addColumn(column.name, column.value, column.timestamp);
+                cfUpdates.addColumn(cfm.comparator.cellFromByteBuffer(column.name), column.value, column.timestamp);
 
             ColumnFamily cfExpected;
             if (expected.isEmpty())
@@ -756,7 +762,7 @@ public class CassandraServer implements Cassandra.Iface
             {
                 cfExpected = TreeMapBackedSortedColumns.factory.create(cfm);
                 for (Column column : expected)
-                    cfExpected.addColumn(column.name, column.value, column.timestamp);
+                    cfExpected.addColumn(cfm.comparator.cellFromByteBuffer(column.name), column.value, column.timestamp);
             }
 
             schedule(DatabaseDescriptor.getWriteRpcTimeout());
@@ -837,11 +843,11 @@ public class CassandraServer implements Cassandra.Iface
 
                     if (mutation.deletion != null)
                     {
-                        deleteColumnOrSuperColumn(rm, cfName, mutation.deletion);
+                        deleteColumnOrSuperColumn(rm, metadata, mutation.deletion);
                     }
                     if (mutation.column_or_supercolumn != null)
                     {
-                        addColumnOrSuperColumn(rm, cfName, mutation.column_or_supercolumn);
+                        addColumnOrSuperColumn(rm, metadata, mutation.column_or_supercolumn);
                     }
                 }
             }
@@ -860,67 +866,70 @@ public class CassandraServer implements Cassandra.Iface
         return rowMutations;
     }
 
-    private void addColumnOrSuperColumn(RowMutation rm, String cfName, ColumnOrSuperColumn cosc)
+    private void addColumnOrSuperColumn(RowMutation rm, CFMetaData cfm, ColumnOrSuperColumn cosc)
     {
         if (cosc.super_column != null)
         {
             for (Column column : cosc.super_column.columns)
             {
-                rm.add(cfName, CompositeType.build(cosc.super_column.name, column.name), column.value, column.timestamp, column.ttl);
+                rm.add(cfm.cfName, cfm.comparator.makeCellName(cosc.super_column.name, column.name), column.value, column.timestamp, column.ttl);
             }
         }
         else if (cosc.column != null)
         {
-            rm.add(cfName, cosc.column.name, cosc.column.value, cosc.column.timestamp, cosc.column.ttl);
+            rm.add(cfm.cfName, cfm.comparator.cellFromByteBuffer(cosc.column.name), cosc.column.value, cosc.column.timestamp, cosc.column.ttl);
         }
         else if (cosc.counter_super_column != null)
         {
             for (CounterColumn column : cosc.counter_super_column.columns)
             {
-                rm.addCounter(cfName, CompositeType.build(cosc.counter_super_column.name, column.name), column.value);
+                rm.addCounter(cfm.cfName, cfm.comparator.makeCellName(cosc.counter_super_column.name, column.name), column.value);
             }
         }
         else // cosc.counter_column != null
         {
-            rm.addCounter(cfName, cosc.counter_column.name, cosc.counter_column.value);
+            rm.addCounter(cfm.cfName, cfm.comparator.cellFromByteBuffer(cosc.counter_column.name), cosc.counter_column.value);
         }
     }
 
-    private void deleteColumnOrSuperColumn(RowMutation rm, String cfName, Deletion del)
+    private void deleteColumnOrSuperColumn(RowMutation rm, CFMetaData cfm, Deletion del)
     {
         if (del.predicate != null && del.predicate.column_names != null)
         {
             for (ByteBuffer c : del.predicate.column_names)
             {
-                if (del.super_column == null && Schema.instance.getColumnFamilyType(rm.getKeyspaceName(), cfName) == ColumnFamilyType.Super)
-                    rm.deleteRange(cfName, SuperColumns.startOf(c), SuperColumns.endOf(c), del.timestamp);
+                if (del.super_column == null && cfm.isSuper())
+                    rm.deleteRange(cfm.cfName, SuperColumns.startOf(c), SuperColumns.endOf(c), del.timestamp);
                 else if (del.super_column != null)
-                    rm.delete(cfName, CompositeType.build(del.super_column, c), del.timestamp);
+                    rm.delete(cfm.cfName, cfm.comparator.makeCellName(del.super_column, c), del.timestamp);
                 else
-                    rm.delete(cfName, c, del.timestamp);
+                    rm.delete(cfm.cfName, cfm.comparator.cellFromByteBuffer(c), del.timestamp);
             }
         }
         else if (del.predicate != null && del.predicate.slice_range != null)
         {
-            if (del.super_column == null && Schema.instance.getColumnFamilyType(rm.getKeyspaceName(), cfName) == ColumnFamilyType.Super)
-                rm.deleteRange(cfName,
+            if (del.super_column == null && cfm.isSuper())
+                rm.deleteRange(cfm.cfName,
                                SuperColumns.startOf(del.predicate.getSlice_range().start),
                                SuperColumns.startOf(del.predicate.getSlice_range().finish),
                                del.timestamp);
             else if (del.super_column != null)
-                rm.deleteRange(cfName,
-                               CompositeType.build(del.super_column, del.predicate.getSlice_range().start),
-                               CompositeType.build(del.super_column, del.predicate.getSlice_range().finish),
+                rm.deleteRange(cfm.cfName,
+                               cfm.comparator.makeCellName(del.super_column, del.predicate.getSlice_range().start),
+                               cfm.comparator.makeCellName(del.super_column, del.predicate.getSlice_range().finish),
                                del.timestamp);
             else
-                rm.deleteRange(cfName, del.predicate.getSlice_range().start, del.predicate.getSlice_range().finish, del.timestamp);
+                rm.deleteRange(cfm.cfName,
+                               cfm.comparator.cellFromByteBuffer(del.predicate.getSlice_range().start),
+                               cfm.comparator.cellFromByteBuffer(del.predicate.getSlice_range().finish),
+                               del.timestamp);
         }
         else
         {
             if (del.super_column != null)
-                rm.deleteRange(cfName, SuperColumns.startOf(del.super_column), SuperColumns.endOf(del.super_column), del.timestamp);
+                rm.deleteRange(cfm.cfName, SuperColumns.startOf(del.super_column), SuperColumns.endOf(del.super_column), del.timestamp);
             else
-                rm.delete(cfName, del.timestamp);
+                rm.delete(cfm.cfName, del.timestamp);
         }
     }
 
@@ -1007,11 +1016,11 @@ public class CassandraServer implements Cassandra.Iface
         if (column_path.super_column == null && column_path.column == null)
             rm.delete(column_path.column_family, timestamp);
         else if (column_path.super_column == null)
-            rm.delete(column_path.column_family, column_path.column, timestamp);
+            rm.delete(column_path.column_family, metadata.comparator.cellFromByteBuffer(column_path.column), timestamp);
         else if (column_path.column == null)
             rm.deleteRange(column_path.column_family, SuperColumns.startOf(column_path.super_column), SuperColumns.endOf(column_path.super_column), timestamp);
         else
-            rm.delete(column_path.column_family, CompositeType.build(column_path.super_column, column_path.column), timestamp);
+            rm.delete(column_path.column_family, metadata.comparator.makeCellName(column_path.super_column, column_path.column), timestamp);
 
         if (isCommutativeOp)
             doInsert(consistency_level, Arrays.asList(new CounterMutation(rm, ThriftConversion.fromThrift(consistency_level))));
@@ -1768,9 +1777,9 @@ public class CassandraServer implements Cassandra.Iface
             try
             {
                 if (metadata.isSuper())
-                    rm.addCounter(column_parent.column_family, CompositeType.build(column_parent.super_column, column.name), column.value);
+                    rm.addCounter(column_parent.column_family, metadata.comparator.makeCellName(column_parent.super_column, column.name), column.value);
                 else
-                    rm.addCounter(column_parent.column_family, column.name, column.value);
+                    rm.addCounter(column_parent.column_family, metadata.comparator.cellFromByteBuffer(column.name), column.value);
             }
             catch (MarshalException e)
             {

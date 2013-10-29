@@ -29,6 +29,7 @@ import com.google.common.collect.Maps;
 
 import org.apache.cassandra.config.TriggerDefinition;
 import org.apache.cassandra.cql.QueryProcessor;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.IMutation;
@@ -94,7 +95,7 @@ public class TriggerExecutor
         {
             QueryProcessor.validateKey(mutation.key());
             for (ColumnFamily tcf : mutation.getColumnFamilies())
-                for (ByteBuffer tName : tcf.getColumnNames())
+                for (CellName tName : tcf.getColumnNames())
                     QueryProcessor.validateColumn(tcf.metadata(), tName, tcf.getColumn(tName).value());
         }
     }

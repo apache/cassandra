@@ -36,8 +36,10 @@ import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.ColumnNameHelper;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -116,29 +118,29 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         addColumn(column, HeapAllocator.instance);
     }
 
-    public void addColumn(ByteBuffer name, ByteBuffer value, long timestamp)
+    public void addColumn(CellName name, ByteBuffer value, long timestamp)
     {
         addColumn(name, value, timestamp, 0);
     }
 
-    public void addColumn(ByteBuffer name, ByteBuffer value, long timestamp, int timeToLive)
+    public void addColumn(CellName name, ByteBuffer value, long timestamp, int timeToLive)
     {
         assert !metadata().getDefaultValidator().isCommutative();
         Column column = Column.create(name, value, timestamp, timeToLive, metadata());
         addColumn(column);
     }
 
-    public void addCounter(ByteBuffer name, long value)
+    public void addCounter(CellName name, long value)
     {
         addColumn(new CounterUpdateColumn(name, value, System.currentTimeMillis()));
     }
 
-    public void addTombstone(ByteBuffer name, ByteBuffer localDeletionTime, long timestamp)
+    public void addTombstone(CellName name, ByteBuffer localDeletionTime, long timestamp)
     {
         addColumn(new DeletedColumn(name, localDeletionTime, timestamp));
     }
 
-    public void addTombstone(ByteBuffer name, int localDeletionTime, long timestamp)
+    public void addTombstone(CellName name, int localDeletionTime, long timestamp)
     {
         addColumn(new DeletedColumn(name, localDeletionTime, timestamp));
     }
@@ -220,13 +222,13 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
      * Get a column given its name, returning null if the column is not
      * present.
      */
-    public abstract Column getColumn(ByteBuffer name);
+    public abstract Column getColumn(CellName name);
 
     /**
      * Returns an iterable with the names of columns in this column map in the same order
      * as the underlying columns themselves.
      */
-    public abstract Iterable<ByteBuffer> getColumnNames();
+    public abstract Iterable<CellName> getColumnNames();
 
     /**
      * Returns the columns of this column map as a collection.
@@ -300,7 +302,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         // takes care of those for us.)
         for (Column columnExternal : cfComposite)
         {
-            ByteBuffer cName = columnExternal.name();
+            CellName cName = columnExternal.name();
             Column columnInternal = getColumn(cName);
             if (columnInternal == null)
             {
@@ -372,7 +374,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         if (isMarkedForDelete())
             sb.append(" -").append(deletionInfo()).append("-");
 
-        sb.append(" [").append(getComparator().getColumnsString(this)).append("])");
+        sb.append(" [").append(CellNames.getColumnsString(getComparator(), this)).append("])");
         return sb.toString();
     }
 
@@ -440,7 +442,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
     /**
      * @return the comparator whose sorting order the contained columns conform to
      */
-    public AbstractType<?> getComparator()
+    public CellNameType getComparator()
     {
         return metadata.comparator;
     }
@@ -478,9 +480,9 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         return false;
     }
 
-    public Map<ByteBuffer, ByteBuffer> asMap()
+    public Map<CellName, ByteBuffer> asMap()
     {
-        ImmutableMap.Builder<ByteBuffer, ByteBuffer> builder = ImmutableMap.builder();
+        ImmutableMap.Builder<CellName, ByteBuffer> builder = ImmutableMap.builder();
         for (Column column : this)
             builder.put(column.name, column.value);
         return builder.build();

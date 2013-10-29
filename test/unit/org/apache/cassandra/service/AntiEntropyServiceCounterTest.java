@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.LinkedList;
 
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.db.ConsistencyLevel;
 
@@ -39,7 +40,7 @@ public class AntiEntropyServiceCounterTest extends AntiEntropyServiceTestAbstrac
     {
         List<IMutation> rms = new LinkedList<IMutation>();
         RowMutation rm = new RowMutation(keyspaceName, ByteBufferUtil.bytes("key1"));
-        rm.addCounter(cfname, ByteBufferUtil.bytes("Column1"), 42);
+        rm.addCounter(cfname, CellNames.simpleDense(ByteBufferUtil.bytes("Column1")), 42);
         rms.add(new CounterMutation(rm, ConsistencyLevel.ONE));
         return rms;
     }

@@ -25,6 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ObjectSizes;
 
 /**
@@ -50,7 +51,7 @@ public class DeletionTime implements Comparable<DeletionTime>
      */
     public final int localDeletionTime;
 
-    public static final ISerializer<DeletionTime> serializer = new Serializer();
+    public static final Serializer serializer = new Serializer();
 
     @VisibleForTesting
     public DeletionTime(long markedForDeleteAt, int localDeletionTime)
@@ -110,7 +111,7 @@ public class DeletionTime implements Comparable<DeletionTime>
         return ObjectSizes.getFieldSize(fields);
     }
 
-    private static class Serializer implements ISerializer<DeletionTime>
+    public static class Serializer implements ISerializer<DeletionTime>
     {
         public void serialize(DeletionTime delTime, DataOutput out) throws IOException
         {
@@ -126,6 +127,11 @@ public class DeletionTime implements Comparable<DeletionTime>
                 return LIVE;
             else
                 return new DeletionTime(mfda, ldt);
+        }
+
+        public void skip(DataInput in) throws IOException
+        {
+            FileUtils.skipBytesFully(in, 4 + 8);
         }
 
         public long serializedSize(DeletionTime delTime, TypeSizes typeSizes)

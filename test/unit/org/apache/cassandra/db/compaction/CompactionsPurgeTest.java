@@ -44,6 +44,7 @@ import static org.junit.Assert.assertTrue;
 
 import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
 
+import static org.apache.cassandra.Util.cellname;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
@@ -68,7 +69,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         rm = new RowMutation(KEYSPACE1, key.key);
         for (int i = 0; i < 10; i++)
         {
-            rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+            rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         }
         rm.apply();
         cfs.forceBlockingFlush();
@@ -77,14 +78,14 @@ public class CompactionsPurgeTest extends SchemaLoader
         for (int i = 0; i < 10; i++)
         {
             rm = new RowMutation(KEYSPACE1, key.key);
-            rm.delete(cfName, ByteBufferUtil.bytes(String.valueOf(i)), 1);
+            rm.delete(cfName, cellname(String.valueOf(i)), 1);
             rm.apply();
         }
         cfs.forceBlockingFlush();
 
         // resurrect one column
         rm = new RowMutation(KEYSPACE1, key.key);
-        rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(5)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
+        rm.add(cfName, cellname(String.valueOf(5)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -93,7 +94,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         cfs.invalidateCachedRow(key);
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
         assertColumns(cf, "5");
-        assert cf.getColumn(ByteBufferUtil.bytes(String.valueOf(5))) != null;
+        assert cf.getColumn(cellname(String.valueOf(5))) != null;
     }
 
     @Test
@@ -113,7 +114,7 @@ public class CompactionsPurgeTest extends SchemaLoader
             rm = new RowMutation(KEYSPACE2, key.key);
             for (int i = 0; i < 10; i++)
             {
-                rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+                rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
             }
             rm.apply();
             cfs.forceBlockingFlush();
@@ -122,7 +123,7 @@ public class CompactionsPurgeTest extends SchemaLoader
             for (int i = 0; i < 10; i++)
             {
                 rm = new RowMutation(KEYSPACE2, key.key);
-                rm.delete(cfName, ByteBufferUtil.bytes(String.valueOf(i)), 1);
+                rm.delete(cfName, cellname(String.valueOf(i)), 1);
                 rm.apply();
             }
             cfs.forceBlockingFlush();
@@ -136,7 +137,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         cfs.forceBlockingFlush();
         Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
         rm = new RowMutation(KEYSPACE2, key1.key);
-        rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(5)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
+        rm.add(cfName, cellname(String.valueOf(5)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
         rm.apply();
         cfs.forceBlockingFlush();
         cfs.getCompactionStrategy().getUserDefinedTask(sstablesIncomplete, Integer.MAX_VALUE).execute(null);
@@ -168,20 +169,20 @@ public class CompactionsPurgeTest extends SchemaLoader
 
         // inserts
         rm = new RowMutation(KEYSPACE2, key3.key);
-        rm.add(cfName, ByteBufferUtil.bytes("c1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 8);
-        rm.add(cfName, ByteBufferUtil.bytes("c2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 8);
+        rm.add(cfName, cellname("c1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 8);
+        rm.add(cfName, cellname("c2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 8);
         rm.apply();
         cfs.forceBlockingFlush();
         // delete c1
         rm = new RowMutation(KEYSPACE2, key3.key);
-        rm.delete(cfName, ByteBufferUtil.bytes("c1"), 10);
+        rm.delete(cfName, cellname("c1"), 10);
         rm.apply();
         cfs.forceBlockingFlush();
         Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
 
         // delete c2 so we have new delete in a diffrent SSTable
         rm = new RowMutation(KEYSPACE2, key3.key);
-        rm.delete(cfName, ByteBufferUtil.bytes("c2"), 9);
+        rm.delete(cfName, cellname("c2"), 9);
         rm.apply();
         cfs.forceBlockingFlush();
 
@@ -191,7 +192,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         // We should have both the c1 and c2 tombstones still. Since the min timestamp in the c2 tombstone
         // sstable is older than the c1 tombstone, it is invalid to throw out the c1 tombstone.
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key3, cfName, System.currentTimeMillis()));
-        assertFalse(cf.getColumn(ByteBufferUtil.bytes("c2")).isLive(System.currentTimeMillis()));
+        assertFalse(cf.getColumn(cellname("c2")).isLive(System.currentTimeMillis()));
         assertEquals(2, cf.getColumnCount());
     }
 
@@ -211,7 +212,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         rm = new RowMutation(KEYSPACE1, key.key);
         for (int i = 0; i < 5; i++)
         {
-            rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+            rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         }
         rm.apply();
 
@@ -219,7 +220,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         for (int i = 0; i < 5; i++)
         {
             rm = new RowMutation(KEYSPACE1, key.key);
-            rm.delete(cfName, ByteBufferUtil.bytes(String.valueOf(i)), 1);
+            rm.delete(cfName, cellname(String.valueOf(i)), 1);
             rm.apply();
         }
         cfs.forceBlockingFlush();
@@ -249,7 +250,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         rm = new RowMutation(keyspaceName, key.key);
         for (int i = 0; i < 10; i++)
         {
-            rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+            rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         }
         rm.apply();
 
@@ -269,7 +270,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         rm = new RowMutation(keyspaceName, key.key);
         for (int i = 0; i < 10; i++)
         {
-            rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+            rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         }
         rm.apply();
 
@@ -296,7 +297,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         // inserts
         rm = new RowMutation(keyspaceName, key.key);
         for (int i = 0; i < 10; i++)
-            rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
+            rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
         rm.apply();
 
         // deletes row with timestamp such that not all columns are deleted
@@ -314,7 +315,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         // re-inserts with timestamp lower than delete
         rm = new RowMutation(keyspaceName, key.key);
         for (int i = 0; i < 5; i++)
-            rm.add(cfName, ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
+            rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
         rm.apply();
 
         // Check that the second insert went in

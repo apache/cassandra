@@ -165,7 +165,7 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
         {
             DecoratedKey key = Util.dk(String.valueOf(r));
             RowMutation rm = new RowMutation(ksname, key.key);
-            rm.add(cfname, ByteBufferUtil.bytes("column"), value, 0);
+            rm.add(cfname, Util.cellname("column"), value, 0);
             rm.apply();
             cfs.forceBlockingFlush();
         }
@@ -209,7 +209,7 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
         {
             DecoratedKey key = Util.dk(String.valueOf(r));
             RowMutation rm = new RowMutation(ksname, key.key);
-            rm.add(cfname, ByteBufferUtil.bytes("column"), value, 0);
+            rm.add(cfname, Util.cellname("column"), value, 0);
             rm.apply();
             cfs.forceBlockingFlush();
         }

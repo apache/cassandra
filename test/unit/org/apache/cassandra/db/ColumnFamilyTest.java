@@ -33,6 +33,7 @@ import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
 import static org.apache.cassandra.Util.column;
+import static org.apache.cassandra.Util.cellname;
 import static org.junit.Assert.assertEquals;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -87,7 +88,7 @@ public class ColumnFamilyTest extends SchemaLoader
         cf = ColumnFamily.serializer.deserialize(new DataInputStream(bufIn), version);
         for (String cName : map.navigableKeySet())
         {
-            ByteBuffer val = cf.getColumn(ByteBufferUtil.bytes(cName)).value();
+            ByteBuffer val = cf.getColumn(cellname(cName)).value();
             assert new String(val.array(),val.position(),val.remaining()).equals(map.get(cName));
         }
         assert Iterables.size(cf.getColumnNames()) == map.size();
@@ -115,7 +116,7 @@ public class ColumnFamilyTest extends SchemaLoader
         cf.addColumn(column("col1", "val2", 2)); // same timestamp, new value
         cf.addColumn(column("col1", "val3", 1)); // older timestamp -- should be ignored
 
-        assert ByteBufferUtil.bytes("val2").equals(cf.getColumn(ByteBufferUtil.bytes("col1")).value());
+        assert ByteBufferUtil.bytes("val2").equals(cf.getColumn(cellname("col1")).value());
     }
 
     @Test
@@ -127,30 +128,30 @@ public class ColumnFamilyTest extends SchemaLoader
         ByteBuffer val = ByteBufferUtil.bytes("sample value");
         ByteBuffer val2 = ByteBufferUtil.bytes("x value ");
 
-        cf_new.addColumn(ByteBufferUtil.bytes("col1"), val, 3);
-        cf_new.addColumn(ByteBufferUtil.bytes("col2"), val, 4);
+        cf_new.addColumn(cellname("col1"), val, 3);
+        cf_new.addColumn(cellname("col2"), val, 4);
 
-        cf_old.addColumn(ByteBufferUtil.bytes("col2"), val2, 1);
-        cf_old.addColumn(ByteBufferUtil.bytes("col3"), val2, 2);
+        cf_old.addColumn(cellname("col2"), val2, 1);
+        cf_old.addColumn(cellname("col3"), val2, 2);
 
         cf_result.addAll(cf_new, HeapAllocator.instance);
         cf_result.addAll(cf_old, HeapAllocator.instance);
 
         assert 3 == cf_result.getColumnCount() : "Count is " + cf_new.getColumnCount();
         //addcolumns will only add if timestamp >= old timestamp
-        assert val.equals(cf_result.getColumn(ByteBufferUtil.bytes("col2")).value());
+        assert val.equals(cf_result.getColumn(cellname("col2")).value());
 
         // check that tombstone wins timestamp ties
-        cf_result.addTombstone(ByteBufferUtil.bytes("col1"), 0, 3);
-        assert cf_result.getColumn(ByteBufferUtil.bytes("col1")).isMarkedForDelete(System.currentTimeMillis());
-        cf_result.addColumn(ByteBufferUtil.bytes("col1"), val2, 3);
-        assert cf_result.getColumn(ByteBufferUtil.bytes("col1")).isMarkedForDelete(System.currentTimeMillis());
+        cf_result.addTombstone(cellname("col1"), 0, 3);
+        assert cf_result.getColumn(cellname("col1")).isMarkedForDelete(System.currentTimeMillis());
+        cf_result.addColumn(cellname("col1"), val2, 3);
+        assert cf_result.getColumn(cellname("col1")).isMarkedForDelete(System.currentTimeMillis());
 
         // check that column value wins timestamp ties in absence of tombstone
-        cf_result.addColumn(ByteBufferUtil.bytes("col3"), val, 2);
-        assert cf_result.getColumn(ByteBufferUtil.bytes("col3")).value().equals(val2);
-        cf_result.addColumn(ByteBufferUtil.bytes("col3"), ByteBufferUtil.bytes("z"), 2);
-        assert cf_result.getColumn(ByteBufferUtil.bytes("col3")).value().equals(ByteBufferUtil.bytes("z"));
+        cf_result.addColumn(cellname("col3"), val, 2);
+        assert cf_result.getColumn(cellname("col3")).value().equals(val2);
+        cf_result.addColumn(cellname("col3"), ByteBufferUtil.bytes("z"), 2);
+        assert cf_result.getColumn(cellname("col3")).value().equals(ByteBufferUtil.bytes("z"));
     }
 
     @Test

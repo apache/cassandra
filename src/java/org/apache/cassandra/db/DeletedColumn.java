@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.Allocator;
@@ -30,18 +31,18 @@ import org.apache.cassandra.utils.HeapAllocator;
 
 public class DeletedColumn extends Column
 {
-    public DeletedColumn(ByteBuffer name, int localDeletionTime, long timestamp)
+    public DeletedColumn(CellName name, int localDeletionTime, long timestamp)
     {
         this(name, ByteBufferUtil.bytes(localDeletionTime), timestamp);
     }
 
-    public DeletedColumn(ByteBuffer name, ByteBuffer value, long timestamp)
+    public DeletedColumn(CellName name, ByteBuffer value, long timestamp)
     {
         super(name, value, timestamp);
     }
 
     @Override
-    public Column withUpdatedName(ByteBuffer newName)
+    public Column withUpdatedName(CellName newName)
     {
         return new DeletedColumn(newName, value, timestamp);
     }
@@ -67,7 +68,7 @@ public class DeletedColumn extends Column
     @Override
     public void updateDigest(MessageDigest digest)
     {
-        digest.update(name.duplicate());
+        digest.update(name.toByteBuffer().duplicate());
 
         DataOutputBuffer buffer = new DataOutputBuffer();
         try
@@ -99,13 +100,13 @@ public class DeletedColumn extends Column
     @Override
     public Column localCopy(ColumnFamilyStore cfs)
     {
-        return new DeletedColumn(cfs.internOrCopy(name, HeapAllocator.instance), ByteBufferUtil.clone(value), timestamp);
+        return new DeletedColumn(name.copy(HeapAllocator.instance), ByteBufferUtil.clone(value), timestamp);
     }
 
     @Override
     public Column localCopy(ColumnFamilyStore cfs, Allocator allocator)
     {
-        return new DeletedColumn(cfs.internOrCopy(name, allocator), allocator.clone(value), timestamp);
+        return new DeletedColumn(name.copy(allocator), allocator.clone(value), timestamp);
     }
 
     @Override
@@ -122,10 +123,5 @@ public class DeletedColumn extends Column
             throw new MarshalException("A tombstone value should be 4 bytes long");
         if (getLocalDeletionTime() < 0)
             throw new MarshalException("The local deletion time should not be negative");
-    }
-
-    public static DeletedColumn create(int localDeletionTime, long timestamp, String... names)
-    {
-        return new DeletedColumn(decomposeName(names), localDeletionTime, timestamp);
     }
 }

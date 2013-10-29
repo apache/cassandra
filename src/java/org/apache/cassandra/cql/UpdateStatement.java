@@ -23,6 +23,8 @@ import java.util.*;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.IMutation;
@@ -177,7 +179,8 @@ public class UpdateStatement extends AbstractModification
     throws InvalidRequestException
     {
         validateKey(key);
-        AbstractType<?> comparator = metadata.comparator;
+        CellNameType comparator = metadata.comparator;
+        AbstractType<?> at = comparator.asAbstractType();
 
         // if true we need to wrap RowMutation into CounterMutation
         boolean hasCounterColumn = false;
@@ -185,7 +188,7 @@ public class UpdateStatement extends AbstractModification
 
         for (Map.Entry<Term, Operation> column : getColumns().entrySet())
         {
-            ByteBuffer colName = column.getKey().getByteBuffer(comparator, variables);
+            CellName colName = comparator.cellFromByteBuffer(column.getKey().getByteBuffer(at, variables));
             Operation op = column.getValue();
 
             if (op.isUnary())
@@ -193,7 +196,7 @@ public class UpdateStatement extends AbstractModification
                 if (hasCounterColumn)
                     throw new InvalidRequestException("Mix of commutative and non-commutative operations is not allowed.");
 
-                ByteBuffer colValue = op.a.getByteBuffer(metadata.getValueValidatorFromCellName(colName),variables);
+                ByteBuffer colValue = op.a.getByteBuffer(metadata.getValueValidator(colName),variables);
 
                 validateColumn(metadata, colName, colValue);
                 rm.add(columnFamily,

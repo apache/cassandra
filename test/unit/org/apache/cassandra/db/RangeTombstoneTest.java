@@ -28,6 +28,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.IndexType;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
@@ -85,7 +86,7 @@ public class RangeTombstoneTest extends SchemaLoader
         // Queries by name
         int[] live = new int[]{ 4, 9, 11, 17, 28 };
         int[] dead = new int[]{ 12, 19, 21, 24, 27 };
-        SortedSet<ByteBuffer> columns = new TreeSet<>(cfs.getComparator());
+        SortedSet<CellName> columns = new TreeSet<CellName>(cfs.getComparator());
         for (int i : live)
             columns.add(b(i));
         for (int i : dead)
@@ -187,7 +188,7 @@ public class RangeTombstoneTest extends SchemaLoader
         cfs.forceBlockingFlush();
 
         // Get the last value of the row
-        cf = cfs.getColumnFamily(QueryFilter.getSliceFilter(dk(key), CFNAME, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 1, System.currentTimeMillis()));
+        cf = cfs.getColumnFamily(QueryFilter.getSliceFilter(dk(key), CFNAME, Composites.EMPTY, Composites.EMPTY, true, 1, System.currentTimeMillis()));
 
         assert !cf.isEmpty();
         int last = i(cf.getSortedColumns().iterator().next().name());
@@ -271,7 +272,7 @@ public class RangeTombstoneTest extends SchemaLoader
         cfs.setCompactionStrategyClass(SizeTieredCompactionStrategy.class.getCanonicalName());
         if (cfs.indexManager.getIndexForColumn(indexedColumnName) == null)
         {
-            ColumnDefinition cd = ColumnDefinition.regularDef(cfs.metadata, indexedColumnName, cfs.getComparator(), 0)
+            ColumnDefinition cd = ColumnDefinition.regularDef(cfs.metadata, indexedColumnName, cfs.getComparator().asAbstractType(), 0)
                                                   .setIndex("test_index", IndexType.CUSTOM, ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, TestIndex.class.getName()));
             cfs.indexManager.addIndexedColumn(cd);
         }
@@ -310,7 +311,7 @@ public class RangeTombstoneTest extends SchemaLoader
         cfs.setCompactionStrategyClass(SizeTieredCompactionStrategy.class.getCanonicalName());
         if (cfs.indexManager.getIndexForColumn(indexedColumnName) == null)
         {
-            ColumnDefinition cd = ColumnDefinition.regularDef(cfs.metadata, indexedColumnName, cfs.getComparator(), 0)
+            ColumnDefinition cd = ColumnDefinition.regularDef(cfs.metadata, indexedColumnName, cfs.getComparator().asAbstractType(), 0)
                                                   .setIndex("test_index", IndexType.CUSTOM, ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, TestIndex.class.getName()));
             cfs.indexManager.addIndexedColumn(cd);
         }
@@ -349,19 +350,19 @@ public class RangeTombstoneTest extends SchemaLoader
         return c != null && !c.isMarkedForDelete(System.currentTimeMillis()) && !cf.deletionInfo().isDeleted(c);
     }
 
-    private static ByteBuffer b(int i)
+    private static CellName b(int i)
     {
-        return ByteBufferUtil.bytes(i);
+        return CellNames.simpleDense(ByteBufferUtil.bytes(i));
     }
 
-    private static int i(ByteBuffer i)
+    private static int i(CellName i)
     {
-        return ByteBufferUtil.toInt(i);
+        return ByteBufferUtil.toInt(i.toByteBuffer());
     }
 
     private static void add(RowMutation rm, int value, long timestamp)
     {
-        rm.add(CFNAME, b(value), b(value), timestamp);
+        rm.add(CFNAME, b(value), ByteBufferUtil.bytes(value), timestamp);
     }
 
     private static void delete(ColumnFamily cf, int from, int to, long timestamp)
@@ -417,5 +418,7 @@ public class RangeTombstoneTest extends SchemaLoader
         public void invalidate(){}
 
         public void truncateBlocking(long truncatedAt) { }
+
+        public boolean indexes(CellName name) { return name.toByteBuffer().equals(ByteBufferUtil.bytes(1)); }
     }
 }

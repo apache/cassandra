@@ -18,17 +18,16 @@
 package org.apache.cassandra.db.columniterator;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.Iterator;
 import java.util.List;
 
 import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
@@ -54,7 +53,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
     private final ColumnSlice[] slices;
     private final BlockFetcher fetcher;
     private final Deque<OnDiskAtom> blockColumns = new ArrayDeque<OnDiskAtom>();
-    private final AbstractType<?> comparator;
+    private final CellNameType comparator;
 
     // Holds range tombstone in reverse queries. See addColumn()
     private final Deque<OnDiskAtom> rangeTombstonesReversed;
@@ -191,7 +190,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         /*
          * Return the smallest key selected by the current ColumnSlice.
          */
-        protected ByteBuffer currentStart()
+        protected Composite currentStart()
         {
             return reversed ? slices[currentSliceIdx].finish : slices[currentSliceIdx].start;
         }
@@ -199,7 +198,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         /*
          * Return the biggest key selected by the current ColumnSlice.
          */
-        protected ByteBuffer currentFinish()
+        protected Composite currentFinish()
         {
             return reversed ? slices[currentSliceIdx].start : slices[currentSliceIdx].finish;
         }
@@ -213,22 +212,22 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             return isBeforeSliceStart(column.name());
         }
 
-        protected boolean isBeforeSliceStart(ByteBuffer name)
+        protected boolean isBeforeSliceStart(Composite name)
         {
-            ByteBuffer start = currentStart();
-            return start.remaining() != 0 && comparator.compare(name, start) < 0;
+            Composite start = currentStart();
+            return !start.isEmpty() && comparator.compare(name, start) < 0;
         }
 
         protected boolean isColumnBeforeSliceFinish(OnDiskAtom column)
         {
-            ByteBuffer finish = currentFinish();
-            return finish.remaining() == 0 || comparator.compare(column.name(), finish) <= 0;
+            Composite finish = currentFinish();
+            return finish.isEmpty() || comparator.compare(column.name(), finish) <= 0;
         }
 
-        protected boolean isAfterSliceFinish(ByteBuffer name)
+        protected boolean isAfterSliceFinish(Composite name)
         {
-            ByteBuffer finish = currentFinish();
-            return finish.remaining() != 0 && comparator.compare(name, finish) > 0;
+            Composite finish = currentFinish();
+            return !finish.isEmpty() && comparator.compare(name, finish) > 0;
         }
     }
 
@@ -361,9 +360,8 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             if (file == null)
                 file = originalInput == null ? sstable.getFileDataInput(positionToSeek) : originalInput;
 
-            // Give a bogus atom count since we'll deserialize as long as we're
-            // within the index block but we don't know how much atom is there
-            Iterator<OnDiskAtom> atomIterator = emptyColumnFamily.metadata().getOnDiskIterator(file, Integer.MAX_VALUE, sstable.descriptor.version);
+            AtomDeserializer deserializer = emptyColumnFamily.metadata().getOnDiskDeserializer(file, sstable.descriptor.version);
+
             file.seek(positionToSeek);
             FileMark mark = file.mark();
 
@@ -371,63 +369,65 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             boolean inSlice = false;
 
             // scan from index start
-            OnDiskAtom column = null;
-            while (file.bytesPastMark(mark) < currentIndex.width || column != null)
+            while (file.bytesPastMark(mark) < currentIndex.width || deserializer.hasUnprocessed())
             {
-                // Only fetch a new column if we haven't dealt with the previous one.
-                if (column == null)
-                    column = atomIterator.next();
-
                 // col is before slice
                 // (If in slice, don't bother checking that until we change slice)
-                if (!inSlice && isColumnBeforeSliceStart(column))
+                Composite start = currentStart();
+                if (!inSlice && !start.isEmpty() && deserializer.compareNextTo(start) < 0)
                 {
                     if (reversed)
                     {
                         // the next slice select columns that are before the current one, so it may
                         // match this column, so keep it around.
-                        prefetched.addFirst(column);
+                        prefetched.addFirst(deserializer.readNext());
                     }
-                    column = null;
+                    else
+                    {
+                        deserializer.skipNext();
+                    }
                 }
                 // col is within slice
-                else if (isColumnBeforeSliceFinish(column))
-                {
-                    inSlice = true;
-                    addColumn(column);
-                    column = null;
-                }
-                // col is after slice.
                 else
                 {
-                    // When reading forward, if we hit a column that sorts after the current slice, it means we're done with this slice.
-                    // For reversed, this may either mean that we're done with the current slice, or that we need to read the previous
-                    // index block. However, we can be sure that we are in the first case though (the current slice is done) if the first
-                    // columns of the block were not part of the current slice, i.e. if we have columns in prefetched.
-                    if (reversed && prefetched.isEmpty())
-                        break;
-
-                    if (!setNextSlice())
-                        break;
-
-                    inSlice = false;
-
-                    // The next index block now corresponds to the first block that may have columns for the newly set slice.
-                    // So if it's different from the current block, we're done with this block. And in that case, we know
-                    // that our prefetched columns won't match.
-                    if (nextIndexIdx != lastDeserializedBlock)
+                    Composite finish = currentFinish();
+                    if (finish.isEmpty() || deserializer.compareNextTo(finish) <= 0)
                     {
-                        if (reversed)
-                            prefetched.clear();
-                        break;
+                        inSlice = true;
+                        addColumn(deserializer.readNext());
                     }
+                    // col is after slice.
+                    else
+                    {
+                        // When reading forward, if we hit a column that sorts after the current slice, it means we're done with this slice.
+                        // For reversed, this may either mean that we're done with the current slice, or that we need to read the previous
+                        // index block. However, we can be sure that we are in the first case though (the current slice is done) if the first
+                        // columns of the block were not part of the current slice, i.e. if we have columns in prefetched.
+                        if (reversed && prefetched.isEmpty())
+                            break;
 
-                    // Even if the next slice may have column in this blocks, if we're reversed, those columns have been
-                    // prefetched and we're done with that block
-                    if (reversed)
-                        break;
+                        if (!setNextSlice())
+                            break;
 
-                    // otherwise, we will deal with that column at the next iteration
+                        inSlice = false;
+
+                        // The next index block now corresponds to the first block that may have columns for the newly set slice.
+                        // So if it's different from the current block, we're done with this block. And in that case, we know
+                        // that our prefetched columns won't match.
+                        if (nextIndexIdx != lastDeserializedBlock)
+                        {
+                            if (reversed)
+                                prefetched.clear();
+                            break;
+                        }
+
+                        // Even if the next slice may have column in this blocks, if we're reversed, those columns have been
+                        // prefetched and we're done with that block
+                        if (reversed)
+                            break;
+
+                        // otherwise, we will deal with that column at the next iteration
+                    }
                 }
             }
             return true;
@@ -446,28 +446,27 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             boolean inSlice = false;
 
             int columnCount = sstable.descriptor.version.hasRowSizeAndColumnCount ? file.readInt() : Integer.MAX_VALUE;
-            Iterator<OnDiskAtom> atomIterator = emptyColumnFamily.metadata().getOnDiskIterator(file, columnCount, sstable.descriptor.version);
-            OnDiskAtom column = null;
-            while (atomIterator.hasNext() || column != null)
+            AtomDeserializer deserializer = emptyColumnFamily.metadata().getOnDiskDeserializer(file, sstable.descriptor.version);
+            int deserialized = 0;
+            while (deserializer.hasNext() && deserialized < columnCount)
             {
-                // Only fetch a new column if we haven't dealt with the previous one.
-                if (column == null)
-                    column = atomIterator.next();
-
                 // col is before slice
                 // (If in slice, don't bother checking that until we change slice)
-                if (!inSlice && isColumnBeforeSliceStart(column))
+                Composite start = currentStart();
+                if (!inSlice && !start.isEmpty() && deserializer.compareNextTo(start) < 0)
                 {
-                    column = null;
+                    deserializer.skipNext();
+                    ++deserialized;
                     continue;
                 }
 
                 // col is within slice
-                if (isColumnBeforeSliceFinish(column))
+                Composite finish = currentFinish();
+                if (finish.isEmpty() || deserializer.compareNextTo(finish) <= 0)
                 {
                     inSlice = true;
-                    addColumn(column);
-                    column = null;
+                    addColumn(deserializer.readNext());
+                    ++deserialized;
                 }
                 // col is after slice. more slices?
                 else

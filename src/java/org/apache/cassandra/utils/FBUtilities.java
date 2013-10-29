@@ -504,9 +504,11 @@ public class FBUtilities
         }
     }
 
-    public static <T extends Comparable> SortedSet<T> singleton(T column)
+    public static <T> SortedSet<T> singleton(T column, Comparator<? super T> comparator)
     {
-        return new TreeSet<T>(Arrays.asList(column));
+        SortedSet<T> s = new TreeSet<T>(comparator);
+        s.add(column);
+        return s;
     }
 
     public static String toString(Map<?,?> map)

@@ -145,12 +145,7 @@ public class SchemaLoader
                                            standardCFMD(ks1, "StandardGCGS0").gcGraceSeconds(0),
                                            standardCFMD(ks1, "StandardLong1"),
                                            standardCFMD(ks1, "StandardLong2"),
-                                           new CFMetaData(ks1,
-                                                          "ValuesWithQuotes",
-                                                          st,
-                                                          BytesType.instance,
-                                                          null)
-                                                   .defaultValidator(UTF8Type.instance),
+                                           CFMetaData.denseCFMetaData(ks1, "ValuesWithQuotes", BytesType.instance).defaultValidator(UTF8Type.instance),
                                            superCFMD(ks1, "Super1", LongType.instance),
                                            superCFMD(ks1, "Super2", LongType.instance),
                                            superCFMD(ks1, "Super3", LongType.instance),
@@ -159,44 +154,18 @@ public class SchemaLoader
                                            superCFMD(ks1, "Super6", LexicalUUIDType.instance, UTF8Type.instance),
                                            indexCFMD(ks1, "Indexed1", true),
                                            indexCFMD(ks1, "Indexed2", false),
-                                           new CFMetaData(ks1,
-                                                          "StandardInteger1",
-                                                          st,
-                                                          IntegerType.instance,
-                                                          null),
-                                           new CFMetaData(ks1,
-                                                          "Counter1",
-                                                          st,
-                                                          bytes,
-                                                          null)
-                                                   .defaultValidator(CounterColumnType.instance),
-                                           new CFMetaData(ks1,
-                                                          "SuperCounter1",
-                                                          su,
-                                                          bytes,
-                                                          bytes)
-                                                   .defaultValidator(CounterColumnType.instance),
+                                           CFMetaData.denseCFMetaData(ks1, "StandardInteger1", IntegerType.instance),
+                                           CFMetaData.denseCFMetaData(ks1, "Counter1", bytes).defaultValidator(CounterColumnType.instance),
+                                           CFMetaData.denseCFMetaData(ks1, "SuperCounter1", bytes, bytes).defaultValidator(CounterColumnType.instance),
                                            superCFMD(ks1, "SuperDirectGC", BytesType.instance).gcGraceSeconds(0),
-                                           jdbcCFMD(ks1, "JdbcInteger", IntegerType.instance).addColumnDefinition(integerColumn("ks1", "JdbcInteger")),
-                                           jdbcCFMD(ks1, "JdbcUtf8", UTF8Type.instance).addColumnDefinition(utf8Column("ks1", "JdbcUtf8")),
+                                           jdbcSparseCFMD(ks1, "JdbcInteger", IntegerType.instance).addColumnDefinition(integerColumn(ks1, "JdbcInteger")),
+                                           jdbcSparseCFMD(ks1, "JdbcUtf8", UTF8Type.instance).addColumnDefinition(utf8Column(ks1, "JdbcUtf8")),
                                            jdbcCFMD(ks1, "JdbcLong", LongType.instance),
                                            jdbcCFMD(ks1, "JdbcBytes", bytes),
                                            jdbcCFMD(ks1, "JdbcAscii", AsciiType.instance),
-                                           new CFMetaData(ks1,
-                                                          "StandardComposite",
-                                                          st,
-                                                          composite,
-                                                          null),
-                                           new CFMetaData(ks1,
-                                                          "StandardComposite2",
-                                                          st,
-                                                          compositeMaxMin,
-                                                          null),
-                                           new CFMetaData(ks1,
-                                                          "StandardDynamicComposite",
-                                                          st,
-                                                          dynamicComposite,
-                                                          null),
+                                           CFMetaData.denseCFMetaData(ks1, "StandardComposite", composite),
+                                           CFMetaData.denseCFMetaData(ks1, "StandardComposite2", compositeMaxMin),
+                                           CFMetaData.denseCFMetaData(ks1, "StandardDynamicComposite", dynamicComposite),
                                            standardCFMD(ks1, "StandardLeveled")
                                                                                .compactionStrategyClass(LeveledCompactionStrategy.class)
                                                                                .compactionStrategyOptions(leveledOptions),
@@ -238,11 +207,7 @@ public class SchemaLoader
                                            standardCFMD(ks4, "Standard3"),
                                            superCFMD(ks4, "Super3", bytes),
                                            superCFMD(ks4, "Super4", TimeUUIDType.instance),
-                                           new CFMetaData(ks4,
-                                                          "Super5",
-                                                          su,
-                                                          TimeUUIDType.instance,
-                                                          bytes)));
+                                           CFMetaData.denseCFMetaData(ks4, "Super5", TimeUUIDType.instance, bytes)));
 
         // Keyspace 5
         schema.add(KSMetaData.testMetadata(ks5,
@@ -335,7 +300,7 @@ public class SchemaLoader
                                                       SecondaryIndex.CUSTOM_INDEX_OPTION_NAME,
                                                       PerRowSecondaryIndexTest.TestIndex.class.getName());
 
-        CFMetaData cfm =  standardCFMD(ksName, cfName).keyValidator(AsciiType.instance);
+        CFMetaData cfm =  CFMetaData.sparseCFMetaData(ksName, cfName, BytesType.instance).keyValidator(AsciiType.instance);
 
         ByteBuffer cName = ByteBufferUtil.bytes("indexed");
         return cfm.addOrReplaceColumnDefinition(ColumnDefinition.regularDef(cfm, cName, AsciiType.instance, null)
@@ -355,7 +320,7 @@ public class SchemaLoader
 
     private static CFMetaData standardCFMD(String ksName, String cfName)
     {
-        return new CFMetaData(ksName, cfName, ColumnFamilyType.Standard, BytesType.instance, null);
+        return CFMetaData.denseCFMetaData(ksName, cfName, BytesType.instance);
     }
     private static CFMetaData superCFMD(String ksName, String cfName, AbstractType subcc)
     {
@@ -363,11 +328,11 @@ public class SchemaLoader
     }
     private static CFMetaData superCFMD(String ksName, String cfName, AbstractType cc, AbstractType subcc)
     {
-        return new CFMetaData(ksName, cfName, ColumnFamilyType.Super, cc, subcc);
+        return CFMetaData.denseCFMetaData(ksName, cfName, cc, subcc);
     }
     private static CFMetaData indexCFMD(String ksName, String cfName, final Boolean withIdxType) throws ConfigurationException
     {
-        CFMetaData cfm = standardCFMD(ksName, cfName).keyValidator(AsciiType.instance);
+        CFMetaData cfm = CFMetaData.sparseCFMetaData(ksName, cfName, BytesType.instance).keyValidator(AsciiType.instance);
 
         ByteBuffer cName = ByteBufferUtil.bytes("birthdate");
         IndexType keys = withIdxType ? IndexType.KEYS : null;
@@ -377,7 +342,7 @@ public class SchemaLoader
     private static CFMetaData compositeIndexCFMD(String ksName, String cfName, final Boolean withIdxType, boolean withOldCfIds) throws ConfigurationException
     {
         final CompositeType composite = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{UTF8Type.instance, UTF8Type.instance})); 
-        CFMetaData cfm = new CFMetaData(ksName, cfName, ColumnFamilyType.Standard, composite, null);
+        CFMetaData cfm = CFMetaData.sparseCFMetaData(ksName, cfName, composite);
 
         ByteBuffer cName = ByteBufferUtil.bytes("col1");
         IndexType idxType = withIdxType ? IndexType.COMPOSITES : null;
@@ -387,7 +352,12 @@ public class SchemaLoader
     
     private static CFMetaData jdbcCFMD(String ksName, String cfName, AbstractType comp)
     {
-        return new CFMetaData(ksName, cfName, ColumnFamilyType.Standard, comp, null).defaultValidator(comp);
+        return CFMetaData.denseCFMetaData(ksName, cfName, comp).defaultValidator(comp);
+    }
+
+    private static CFMetaData jdbcSparseCFMD(String ksName, String cfName, AbstractType comp)
+    {
+        return CFMetaData.sparseCFMetaData(ksName, cfName, comp).defaultValidator(comp);
     }
 
     public static void cleanupAndLeaveDirs()
@@ -433,7 +403,7 @@ public class SchemaLoader
         {
             ByteBuffer key = ByteBufferUtil.bytes("key" + i);
             RowMutation rowMutation = new RowMutation(keyspace, key);
-            rowMutation.add(columnFamily, ByteBufferUtil.bytes("col" + i), ByteBufferUtil.bytes("val" + i), System.currentTimeMillis());
+            rowMutation.add(columnFamily, Util.cellname("col" + i), ByteBufferUtil.bytes("val" + i), System.currentTimeMillis());
             rowMutation.applyUnsafe();
         }
     }
@@ -445,7 +415,7 @@ public class SchemaLoader
         for (int i = offset; i < offset + numberOfRows; i++)
         {
             DecoratedKey key = Util.dk("key" + i);
-            store.getColumnFamily(QueryFilter.getNamesFilter(key, columnFamily, ByteBufferUtil.bytes("col" + i), System.currentTimeMillis()));
+            store.getColumnFamily(Util.namesQueryFilter(store, key, "col" + i));
         }
     }
 

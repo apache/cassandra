@@ -25,8 +25,10 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.columniterator.SSTableNamesIterator;
+import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.junit.BeforeClass;
@@ -97,13 +99,14 @@ public class LegacySSTableTest extends SchemaLoader
         try
         {
             SSTableReader reader = SSTableReader.open(getDescriptor(version));
+            CellNameType type = reader.metadata.comparator;
             for (String keystring : TEST_DATA)
             {
                 ByteBuffer key = ByteBufferUtil.bytes(keystring);
                 // confirm that the bloom filter does not reject any keys/names
                 DecoratedKey dk = reader.partitioner.decorateKey(key);
-                SSTableNamesIterator iter = new SSTableNamesIterator(reader, dk, FBUtilities.singleton(key));
-                assert iter.next().name().equals(key);
+                SSTableNamesIterator iter = new SSTableNamesIterator(reader, dk, FBUtilities.singleton(Util.cellname(key), type));
+                assert iter.next().name().toByteBuffer().equals(key);
             }
 
             // TODO actually test some reads

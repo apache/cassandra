@@ -22,11 +22,11 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
@@ -68,53 +68,53 @@ public interface IDiskAtomFilter
      */
     public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore, long now);
 
-    public Comparator<Column> getColumnComparator(AbstractType<?> comparator);
+    public Comparator<Column> getColumnComparator(CellNameType comparator);
 
     public boolean isReversed();
     public void updateColumnsLimit(int newLimit);
 
     public int getLiveCount(ColumnFamily cf, long now);
-    public ColumnCounter columnCounter(AbstractType<?> comparator, long now);
+    public ColumnCounter columnCounter(CellNameType comparator, long now);
 
     public IDiskAtomFilter cloneShallow();
-    public boolean maySelectPrefix(Comparator<ByteBuffer> cmp, ByteBuffer prefix);
+    public boolean maySelectPrefix(Comparator<Composite> cmp, Composite prefix);
 
     boolean shouldInclude(SSTableReader sstable);
 
     public static class Serializer implements IVersionedSerializer<IDiskAtomFilter>
     {
-        public static Serializer instance = new Serializer();
+        private final CellNameType type;
+
+        public Serializer(CellNameType type)
+        {
+            this.type = type;
+        }
 
         public void serialize(IDiskAtomFilter filter, DataOutput out, int version) throws IOException
         {
             if (filter instanceof SliceQueryFilter)
             {
                 out.writeByte(0);
-                SliceQueryFilter.serializer.serialize((SliceQueryFilter)filter, out, version);
+                type.sliceQueryFilterSerializer().serialize((SliceQueryFilter)filter, out, version);
             }
             else
             {
                 out.writeByte(1);
-                NamesQueryFilter.serializer.serialize((NamesQueryFilter)filter, out, version);
+                type.namesQueryFilterSerializer().serialize((NamesQueryFilter)filter, out, version);
             }
         }
 
         public IDiskAtomFilter deserialize(DataInput in, int version) throws IOException
         {
-            throw new UnsupportedOperationException();
-        }
-
-        public IDiskAtomFilter deserialize(DataInput in, int version, AbstractType<?> comparator) throws IOException
-        {
-            int type = in.readByte();
-            if (type == 0)
+            int b = in.readByte();
+            if (b == 0)
             {
-                return SliceQueryFilter.serializer.deserialize(in, version);
+                return type.sliceQueryFilterSerializer().deserialize(in, version);
             }
             else
             {
-                assert type == 1;
-                return NamesQueryFilter.serializer.deserialize(in, version, comparator);
+                assert b == 1;
+                return type.namesQueryFilterSerializer().deserialize(in, version);
             }
         }
 
@@ -122,9 +122,9 @@ public interface IDiskAtomFilter
         {
             int size = 1;
             if (filter instanceof SliceQueryFilter)
-                size += SliceQueryFilter.serializer.serializedSize((SliceQueryFilter)filter, version);
+                size += type.sliceQueryFilterSerializer().serializedSize((SliceQueryFilter)filter, version);
             else
-                size += NamesQueryFilter.serializer.serializedSize((NamesQueryFilter)filter, version);
+                size += type.namesQueryFilterSerializer().serializedSize((NamesQueryFilter)filter, version);
             return size;
         }
     }

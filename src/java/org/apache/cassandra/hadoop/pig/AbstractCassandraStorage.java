@@ -123,22 +123,21 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         CfDef cfDef = cfInfo.cfDef;
         Tuple pair = TupleFactory.getInstance().newTuple(2);
 
+        ByteBuffer colName = col.name().toByteBuffer();
+
         // name
         if(comparator instanceof AbstractCompositeType)
-            setTupleValue(pair, 0, composeComposite((AbstractCompositeType)comparator,col.name()));
+            setTupleValue(pair, 0, composeComposite((AbstractCompositeType)comparator,colName));
         else
-            setTupleValue(pair, 0, cassandraToObj(comparator, col.name()));
+            setTupleValue(pair, 0, cassandraToObj(comparator, col.name().toByteBuffer()));
 
         // value
         Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
-        ByteBuffer colName;
         if (cfInfo.cql3Table && !cfInfo.compactCqlTable)
         {
-            ByteBuffer[] names = ((AbstractCompositeType) parseType(cfDef.comparator_type)).split(col.name());
+            ByteBuffer[] names = ((AbstractCompositeType) parseType(cfDef.comparator_type)).split(colName);
             colName = names[names.length-1];
         }
-        else
-            colName = col.name();
         if (validators.get(colName) == null)
         {
             Map<MarshallerType, AbstractType> marshallers = getDefaultMarshallers(cfDef);

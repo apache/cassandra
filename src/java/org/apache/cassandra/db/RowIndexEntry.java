@@ -27,6 +27,8 @@ import java.util.List;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
+import org.apache.cassandra.db.composites.CType;
+import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.util.FileUtils;
@@ -34,8 +36,6 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 public class RowIndexEntry implements IMeasurableMemory
 {
-    public static final Serializer serializer = new Serializer();
-
     public final long position;
 
     public RowIndexEntry(long position)
@@ -43,12 +43,7 @@ public class RowIndexEntry implements IMeasurableMemory
         this.position = position;
     }
 
-    public int serializedSize()
-    {
-        return TypeSizes.NATIVE.sizeof(position) + promotedSize();
-    }
-
-    protected int promotedSize()
+    protected int promotedSize(CType type)
     {
         return 0;
     }
@@ -93,17 +88,25 @@ public class RowIndexEntry implements IMeasurableMemory
 
     public static class Serializer
     {
+        private final CType type;
+
+        public Serializer(CType type)
+        {
+            this.type = type;
+        }
+
         public void serialize(RowIndexEntry rie, DataOutput out) throws IOException
         {
             out.writeLong(rie.position);
-            out.writeInt(rie.promotedSize());
+            out.writeInt(rie.promotedSize(type));
 
             if (rie.isIndexed())
             {
                 DeletionTime.serializer.serialize(rie.deletionTime(), out);
                 out.writeInt(rie.columnsIndex().size());
+                ISerializer<IndexHelper.IndexInfo> idxSerializer = type.indexSerializer();
                 for (IndexHelper.IndexInfo info : rie.columnsIndex())
-                    info.serialize(out);
+                    idxSerializer.serialize(info, out);
             }
         }
 
@@ -117,9 +120,10 @@ public class RowIndexEntry implements IMeasurableMemory
                 DeletionTime deletionTime = DeletionTime.serializer.deserialize(in);
 
                 int entries = in.readInt();
+                ISerializer<IndexHelper.IndexInfo> idxSerializer = type.indexSerializer();
                 List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
                 for (int i = 0; i < entries; i++)
-                    columnsIndex.add(IndexHelper.IndexInfo.deserialize(in));
+                    columnsIndex.add(idxSerializer.deserialize(in));
 
                 return new IndexedEntry(position, deletionTime, columnsIndex);
             }
@@ -129,19 +133,24 @@ public class RowIndexEntry implements IMeasurableMemory
             }
         }
 
-        public void skip(DataInput in) throws IOException
+        public static void skip(DataInput in) throws IOException
         {
             in.readLong();
             skipPromotedIndex(in);
         }
 
-        public void skipPromotedIndex(DataInput in) throws IOException
+        public static void skipPromotedIndex(DataInput in) throws IOException
         {
             int size = in.readInt();
             if (size <= 0)
                 return;
 
             FileUtils.skipBytesFully(in, size);
+        }
+
+        public int serializedSize(RowIndexEntry rie)
+        {
+            return TypeSizes.NATIVE.sizeof(rie.position) + rie.promotedSize(type);
         }
     }
 
@@ -175,13 +184,14 @@ public class RowIndexEntry implements IMeasurableMemory
         }
 
         @Override
-        public int promotedSize()
+        public int promotedSize(CType type)
         {
             TypeSizes typeSizes = TypeSizes.NATIVE;
             long size = DeletionTime.serializer.serializedSize(deletionTime, typeSizes);
             size += typeSizes.sizeof(columnsIndex.size()); // number of entries
+            ISerializer<IndexHelper.IndexInfo> idxSerializer = type.indexSerializer();
             for (IndexHelper.IndexInfo info : columnsIndex)
-                size += info.serializedSize(typeSizes);
+                size += idxSerializer.serializedSize(info, typeSizes);
 
             return Ints.checkedCast(size);
         }

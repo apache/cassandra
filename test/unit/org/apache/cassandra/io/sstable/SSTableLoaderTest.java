@@ -84,6 +84,6 @@ public class SSTableLoaderTest extends SchemaLoader
         List<Row> rows = Util.getRangeSlice(Keyspace.open("Keyspace1").getColumnFamilyStore("Standard1"));
         assertEquals(1, rows.size());
         assertEquals(key, rows.get(0).key);
-        assertEquals(ByteBufferUtil.bytes(100), rows.get(0).cf.getColumn(ByteBufferUtil.bytes("col1")).value());
+        assertEquals(ByteBufferUtil.bytes(100), rows.get(0).cf.getColumn(Util.cellname("col1")).value());
     }
 }

@@ -89,17 +89,19 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     /**
      * Creates the same output than serialize, but from the internal representation.
      */
-    public ByteBuffer serialize(List<Pair<ByteBuffer, Column>> columns)
+    public ByteBuffer serialize(List<Column> columns)
     {
         columns = enforceLimit(columns);
 
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(2 * columns.size());
         int size = 0;
-        for (Pair<ByteBuffer, Column> p : columns)
+        for (Column c : columns)
         {
-            bbs.add(p.left);
-            bbs.add(p.right.value());
-            size += 4 + p.left.remaining() + p.right.value().remaining();
+            ByteBuffer key = c.name().collectionElement();
+            ByteBuffer value = c.value();
+            bbs.add(key);
+            bbs.add(value);
+            size += 4 + key.remaining() + value.remaining();
         }
         return pack(bbs, columns.size(), size);
     }

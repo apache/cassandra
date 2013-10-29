@@ -67,7 +67,7 @@ public class NameSortTest extends SchemaLoader
             {
                 ByteBuffer bytes = j % 2 == 0 ? ByteBufferUtil.bytes("a") : ByteBufferUtil.bytes("b");
                 rm = new RowMutation("Keyspace1", key);
-                rm.add("Standard1", ByteBufferUtil.bytes(("Column-" + j)), bytes, j);
+                rm.add("Standard1", Util.cellname("Column-" + j), bytes, j);
                 rm.applyUnsafe();
             }
 
@@ -102,7 +102,7 @@ public class NameSortTest extends SchemaLoader
             Collection<Column> columns = cf.getSortedColumns();
             for (Column column : columns)
             {
-                String name = ByteBufferUtil.string(column.name());
+                String name = ByteBufferUtil.string(column.name().toByteBuffer());
                 int j = Integer.valueOf(name.substring(name.length() - 1));
                 byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
                 assertEquals(new String(bytes), ByteBufferUtil.string(column.value()));

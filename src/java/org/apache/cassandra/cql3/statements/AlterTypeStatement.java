@@ -23,6 +23,7 @@ import java.util.*;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
@@ -153,7 +154,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
                 cfm.keyValidator(updateWith(cfm.getKeyValidator(), toReplace, updated));
                 break;
             case CLUSTERING_COLUMN:
-                cfm.comparator = updateWith(cfm.comparator, toReplace, updated);
+                cfm.comparator = CellNames.fromAbstractType(updateWith(cfm.comparator.asAbstractType(), toReplace, updated), cfm.comparator.isDense());
                 break;
         }
         return true;

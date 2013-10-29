@@ -24,12 +24,15 @@ import java.util.Set;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 /**
@@ -37,9 +40,9 @@ import org.apache.cassandra.exceptions.ConfigurationException;
  */
 public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIndex
 {
-    private volatile CompositeType indexComparator;
+    private volatile CellNameType indexComparator;
 
-    protected CompositeType getIndexComparator()
+    protected CellNameType getIndexComparator()
     {
         // Yes, this is racy, but doing this more than once is not a big deal, we just want to avoid doing it every time
         // More seriously, we should fix that whole SecondaryIndex API so this can be a final and avoid all that non-sense.
@@ -81,7 +84,7 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
     }
 
     // Check SecondaryIndex.getIndexComparator if you want to know why this is static
-    public static CompositeType getIndexComparator(CFMetaData baseMetadata, ColumnDefinition cfDef)
+    public static CellNameType getIndexComparator(CFMetaData baseMetadata, ColumnDefinition cfDef)
     {
         if (cfDef.type.isCollection())
         {
@@ -110,12 +113,12 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
         throw new AssertionError();
     }
 
-    protected ByteBuffer makeIndexColumnName(ByteBuffer rowKey, Column column)
+    protected CellName makeIndexColumnName(ByteBuffer rowKey, Column column)
     {
-        return makeIndexColumnNameBuilder(rowKey, column.name()).build();
+        return getIndexComparator().create(makeIndexColumnPrefix(rowKey, column.name()), null);
     }
 
-    protected abstract ColumnNameBuilder makeIndexColumnNameBuilder(ByteBuffer rowKey, ByteBuffer columnName);
+    protected abstract Composite makeIndexColumnPrefix(ByteBuffer rowKey, Composite columnName);
 
     public abstract IndexedEntry decodeEntry(DecoratedKey indexedValue, Column indexEntry);
 
@@ -132,15 +135,9 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
 
     }
 
-    protected AbstractType getExpressionComparator()
+    protected AbstractType<?> getExpressionComparator()
     {
         return baseCfs.metadata.getColumnDefinitionComparator(columnDef);
-    }
-
-    protected CompositeType getBaseComparator()
-    {
-        assert baseCfs.getComparator() instanceof CompositeType;
-        return (CompositeType)baseCfs.getComparator();
     }
 
     public SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns)
@@ -166,45 +163,31 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
     public static class IndexedEntry
     {
         public final DecoratedKey indexValue;
-        public final ByteBuffer indexEntry;
+        public final CellName indexEntry;
         public final long timestamp;
 
         public final ByteBuffer indexedKey;
-        public final ColumnNameBuilder indexedEntryNameBuilder;
+        public final Composite indexedEntryPrefix;
         public final ByteBuffer indexedEntryCollectionKey; // may be null
 
-        public IndexedEntry(DecoratedKey indexValue,
-                            ByteBuffer indexEntry,
-                            long timestamp,
-                            ByteBuffer indexedKey,
-                            ColumnNameBuilder indexedEntryNameBuilder)
+        public IndexedEntry(DecoratedKey indexValue, CellName indexEntry, long timestamp, ByteBuffer indexedKey, Composite indexedEntryPrefix)
         {
-            this(indexValue, indexEntry, timestamp, indexedKey, indexedEntryNameBuilder, null);
+            this(indexValue, indexEntry, timestamp, indexedKey, indexedEntryPrefix, null);
         }
 
         public IndexedEntry(DecoratedKey indexValue,
-                            ByteBuffer indexEntry,
+                            CellName indexEntry,
                             long timestamp,
                             ByteBuffer indexedKey,
-                            ColumnNameBuilder indexedEntryNameBuilder,
+                            Composite indexedEntryPrefix,
                             ByteBuffer indexedEntryCollectionKey)
         {
             this.indexValue = indexValue;
             this.indexEntry = indexEntry;
             this.timestamp = timestamp;
             this.indexedKey = indexedKey;
-            this.indexedEntryNameBuilder = indexedEntryNameBuilder;
+            this.indexedEntryPrefix = indexedEntryPrefix;
             this.indexedEntryCollectionKey = indexedEntryCollectionKey;
-        }
-
-        public ByteBuffer indexedEntryStart()
-        {
-            return indexedEntryNameBuilder.build();
-        }
-
-        public ByteBuffer indexedEntryEnd()
-        {
-            return indexedEntryNameBuilder.buildAsEndOfRange();
         }
     }
 }

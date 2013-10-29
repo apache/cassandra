@@ -27,9 +27,9 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.IndexType;
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
@@ -144,12 +144,12 @@ public class SecondaryIndexManager
         logger.info("Index build of {} complete", idxNames);
     }
 
-    public boolean indexes(ByteBuffer name, Collection<SecondaryIndex> indexes)
+    public boolean indexes(CellName name, Collection<SecondaryIndex> indexes)
     {
         return !indexFor(name, indexes).isEmpty();
     }
 
-    public List<SecondaryIndex> indexFor(ByteBuffer name, Collection<SecondaryIndex> indexes)
+    public List<SecondaryIndex> indexFor(CellName name, Collection<SecondaryIndex> indexes)
     {
         List<SecondaryIndex> matching = null;
         for (SecondaryIndex index : indexes)
@@ -169,12 +169,12 @@ public class SecondaryIndexManager
         return indexes(column.name());
     }
 
-    public boolean indexes(ByteBuffer name)
+    public boolean indexes(CellName name)
     {
         return indexes(name, indexesByColumn.values());
     }
 
-    public List<SecondaryIndex> indexFor(ByteBuffer name)
+    public List<SecondaryIndex> indexFor(CellName name)
     {
         return indexFor(name, indexesByColumn.values());
     }
@@ -437,7 +437,8 @@ public class SecondaryIndexManager
 
         for (Column column : indexedColumnsInRow)
         {
-            SecondaryIndex index = indexesByColumn.get(column.name());
+            // TODO: this is probably incorrect, we should pull all indexes
+            SecondaryIndex index = indexesByColumn.get(column.name().toByteBuffer());
             if (index == null)
                 continue;
 
@@ -559,8 +560,12 @@ public class SecondaryIndexManager
 
     public boolean validate(Column column)
     {
-        SecondaryIndex index = getIndexForColumn(column.name());
-        return index == null || index.validate(column);
+        for (SecondaryIndex index : indexFor(column.name()))
+        {
+            if (!index.validate(column))
+                return false;
+        }
+        return true;
     }
 
     public static interface Updater

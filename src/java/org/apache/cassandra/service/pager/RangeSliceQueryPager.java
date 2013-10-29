@@ -17,10 +17,11 @@
  */
 package org.apache.cassandra.service.pager;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -37,7 +38,7 @@ public class RangeSliceQueryPager extends AbstractQueryPager
 {
     private final RangeSliceCommand command;
     private volatile DecoratedKey lastReturnedKey;
-    private volatile ByteBuffer lastReturnedName;
+    private volatile CellName lastReturnedName;
 
     // Don't use directly, use QueryPagers method instead
     RangeSliceQueryPager(RangeSliceCommand command, ConsistencyLevel consistencyLevel, boolean localQuery)
@@ -54,7 +55,7 @@ public class RangeSliceQueryPager extends AbstractQueryPager
         if (state != null)
         {
             lastReturnedKey = StorageService.getPartitioner().decorateKey(state.partitionKey);
-            lastReturnedName = state.cellName;
+            lastReturnedName = cfm.comparator.cellFromByteBuffer(state.cellName);
             restoreState(state.remaining, true);
         }
     }
@@ -63,7 +64,7 @@ public class RangeSliceQueryPager extends AbstractQueryPager
     {
         return lastReturnedKey == null
              ? null
-             : new PagingState(lastReturnedKey.key, lastReturnedName, maxRemaining());
+             : new PagingState(lastReturnedKey.key, lastReturnedName.toByteBuffer(), maxRemaining());
     }
 
     protected List<Row> queryNextPage(int pageSize, ConsistencyLevel consistencyLevel, boolean localQuery)
@@ -71,7 +72,7 @@ public class RangeSliceQueryPager extends AbstractQueryPager
     {
         SliceQueryFilter sf = (SliceQueryFilter)columnFilter;
         AbstractBounds<RowPosition> keyRange = lastReturnedKey == null ? command.keyRange : makeIncludingKeyBounds(lastReturnedKey);
-        ByteBuffer start = lastReturnedName == null ? sf.start() : lastReturnedName;
+        Composite start = lastReturnedName == null ? sf.start() : lastReturnedName;
         PagedRangeCommand pageCmd = new PagedRangeCommand(command.keyspace,
                                                           command.columnFamily,
                                                           command.timestamp,

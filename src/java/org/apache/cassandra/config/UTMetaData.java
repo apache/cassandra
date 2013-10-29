@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.cql3.*;
@@ -34,6 +35,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public final class UTMetaData
 {
+    private static final ColumnIdentifier COLUMN_NAMES = new ColumnIdentifier("column_names", false);
+    private static final ColumnIdentifier COLUMN_TYPES = new ColumnIdentifier("column_types", false);
+
     private final Map<ByteBuffer, UserType> userTypes = new HashMap<>();
 
     // Only for Schema. You should generally not create instance of this, but rather use
@@ -84,8 +88,9 @@ public final class UTMetaData
         RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, newType.name);
         ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_USER_TYPES_CF);
 
-        ColumnNameBuilder builder = CFMetaData.SchemaUserTypesCf.getColumnNameBuilder();
-        UpdateParameters params = new UpdateParameters(CFMetaData.SchemaUserTypesCf, Collections.<ByteBuffer>emptyList(), timestamp, 0, null);
+        CFMetaData cfm = CFMetaData.SchemaUserTypesCf;
+        UpdateParameters params = new UpdateParameters(cfm, Collections.<ByteBuffer>emptyList(), timestamp, 0, null);
+        Composite prefix = cfm.comparator.builder().build();
 
         List<ByteBuffer> columnTypes = new ArrayList<>(newType.types.size());
         for (AbstractType<?> type : newType.types)
@@ -93,8 +98,8 @@ public final class UTMetaData
 
         try
         {
-            new Lists.Setter(new ColumnIdentifier("column_names", false), new Lists.Value(newType.columnNames)).execute(newType.name, cf, builder.copy(), params);
-            new Lists.Setter(new ColumnIdentifier("column_types", false), new Lists.Value(columnTypes)).execute(newType.name, cf, builder, params);
+            new Lists.Setter(cfm.getColumnDefinition(COLUMN_NAMES), new Lists.Value(newType.columnNames)).execute(newType.name, cf, prefix, params);
+            new Lists.Setter(cfm.getColumnDefinition(COLUMN_TYPES), new Lists.Value(columnTypes)).execute(newType.name, cf, prefix, params);
         }
         catch (RequestValidationException e)
         {

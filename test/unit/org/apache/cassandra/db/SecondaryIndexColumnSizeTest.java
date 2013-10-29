@@ -24,6 +24,7 @@ import java.util.Set;
 import org.junit.Test;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.index.PerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.PerRowSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
@@ -47,7 +48,7 @@ public class SecondaryIndexColumnSizeTest
 
         // for read
         buffer.flip();
-        Column column = new Column(ByteBufferUtil.bytes("test"), buffer, 0);
+        Column column = new Column(CellNames.simpleDense(ByteBufferUtil.bytes("test")), buffer, 0);
 
         SecondaryIndexColumnSizeTest.MockRowIndex mockRowIndex = new SecondaryIndexColumnSizeTest.MockRowIndex();
         SecondaryIndexColumnSizeTest.MockColumnIndex mockColumnIndex = new SecondaryIndexColumnSizeTest.MockColumnIndex();
@@ -137,6 +138,11 @@ public class SecondaryIndexColumnSizeTest
         public void reload()
         {
         }
+
+        public boolean indexes(CellName name)
+        {
+            return true;
+        }
     }
 
 
@@ -214,6 +220,11 @@ public class SecondaryIndexColumnSizeTest
         @Override
         public void reload()
         {
+        }
+
+        public boolean indexes(CellName name)
+        {
+            return true;
         }
     }
 }

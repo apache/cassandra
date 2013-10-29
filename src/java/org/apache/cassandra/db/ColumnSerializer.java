@@ -22,9 +22,12 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnSerializer implements ISerializer<Column>
@@ -51,10 +54,17 @@ public class ColumnSerializer implements ISerializer<Column>
         LOCAL, FROM_REMOTE, PRESERVE_SIZE;
     }
 
+    private final CellNameType type;
+
+    public ColumnSerializer(CellNameType type)
+    {
+        this.type = type;
+    }
+
     public void serialize(Column column, DataOutput out) throws IOException
     {
-        assert column.name().remaining() > 0;
-        ByteBufferUtil.writeWithShortLength(column.name(), out);
+        assert !column.name().isEmpty();
+        type.cellSerializer().serialize(column.name(), out);
         try
         {
             out.writeByte(column.serializationFlags());
@@ -93,15 +103,13 @@ public class ColumnSerializer implements ISerializer<Column>
 
     public Column deserialize(DataInput in, ColumnSerializer.Flag flag, int expireBefore) throws IOException
     {
-        ByteBuffer name = ByteBufferUtil.readWithShortLength(in);
-        if (name.remaining() <= 0)
-            throw CorruptColumnException.create(in, name);
+        CellName name = type.cellSerializer().deserialize(in);
 
         int b = in.readUnsignedByte();
         return deserializeColumnBody(in, name, b, flag, expireBefore);
     }
 
-    Column deserializeColumnBody(DataInput in, ByteBuffer name, int mask, ColumnSerializer.Flag flag, int expireBefore) throws IOException
+    Column deserializeColumnBody(DataInput in, CellName name, int mask, ColumnSerializer.Flag flag, int expireBefore) throws IOException
     {
         if ((mask & COUNTER_MASK) != 0)
         {
@@ -130,9 +138,22 @@ public class ColumnSerializer implements ISerializer<Column>
         }
     }
 
-    public long serializedSize(Column column, TypeSizes type)
+    void skipColumnBody(DataInput in, int mask) throws IOException
     {
-        return column.serializedSize(type);
+        if ((mask & COUNTER_MASK) != 0)
+            FileUtils.skipBytesFully(in, 16);
+        else if ((mask & EXPIRATION_MASK) != 0)
+            FileUtils.skipBytesFully(in, 16);
+        else
+            FileUtils.skipBytesFully(in, 8);
+
+        int length = in.readInt();
+        FileUtils.skipBytesFully(in, length);
+    }
+
+    public long serializedSize(Column column, TypeSizes typeSizes)
+    {
+        return column.serializedSize(type, typeSizes);
     }
 
     public static class CorruptColumnException extends IOException

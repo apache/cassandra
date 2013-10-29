@@ -157,7 +157,9 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         out.writeUTF(sliceCommand.columnFamily);
         out.writeLong(sliceCommand.timestamp);
 
-        IDiskAtomFilter.Serializer.instance.serialize(sliceCommand.predicate, out, version);
+        CFMetaData metadata = Schema.instance.getCFMetaData(sliceCommand.keyspace, sliceCommand.columnFamily);
+
+        metadata.comparator.diskAtomFilterSerializer().serialize(sliceCommand.predicate, out, version);
 
         if (sliceCommand.rowFilter == null)
         {
@@ -187,7 +189,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
 
         CFMetaData metadata = Schema.instance.getCFMetaData(keyspace, columnFamily);
 
-        IDiskAtomFilter predicate = IDiskAtomFilter.Serializer.instance.deserialize(in, version, metadata.comparator);
+        IDiskAtomFilter predicate = metadata.comparator.diskAtomFilterSerializer().deserialize(in, version);
 
         List<IndexExpression> rowFilter;
         int filterCount = in.readInt();
@@ -214,9 +216,11 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         size += TypeSizes.NATIVE.sizeof(rsc.columnFamily);
         size += TypeSizes.NATIVE.sizeof(rsc.timestamp);
 
+        CFMetaData metadata = Schema.instance.getCFMetaData(rsc.keyspace, rsc.columnFamily);
+
         IDiskAtomFilter filter = rsc.predicate;
 
-        size += IDiskAtomFilter.Serializer.instance.serializedSize(filter, version);
+        size += metadata.comparator.diskAtomFilterSerializer().serializedSize(filter, version);
 
         if (rsc.rowFilter == null)
         {

@@ -25,6 +25,8 @@ import static org.junit.Assert.*;
 
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
@@ -32,34 +34,39 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class IndexHelperTest
 {
+    private static CellName cn(long l)
+    {
+        return Util.cellname(l);
+    }
+
     @Test
     public void testIndexHelper()
     {
         List<IndexInfo> indexes = new ArrayList<IndexInfo>();
-        indexes.add(new IndexInfo(bytes(0L), bytes(5L), 0, 0));
-        indexes.add(new IndexInfo(bytes(10L), bytes(15L), 0, 0));
-        indexes.add(new IndexInfo(bytes(20L), bytes(25L), 0, 0));
+        indexes.add(new IndexInfo(cn(0L), cn(5L), 0, 0));
+        indexes.add(new IndexInfo(cn(10L), cn(15L), 0, 0));
+        indexes.add(new IndexInfo(cn(20L), cn(25L), 0, 0));
 
-        AbstractType comp = IntegerType.instance;
+        CellNameType comp = new SimpleDenseCellNameType(IntegerType.instance);
 
-        assertEquals(0, IndexHelper.indexFor(bytes(-1L), indexes, comp, false, -1));
-        assertEquals(0, IndexHelper.indexFor(bytes(5L), indexes, comp, false, -1));
-        assertEquals(1, IndexHelper.indexFor(bytes(12L), indexes, comp, false, -1));
-        assertEquals(2, IndexHelper.indexFor(bytes(17L), indexes, comp, false, -1));
-        assertEquals(3, IndexHelper.indexFor(bytes(100L), indexes, comp, false, -1));
-        assertEquals(3, IndexHelper.indexFor(bytes(100L), indexes, comp, false, 0));
-        assertEquals(3, IndexHelper.indexFor(bytes(100L), indexes, comp, false, 1));
-        assertEquals(3, IndexHelper.indexFor(bytes(100L), indexes, comp, false, 2));
-        assertEquals(-1, IndexHelper.indexFor(bytes(100L), indexes, comp, false, 3));
+        assertEquals(0, IndexHelper.indexFor(cn(-1L), indexes, comp, false, -1));
+        assertEquals(0, IndexHelper.indexFor(cn(5L), indexes, comp, false, -1));
+        assertEquals(1, IndexHelper.indexFor(cn(12L), indexes, comp, false, -1));
+        assertEquals(2, IndexHelper.indexFor(cn(17L), indexes, comp, false, -1));
+        assertEquals(3, IndexHelper.indexFor(cn(100L), indexes, comp, false, -1));
+        assertEquals(3, IndexHelper.indexFor(cn(100L), indexes, comp, false, 0));
+        assertEquals(3, IndexHelper.indexFor(cn(100L), indexes, comp, false, 1));
+        assertEquals(3, IndexHelper.indexFor(cn(100L), indexes, comp, false, 2));
+        assertEquals(-1, IndexHelper.indexFor(cn(100L), indexes, comp, false, 3));
 
-        assertEquals(-1, IndexHelper.indexFor(bytes(-1L), indexes, comp, true, -1));
-        assertEquals(0, IndexHelper.indexFor(bytes(5L), indexes, comp, true, -1));
-        assertEquals(1, IndexHelper.indexFor(bytes(17L), indexes, comp, true, -1));
-        assertEquals(2, IndexHelper.indexFor(bytes(100L), indexes, comp, true, -1));
-        assertEquals(0, IndexHelper.indexFor(bytes(100L), indexes, comp, true, 0));
-        assertEquals(1, IndexHelper.indexFor(bytes(12L), indexes, comp, true, -1));
-        assertEquals(1, IndexHelper.indexFor(bytes(100L), indexes, comp, true, 1));
-        assertEquals(2, IndexHelper.indexFor(bytes(100L), indexes, comp, true, 2));
-        assertEquals(-1, IndexHelper.indexFor(bytes(100L), indexes, comp, true, 4));
+        assertEquals(-1, IndexHelper.indexFor(cn(-1L), indexes, comp, true, -1));
+        assertEquals(0, IndexHelper.indexFor(cn(5L), indexes, comp, true, -1));
+        assertEquals(1, IndexHelper.indexFor(cn(17L), indexes, comp, true, -1));
+        assertEquals(2, IndexHelper.indexFor(cn(100L), indexes, comp, true, -1));
+        assertEquals(0, IndexHelper.indexFor(cn(100L), indexes, comp, true, 0));
+        assertEquals(1, IndexHelper.indexFor(cn(12L), indexes, comp, true, -1));
+        assertEquals(1, IndexHelper.indexFor(cn(100L), indexes, comp, true, 1));
+        assertEquals(2, IndexHelper.indexFor(cn(100L), indexes, comp, true, 2));
+        assertEquals(-1, IndexHelper.indexFor(cn(100L), indexes, comp, true, 4));
     }
 }

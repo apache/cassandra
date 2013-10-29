@@ -23,8 +23,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
@@ -32,7 +35,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 
 /**
@@ -258,17 +260,17 @@ public abstract class Lists
 
     public static class Setter extends Operation
     {
-        public Setter(ColumnIdentifier column, Term t)
+        public Setter(ColumnDefinition column, Term t)
         {
             super(column, t);
         }
 
-        public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
+        public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
             // delete + append
-            ColumnNameBuilder column = prefix.add(columnName);
-            cf.addAtom(params.makeTombstoneForOverwrite(column.build(), column.buildAsEndOfRange()));
-            Appender.doAppend(t, cf, column, params);
+            CellName name = cf.getComparator().create(prefix, column.name);
+            cf.addAtom(params.makeTombstoneForOverwrite(name.slice()));
+            Appender.doAppend(t, cf, prefix, column.name, params);
         }
     }
 
@@ -276,7 +278,7 @@ public abstract class Lists
     {
         private final Term idx;
 
-        public SetterByIndex(ColumnIdentifier column, Term idx, Term t)
+        public SetterByIndex(ColumnDefinition column, Term idx, Term t)
         {
             super(column, t);
             this.idx = idx;
@@ -295,7 +297,7 @@ public abstract class Lists
             idx.collectMarkerSpecification(boundNames);
         }
 
-        public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
+        public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
             ByteBuffer index = idx.bindAndGet(params.variables);
             ByteBuffer value = t.bindAndGet(params.variables);
@@ -303,13 +305,12 @@ public abstract class Lists
             if (index == null)
                 throw new InvalidRequestException("Invalid null value for list index");
 
-            List<Pair<ByteBuffer, Column>> existingList = params.getPrefetchedList(rowKey, columnName);
+            List<Column> existingList = params.getPrefetchedList(rowKey, column.name);
             int idx = ByteBufferUtil.toInt(index);
             if (idx < 0 || idx >= existingList.size())
                 throw new InvalidRequestException(String.format("List index %d out of bound, list has size %d", idx, existingList.size()));
 
-            ByteBuffer elementName = existingList.get(idx).right.name();
-
+            CellName elementName = existingList.get(idx).name();
             if (value == null)
             {
                 cf.addColumn(params.makeTombstone(elementName));
@@ -329,17 +330,17 @@ public abstract class Lists
 
     public static class Appender extends Operation
     {
-        public Appender(ColumnIdentifier column, Term t)
+        public Appender(ColumnDefinition column, Term t)
         {
             super(column, t);
         }
 
-        public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
+        public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            doAppend(t, cf, prefix.add(columnName), params);
+            doAppend(t, cf, prefix, column.name, params);
         }
 
-        static void doAppend(Term t, ColumnFamily cf, ColumnNameBuilder columnName, UpdateParameters params) throws InvalidRequestException
+        static void doAppend(Term t, ColumnFamily cf, Composite prefix, ColumnIdentifier columnName, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.variables);
             // If we append null, do nothing. Note that for Setter, we've
@@ -351,22 +352,20 @@ public abstract class Lists
             List<ByteBuffer> toAdd = ((Lists.Value)value).elements;
             for (int i = 0; i < toAdd.size(); i++)
             {
-                ColumnNameBuilder b = i == toAdd.size() - 1 ? columnName : columnName.copy();
                 ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
-                ByteBuffer cellName = b.add(uuid).build();
-                cf.addColumn(params.makeColumn(cellName, toAdd.get(i)));
+                cf.addColumn(params.makeColumn(cf.getComparator().create(prefix, columnName, uuid), toAdd.get(i)));
             }
         }
     }
 
     public static class Prepender extends Operation
     {
-        public Prepender(ColumnIdentifier column, Term t)
+        public Prepender(ColumnDefinition column, Term t)
         {
             super(column, t);
         }
 
-        public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
+        public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.variables);
             if (value == null)
@@ -376,21 +375,18 @@ public abstract class Lists
             long time = PrecisionTime.REFERENCE_TIME - (System.currentTimeMillis() - PrecisionTime.REFERENCE_TIME);
 
             List<ByteBuffer> toAdd = ((Lists.Value)value).elements;
-            ColumnNameBuilder column = prefix.add(columnName);
             for (int i = 0; i < toAdd.size(); i++)
             {
-                ColumnNameBuilder b = i == toAdd.size() - 1 ? column : column.copy();
                 PrecisionTime pt = PrecisionTime.getNext(time);
                 ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(pt.millis, pt.nanos));
-                ByteBuffer cellName = b.add(uuid).build();
-                cf.addColumn(params.makeColumn(cellName, toAdd.get(i)));
+                cf.addColumn(params.makeColumn(cf.getComparator().create(prefix, column.name, uuid), toAdd.get(i)));
             }
         }
     }
 
     public static class Discarder extends Operation
     {
-        public Discarder(ColumnIdentifier column, Term t)
+        public Discarder(ColumnDefinition column, Term t)
         {
             super(column, t);
         }
@@ -401,9 +397,9 @@ public abstract class Lists
             return true;
         }
 
-        public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
+        public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            List<Pair<ByteBuffer, Column>> existingList = params.getPrefetchedList(rowKey, columnName);
+            List<Column> existingList = params.getPrefetchedList(rowKey, column.name);
             if (existingList.isEmpty())
                 return;
 
@@ -418,18 +414,17 @@ public abstract class Lists
             // the read-before-write this operation requires limits its usefulness on big lists, so in practice
             // toDiscard will be small and keeping a list will be more efficient.
             List<ByteBuffer> toDiscard = ((Lists.Value)value).elements;
-            for (Pair<ByteBuffer, Column> p : existingList)
+            for (Column cell : existingList)
             {
-                Column element = p.right;
-                if (toDiscard.contains(element.value()))
-                    cf.addColumn(params.makeTombstone(element.name()));
+                if (toDiscard.contains(cell.value()))
+                    cf.addColumn(params.makeTombstone(cell.name()));
             }
         }
     }
 
     public static class DiscarderByIndex extends Operation
     {
-        public DiscarderByIndex(ColumnIdentifier column, Term idx)
+        public DiscarderByIndex(ColumnDefinition column, Term idx)
         {
             super(column, idx);
         }
@@ -440,7 +435,7 @@ public abstract class Lists
             return true;
         }
 
-        public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
+        public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal index = t.bind(params.variables);
             if (index == null)
@@ -448,12 +443,12 @@ public abstract class Lists
 
             assert index instanceof Constants.Value;
 
-            List<Pair<ByteBuffer, Column>> existingList = params.getPrefetchedList(rowKey, columnName);
+            List<Column> existingList = params.getPrefetchedList(rowKey, column.name);
             int idx = ByteBufferUtil.toInt(((Constants.Value)index).bytes);
             if (idx < 0 || idx >= existingList.size())
                 throw new InvalidRequestException(String.format("List index %d out of bound, list has size %d", idx, existingList.size()));
 
-            ByteBuffer elementName = existingList.get(idx).right.name();
+            CellName elementName = existingList.get(idx).name();
             cf.addColumn(params.makeTombstone(elementName));
         }
     }

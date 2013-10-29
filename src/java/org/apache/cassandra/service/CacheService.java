@@ -39,7 +39,9 @@ import org.apache.cassandra.cache.*;
 import org.apache.cassandra.cache.AutoSavingCache.CacheSerializer;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -342,7 +344,8 @@ public class CacheService implements CacheServiceMBean
             Descriptor desc = key.desc;
             out.writeInt(desc.generation);
             out.writeBoolean(true);
-            RowIndexEntry.serializer.serialize(entry, out);
+            CFMetaData cfm = Schema.instance.getCFMetaData(key.desc.ksname, key.desc.cfname);
+            cfm.comparator.rowIndexEntrySerializer().serialize(entry, out);
         }
 
         public Future<Pair<KeyCacheKey, RowIndexEntry>> deserialize(DataInputStream input, ColumnFamilyStore cfs) throws IOException
@@ -359,10 +362,10 @@ public class CacheService implements CacheServiceMBean
             input.readBoolean(); // backwards compatibility for "promoted indexes" boolean
             if (reader == null)
             {
-                RowIndexEntry.serializer.skipPromotedIndex(input);
+                RowIndexEntry.Serializer.skipPromotedIndex(input);
                 return null;
             }
-            RowIndexEntry entry = RowIndexEntry.serializer.deserialize(input, reader.descriptor.version);
+            RowIndexEntry entry = reader.metadata.comparator.rowIndexEntrySerializer().deserialize(input, reader.descriptor.version);
             return Futures.immediateFuture(Pair.create(new KeyCacheKey(reader.descriptor, key), entry));
         }
 

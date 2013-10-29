@@ -16,6 +16,7 @@
  * Batch read from OTC's queue and cleanup (CASSANDRA-1632)
  * Secondary index support for collections (CASSANDRA-4511)
  * SSTable metadata(Stats.db) format change (CASSANDRA-6356)
+ * Push composites support in the storage engine (CASSANDRA-5417)
 
 
 2.0.4

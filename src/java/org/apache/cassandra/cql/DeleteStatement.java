@@ -24,6 +24,7 @@ import java.util.List;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -100,9 +101,10 @@ public class DeleteStatement extends AbstractModification
         else
         {
             // Delete specific columns
+            AbstractType<?> at = metadata.comparator.asAbstractType();
             for (Term column : columns)
             {
-                ByteBuffer columnName = column.getByteBuffer(metadata.comparator, variables);
+                CellName columnName = metadata.comparator.cellFromByteBuffer(column.getByteBuffer(at, variables));
                 validateColumnName(columnName);
                 rm.delete(columnFamily, columnName, (timestamp == null) ? getTimestamp(clientState) : timestamp);
             }

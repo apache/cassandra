@@ -20,13 +20,11 @@
  */
 package org.apache.cassandra.db.filter;
 
-import java.nio.ByteBuffer;
-
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DeletionInfo;
-import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnCounter
 {
@@ -75,9 +73,9 @@ public class ColumnCounter
 
     public static class GroupByPrefix extends ColumnCounter
     {
-        private final CompositeType type;
+        private final CellNameType type;
         private final int toGroup;
-        private ByteBuffer[] last;
+        private CellName last;
 
         /**
          * A column counter that count only 1 for all the columns sharing a
@@ -89,7 +87,7 @@ public class ColumnCounter
          *                column. If 0, all columns are grouped, otherwise we group
          *                those for which the {@code toGroup} first component are equals.
          */
-        public GroupByPrefix(long timestamp, CompositeType type, int toGroup)
+        public GroupByPrefix(long timestamp, CellNameType type, int toGroup)
         {
             super(timestamp);
             this.type = type;
@@ -112,15 +110,15 @@ public class ColumnCounter
                 return;
             }
 
-            ByteBuffer[] current = type.split(column.name());
-            assert current.length >= toGroup;
+            CellName current = column.name();
+            assert current.size() >= toGroup;
 
             if (last != null)
             {
                 boolean isSameGroup = true;
                 for (int i = 0; i < toGroup; i++)
                 {
-                    if (ByteBufferUtil.compareUnsigned(last[i], current[i]) != 0)
+                    if (type.subtype(i).compare(last.get(i), current.get(i)) != 0)
                     {
                         isSameGroup = false;
                         break;

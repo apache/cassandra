@@ -150,9 +150,10 @@ public class MappedFileDataInput extends AbstractDataInput implements FileDataIn
     }
 
     @Override
-    public final void readFully(byte[] buffer) throws IOException
+    public final void readFully(byte[] bytes) throws IOException
     {
-        throw new UnsupportedOperationException("use readBytes instead");
+        ByteBufferUtil.arrayCopy(buffer, buffer.position() + position, bytes, 0, bytes.length);
+        position += bytes.length;
     }
 
     @Override

@@ -50,7 +50,7 @@ public class OneCompactionTest extends SchemaLoader
         for (int j = 0; j < insertsPerTable; j++) {
             DecoratedKey key = Util.dk(String.valueOf(j));
             RowMutation rm = new RowMutation("Keyspace1", key.key);
-            rm.add(columnFamilyName, ByteBufferUtil.bytes("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
+            rm.add(columnFamilyName, Util.cellname("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
             inserted.add(key);
             store.forceBlockingFlush();

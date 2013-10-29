@@ -27,10 +27,10 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CBuilder;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
-import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.exceptions.*;
@@ -72,7 +72,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
     }
 
     public abstract boolean requireFullClusteringKey();
-    public abstract ColumnFamily updateForKey(ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params) throws InvalidRequestException;
+    public abstract ColumnFamily updateForKey(ByteBuffer key, Composite prefix, UpdateParameters params) throws InvalidRequestException;
 
     public int getBoundsTerms()
     {
@@ -215,7 +215,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
     public List<ByteBuffer> buildPartitionKeyNames(List<ByteBuffer> variables)
     throws InvalidRequestException
     {
-        ColumnNameBuilder keyBuilder = cfm.getKeyNameBuilder();
+        CBuilder keyBuilder = cfm.getKeyValidatorAsCType().builder();
         List<ByteBuffer> keys = new ArrayList<ByteBuffer>();
         for (ColumnDefinition def : cfm.partitionKeyColumns())
         {
@@ -231,7 +231,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                 {
                     if (val == null)
                         throw new InvalidRequestException(String.format("Invalid null value for partition key part %s", def.name));
-                    keys.add(keyBuilder.copy().add(val).build());
+                    keys.add(keyBuilder.buildWith(val).toByteBuffer());
                 }
             }
             else
@@ -247,10 +247,10 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         return keys;
     }
 
-    public ColumnNameBuilder createClusteringPrefixBuilder(List<ByteBuffer> variables)
+    public Composite createClusteringPrefix(List<ByteBuffer> variables)
     throws InvalidRequestException
     {
-        ColumnNameBuilder builder = cfm.getColumnNameBuilder();
+        CBuilder builder = cfm.comparator.prefixBuilder();
         ColumnDefinition firstEmptyKey = null;
         for (ColumnDefinition def : cfm.clusteringColumns())
         {
@@ -258,7 +258,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
             if (r == null)
             {
                 firstEmptyKey = def;
-                if (requireFullClusteringKey() && cfm.hasCompositeComparator() && !cfm.isDense())
+                if (requireFullClusteringKey() && !cfm.comparator.isDense() && cfm.comparator.isCompound())
                     throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", def.name));
             }
             else if (firstEmptyKey != null)
@@ -275,7 +275,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                 builder.add(val);
             }
         }
-        return builder;
+        return builder.build();
     }
 
     protected ColumnDefinition getFirstEmptyKey()
@@ -288,7 +288,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         return null;
     }
 
-    protected Map<ByteBuffer, ColumnGroupMap> readRequiredRows(List<ByteBuffer> partitionKeys, ColumnNameBuilder clusteringPrefix, boolean local, ConsistencyLevel cl)
+    protected Map<ByteBuffer, CQL3Row> readRequiredRows(List<ByteBuffer> partitionKeys, Composite clusteringPrefix, boolean local, ConsistencyLevel cl)
     throws RequestExecutionException, RequestValidationException
     {
         // Lists SET operation incurs a read.
@@ -299,14 +299,14 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
             {
                 if (toRead == null)
                     toRead = new TreeSet<ColumnIdentifier>();
-                toRead.add(op.columnName);
+                toRead.add(op.column.name);
             }
         }
 
-        return toRead == null ? null : readRows(partitionKeys, clusteringPrefix, toRead, (CompositeType)cfm.comparator, local, cl);
+        return toRead == null ? null : readRows(partitionKeys, clusteringPrefix, toRead, cfm, local, cl);
     }
 
-    private Map<ByteBuffer, ColumnGroupMap> readRows(List<ByteBuffer> partitionKeys, ColumnNameBuilder clusteringPrefix, Set<ColumnIdentifier> toRead, CompositeType composite, boolean local, ConsistencyLevel cl)
+    protected Map<ByteBuffer, CQL3Row> readRows(List<ByteBuffer> partitionKeys, Composite rowPrefix, Set<ColumnIdentifier> toRead, CFMetaData cfm, boolean local, ConsistencyLevel cl)
     throws RequestExecutionException, RequestValidationException
     {
         try
@@ -321,11 +321,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         ColumnSlice[] slices = new ColumnSlice[toRead.size()];
         int i = 0;
         for (ColumnIdentifier name : toRead)
-        {
-            ByteBuffer start = clusteringPrefix.copy().add(name).build();
-            ByteBuffer finish = clusteringPrefix.copy().add(name).buildAsEndOfRange();
-            slices[i++] = new ColumnSlice(start, finish);
-        }
+            slices[i++] = cfm.comparator.create(rowPrefix, name).slice();
 
         List<ReadCommand> commands = new ArrayList<ReadCommand>(partitionKeys.size());
         long now = System.currentTimeMillis();
@@ -340,20 +336,19 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                        ? SelectStatement.readLocally(keyspace(), commands)
                        : StorageProxy.read(commands, cl);
 
-        Map<ByteBuffer, ColumnGroupMap> map = new HashMap<ByteBuffer, ColumnGroupMap>();
+        Map<ByteBuffer, CQL3Row> map = new HashMap<ByteBuffer, CQL3Row>();
         for (Row row : rows)
         {
-            if (row.cf == null || row.cf.getColumnCount() == 0)
+            if (row.cf == null || row.cf.isEmpty())
                 continue;
 
-            ColumnGroupMap.Builder groupBuilder = new ColumnGroupMap.Builder(composite, true, now);
-            for (Column column : row.cf)
-                groupBuilder.add(column);
-
-            List<ColumnGroupMap> groups = groupBuilder.groups();
-            assert groups.isEmpty() || groups.size() == 1;
-            if (!groups.isEmpty())
-                map.put(row.key.key, groups.get(0));
+            Iterator<CQL3Row> iter = cfm.comparator.CQL3RowBuilder(now).group(row.cf.getSortedColumns().iterator());
+            if (iter.hasNext())
+            {
+                map.put(row.key.key, iter.next());
+                // We can only update one CQ3Row per partition key at a time (we don't allow IN for clustering key)
+                assert !iter.hasNext();
+            }
         }
         return map;
     }
@@ -402,7 +397,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         if (keys.size() > 1)
             throw new InvalidRequestException("IN on the partition key is not supported with conditional updates");
 
-        ColumnNameBuilder clusteringPrefix = createClusteringPrefixBuilder(variables);
+        Composite clusteringPrefix = createClusteringPrefix(variables);
 
         ByteBuffer key = keys.get(0);
         ThriftValidation.validateKey(cfm, key);
@@ -467,7 +462,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         {
             List<ColumnDefinition> defs = new ArrayList<>(columnConditions.size());
             for (Operation condition : columnConditions)
-                defs.add(cfm.getColumnDefinition(condition.columnName));
+                defs.add(condition.column);
             selection = Selection.forColumns(defs);
         }
 
@@ -503,10 +498,10 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
     throws RequestExecutionException, RequestValidationException
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(variables);
-        ColumnNameBuilder clusteringPrefix = createClusteringPrefixBuilder(variables);
+        Composite clusteringPrefix = createClusteringPrefix(variables);
 
         // Some lists operation requires reading
-        Map<ByteBuffer, ColumnGroupMap> rows = readRequiredRows(keys, clusteringPrefix, local, cl);
+        Map<ByteBuffer, CQL3Row> rows = readRequiredRows(keys, clusteringPrefix, local, cl);
         UpdateParameters params = new UpdateParameters(cfm, variables, getTimestamp(now, variables), getTimeToLive(variables), rows);
 
         Collection<IMutation> mutations = new ArrayList<IMutation>();
@@ -535,7 +530,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         return isCounter() ? new CounterMutation(rm, cl) : rm;
     }
 
-    private ColumnFamily buildConditions(ByteBuffer key, ColumnNameBuilder clusteringPrefix, UpdateParameters params)
+    private ColumnFamily buildConditions(ByteBuffer key, Composite clusteringPrefix, UpdateParameters params)
     throws InvalidRequestException
     {
         if (ifNotExists)
@@ -544,15 +539,12 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfm);
 
         // CQL row marker
-        if (cfm.hasCompositeComparator() && !cfm.isDense() && !cfm.isSuper())
-        {
-            ByteBuffer name = clusteringPrefix.copy().add(ByteBufferUtil.EMPTY_BYTE_BUFFER).build();
-            cf.addColumn(params.makeColumn(name, ByteBufferUtil.EMPTY_BYTE_BUFFER));
-        }
+        if (cfm.isCQL3Table())
+            cf.addColumn(params.makeColumn(cfm.comparator.rowMarker(clusteringPrefix), ByteBufferUtil.EMPTY_BYTE_BUFFER));
 
         // Conditions
         for (Operation condition : columnConditions)
-            condition.execute(key, cf, clusteringPrefix.copy(), params);
+            condition.execute(key, cf, clusteringPrefix, params);
 
         assert !cf.isEmpty();
         return cf;

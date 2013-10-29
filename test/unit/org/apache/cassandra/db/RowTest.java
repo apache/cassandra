@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.Util.column;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -59,14 +60,14 @@ public class RowTest extends SchemaLoader
         cf2.addColumn(column("two", "C", 1));
 
         cf1.resolve(cf2);
-        assert Arrays.equals(cf1.getColumn(ByteBufferUtil.bytes("one")).value().array(), "B".getBytes());
-        assert Arrays.equals(cf1.getColumn(ByteBufferUtil.bytes("two")).value().array(), "C".getBytes());
+        assert Arrays.equals(cf1.getColumn(CellNames.simpleDense(ByteBufferUtil.bytes("one"))).value().array(), "B".getBytes());
+        assert Arrays.equals(cf1.getColumn(CellNames.simpleDense(ByteBufferUtil.bytes("two"))).value().array(), "C".getBytes());
     }
 
     @Test
     public void testExpiringColumnExpiration()
     {
-        Column c = new ExpiringColumn(ByteBufferUtil.bytes("one"), ByteBufferUtil.bytes("A"), 0, 1);
+        Column c = new ExpiringColumn(CellNames.simpleDense(ByteBufferUtil.bytes("one")), ByteBufferUtil.bytes("A"), 0, 1);
         assert !c.isMarkedForDelete(System.currentTimeMillis());
 
         // Because we keep the local deletion time with a precision of a

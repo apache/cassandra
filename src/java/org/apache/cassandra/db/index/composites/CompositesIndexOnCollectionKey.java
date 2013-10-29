@@ -23,11 +23,14 @@ import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CBuilder;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.composites.CompoundDenseCellNameType;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.dht.LocalToken;
 
 /**
  * Index on the collection element of the cell name of a collection.
@@ -45,15 +48,14 @@ import org.apache.cassandra.dht.LocalToken;
  */
 public class CompositesIndexOnCollectionKey extends CompositesIndex
 {
-    public static CompositeType buildIndexComparator(CFMetaData baseMetadata, ColumnDefinition columnDef)
+    public static CellNameType buildIndexComparator(CFMetaData baseMetadata, ColumnDefinition columnDef)
     {
         int count = 1 + baseMetadata.clusteringColumns().size(); // row key + clustering prefix
         List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(count);
-        List<AbstractType<?>> ckTypes = baseMetadata.comparator.getComponents();
         types.add(SecondaryIndex.keyComparator);
         for (int i = 0; i < count - 1; i++)
-            types.add(ckTypes.get(i));
-        return CompositeType.getInstance(types);
+            types.add(baseMetadata.comparator.subtype(i));
+        return new CompoundDenseCellNameType(types);
     }
 
     @Override
@@ -64,49 +66,41 @@ public class CompositesIndexOnCollectionKey extends CompositesIndex
 
     protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Column column)
     {
-        CompositeType baseComparator = (CompositeType)baseCfs.getComparator();
-        ByteBuffer[] components = baseComparator.split(column.name());
-        return components[columnDef.position() + 1];
+        return column.name().get(columnDef.position() + 1);
     }
 
-    protected ColumnNameBuilder makeIndexColumnNameBuilder(ByteBuffer rowKey, ByteBuffer columnName)
+    protected Composite makeIndexColumnPrefix(ByteBuffer rowKey, Composite cellName)
     {
         int count = 1 + baseCfs.metadata.clusteringColumns().size();
-        CompositeType baseComparator = (CompositeType)baseCfs.getComparator();
-        ByteBuffer[] components = baseComparator.split(columnName);
-        CompositeType.Builder builder = getIndexComparator().builder();
+        CBuilder builder = getIndexComparator().builder();
         builder.add(rowKey);
         for (int i = 0; i < count - 1; i++)
-            builder.add(components[i]);
-        return builder;
+            builder.add(cellName.get(i));
+        return builder.build();
     }
 
     public IndexedEntry decodeEntry(DecoratedKey indexedValue, Column indexEntry)
     {
         int count = 1 + baseCfs.metadata.clusteringColumns().size();
-        ByteBuffer[] components = getIndexComparator().split(indexEntry.name());
-
-        ColumnNameBuilder builder = getBaseComparator().builder();
+        CBuilder builder = baseCfs.getComparator().builder();
         for (int i = 0; i < count - 1; i++)
-            builder.add(components[i + 1]);
-
-        return new IndexedEntry(indexedValue, indexEntry.name(), indexEntry.timestamp(), components[0], builder);
+            builder.add(indexEntry.name().get(i + 1));
+        return new IndexedEntry(indexedValue, indexEntry.name(), indexEntry.timestamp(), indexEntry.name().get(0), builder.build());
     }
 
     @Override
-    public boolean indexes(ByteBuffer name)
+    public boolean indexes(CellName name)
     {
         // We index if the CQL3 column name is the one of the collection we index
-        ByteBuffer[] components = getBaseComparator().split(name);
         AbstractType<?> comp = baseCfs.metadata.getColumnDefinitionComparator(columnDef);
-        return components.length > columnDef.position()
-            && comp.compare(components[columnDef.position()], columnDef.name.bytes) == 0;
+        return name.size() > columnDef.position()
+            && comp.compare(name.get(columnDef.position()), columnDef.name.bytes) == 0;
     }
 
     public boolean isStale(IndexedEntry entry, ColumnFamily data, long now)
     {
-        ByteBuffer bb = entry.indexedEntryNameBuilder.copy().add(columnDef.name).add(entry.indexValue.key).build();
-        Column liveColumn = data.getColumn(bb);
+        CellName name = data.getComparator().create(entry.indexedEntryPrefix, columnDef.name, entry.indexValue.key);
+        Column liveColumn = data.getColumn(name);
         return (liveColumn == null || liveColumn.isMarkedForDelete(now));
     }
 }

@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.db.filter;
 
+import java.nio.ByteBuffer;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.slf4j.Logger;
@@ -30,8 +30,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.SSTableSliceIterator;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.composites.CType;
+import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
@@ -40,7 +41,6 @@ import org.apache.cassandra.tracing.Tracing;
 public class SliceQueryFilter implements IDiskAtomFilter
 {
     private static final Logger logger = LoggerFactory.getLogger(SliceQueryFilter.class);
-    public static final Serializer serializer = new Serializer();
 
     public final ColumnSlice[] slices;
     public final boolean reversed;
@@ -50,14 +50,24 @@ public class SliceQueryFilter implements IDiskAtomFilter
     // Not serialized, just a ack for range slices to find the number of live column counted, even when we group
     private ColumnCounter columnCounter;
 
-    public SliceQueryFilter(ByteBuffer start, ByteBuffer finish, boolean reversed, int count)
+    public SliceQueryFilter(Composite start, Composite finish, boolean reversed, int count)
     {
-        this(new ColumnSlice[] { new ColumnSlice(start, finish) }, reversed, count);
+        this(new ColumnSlice(start, finish), reversed, count);
     }
 
-    public SliceQueryFilter(ByteBuffer start, ByteBuffer finish, boolean reversed, int count, int compositesToGroup)
+    public SliceQueryFilter(Composite start, Composite finish, boolean reversed, int count, int compositesToGroup)
     {
-        this(new ColumnSlice[] { new ColumnSlice(start, finish) }, reversed, count, compositesToGroup);
+        this(new ColumnSlice(start, finish), reversed, count, compositesToGroup);
+    }
+
+    public SliceQueryFilter(ColumnSlice slice, boolean reversed, int count)
+    {
+        this(new ColumnSlice[]{ slice }, reversed, count);
+    }
+
+    public SliceQueryFilter(ColumnSlice slice, boolean reversed, int count, int compositesToGroup)
+    {
+        this(new ColumnSlice[]{ slice }, reversed, count, compositesToGroup);
     }
 
     /**
@@ -92,9 +102,9 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return new SliceQueryFilter(newSlices, reversed, count, compositesToGroup);
     }
 
-    public SliceQueryFilter withUpdatedStart(ByteBuffer newStart, AbstractType<?> comparator)
+    public SliceQueryFilter withUpdatedStart(Composite newStart, CellNameType comparator)
     {
-        Comparator<ByteBuffer> cmp = reversed ? comparator.reverseComparator : comparator;
+        Comparator<Composite> cmp = reversed ? comparator.reverseComparator() : comparator;
 
         List<ColumnSlice> newSlices = new ArrayList<ColumnSlice>();
         boolean pastNewStart = false;
@@ -121,7 +131,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return withUpdatedSlices(newSlices.toArray(new ColumnSlice[newSlices.size()]));
     }
 
-    public SliceQueryFilter withUpdatedSlice(ByteBuffer start, ByteBuffer finish)
+    public SliceQueryFilter withUpdatedSlice(Composite start, Composite finish)
     {
         return new SliceQueryFilter(new ColumnSlice[]{ new ColumnSlice(start, finish) }, reversed, count, compositesToGroup);
     }
@@ -172,9 +182,9 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return new SSTableSliceIterator(sstable, file, key, slices, reversed, indexEntry);
     }
 
-    public Comparator<Column> getColumnComparator(AbstractType<?> comparator)
+    public Comparator<Column> getColumnComparator(CellNameType comparator)
     {
-        return reversed ? comparator.columnReverseComparator : comparator.columnComparator;
+        return reversed ? comparator.columnReverseComparator() : comparator.columnComparator();
     }
 
     public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore, long now)
@@ -219,14 +229,14 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return columnCounter(cf.getComparator(), now).countAll(cf).live();
     }
 
-    public ColumnCounter columnCounter(AbstractType<?> comparator, long now)
+    public ColumnCounter columnCounter(CellNameType comparator, long now)
     {
         if (compositesToGroup < 0)
             return new ColumnCounter(now);
         else if (compositesToGroup == 0)
             return new ColumnCounter.GroupByPrefix(now, null, 0);
         else
-            return new ColumnCounter.GroupByPrefix(now, (CompositeType)comparator, compositesToGroup);
+            return new ColumnCounter.GroupByPrefix(now, comparator, compositesToGroup);
     }
 
     public void trim(ColumnFamily cf, int trimTo, long now)
@@ -256,17 +266,17 @@ public class SliceQueryFilter implements IDiskAtomFilter
         }
     }
 
-    public ByteBuffer start()
+    public Composite start()
     {
         return this.slices[0].start;
     }
 
-    public ByteBuffer finish()
+    public Composite finish()
     {
         return this.slices[slices.length - 1].finish;
     }
 
-    public void setStart(ByteBuffer start)
+    public void setStart(Composite start)
     {
         assert slices.length == 1;
         this.slices[0] = new ColumnSlice(start, this.slices[0].finish);
@@ -303,7 +313,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
         count = newLimit;
     }
 
-    public boolean maySelectPrefix(Comparator<ByteBuffer> cmp, ByteBuffer prefix)
+    public boolean maySelectPrefix(Comparator<Composite> cmp, Composite prefix)
     {
         for (ColumnSlice slice : slices)
             if (slice.includes(cmp, prefix))
@@ -316,21 +326,32 @@ public class SliceQueryFilter implements IDiskAtomFilter
         List<ByteBuffer> minColumnNames = sstable.getSSTableMetadata().minColumnNames;
         List<ByteBuffer> maxColumnNames = sstable.getSSTableMetadata().maxColumnNames;
         assert minColumnNames.size() == maxColumnNames.size();
-        AbstractType<?> comparator = sstable.metadata.comparator;
+        CellNameType comparator = sstable.metadata.comparator;
 
         if (minColumnNames.isEmpty() || maxColumnNames.isEmpty())
             return true;
 
-        return comparator.intersects(minColumnNames, maxColumnNames, this);
+        for (ColumnSlice slice : slices)
+            if (slice.intersects(minColumnNames, maxColumnNames, comparator, reversed))
+                return true;
+
+        return false;
     }
 
     public static class Serializer implements IVersionedSerializer<SliceQueryFilter>
     {
+        private CType type;
+
+        public Serializer(CType type)
+        {
+            this.type = type;
+        }
+
         public void serialize(SliceQueryFilter f, DataOutput out, int version) throws IOException
         {
             out.writeInt(f.slices.length);
             for (ColumnSlice slice : f.slices)
-                ColumnSlice.serializer.serialize(slice, out, version);
+                type.sliceSerializer().serialize(slice, out, version);
             out.writeBoolean(f.reversed);
             int count = f.count;
             out.writeInt(count);
@@ -343,7 +364,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
             ColumnSlice[] slices;
             slices = new ColumnSlice[in.readInt()];
             for (int i = 0; i < slices.length; i++)
-                slices[i] = ColumnSlice.serializer.deserialize(in, version);
+                slices[i] = type.sliceSerializer().deserialize(in, version);
             boolean reversed = in.readBoolean();
             int count = in.readInt();
             int compositesToGroup = -1;
@@ -359,7 +380,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
             int size = 0;
             size += sizes.sizeof(f.slices.length);
             for (ColumnSlice slice : f.slices)
-                size += ColumnSlice.serializer.serializedSize(slice, version);
+                size += type.sliceSerializer().serializedSize(slice, version);
             size += sizes.sizeof(f.reversed);
             size += sizes.sizeof(f.count);
 

@@ -41,6 +41,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.apache.cassandra.Util.cellname;
 
 public class BlacklistingCompactionsTest extends SchemaLoader
 {
@@ -93,9 +94,7 @@ public class BlacklistingCompactionsTest extends SchemaLoader
                 DecoratedKey key = Util.dk(String.valueOf(i % 2));
                 RowMutation rm = new RowMutation(KEYSPACE, key.key);
                 long timestamp = j * ROWS_PER_SSTABLE + i;
-                rm.add("Standard1", ByteBufferUtil.bytes(String.valueOf(i / 2)),
-                       ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                       timestamp);
+                rm.add("Standard1", cellname(i / 2), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp);
                 maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
                 rm.apply();
                 inserted.add(key);

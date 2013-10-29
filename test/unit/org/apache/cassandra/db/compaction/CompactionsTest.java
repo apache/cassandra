@@ -73,7 +73,7 @@ public class CompactionsTest extends SchemaLoader
             DecoratedKey key = Util.dk(Integer.toString(i));
             RowMutation rm = new RowMutation(KEYSPACE1, key.key);
             for (int j = 0; j < 10; j++)
-                rm.add("Standard1", ByteBufferUtil.bytes(Integer.toString(j)),
+                rm.add("Standard1", Util.cellname(Integer.toString(j)),
                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                        timestamp,
                        j > 0 ? 3 : 0); // let first column never expire, since deleting all columns does not produce sstable
@@ -133,7 +133,7 @@ public class CompactionsTest extends SchemaLoader
 
         // a subcolumn
         RowMutation rm = new RowMutation(KEYSPACE1, key.key);
-        rm.add("Super1", CompositeType.build(scName, ByteBufferUtil.bytes(0)),
+        rm.add("Super1", Util.cellname(scName, ByteBufferUtil.bytes(0)),
                ByteBufferUtil.EMPTY_BYTE_BUFFER,
                FBUtilities.timestampMicros());
         rm.apply();
@@ -183,7 +183,7 @@ public class CompactionsTest extends SchemaLoader
         {
             DecoratedKey key = Util.dk(String.valueOf(i));
             RowMutation rm = new RowMutation(KEYSPACE1, key.key);
-            rm.add("Standard2", ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
+            rm.add("Standard2", Util.cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
             rm.apply();
 
             if (i % 2 == 0)
@@ -198,7 +198,7 @@ public class CompactionsTest extends SchemaLoader
         {
             DecoratedKey key = Util.dk(String.valueOf(i));
             RowMutation rm = new RowMutation(KEYSPACE1, key.key);
-            rm.add("Standard2", ByteBufferUtil.bytes(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
+            rm.add("Standard2", Util.cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
             rm.apply();
         }
         cfs.forceBlockingFlush();
@@ -243,7 +243,7 @@ public class CompactionsTest extends SchemaLoader
         for (int i = 0; i < ROWS_PER_SSTABLE; i++) {
             DecoratedKey key = Util.dk(String.valueOf(i));
             RowMutation rm = new RowMutation(KEYSPACE1, key.key);
-            rm.add(cfname, ByteBufferUtil.bytes("col"),
+            rm.add(cfname, Util.cellname("col"),
                    ByteBufferUtil.EMPTY_BYTE_BUFFER,
                    System.currentTimeMillis());
             rm.apply();
@@ -311,7 +311,7 @@ public class CompactionsTest extends SchemaLoader
         // Add test row
         DecoratedKey key = Util.dk(k);
         RowMutation rm = new RowMutation(KEYSPACE1, key.key);
-        rm.add(cfname, CompositeType.build(ByteBufferUtil.bytes("sc"), ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
+        rm.add(cfname, Util.cellname(ByteBufferUtil.bytes("sc"), ByteBufferUtil.bytes("c")), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
 
         cfs.forceBlockingFlush();
@@ -365,7 +365,7 @@ public class CompactionsTest extends SchemaLoader
         long timestamp = System.currentTimeMillis();
         DecoratedKey decoratedKey = Util.dk(String.format("%03d", key));
         RowMutation rm = new RowMutation(KEYSPACE1, decoratedKey.key);
-        rm.add("Standard1", ByteBufferUtil.bytes("col"), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp, 1000);
+        rm.add("Standard1", Util.cellname("col"), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp, 1000);
         rm.apply();
     }
 

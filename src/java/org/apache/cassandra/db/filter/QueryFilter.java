@@ -17,12 +17,13 @@
  */
 package org.apache.cassandra.db.filter;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.HeapAllocator;
@@ -194,8 +195,8 @@ public class QueryFilter
      */
     public static QueryFilter getSliceFilter(DecoratedKey key,
                                              String cfName,
-                                             ByteBuffer start,
-                                             ByteBuffer finish,
+                                             Composite start,
+                                             Composite finish,
                                              boolean reversed,
                                              int limit,
                                              long timestamp)
@@ -218,17 +219,9 @@ public class QueryFilter
      * @param cfName column family to query
      * @param columns the column names to restrict the results to, sorted in comparator order
      */
-    public static QueryFilter getNamesFilter(DecoratedKey key, String cfName, SortedSet<ByteBuffer> columns, long timestamp)
+    public static QueryFilter getNamesFilter(DecoratedKey key, String cfName, SortedSet<CellName> columns, long timestamp)
     {
         return new QueryFilter(key, cfName, new NamesQueryFilter(columns), timestamp);
-    }
-
-    /**
-     * convenience method for creating a name filter matching a single column
-     */
-    public static QueryFilter getNamesFilter(DecoratedKey key, String cfName, ByteBuffer column, long timestamp)
-    {
-        return new QueryFilter(key, cfName, new NamesQueryFilter(column), timestamp);
     }
 
     @Override

@@ -24,7 +24,7 @@ import java.util.*;
 import com.google.common.collect.Maps;
 
 import org.apache.cassandra.db.commitlog.ReplayPosition;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.StreamingHistogram;
@@ -77,14 +77,14 @@ public class MetadataCollector
     protected int sstableLevel;
     protected List<ByteBuffer> minColumnNames = Collections.emptyList();
     protected List<ByteBuffer> maxColumnNames = Collections.emptyList();
-    private final AbstractType<?> columnNameComparator;
+    private final CellNameType columnNameComparator;
 
-    public MetadataCollector(AbstractType<?> columnNameComparator)
+    public MetadataCollector(CellNameType columnNameComparator)
     {
         this.columnNameComparator = columnNameComparator;
     }
 
-    public MetadataCollector(Collection<SSTableReader> sstables, AbstractType<?> columnNameComparator, int level)
+    public MetadataCollector(Collection<SSTableReader> sstables, CellNameType columnNameComparator, int level)
     {
         this(columnNameComparator);
 

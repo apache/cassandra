@@ -42,7 +42,7 @@ public class CounterMutationTest extends SchemaLoader
         CounterId id1 = CounterId.getLocalId();
 
         rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
-        rm.addCounter("Counter1", ByteBufferUtil.bytes("Column1"), 3);
+        rm.addCounter("Counter1", Util.cellname("Column1"), 3);
         cm = new CounterMutation(rm, ConsistencyLevel.ONE);
         cm.apply();
 
@@ -50,7 +50,7 @@ public class CounterMutationTest extends SchemaLoader
         CounterId id2 = CounterId.getLocalId();
 
         rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
-        rm.addCounter("Counter1", ByteBufferUtil.bytes("Column1"), 4);
+        rm.addCounter("Counter1", Util.cellname("Column1"), 4);
         cm = new CounterMutation(rm, ConsistencyLevel.ONE);
         cm.apply();
 
@@ -58,8 +58,8 @@ public class CounterMutationTest extends SchemaLoader
         CounterId id3 = CounterId.getLocalId();
 
         rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
-        rm.addCounter("Counter1", ByteBufferUtil.bytes("Column1"), 5);
-        rm.addCounter("Counter1", ByteBufferUtil.bytes("Column2"), 1);
+        rm.addCounter("Counter1", Util.cellname("Column1"), 5);
+        rm.addCounter("Counter1", Util.cellname("Column2"), 1);
         cm = new CounterMutation(rm, ConsistencyLevel.ONE);
         cm.apply();
 
@@ -69,7 +69,7 @@ public class CounterMutationTest extends SchemaLoader
         // First merges old shards
         CounterColumn.mergeAndRemoveOldShards(dk, cf, Integer.MIN_VALUE, Integer.MAX_VALUE, false);
         long now = System.currentTimeMillis();
-        Column c = cf.getColumn(ByteBufferUtil.bytes("Column1"));
+        Column c = cf.getColumn(Util.cellname("Column1"));
         assert c != null;
         assert c instanceof CounterColumn;
         assert ((CounterColumn)c).total() == 12L;
@@ -89,7 +89,7 @@ public class CounterMutationTest extends SchemaLoader
 
         // Then collect old shards
         CounterColumn.mergeAndRemoveOldShards(dk, cf, Integer.MAX_VALUE, Integer.MIN_VALUE, false);
-        c = cf.getColumn(ByteBufferUtil.bytes("Column1"));
+        c = cf.getColumn(Util.cellname("Column1"));
         assert c != null;
         assert c instanceof CounterColumn;
         assert ((CounterColumn)c).total() == 12L;

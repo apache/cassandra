@@ -23,8 +23,9 @@ import java.util.Comparator;
 import java.util.List;
 
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.*;
 
 /**
@@ -57,8 +58,8 @@ public class DataRange
     public static boolean isFullRowSlice(SliceQueryFilter filter)
     {
         return filter.slices.length == 1
-            && filter.start().remaining() == 0
-            && filter.finish().remaining() == 0
+            && filter.start().isEmpty()
+            && filter.finish().isEmpty()
             && filter.count == Integer.MAX_VALUE;
     }
 
@@ -124,11 +125,11 @@ public class DataRange
     public static class Paging extends DataRange
     {
         private final SliceQueryFilter sliceFilter;
-        private final Comparator<ByteBuffer> comparator;
-        private final ByteBuffer columnStart;
-        private final ByteBuffer columnFinish;
+        private final Comparator<Composite> comparator;
+        private final Composite columnStart;
+        private final Composite columnFinish;
 
-        private Paging(AbstractBounds<RowPosition> range, SliceQueryFilter filter, ByteBuffer columnStart, ByteBuffer columnFinish, Comparator<ByteBuffer> comparator)
+        private Paging(AbstractBounds<RowPosition> range, SliceQueryFilter filter, Composite columnStart, Composite columnFinish, Comparator<Composite> comparator)
         {
             super(range, filter);
 
@@ -142,9 +143,9 @@ public class DataRange
             this.columnFinish = columnFinish;
         }
 
-        public Paging(AbstractBounds<RowPosition> range, SliceQueryFilter filter, ByteBuffer columnStart, ByteBuffer columnFinish, AbstractType<?> comparator)
+        public Paging(AbstractBounds<RowPosition> range, SliceQueryFilter filter, Composite columnStart, Composite columnFinish, CellNameType comparator)
         {
-            this(range, filter, columnStart, columnFinish, filter.isReversed() ? comparator.reverseComparator : comparator);
+            this(range, filter, columnStart, columnFinish, filter.isReversed() ? comparator.reverseComparator() : comparator);
         }
 
         @Override
@@ -184,8 +185,8 @@ public class DataRange
         private ColumnSlice[] slicesForKey(ByteBuffer key)
         {
             // We don't call that until it's necessary, so assume we have to do some hard work
-            ByteBuffer newStart = equals(startKey(), key) ? columnStart : null;
-            ByteBuffer newFinish = equals(stopKey(), key) ? columnFinish : null;
+            Composite newStart = equals(startKey(), key) ? columnStart : null;
+            Composite newFinish = equals(stopKey(), key) ? columnFinish : null;
 
             List<ColumnSlice> newSlices = new ArrayList<ColumnSlice>(sliceFilter.slices.length); // in the common case, we'll have the same number of slices
 

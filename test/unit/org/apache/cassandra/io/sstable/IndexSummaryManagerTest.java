@@ -78,7 +78,7 @@ public class IndexSummaryManagerTest extends SchemaLoader
             QueryFilter filter = QueryFilter.getIdentityFilter(key, cfs.getColumnFamilyName(), System.currentTimeMillis());
             ColumnFamily row = cfs.getColumnFamily(filter);
             assertNotNull(row);
-            Column column = row.getColumn(ByteBufferUtil.bytes("column"));
+            Column column = row.getColumn(Util.cellname("column"));
             assertNotNull(column);
             assertEquals(100, column.value().array().length);
         }
@@ -112,7 +112,7 @@ public class IndexSummaryManagerTest extends SchemaLoader
             {
                 DecoratedKey key = Util.dk(String.valueOf(row));
                 RowMutation rm = new RowMutation(ksname, key.key);
-                rm.add(cfname, ByteBufferUtil.bytes("column"), value, 0);
+                rm.add(cfname, Util.cellname("column"), value, 0);
                 rm.apply();
             }
             cfs.forceBlockingFlush();
@@ -246,7 +246,7 @@ public class IndexSummaryManagerTest extends SchemaLoader
         {
             DecoratedKey key = Util.dk(String.valueOf(row));
             RowMutation rm = new RowMutation(ksname, key.key);
-            rm.add(cfname, ByteBufferUtil.bytes("column"), value, 0);
+            rm.add(cfname, Util.cellname("column"), value, 0);
             rm.apply();
         }
         cfs.forceBlockingFlush();
@@ -307,7 +307,7 @@ public class IndexSummaryManagerTest extends SchemaLoader
             {
                 DecoratedKey key = Util.dk(String.valueOf(row));
                 RowMutation rm = new RowMutation(ksname, key.key);
-                rm.add(cfname, ByteBufferUtil.bytes("column"), value, 0);
+                rm.add(cfname, Util.cellname("column"), value, 0);
                 rm.apply();
             }
             cfs.forceBlockingFlush();

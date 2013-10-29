@@ -30,11 +30,13 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 
 public class ReadMessageTest extends SchemaLoader
@@ -42,9 +44,11 @@ public class ReadMessageTest extends SchemaLoader
     @Test
     public void testMakeReadMessage() throws IOException
     {
-        SortedSet<ByteBuffer> colList = new TreeSet<ByteBuffer>();
-        colList.add(ByteBufferUtil.bytes("col1"));
-        colList.add(ByteBufferUtil.bytes("col2"));
+        CellNameType type = Keyspace.open("Keyspace1").getColumnFamilyStore("Standard1").getComparator();
+
+        SortedSet<CellName> colList = new TreeSet<CellName>(type);
+        colList.add(Util.cellname("col1"));
+        colList.add(Util.cellname("col2"));
 
         ReadCommand rm, rm2;
         DecoratedKey dk = Util.dk("row1");
@@ -54,21 +58,13 @@ public class ReadMessageTest extends SchemaLoader
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
 
-        rm = new SliceFromReadCommand("Keyspace1", dk.key, "Standard1", ts, new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2));
+        rm = new SliceFromReadCommand("Keyspace1", dk.key, "Standard1", ts, new SliceQueryFilter(Composites.EMPTY, Composites.EMPTY, true, 2));
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
 
-        rm = new SliceFromReadCommand("Keyspace1", dk.key, "Standard1", ts, new SliceQueryFilter(ByteBufferUtil.bytes("a"), ByteBufferUtil.bytes("z"), true, 5));
-        rm2 = serializeAndDeserializeReadMessage(rm);
-        assertEquals(rm2.toString(), rm.toString());
-
-        rm = new SliceFromReadCommand("Keyspace1", dk.key, "Standard1", ts, new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, 2));
+        rm = new SliceFromReadCommand("Keyspace1", dk.key, "Standard1", ts, new SliceQueryFilter(Util.cellname("a"), Util.cellname("z"), true, 5));
         rm2 = serializeAndDeserializeReadMessage(rm);
         assert rm2.toString().equals(rm.toString());
-
-        rm = new SliceFromReadCommand("Keyspace1", dk.key, "Standard1", ts, new SliceQueryFilter(ByteBufferUtil.bytes("a"), ByteBufferUtil.bytes("z"), true, 5));
-        rm2 = serializeAndDeserializeReadMessage(rm);
-        assertEquals(rm2.toString(), rm.toString());
     }
 
     private ReadCommand serializeAndDeserializeReadMessage(ReadCommand rm) throws IOException
@@ -86,30 +82,30 @@ public class ReadMessageTest extends SchemaLoader
     public void testGetColumn() throws IOException, ColumnFamilyNotDefinedException
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
+        CellNameType type = keyspace.getColumnFamilyStore("Standard1").getComparator();
         RowMutation rm;
         DecoratedKey dk = Util.dk("key1");
 
         // add data
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.add("Standard1", ByteBufferUtil.bytes("Column1"), ByteBufferUtil.bytes("abcd"), 0);
+        rm.add("Standard1", Util.cellname("Column1"), ByteBufferUtil.bytes("abcd"), 0);
         rm.apply();
 
-        ReadCommand command = new SliceByNamesReadCommand("Keyspace1", dk.key, "Standard1", System.currentTimeMillis(), new NamesQueryFilter(ByteBufferUtil.bytes("Column1")));
+        ReadCommand command = new SliceByNamesReadCommand("Keyspace1", dk.key, "Standard1", System.currentTimeMillis(), new NamesQueryFilter(FBUtilities.singleton(Util.cellname("Column1"), type)));
         Row row = command.getRow(keyspace);
-        Column col = row.cf.getColumn(ByteBufferUtil.bytes("Column1"));
+        Column col = row.cf.getColumn(Util.cellname("Column1"));
         assertEquals(col.value(), ByteBuffer.wrap("abcd".getBytes()));
     }
 
     @Test
     public void testNoCommitLog() throws Exception
     {
-
         RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("row"));
-        rm.add("Standard1", ByteBufferUtil.bytes("commit1"), ByteBufferUtil.bytes("abcd"), 0);
+        rm.add("Standard1", Util.cellname("commit1"), ByteBufferUtil.bytes("abcd"), 0);
         rm.apply();
 
         rm = new RowMutation("NoCommitlogSpace", ByteBufferUtil.bytes("row"));
-        rm.add("Standard1", ByteBufferUtil.bytes("commit2"), ByteBufferUtil.bytes("abcd"), 0);
+        rm.add("Standard1", Util.cellname("commit2"), ByteBufferUtil.bytes("abcd"), 0);
         rm.apply();
 
         boolean commitLogMessageFound = false;

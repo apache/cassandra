@@ -28,45 +28,98 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.cql3.ResultSet;
 
 /** a utility for doing internal cql-based queries */
-public class UntypedResultSet implements Iterable<UntypedResultSet.Row>
+public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 {
-    private final ResultSet cqlRows;
-
-    public UntypedResultSet(ResultSet cqlRows)
+    public static UntypedResultSet create(ResultSet rs)
     {
-        this.cqlRows = cqlRows;
+        return new FromResultSet(rs);
+    }
+
+    public static UntypedResultSet create(List<Map<String, ByteBuffer>> results)
+    {
+        return new FromResultList(results);
     }
 
     public boolean isEmpty()
     {
-        return cqlRows.size() == 0;
+        return size() == 0;
     }
 
-    public int size()
-    {
-        return cqlRows.size();
-    }
+    public abstract int size();
+    public abstract Row one();
 
-    public Row one()
+    private static class FromResultSet extends UntypedResultSet
     {
-        if (cqlRows.rows.size() != 1)
-            throw new IllegalStateException("One row required, " + cqlRows.rows.size() + " found");
-        return new Row(cqlRows.metadata.names, cqlRows.rows.get(0));
-    }
+        private final ResultSet cqlRows;
 
-    public Iterator<Row> iterator()
-    {
-        return new AbstractIterator<Row>()
+        private FromResultSet(ResultSet cqlRows)
         {
-            Iterator<List<ByteBuffer>> iter = cqlRows.rows.iterator();
+            this.cqlRows = cqlRows;
+        }
 
-            protected Row computeNext()
+        public int size()
+        {
+            return cqlRows.size();
+        }
+
+        public Row one()
+        {
+            if (cqlRows.rows.size() != 1)
+                throw new IllegalStateException("One row required, " + cqlRows.rows.size() + " found");
+            return new Row(cqlRows.metadata.names, cqlRows.rows.get(0));
+        }
+
+        public Iterator<Row> iterator()
+        {
+            return new AbstractIterator<Row>()
             {
-                if (!iter.hasNext())
-                    return endOfData();
-                return new Row(cqlRows.metadata.names, iter.next());
-            }
-        };
+                Iterator<List<ByteBuffer>> iter = cqlRows.rows.iterator();
+
+                protected Row computeNext()
+                {
+                    if (!iter.hasNext())
+                        return endOfData();
+                    return new Row(cqlRows.metadata.names, iter.next());
+                }
+            };
+        }
+    }
+
+    private static class FromResultList extends UntypedResultSet
+    {
+        private final List<Map<String, ByteBuffer>> cqlRows;
+
+        private FromResultList(List<Map<String, ByteBuffer>> cqlRows)
+        {
+            this.cqlRows = cqlRows;
+        }
+
+        public int size()
+        {
+            return cqlRows.size();
+        }
+
+        public Row one()
+        {
+            if (cqlRows.size() != 1)
+                throw new IllegalStateException("One row required, " + cqlRows.size() + " found");
+            return new Row(cqlRows.get(0));
+        }
+
+        public Iterator<Row> iterator()
+        {
+            return new AbstractIterator<Row>()
+            {
+                Iterator<Map<String, ByteBuffer>> iter = cqlRows.iterator();
+
+                protected Row computeNext()
+                {
+                    if (!iter.hasNext())
+                        return endOfData();
+                    return new Row(iter.next());
+                }
+            };
+        }
     }
 
     public static class Row

@@ -42,25 +42,27 @@ public class RemoveColumnTest extends SchemaLoader
 
         // add data
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.add("Standard1", ByteBufferUtil.bytes("Column1"), ByteBufferUtil.bytes("asdf"), 0);
+        rm.add("Standard1", Util.cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
         rm = new RowMutation("Keyspace1", dk.key);
-        rm.delete("Standard1", ByteBufferUtil.bytes("Column1"), 1);
+        rm.delete("Standard1", Util.cellname("Column1"), 1);
         rm.apply();
 
-        ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getNamesFilter(dk,
-                                                                                  "Standard1",
-                                                                                  ByteBufferUtil.bytes("Column1"),
-                                                                                  System.currentTimeMillis()));
-        assert retrieved.getColumn(ByteBufferUtil.bytes("Column1")).isMarkedForDelete(System.currentTimeMillis());
+        ColumnFamily retrieved = store.getColumnFamily(Util.namesQueryFilter(store, dk, "Column1"));
+        assert retrieved.getColumn(Util.cellname("Column1")).isMarkedForDelete(System.currentTimeMillis());
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));
         assertNull(Util.cloneAndRemoveDeleted(store.getColumnFamily(QueryFilter.getIdentityFilter(dk,
                                                                                                   "Standard1",
                                                                                                   System.currentTimeMillis())),
                                               Integer.MAX_VALUE));
+    }
+
+    private static DeletedColumn dc(String name, int ldt, long timestamp)
+    {
+        return new DeletedColumn(Util.cellname(name), ldt, timestamp);
     }
 
     @Test
@@ -69,15 +71,15 @@ public class RemoveColumnTest extends SchemaLoader
         // Check for bug in #4307
         long timestamp = System.currentTimeMillis();
         int localDeletionTime = (int) (timestamp / 1000);
-        Column c = DeletedColumn.create(localDeletionTime, timestamp, "dc1");
+        Column c = dc("dc1", localDeletionTime, timestamp);
         assertTrue("DeletedColumn was not marked for delete", c.isMarkedForDelete(timestamp));
 
         // Simulate a node that is 30 seconds behind
-        c = DeletedColumn.create(localDeletionTime + 30, timestamp + 30000, "dc2");
+        c = dc("dc2", localDeletionTime + 30, timestamp + 30000);
         assertTrue("DeletedColumn was not marked for delete", c.isMarkedForDelete(timestamp));
 
         // Simulate a node that is 30 ahead behind
-        c = DeletedColumn.create(localDeletionTime - 30, timestamp - 30000, "dc3");
+        c = dc("dc3", localDeletionTime - 30, timestamp - 30000);
         assertTrue("DeletedColumn was not marked for delete", c.isMarkedForDelete(timestamp));
     }
 

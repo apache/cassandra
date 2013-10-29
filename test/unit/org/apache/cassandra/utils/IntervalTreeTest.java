@@ -146,13 +146,13 @@ public class IntervalTreeTest
             {
                 public void serialize(Integer i, DataOutput out) throws IOException { out.writeInt(i); }
                 public Integer deserialize(DataInput in) throws IOException { return in.readInt(); }
-                public long serializedSize(Integer i, TypeSizes ts) { return 4; }
+                public long serializedSize(Integer i, TypeSizes s) { return 4; }
             },
             new ISerializer<String>()
             {
                 public void serialize(String v, DataOutput out) throws IOException { out.writeUTF(v); }
                 public String deserialize(DataInput in) throws IOException { return in.readUTF(); }
-                public long serializedSize(String v, TypeSizes ts) { return v.length(); }
+                public long serializedSize(String v, TypeSizes s) { return v.length(); }
             },
             Interval.class.getConstructor(Object.class, Object.class, Object.class)
         );

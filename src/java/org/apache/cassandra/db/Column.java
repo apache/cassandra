@@ -20,16 +20,15 @@ package org.apache.cassandra.db;
 import java.io.DataInput;
 import java.io.IOError;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 
 import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -46,18 +45,16 @@ public class Column implements OnDiskAtom
 {
     public static final int MAX_NAME_LENGTH = FBUtilities.MAX_UNSIGNED_SHORT;
 
-    public static final ColumnSerializer serializer = new ColumnSerializer();
-
-    public static OnDiskAtom.Serializer onDiskSerializer()
-    {
-        return OnDiskAtom.Serializer.instance;
-    }
-
     /**
      * For 2.0-formatted sstables (where column count is not stored), @param count should be Integer.MAX_VALUE,
      * and we will look for the end-of-row column name marker instead of relying on that.
      */
-    public static Iterator<OnDiskAtom> onDiskIterator(final DataInput in, final int count, final ColumnSerializer.Flag flag, final int expireBefore, final Descriptor.Version version)
+    public static Iterator<OnDiskAtom> onDiskIterator(final DataInput in,
+                                                      final int count,
+                                                      final ColumnSerializer.Flag flag,
+                                                      final int expireBefore,
+                                                      final Descriptor.Version version,
+                                                      final CellNameType type)
     {
         return new AbstractIterator<OnDiskAtom>()
         {
@@ -71,7 +68,7 @@ public class Column implements OnDiskAtom
                 OnDiskAtom atom;
                 try
                 {
-                    atom = onDiskSerializer().deserializeFromSSTable(in, flag, expireBefore, version);
+                    atom = type.onDiskAtomSerializer().deserializeFromSSTable(in, flag, expireBefore, version);
                 }
                 catch (IOException e)
                 {
@@ -85,31 +82,30 @@ public class Column implements OnDiskAtom
         };
     }
 
-    protected final ByteBuffer name;
+    protected final CellName name;
     protected final ByteBuffer value;
     protected final long timestamp;
 
-    Column(ByteBuffer name)
+    Column(CellName name)
     {
         this(name, ByteBufferUtil.EMPTY_BYTE_BUFFER);
     }
 
-    public Column(ByteBuffer name, ByteBuffer value)
+    public Column(CellName name, ByteBuffer value)
     {
         this(name, value, 0);
     }
 
-    public Column(ByteBuffer name, ByteBuffer value, long timestamp)
+    public Column(CellName name, ByteBuffer value, long timestamp)
     {
         assert name != null;
         assert value != null;
-        assert name.remaining() <= Column.MAX_NAME_LENGTH;
         this.name = name;
         this.value = value;
         this.timestamp = timestamp;
     }
 
-    public Column withUpdatedName(ByteBuffer newName)
+    public Column withUpdatedName(CellName newName)
     {
         return new Column(newName, value, timestamp);
     }
@@ -119,7 +115,7 @@ public class Column implements OnDiskAtom
         return new Column(name, value, newTimestamp);
     }
 
-    public ByteBuffer name()
+    public CellName name()
     {
         return name;
     }
@@ -162,10 +158,10 @@ public class Column implements OnDiskAtom
 
     public int dataSize()
     {
-        return name().remaining() + value.remaining() + TypeSizes.NATIVE.sizeof(timestamp);
+        return name().dataSize() + value.remaining() + TypeSizes.NATIVE.sizeof(timestamp);
     }
 
-    public int serializedSize(TypeSizes typeSizes)
+    public int serializedSize(CellNameType type, TypeSizes typeSizes)
     {
         /*
          * Size of a column is =
@@ -175,14 +171,8 @@ public class Column implements OnDiskAtom
          * + 4 bytes which basically indicates the size of the byte array
          * + entire byte array.
         */
-        int nameSize = name.remaining();
         int valueSize = value.remaining();
-        return typeSizes.sizeof((short) nameSize) + nameSize + 1 + typeSizes.sizeof(timestamp) + typeSizes.sizeof(valueSize) + valueSize;
-    }
-
-    public long serializedSizeForSSTable()
-    {
-        return serializedSize(TypeSizes.NATIVE);
+        return ((int)type.cellSerializer().serializedSize(name, typeSizes)) + 1 + typeSizes.sizeof(timestamp) + typeSizes.sizeof(valueSize) + valueSize;
     }
 
     public int serializationFlags()
@@ -199,7 +189,7 @@ public class Column implements OnDiskAtom
 
     public void updateDigest(MessageDigest digest)
     {
-        digest.update(name.duplicate());
+        digest.update(name.toByteBuffer().duplicate());
         digest.update(value.duplicate());
 
         DataOutputBuffer buffer = new DataOutputBuffer();
@@ -273,10 +263,10 @@ public class Column implements OnDiskAtom
 
     public Column localCopy(ColumnFamilyStore cfs, Allocator allocator)
     {
-        return new Column(cfs.internOrCopy(name, allocator), allocator.clone(value), timestamp);
+        return new Column(name.copy(allocator), allocator.clone(value), timestamp);
     }
 
-    public String getString(AbstractType<?> comparator)
+    public String getString(CellNameType comparator)
     {
         StringBuilder sb = new StringBuilder();
         sb.append(comparator.getString(name));
@@ -298,7 +288,7 @@ public class Column implements OnDiskAtom
     {
         validateName(metadata);
 
-        AbstractType<?> valueValidator = metadata.getValueValidatorFromCellName(name());
+        AbstractType<?> valueValidator = metadata.getValueValidator(name());
         if (valueValidator != null)
             valueValidator.validate(value());
     }
@@ -308,7 +298,7 @@ public class Column implements OnDiskAtom
         return getLocalDeletionTime() < gcBefore;
     }
 
-    public static Column create(ByteBuffer name, ByteBuffer value, long timestamp, int ttl, CFMetaData metadata)
+    public static Column create(CellName name, ByteBuffer value, long timestamp, int ttl, CFMetaData metadata)
     {
         if (ttl <= 0)
             ttl = metadata.getDefaultTimeToLive();
@@ -317,53 +307,4 @@ public class Column implements OnDiskAtom
                ? new ExpiringColumn(name, value, timestamp, ttl)
                : new Column(name, value, timestamp);
     }
-
-    public static Column create(String value, long timestamp, String... names)
-    {
-        return new Column(decomposeName(names), UTF8Type.instance.decompose(value), timestamp);
-    }
-
-    public static Column create(int value, long timestamp, String... names)
-    {
-        return new Column(decomposeName(names), Int32Type.instance.decompose(value), timestamp);
-    }
-
-    public static Column create(boolean value, long timestamp, String... names)
-    {
-        return new Column(decomposeName(names), BooleanType.instance.decompose(value), timestamp);
-    }
-
-    public static Column create(double value, long timestamp, String... names)
-    {
-        return new Column(decomposeName(names), DoubleType.instance.decompose(value), timestamp);
-    }
-
-    public static Column create(ByteBuffer value, long timestamp, String... names)
-    {
-        return new Column(decomposeName(names), value, timestamp);
-    }
-
-    public static Column create(InetAddress value, long timestamp, String... names)
-    {
-        return new Column(decomposeName(names), InetAddressType.instance.decompose(value), timestamp);
-    }
-
-    static ByteBuffer decomposeName(String... names)
-    {
-        assert names.length > 0;
-
-        if (names.length == 1)
-            return UTF8Type.instance.decompose(names[0]);
-
-        // not super performant.  at this time, only infrequently called schema code uses this.
-        List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(names.length);
-        for (int i = 0; i < names.length; i++)
-            types.add(UTF8Type.instance);
-
-        CompositeType.Builder builder = new CompositeType.Builder(CompositeType.getInstance(types));
-        for (String name : names)
-            builder.add(UTF8Type.instance.decompose(name));
-        return builder.build();
-    }
 }
-

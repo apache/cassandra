@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -44,5 +45,5 @@ public abstract class AbstractCommutativeType extends AbstractType<Long>
     /**
      * create commutative column
      */
-    public abstract Column createColumn(ByteBuffer name, ByteBuffer value, long timestamp);
+    public abstract Column createColumn(CellName name, ByteBuffer value, long timestamp);
 }

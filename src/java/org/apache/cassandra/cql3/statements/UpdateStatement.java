@@ -24,7 +24,7 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -35,7 +35,7 @@ import org.apache.cassandra.utils.Pair;
  */
 public class UpdateStatement extends ModificationStatement
 {
-    private static final Operation setToEmptyOperation = new Constants.Setter(null, new Constants.Value(ByteBufferUtil.EMPTY_BYTE_BUFFER));
+    private static final Constants.Value EMPTY = new Constants.Value(ByteBufferUtil.EMPTY_BYTE_BUFFER);
 
     private UpdateStatement(int boundTerms, CFMetaData cfm, Attributes attrs)
     {
@@ -47,7 +47,7 @@ public class UpdateStatement extends ModificationStatement
         return true;
     }
 
-    public void addUpdateForKey(ColumnFamily cf, ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params)
+    public void addUpdateForKey(ColumnFamily cf, ByteBuffer key, Composite prefix, UpdateParameters params)
     throws InvalidRequestException
     {
         // Inserting the CQL row marker (see #4361)
@@ -61,17 +61,14 @@ public class UpdateStatement extends ModificationStatement
         // 'DELETE FROM t WHERE k = 1' does remove the row entirely)
         //
         // We never insert markers for Super CF as this would confuse the thrift side.
-        if (cfm.hasCompositeComparator() && !cfm.isDense() && !cfm.isSuper())
-        {
-            ByteBuffer name = builder.copy().add(ByteBufferUtil.EMPTY_BYTE_BUFFER).build();
-            cf.addColumn(params.makeColumn(name, ByteBufferUtil.EMPTY_BYTE_BUFFER));
-        }
+        if (cfm.isCQL3Table())
+            cf.addColumn(params.makeColumn(cfm.comparator.rowMarker(prefix), ByteBufferUtil.EMPTY_BYTE_BUFFER));
 
         List<Operation> updates = getOperations();
 
-        if (cfm.isDense())
+        if (cfm.comparator.isDense())
         {
-            if (builder.componentCount() == 0)
+            if (prefix.isEmpty())
                 throw new InvalidRequestException(String.format("Missing PRIMARY KEY part %s", cfm.clusteringColumns().iterator().next()));
 
             // An empty name for the compact value is what we use to recognize the case where there is not column
@@ -80,7 +77,7 @@ public class UpdateStatement extends ModificationStatement
             {
                 // There is no column outside the PK. So no operation could have passed through validation
                 assert updates.isEmpty();
-                setToEmptyOperation.execute(key, cf, builder.copy(), params);
+                new Constants.Setter(cfm.compactValueColumn(), EMPTY).execute(key, cf, prefix, params);
             }
             else
             {
@@ -89,21 +86,21 @@ public class UpdateStatement extends ModificationStatement
                     throw new InvalidRequestException(String.format("Column %s is mandatory for this COMPACT STORAGE table", cfm.compactValueColumn().name));
 
                 for (Operation update : updates)
-                    update.execute(key, cf, builder.copy(), params);
+                    update.execute(key, cf, prefix, params);
             }
         }
         else
         {
             for (Operation update : updates)
-                update.execute(key, cf, builder.copy(), params);
+                update.execute(key, cf, prefix, params);
         }
     }
 
-    public ColumnFamily updateForKey(ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params)
+    public ColumnFamily updateForKey(ByteBuffer key, Composite prefix, UpdateParameters params)
     throws InvalidRequestException
     {
         ColumnFamily cf = UnsortedColumns.factory.create(cfm);
-        addUpdateForKey(cf, key, builder, params);
+        addUpdateForKey(cf, key, prefix, params);
         return cf;
     }
 

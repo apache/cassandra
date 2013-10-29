@@ -25,6 +25,7 @@ import java.util.*;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -53,8 +54,6 @@ public class ColumnIndex
      */
     public static class Builder
     {
-        private static final OnDiskAtom.Serializer atomSerializer = Column.onDiskSerializer();
-
         private final ColumnIndex result;
         private final long indexOffset;
         private long startPosition = -1;
@@ -68,6 +67,8 @@ public class ColumnIndex
         private int atomCount;
         private final ByteBuffer key;
         private final DeletionInfo deletionInfo; // only used for serializing and calculating row header size
+
+        private final OnDiskAtom.Serializer atomSerializer;
 
         public Builder(ColumnFamily cf,
                        ByteBuffer key,
@@ -83,6 +84,7 @@ public class ColumnIndex
             this.result = new ColumnIndex(new ArrayList<IndexHelper.IndexInfo>());
             this.output = output;
             this.tombstoneTracker = new RangeTombstone.Tracker(cf.getComparator());
+            this.atomSerializer = cf.getComparator().onDiskAtomSerializer();
         }
 
         /**
@@ -119,7 +121,7 @@ public class ColumnIndex
         public ColumnIndex build(ColumnFamily cf) throws IOException
         {
             // cf has disentangled the columns and range tombstones, we need to re-interleave them in comparator order
-            Comparator<ByteBuffer> comparator = cf.getComparator();
+            Comparator<Composite> comparator = cf.getComparator();
             DeletionInfo.InOrderTester tester = cf.deletionInfo().inOrderTester();
             Iterator<RangeTombstone> rangeIter = cf.deletionInfo().rangeIterator();
             RangeTombstone tombstone = rangeIter.hasNext() ? rangeIter.next() : null;
@@ -183,7 +185,7 @@ public class ColumnIndex
                                // where we wouldn't make any progress because a block is filled by said marker
             }
 
-            long size = column.serializedSizeForSSTable();
+            long size = atomSerializer.serializedSizeForSSTable(column);
             endPosition += size;
             blockSize += size;
 

@@ -26,6 +26,7 @@ import java.util.*;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.IntegerType;
@@ -89,7 +90,7 @@ public class KeyCollisionTest extends SchemaLoader
     {
         RowMutation rm;
         rm = new RowMutation(KEYSPACE, ByteBufferUtil.bytes(key));
-        rm.add(CF, ByteBufferUtil.bytes("column"), ByteBufferUtil.bytes("asdf"), 0);
+        rm.add(CF, Util.cellname("column"), ByteBufferUtil.bytes("asdf"), 0);
         rm.apply();
     }
 

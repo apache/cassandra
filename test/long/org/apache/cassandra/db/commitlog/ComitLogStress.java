@@ -8,6 +8,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.RowMutation;
@@ -64,7 +65,7 @@ public class ComitLogStress
             String ks = "Keyspace1";
             ByteBuffer key = ByteBufferUtil.bytes(keyString);
             RowMutation mutation = new RowMutation(ks, key);
-            mutation.add("Standard1", ByteBufferUtil.bytes("name"), ByteBufferUtil.bytes("value"),
+            mutation.add("Standard1", Util.cellname("name"), ByteBufferUtil.bytes("value"),
                     System.currentTimeMillis());
             CommitLog.instance.add(mutation);
         }

@@ -35,21 +35,21 @@ import java.util.List;
 public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 {
     // changes bb position
-    protected static int getShortLength(ByteBuffer bb)
+    public static int getShortLength(ByteBuffer bb)
     {
         int length = (bb.get() & 0xFF) << 8;
         return length | (bb.get() & 0xFF);
     }
 
     // changes bb position
-    protected static void putShortLength(ByteBuffer bb, int length)
+    public static void putShortLength(ByteBuffer bb, int length)
     {
         bb.put((byte) ((length >> 8) & 0xFF));
         bb.put((byte) (length & 0xFF));
     }
 
     // changes bb position
-    protected static ByteBuffer getBytes(ByteBuffer bb, int length)
+    public static ByteBuffer getBytes(ByteBuffer bb, int length)
     {
         ByteBuffer copy = bb.duplicate();
         copy.limit(copy.position() + length);
@@ -58,7 +58,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     }
 
     // changes bb position
-    protected static ByteBuffer getWithShortLength(ByteBuffer bb)
+    public static ByteBuffer getWithShortLength(ByteBuffer bb)
     {
         int length = getShortLength(bb);
         return getBytes(bb, length);
@@ -169,7 +169,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
      * Escapes all occurences of the ':' character from the input, replacing them by "\:".
      * Furthermore, if the last character is '\' or '!', a '!' is appended.
      */
-    static String escape(String input)
+    public static String escape(String input)
     {
         if (input.isEmpty())
             return input;
@@ -234,7 +234,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
             byte b = bb.get();
             if (b != 0)
             {
-                sb.append(":!");
+                sb.append(b < 0 ? ":_" : ":!");
                 break;
             }
             ++i;
@@ -249,12 +249,18 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         List<ParsedComparator> comparators = new ArrayList<ParsedComparator>(parts.size());
         int totalLength = 0, i = 0;
         boolean lastByteIsOne = false;
+        boolean lastByteIsMinusOne = false;
 
         for (String part : parts)
         {
             if (part.equals("!"))
             {
                 lastByteIsOne = true;
+                break;
+            }
+            else if (part.equals("_"))
+            {
+                lastByteIsMinusOne = true;
                 break;
             }
 
@@ -281,6 +287,8 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         }
         if (lastByteIsOne)
             bb.put(bb.limit() - 1, (byte)1);
+        else if (lastByteIsMinusOne)
+            bb.put(bb.limit() - 1, (byte)-1);
 
         bb.rewind();
         return bb;

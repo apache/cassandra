@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -27,9 +26,10 @@ import com.google.common.collect.Iterables;
 import edu.stanford.ppl.concurrent.SnapTreeMap;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Allocator;
 
 /**
@@ -70,9 +70,9 @@ public class AtomicSortedColumns extends ColumnFamily
         this.ref = new AtomicReference<>(holder);
     }
 
-    public AbstractType<?> getComparator()
+    public CellNameType getComparator()
     {
-        return (AbstractType<?>)ref.get().map.comparator();
+        return (CellNameType)ref.get().map.comparator();
     }
 
     public ColumnFamily.Factory getFactory()
@@ -233,12 +233,12 @@ public class AtomicSortedColumns extends ColumnFamily
         while (!ref.compareAndSet(current, modified));
     }
 
-    public Column getColumn(ByteBuffer name)
+    public Column getColumn(CellName name)
     {
         return ref.get().map.get(name);
     }
 
-    public SortedSet<ByteBuffer> getColumnNames()
+    public SortedSet<CellName> getColumnNames()
     {
         return ref.get().map.keySet();
     }
@@ -279,15 +279,15 @@ public class AtomicSortedColumns extends ColumnFamily
         // so we can safely alias one DeletionInfo.live() reference and avoid some allocations.
         private static final DeletionInfo LIVE = DeletionInfo.live();
 
-        final SnapTreeMap<ByteBuffer, Column> map;
+        final SnapTreeMap<CellName, Column> map;
         final DeletionInfo deletionInfo;
 
-        Holder(AbstractType<?> comparator)
+        Holder(CellNameType comparator)
         {
-            this(new SnapTreeMap<ByteBuffer, Column>(comparator), LIVE);
+            this(new SnapTreeMap<CellName, Column>(comparator), LIVE);
         }
 
-        Holder(SnapTreeMap<ByteBuffer, Column> map, DeletionInfo deletionInfo)
+        Holder(SnapTreeMap<CellName, Column> map, DeletionInfo deletionInfo)
         {
             this.map = map;
             this.deletionInfo = deletionInfo;
@@ -303,7 +303,7 @@ public class AtomicSortedColumns extends ColumnFamily
             return new Holder(map, info);
         }
 
-        Holder with(SnapTreeMap<ByteBuffer, Column> newMap)
+        Holder with(SnapTreeMap<CellName, Column> newMap)
         {
             return new Holder(newMap, deletionInfo);
         }
@@ -312,12 +312,12 @@ public class AtomicSortedColumns extends ColumnFamily
         // afterwards.
         Holder clear()
         {
-            return new Holder(new SnapTreeMap<ByteBuffer, Column>(map.comparator()), LIVE);
+            return new Holder(new SnapTreeMap<CellName, Column>(map.comparator()), LIVE);
         }
 
         long addColumn(Column column, Allocator allocator, SecondaryIndexManager.Updater indexer)
         {
-            ByteBuffer name = column.name();
+            CellName name = column.name();
             while (true)
             {
                 Column oldColumn = map.putIfAbsent(name, column);

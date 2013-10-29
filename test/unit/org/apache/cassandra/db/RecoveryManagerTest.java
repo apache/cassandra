@@ -34,6 +34,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.db.KeyspaceTest.assertColumns;
+import static org.apache.cassandra.Util.cellname;
 
 public class RecoveryManagerTest extends SchemaLoader
 {
@@ -84,7 +85,7 @@ public class RecoveryManagerTest extends SchemaLoader
         for (int i = 0; i < 10; ++i)
         {
             cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Counter1");
-            cf.addColumn(new CounterColumn(ByteBufferUtil.bytes("col"), 1L, 1L));
+            cf.addColumn(new CounterColumn(cellname("col"), 1L, 1L));
             rm = new RowMutation("Keyspace1", dk.key, cf);
             rm.apply();
         }
@@ -97,7 +98,7 @@ public class RecoveryManagerTest extends SchemaLoader
         cf = Util.getColumnFamily(keyspace1, dk, "Counter1");
 
         assert cf.getColumnCount() == 1;
-        Column c = cf.getColumn(ByteBufferUtil.bytes("col"));
+        Column c = cf.getColumn(cellname("col"));
 
         assert c != null;
         assert ((CounterColumn)c).total() == 10L;

@@ -26,6 +26,7 @@ import com.google.common.collect.Maps;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.exceptions.*;
@@ -265,26 +266,22 @@ public class ColumnDefinition extends ColumnSpecification
         return cd;
     }
 
-    public static Map<ByteBuffer, ColumnDefinition> fromThrift(CFMetaData cfm, List<ColumnDef> thriftDefs) throws SyntaxException, ConfigurationException
+    public static List<ColumnDefinition> fromThrift(CFMetaData cfm, List<ColumnDef> thriftDefs) throws SyntaxException, ConfigurationException
     {
         if (thriftDefs == null)
-            return new HashMap<>();
+            return Collections.emptyList();
 
-        Map<ByteBuffer, ColumnDefinition> cds = new TreeMap<>();
+        List<ColumnDefinition> defs = new ArrayList<>(thriftDefs.size());
         for (ColumnDef thriftColumnDef : thriftDefs)
-        {
-            ColumnDefinition def = fromThrift(cfm, thriftColumnDef);
-            cds.put(def.name.bytes, def);
-        }
+            defs.add(fromThrift(cfm, thriftColumnDef));
 
-        return cds;
+        return defs;
     }
 
     /**
      * Drop specified column from the schema using given row.
      *
      * @param rm         The schema row mutation
-     * @param cfName     The name of the parent ColumnFamily
      * @param timestamp  The timestamp to use for column modification
      */
     public void deleteFromSchema(RowMutation rm, long timestamp)
@@ -292,29 +289,24 @@ public class ColumnDefinition extends ColumnSpecification
         ColumnFamily cf = rm.addOrGet(CFMetaData.SchemaColumnsCf);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
-        ColumnNameBuilder builder = CFMetaData.SchemaColumnsCf.getColumnNameBuilder();
-        // Note: the following is necessary for backward compatibility. For CQL3, BBU.bytes(name.toString()) == name
         ByteBuffer nameBytes = ByteBufferUtil.bytes(name.toString());
-        builder.add(ByteBufferUtil.bytes(cfName)).add(nameBytes);
-        cf.addAtom(new RangeTombstone(builder.build(), builder.buildAsEndOfRange(), timestamp, ldt));
+        // Note: we do want to use name.toString(), not name.bytes directly for backward compatibility (For CQL3, this won't make a difference).
+        Composite prefix = CFMetaData.SchemaColumnsCf.comparator.make(cfName, name.toString());
+        cf.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
     }
 
     public void toSchema(RowMutation rm, long timestamp)
     {
         ColumnFamily cf = rm.addOrGet(CFMetaData.SchemaColumnsCf);
-        int ldt = (int) (System.currentTimeMillis() / 1000);
+        Composite prefix = CFMetaData.SchemaColumnsCf.comparator.make(cfName, name.toString());
+        CFRowAdder adder = new CFRowAdder(cf, prefix, timestamp);
 
-        cf.addColumn(Column.create("", timestamp, cfName, name.toString(), ""));
-        cf.addColumn(Column.create(type.toString(), timestamp, cfName, name.toString(), TYPE));
-        cf.addColumn(indexType == null ? DeletedColumn.create(ldt, timestamp, cfName, name.toString(), INDEX_TYPE)
-                                       : Column.create(indexType.toString(), timestamp, cfName, name.toString(), INDEX_TYPE));
-        cf.addColumn(indexOptions == null ? DeletedColumn.create(ldt, timestamp, cfName, name.toString(), INDEX_OPTIONS)
-                                          : Column.create(json(indexOptions), timestamp, cfName, name.toString(), INDEX_OPTIONS));
-        cf.addColumn(indexName == null ? DeletedColumn.create(ldt, timestamp, cfName, name.toString(), INDEX_NAME)
-                                       : Column.create(indexName, timestamp, cfName, name.toString(), INDEX_NAME));
-        cf.addColumn(componentIndex == null ? DeletedColumn.create(ldt, timestamp, cfName, name.toString(), COMPONENT_INDEX)
-                                            : Column.create(componentIndex, timestamp, cfName, name.toString(), COMPONENT_INDEX));
-        cf.addColumn(Column.create(kind.serialize(), timestamp, cfName, name.toString(), KIND));
+        adder.add(TYPE, type.toString());
+        adder.add(INDEX_TYPE, indexType == null ? null : indexType.toString());
+        adder.add(INDEX_OPTIONS, json(indexOptions));
+        adder.add(INDEX_NAME, indexName);
+        adder.add(COMPONENT_INDEX, componentIndex);
+        adder.add(KIND, kind.serialize());
     }
 
     public ColumnDefinition apply(ColumnDefinition def)  throws ConfigurationException
@@ -344,18 +336,22 @@ public class ColumnDefinition extends ColumnSpecification
                                     kind);
     }
 
+    public static UntypedResultSet resultify(Row serializedColumns)
+    {
+        String query = String.format("SELECT * FROM %s.%s", Keyspace.SYSTEM_KS, SystemKeyspace.SCHEMA_COLUMNS_CF);
+        return QueryProcessor.resultify(query, serializedColumns);
+    }
+
     /**
      * Deserialize columns from storage-level representation
      *
      * @param serializedColumns storage-level partition containing the column definitions
      * @return the list of processed ColumnDefinitions
      */
-    public static List<ColumnDefinition> fromSchema(Row serializedColumns, CFMetaData cfm)
+    public static List<ColumnDefinition> fromSchema(UntypedResultSet serializedColumns, String ksName, String cfName, AbstractType<?> rawComparator, boolean isSuper)
     {
         List<ColumnDefinition> cds = new ArrayList<>();
-
-        String query = String.format("SELECT * FROM %s.%s", Keyspace.SYSTEM_KS, SystemKeyspace.SCHEMA_COLUMNS_CF);
-        for (UntypedResultSet.Row row : QueryProcessor.resultify(query, serializedColumns))
+        for (UntypedResultSet.Row row : serializedColumns)
         {
             Kind kind = row.has(KIND)
                       ? Kind.deserialize(row.getString(KIND))
@@ -364,12 +360,12 @@ public class ColumnDefinition extends ColumnSpecification
             Integer componentIndex = null;
             if (row.has(COMPONENT_INDEX))
                 componentIndex = row.getInt(COMPONENT_INDEX);
-            else if (kind == Kind.CLUSTERING_COLUMN && cfm.isSuper())
+            else if (kind == Kind.CLUSTERING_COLUMN && isSuper)
                 componentIndex = 1; // A ColumnDefinition for super columns applies to the column component
 
             // Note: we save the column name as string, but we should not assume that it is an UTF8 name, we
             // we need to use the comparator fromString method
-            AbstractType<?> comparator = cfm.getComponentComparator(componentIndex, kind);
+            AbstractType<?> comparator = getComponentComparator(rawComparator, componentIndex, kind);
             ColumnIdentifier name = new ColumnIdentifier(comparator.fromString(row.getString(COLUMN_NAME)), comparator);
 
             AbstractType<?> validator;
@@ -394,10 +390,25 @@ public class ColumnDefinition extends ColumnSpecification
             if (row.has(INDEX_NAME))
                 indexName = row.getString(INDEX_NAME);
 
-            cds.add(new ColumnDefinition(cfm.ksName, cfm.cfName, name, validator, indexType, indexOptions, indexName, componentIndex, kind));
+            cds.add(new ColumnDefinition(ksName, cfName, name, validator, indexType, indexOptions, indexName, componentIndex, kind));
         }
 
         return cds;
+    }
+
+    public static AbstractType<?> getComponentComparator(AbstractType<?> rawComparator, Integer componentIndex, ColumnDefinition.Kind kind)
+    {
+        switch (kind)
+        {
+            case REGULAR:
+                if (componentIndex == null || (componentIndex == 0 && !(rawComparator instanceof CompositeType)))
+                    return rawComparator;
+
+                return ((CompositeType)rawComparator).types.get(componentIndex);
+            default:
+                // CQL3 column names are UTF8
+                return UTF8Type.instance;
+        }
     }
 
     public String getIndexName()

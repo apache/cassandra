@@ -163,7 +163,7 @@ public class SSTableUtils
             for (String key : keys)
             {
                 ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(ksname, cfname);
-                cf.addColumn(new Column(ByteBufferUtil.bytes(key), ByteBufferUtil.bytes(key), 0));
+                cf.addColumn(new Column(Util.cellname(key), ByteBufferUtil.bytes(key), 0));
                 map.put(key, cf);
             }
             return write(map);

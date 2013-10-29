@@ -27,6 +27,8 @@ import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -139,17 +141,17 @@ public class RowMutation implements IMutation
         return modifications.isEmpty();
     }
 
-    public void add(String cfName, ByteBuffer name, ByteBuffer value, long timestamp, int timeToLive)
+    public void add(String cfName, CellName name, ByteBuffer value, long timestamp, int timeToLive)
     {
         addOrGet(cfName).addColumn(name, value, timestamp, timeToLive);
     }
 
-    public void addCounter(String cfName, ByteBuffer name, long value)
+    public void addCounter(String cfName, CellName name, long value)
     {
         addOrGet(cfName).addCounter(name, value);
     }
 
-    public void add(String cfName, ByteBuffer name, ByteBuffer value, long timestamp)
+    public void add(String cfName, CellName name, ByteBuffer value, long timestamp)
     {
         add(cfName, name, value, timestamp, 0);
     }
@@ -160,13 +162,13 @@ public class RowMutation implements IMutation
         addOrGet(cfName).delete(new DeletionInfo(timestamp, localDeleteTime));
     }
 
-    public void delete(String cfName, ByteBuffer name, long timestamp)
+    public void delete(String cfName, CellName name, long timestamp)
     {
         int localDeleteTime = (int) (System.currentTimeMillis() / 1000);
         addOrGet(cfName).addTombstone(name, localDeleteTime, timestamp);
     }
 
-    public void deleteRange(String cfName, ByteBuffer start, ByteBuffer end, long timestamp)
+    public void deleteRange(String cfName, Composite start, Composite end, long timestamp)
     {
         int localDeleteTime = (int) (System.currentTimeMillis() / 1000);
         addOrGet(cfName).addAtom(new RangeTombstone(start, end, timestamp, localDeleteTime));
@@ -213,7 +215,7 @@ public class RowMutation implements IMutation
 
     public MessageOut<RowMutation> createMessage(MessagingService.Verb verb)
     {
-        return new MessageOut<RowMutation>(verb, this, serializer);
+        return new MessageOut<>(verb, this, serializer);
     }
 
     public String toString()

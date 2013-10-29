@@ -37,6 +37,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -208,14 +209,24 @@ public class BulkLoader
                         }
                     }
 
-                    String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = '%s'",
+                    String cfQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = '%s'",
                                                  Keyspace.SYSTEM_KS,
                                                  SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF,
                                                  keyspace);
-                    CqlResult result = client.execute_cql3_query(ByteBufferUtil.bytes(query), Compression.NONE, ConsistencyLevel.ONE);
-                    for (CqlRow row : result.rows)
+                    CqlResult cfRes = client.execute_cql3_query(ByteBufferUtil.bytes(cfQuery), Compression.NONE, ConsistencyLevel.ONE);
+
+
+                    for (CqlRow row : cfRes.rows)
                     {
-                        CFMetaData metadata = CFMetaData.fromThriftCqlRow(row);
+                        String columnFamily = UTF8Type.instance.getString(row.columns.get(1).bufferForName());
+                        String columnsQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = '%s' AND columnfamily_name = '%s'",
+                                                            Keyspace.SYSTEM_KS,
+                                                            SystemKeyspace.SCHEMA_COLUMNS_CF,
+                                                            keyspace,
+                                                            columnFamily);
+                        CqlResult columnsRes = client.execute_cql3_query(ByteBufferUtil.bytes(columnsQuery), Compression.NONE, ConsistencyLevel.ONE);
+
+                        CFMetaData metadata = CFMetaData.fromThriftCqlRow(row, columnsRes);
                         knownCfs.put(metadata.cfName, metadata);
                     }
                     break;

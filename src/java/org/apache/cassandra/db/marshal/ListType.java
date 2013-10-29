@@ -82,16 +82,16 @@ public class ListType<T> extends CollectionType<List<T>>
         sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Collections.<AbstractType<?>>singletonList(elements)));
     }
 
-    public ByteBuffer serialize(List<Pair<ByteBuffer, Column>> columns)
+    public ByteBuffer serialize(List<Column> columns)
     {
         columns = enforceLimit(columns);
 
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(columns.size());
         int size = 0;
-        for (Pair<ByteBuffer, Column> p : columns)
+        for (Column c : columns)
         {
-            bbs.add(p.right.value());
-            size += 2 + p.right.value().remaining();
+            bbs.add(c.value());
+            size += 2 + c.value().remaining();
         }
         return pack(bbs, columns.size(), size);
     }

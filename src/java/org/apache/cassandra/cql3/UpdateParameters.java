@@ -23,10 +23,10 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.cql3.statements.ColumnGroupMap;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * A simple container that simplify passing parameters for collections methods.
@@ -40,9 +40,9 @@ public class UpdateParameters
     public final int localDeletionTime;
 
     // For lists operation that require a read-before-write. Will be null otherwise.
-    private final Map<ByteBuffer, ColumnGroupMap> prefetchedLists;
+    private final Map<ByteBuffer, CQL3Row> prefetchedLists;
 
-    public UpdateParameters(CFMetaData metadata, List<ByteBuffer> variables, long timestamp, int ttl, Map<ByteBuffer, ColumnGroupMap> prefetchedLists)
+    public UpdateParameters(CFMetaData metadata, List<ByteBuffer> variables, long timestamp, int ttl, Map<ByteBuffer, CQL3Row> prefetchedLists)
     {
         this.metadata = metadata;
         this.variables = variables;
@@ -52,38 +52,38 @@ public class UpdateParameters
         this.prefetchedLists = prefetchedLists;
     }
 
-    public Column makeColumn(ByteBuffer name, ByteBuffer value) throws InvalidRequestException
+    public Column makeColumn(CellName name, ByteBuffer value) throws InvalidRequestException
     {
         QueryProcessor.validateCellName(name);
         return Column.create(name, value, timestamp, ttl, metadata);
     }
 
-    public Column makeTombstone(ByteBuffer name) throws InvalidRequestException
+    public Column makeTombstone(CellName name) throws InvalidRequestException
     {
         QueryProcessor.validateCellName(name);
         return new DeletedColumn(name, localDeletionTime, timestamp);
     }
 
-    public RangeTombstone makeRangeTombstone(ByteBuffer start, ByteBuffer end) throws InvalidRequestException
+    public RangeTombstone makeRangeTombstone(ColumnSlice slice) throws InvalidRequestException
     {
-        QueryProcessor.validateCellName(start);
-        QueryProcessor.validateCellName(end);
-        return new RangeTombstone(start, end, timestamp, localDeletionTime);
+        QueryProcessor.validateComposite(slice.start);
+        QueryProcessor.validateComposite(slice.finish);
+        return new RangeTombstone(slice.start, slice.finish, timestamp, localDeletionTime);
     }
 
-    public RangeTombstone makeTombstoneForOverwrite(ByteBuffer start, ByteBuffer end) throws InvalidRequestException
+    public RangeTombstone makeTombstoneForOverwrite(ColumnSlice slice) throws InvalidRequestException
     {
-        QueryProcessor.validateCellName(start);
-        QueryProcessor.validateCellName(end);
-        return new RangeTombstone(start, end, timestamp - 1, localDeletionTime);
+        QueryProcessor.validateComposite(slice.start);
+        QueryProcessor.validateComposite(slice.finish);
+        return new RangeTombstone(slice.start, slice.finish, timestamp - 1, localDeletionTime);
     }
 
-    public List<Pair<ByteBuffer, Column>> getPrefetchedList(ByteBuffer rowKey, ColumnIdentifier cql3ColumnName)
+    public List<Column> getPrefetchedList(ByteBuffer rowKey, ColumnIdentifier cql3ColumnName)
     {
         if (prefetchedLists == null)
             return Collections.emptyList();
 
-        ColumnGroupMap m = prefetchedLists.get(rowKey);
-        return m == null ? Collections.<Pair<ByteBuffer, Column>>emptyList() : m.getCollection(cql3ColumnName.bytes);
+        CQL3Row row = prefetchedLists.get(rowKey);
+        return row == null ? Collections.<Column>emptyList() : row.getCollection(cql3ColumnName);
     }
 }

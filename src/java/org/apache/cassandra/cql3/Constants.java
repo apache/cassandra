@@ -20,18 +20,20 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.serializers.MarshalException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -261,7 +263,7 @@ public abstract class Constants
         protected Marker(int bindIndex, ColumnSpecification receiver)
         {
             super(bindIndex, receiver);
-            assert !(receiver.type instanceof CollectionType);
+            assert !receiver.type.isCollection();
         }
 
         @Override
@@ -289,14 +291,14 @@ public abstract class Constants
 
     public static class Setter extends Operation
     {
-        public Setter(ColumnIdentifier column, Term t)
+        public Setter(ColumnDefinition column, Term t)
         {
             super(column, t);
         }
 
-        public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
+        public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            ByteBuffer cname = columnName == null ? prefix.build() : prefix.add(columnName).build();
+            CellName cname = cf.getComparator().create(prefix, column.name);
             ByteBuffer value = t.bindAndGet(params.variables);
             cf.addColumn(value == null ? params.makeTombstone(cname) : params.makeColumn(cname, value));
         }
@@ -304,30 +306,30 @@ public abstract class Constants
 
     public static class Adder extends Operation
     {
-        public Adder(ColumnIdentifier column, Term t)
+        public Adder(ColumnDefinition column, Term t)
         {
             super(column, t);
         }
 
-        public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
+        public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
             ByteBuffer bytes = t.bindAndGet(params.variables);
             if (bytes == null)
                 throw new InvalidRequestException("Invalid null value for counter increment");
             long increment = ByteBufferUtil.toLong(bytes);
-            ByteBuffer cname = columnName == null ? prefix.build() : prefix.add(columnName).build();
+            CellName cname = cf.getComparator().create(prefix, column.name);
             cf.addCounter(cname, increment);
         }
     }
 
     public static class Substracter extends Operation
     {
-        public Substracter(ColumnIdentifier column, Term t)
+        public Substracter(ColumnDefinition column, Term t)
         {
             super(column, t);
         }
 
-        public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
+        public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
             ByteBuffer bytes = t.bindAndGet(params.variables);
             if (bytes == null)
@@ -337,7 +339,7 @@ public abstract class Constants
             if (increment == Long.MIN_VALUE)
                 throw new InvalidRequestException("The negation of " + increment + " overflows supported counter precision (signed 8 bytes integer)");
 
-            ByteBuffer cname = columnName == null ? prefix.build() : prefix.add(columnName).build();
+            CellName cname = cf.getComparator().create(prefix, column.name);
             cf.addCounter(cname, -increment);
         }
     }
@@ -346,22 +348,18 @@ public abstract class Constants
     // duplicating this further
     public static class Deleter extends Operation
     {
-        private final boolean isCollection;
-
-        public Deleter(ColumnIdentifier column, boolean isCollection)
+        public Deleter(ColumnDefinition column)
         {
             super(column, null);
-            this.isCollection = isCollection;
         }
 
-        public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
+        public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            ColumnNameBuilder column = prefix.add(columnName);
-
-            if (isCollection)
-                cf.addAtom(params.makeRangeTombstone(column.build(), column.buildAsEndOfRange()));
+            CellName cname = cf.getComparator().create(prefix, column.name);
+            if (column.type.isCollection())
+                cf.addAtom(params.makeRangeTombstone(cname.slice()));
             else
-                cf.addColumn(params.makeTombstone(column.build()));
+                cf.addColumn(params.makeTombstone(cname));
         }
     };
 }

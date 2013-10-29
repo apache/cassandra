@@ -56,10 +56,7 @@ public class LongKeyspaceTest extends SchemaLoader
                 {
                     for (int j = 0; j < i; j++)
                     {
-                        cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("key" + i),
-                                                                                "Standard1",
-                                                                                ByteBufferUtil.bytes("c" + j),
-                                                                                System.currentTimeMillis()));
+                        cf = cfStore.getColumnFamily(Util.namesQueryFilter(cfStore, Util.dk("key" + i), "c" + j));
                         KeyspaceTest.assertColumns(cf, "c" + j);
                     }
                 }

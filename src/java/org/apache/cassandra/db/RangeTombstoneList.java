@@ -20,16 +20,16 @@ package org.apache.cassandra.db;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 
 import com.google.common.collect.AbstractIterator;
 
+import org.apache.cassandra.db.composites.CType;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,20 +54,18 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
 {
     private static final Logger logger = LoggerFactory.getLogger(RangeTombstoneList.class);
 
-    public static final Serializer serializer = new Serializer();
-
-    private final Comparator<ByteBuffer> comparator;
+    private final Comparator<Composite> comparator;
 
     // Note: we don't want to use a List for the markedAts and delTimes to avoid boxing. We could
     // use a List for starts and ends, but having arrays everywhere is almost simpler.
-    private ByteBuffer[] starts;
-    private ByteBuffer[] ends;
+    private Composite[] starts;
+    private Composite[] ends;
     private long[] markedAts;
     private int[] delTimes;
 
     private int size;
 
-    private RangeTombstoneList(Comparator<ByteBuffer> comparator, ByteBuffer[] starts, ByteBuffer[] ends, long[] markedAts, int[] delTimes, int size)
+    private RangeTombstoneList(Comparator<Composite> comparator, Composite[] starts, Composite[] ends, long[] markedAts, int[] delTimes, int size)
     {
         assert starts.length == ends.length && starts.length == markedAts.length && starts.length == delTimes.length;
         this.comparator = comparator;
@@ -78,9 +76,9 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
         this.size = size;
     }
 
-    public RangeTombstoneList(Comparator<ByteBuffer> comparator, int capacity)
+    public RangeTombstoneList(Comparator<Composite> comparator, int capacity)
     {
-        this(comparator, new ByteBuffer[capacity], new ByteBuffer[capacity], new long[capacity], new int[capacity], 0);
+        this(comparator, new Composite[capacity], new Composite[capacity], new long[capacity], new int[capacity], 0);
     }
 
     public boolean isEmpty()
@@ -93,7 +91,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
         return size;
     }
 
-    public Comparator<ByteBuffer> comparator()
+    public Comparator<Composite> comparator()
     {
         return comparator;
     }
@@ -119,7 +117,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
      * This method will be faster if the new tombstone sort after all the currently existing ones (this is a common use case), 
      * but it doesn't assume it.
      */
-    public void add(ByteBuffer start, ByteBuffer end, long markedAt, int delTime)
+    public void add(Composite start, Composite end, long markedAt, int delTime)
     {
         if (isEmpty())
         {
@@ -205,7 +203,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
      * Returns whether the given name/timestamp pair is deleted by one of the tombstone
      * of this RangeTombstoneList.
      */
-    public boolean isDeleted(ByteBuffer name, long timestamp)
+    public boolean isDeleted(Composite name, long timestamp)
     {
         int idx = searchInternal(name);
         return idx >= 0 && markedAts[idx] >= timestamp;
@@ -223,12 +221,12 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
      * Returns the DeletionTime for the tombstone overlapping {@code name} (there can't be more than one),
      * or null if {@code name} is not covered by any tombstone.
      */
-    public DeletionTime search(ByteBuffer name) {
+    public DeletionTime search(Composite name) {
         int idx = searchInternal(name);
         return idx < 0 ? null : new DeletionTime(markedAts[idx], delTimes[idx]);
     }
 
-    private int searchInternal(ByteBuffer name)
+    private int searchInternal(Composite name)
     {
         if (isEmpty())
             return -1;
@@ -259,7 +257,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
         int dataSize = TypeSizes.NATIVE.sizeof(size);
         for (int i = 0; i < size; i++)
         {
-            dataSize += starts[i].remaining() + ends[i].remaining();
+            dataSize += starts[i].dataSize() + ends[i].dataSize();
             dataSize += TypeSizes.NATIVE.sizeof(markedAts[i]);
             dataSize += TypeSizes.NATIVE.sizeof(delTimes[i]);
         }
@@ -384,7 +382,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
      * in term of intervals for start:
      *    ends[i-1] <= start < ends[i]
      */
-    private void insertFrom(int i, ByteBuffer start, ByteBuffer end, long markedAt, int delTime)
+    private void insertFrom(int i, Composite start, Composite end, long markedAt, int delTime)
     {
         while (i < size)
         {
@@ -490,7 +488,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
     /*
      * Adds the new tombstone at index i, growing and/or moving elements to make room for it.
      */
-    private void addInternal(int i, ByteBuffer start, ByteBuffer end, long markedAt, int delTime)
+    private void addInternal(int i, Composite start, Composite end, long markedAt, int delTime)
     {
         assert i >= 0;
 
@@ -529,12 +527,12 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
         delTimes = grow(delTimes, size, newLength, i);
     }
 
-    private static ByteBuffer[] grow(ByteBuffer[] a, int size, int newLength, int i)
+    private static Composite[] grow(Composite[] a, int size, int newLength, int i)
     {
         if (i < 0 || i >= size)
             return Arrays.copyOf(a, newLength);
 
-        ByteBuffer[] newA = new ByteBuffer[newLength];
+        Composite[] newA = new Composite[newLength];
         System.arraycopy(a, 0, newA, 0, i);
         System.arraycopy(a, i, newA, i+1, size - i);
         return newA;
@@ -576,7 +574,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
         System.arraycopy(delTimes, i, delTimes, i+1, size - i);
     }
 
-    private void setInternal(int i, ByteBuffer start, ByteBuffer end, long markedAt, int delTime)
+    private void setInternal(int i, Composite start, Composite end, long markedAt, int delTime)
     {
         starts[i] = start;
         ends[i] = end;
@@ -586,7 +584,12 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
 
     public static class Serializer implements IVersionedSerializer<RangeTombstoneList>
     {
-        private Serializer() {}
+        private final CType type;
+
+        public Serializer(CType type)
+        {
+            this.type = type;
+        }
 
         public void serialize(RangeTombstoneList tombstones, DataOutput out, int version) throws IOException
         {
@@ -599,34 +602,25 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
             out.writeInt(tombstones.size);
             for (int i = 0; i < tombstones.size; i++)
             {
-                ByteBufferUtil.writeWithShortLength(tombstones.starts[i], out);
-                ByteBufferUtil.writeWithShortLength(tombstones.ends[i], out);
+                type.serializer().serialize(tombstones.starts[i], out);
+                type.serializer().serialize(tombstones.ends[i], out);
                 out.writeInt(tombstones.delTimes[i]);
                 out.writeLong(tombstones.markedAts[i]);
             }
         }
 
-        /*
-         * RangeTombstoneList depends on the column family comparator, but it is not serialized.
-         * Thus deserialize(DataInput, int, Comparator<ByteBuffer>) should be used instead of this method.
-         */
         public RangeTombstoneList deserialize(DataInput in, int version) throws IOException
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public RangeTombstoneList deserialize(DataInput in, int version, Comparator<ByteBuffer> comparator) throws IOException
         {
             int size = in.readInt();
             if (size == 0)
                 return null;
 
-            RangeTombstoneList tombstones = new RangeTombstoneList(comparator, size);
+            RangeTombstoneList tombstones = new RangeTombstoneList(type, size);
 
             for (int i = 0; i < size; i++)
             {
-                ByteBuffer start = ByteBufferUtil.readWithShortLength(in);
-                ByteBuffer end = ByteBufferUtil.readWithShortLength(in);
+                Composite start = type.serializer().deserialize(in);
+                Composite end = type.serializer().deserialize(in);
                 int delTime =  in.readInt();
                 long markedAt = in.readLong();
 
@@ -658,10 +652,8 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
             long size = typeSizes.sizeof(tombstones.size);
             for (int i = 0; i < tombstones.size; i++)
             {
-                int startSize = tombstones.starts[i].remaining();
-                size += typeSizes.sizeof((short)startSize) + startSize;
-                int endSize = tombstones.ends[i].remaining();
-                size += typeSizes.sizeof((short)endSize) + endSize;
+                size += type.serializer().serializedSize(tombstones.starts[i], typeSizes);
+                size += type.serializer().serializedSize(tombstones.ends[i], typeSizes);
                 size += typeSizes.sizeof(tombstones.delTimes[i]);
                 size += typeSizes.sizeof(tombstones.markedAts[i]);
             }
@@ -687,7 +679,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
     {
         private int idx;
 
-        public boolean isDeleted(ByteBuffer name, long timestamp)
+        public boolean isDeleted(Composite name, long timestamp)
         {
             while (idx < size)
             {

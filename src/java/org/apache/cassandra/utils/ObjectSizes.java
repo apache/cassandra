@@ -98,6 +98,19 @@ public class ObjectSizes
     }
 
     /**
+     * Memory a ByteBuffer array consumes.
+     */
+    public static long getArraySize(ByteBuffer[] array)
+    {
+        long allElementsSize = 0;
+        for (int i = 0; i < array.length; i++)
+            if (array[i] != null)
+                allElementsSize += getSize(array[i]);
+
+        return allElementsSize + getArraySize(array.length, getReferenceSize());
+    }
+
+    /**
      * Memory a byte buffer consumes
      * @param buffer ByteBuffer to calculate in memory size
      * @return Total in-memory size of the byte buffer

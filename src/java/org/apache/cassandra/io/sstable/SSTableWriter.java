@@ -433,7 +433,7 @@ public class SSTableWriter extends SSTable
             try
             {
                 ByteBufferUtil.writeWithShortLength(key.key, indexFile.stream);
-                RowIndexEntry.serializer.serialize(indexEntry, indexFile.stream);
+                metadata.comparator.rowIndexEntrySerializer().serialize(indexEntry, indexFile.stream);
             }
             catch (IOException e)
             {

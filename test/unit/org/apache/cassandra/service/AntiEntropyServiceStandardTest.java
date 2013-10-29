@@ -23,6 +23,7 @@ package org.apache.cassandra.service;
 import java.util.List;
 import java.util.LinkedList;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -39,7 +40,7 @@ public class AntiEntropyServiceStandardTest extends AntiEntropyServiceTestAbstra
         List<IMutation> rms = new LinkedList<IMutation>();
         RowMutation rm;
         rm = new RowMutation(keyspaceName, ByteBufferUtil.bytes("key1"));
-        rm.add(cfname, ByteBufferUtil.bytes("Column1"), ByteBufferUtil.bytes("asdfasdf"), 0);
+        rm.add(cfname, Util.cellname("Column1"), ByteBufferUtil.bytes("asdfasdf"), 0);
         rms.add(rm);
         return rms;
     }

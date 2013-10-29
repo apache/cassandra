@@ -24,6 +24,7 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.Pair;
 
@@ -42,46 +43,39 @@ public class DeleteStatement extends ModificationStatement
         return false;
     }
 
-    public ColumnFamily updateForKey(ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params)
+    public ColumnFamily updateForKey(ByteBuffer key, Composite prefix, UpdateParameters params)
     throws InvalidRequestException
     {
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfm);
         List<Operation> deletions = getOperations();
 
-        boolean fullKey = builder.componentCount() == cfm.clusteringColumns().size();
-        boolean isRange = cfm.isDense() ? !fullKey : (!fullKey || deletions.isEmpty());
+        if (prefix.size() < cfm.clusteringColumns().size() && !deletions.isEmpty())
+            throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s since %s specified", getFirstEmptyKey(), deletions.iterator().next().column.name));
 
-        if (!deletions.isEmpty() && isRange)
-            throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s since %s specified", getFirstEmptyKey(), deletions.get(0).columnName));
-
-        if (deletions.isEmpty() && builder.componentCount() == 0)
+        if (deletions.isEmpty())
         {
-            // No columns specified, delete the row
-            cf.delete(new DeletionInfo(params.timestamp, params.localDeletionTime));
-        }
-        else
-        {
-            if (isRange)
+            // We delete the slice selected by the prefix.
+            // However, for performance reasons, we distinguish 2 cases:
+            //   - It's a full internal row delete
+            //   - It's a full cell name (i.e it's a dense layout and the prefix is full)
+            if (prefix.isEmpty())
             {
-                assert deletions.isEmpty();
-                ByteBuffer start = builder.build();
-                ByteBuffer end = builder.buildAsEndOfRange();
-                cf.addAtom(params.makeRangeTombstone(start, end));
+                // No columns specified, delete the row
+                cf.delete(new DeletionInfo(params.timestamp, params.localDeletionTime));
+            }
+            else if (cfm.comparator.isDense() && prefix.size() == cfm.clusteringColumns().size())
+            {
+                cf.addAtom(params.makeTombstone(cfm.comparator.create(prefix, null)));
             }
             else
             {
-                // Delete specific columns
-                if (cfm.isDense())
-                {
-                    ByteBuffer columnName = builder.build();
-                    cf.addColumn(params.makeTombstone(columnName));
-                }
-                else
-                {
-                    for (Operation deletion : deletions)
-                        deletion.execute(key, cf, builder.copy(), params);
-                }
+                cf.addAtom(params.makeRangeTombstone(prefix.slice()));
             }
+        }
+        else
+        {
+            for (Operation op : deletions)
+                op.execute(key, cf, prefix, params);
         }
 
         return cf;

@@ -58,7 +58,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
     protected abstract void appendToStringBuilder(StringBuilder sb);
 
-    public abstract ByteBuffer serialize(List<Pair<ByteBuffer, Column>> columns);
+    public abstract ByteBuffer serialize(List<Column> columns);
 
     @Override
     public String toString()
@@ -113,7 +113,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return (ByteBuffer)result.flip();
     }
 
-    protected List<Pair<ByteBuffer, Column>> enforceLimit(List<Pair<ByteBuffer, Column>> columns)
+    protected List<Column> enforceLimit(List<Column> columns)
     {
         if (columns.size() <= MAX_ELEMENTS)
             return columns;

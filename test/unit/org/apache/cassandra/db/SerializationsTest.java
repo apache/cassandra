@@ -20,7 +20,9 @@ package org.apache.cassandra.db;
 
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -56,12 +58,12 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private ByteBuffer startCol = ByteBufferUtil.bytes("Start");
     private ByteBuffer stopCol = ByteBufferUtil.bytes("Stop");
-    private ByteBuffer emptyCol = ByteBufferUtil.bytes("");
+    private Composite emptyCol = Composites.EMPTY;
     public NamesQueryFilter namesPred = new NamesQueryFilter(statics.NamedCols);
     public NamesQueryFilter namesSCPred = new NamesQueryFilter(statics.NamedSCCols);
     public SliceQueryFilter emptyRangePred = new SliceQueryFilter(emptyCol, emptyCol, false, 100);
-    public SliceQueryFilter nonEmptyRangePred = new SliceQueryFilter(startCol, stopCol, true, 100);
-    public SliceQueryFilter nonEmptyRangeSCPred = new SliceQueryFilter(CompositeType.build(statics.SC, startCol), CompositeType.build(statics.SC, stopCol), true, 100);
+    public SliceQueryFilter nonEmptyRangePred = new SliceQueryFilter(CellNames.simpleDense(startCol), CellNames.simpleDense(stopCol), true, 100);
+    public SliceQueryFilter nonEmptyRangeSCPred = new SliceQueryFilter(CellNames.compositeDense(statics.SC, startCol), CellNames.compositeDense(statics.SC, stopCol), true, 100);
 
     private void testRangeSliceCommandWrite() throws IOException
     {
@@ -334,26 +336,32 @@ public class SerializationsTest extends AbstractSerializationsTester
         in.close();
     }
 
-    private static ByteBuffer bb(String s) {
+    private static ByteBuffer bb(String s)
+    {
         return ByteBufferUtil.bytes(s);
+    }
+
+    private static CellName cn(String s)
+    {
+        return CellNames.simpleDense(ByteBufferUtil.bytes(s));
     }
 
     private static class Statics
     {
         private final String KS = "Keyspace1";
         private final ByteBuffer Key = ByteBufferUtil.bytes("Key01");
-        private final SortedSet<ByteBuffer> NamedCols = new TreeSet<ByteBuffer>(BytesType.instance)
+        private final SortedSet<CellName> NamedCols = new TreeSet<CellName>(new SimpleDenseCellNameType(BytesType.instance))
         {{
-            add(ByteBufferUtil.bytes("AAA"));
-            add(ByteBufferUtil.bytes("BBB"));
-            add(ByteBufferUtil.bytes("CCC"));
+            add(CellNames.simpleDense(ByteBufferUtil.bytes("AAA")));
+            add(CellNames.simpleDense(ByteBufferUtil.bytes("BBB")));
+            add(CellNames.simpleDense(ByteBufferUtil.bytes("CCC")));
         }};
         private final ByteBuffer SC = ByteBufferUtil.bytes("SCName");
-        private final SortedSet<ByteBuffer> NamedSCCols = new TreeSet<ByteBuffer>(BytesType.instance)
+        private final SortedSet<CellName> NamedSCCols = new TreeSet<CellName>(new CompoundDenseCellNameType(Arrays.<AbstractType<?>>asList(BytesType.instance, BytesType.instance)))
         {{
-            add(CompositeType.build(SC, ByteBufferUtil.bytes("AAA")));
-            add(CompositeType.build(SC, ByteBufferUtil.bytes("BBB")));
-            add(CompositeType.build(SC, ByteBufferUtil.bytes("CCC")));
+            add(CellNames.compositeDense(SC, ByteBufferUtil.bytes("AAA")));
+            add(CellNames.compositeDense(SC, ByteBufferUtil.bytes("BBB")));
+            add(CellNames.compositeDense(SC, ByteBufferUtil.bytes("CCC")));
         }};
         private final String StandardCF = "Standard1";
         private final String SuperCF = "Super1";
@@ -369,21 +377,21 @@ public class SerializationsTest extends AbstractSerializationsTester
 
         private Statics()
         {
-            StandardCf.addColumn(new Column(bb("aaaa")));
-            StandardCf.addColumn(new Column(bb("bbbb"), bb("bbbbb-value")));
-            StandardCf.addColumn(new Column(bb("cccc"), bb("ccccc-value"), 1000L));
-            StandardCf.addColumn(new DeletedColumn(bb("dddd"), 500, 1000));
-            StandardCf.addColumn(new DeletedColumn(bb("eeee"), bb("eeee-value"), 1001));
-            StandardCf.addColumn(new ExpiringColumn(bb("ffff"), bb("ffff-value"), 2000, 1000));
-            StandardCf.addColumn(new ExpiringColumn(bb("gggg"), bb("gggg-value"), 2001, 1000, 2002));
+            StandardCf.addColumn(new Column(cn("aaaa")));
+            StandardCf.addColumn(new Column(cn("bbbb"), bb("bbbbb-value")));
+            StandardCf.addColumn(new Column(cn("cccc"), bb("ccccc-value"), 1000L));
+            StandardCf.addColumn(new DeletedColumn(cn("dddd"), 500, 1000));
+            StandardCf.addColumn(new DeletedColumn(cn("eeee"), bb("eeee-value"), 1001));
+            StandardCf.addColumn(new ExpiringColumn(cn("ffff"), bb("ffff-value"), 2000, 1000));
+            StandardCf.addColumn(new ExpiringColumn(cn("gggg"), bb("gggg-value"), 2001, 1000, 2002));
 
-            SuperCf.addColumn(new Column(CompositeType.build(SC, bb("aaaa"))));
-            SuperCf.addColumn(new Column(CompositeType.build(SC, bb("bbbb")), bb("bbbbb-value")));
-            SuperCf.addColumn(new Column(CompositeType.build(SC, bb("cccc")), bb("ccccc-value"), 1000L));
-            SuperCf.addColumn(new DeletedColumn(CompositeType.build(SC, bb("dddd")), 500, 1000));
-            SuperCf.addColumn(new DeletedColumn(CompositeType.build(SC, bb("eeee")), bb("eeee-value"), 1001));
-            SuperCf.addColumn(new ExpiringColumn(CompositeType.build(SC, bb("ffff")), bb("ffff-value"), 2000, 1000));
-            SuperCf.addColumn(new ExpiringColumn(CompositeType.build(SC, bb("gggg")), bb("gggg-value"), 2001, 1000, 2002));
+            SuperCf.addColumn(new Column(CellNames.compositeDense(SC, bb("aaaa"))));
+            SuperCf.addColumn(new Column(CellNames.compositeDense(SC, bb("bbbb")), bb("bbbbb-value")));
+            SuperCf.addColumn(new Column(CellNames.compositeDense(SC, bb("cccc")), bb("ccccc-value"), 1000L));
+            SuperCf.addColumn(new DeletedColumn(CellNames.compositeDense(SC, bb("dddd")), 500, 1000));
+            SuperCf.addColumn(new DeletedColumn(CellNames.compositeDense(SC, bb("eeee")), bb("eeee-value"), 1001));
+            SuperCf.addColumn(new ExpiringColumn(CellNames.compositeDense(SC, bb("ffff")), bb("ffff-value"), 2000, 1000));
+            SuperCf.addColumn(new ExpiringColumn(CellNames.compositeDense(SC, bb("gggg")), bb("gggg-value"), 2001, 1000, 2002));
         }
     }
 }

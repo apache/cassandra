@@ -33,8 +33,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.exceptions.UnavailableException;
@@ -71,27 +71,27 @@ public class Tracing
 
     public static final Tracing instance = new Tracing();
 
-    public static void addColumn(ColumnFamily cf, ByteBuffer name, InetAddress address)
+    public static void addColumn(ColumnFamily cf, CellName name, InetAddress address)
     {
         addColumn(cf, name, ByteBufferUtil.bytes(address));
     }
 
-    public static void addColumn(ColumnFamily cf, ByteBuffer name, int value)
+    public static void addColumn(ColumnFamily cf, CellName name, int value)
     {
         addColumn(cf, name, ByteBufferUtil.bytes(value));
     }
 
-    public static void addColumn(ColumnFamily cf, ByteBuffer name, long value)
+    public static void addColumn(ColumnFamily cf, CellName name, long value)
     {
         addColumn(cf, name, ByteBufferUtil.bytes(value));
     }
 
-    public static void addColumn(ColumnFamily cf, ByteBuffer name, String value)
+    public static void addColumn(ColumnFamily cf, CellName name, String value)
     {
         addColumn(cf, name, ByteBufferUtil.bytes(value));
     }
 
-    private static void addColumn(ColumnFamily cf, ByteBuffer name, ByteBuffer value)
+    private static void addColumn(ColumnFamily cf, CellName name, ByteBuffer value)
     {
         cf.addColumn(new ExpiringColumn(name, value, System.currentTimeMillis(), TTL));
     }
@@ -100,17 +100,14 @@ public class Tracing
     {
         for (Map.Entry<String, String> entry : rawPayload.entrySet())
         {
-            cf.addColumn(new ExpiringColumn(buildName(cf.metadata(), bytes("parameters"), bytes(entry.getKey())),
+            cf.addColumn(new ExpiringColumn(buildName(cf.metadata(), "parameters", entry.getKey()),
                                             bytes(entry.getValue()), System.currentTimeMillis(), TTL));
         }
     }
 
-    public static ByteBuffer buildName(CFMetaData meta, ByteBuffer... args)
+    public static CellName buildName(CFMetaData meta, Object... args)
     {
-        ColumnNameBuilder builder = meta.getColumnNameBuilder();
-        for (ByteBuffer arg : args)
-            builder.add(arg);
-        return builder.build();
+        return meta.comparator.makeCellName(args);
     }
 
     public UUID getSessionId()
@@ -169,7 +166,7 @@ public class Tracing
                 {
                     CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
                     ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfMeta);
-                    addColumn(cf, buildName(cfMeta, bytes("duration")), elapsed);
+                    addColumn(cf, buildName(cfMeta, "duration"), elapsed);
                     mutateWithCatch(new RowMutation(TRACE_KS, sessionIdBytes, cf));
                 }
             });
@@ -207,10 +204,10 @@ public class Tracing
             {
                 CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
                 ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfMeta);
-                addColumn(cf, buildName(cfMeta, bytes("coordinator")), FBUtilities.getBroadcastAddress());
+                addColumn(cf, buildName(cfMeta, "coordinator"), FBUtilities.getBroadcastAddress());
                 addParameterColumns(cf, parameters);
-                addColumn(cf, buildName(cfMeta, bytes("request")), request);
-                addColumn(cf, buildName(cfMeta, bytes("started_at")), started_at);
+                addColumn(cf, buildName(cfMeta, "request"), request);
+                addColumn(cf, buildName(cfMeta, "started_at"), started_at);
                 mutateWithCatch(new RowMutation(TRACE_KS, sessionIdBytes, cf));
             }
         });

@@ -139,7 +139,7 @@ public class SSTableScanner implements ICompactionScanner
                 }
                 else
                 {
-                    RowIndexEntry.serializer.skip(ifile);
+                    sstable.metadata.comparator.rowIndexEntrySerializer().skip(ifile);
                 }
             }
         }
@@ -220,7 +220,7 @@ public class SSTableScanner implements ICompactionScanner
                             return endOfData();
 
                         currentKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
-                        currentEntry = RowIndexEntry.serializer.deserialize(ifile, sstable.descriptor.version);
+                        currentEntry = sstable.metadata.comparator.rowIndexEntrySerializer().deserialize(ifile, sstable.descriptor.version);
                     } while (!currentRange.contains(currentKey));
                 }
                 else
@@ -241,7 +241,7 @@ public class SSTableScanner implements ICompactionScanner
                 {
                     // we need the position of the start of the next key, regardless of whether it falls in the current range
                     nextKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
-                    nextEntry = RowIndexEntry.serializer.deserialize(ifile, sstable.descriptor.version);
+                    nextEntry = sstable.metadata.comparator.rowIndexEntrySerializer().deserialize(ifile, sstable.descriptor.version);
                     readEnd = nextEntry.position;
 
                     if (!currentRange.contains(nextKey))

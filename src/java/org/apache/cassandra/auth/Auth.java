@@ -246,7 +246,7 @@ public class Auth
             ResultMessage.Rows rows = selectUserStatement.execute(QueryState.forInternalCalls(),
                                                                   new QueryOptions(consistencyForUser(username),
                                                                                    Lists.newArrayList(ByteBufferUtil.bytes(username))));
-            return new UntypedResultSet(rows.result);
+            return UntypedResultSet.create(rows.result);
         }
         catch (RequestValidationException e)
         {

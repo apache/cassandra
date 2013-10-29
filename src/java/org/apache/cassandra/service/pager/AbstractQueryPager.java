@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service.pager;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -26,6 +25,7 @@ import java.util.Iterator;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.ColumnCounter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -289,12 +289,12 @@ abstract class AbstractQueryPager implements QueryPager
         return Math.min(liveCount, toDiscard);
     }
 
-    protected static ByteBuffer firstName(ColumnFamily cf)
+    protected static CellName firstName(ColumnFamily cf)
     {
         return cf.iterator().next().name();
     }
 
-    protected static ByteBuffer lastName(ColumnFamily cf)
+    protected static CellName lastName(ColumnFamily cf)
     {
         return cf.getReverseSortedColumns().iterator().next().name();
     }

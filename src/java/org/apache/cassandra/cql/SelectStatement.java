@@ -17,13 +17,10 @@
  */
 package org.apache.cassandra.cql;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Set;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.ConsistencyLevel;
 
 /**

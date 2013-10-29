@@ -94,7 +94,7 @@ public class SSTableSimpleWriterTest extends SchemaLoader
         int i = 0;
         for (Column c : cf)
         {
-            assert toInt(c.name()) == i : "Column name should be " + i + ", got " + toInt(c.name());
+            assert toInt(c.name().toByteBuffer()) == i : "Column name should be " + i + ", got " + toInt(c.name().toByteBuffer());
             assert c.value().equals(bytes("v"));
             assert c.timestamp() == 1;
             ++i;

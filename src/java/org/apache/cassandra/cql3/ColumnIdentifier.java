@@ -20,14 +20,17 @@ package org.apache.cassandra.cql3;
 import java.util.Locale;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.cql3.statements.Selectable;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ObjectSizes;
 
 /**
  * Represents an identifer for a CQL column definition.
  */
-public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier>
+public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier>, IMeasurableMemory
 {
     public final ByteBuffer bytes;
     private final String text;
@@ -53,6 +56,11 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
     @Override
     public final boolean equals(Object o)
     {
+        // Note: it's worth checking for reference equality since we intern those
+        // in SparseCellNameType
+        if (this == o)
+            return true;
+
         if(!(o instanceof ColumnIdentifier))
             return false;
         ColumnIdentifier that = (ColumnIdentifier)o;
@@ -65,8 +73,18 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
         return text;
     }
 
+    public long memorySize()
+    {
+        return ObjectSizes.getFieldSize(2 * ObjectSizes.getReferenceSize())
+             + ObjectSizes.getSize(bytes)
+             + TypeSizes.NATIVE.sizeof(text);
+    }
+
     public int compareTo(ColumnIdentifier other)
     {
+        if (this == other)
+            return 0;
+
         return bytes.compareTo(other.bytes);
     }
 }

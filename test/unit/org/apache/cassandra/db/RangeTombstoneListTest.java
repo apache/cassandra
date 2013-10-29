@@ -24,12 +24,15 @@ import java.util.*;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
+import org.apache.cassandra.Util;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class RangeTombstoneListTest
 {
-    private static final Comparator<ByteBuffer> cmp = IntegerType.instance;
+    private static final Comparator<Composite> cmp = new SimpleDenseCellNameType(IntegerType.instance);
 
     @Test
     public void sortedAdditionTest()
@@ -305,14 +308,14 @@ public class RangeTombstoneListTest
         return String.format("[%d, %d]@%d", i(rt.min), i(rt.max), rt.data.markedForDeleteAt);
     }
 
-    private static ByteBuffer b(int i)
+    private static Composite b(int i)
     {
-        return ByteBufferUtil.bytes(i);
+        return Util.cellname(i);
     }
 
-    private static int i(ByteBuffer bb)
+    private static int i(Composite c)
     {
-        return ByteBufferUtil.toInt(bb);
+        return ByteBufferUtil.toInt(c.toByteBuffer());
     }
 
     private static RangeTombstone rt(int start, int end, long tstamp)

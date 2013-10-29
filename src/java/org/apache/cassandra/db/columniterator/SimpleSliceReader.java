@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.columniterator;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Iterator;
 
 import com.google.common.collect.AbstractIterator;
@@ -26,7 +25,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -40,12 +40,12 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
 
     private final FileDataInput file;
     private final boolean needsClosing;
-    private final ByteBuffer finishColumn;
-    private final AbstractType<?> comparator;
+    private final Composite finishColumn;
+    private final CellNameType comparator;
     private final ColumnFamily emptyColumnFamily;
     private final Iterator<OnDiskAtom> atomIterator;
 
-    public SimpleSliceReader(SSTableReader sstable, RowIndexEntry indexEntry, FileDataInput input, ByteBuffer finishColumn)
+    public SimpleSliceReader(SSTableReader sstable, RowIndexEntry indexEntry, FileDataInput input, Composite finishColumn)
     {
         Tracing.trace("Seeking to partition beginning in data file");
         this.finishColumn = finishColumn;
@@ -89,7 +89,7 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
             return endOfData();
 
         OnDiskAtom column = atomIterator.next();
-        if (finishColumn.remaining() > 0 && comparator.compare(column.name(), finishColumn) > 0)
+        if (!finishColumn.isEmpty() && comparator.compare(column.name(), finishColumn) > 0)
             return endOfData();
 
         return column;

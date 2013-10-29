@@ -30,6 +30,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.pager.*;
@@ -44,6 +45,11 @@ public class QueryPagerTest extends SchemaLoader
 {
     private static final String KS = "Keyspace1";
     private static final String CF = "Standard1";
+
+    private static String string(CellName name)
+    {
+        return string(name.toByteBuffer());
+    }
 
     private static String string(ByteBuffer bb)
     {
@@ -109,9 +115,9 @@ public class QueryPagerTest extends SchemaLoader
 
     private static ReadCommand namesQuery(String key, String... names)
     {
-        SortedSet<ByteBuffer> s = new TreeSet<ByteBuffer>(cfs().metadata.comparator);
+        SortedSet<CellName> s = new TreeSet<CellName>(cfs().metadata.comparator);
         for (String name : names)
-            s.add(bytes(name));
+            s.add(CellNames.simpleDense(bytes(name)));
         return new SliceByNamesReadCommand(KS, bytes(key), CF, System.currentTimeMillis(), new NamesQueryFilter(s, true));
     }
 
@@ -122,22 +128,22 @@ public class QueryPagerTest extends SchemaLoader
 
     private static ReadCommand sliceQuery(String key, String start, String end, boolean reversed, int count)
     {
-        SliceQueryFilter filter = new SliceQueryFilter(bytes(start), bytes(end), reversed, count);
+        SliceQueryFilter filter = new SliceQueryFilter(CellNames.simpleDense(bytes(start)), CellNames.simpleDense(bytes(end)), reversed, count);
         // Note: for MultiQueryTest, we need the same timestamp/expireBefore for all queries, so we just use 0 as it doesn't matter here.
         return new SliceFromReadCommand(KS, bytes(key), CF, 0, filter);
     }
 
     private static RangeSliceCommand rangeNamesQuery(AbstractBounds<RowPosition> range, int count, String... names)
     {
-        SortedSet<ByteBuffer> s = new TreeSet<ByteBuffer>(cfs().metadata.comparator);
+        SortedSet<CellName> s = new TreeSet<CellName>(cfs().metadata.comparator);
         for (String name : names)
-            s.add(bytes(name));
+            s.add(CellNames.simpleDense(bytes(name)));
         return new RangeSliceCommand(KS, CF, System.currentTimeMillis(), new NamesQueryFilter(s, true), range, count);
     }
 
     private static RangeSliceCommand rangeSliceQuery(AbstractBounds<RowPosition> range, int count, String start, String end)
     {
-        SliceQueryFilter filter = new SliceQueryFilter(bytes(start), bytes(end), false, Integer.MAX_VALUE);
+        SliceQueryFilter filter = new SliceQueryFilter(CellNames.simpleDense(bytes(start)), CellNames.simpleDense(bytes(end)), false, Integer.MAX_VALUE);
         return new RangeSliceCommand(KS, CF, System.currentTimeMillis(), filter, range, count);
     }
 
