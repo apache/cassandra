@@ -49,7 +49,7 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
     public void testOptionsValidation() throws ConfigurationException
     {
         Map<String, String> options = new HashMap<>();
-        options.put(SizeTieredCompactionStrategyOptions.MAX_COLD_READS_RATIO_KEY, "0.35");
+        options.put(SizeTieredCompactionStrategyOptions.COLD_READS_TO_OMIT_KEY, "0.35");
         options.put(SizeTieredCompactionStrategyOptions.BUCKET_LOW_KEY, "0.5");
         options.put(SizeTieredCompactionStrategyOptions.BUCKET_HIGH_KEY, "1.5");
         options.put(SizeTieredCompactionStrategyOptions.MIN_SSTABLE_SIZE_KEY, "10000");
@@ -58,21 +58,21 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
 
         try
         {
-            options.put(SizeTieredCompactionStrategyOptions.MAX_COLD_READS_RATIO_KEY, "-0.5");
+            options.put(SizeTieredCompactionStrategyOptions.COLD_READS_TO_OMIT_KEY, "-0.5");
             validateOptions(options);
-            fail(String.format("Negative %s should be rejected", SizeTieredCompactionStrategyOptions.MAX_COLD_READS_RATIO_KEY));
+            fail(String.format("Negative %s should be rejected", SizeTieredCompactionStrategyOptions.COLD_READS_TO_OMIT_KEY));
         }
         catch (ConfigurationException e) {}
 
         try
         {
-            options.put(SizeTieredCompactionStrategyOptions.MAX_COLD_READS_RATIO_KEY, "10.0");
+            options.put(SizeTieredCompactionStrategyOptions.COLD_READS_TO_OMIT_KEY, "10.0");
             validateOptions(options);
-            fail(String.format("%s > 1.0 should be rejected", SizeTieredCompactionStrategyOptions.MAX_COLD_READS_RATIO_KEY));
+            fail(String.format("%s > 1.0 should be rejected", SizeTieredCompactionStrategyOptions.COLD_READS_TO_OMIT_KEY));
         }
         catch (ConfigurationException e)
         {
-            options.put(SizeTieredCompactionStrategyOptions.MAX_COLD_READS_RATIO_KEY, "0.25");
+            options.put(SizeTieredCompactionStrategyOptions.COLD_READS_TO_OMIT_KEY, "0.25");
         }
 
         try
