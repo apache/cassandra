@@ -8,6 +8,8 @@
 
 
 2.0.3
+ * Compact hottest sstables first and optionally omit coldest from
+   compaction entirely (CASSANDRA-6109)
  * Fix modifying column_metadata from thrift (CASSANDRA-6182)
  * cqlsh: fix LIST USERS output (CASSANDRA-6242)
  * Add IRequestSink interface (CASSANDRA-6248)
