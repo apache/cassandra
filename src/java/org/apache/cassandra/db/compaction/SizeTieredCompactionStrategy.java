@@ -112,7 +112,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     @VisibleForTesting
     static List<SSTableReader> filterColdSSTables(List<SSTableReader> sstables, double coldReadsToOmit)
     {
-        // sort the sstables by hotness (coldest-first), breaking ties with size on disk (mainly for system tables and cold tables)
+        // sort the sstables by hotness (coldest-first)
         Collections.sort(sstables, new Comparator<SSTableReader>()
         {
             public int compare(SSTableReader o1, SSTableReader o2)
@@ -121,7 +121,14 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
                 if (comparison != 0)
                     return comparison;
 
-                return Long.compare(o1.bytesOnDisk(), o2.bytesOnDisk());
+                // break ties with size on disk (mainly for system tables and cold tables)
+                comparison = Long.compare(o1.bytesOnDisk(), o2.bytesOnDisk());
+                if (comparison != 0)
+                    return comparison;
+
+                // if there's still a tie, use generation, which is guaranteed to be unique.  this ensures that
+                // our filtering is deterministic, which can be useful when debugging.
+                return o1.descriptor.generation - o2.descriptor.generation;
             }
         });
 
