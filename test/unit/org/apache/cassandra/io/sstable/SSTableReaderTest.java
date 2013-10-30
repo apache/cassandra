@@ -27,8 +27,10 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import com.google.common.collect.Sets;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -313,6 +315,42 @@ public class SSTableReaderTest extends SchemaLoader
 
         SSTableReader reopened = SSTableReader.open(sstable.descriptor);
         assert reopened.first.token instanceof LocalToken;
+    }
+
+    @Test
+    public void testGetPositionsForRangesFromTableOpenedForBulkLoading() throws IOException, ExecutionException, InterruptedException
+    {
+        Table table = Table.open("Keyspace1");
+        ColumnFamilyStore store = table.getColumnFamilyStore("Standard2");
+
+        // insert data and compact to a single sstable. The
+        // number of keys inserted is greater than index_interval
+        // to ensure multiple segments in the index file
+        CompactionManager.instance.disableAutoCompaction();
+        for (int j = 0; j < 130; j++)
+        {
+            ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
+            RowMutation rm = new RowMutation("Keyspace1", key);
+            rm.add(new QueryPath("Standard2", null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
+            rm.apply();
+        }
+        store.forceBlockingFlush();
+        CompactionManager.instance.performMaximal(store);
+
+        // construct a range which is present in the sstable, but whose
+        // keys are not found in the first segment of the index.
+        List<Range<Token>> ranges = new ArrayList<Range<Token>>();
+        ranges.add(new Range<Token>(t(98), t(99)));
+
+        SSTableReader sstable = store.getSSTables().iterator().next();
+        List<Pair<Long,Long>> sections = sstable.getPositionsForRanges(ranges);
+        assert sections.size() == 1 : "Expected to find range in sstable" ;
+
+        // re-open the same sstable as it would be during bulk loading
+        Set<Component> components = Sets.newHashSet(Component.DATA, Component.PRIMARY_INDEX);
+        SSTableReader bulkLoaded = SSTableReader.openForBatch(sstable.descriptor, components, sstable.partitioner);
+        sections = bulkLoaded.getPositionsForRanges(ranges);
+        assert sections.size() == 1 : "Expected to find range in sstable opened for bulk loading";
     }
 
     private void assertIndexQueryWorks(ColumnFamilyStore indexedCFS) throws IOException
