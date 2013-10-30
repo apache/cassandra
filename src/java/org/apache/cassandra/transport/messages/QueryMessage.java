@@ -47,7 +47,7 @@ public class QueryMessage extends Message.Request
             if (version == 1)
             {
                 ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
-                return new QueryMessage(query, consistency);
+                return new QueryMessage(query, QueryOptions.fromProtocolV1(consistency, Collections.<ByteBuffer>emptyList()));
             }
             else
             {
@@ -82,11 +82,6 @@ public class QueryMessage extends Message.Request
 
     public final String query;
     public final QueryOptions options;
-
-    public QueryMessage(String query, ConsistencyLevel consistency)
-    {
-        this(query, new QueryOptions(consistency, Collections.<ByteBuffer>emptyList()));
-    }
 
     public QueryMessage(String query, QueryOptions options)
     {

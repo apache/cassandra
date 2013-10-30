@@ -20,6 +20,7 @@ package org.apache.cassandra.transport;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -153,9 +154,7 @@ public class SimpleClient
 
     public ResultMessage execute(String query, ConsistencyLevel consistency)
     {
-        Message.Response msg = execute(new QueryMessage(query, consistency));
-        assert msg instanceof ResultMessage;
-        return (ResultMessage)msg;
+        return execute(query, Collections.<ByteBuffer>emptyList(), consistency);
     }
 
     public ResultMessage execute(String query, List<ByteBuffer> values, ConsistencyLevel consistencyLevel)

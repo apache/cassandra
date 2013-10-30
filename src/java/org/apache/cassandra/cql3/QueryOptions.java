@@ -45,9 +45,13 @@ public class QueryOptions
 
     private final SpecificOptions options;
 
+    // The protocol version of incoming queries. This is set during deserializaion and will be 0
+    // if the QueryOptions does not come from a user message (or come from thrift).
+    private final transient int protocolVersion;
+
     public QueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values)
     {
-        this(consistency, values, false, SpecificOptions.DEFAULT);
+        this(consistency, values, false, SpecificOptions.DEFAULT, 0);
     }
 
     public QueryOptions(ConsistencyLevel consistency,
@@ -57,15 +61,21 @@ public class QueryOptions
                         PagingState pagingState,
                         ConsistencyLevel serialConsistency)
     {
-        this(consistency, values, skipMetadata, new SpecificOptions(pageSize, pagingState, serialConsistency));
+        this(consistency, values, skipMetadata, new SpecificOptions(pageSize, pagingState, serialConsistency), 0);
     }
 
-    private QueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values, boolean skipMetadata, SpecificOptions options)
+    private QueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values, boolean skipMetadata, SpecificOptions options, int protocolVersion)
     {
         this.consistency = consistency;
         this.values = values;
         this.skipMetadata = skipMetadata;
         this.options = options;
+        this.protocolVersion = protocolVersion;
+    }
+
+    public static QueryOptions fromProtocolV1(ConsistencyLevel consistency, List<ByteBuffer> values)
+    {
+        return new QueryOptions(consistency, values, false, SpecificOptions.DEFAULT, 1);
     }
 
     public ConsistencyLevel getConsistency()
@@ -105,6 +115,15 @@ public class QueryOptions
     public ConsistencyLevel getSerialConsistency()
     {
         return options.serialConsistency;
+    }
+
+    /**
+     * The protocol version for the query. Will be 0 if the object don't come from
+     * a native protocol request (i.e. it's been allocated locally or by CQL-over-thrift).
+     */
+    public int getProtocolVersion()
+    {
+        return protocolVersion;
     }
 
     // Options that are likely to not be present in most queries
@@ -179,7 +198,7 @@ public class QueryOptions
                 ConsistencyLevel serialConsistency = flags.contains(Flag.SERIAL_CONSISTENCY) ? CBUtil.readConsistencyLevel(body) : ConsistencyLevel.SERIAL;
                 options = new SpecificOptions(pageSize, pagingState, serialConsistency);
             }
-            return new QueryOptions(consistency, values, skipMetadata, options);
+            return new QueryOptions(consistency, values, skipMetadata, options, version);
         }
 
         public void encode(QueryOptions options, ChannelBuffer dest, int version)
