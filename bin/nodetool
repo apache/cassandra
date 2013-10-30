@@ -48,6 +48,36 @@ if [ -z "$CASSANDRA_CONF" -o -z "$CLASSPATH" ]; then
     exit 1
 fi
 
+# Run cassandra-env.sh to pick up JMX_PORT
+if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
+    . "$CASSANDRA_CONF/cassandra-env.sh"
+fi
+
+# JMX Port passed via cmd line args (-p 9999 / --port 9999 / --port=9999)
+# should override the value from cassandra-env.sh
+ARGS=""
+while true
+do
+  if [ ! $1 ]; then break; fi
+  case $1 in
+    -p)
+      JMX_PORT=$2
+      shift
+      ;;
+    --port=*)
+      JMX_PORT=$(echo $1 | cut -d '=' -f 2)
+      ;;
+    --port)
+      JMX_PORT=$2
+      shift
+      ;;
+    *)
+      ARGS="$ARGS $1"
+      ;;
+  esac
+  shift
+done
+
 # Special-case path variables.
 case "`uname`" in
     CYGWIN*) 
@@ -60,6 +90,6 @@ esac
       -Xmx32m \
       -Dlog4j.configuration=log4j-tools.properties \
       -Dstorage-config="$CASSANDRA_CONF" \
-      org.apache.cassandra.tools.NodeCmd ${1+"$@"}
+      org.apache.cassandra.tools.NodeCmd -p $JMX_PORT $ARGS
 
 # vi:ai sw=4 ts=4 tw=0 et
