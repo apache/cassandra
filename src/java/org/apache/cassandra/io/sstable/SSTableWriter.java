@@ -259,7 +259,7 @@ public class SSTableWriter extends SSTable
                 columnIndexer.add(atom); // This write the atom on disk too
             }
 
-            columnIndexer.finish();
+            columnIndexer.maybeWriteEmptyRowHeader();
             dataFile.stream.writeShort(END_OF_ROW);
         }
         catch (IOException e)

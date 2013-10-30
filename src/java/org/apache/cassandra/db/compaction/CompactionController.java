@@ -154,7 +154,7 @@ public class CompactionController
 
     /**
      * @return true if it's okay to drop tombstones for the given row, i.e., if we know all the verisons of the row
-     * are included in the compaction set
+     * older than @param maxDeletionTimestamp are included in the compaction set
      */
     public boolean shouldPurge(DecoratedKey key, long maxDeletionTimestamp)
     {

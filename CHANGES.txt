@@ -1,4 +1,5 @@
 2.0.3
+ * Fixes for compacting larger-than-memory rows (CASSANDRA-6274)
  * Compact hottest sstables first and optionally omit coldest from
    compaction entirely (CASSANDRA-6109)
  * Fix modifying column_metadata from thrift (CASSANDRA-6182)
