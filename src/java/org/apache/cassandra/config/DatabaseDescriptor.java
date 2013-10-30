@@ -382,8 +382,6 @@ public class DatabaseDescriptor
             logger.debug("setting auto_bootstrap to {}", conf.auto_bootstrap);
         }
 
-        logger.info("{}using multi-threaded compaction", (conf.multithreaded_compaction ? "" : "Not "));
-
         if (conf.in_memory_compaction_limit_in_mb != null && conf.in_memory_compaction_limit_in_mb <= 0)
         {
             throw new ConfigurationException("in_memory_compaction_limit_in_mb must be a positive integer");
@@ -854,11 +852,6 @@ public class DatabaseDescriptor
     public static int getConcurrentCompactors()
     {
         return conf.concurrent_compactors;
-    }
-
-    public static boolean isMultithreadedCompaction()
-    {
-        return conf.multithreaded_compaction;
     }
 
     public static int getCompactionThroughputMbPerSec()

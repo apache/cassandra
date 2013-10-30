@@ -42,10 +42,10 @@ public abstract class AbstractCompactedRow implements Closeable
 
     /**
      * write the row (size + column index + filter + column data, but NOT row key) to @param out.
-     * It is an error to call this if isEmpty is false.  (Because the key is appended first,
-     * so we'd have an incomplete row written.)
      *
      * write() may change internal state; it is NOT valid to call write() or update() a second time.
+     *
+     * @return index information for the written row, or null if the compaction resulted in only expired tombstones.
      */
     public abstract RowIndexEntry write(long currentPosition, DataOutput out) throws IOException;
 

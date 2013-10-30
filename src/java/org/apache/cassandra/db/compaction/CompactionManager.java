@@ -579,7 +579,7 @@ public class CompactionManager implements CompactionManagerMBean
                     row = cleanupStrategy.cleanup(row);
                     if (row == null)
                         continue;
-                    AbstractCompactedRow compactedRow = controller.getCompactedRow(row);
+                    AbstractCompactedRow compactedRow = new LazilyCompactedRow(controller, Collections.singletonList(row));
                     if (writer.append(compactedRow) != null)
                         totalkeysWritten++;
                 }
@@ -905,7 +905,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
 
         @Override
-        public boolean shouldPurge(DecoratedKey key, long delTimestamp)
+        public long maxPurgeableTimestamp(DecoratedKey key)
         {
             /*
              * The main reason we always purge is that including gcable tombstone would mean that the
@@ -918,7 +918,7 @@ public class CompactionManager implements CompactionManagerMBean
              * a tombstone that could shadow a column in another sstable, but this is doubly not a concern
              * since validation compaction is read-only.
              */
-            return true;
+            return Long.MAX_VALUE;
         }
     }
 

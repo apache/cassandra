@@ -71,7 +71,7 @@ public class IndexSummaryBuilder
 
     public IndexSummary build(IPartitioner partitioner)
     {
-        assert keys != null && keys.size() > 0;
+        assert keys.size() > 0;
         assert keys.size() == positions.size();
 
         Memory memory = Memory.allocate(offheapSize + (keys.size() * 4));

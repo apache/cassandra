@@ -27,7 +27,6 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataTracker;
 import org.apache.cassandra.db.DecoratedKey;
@@ -51,9 +50,6 @@ public class CompactionController
     public final int gcBefore;
     public final int mergeShardBefore;
 
-    /**
-     * Constructor that subclasses may use when overriding shouldPurge to not need overlappingTree
-     */
     protected CompactionController(ColumnFamilyStore cfs, int maxValue)
     {
         this(cfs, null, maxValue);
@@ -153,59 +149,29 @@ public class CompactionController
     }
 
     /**
-     * @return true if it's okay to drop tombstones for the given row, i.e., if we know all the verisons of the row
-     * are included in the compaction set
+     * @return the largest timestamp before which it's okay to drop tombstones for the given partition;
+     * i.e., after the maxPurgeableTimestamp there may exist newer data that still needs to be supressed
+     * in other sstables.
      */
-    public boolean shouldPurge(DecoratedKey key, long maxDeletionTimestamp)
+    public long maxPurgeableTimestamp(DecoratedKey key)
     {
         List<SSTableReader> filteredSSTables = overlappingTree.search(key);
+        long min = Long.MAX_VALUE;
         for (SSTableReader sstable : filteredSSTables)
         {
-            if (sstable.getMinTimestamp() <= maxDeletionTimestamp)
-            {
-                // if we don't have bloom filter(bf_fp_chance=1.0 or filter file is missing),
-                // we check index file instead.
-                if (sstable.getBloomFilter() instanceof AlwaysPresentFilter && sstable.getPosition(key, SSTableReader.Operator.EQ, false) != null)
-                    return false;
-                else if (sstable.getBloomFilter().isPresent(key.key))
-                    return false;
-            }
+            // if we don't have bloom filter(bf_fp_chance=1.0 or filter file is missing),
+            // we check index file instead.
+            if (sstable.getBloomFilter() instanceof AlwaysPresentFilter && sstable.getPosition(key, SSTableReader.Operator.EQ, false) != null)
+                min = Math.min(min, sstable.getMinTimestamp());
+            else if (sstable.getBloomFilter().isPresent(key.key))
+                min = Math.min(min, sstable.getMinTimestamp());
         }
-        return true;
+        return min;
     }
 
     public void invalidateCachedRow(DecoratedKey key)
     {
         cfs.invalidateCachedRow(key);
-    }
-
-    /**
-     * @return an AbstractCompactedRow implementation to write the merged rows in question.
-     *
-     * If there is a single source row, the data is from a current-version sstable, we don't
-     * need to purge and we aren't forcing deserialization for scrub, write it unchanged.
-     * Otherwise, we deserialize, purge tombstones, and reserialize in the latest version.
-     */
-    public AbstractCompactedRow getCompactedRow(List<SSTableIdentityIterator> rows)
-    {
-        long rowSize = 0;
-        for (SSTableIdentityIterator row : rows)
-            rowSize += row.dataSize;
-
-        if (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit())
-        {
-            String keyString = cfs.metadata.getKeyValidator().getString(rows.get(0).getKey().key);
-            logger.info(String.format("Compacting large row %s/%s:%s (%d bytes) incrementally",
-                                      cfs.keyspace.getName(), cfs.name, keyString, rowSize));
-            return new LazilyCompactedRow(this, rows);
-        }
-        return new PrecompactedRow(this, rows);
-    }
-
-    /** convenience method for single-sstable compactions */
-    public AbstractCompactedRow getCompactedRow(SSTableIdentityIterator row)
-    {
-        return getCompactedRow(Collections.singletonList(row));
     }
 
     public void close()

@@ -140,18 +140,25 @@ public class ColumnIndex
             }
             ColumnIndex index = build();
 
-            finish();
+            maybeWriteEmptyRowHeader();
 
             return index;
         }
 
-        public ColumnIndex build(Iterable<OnDiskAtom> columns) throws IOException
+        /**
+         * The important distinction wrt build() is that we may be building for a row that ends up
+         * being compacted away entirely, i.e., the input consists only of expired tombstones (or
+         * columns shadowed by expired tombstone).  Thus, it is the caller's responsibility
+         * to decide whether to write the header for an empty row.
+         */
+        public ColumnIndex buildForCompaction(Iterator<OnDiskAtom> columns) throws IOException
         {
-            for (OnDiskAtom c : columns)
+            while (columns.hasNext())
+            {
+                OnDiskAtom c =  columns.next();
                 add(c);
+            }
             ColumnIndex index = build();
-
-            finish();
 
             return index;
         }
@@ -219,7 +226,7 @@ public class ColumnIndex
             return result;
         }
 
-        public void finish() throws IOException
+        public void maybeWriteEmptyRowHeader() throws IOException
         {
             if (!deletionInfo.isLive())
                 maybeWriteRowHeader();

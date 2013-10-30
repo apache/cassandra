@@ -96,9 +96,9 @@ public class SSTableSplitter {
         }
 
         @Override
-        public boolean shouldPurge(DecoratedKey key, long maxDeletionTimestamp)
+        public long maxPurgeableTimestamp(DecoratedKey key)
         {
-            return false;
+            return Long.MIN_VALUE;
         }
     }
 }
