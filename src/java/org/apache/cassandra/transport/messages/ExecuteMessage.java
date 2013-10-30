@@ -48,7 +48,7 @@ public class ExecuteMessage extends Message.Request
             {
                 List<ByteBuffer> values = CBUtil.readValueList(body);
                 ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
-                return new ExecuteMessage(id, values, consistency);
+                return new ExecuteMessage(MD5Digest.wrap(id), QueryOptions.fromProtocolV1(consistency, values));
             }
             else
             {
@@ -89,11 +89,6 @@ public class ExecuteMessage extends Message.Request
 
     public final MD5Digest statementId;
     public final QueryOptions options;
-
-    public ExecuteMessage(byte[] statementId, List<ByteBuffer> values, ConsistencyLevel consistency)
-    {
-        this(MD5Digest.wrap(statementId), new QueryOptions(consistency, values));
-    }
 
     public ExecuteMessage(MD5Digest statementId, QueryOptions options)
     {

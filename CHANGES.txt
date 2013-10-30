@@ -19,6 +19,7 @@
  * Provide hooks around CQL2/CQL3 statement execution (CASSANDRA-6252)
  * Require Permission.SELECT for CAS updates (CASSANDRA-6247)
  * New CQL-aware SSTableWriter (CASSANDRA-5894)
+ * Reject CAS operation when the protocol v1 is used (CASSANDRA-6270)
 Merged from 1.2:
  * Require logging in for Thrift CQL2/3 statement preparation (CASSANDRA-6254)
  * restrict max_num_tokens to 1536 (CASSANDRA-6267)

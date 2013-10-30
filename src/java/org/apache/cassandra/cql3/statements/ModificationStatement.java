@@ -362,6 +362,9 @@ public abstract class ModificationStatement implements CQLStatement
         if (options.getConsistency() == null)
             throw new InvalidRequestException("Invalid empty consistency level");
 
+        if (hasConditions() && options.getProtocolVersion() == 1)
+            throw new InvalidRequestException("Conditional updates are not supported by the protocol version in use. You need to upgrade to a driver using the native protocol v2.");
+
         return hasConditions()
              ? executeWithCondition(queryState, options)
              : executeWithoutCondition(queryState, options);
