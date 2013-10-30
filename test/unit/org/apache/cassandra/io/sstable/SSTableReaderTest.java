@@ -305,12 +305,13 @@ public class SSTableReaderTest extends SchemaLoader
             foundScanner = true;
         }
         assertTrue(foundScanner);
+    }
 
     @Test
     public void testGetPositionsForRangesFromTableOpenedForBulkLoading() throws IOException, ExecutionException, InterruptedException
     {
-        Table table = Table.open("Keyspace1");
-        ColumnFamilyStore store = table.getColumnFamilyStore("Standard2");
+        Keyspace keyspace = Keyspace.open("Keyspace1");
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
 
         // insert data and compact to a single sstable. The
         // number of keys inserted is greater than index_interval
@@ -320,7 +321,7 @@ public class SSTableReaderTest extends SchemaLoader
         {
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
             RowMutation rm = new RowMutation("Keyspace1", key);
-            rm.add(new QueryPath("Standard2", null, ByteBufferUtil.bytes("0")), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
+            rm.add("Standard2", ByteBufferUtil.bytes("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
         }
         store.forceBlockingFlush();
@@ -337,7 +338,7 @@ public class SSTableReaderTest extends SchemaLoader
 
         // re-open the same sstable as it would be during bulk loading
         Set<Component> components = Sets.newHashSet(Component.DATA, Component.PRIMARY_INDEX);
-        SSTableReader bulkLoaded = SSTableReader.openForBatch(sstable.descriptor, components, sstable.partitioner);
+        SSTableReader bulkLoaded = SSTableReader.openForBatch(sstable.descriptor, components, store.metadata, sstable.partitioner);
         sections = bulkLoaded.getPositionsForRanges(ranges);
         assert sections.size() == 1 : "Expected to find range in sstable opened for bulk loading";
     }
