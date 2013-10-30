@@ -31,9 +31,9 @@ import org.apache.cassandra.utils.Pair;
  */
 public class DeleteStatement extends ModificationStatement
 {
-    private DeleteStatement(int boundTerms, CFMetaData cfm, Attributes attrs)
+    private DeleteStatement(CFMetaData cfm, Attributes attrs)
     {
-        super(boundTerms, cfm, attrs);
+        super(cfm, attrs);
     }
 
     public boolean requireFullClusteringKey()
@@ -105,7 +105,7 @@ public class DeleteStatement extends ModificationStatement
 
         protected ModificationStatement prepareInternal(CFDefinition cfDef, VariableSpecifications boundNames, Attributes attrs) throws InvalidRequestException
         {
-            DeleteStatement stmt = new DeleteStatement(boundNames.size(), cfDef.cfm, attrs);
+            DeleteStatement stmt = new DeleteStatement(cfDef.cfm, attrs);
 
             for (Operation.RawDeletion deletion : deletions)
             {

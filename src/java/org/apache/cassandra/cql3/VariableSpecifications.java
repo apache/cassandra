@@ -24,6 +24,7 @@ public class VariableSpecifications
 {
     private final List<ColumnIdentifier> variableNames;
     private final ColumnSpecification[] specs;
+    private int collectedCount;
 
     public VariableSpecifications(List<ColumnIdentifier> variableNames)
     {
@@ -48,5 +49,11 @@ public class VariableSpecifications
         if (name != null)
             spec = new ColumnSpecification(spec.ksName, spec.cfName, name, spec.type);
         specs[bindIndex] = spec;
+        collectedCount++;
+    }
+
+    public int getCollectedCount()
+    {
+        return collectedCount;
     }
 }

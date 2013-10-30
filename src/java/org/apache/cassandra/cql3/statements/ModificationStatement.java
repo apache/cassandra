@@ -46,19 +46,18 @@ public abstract class ModificationStatement implements CQLStatement
 {
     private static final ColumnIdentifier CAS_RESULT_COLUMN = new ColumnIdentifier("[applied]", false);
 
-    private final int boundTerms;
     public final CFMetaData cfm;
     public final Attributes attrs;
 
     private final Map<ColumnIdentifier, Restriction> processedKeys = new HashMap<ColumnIdentifier, Restriction>();
     private final List<Operation> columnOperations = new ArrayList<Operation>();
 
+    private int boundTerms;
     private List<Operation> columnConditions;
     private boolean ifNotExists;
 
-    public ModificationStatement(int boundTerms, CFMetaData cfm, Attributes attrs)
+    public ModificationStatement(CFMetaData cfm, Attributes attrs)
     {
-        this.boundTerms = boundTerms;
         this.cfm = cfm;
         this.attrs = attrs;
     }
@@ -579,6 +578,10 @@ public abstract class ModificationStatement implements CQLStatement
             CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
             CFDefinition cfDef = metadata.getCfDef();
 
+            // The collected count in the beginning of preparation.
+            // Will start at non-zero for statements nested inside a BatchStatement (the second and the further ones).
+            int collected = boundNames.getCollectedCount();
+
             Attributes preparedAttributes = attrs.prepare(keyspace(), columnFamily());
             preparedAttributes.collectMarkerSpecification(boundNames);
 
@@ -634,6 +637,8 @@ public abstract class ModificationStatement implements CQLStatement
                     }
                 }
             }
+
+            stmt.boundTerms = boundNames.getCollectedCount() - collected;
             return stmt;
         }
 
