@@ -168,7 +168,9 @@ public class PrecompactedRow extends AbstractCompactedRow
 
     public void update(MessageDigest digest)
     {
-        assert compactedCf != null;
+        if (compactedCf == null)
+            return;
+
         DataOutputBuffer buffer = new DataOutputBuffer();
         try
         {

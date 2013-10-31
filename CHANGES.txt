@@ -1,4 +1,5 @@
 2.0.3
+ * Fix repair assertion error when tombstones expire (CASSANDRA-6277)
  * Skip loading corrupt key cache (CASSANDRA-6260)
  * Fixes for compacting larger-than-memory rows (CASSANDRA-6274)
  * Compact hottest sstables first and optionally omit coldest from
