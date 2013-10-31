@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -48,7 +47,6 @@ import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.SSTableReader.Operator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -349,7 +347,13 @@ public class CacheService implements CacheServiceMBean
 
         public Future<Pair<KeyCacheKey, RowIndexEntry>> deserialize(DataInputStream input, ColumnFamilyStore cfs) throws IOException
         {
-            ByteBuffer key = ByteBufferUtil.readWithLength(input);
+            int keyLength = input.readInt();
+            if (keyLength > FBUtilities.MAX_UNSIGNED_SHORT)
+            {
+                throw new IOException(String.format("Corrupted key cache. Key length of %d is longer than maximum of %d",
+                                                    keyLength, FBUtilities.MAX_UNSIGNED_SHORT));
+            }
+            ByteBuffer key = ByteBufferUtil.read(input, keyLength);
             int generation = input.readInt();
             SSTableReader reader = findDesc(generation, cfs.getSSTables());
             input.readBoolean(); // backwards compatibility for "promoted indexes" boolean
