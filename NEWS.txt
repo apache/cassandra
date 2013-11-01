@@ -46,6 +46,10 @@ New features
       the existing SSTableSimpleWriter/SSTableSimpleUnsortedWriter but is
       CQL oriented.
 
+Upgrading
+---------
+    - Nodetool defaults to Sequential mode for repair operations
+
 
 2.0.2
 =====
