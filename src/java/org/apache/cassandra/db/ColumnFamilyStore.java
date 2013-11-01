@@ -916,7 +916,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     // 2. if it has been re-added since then, this particular column was inserted before the last drop
     private static boolean isDroppedColumn(Column c, CFMetaData meta)
     {
-        Long droppedAt = meta.getDroppedColumns().get(((CompositeType) meta.comparator).extractLastComponent(c.name()));
+        ByteBuffer cql3ColumnName = ((CompositeType) meta.comparator).extractLastComponent(c.name());
+        Long droppedAt = meta.getDroppedColumns().get(meta.getColumnDefinition(cql3ColumnName).name);
         return droppedAt != null && c.timestamp() <= droppedAt;
     }
 

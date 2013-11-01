@@ -1270,7 +1270,7 @@ public final class CFMetaData
 
                     toCompare = components[def.position()];
                 }
-                if (def.name.equals(toCompare))
+                if (def.name.bytes.equals(toCompare))
                     return def;
             }
             return null;
@@ -1280,8 +1280,6 @@ public final class CFMetaData
             return columnMetadata.get(cellName);
         }
     }
-
-
 
     public ColumnDefinition getColumnDefinitionForIndex(String indexName)
     {

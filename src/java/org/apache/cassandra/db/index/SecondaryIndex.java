@@ -255,7 +255,7 @@ public abstract class SecondaryIndex
         Iterator<ColumnDefinition> it = columnDefs.iterator();
         while (it.hasNext())
         {
-            if (it.next().name.equals(name))
+            if (it.next().name.bytes.equals(name))
                 it.remove();
         }
     }

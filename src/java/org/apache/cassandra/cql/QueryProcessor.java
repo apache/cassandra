@@ -678,7 +678,7 @@ public class QueryProcessor
                 CFMetaData cfm = oldCfm.clone();
                 for (ColumnDefinition cd : cfm.regularColumns())
                 {
-                    if (cd.name.equals(columnName))
+                    if (cd.name.bytes.equals(columnName))
                     {
                         if (cd.getIndexType() != null)
                             throw new InvalidRequestException("Index already exists");

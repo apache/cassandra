@@ -80,7 +80,7 @@ public class AlterTableStatement
             case ALTER:
                 // We only look for the first key alias which is ok for CQL2
                 ColumnDefinition partionKeyDef = cfm.partitionKeyColumns().get(0);
-                if (partionKeyDef.name.equals(columnName))
+                if (partionKeyDef.name.bytes.equals(columnName))
                 {
                     cfm.keyValidator(TypeParser.parse(validator));
                 }
@@ -90,7 +90,7 @@ public class AlterTableStatement
 
                     for (ColumnDefinition columnDef : cfm.regularColumns())
                     {
-                        if (columnDef.name.equals(columnName))
+                        if (columnDef.name.bytes.equals(columnName))
                         {
                             toUpdate = columnDef;
                             break;
@@ -111,7 +111,7 @@ public class AlterTableStatement
 
                 for (ColumnDefinition columnDef : cfm.regularColumns())
                 {
-                    if (columnDef.name.equals(columnName))
+                    if (columnDef.name.bytes.equals(columnName))
                     {
                         toDelete = columnDef;
                     }
