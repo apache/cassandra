@@ -6,7 +6,7 @@
  * Remove 1.2 network compatibility code (CASSANDRA-5960)
  * Remove leveled json manifest migration code (CASSANDRA-5996)
  * Remove CFDefinition (CASSANDRA-6253)
-
+ * Use AtomicIntegerFieldUpdater in RefCountedMemory (CASSANDRA-6278)
 
 2.0.3
  * Fix repair assertion error when tombstones expire (CASSANDRA-6277)
