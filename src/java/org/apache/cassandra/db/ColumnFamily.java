@@ -314,11 +314,6 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         return null;
     }
 
-    public long memorySize()
-    {
-        return ObjectSizes.measureDeep(this);
-    }
-
     public long dataSize()
     {
         long size = 0;

@@ -107,15 +107,6 @@ public class CacheProviderTest extends SchemaLoader
     }
 
     @Test
-    public void testHeapCache() throws InterruptedException
-    {
-        ICache<MeasureableString, IRowCacheEntry> cache = ConcurrentLinkedHashCache.create(CAPACITY, Weighers.<MeasureableString, IRowCacheEntry>entrySingleton());
-        ColumnFamily cf = createCF();
-        simpleCase(cf, cache);
-        concurrentCase(cf, cache);
-    }
-
-    @Test
     public void testSerializingCache() throws InterruptedException
     {
         ICache<MeasureableString, IRowCacheEntry> cache = SerializingCache.create(CAPACITY, Weighers.<RefCountedMemory>singleton(), new SerializingCacheProvider.RowCacheSerializer());
