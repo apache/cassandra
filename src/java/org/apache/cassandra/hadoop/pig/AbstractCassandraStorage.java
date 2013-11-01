@@ -797,7 +797,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
             return validator.compose(value);
     }
 
-    protected class CfInfo
+    protected static class CfInfo
     {
         boolean compactCqlTable = false;
         boolean cql3Table = false;
