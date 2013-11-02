@@ -259,8 +259,11 @@ public class CompactionTask extends AbstractCompactionTask
         Map<Integer, Long> mergedRows = new HashMap<Integer, Long>();
         for (int i = 0; i < counts.length; i++)
         {
-            int rows = i + 1;
             long count = counts[i];
+            if (count == 0)
+                continue;
+
+            int rows = i + 1;
             totalSourceRows += rows * count;
             mergeSummary.append(String.format("%d:%d, ", rows, count));
             mergedRows.put(rows, count);
