@@ -234,7 +234,6 @@ public class EstimatedHistogram
      */
     public void log(Logger log)
     {
-
         // only print overflow if there is any
         int nameCount;
         if (buckets.get(buckets.length() - 1) == 0)

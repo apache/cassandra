@@ -211,9 +211,9 @@ public class Validator implements Runnable
         if (logger.isDebugEnabled())
         {
             // log distribution of rows in tree
-            logger.debug("Validated " + validated + " rows into AEService tree for " + desc + " with row count distribution:");
+            logger.debug("Validated {} partitions for {}.  Partitions per leaf are:", validated, desc.sessionId);
             tree.histogramOfRowCountPerLeaf().log(logger);
-            logger.debug("Validated " + validated + " rows into AEService tree for " + desc + " with row size distribution:");
+            logger.debug("Validated {} partitions for {}.  Partition sizes are:", validated, desc.sessionId);
             tree.histogramOfRowSizePerLeaf().log(logger);
         }
     }
