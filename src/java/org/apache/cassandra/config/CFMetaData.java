@@ -518,7 +518,8 @@ public final class CFMetaData
         return newCFMD.comment(comment)
                 .readRepairChance(0)
                 .dcLocalReadRepairChance(0)
-                .gcGraceSeconds(0);
+                .gcGraceSeconds(0)
+                .memtableFlushPeriod(3600 * 1000);
     }
 
     public static CFMetaData newIndexMetadata(CFMetaData parent, ColumnDefinition info, AbstractType<?> columnComparator)

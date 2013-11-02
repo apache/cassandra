@@ -446,7 +446,7 @@ public class Memtable
                 else
                     cfs.liveRatio = (cfs.liveRatio + newRatio) / 2.0;
 
-                logger.info("{} liveRatio is {} (just-counted was {}).  calculation took {}ms for {} columns",
+                logger.info("{} liveRatio is {} (just-counted was {}).  calculation took {}ms for {} cells",
                             cfs, cfs.liveRatio, newRatio, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start), objects);
             }
             finally

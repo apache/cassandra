@@ -209,7 +209,6 @@ public class SystemKeyspace
         String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, compacted_at, bytes_in, bytes_out, rows_merged) "
                      + "VALUES (%s, '%s', '%s', %d, %d, %d, {%s})";
         processInternal(String.format(req, COMPACTION_HISTORY_CF, UUIDGen.getTimeUUID().toString(), ksname, cfname, compactedAt, bytesIn, bytesOut, FBUtilities.toString(rowsMerged)));
-            forceBlockingFlush(COMPACTION_HISTORY_CF);
     }
 
     public static TabularData getCompactionHistory() throws OpenDataException
