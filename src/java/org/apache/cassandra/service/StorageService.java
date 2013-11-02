@@ -746,7 +746,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     tokens = new ArrayList<Token>(initialTokens.size());
                     for (String token : initialTokens)
                         tokens.add(getPartitioner().getTokenFactory().fromString(token));
-                    logger.info("Saved token not found. Using " + tokens + " from configuration");
+                    logger.info("Saved tokens not found. Using configuration value: {}", tokens);
                 }
             }
             else
@@ -795,7 +795,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     logger.info("Split previous range (" + left + ", " + right + "] into " + tokens);
                 }
                 else
-                    logger.info("Using saved token " + tokens);
+                    logger.info("Using saved tokens " + tokens);
             }
         }
 
