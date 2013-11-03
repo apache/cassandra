@@ -27,8 +27,7 @@ import org.apache.cassandra.thrift.*;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-
-import static com.google.common.base.Charsets.UTF_8;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class Reader extends Operation
 {

@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.transport;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 
-import com.google.common.base.Charsets;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -125,7 +125,7 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         switch (this)
         {
             case CUSTOM:
-                return 2 + ((String)value).getBytes(Charsets.UTF_8).length;
+                return 2 + ((String)value).getBytes(StandardCharsets.UTF_8).length;
             case LIST:
             case SET:
                 return codec.oneSerializedSize(DataType.fromType((AbstractType)value));

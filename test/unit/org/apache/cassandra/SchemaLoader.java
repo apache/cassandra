@@ -20,9 +20,9 @@ package org.apache.cassandra;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-import com.google.common.base.Charsets;
 import org.apache.cassandra.db.index.PerRowSecondaryIndexTest;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.junit.AfterClass;
@@ -318,7 +318,7 @@ public class SchemaLoader
                 .keyValidator(AsciiType.instance)
                 .columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>()
                 {{
-                        ByteBuffer cName = ByteBuffer.wrap("indexed".getBytes(Charsets.UTF_8));
+                        ByteBuffer cName = ByteBuffer.wrap("indexed".getBytes(StandardCharsets.UTF_8));
                         put(cName, new ColumnDefinition(cName,
                                 AsciiType.instance,
                                 IndexType.CUSTOM,
@@ -357,7 +357,7 @@ public class SchemaLoader
                .keyValidator(AsciiType.instance)
                .columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>()
                    {{
-                        ByteBuffer cName = ByteBuffer.wrap("birthdate".getBytes(Charsets.UTF_8));
+                        ByteBuffer cName = ByteBuffer.wrap("birthdate".getBytes(StandardCharsets.UTF_8));
                         IndexType keys = withIdxType ? IndexType.KEYS : null;
                         put(cName, ColumnDefinition.regularDef(cName, LongType.instance, null).setIndex(withIdxType ? ByteBufferUtil.bytesToHex(cName) : null, keys, null));
                     }});
@@ -372,7 +372,7 @@ public class SchemaLoader
                 null)
                .columnMetadata(new HashMap<ByteBuffer, ColumnDefinition>()
                 {{
-                   ByteBuffer cName = ByteBuffer.wrap("col1".getBytes(Charsets.UTF_8));
+                   ByteBuffer cName = ByteBuffer.wrap("col1".getBytes(StandardCharsets.UTF_8));
                    IndexType idxType = withIdxType ? IndexType.COMPOSITES : null;
                    put(cName, ColumnDefinition.regularDef(cName, UTF8Type.instance, 1)
                                               .setIndex(withIdxType ? "col1_idx" : null, idxType, Collections.<String, String>emptyMap()));

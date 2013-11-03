@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.auth;
 
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -277,7 +277,6 @@ public class PasswordAuthenticator implements ISaslAwareAuthenticator
     private class PlainTextSaslAuthenticator implements ISaslAwareAuthenticator.SaslAuthenticator
     {
         private static final byte NUL = 0;
-        private final Charset UTF8_CHARSET = Charset.forName("UTF-8");
 
         private boolean complete = false;
         private Map<String, String> credentials;
@@ -339,8 +338,8 @@ public class PasswordAuthenticator implements ISaslAwareAuthenticator
                 throw new AuthenticationException("Password must not be null");
 
             Map<String, String> credentials = new HashMap<String, String>();
-            credentials.put(IAuthenticator.USERNAME_KEY, new String(user, UTF8_CHARSET));
-            credentials.put(IAuthenticator.PASSWORD_KEY, new String(pass, UTF8_CHARSET));
+            credentials.put(IAuthenticator.USERNAME_KEY, new String(user, StandardCharsets.UTF_8));
+            credentials.put(IAuthenticator.PASSWORD_KEY, new String(pass, StandardCharsets.UTF_8));
             return credentials;
         }
     }
