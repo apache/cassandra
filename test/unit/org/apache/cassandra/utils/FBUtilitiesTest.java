@@ -23,7 +23,7 @@ import static org.junit.Assert.fail;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import com.google.common.primitives.Ints;
 import org.junit.Test;
 
@@ -74,6 +74,6 @@ public class FBUtilitiesTest
     public void testDecode() throws IOException
     {
         ByteBuffer bytes = ByteBuffer.wrap(new byte[]{(byte)0xff, (byte)0xfe});
-        ByteBufferUtil.string(bytes, Charsets.UTF_8);
+        ByteBufferUtil.string(bytes, StandardCharsets.UTF_8);
     }
 }

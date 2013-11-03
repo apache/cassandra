@@ -23,9 +23,9 @@ import java.net.InetAddress;
 import java.util.Collection;
 import java.util.UUID;
 
-import com.google.common.collect.Iterables;
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
 
-import static com.google.common.base.Charsets.ISO_8859_1;
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;

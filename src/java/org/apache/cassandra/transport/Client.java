@@ -21,7 +21,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -219,8 +219,8 @@ public class Client extends SimpleClient
 
     private byte[] encodeCredentialsForSasl(Map<String, String> credentials)
     {
-        byte[] username = credentials.get(IAuthenticator.USERNAME_KEY).getBytes(Charset.forName("UTF-8"));
-        byte[] password = credentials.get(IAuthenticator.PASSWORD_KEY).getBytes(Charset.forName("UTF-8"));
+        byte[] username = credentials.get(IAuthenticator.USERNAME_KEY).getBytes(StandardCharsets.UTF_8);
+        byte[] password = credentials.get(IAuthenticator.PASSWORD_KEY).getBytes(StandardCharsets.UTF_8);
         byte[] initialResponse = new byte[username.length + password.length + 2];
         initialResponse[0] = 0;
         System.arraycopy(username, 0, initialResponse, 1, username.length);

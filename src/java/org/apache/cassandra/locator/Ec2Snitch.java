@@ -23,9 +23,8 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
-
-import com.google.common.base.Charsets;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,7 +83,7 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
             byte[] b = new byte[cl];
             d = new DataInputStream((FilterInputStream) conn.getContent());
             d.readFully(b);
-            return new String(b, Charsets.UTF_8);
+            return new String(b, StandardCharsets.UTF_8);
         }
         finally
         {

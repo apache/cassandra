@@ -18,7 +18,7 @@
 package org.apache.cassandra.serializers;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 public class UTF8Serializer extends AbstractTextSerializer
 {
@@ -26,7 +26,7 @@ public class UTF8Serializer extends AbstractTextSerializer
 
     private UTF8Serializer()
     {
-        super(Charset.forName("UTF-8"));
+        super(StandardCharsets.UTF_8);
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

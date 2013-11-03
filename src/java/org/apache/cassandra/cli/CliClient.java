@@ -25,9 +25,9 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
@@ -759,7 +759,7 @@ public class CliClient
         }
         else
         {
-            valueAsString = (validator == null) ? new String(columnValue, Charsets.UTF_8) : validator.getString(ByteBuffer.wrap(columnValue));
+            valueAsString = (validator == null) ? new String(columnValue, StandardCharsets.UTF_8) : validator.getString(ByteBuffer.wrap(columnValue));
         }
 
         String formattedColumnName = isSuper

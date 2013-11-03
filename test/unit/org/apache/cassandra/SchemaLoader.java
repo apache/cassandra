@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.base.Charsets;
 import org.apache.cassandra.db.index.PerRowSecondaryIndexTest;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.junit.AfterClass;

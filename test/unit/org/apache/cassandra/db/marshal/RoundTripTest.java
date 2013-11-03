@@ -20,9 +20,6 @@ package org.apache.cassandra.db.marshal;
  *
  */
 
-
-import com.google.common.base.Charsets;
-
 import org.apache.cassandra.serializers.*;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.UUIDGen;
@@ -30,6 +27,7 @@ import org.junit.Test;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 public class RoundTripTest
@@ -71,7 +69,7 @@ public class RoundTripTest
     @Test
     public void testAscii() throws Exception
     {
-        byte[] abc = "abc".getBytes(Charsets.US_ASCII);
+        byte[] abc = "abc".getBytes(StandardCharsets.US_ASCII);
         assert AsciiType.instance.getString(AsciiType.instance.fromString("abc")).equals("abc");
         assert AsciiType.instance.fromString(AsciiType.instance.getString(ByteBuffer.wrap(abc)))
                 .equals(ByteBuffer.wrap(abc));
@@ -116,9 +114,9 @@ public class RoundTripTest
     {
         String v = "\u2297\u5432\u2376\u263d\uf543";
         assert UTF8Type.instance.getString(UTF8Type.instance.fromString(v)).equals(v);
-        assert UTF8Type.instance.fromString(UTF8Type.instance.getString(ByteBuffer.wrap(v.getBytes(Charsets.UTF_8))))
-                .equals(ByteBuffer.wrap(v.getBytes(Charsets.UTF_8)));
-        assert UTF8Type.instance.compose(ByteBuffer.wrap(v.getBytes(Charsets.UTF_8))).equals(v);
+        assert UTF8Type.instance.fromString(UTF8Type.instance.getString(ByteBuffer.wrap(v.getBytes(StandardCharsets.UTF_8))))
+                .equals(ByteBuffer.wrap(v.getBytes(StandardCharsets.UTF_8)));
+        assert UTF8Type.instance.compose(ByteBuffer.wrap(v.getBytes(StandardCharsets.UTF_8))).equals(v);
         assert UTF8Serializer.instance.toString(v).equals(v);
     }
 }
