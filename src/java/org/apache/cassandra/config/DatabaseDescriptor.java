@@ -323,6 +323,9 @@ public class DatabaseDescriptor
         if (conf.thrift_framed_transport_size_in_mb <= 0)
             throw new ConfigurationException("thrift_framed_transport_size_in_mb must be positive");
 
+        if (conf.native_transport_max_frame_size_in_mb <= 0)
+            throw new ConfigurationException("native_transport_max_frame_size_in_mb must be positive");
+
         /* end point snitch */
         if (conf.endpoint_snitch == null)
         {
@@ -1026,6 +1029,11 @@ public class DatabaseDescriptor
     public static Integer getNativeTransportMaxThreads()
     {
         return conf.native_transport_max_threads;
+    }
+
+    public static int getNativeTransportMaxFrameSize()
+    {
+        return conf.native_transport_max_frame_size_in_mb * 1024 * 1024;
     }
 
     public static double getCommitLogSyncBatchWindow()

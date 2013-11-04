@@ -28,6 +28,9 @@ import org.jboss.netty.handler.codec.oneone.OneToOneDecoder;
 import org.jboss.netty.handler.codec.oneone.OneToOneEncoder;
 import org.jboss.netty.handler.codec.frame.*;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class Frame
@@ -52,27 +55,6 @@ public class Frame
         this.body = body;
     }
 
-    public static Frame create(ChannelBuffer fullFrame)
-    {
-        assert fullFrame.readableBytes() >= Header.LENGTH : String.format("Frame too short (%d bytes = %s)",
-                                                                          fullFrame.readableBytes(),
-                                                                          ByteBufferUtil.bytesToHex(fullFrame.toByteBuffer()));
-
-        int version = fullFrame.readByte();
-        int flags = fullFrame.readByte();
-        int streamId = fullFrame.readByte();
-        int opcode = fullFrame.readByte();
-        int length = fullFrame.readInt();
-        assert length == fullFrame.readableBytes();
-
-        // version first byte is the "direction" of the frame (request or response)
-        Message.Direction direction = Message.Direction.extractFromVersion(version);
-        version = version & 0x7F;
-
-        Header header = new Header(version, flags, streamId, Message.Type.fromOpcode(opcode, direction));
-        return new Frame(header, fullFrame);
-    }
-
     public static Frame create(Message.Type type, int streamId, int version, EnumSet<Header.Flag> flags, ChannelBuffer body)
     {
         Header header = new Header(version, flags, streamId, type);
@@ -82,6 +64,9 @@ public class Frame
     public static class Header
     {
         public static final int LENGTH = 8;
+
+        public static final int BODY_LENGTH_OFFSET = 4;
+        public static final int BODY_LENGTH_SIZE = 4;
 
         public final int version;
         public final EnumSet<Flag> flags;
@@ -134,15 +119,19 @@ public class Frame
         return new Frame(header, newBody);
     }
 
-    public static class Decoder extends LengthFieldBasedFrameDecoder
+    public static class Decoder extends FrameDecoder
     {
-        private static final int MAX_FRAME_LENTH = 256 * 1024 * 1024; // 256 MB
+        private static final int MAX_FRAME_LENGTH = DatabaseDescriptor.getNativeTransportMaxFrameSize();
+
+        private boolean discardingTooLongFrame;
+        private long tooLongFrameLength;
+        private long bytesToDiscard;
+        private int tooLongStreamId;
 
         private final Connection.Factory factory;
 
         public Decoder(Connection.Factory factory)
         {
-            super(MAX_FRAME_LENTH, 4, 4, 0, 0, true);
             this.factory = factory;
         }
 
@@ -150,53 +139,96 @@ public class Frame
         protected Object decode(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer)
         throws Exception
         {
-            try
+            if (discardingTooLongFrame)
             {
-                // We must at least validate that the frame version is something we support/know and it doesn't hurt to
-                // check the opcode is not garbage. And we should do that indenpently of what is the the bytes corresponding
-                // to the frame length are, i.e. we shouldn't wait for super.decode() to return non-null.
-                if (buffer.readableBytes() == 0)
-                    return null;
-
-                int firstByte = buffer.getByte(0);
-                Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
-                int version = firstByte & 0x7F;
-
-                if (version > Server.CURRENT_VERSION)
-                    throw new ProtocolException("Invalid or unsupported protocol version: " + version);
-
-                // Validate the opcode
-                if (buffer.readableBytes() >= 4)
-                    Message.Type.fromOpcode(buffer.getByte(3), direction);
-
-                ChannelBuffer frame = (ChannelBuffer) super.decode(ctx, channel, buffer);
-                if (frame == null)
-                {
-                    return null;
-                }
-
-                Connection connection = (Connection)channel.getAttachment();
-                if (connection == null)
-                {
-                    // First message seen on this channel, attach the connection object
-                    connection = factory.newConnection(channel, version);
-                    channel.setAttachment(connection);
-                }
-                else if (connection.getVersion() != version)
-                {
-                    throw new ProtocolException(String.format("Invalid message version. Got %d but previous messages on this connection had version %d", version, connection.getVersion()));
-                }
-                return Frame.create(frame);
+                bytesToDiscard = discard(buffer, bytesToDiscard);
+                // If we have discarded everything, throw the exception
+                if (bytesToDiscard <= 0)
+                    fail();
+                return null;
             }
-            catch (CorruptedFrameException e)
+
+            // Wait until we have read at least the header
+            if (buffer.readableBytes() < Header.LENGTH)
+                return null;
+
+            int idx = buffer.readerIndex();
+
+            int firstByte = buffer.getByte(idx);
+            Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
+            int version = firstByte & 0x7F;
+
+            if (version > Server.CURRENT_VERSION)
+                throw new ProtocolException("Invalid or unsupported protocol version: " + version);
+
+            int flags = buffer.getByte(idx + 1);
+            int streamId = buffer.getByte(idx + 2);
+
+            // This throws a protocol exceptions if the opcode is unknown
+            Message.Type type = Message.Type.fromOpcode(buffer.getByte(idx + 3), direction);
+
+            long bodyLength = buffer.getUnsignedInt(idx + Header.BODY_LENGTH_OFFSET);
+
+            if (bodyLength < 0)
             {
-                throw new ProtocolException(e.getMessage());
+                buffer.skipBytes(Header.LENGTH);
+                throw new ProtocolException("Invalid frame body length: " + bodyLength);
             }
-            catch (TooLongFrameException e)
+
+            long frameLength = bodyLength + Header.LENGTH;
+            if (frameLength > MAX_FRAME_LENGTH)
             {
-                throw new ProtocolException(e.getMessage());
+                // Enter the discard mode and discard everything received so far.
+                discardingTooLongFrame = true;
+                tooLongStreamId = streamId;
+                tooLongFrameLength = frameLength;
+                bytesToDiscard = discard(buffer, frameLength);
+                if (bytesToDiscard <= 0)
+                    fail();
+                return null;
             }
+
+            // never overflows because it's less than the max frame length
+            int frameLengthInt = (int) frameLength;
+            if (buffer.readableBytes() < frameLengthInt)
+                return null;
+
+            // extract body
+            ChannelBuffer body = extractFrame(buffer, idx + Header.LENGTH, (int)bodyLength);
+            buffer.readerIndex(idx + frameLengthInt);
+
+            Connection connection = (Connection)channel.getAttachment();
+            if (connection == null)
+            {
+                // First message seen on this channel, attach the connection object
+                connection = factory.newConnection(channel, version);
+                channel.setAttachment(connection);
+            }
+            else if (connection.getVersion() != version)
+            {
+                throw new ProtocolException(String.format("Invalid message version. Got %d but previous messages on this connection had version %d", version, connection.getVersion()));
+            }
+
+            return new Frame(new Header(version, flags, streamId, type), body);
         }
+
+        private void fail()
+        {
+            // Reset to the initial state and throw the exception
+            long tooLongFrameLength = this.tooLongFrameLength;
+            this.tooLongFrameLength = 0;
+            discardingTooLongFrame = false;
+            String msg = String.format("Request is too big: length %d exceeds maximum allowed length %d.", tooLongFrameLength,  MAX_FRAME_LENGTH);
+            throw ErrorMessage.wrap(new InvalidRequestException(msg), tooLongStreamId);
+        }
+    }
+
+    // How much remains to be discarded
+    private static long discard(ChannelBuffer buffer, long remainingToDiscard)
+    {
+        int availableToDiscard = (int) Math.min(remainingToDiscard, buffer.readableBytes());
+        buffer.skipBytes(availableToDiscard);
+        return remainingToDiscard - availableToDiscard;
     }
 
     public static class Encoder extends OneToOneEncoder
