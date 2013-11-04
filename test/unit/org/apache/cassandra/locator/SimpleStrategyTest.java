@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -139,7 +140,7 @@ public class SimpleStrategyTest extends SchemaLoader
         {
             strategy = getStrategy(table, tmd);
 
-            StorageService.calculatePendingRanges(strategy, table);
+            PendingRangeCalculatorService.calculatePendingRanges(strategy, table);
 
             int replicationFactor = strategy.getReplicationFactor();
 
