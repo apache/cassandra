@@ -310,7 +310,7 @@ public class ResultSet
             {
                 for (ColumnSpecification name : names)
                 {
-                    sb.append("[").append(name.toString());
+                    sb.append("[").append(name.name.toString());
                     sb.append("(").append(name.ksName).append(", ").append(name.cfName).append(")");
                     sb.append(", ").append(name.type).append("]");
                 }
@@ -389,7 +389,7 @@ public class ResultSet
                             CBUtil.writeString(name.ksName, dest);
                             CBUtil.writeString(name.cfName, dest);
                         }
-                        CBUtil.writeString(name.toString(), dest);
+                        CBUtil.writeString(name.name.toString(), dest);
                         DataType.codec.writeOne(DataType.fromType(name.type), dest);
                     }
                 }
@@ -420,7 +420,7 @@ public class ResultSet
                             size += CBUtil.sizeOfString(name.ksName);
                             size += CBUtil.sizeOfString(name.cfName);
                         }
-                        size += CBUtil.sizeOfString(name.toString());
+                        size += CBUtil.sizeOfString(name.name.toString());
                         size += DataType.codec.oneSerializedSize(DataType.fromType(name.type));
                     }
                 }
