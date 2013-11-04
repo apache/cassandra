@@ -315,6 +315,10 @@ native_transport_port: 9042
 # there is no native_transport_min_threads, idle threads will always be stopped
 # after 30 seconds).
 # native_transport_max_threads: 128
+#
+# The maximum size of allowed frame. Frame (requests) larger than this will
+# be rejected as invalid. The default is 256MB.
+# native_transport_max_frame_size_in_mb: 256
 
 # Whether to start the thrift rpc server.
 start_rpc: true
