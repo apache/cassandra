@@ -163,9 +163,9 @@ public class Memtable
         if (!MemoryMeter.isInitialized())
         {
             // hack for openjdk.  we log a warning about this in the startup script too.
-            logger.warn("MemoryMeter uninitialized (jamm not specified as java agent); assuming liveRatio of {}.  "
-                        + " Usually this means cassandra-env.sh disabled jamm because you are using a buggy JRE; "
-                        + " upgrade to the Sun JRE instead", cfs.liveRatio);
+            logger.error("MemoryMeter uninitialized (jamm not specified as java agent); assuming liveRatio of {}.  "
+                         + " Usually this means cassandra-env.sh disabled jamm because you are using a buggy JRE; "
+                         + " upgrade to the Sun JRE instead", cfs.liveRatio);
             return;
         }
 
