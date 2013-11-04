@@ -49,34 +49,54 @@ public class QueryProcessor
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
     private static final MemoryMeter meter = new MemoryMeter();
     private static final long MAX_CACHE_PREPARED_MEMORY = Runtime.getRuntime().maxMemory() / 256;
+    private static final int MAX_CACHE_PREPARED_COUNT = 10000;
 
     private static EntryWeigher<MD5Digest, CQLStatement> cqlMemoryUsageWeigher = new EntryWeigher<MD5Digest, CQLStatement>()
     {
         @Override
         public int weightOf(MD5Digest key, CQLStatement value)
         {
-            return Ints.checkedCast(meter.measureDeep(key) + meter.measureDeep(value));
+            return Ints.checkedCast(measure(key) + measure(value));
         }
     };
-
-    private static final ConcurrentLinkedHashMap<MD5Digest, CQLStatement> preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, CQLStatement>()
-                                                                                               .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
-                                                                                               .weigher(cqlMemoryUsageWeigher)
-                                                                                               .build();
 
     private static EntryWeigher<Integer, CQLStatement> thriftMemoryUsageWeigher = new EntryWeigher<Integer, CQLStatement>()
     {
         @Override
         public int weightOf(Integer key, CQLStatement value)
         {
-            return Ints.checkedCast(meter.measureDeep(key) + meter.measureDeep(value));
+            return Ints.checkedCast(measure(key) + measure(value));
         }
     };
 
-    private static final ConcurrentLinkedHashMap<Integer, CQLStatement> thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, CQLStatement>()
-                                                                                                   .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
-                                                                                                   .weigher(thriftMemoryUsageWeigher)
-                                                                                                   .build();
+    private static final ConcurrentLinkedHashMap<MD5Digest, CQLStatement> preparedStatements;
+    private static final ConcurrentLinkedHashMap<Integer, CQLStatement> thriftPreparedStatements;
+
+    static 
+    {
+        if (MemoryMeter.isInitialized())
+        {
+            preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, CQLStatement>()
+                                 .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
+                                 .weigher(cqlMemoryUsageWeigher)
+                                 .build();
+            thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, CQLStatement>()
+                                       .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
+                                       .weigher(thriftMemoryUsageWeigher)
+                                       .build();
+        }
+        else
+        {
+            logger.error("Unable to initialize MemoryMeter (jamm not specified as javaagent).  This means "
+                         + "Cassandra will be unable to measure object sizes accurately and may consequently OOM.");
+            preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, CQLStatement>()
+                                 .maximumWeightedCapacity(MAX_CACHE_PREPARED_COUNT)
+                                 .build();
+            thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, CQLStatement>()
+                                       .maximumWeightedCapacity(MAX_CACHE_PREPARED_COUNT)
+                                       .build();
+        }
+    }
 
     private static final List<PreExecutionHook> preExecutionHooks = new CopyOnWriteArrayList<>();
     private static final List<PostExecutionHook> postExecutionHooks = new CopyOnWriteArrayList<>();
@@ -290,7 +310,7 @@ public class QueryProcessor
         // Concatenate the current keyspace so we don't mix prepared statements between keyspace (#5352).
         // (if the keyspace is null, queryString has to have a fully-qualified keyspace so it's fine.
         String toHash = keyspace == null ? queryString : keyspace + queryString;
-        long statementSize = meter.measureDeep(prepared.statement);
+        long statementSize = measure(prepared.statement);
         // don't execute the statement if it's bigger than the allowed threshold
         if (statementSize > MAX_CACHE_PREPARED_MEMORY)
             throw new InvalidRequestException(String.format("Prepared statement of size %d bytes is larger than allowed maximum of %d bytes.",
@@ -415,5 +435,10 @@ public class QueryProcessor
         {
             throw new SyntaxException("Invalid or malformed CQL query string: " + e.getMessage());
         }
+    }
+
+    private static long measure(Object key)
+    {
+        return MemoryMeter.isInitialized() ? meter.measureDeep(key) : 1;
     }
 }
