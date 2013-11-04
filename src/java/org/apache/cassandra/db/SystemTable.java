@@ -315,7 +315,6 @@ public class SystemTable
 
         String req = "INSERT INTO system.%s (peer, tokens) VALUES ('%s', %s)";
         processInternal(String.format(req, PEERS_CF, ep.getHostAddress(), tokensAsSet(tokens)));
-        forceBlockingFlush(PEERS_CF);
     }
 
     public static synchronized void updatePeerInfo(InetAddress ep, String columnName, String value)
@@ -372,7 +371,6 @@ public class SystemTable
     {
         String req = "DELETE FROM system.%s WHERE peer = '%s'";
         processInternal(String.format(req, PEERS_CF, ep.getHostAddress()));
-        forceBlockingFlush(PEERS_CF);
     }
 
     /**
@@ -623,7 +621,6 @@ public class SystemTable
         RowMutation rm = new RowMutation(Table.SYSTEM_KS, ByteBufferUtil.bytes(table));
         rm.add(cf);
         rm.apply();
-        forceBlockingFlush(INDEX_CF);
     }
 
     public static void setIndexRemoved(String table, String indexName)
@@ -631,7 +628,6 @@ public class SystemTable
         RowMutation rm = new RowMutation(Table.SYSTEM_KS, ByteBufferUtil.bytes(table));
         rm.delete(new QueryPath(INDEX_CF, null, ByteBufferUtil.bytes(indexName)), FBUtilities.timestampMicros());
         rm.apply();
-        forceBlockingFlush(INDEX_CF);
     }
 
     /**
