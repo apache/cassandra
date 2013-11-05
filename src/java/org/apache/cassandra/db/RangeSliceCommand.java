@@ -229,7 +229,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             {
                 size += TypeSizes.NATIVE.sizeofWithShortLength(expr.column);
                 size += TypeSizes.NATIVE.sizeof(expr.operator.ordinal());
-                size += TypeSizes.NATIVE.sizeofWithLength(expr.value);
+                size += TypeSizes.NATIVE.sizeofWithShortLength(expr.value);
             }
         }
         size += AbstractBounds.serializer.serializedSize(rsc.keyRange, version);
