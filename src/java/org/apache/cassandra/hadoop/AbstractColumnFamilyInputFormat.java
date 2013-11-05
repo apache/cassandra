@@ -60,6 +60,7 @@ import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.TTransportException;
 
 
 public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<K, Y> implements org.apache.hadoop.mapred.InputFormat<K, Y>
@@ -93,7 +94,12 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
     public static Cassandra.Client createAuthenticatedClient(String location, int port, Configuration conf) throws Exception
     {
         logger.debug("Creating authenticated client for CF input format");
-        TTransport transport = ConfigHelper.getClientTransportFactory(conf).openTransport(location, port);
+        TTransport transport;
+        try {
+            transport = ConfigHelper.getClientTransportFactory(conf).openTransport(location, port, conf);
+        } catch (Exception e) {
+            throw new TTransportException("Failed to open a transport to " + location + ":" + port + ".", e);
+        }
         TProtocol binaryProtocol = new TBinaryProtocol(transport, true, true);
         Cassandra.Client client = new Cassandra.Client(binaryProtocol);
 
