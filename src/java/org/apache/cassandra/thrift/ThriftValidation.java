@@ -212,7 +212,7 @@ public class ThriftValidation
         }
         AbstractType<?> comparator = SuperColumns.getComparatorFor(metadata, superColumnName);
         CFDefinition cfDef = metadata.getCfDef();
-        boolean isCQL3Table = cfDef.isComposite && !cfDef.isCompact && !metadata.isSuper();
+        boolean isCQL3Table = !metadata.isThriftCompatible();
         for (ByteBuffer name : column_names)
         {
             if (name.remaining() > maxNameLength)
