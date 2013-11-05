@@ -111,6 +111,12 @@ public class PagedRangeCommand extends AbstractRangeCommand
             return cfs.getRangeSlice(exFilter);
     }
 
+    @Override
+    public String toString()
+    {
+        return String.format("PagedRange(%s, %s, %d, %s, %s, %s, %s, %s, %d)", keyspace, columnFamily, timestamp, keyRange, predicate, start, stop, rowFilter, limit);
+    }
+
     private static class Serializer implements IVersionedSerializer<PagedRangeCommand>
     {
         public void serialize(PagedRangeCommand cmd, DataOutput out, int version) throws IOException
@@ -134,7 +140,7 @@ public class PagedRangeCommand extends AbstractRangeCommand
             {
                 ByteBufferUtil.writeWithShortLength(expr.column_name, out);
                 out.writeInt(expr.op.getValue());
-                ByteBufferUtil.writeWithLength(expr.value, out);
+                ByteBufferUtil.writeWithShortLength(expr.value, out);
             }
 
             out.writeInt(cmd.limit);
@@ -179,12 +185,15 @@ public class PagedRangeCommand extends AbstractRangeCommand
 
             size += SliceQueryFilter.serializer.serializedSize((SliceQueryFilter)cmd.predicate, version);
 
+            size += TypeSizes.NATIVE.sizeofWithShortLength(cmd.start);
+            size += TypeSizes.NATIVE.sizeofWithShortLength(cmd.stop);
+
             size += TypeSizes.NATIVE.sizeof(cmd.rowFilter.size());
             for (IndexExpression expr : cmd.rowFilter)
             {
                 size += TypeSizes.NATIVE.sizeofWithShortLength(expr.column_name);
                 size += TypeSizes.NATIVE.sizeof(expr.op.getValue());
-                size += TypeSizes.NATIVE.sizeofWithLength(expr.value);
+                size += TypeSizes.NATIVE.sizeofWithShortLength(expr.value);
             }
 
             size += TypeSizes.NATIVE.sizeof(cmd.limit);
