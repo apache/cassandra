@@ -95,9 +95,12 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
     {
         logger.debug("Creating authenticated client for CF input format");
         TTransport transport;
-        try {
-            transport = ConfigHelper.getClientTransportFactory(conf).openTransport(location, port, conf);
-        } catch (Exception e) {
+        try
+        {
+            transport = ConfigHelper.getClientTransportFactory(conf).openTransport(location, port);
+        }
+        catch (Exception e)
+        {
             throw new TTransportException("Failed to open a transport to " + location + ":" + port + ".", e);
         }
         TProtocol binaryProtocol = new TBinaryProtocol(transport, true, true);
