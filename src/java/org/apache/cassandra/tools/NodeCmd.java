@@ -32,7 +32,10 @@ import javax.management.openmbean.TabularData;
 import com.google.common.base.Joiner;
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Maps;
+import com.yammer.metrics.reporting.JmxReporter;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.cli.*;
 import org.yaml.snakeyaml.Yaml;
@@ -47,11 +50,9 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.CacheServiceMBean;
-import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.SessionInfo;
-import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
 
 public class NodeCmd
@@ -605,28 +606,30 @@ public class NodeCmd
         outs.printf("%-17s: %s%n", "Rack", probe.getRack());
 
         // Exceptions
-        outs.printf("%-17s: %s%n", "Exceptions", probe.getExceptionCount());
+        outs.printf("%-17s: %s%n", "Exceptions", probe.getStorageMetric("Exceptions"));
 
         CacheServiceMBean cacheService = probe.getCacheServiceMBean();
 
         // Key Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-        outs.printf("%-17s: size %d (bytes), capacity %d (bytes), %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
+        outs.printf("%-17s: entries %d, size %d (bytes), capacity %d (bytes), %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
                     "Key Cache",
-                    cacheService.getKeyCacheSize(),
-                    cacheService.getKeyCacheCapacityInBytes(),
-                    cacheService.getKeyCacheHits(),
-                    cacheService.getKeyCacheRequests(),
-                    cacheService.getKeyCacheRecentHitRate(),
+                    probe.getCacheMetric("KeyCache", "Entries"),
+                    probe.getCacheMetric("KeyCache", "Size"),
+                    probe.getCacheMetric("KeyCache", "Capacity"),
+                    probe.getCacheMetric("KeyCache", "Hits"),
+                    probe.getCacheMetric("KeyCache", "Requests"),
+                    probe.getCacheMetric("KeyCache", "HitRate"),
                     cacheService.getKeyCacheSavePeriodInSeconds());
 
         // Row Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-        outs.printf("%-17s: size %d (bytes), capacity %d (bytes), %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
+        outs.printf("%-17s: entries %d, size %d (bytes), capacity %d (bytes), %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
                     "Row Cache",
-                    cacheService.getRowCacheSize(),
-                    cacheService.getRowCacheCapacityInBytes(),
-                    cacheService.getRowCacheHits(),
-                    cacheService.getRowCacheRequests(),
-                    cacheService.getRowCacheRecentHitRate(),
+                    probe.getCacheMetric("RowCache", "Entries"),
+                    probe.getCacheMetric("RowCache", "Size"),
+                    probe.getCacheMetric("RowCache", "Capacity"),
+                    probe.getCacheMetric("RowCache", "Hits"),
+                    probe.getCacheMetric("RowCache", "Requests"),
+                    probe.getCacheMetric("RowCache", "HitRate"),
                     cacheService.getRowCacheSavePeriodInSeconds());
 
         if (toks.size() > 1 && cmd.hasOption(TOKENS_OPT.left))
@@ -704,7 +707,7 @@ public class NodeCmd
     {
         int compactionThroughput = probe.getCompactionThroughput();
         CompactionManagerMBean cm = probe.getCompactionManagerProxy();
-        outs.println("pending tasks: " + cm.getPendingTasks());
+        outs.println("pending tasks: " + probe.getCompactionMetric("PendingTasks"));
         if (cm.getCompactions().size() > 0)
             outs.printf("%25s%16s%16s%16s%16s%10s%10s%n", "compaction type", "keyspace", "table", "completed", "total", "unit", "progress");
         long remainingBytes = 0;
@@ -827,20 +830,21 @@ public class NodeCmd
             outs.println("Keyspace: " + keyspaceName);
             for (ColumnFamilyStoreMBean cfstore : columnFamilies)
             {
-                long writeCount = cfstore.getWriteCount();
-                long readCount = cfstore.getReadCount();
+                String cfName = cfstore.getColumnFamilyName();
+                long writeCount = ((JmxReporter.TimerMBean)probe.getColumnFamilyMetric(keyspaceName, cfName, "WriteLatency")).getCount();
+                long readCount = ((JmxReporter.TimerMBean)probe.getColumnFamilyMetric(keyspaceName, cfName, "ReadLatency")).getCount();
 
                 if (readCount > 0)
                 {
                     keyspaceReadCount += readCount;
-                    keyspaceTotalReadTime += cfstore.getTotalReadLatencyMicros();
+                    keyspaceTotalReadTime += (long)probe.getColumnFamilyMetric(keyspaceName, cfName, "ReadTotalLatency");
                 }
                 if (writeCount > 0)
                 {
                     keyspaceWriteCount += writeCount;
-                    keyspaceTotalWriteTime += cfstore.getTotalWriteLatencyMicros();
+                    keyspaceTotalWriteTime += (long)probe.getColumnFamilyMetric(keyspaceName, cfName, "WriteTotalLatency");
                 }
-                keyspacePendingTasks += cfstore.getPendingTasks();
+                keyspacePendingTasks += (int)probe.getColumnFamilyMetric(keyspaceName, cfName, "PendingTasks");
             }
 
             double keyspaceReadLatency = keyspaceReadCount > 0 ? keyspaceTotalReadTime / keyspaceReadCount / 1000 : Double.NaN;
@@ -861,7 +865,8 @@ public class NodeCmd
                 else
                     outs.println("\t\tTable: " + cfName);
 
-                outs.println("\t\tSSTable count: " + cfstore.getLiveSSTableCount());
+                outs.println("\t\tSSTable count: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "LiveSSTableCount"));
+
                 int[] leveledSStables = cfstore.getSSTableCountPerLevel();
                 if (leveledSStables != null)
                 {
@@ -883,26 +888,29 @@ public class NodeCmd
                             outs.println("]");
                     }
                 }
-                outs.println("\t\tSpace used (live), bytes: " + cfstore.getLiveDiskSpaceUsed());
-                outs.println("\t\tSpace used (total), bytes: " + cfstore.getTotalDiskSpaceUsed());
-                outs.println("\t\tSSTable Compression Ratio: " + cfstore.getCompressionRatio());
-                outs.println("\t\tNumber of keys (estimate): " + cfstore.estimateKeys());
-                outs.println("\t\tMemtable cell count: " + cfstore.getMemtableColumnsCount());
-                outs.println("\t\tMemtable data size, bytes: " + cfstore.getMemtableDataSize());
-                outs.println("\t\tMemtable switch count: " + cfstore.getMemtableSwitchCount());
-                outs.println("\t\tLocal read count: " + cfstore.getReadCount());
-                outs.printf("\t\tLocal read latency: %01.3f ms%n", cfstore.getRecentReadLatencyMicros() / 1000);
-                outs.println("\t\tLocal write count: " + cfstore.getWriteCount());
-                outs.printf("\t\tLocal write latency: %01.3f ms%n", cfstore.getRecentWriteLatencyMicros() / 1000);
-                outs.println("\t\tPending tasks: " + cfstore.getPendingTasks());
-                outs.println("\t\tBloom filter false positives: " + cfstore.getBloomFilterFalsePositives());
-                outs.println("\t\tBloom filter false ratio: " + String.format("%01.5f", cfstore.getRecentBloomFilterFalseRatio()));
-                outs.println("\t\tBloom filter space used, bytes: " + cfstore.getBloomFilterDiskSpaceUsed());
-                outs.println("\t\tCompacted partition minimum bytes: " + cfstore.getMinRowSize());
-                outs.println("\t\tCompacted partition maximum bytes: " + cfstore.getMaxRowSize());
-                outs.println("\t\tCompacted partition mean bytes: " + cfstore.getMeanRowSize());
-                outs.println("\t\tAverage live cells per slice (last five minutes): " + cfstore.getLiveCellsPerSlice());
-                outs.println("\t\tAverage tombstones per slice (last five minutes): " + cfstore.getTombstonesPerSlice());
+                outs.println("\t\tSpace used (live), bytes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "LiveDiskSpaceUsed"));
+                outs.println("\t\tSpace used (total), bytes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "TotalDiskSpaceUsed"));
+                outs.println("\t\tSSTable Compression Ratio: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "CompressionRatio"));
+                outs.println("\t\tMemtable cell count: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "MemtableColumnsCount"));
+                outs.println("\t\tMemtable data size, bytes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "MemtableDataSize"));
+                outs.println("\t\tMemtable switch count: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "MemtableSwitchCount"));
+                outs.println("\t\tLocal read count: " + ((JmxReporter.TimerMBean)probe.getColumnFamilyMetric(keyspaceName, cfName, "ReadLatency")).getCount());
+                double localReadLatency = ((JmxReporter.TimerMBean)probe.getColumnFamilyMetric(keyspaceName, cfName, "ReadLatency")).getMean() / 1000;
+                double localRLatency = localReadLatency > 0 ? localReadLatency : Double.NaN;
+                outs.printf("\t\tLocal read latency: %01.3f ms%n", localRLatency);
+                outs.println("\t\tLocal write count: " + ((JmxReporter.TimerMBean)probe.getColumnFamilyMetric(keyspaceName, cfName, "WriteLatency")).getCount());
+                double localWriteLatency = ((JmxReporter.TimerMBean)probe.getColumnFamilyMetric(keyspaceName, cfName, "WriteLatency")).getMean() / 1000;
+                double localWLatency = localWriteLatency > 0 ? localWriteLatency : Double.NaN;
+                outs.printf("\t\tLocal write latency: %01.3f ms%n", localWLatency);
+                outs.println("\t\tPending tasks: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "PendingTasks"));
+                outs.println("\t\tBloom filter false positives: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "BloomFilterFalsePositives"));
+                outs.println("\t\tBloom filter false ratio: " + String.format("%01.5f", probe.getColumnFamilyMetric(keyspaceName, cfName, "RecentBloomFilterFalseRatio")));
+                outs.println("\t\tBloom filter space used, bytes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "BloomFilterDiskSpaceUsed"));
+                outs.println("\t\tCompacted partition minimum bytes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "MinRowSize"));
+                outs.println("\t\tCompacted partition maximum bytes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "MaxRowSize"));
+                outs.println("\t\tCompacted partition mean bytes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "MeanRowSize"));
+                outs.println("\t\tAverage live cells per slice (last five minutes): " + ((JmxReporter.HistogramMBean)probe.getColumnFamilyMetric(keyspaceName, cfName, "LiveScannedHistogram")).getMean());
+                outs.println("\t\tAverage tombstones per slice (last five minutes): " + ((JmxReporter.HistogramMBean)probe.getColumnFamilyMetric(keyspaceName, cfName, "TombstoneScannedHistogram")).getMean());
 
                 outs.println("");
             }
@@ -917,55 +925,76 @@ public class NodeCmd
 
     private void printCfHistograms(String keySpace, String columnFamily, PrintStream output)
     {
-        ColumnFamilyStoreMBean store = this.probe.getCfsProxy(keySpace, columnFamily);
+        // calculate percentile of row size and column count
+        long[] estimatedRowSize = (long[]) probe.getColumnFamilyMetric(keySpace, columnFamily, "EstimatedRowSizeHistogram");
+        long[] estimatedColumnCount = (long[]) probe.getColumnFamilyMetric(keySpace, columnFamily, "EstimatedColumnCountHistogram");
 
-        // default is 90 offsets
-        long[] offsets = new EstimatedHistogram().getBucketOffsets();
+        long[] bucketOffsets = new EstimatedHistogram().getBucketOffsets();
+        EstimatedHistogram rowSizeHist = new EstimatedHistogram(bucketOffsets, estimatedRowSize);
+        EstimatedHistogram columnCountHist = new EstimatedHistogram(bucketOffsets, estimatedColumnCount);
 
-        long[] rrlh = store.getRecentReadLatencyHistogramMicros();
-        long[] rwlh = store.getRecentWriteLatencyHistogramMicros();
-        long[] sprh = store.getRecentSSTablesPerReadHistogram();
-        long[] ersh = store.getEstimatedRowSizeHistogram();
-        long[] ecch = store.getEstimatedColumnCountHistogram();
+        // build arrays to store percentile values
+        double[] estimatedRowSizePercentiles = new double[7];
+        double[] estimatedColumnCountPercentiles = new double[7];
+        double[] offsetPercentiles = new double[]{0.5, 0.75, 0.95, 0.98, 0.99};
+        for (int i = 0; i < offsetPercentiles.length; i++)
+        {
+            estimatedRowSizePercentiles[i] = rowSizeHist.percentile(offsetPercentiles[i]);
+            estimatedColumnCountPercentiles[i] = columnCountHist.percentile(offsetPercentiles[i]);
+        }
+
+        // min value
+        estimatedRowSizePercentiles[5] = rowSizeHist.min();
+        estimatedColumnCountPercentiles[5] = columnCountHist.min();
+        // max value
+        estimatedRowSizePercentiles[6] = rowSizeHist.max();
+        estimatedColumnCountPercentiles[6] = columnCountHist.max();
+
+        String[] percentiles = new String[]{ "50%", "75%", "95%", "98%", "99%", "Min", "Max" };
+        double[] readLatency = probe.metricPercentilesAsArray((JmxReporter.HistogramMBean)probe.getColumnFamilyMetric(keySpace, columnFamily, "ReadLatency"));
+        double[] writeLatency = probe.metricPercentilesAsArray((JmxReporter.TimerMBean)probe.getColumnFamilyMetric(keySpace, columnFamily, "WriteLatency"));
+        double[] sstablesPerRead = probe.metricPercentilesAsArray((JmxReporter.HistogramMBean)probe.getColumnFamilyMetric(keySpace, columnFamily, "SSTablesPerReadHistogram"));
 
         output.println(String.format("%s/%s histograms", keySpace, columnFamily));
-
         output.println(String.format("%-10s%10s%18s%18s%18s%18s",
-                                     "Offset", "SSTables", "Write Latency", "Read Latency", "Partition Size", "Cell Count"));
+                                     "Percentile", "SSTables", "Write Latency", "Read Latency", "Partition Size", "Cell Count"));
         output.println(String.format("%-10s%10s%18s%18s%18s%18s",
                                      "", "", "(micros)", "(micros)", "(bytes)", ""));
 
-        for (int i = 0; i < offsets.length; i++)
+        for (int i = 0; i < percentiles.length; i++)
         {
-            output.println(String.format("%-10d%10s%18s%18s%18s%18s",
-                                         offsets[i],
-                                         (i < sprh.length ? sprh[i] : "0"),
-                                         (i < rwlh.length ? rwlh[i] : "0"),
-                                         (i < rrlh.length ? rrlh[i] : "0"),
-                                         (i < ersh.length ? ersh[i] : "0"),
-                                         (i < ecch.length ? ecch[i] : "0")));
+            output.println(String.format("%-10s%10.2f%18.2f%18.2f%18.0f%18.0f",
+                                         percentiles[i],
+                                         sstablesPerRead[i],
+                                         writeLatency[i],
+                                         readLatency[i],
+                                         estimatedRowSizePercentiles[i],
+                                         estimatedColumnCountPercentiles[i]));
         }
+        output.println();
     }
 
     private void printProxyHistograms(PrintStream output)
     {
-        StorageProxyMBean sp = this.probe.getSpProxy();
-        long[] offsets = new EstimatedHistogram().getBucketOffsets();
-        long[] rrlh = sp.getRecentReadLatencyHistogramMicros();
-        long[] rwlh = sp.getRecentWriteLatencyHistogramMicros();
-        long[] rrnglh = sp.getRecentRangeLatencyHistogramMicros();
+        String[] percentiles = new String[]{ "50%", "75%", "95%", "98%", "99%", "Min", "Max" };
+        double[] readLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("Read"));
+        double[] writeLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("Write"));
+        double[] rangeLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("RangeSlice"));
 
         output.println("proxy histograms");
         output.println(String.format("%-10s%18s%18s%18s",
-                                    "Offset", "Read Latency", "Write Latency", "Range Latency"));
-        for (int i = 0; i < offsets.length; i++)
+                                     "Percentile", "Read Latency", "Write Latency", "Range Latency"));
+        output.println(String.format("%-10s%18s%18s%18s",
+                                     "", "(micros)", "(micros)", "(micros)"));
+        for (int i = 0; i < percentiles.length; i++)
         {
-            output.println(String.format("%-10d%18s%18s%18s",
-                                        offsets[i],
-                                        (i < rrlh.length ? rrlh[i] : "0"),
-                                        (i < rwlh.length ? rwlh[i] : "0"),
-                                        (i < rrnglh.length ? rrnglh[i] : "0")));
+            output.println(String.format("%-10s%18.2f%18.2f%18.2f",
+                                         percentiles[i],
+                                         readLatency[i],
+                                         writeLatency[i],
+                                         rangeLatency[i]));
         }
+        output.println();
     }
 
     private void printEndPoints(String keySpace, String cf, String key, PrintStream output)

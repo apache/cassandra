@@ -7,7 +7,8 @@
  * Remove leveled json manifest migration code (CASSANDRA-5996)
  * Remove CFDefinition (CASSANDRA-6253)
  * Use AtomicIntegerFieldUpdater in RefCountedMemory (CASSANDRA-6278)
- * User-defined types for CQL3 (5590)
+ * User-defined types for CQL3 (CASSANDRA-5590)
+ * Use of o.a.c.metrics in nodetool (CASSANDRA-5871)
 
 
 2.0.3

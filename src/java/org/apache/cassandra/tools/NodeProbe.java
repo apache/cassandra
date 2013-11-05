@@ -43,6 +43,7 @@ import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
+import com.yammer.metrics.reporting.JmxReporter;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.HintedHandOffManager;
@@ -869,6 +870,184 @@ public class NodeProbe
     public long getReadRepairRepairedBackground()
     {
         return spProxy.getReadRepairRepairedBackground();
+    }
+
+    // JMX getters for the o.a.c.metrics API below.
+    /**
+     * Retrieve cache metrics based on the cache type (KeyCache or RowCache)
+     * @param cacheType KeyCache or RowCache
+     * @param metricName Capacity, Entries, HitRate, Size, Requests or Hits.
+     */
+    public Object getCacheMetric(String cacheType, String metricName)
+    {
+        try
+        {
+            switch(metricName)
+            {
+                case "Capacity":
+                case "Entries":
+                case "HitRate":
+                case "Size":
+                    return JMX.newMBeanProxy(mbeanServerConn,
+                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
+                            JmxReporter.GaugeMBean.class).getValue();
+                case "Requests":
+                case "Hits":
+                    return JMX.newMBeanProxy(mbeanServerConn,
+                            new ObjectName("org.apache.cassandra.metrics:type=Cache,scope=" + cacheType + ",name=" + metricName),
+                            JmxReporter.MeterMBean.class).getCount();
+                default:
+                    throw new RuntimeException("Unknown cache metric name.");
+
+            }
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Retrieve ColumnFamily metrics
+     * @param ks Keyspace for which stats are to be displayed.
+     * @param cf ColumnFamily for which stats are to be displayed.
+     * @param metricName View {@link org.apache.cassandra.metrics.ColumnFamilyMetrics}.
+     */
+    public Object getColumnFamilyMetric(String ks, String cf, String metricName)
+    {
+        try
+        {
+            switch(metricName)
+            {
+                case "BloomFilterDiskSpaceUsed":
+                case "BloomFilterFalsePositives":
+                case "BloomFilterFalseRatio":
+                case "CompressionRatio":
+                case "EstimatedColumnCountHistogram":
+                case "EstimatedRowSizeHistogram":
+                case "KeyCacheHitRate":
+                case "LiveSSTableCount":
+                case "MaxRowSize":
+                case "MeanRowSize":
+                case "MemtableColumnsCount":
+                case "MemtableDataSize":
+                case "MinRowSize":
+                case "PendingTasks":
+                case "RecentBloomFilterFalsePositives":
+                case "RecentBloomFilterFalseRatio":
+                    return JMX.newMBeanProxy(mbeanServerConn,
+                            new ObjectName("org.apache.cassandra.metrics:type=ColumnFamily,keyspace=" + ks + ",scope=" + cf + ",name=" + metricName),
+                            JmxReporter.GaugeMBean.class).getValue();
+                case "LiveDiskSpaceUsed":
+                case "MemtableSwitchCount":
+                case "SpeculativeRetries":
+                case "TotalDiskSpaceUsed":
+                case "WriteTotalLatency":
+                case "ReadTotalLatency":
+                    return JMX.newMBeanProxy(mbeanServerConn,
+                            new ObjectName("org.apache.cassandra.metrics:type=ColumnFamily,keyspace=" + ks + ",scope=" + cf + ",name=" + metricName),
+                            JmxReporter.CounterMBean.class).getCount();
+                case "ReadLatency":
+                case "CoordinatorReadLatency":
+                case "CoordinatorScanLatency":
+                case "WriteLatency":
+                    return JMX.newMBeanProxy(mbeanServerConn,
+                            new ObjectName("org.apache.cassandra.metrics:type=ColumnFamily,keyspace=" + ks + ",scope=" + cf + ",name=" + metricName),
+                            JmxReporter.TimerMBean.class);
+                case "LiveScannedHistogram":
+                case "SSTablesPerReadHistogram":
+                case "TombstoneScannedHistogram":
+                    return JMX.newMBeanProxy(mbeanServerConn,
+                            new ObjectName("org.apache.cassandra.metrics:type=ColumnFamily,keyspace=" + ks + ",scope=" + cf + ",name=" + metricName),
+                            JmxReporter.HistogramMBean.class);
+                default:
+                    throw new RuntimeException("Unknown column family metric.");
+            }
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Retrieve Proxy metrics
+     * @param scope; RangeSlice, Read or Write
+     */
+    public JmxReporter.TimerMBean getProxyMetric(String scope)
+    {
+        try
+        {
+            return JMX.newMBeanProxy(mbeanServerConn,
+                    new ObjectName("org.apache.cassandra.metrics:type=ClientRequest,scope=" + scope + ",name=Latency"),
+                    JmxReporter.TimerMBean.class);
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Retrieve Proxy metrics
+     * @param metricName; CompletedTasks, PendingTasks, BytesCompacted or TotalCompactionsCompleted.
+     */
+    public Object getCompactionMetric(String metricName)
+    {
+        try
+        {
+            switch(metricName)
+            {
+                case "BytesCompacted":
+                    return JMX.newMBeanProxy(mbeanServerConn,
+                            new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
+                            JmxReporter.CounterMBean.class);
+                case "CompletedTasks":
+                case "PendingTasks":
+                    return JMX.newMBeanProxy(mbeanServerConn,
+                            new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
+                            JmxReporter.GaugeMBean.class).getValue();
+                case "TotalCompactionsCompleted":
+                    return JMX.newMBeanProxy(mbeanServerConn,
+                            new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),
+                            JmxReporter.MeterMBean.class);
+                default:
+                    throw new RuntimeException("Unknown compaction metric.");
+            }
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Retrieve Proxy metrics
+     * @param metricName; Exceptions, Load, TotalHints or TotalHintsInProgress.
+     */
+    public long getStorageMetric(String metricName)
+    {
+        try
+        {
+            return JMX.newMBeanProxy(mbeanServerConn,
+                    new ObjectName("org.apache.cassandra.metrics:type=Storage,name=" + metricName),
+                    JmxReporter.CounterMBean.class).getCount();
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public double[] metricPercentilesAsArray(JmxReporter.HistogramMBean metric)
+    {
+        return new double[]{ metric.get50thPercentile(),
+                metric.get75thPercentile(),
+                metric.get95thPercentile(),
+                metric.get98thPercentile(),
+                metric.get99thPercentile(),
+                metric.getMin(),
+                metric.getMax()};
     }
 
     public TabularData getCompactionHistory()
