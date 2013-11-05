@@ -131,10 +131,24 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
                 return;
 
             // create connection using thrift
-            String location = getLocation();
-
-            int port = ConfigHelper.getInputRpcPort(conf);
-            client = CqlPagingInputFormat.createAuthenticatedClient(location, port, conf);
+            String[] locations = split.getLocations();
+            Exception lastException = null;
+            for (String location : locations)
+            {
+                int port = ConfigHelper.getInputRpcPort(conf);
+                try
+                {
+                    client = CqlPagingInputFormat.createAuthenticatedClient(location, port, conf);
+                    break;
+                }
+                catch (Exception e)
+                {
+                    lastException = e;
+                    logger.warn("Failed to create authenticated client to {}:{}", location , port);
+                }
+            }
+            if (client == null && lastException != null)
+                throw lastException;
 
             // retrieve partition keys and cluster keys from system.schema_columnfamilies table
             retrieveKeys();
@@ -206,7 +220,7 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
 
     // we don't use endpointsnitch since we are trying to support hadoop nodes that are
     // not necessarily on Cassandra machines, too.  This should be adequate for single-DC clusters, at least.
-    private String getLocation()
+    private String[] getLocations()
     {
         Collection<InetAddress> localAddresses = FBUtilities.getAllLocalAddresses();
 
@@ -225,11 +239,11 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
                 }
                 if (address.equals(locationAddress))
                 {
-                    return location;
+                    return new String[] { location };
                 }
             }
         }
-        return split.getLocations()[0];
+        return split.getLocations();
     }
 
     // Because the old Hadoop API wants us to write to the key and value
@@ -430,8 +444,8 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
 
                 columns = withoutKeyColumns(columns);
                 columns = (clusterKey == null || "".equals(clusterKey))
-                        ? partitionKey + "," + columns
-                        : partitionKey + "," + clusterKey + "," + columns;
+                        ? partitionKey + (columns != null ? ("," + columns) : "")
+                        : partitionKey + "," + clusterKey + (columns != null ? ("," + columns) : "");
             }
 
             String whereStr = userDefinedWhereClauses == null ? "" : " AND " + userDefinedWhereClauses;
