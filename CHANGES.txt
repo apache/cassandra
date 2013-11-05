@@ -27,6 +27,7 @@
  * Reject CAS operation when the protocol v1 is used (CASSANDRA-6270)
  * Correctly throw error when frame too large (CASSANDRA-5981)
  * Fix serialization bug in PagedRange with 2ndary indexes (CASSANDRA-6299)
+ * Fix CQL3 table validation in Thrift (CASSANDRA-6140)
 Merged from 1.2:
  * add non-jamm path for cached statements (CASSANDRA-6293)
  * (Hadoop) Require CFRR batchSize to be at least 2 (CASSANDRA-6114)

@@ -210,7 +210,7 @@ public class ThriftValidation
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("supercolumn specified to ColumnFamily " + metadata.cfName + " containing normal columns");
         }
         AbstractType<?> comparator = SuperColumns.getComparatorFor(metadata, superColumnName);
-        boolean isCQL3Table = metadata.hasCompositeComparator() && !metadata.isDense() && !metadata.isSuper();
+        boolean isCQL3Table = !metadata.isThriftCompatible();
         for (ByteBuffer name : column_names)
         {
             if (name.remaining() > maxNameLength)
