@@ -276,7 +276,7 @@ public final class MessagingService implements MessagingServiceMBean
      */
     private final ConcurrentMap<InetAddress, DebuggableThreadPoolExecutor> streamExecutors = new NonBlockingHashMap<InetAddress, DebuggableThreadPoolExecutor>();
 
-    private final NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool> connectionManagers = new NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool>();
+    private final ConcurrentMap<InetAddress, OutboundTcpConnectionPool> connectionManagers = new NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool>();
 
     private static final Logger logger = LoggerFactory.getLogger(MessagingService.class);
     private static final int LOG_DROPPED_INTERVAL_IN_MS = 5000;
@@ -501,11 +501,17 @@ public final class MessagingService implements MessagingServiceMBean
         OutboundTcpConnectionPool cp = connectionManagers.get(to);
         if (cp == null)
         {
-            connectionManagers.putIfAbsent(to, new OutboundTcpConnectionPool(to));
-            cp = connectionManagers.get(to);
+            cp = new OutboundTcpConnectionPool(to);
+            OutboundTcpConnectionPool existingPool = connectionManagers.putIfAbsent(to, cp);
+            if (existingPool != null)
+            {
+                cp.close();
+                cp = existingPool;
+            }
         }
         return cp;
     }
+    
 
     public OutboundTcpConnection getConnection(InetAddress to, MessageOut msg)
     {

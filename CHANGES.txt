@@ -29,6 +29,7 @@ Merged from 1.2:
  * Nodetool gets default JMX port from cassandra-env.sh (CASSANDRA-6273)
  * make calculatePendingRanges asynchronous (CASSANDRA-6244)
  * Remove blocking flushes in gossip thread (CASSANDRA-6297)
+ * Fix potential socket leak in connectionpool creation (CASSANDRA-6308)
 
 
 2.0.2
