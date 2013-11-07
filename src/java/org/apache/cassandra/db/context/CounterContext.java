@@ -492,7 +492,7 @@ public class CounterContext implements IContext
     public ByteBuffer markDeltaToBeCleared(ByteBuffer context)
     {
         int headerLength = headerLength(context);
-        if (headerLength == 0)
+        if (headerLength == HEADER_SIZE_LENGTH)
             return context;
 
         ByteBuffer marked = context.duplicate();
@@ -512,7 +512,7 @@ public class CounterContext implements IContext
     public ByteBuffer clearAllDelta(ByteBuffer context)
     {
         int headerLength = headerLength(context);
-        if (headerLength == 0)
+        if (headerLength == HEADER_SIZE_LENGTH)
             return context;
 
         ByteBuffer cleaned = ByteBuffer.allocate(context.remaining() - headerLength + HEADER_SIZE_LENGTH);
@@ -528,8 +528,7 @@ public class CounterContext implements IContext
 
     public void validateContext(ByteBuffer context) throws MarshalException
     {
-        int headerLength = headerLength(context);
-        if (headerLength < 0 || (context.remaining() - headerLength) %  STEP_LENGTH != 0)
+        if ((context.remaining() - headerLength(context)) % STEP_LENGTH != 0)
             throw new MarshalException("Invalid size for a counter context");
     }
 
