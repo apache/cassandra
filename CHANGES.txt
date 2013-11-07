@@ -12,6 +12,7 @@
 
 
 2.0.3
+ * Allow restoring specific columnfamilies from archived CL (CASSANDRA-4809)
  * Avoid flushing compaction_history after each operation (CASSANDRA-6287)
  * Fix repair assertion error when tombstones expire (CASSANDRA-6277)
  * Skip loading corrupt key cache (CASSANDRA-6260)
