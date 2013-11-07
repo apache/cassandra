@@ -275,10 +275,6 @@ public enum ConsistencyLevel
     {
         switch (this)
         {
-            case LOCAL_QUORUM:
-            case LOCAL_ONE:
-                requireNetworkTopologyStrategy(keyspaceName);
-                break;
             case ANY:
                 throw new InvalidRequestException("ANY ConsistencyLevel is only supported for writes");
             case EACH_QUORUM:
@@ -306,9 +302,7 @@ public enum ConsistencyLevel
     {
         switch (this)
         {
-            case LOCAL_QUORUM:
             case EACH_QUORUM:
-            case LOCAL_ONE:
                 requireNetworkTopologyStrategy(keyspaceName);
                 break;
             case SERIAL:
