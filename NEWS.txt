@@ -13,20 +13,6 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
-2.0.3
-=====
-
-New features
-------------
-    - It's now possible to configure the maximum allowed size of the native
-      protocol frames (native_transport_max_frame_size_in_mb in the yaml file).
-
-Upgrading
----------
-    - The IEndpointStateChangeSubscriber has a new method, beforeChange, that
-      any custom implemenations using the class will need to implement.
-
-
 2.1
 ===
 
@@ -41,6 +27,20 @@ Upgrading
      the coldest 5% of sstables.  This can be customized with the
      cold_reads_to_omit compaction option; 0.0 omits nothing (the old
      behavior) and 1.0 omits everything.
+
+
+2.0.3
+=====
+
+New features
+------------
+    - It's now possible to configure the maximum allowed size of the native
+      protocol frames (native_transport_max_frame_size_in_mb in the yaml file).
+
+Upgrading
+---------
+    - The IEndpointStateChangeSubscriber has a new method, beforeChange, that
+      any custom implemenations using the class will need to implement.
 
 
 2.0.2
