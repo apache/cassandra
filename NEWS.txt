@@ -48,20 +48,6 @@ Upgrading
 
 New features
 ------------
-    - A new CQLSSTableWriter class has been added. It is the equivalent of
-      the existing SSTableSimpleWriter/SSTableSimpleUnsortedWriter but is
-      CQL oriented.
-
-Upgrading
----------
-    - Nodetool defaults to Sequential mode for repair operations
-
-
-2.0.2
-=====
-
-New features
-------------
     - Speculative retry defaults to 99th percentile
       (See blog post at http://www.datastax.com/dev/blog/rapid-read-protection-in-cassandra-2-0-2)
     - Configurable metrics reporting
@@ -74,6 +60,13 @@ New features
     - New replace_address to supplant the (now removed) replace_token and
       replace_node workflows to replace a dead node in place.  Works like the
       old options, but takes the IP address of the node to be replaced.
+    - A new CQLSSTableWriter class has been added. It is the equivalent of
+      the existing SSTableSimpleWriter/SSTableSimpleUnsortedWriter but is
+      CQL oriented.
+
+Upgrading
+---------
+    - Nodetool defaults to Sequential mode for repair operations
 
 
 2.0.1
