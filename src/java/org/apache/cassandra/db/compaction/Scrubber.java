@@ -120,7 +120,7 @@ public class Scrubber implements Closeable
                 if (scrubInfo.isStopRequested())
                     throw new CompactionInterruptedException(scrubInfo.getCompactionInfo());
                 long rowStart = dataFile.getFilePointer();
-                outputHandler.debug("Reading row at {}" + rowStart);
+                outputHandler.debug("Reading row at " + rowStart);
 
                 DecoratedKey key = null;
                 long dataSize = -1;
