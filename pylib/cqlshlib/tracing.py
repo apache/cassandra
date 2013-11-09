@@ -43,7 +43,6 @@ def fetch_trace_session(cursor, session_id):
                    "WHERE session_id = %s" % (TRACING_KS, SESSIONS_CF, session_id),
                    consistency_level='ONE')
     (request, coordinator, started_at, duration) = cursor.fetchone()
-
     cursor.execute("SELECT activity, event_id, source, source_elapsed "
                    "FROM %s.%s "
                    "WHERE session_id = %s" % (TRACING_KS, EVENTS_CF, session_id),
@@ -57,8 +56,12 @@ def fetch_trace_session(cursor, session_id):
     for activity, event_id, source, source_elapsed in events:
         rows.append([activity, format_timeuuid(event_id), source, source_elapsed])
     # append footer row (from sessions table).
-    finished_at = started_at + (duration / 1000000.)
-    rows.append(['Request complete', format_timestamp(finished_at), coordinator, duration])
+    if duration:
+        finished_at = format_timestamp(started_at + (duration / 1000000.))
+    else:
+        finished_at = duration = "--"
+
+    rows.append(['Request complete', finished_at, coordinator, duration])
 
     return rows
 

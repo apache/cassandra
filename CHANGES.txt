@@ -13,6 +13,7 @@
  * Remove blocking flushes in gossip thread (CASSANDRA-6297)
  * Fix potential socket leak in connectionpool creation (CASSANDRA-6308)
  * Allow LOCAL_ONE/LOCAL_QUORUM to work with SimpleSrrategy (CASSANDRA-6238)
+ * cqlsh: handle 'null' as session duration (CASSANDRA-6317)
 
 
 1.2.11
