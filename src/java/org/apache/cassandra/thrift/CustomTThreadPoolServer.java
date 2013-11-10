@@ -254,7 +254,7 @@ public class CustomTThreadPoolServer extends TServer
                 }
                 else
                 {
-                    serverTransport = new TCustomServerSocket(addr, args.keepAlive, args.sendBufferSize, args.recvBufferSize);
+                    serverTransport = new TCustomServerSocket(addr, args.keepAlive, args.sendBufferSize, args.recvBufferSize, args.listenBacklog);
                 }
             }
             catch (TTransportException e)

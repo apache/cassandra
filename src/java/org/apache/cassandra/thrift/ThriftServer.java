@@ -40,12 +40,14 @@ public class ThriftServer implements CassandraDaemon.Server
 
     protected final InetAddress address;
     protected final int port;
+    protected final int backlog;
     private volatile ThriftServerThread server;
 
-    public ThriftServer(InetAddress address, int port)
+    public ThriftServer(InetAddress address, int port, int backlog)
     {
         this.address = address;
         this.port = port;
+        this.backlog = backlog;
     }
 
     public void start()
@@ -53,7 +55,7 @@ public class ThriftServer implements CassandraDaemon.Server
         if (server == null)
         {
             CassandraServer iface = getCassandraServer();
-            server = new ThriftServerThread(address, port, iface, getProcessor(iface), getTransportFactory());
+            server = new ThriftServerThread(address, port, backlog, iface, getProcessor(iface), getTransportFactory());
             server.start();
         }
     }
@@ -110,6 +112,7 @@ public class ThriftServer implements CassandraDaemon.Server
 
         public ThriftServerThread(InetAddress listenAddr,
                                   int listenPort,
+                                  int listenBacklog,
                                   CassandraServer server,
                                   TProcessor processor,
                                   TTransportFactory transportFactory)
@@ -120,6 +123,7 @@ public class ThriftServer implements CassandraDaemon.Server
             TServerFactory.Args args = new TServerFactory.Args();
             args.tProtocolFactory = new TBinaryProtocol.Factory(true, true);
             args.addr = new InetSocketAddress(listenAddr, listenPort);
+            args.listenBacklog = listenBacklog;
             args.cassandraServer = server;
             args.processor = processor;
             args.keepAlive = DatabaseDescriptor.getRpcKeepAlive();

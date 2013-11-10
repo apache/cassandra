@@ -730,6 +730,11 @@ public class DatabaseDescriptor
         return Integer.parseInt(System.getProperty("cassandra.rpc_port", conf.rpc_port.toString()));
     }
 
+    public static int getRpcListenBacklog()
+    {
+        return conf.rpc_listen_backlog;
+    }
+
     public static long getRpcTimeout()
     {
         return conf.request_timeout_in_ms;

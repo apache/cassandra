@@ -32,6 +32,7 @@ public interface TServerFactory
     public static class Args
     {
         public InetSocketAddress addr;
+        public Integer listenBacklog;
         public CassandraServer cassandraServer;
         public TProcessor processor;
         public TProtocolFactory tProtocolFactory;
