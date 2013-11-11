@@ -1,4 +1,5 @@
 2.0.3
+ * Fix trying to hint timed out counter writes (CASSANDRA-6322)
  * Allow restoring specific columnfamilies from archived CL (CASSANDRA-4809)
  * Avoid flushing compaction_history after each operation (CASSANDRA-6287)
  * Fix repair assertion error when tombstones expire (CASSANDRA-6277)
