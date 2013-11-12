@@ -468,7 +468,6 @@ public class DatabaseDescriptor
         assert systemKeyspaces.size() == Schema.systemKeyspaceNames.size();
         for (KSMetaData ksmd : systemKeyspaces)
             Schema.instance.load(ksmd);
-        Schema.instance.loadUserTypes();
 
         /* Load the seeds for node contact points */
         if (conf.seed_provider == null)
@@ -502,6 +501,8 @@ public class DatabaseDescriptor
     /** load keyspace (keyspace) definitions, but do not initialize the keyspace instances. */
     public static void loadSchemas()
     {
+        Schema.instance.loadUserTypes();
+
         ColumnFamilyStore schemaCFS = SystemKeyspace.schemaCFS(SystemKeyspace.SCHEMA_KEYSPACES_CF);
 
         // if keyspace with definitions is empty try loading the old way
