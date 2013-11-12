@@ -44,9 +44,9 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonParser;
@@ -158,8 +158,7 @@ public class SSTableImport
                 }
                 else if (isRangeTombstone())
                 {
-                    AbstractType<?> type = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{meta.getColumnDefinitionComparator(0)}));
-                    value = type.fromString((String)fields.get(1));
+                    value = comparator.fromString((String)fields.get(1));
                 }
                 else
                 {
