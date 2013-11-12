@@ -22,13 +22,13 @@ import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.serializers.MarshalException;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.Option;
@@ -44,6 +44,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -151,8 +152,19 @@ public class SSTableImport
                     }
                 }
 
-                value = isDeleted() ? ByteBufferUtil.hexToBytes((String) fields.get(1))
-                                    : stringAsType((String) fields.get(1), meta.getValueValidator(meta.getColumnDefinitionFromColumnName(name)));
+                if (isDeleted())
+                {
+                    value = ByteBufferUtil.hexToBytes((String) fields.get(1));
+                }
+                else if (isRangeTombstone())
+                {
+                    AbstractType<?> type = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{meta.getColumnDefinitionComparator(0)}));
+                    value = type.fromString((String)fields.get(1));
+                }
+                else
+                {
+                    value = stringAsType((String) fields.get(1), meta.getValueValidator(meta.getColumnDefinitionFromColumnName(name)));
+                }
             }
         }
 
