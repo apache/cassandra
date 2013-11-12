@@ -376,9 +376,13 @@ public class SelectStatement implements CQLStatement
 
     private int getLimit()
     {
-        // Internally, we don't support exclusive bounds for slices. Instead,
-        // we query one more element if necessary and exclude
-        return sliceRestriction != null && !sliceRestriction.isInclusive(Bound.START) && parameters.limit != Integer.MAX_VALUE
+        // Internally, we don't support exclusive bounds for COMPACT slices. Instead, when we know we have an exlcusive
+        // slice on a COMPACT table, we query one more element (to make sure we don't return less results than asked post-exclusion)
+        // and exclude the post-query. Note that while we might excluse both the START and END bound, there is no reason to
+        // ask for limit + 2 since if we exlude both bound from the result it means we can't have missed non-fetched results.
+        return (sliceRestriction != null
+                && parameters.limit != Integer.MAX_VALUE
+                && (!sliceRestriction.isInclusive(Bound.START) || !sliceRestriction.isInclusive(Bound.END)))
              ? parameters.limit + 1
              : parameters.limit;
     }

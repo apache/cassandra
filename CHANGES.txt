@@ -15,6 +15,7 @@
  * Allow LOCAL_ONE/LOCAL_QUORUM to work with SimpleStrategy (CASSANDRA-6238)
  * cqlsh: handle 'null' as session duration (CASSANDRA-6317)
  * Fix json2sstable handling of range tombstones (CASSANDRA-6316)
+ * Fix missing one row in reverse query (CASSANDRA-6330)
 
 
 1.2.11
