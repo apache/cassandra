@@ -229,11 +229,11 @@ public class CompositeType extends AbstractCompositeType
                 AbstractType<?> t = types.get(i);
                 ByteBuffer s = i < start.length ? start[i] : ByteBufferUtil.EMPTY_BYTE_BUFFER;
                 ByteBuffer f = i < finish.length ? finish[i] : ByteBufferUtil.EMPTY_BYTE_BUFFER;
-                if (!t.intersects(minColumnNames.get(i), maxColumnNames.get(i), s, f))
-                    return false;
+                if (t.intersects(minColumnNames.get(i), maxColumnNames.get(i), s, f))
+                    return true;
             }
         }
-        return true;
+        return false;
     }
 
     private static class StaticParsedComparator implements ParsedComparator
