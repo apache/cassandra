@@ -17,8 +17,12 @@
  */
 package org.apache.cassandra.net;
 
+import java.util.EnumSet;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.gms.Gossiper;
 
 public class MessageDeliveryTask implements Runnable
 {
@@ -54,5 +58,11 @@ public class MessageDeliveryTask implements Runnable
         }
 
         verbHandler.doVerb(message, id);
+        if (GOSSIP_VERBS.contains(message.verb))
+            Gossiper.instance.setLastProcessedMessageAt(constructionTime);
     }
+
+    EnumSet<MessagingService.Verb> GOSSIP_VERBS = EnumSet.of(MessagingService.Verb.GOSSIP_DIGEST_ACK,
+                                                             MessagingService.Verb.GOSSIP_DIGEST_ACK2,
+                                                             MessagingService.Verb.GOSSIP_DIGEST_SYN);
 }
