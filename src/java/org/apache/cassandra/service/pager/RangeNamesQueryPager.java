@@ -91,6 +91,11 @@ public class RangeNamesQueryPager extends AbstractQueryPager
         return false;
     }
 
+    protected boolean isReversed()
+    {
+        return false;
+    }
+
     private AbstractBounds<RowPosition> makeExcludingKeyBounds(RowPosition lastReturnedKey)
     {
         // We return a range that always exclude lastReturnedKey, since we've already

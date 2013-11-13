@@ -20,6 +20,7 @@
  * Fix serialization bug in PagedRange with 2ndary indexes (CASSANDRA-6299)
  * Fix CQL3 table validation in Thrift (CASSANDRA-6140)
  * Fix bug missing results with IN clauses (CASSANDRA-6327)
+ * Fix paging with reversed slices (CASSANDRA-6343)
 Merged from 1.2:
  * add non-jamm path for cached statements (CASSANDRA-6293)
  * (Hadoop) Require CFRR batchSize to be at least 2 (CASSANDRA-6114)

@@ -117,7 +117,12 @@ public class QueryPagerTest extends SchemaLoader
 
     private static ReadCommand sliceQuery(String key, String start, String end, int count)
     {
-        SliceQueryFilter filter = new SliceQueryFilter(bytes(start), bytes(end), false, count);
+        return sliceQuery(key, start, end, false, count);
+    }
+
+    private static ReadCommand sliceQuery(String key, String start, String end, boolean reversed, int count)
+    {
+        SliceQueryFilter filter = new SliceQueryFilter(bytes(start), bytes(end), reversed, count);
         // Note: for MultiQueryTest, we need the same timestamp/expireBefore for all queries, so we just use 0 as it doesn't matter here.
         return new SliceFromReadCommand(KS, bytes(key), CF, 0, filter);
     }
@@ -183,6 +188,31 @@ public class QueryPagerTest extends SchemaLoader
         page = pager.fetchPage(3);
         assertEquals(toString(page), 1, page.size());
         assertRow(page.get(0), "k0", "c7", "c8");
+
+        assertTrue(pager.isExhausted());
+    }
+
+    @Test
+    public void reversedSliceQueryTest() throws Exception
+    {
+        QueryPager pager = QueryPagers.localPager(sliceQuery("k0", "c8", "c1", true, 10));
+
+        List<Row> page;
+
+        assertFalse(pager.isExhausted());
+        page = pager.fetchPage(3);
+        assertEquals(toString(page), 1, page.size());
+        assertRow(page.get(0), "k0", "c6", "c7", "c8");
+
+        assertFalse(pager.isExhausted());
+        page = pager.fetchPage(3);
+        assertEquals(toString(page), 1, page.size());
+        assertRow(page.get(0), "k0", "c3", "c4", "c5");
+
+        assertFalse(pager.isExhausted());
+        page = pager.fetchPage(3);
+        assertEquals(toString(page), 1, page.size());
+        assertRow(page.get(0), "k0", "c1", "c2");
 
         assertTrue(pager.isExhausted());
     }

@@ -91,14 +91,19 @@ public class RangeSliceQueryPager extends AbstractQueryPager
     {
         return lastReturnedKey != null
             && lastReturnedKey.equals(first.key)
-            && lastReturnedName.equals(firstName(first.cf));
+            && lastReturnedName.equals(isReversed() ? lastName(first.cf) : firstName(first.cf));
     }
 
     protected boolean recordLast(Row last)
     {
         lastReturnedKey = last.key;
-        lastReturnedName = lastName(last.cf);
+        lastReturnedName = isReversed() ? firstName(last.cf) : lastName(last.cf);
         return true;
+    }
+
+    protected boolean isReversed()
+    {
+        return ((SliceQueryFilter)command.predicate).reversed;
     }
 
     private AbstractBounds<RowPosition> makeIncludingKeyBounds(RowPosition lastReturnedKey)

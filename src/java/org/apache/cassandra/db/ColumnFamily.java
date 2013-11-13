@@ -451,6 +451,11 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         return getSortedColumns().iterator();
     }
 
+    public Iterator<Column> reverseIterator()
+    {
+        return getReverseSortedColumns().iterator();
+    }
+
     public boolean hasIrrelevantData(int gcBefore)
     {
         // Do we have gcable deletion infos?
