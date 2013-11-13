@@ -102,7 +102,7 @@ public class CompactionController
 
         List<SSTableReader> candidates = new ArrayList<SSTableReader>();
 
-        long minTimestamp = Integer.MAX_VALUE;
+        long minTimestamp = Long.MAX_VALUE;
 
         for (SSTableReader sstable : overlapping)
             minTimestamp = Math.min(minTimestamp, sstable.getMinTimestamp());
