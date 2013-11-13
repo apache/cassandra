@@ -76,12 +76,17 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
 
     protected boolean containsPreviousLast(Row first)
     {
-        return lastReturned != null && lastReturned.equals(firstName(first.cf));
+        return lastReturned != null && lastReturned.equals(isReversed() ? lastName(first.cf) : firstName(first.cf));
     }
 
     protected boolean recordLast(Row last)
     {
-        lastReturned = lastName(last.cf);
+        lastReturned = isReversed() ? firstName(last.cf) : lastName(last.cf);
         return true;
+    }
+
+    protected boolean isReversed()
+    {
+        return command.filter.reversed;
     }
 }

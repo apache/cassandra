@@ -93,7 +93,7 @@ abstract class AbstractQueryPager implements QueryPager
             remaining++;
         }
         // Otherwise, if 'lastWasRecorded', we queried for one more than the page size,
-        // so if the page was is full, trim the last entry
+        // so if the page is full, trim the last entry
         else if (lastWasRecorded && !exhausted)
         {
             // We've asked for one more than necessary
@@ -161,11 +161,14 @@ abstract class AbstractQueryPager implements QueryPager
     protected abstract List<Row> queryNextPage(int pageSize, ConsistencyLevel consistency, boolean localQuery) throws RequestValidationException, RequestExecutionException;
     protected abstract boolean containsPreviousLast(Row first);
     protected abstract boolean recordLast(Row last);
+    protected abstract boolean isReversed();
 
     private List<Row> discardFirst(List<Row> rows)
     {
         Row first = rows.get(0);
-        ColumnFamily newCf = discardFirst(first.cf);
+        ColumnFamily newCf = isReversed()
+                           ? discardLast(first.cf)
+                           : discardFirst(first.cf);
 
         int count = newCf.getColumnCount();
         List<Row> newRows = new ArrayList<Row>(count == 0 ? rows.size() - 1 : rows.size());
@@ -179,7 +182,9 @@ abstract class AbstractQueryPager implements QueryPager
     private List<Row> discardLast(List<Row> rows)
     {
         Row last = rows.get(rows.size() - 1);
-        ColumnFamily newCf = discardLast(last.cf);
+        ColumnFamily newCf = isReversed()
+                           ? discardFirst(last.cf)
+                           : discardLast(last.cf);
 
         int count = newCf.getColumnCount();
         List<Row> newRows = new ArrayList<Row>(count == 0 ? rows.size() - 1 : rows.size());
@@ -200,11 +205,27 @@ abstract class AbstractQueryPager implements QueryPager
 
     private ColumnFamily discardFirst(ColumnFamily cf)
     {
+        boolean isReversed = isReversed();
+        DeletionInfo.InOrderTester tester = cf.deletionInfo().inOrderTester(isReversed);
+        return isReversed
+             ? discardTail(cf, cf.reverseIterator(), tester)
+             : discardHead(cf, cf.iterator(), tester);
+    }
+
+    private ColumnFamily discardLast(ColumnFamily cf)
+    {
+        boolean isReversed = isReversed();
+        DeletionInfo.InOrderTester tester = cf.deletionInfo().inOrderTester(isReversed);
+        return isReversed
+             ? discardHead(cf, cf.reverseIterator(), tester)
+             : discardTail(cf, cf.iterator(), tester);
+    }
+
+    private ColumnFamily discardHead(ColumnFamily cf, Iterator<Column> iter, DeletionInfo.InOrderTester tester)
+    {
         ColumnFamily copy = cf.cloneMeShallow();
         ColumnCounter counter = columnCounter();
 
-        Iterator<Column> iter = cf.iterator();
-        DeletionInfo.InOrderTester tester = cf.inOrderDeletionTester();
         // Discard the first live
         while (iter.hasNext())
         {
@@ -220,22 +241,24 @@ abstract class AbstractQueryPager implements QueryPager
         return copy;
     }
 
-    private ColumnFamily discardLast(ColumnFamily cf)
+    private ColumnFamily discardTail(ColumnFamily cf, Iterator<Column> iter, DeletionInfo.InOrderTester tester)
     {
         ColumnFamily copy = cf.cloneMeShallow();
-        // Redoing the counting like that is not extremely efficient, but
-        // discardLast is only called in case of a race between paging and
-        // a deletion, which is pretty unlikely, so probably not a big deal
+        // Redoing the counting like that is not extremely efficient.
+        // This is called only for reversed slices or in the case of a race between
+        // paging and a deletion (pretty unlikely), so this is probably acceptable.
         int liveCount = columnCounter().countAll(cf).live();
 
         ColumnCounter counter = columnCounter();
-        DeletionInfo.InOrderTester tester = cf.inOrderDeletionTester();
         // Discard the first live
-        for (Column c : cf)
+        while (iter.hasNext())
         {
+            Column c = iter.next();
             counter.count(c, tester);
-            if (counter.live() < liveCount)
-                copy.addColumn(c);
+            if (counter.live() >= liveCount)
+                break;
+
+            copy.addColumn(c);
         }
         return copy;
     }
