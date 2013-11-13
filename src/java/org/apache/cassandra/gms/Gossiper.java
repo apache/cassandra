@@ -34,6 +34,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IAsyncCallback;
@@ -113,6 +116,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private boolean inShadowRound = false;
 
+    private volatile long lastProcessedMessageAt = System.currentTimeMillis();
+
     private class GossipTask implements Runnable
     {
         public void run()
@@ -162,8 +167,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     if (!gossipedToSeed || liveEndpoints.size() < seeds.size())
                         doGossipToSeed(message);
 
-                    if (logger.isTraceEnabled())
-                        logger.trace("Performing status check ...");
                     doStatusCheck();
                 }
             }
@@ -191,6 +194,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public void setLastProcessedMessageAt(long timeInMillis)
+    {
+        this.lastProcessedMessageAt = timeInMillis;
     }
 
     protected void checkSeedContact(InetAddress ep)
@@ -586,8 +594,25 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private void doStatusCheck()
     {
+        if (logger.isTraceEnabled())
+            logger.trace("Performing status check ...");
+
         long now = System.currentTimeMillis();
         long nowNano = System.nanoTime();
+
+        long pending = ((JMXEnabledThreadPoolExecutor) StageManager.getStage(Stage.GOSSIP)).getPendingTasks();
+        if (pending > 0 && lastProcessedMessageAt < now - 1000)
+        {
+            // if some new messages just arrived, give the executor some time to work on them
+            Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+
+            // still behind?  something's broke
+            if (lastProcessedMessageAt < now - 1000)
+            {
+                logger.warn("Gossip stage has {} pending tasks; skipping status check (no nodes will be marked down)", pending);
+                return;
+            }
+        }
 
         Set<InetAddress> eps = endpointStateMap.keySet();
         for (InetAddress endpoint : eps)
