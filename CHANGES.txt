@@ -17,6 +17,7 @@
  * Fix json2sstable handling of range tombstones (CASSANDRA-6316)
  * Fix missing one row in reverse query (CASSANDRA-6330)
  * Fix reading expired row value from row cache (CASSANDRA-6325)
+ * Fix AssertionError when doing set element deletion (CASSANDRA-6341)
 
 
 1.2.11
