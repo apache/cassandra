@@ -220,8 +220,11 @@ public class CompositeType extends AbstractCompositeType
     public boolean intersects(List<ByteBuffer> minColumnNames, List<ByteBuffer> maxColumnNames, SliceQueryFilter filter)
     {
         assert minColumnNames.size() == maxColumnNames.size();
+        outer:
         for (ColumnSlice slice : filter.slices)
         {
+            // This slices intersects if all component intersect. And we don't intersect
+            // only if no slice intersects
             ByteBuffer[] start = split(filter.isReversed() ? slice.finish : slice.start);
             ByteBuffer[] finish = split(filter.isReversed() ? slice.start : slice.finish);
             for (int i = 0; i < minColumnNames.size(); i++)
@@ -229,9 +232,10 @@ public class CompositeType extends AbstractCompositeType
                 AbstractType<?> t = types.get(i);
                 ByteBuffer s = i < start.length ? start[i] : ByteBufferUtil.EMPTY_BYTE_BUFFER;
                 ByteBuffer f = i < finish.length ? finish[i] : ByteBufferUtil.EMPTY_BYTE_BUFFER;
-                if (t.intersects(minColumnNames.get(i), maxColumnNames.get(i), s, f))
-                    return true;
+                if (!t.intersects(minColumnNames.get(i), maxColumnNames.get(i), s, f))
+                    continue outer;
             }
+            return true;
         }
         return false;
     }
