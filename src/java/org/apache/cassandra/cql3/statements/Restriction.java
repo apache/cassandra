@@ -37,8 +37,9 @@ public interface Restriction
     public boolean isSlice();
     public boolean isEQ();
     public boolean isIN();
+    public boolean isContains();
 
-    // Only supported for EQ and IN, but it's convenient to have here
+    // Not supported by Slice, but it's convenient to have here
     public List<ByteBuffer> values(List<ByteBuffer> variables) throws InvalidRequestException;
 
     public static class EQ implements Restriction
@@ -68,6 +69,11 @@ public interface Restriction
         }
 
         public boolean isIN()
+        {
+            return false;
+        }
+
+        public boolean isContains()
         {
             return false;
         }
@@ -103,6 +109,11 @@ public interface Restriction
         }
 
         public boolean isEQ()
+        {
+            return false;
+        }
+
+        public boolean isContains()
         {
             return false;
         }
@@ -210,6 +221,11 @@ public interface Restriction
             return false;
         }
 
+        public boolean isContains()
+        {
+            return false;
+        }
+
         public List<ByteBuffer> values(List<ByteBuffer> variables) throws InvalidRequestException
         {
             throw new UnsupportedOperationException();
@@ -300,6 +316,99 @@ public interface Restriction
                                                           boundInclusive[1] ? "<=" : "<",
                                                           bounds[1],
                                                           onToken ? "*" : "");
+        }
+    }
+
+    // This holds both CONTAINS and CONTAINS_KEY restriction because we might want to have both of them.
+    public static class Contains implements Restriction
+    {
+        private List<Term> values; // for CONTAINS
+        private List<Term> keys;   // for CONTAINS_KEY
+
+        public boolean hasContains()
+        {
+            return values != null;
+        }
+
+        public boolean hasContainsKey()
+        {
+            return keys != null;
+        }
+
+        public void add(Term t, boolean isKey)
+        {
+            if (isKey)
+                addKey(t);
+            else
+                addValue(t);
+        }
+
+        public void addValue(Term t)
+        {
+            if (values == null)
+                values = new ArrayList<>();
+            values.add(t);
+        }
+
+        public void addKey(Term t)
+        {
+            if (keys == null)
+                keys = new ArrayList<>();
+            keys.add(t);
+        }
+
+        public List<ByteBuffer> values(List<ByteBuffer> variables) throws InvalidRequestException
+        {
+            if (values == null)
+                return Collections.emptyList();
+
+            List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(values.size());
+            for (Term value : values)
+                buffers.add(value.bindAndGet(variables));
+            return buffers;
+        }
+
+        public List<ByteBuffer> keys(List<ByteBuffer> variables) throws InvalidRequestException
+        {
+            if (keys == null)
+                return Collections.emptyList();
+
+            List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(keys.size());
+            for (Term value : keys)
+                buffers.add(value.bindAndGet(variables));
+            return buffers;
+        }
+
+        public boolean isSlice()
+        {
+            return false;
+        }
+
+        public boolean isEQ()
+        {
+            return false;
+        }
+
+        public boolean isIN()
+        {
+            return false;
+        }
+
+        public boolean isContains()
+        {
+            return true;
+        }
+
+        public boolean isOnToken()
+        {
+            return false;
+        }
+
+
+        @Override
+        public String toString()
+        {
+            return String.format("CONTAINS(values=%s, keys=%s)", values, keys);
         }
     }
 }

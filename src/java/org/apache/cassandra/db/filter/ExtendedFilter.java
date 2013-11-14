@@ -19,6 +19,7 @@ package org.apache.cassandra.db.filter;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -30,8 +31,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 
 /**
@@ -129,7 +129,7 @@ public abstract class ExtendedFilter
      * @return true if the provided data satisfies all the expressions from
      * the clause of this filter.
      */
-    public abstract boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder);
+    public abstract boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder, ByteBuffer collectionElement);
 
     public static boolean satisfies(int comparison, IndexExpression.Operator op)
     {
@@ -279,10 +279,8 @@ public abstract class ExtendedFilter
             return pruned;
         }
 
-        public boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder)
+        public boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder, ByteBuffer collectionElement)
         {
-            // We enforces even the primary clause because reads are not synchronized with writes and it is thus possible to have a race
-            // where the index returned a row which doesn't have the primary column when we actually read it
             for (IndexExpression expression : clause)
             {
                 ColumnDefinition def = data.metadata().getColumnDefinition(expression.column);
@@ -301,6 +299,13 @@ public abstract class ExtendedFilter
                 }
                 else
                 {
+                    if (def.type.isCollection())
+                    {
+                        if (!collectionSatisfies(def, data, builder, expression, collectionElement))
+                            return false;
+                        continue;
+                    }
+
                     dataValue = extractDataValue(def, rowKey.key, data, builder);
                     validator = def.type;
                 }
@@ -313,6 +318,34 @@ public abstract class ExtendedFilter
                     return false;
             }
             return true;
+        }
+
+        private static boolean collectionSatisfies(ColumnDefinition def, ColumnFamily data, ColumnNameBuilder builder, IndexExpression expr, ByteBuffer collectionElement)
+        {
+            assert def.type.isCollection();
+
+            CollectionType type = (CollectionType)def.type;
+            builder = builder.copy().add(def.name.bytes);
+
+            switch (type.kind)
+            {
+                case LIST:
+                    assert collectionElement != null;
+                    return type.valueComparator().compare(data.getColumn(builder.add(collectionElement).build()).value(), expr.value) == 0;
+                case SET:
+                    return data.getColumn(builder.add(expr.value).build()) != null;
+                case MAP:
+                    if (expr.operator == IndexExpression.Operator.CONTAINS_KEY)
+                    {
+                        return data.getColumn(builder.add(expr.value).build()) != null;
+                    }
+                    else
+                    {
+                        assert collectionElement != null;
+                        return type.valueComparator().compare(data.getColumn(builder.add(collectionElement).build()).value(), expr.value) == 0;
+                    }
+            }
+            throw new AssertionError();
         }
 
         private ByteBuffer extractDataValue(ColumnDefinition def, ByteBuffer rowKey, ColumnFamily data, ColumnNameBuilder builder)
@@ -359,7 +392,7 @@ public abstract class ExtendedFilter
             return data;
         }
 
-        public boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder)
+        public boolean isSatisfiedBy(DecoratedKey rowKey, ColumnFamily data, ColumnNameBuilder builder, ByteBuffer collectionElement)
         {
             return true;
         }

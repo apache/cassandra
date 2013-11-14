@@ -135,6 +135,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                  */
                 DecoratedKey currentKey = null;
                 ColumnFamily data = null;
+                ByteBuffer previousPrefix = null;
 
                 while (true)
                 {
@@ -232,6 +233,16 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                         if (!filter.columnFilter(dk.key).maySelectPrefix(baseComparator, start))
                             continue;
 
+                        // If we've record the previous prefix, it means we're dealing with an index on the collection value. In
+                        // that case, we can have multiple index prefix for the same CQL3 row. In that case, we want to only add
+                        // the CQL3 row once (because requesting the data multiple time would be inefficient but more importantly
+                        // because we shouldn't count the columns multiple times with the lastCounted() call at the end of this
+                        // method).
+                        if (previousPrefix != null && previousPrefix.equals(start))
+                            continue;
+                        else
+                            previousPrefix = null;
+
                         logger.trace("Adding index hit to current row for {}", indexComparator.getString(column.name()));
 
                         // We always query the whole CQL3 row. In the case where the original filter was a name filter this might be
@@ -248,9 +259,15 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                             continue;
                         }
 
-                        assert newData != null : "An entry with not data should have been considered stale";
+                        assert newData != null : "An entry with no data should have been considered stale";
 
-                        if (!filter.isSatisfiedBy(dk, newData, entry.indexedEntryNameBuilder))
+                        // We know the entry is not stale and so the entry satisfy the primary clause. So whether
+                        // or not the data satisfies the other clauses, there will be no point to re-check the
+                        // same CQL3 row if we run into another collection value entry for this row.
+                        if (entry.indexedEntryCollectionKey != null)
+                            previousPrefix = start;
+
+                        if (!filter.isSatisfiedBy(dk, newData, entry.indexedEntryNameBuilder, entry.indexedEntryCollectionKey))
                             continue;
 
                         if (data == null)

@@ -756,13 +756,23 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 {
                     if (slice.hasBound(b))
                     {
-                        ByteBuffer value = slice.bound(b, variables);
-                        if (value == null)
-                            throw new InvalidRequestException(String.format("Unsupported null value for indexed column %s", def.name));
-                        if (value.remaining() > 0xFFFF)
-                            throw new InvalidRequestException("Index expression values may not be larger than 64K");
+                        ByteBuffer value = validateIndexedValue(def, slice.bound(b, variables));
                         expressions.add(new IndexExpression(def.name.bytes, slice.getIndexOperator(b), value));
                     }
+                }
+            }
+            else if (restriction.isContains())
+            {
+                Restriction.Contains contains = (Restriction.Contains)restriction;
+                for (ByteBuffer value : contains.values(variables))
+                {
+                    validateIndexedValue(def, value);
+                    expressions.add(new IndexExpression(def.name.bytes, IndexExpression.Operator.CONTAINS, value));
+                }
+                for (ByteBuffer key : contains.keys(variables))
+                {
+                    validateIndexedValue(def, key);
+                    expressions.add(new IndexExpression(def.name.bytes, IndexExpression.Operator.CONTAINS_KEY, key));
                 }
             }
             else
@@ -772,17 +782,21 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 if (values.size() != 1)
                     throw new InvalidRequestException("IN restrictions are not supported on indexed columns");
 
-                ByteBuffer value = values.get(0);
-                if (value == null)
-                    throw new InvalidRequestException(String.format("Unsupported null value for indexed column %s", def.name));
-                if (value.remaining() > 0xFFFF)
-                    throw new InvalidRequestException("Index expression values may not be larger than 64K");
+                ByteBuffer value = validateIndexedValue(def, values.get(0));
                 expressions.add(new IndexExpression(def.name.bytes, IndexExpression.Operator.EQ, value));
             }
         }
         return expressions;
     }
 
+    private static ByteBuffer validateIndexedValue(ColumnDefinition def, ByteBuffer value) throws InvalidRequestException
+    {
+        if (value == null)
+            throw new InvalidRequestException(String.format("Unsupported null value for indexed column %s", def.name));
+        if (value.remaining() > 0xFFFF)
+            throw new InvalidRequestException("Index expression values may not be larger than 64K");
+        return value;
+    }
 
     private Iterable<Column> columnsInOrder(final ColumnFamily cf, final List<ByteBuffer> variables) throws InvalidRequestException
     {
@@ -1109,7 +1123,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 }
 
                 stmt.restrictedColumns.add(def);
-                if (def.isIndexed() && rel.operator() == Relation.Type.EQ)
+                if (def.isIndexed() && rel.operator().allowsIndexQuery())
                 {
                     hasQueriableIndex = true;
                     if (def.kind == ColumnDefinition.Kind.CLUSTERING_COLUMN)
@@ -1490,8 +1504,43 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                         ((Restriction.Slice)restriction).setBound(def.name, newRel.operator(), t);
                     }
                     break;
+                case CONTAINS_KEY:
+                    if (!(receiver.type instanceof MapType))
+                        throw new InvalidRequestException(String.format("Cannot use CONTAINS_KEY on non-map column %s", def.name));
+                    // Fallthrough on purpose
+                case CONTAINS:
+                    {
+                        if (!receiver.type.isCollection())
+                            throw new InvalidRequestException(String.format("Cannot use %s relation on non collection column %s", newRel.operator(), def.name));
+
+                        if (restriction == null)
+                            restriction = new Restriction.Contains();
+                        else if (!restriction.isContains())
+                            throw new InvalidRequestException(String.format("Collection column %s can only be restricted by CONTAINS or CONTAINS KEY", def.name));
+                        boolean isKey = newRel.operator() == Relation.Type.CONTAINS_KEY;
+                        receiver = makeCollectionReceiver(receiver, isKey);
+                        Term t = newRel.getValue().prepare(receiver);
+                        ((Restriction.Contains)restriction).add(t, isKey);
+                    }
             }
             return restriction;
+        }
+
+        private static ColumnSpecification makeCollectionReceiver(ColumnSpecification collection, boolean isKey)
+        {
+            assert collection.type.isCollection();
+            switch (((CollectionType)collection.type).kind)
+            {
+                case LIST:
+                    assert !isKey;
+                    return Lists.valueSpecOf(collection);
+                case SET:
+                    assert !isKey;
+                    return Sets.valueSpecOf(collection);
+                case MAP:
+                    return isKey ? Maps.keySpecOf(collection) : Maps.valueSpecOf(collection);
+            }
+            throw new AssertionError();
         }
 
         @Override

@@ -40,7 +40,7 @@ public class IndexExpression
 
     public enum Operator
     {
-        EQ, GTE, GT, LTE, LT;
+        EQ, GTE, GT, LTE, LT, CONTAINS, CONTAINS_KEY;
 
         public static Operator findByOrdinal(int ordinal)
         {
@@ -55,8 +55,25 @@ public class IndexExpression
                     return LTE;
                 case 4:
                     return LT;
+                case 5:
+                    return CONTAINS;
+                case 6:
+                    return CONTAINS_KEY;
                 default:
                     throw new AssertionError();
+            }
+        }
+
+        public boolean allowsIndexQuery()
+        {
+            switch (this)
+            {
+                case EQ:
+                case CONTAINS:
+                case CONTAINS_KEY:
+                    return true;
+                default:
+                    return false;
             }
         }
     }

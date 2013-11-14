@@ -53,6 +53,19 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
 
     public static CompositesIndex create(ColumnDefinition cfDef)
     {
+        if (cfDef.type.isCollection())
+        {
+            switch (((CollectionType)cfDef.type).kind)
+            {
+                case LIST:
+                    return new CompositesIndexOnCollectionValue();
+                case SET:
+                    return new CompositesIndexOnCollectionKey();
+                case MAP:
+                    return new CompositesIndexOnCollectionValue();
+            }
+        }
+
         switch (cfDef.kind)
         {
             case CLUSTERING_COLUMN:
@@ -70,6 +83,19 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
     // Check SecondaryIndex.getIndexComparator if you want to know why this is static
     public static CompositeType getIndexComparator(CFMetaData baseMetadata, ColumnDefinition cfDef)
     {
+        if (cfDef.type.isCollection())
+        {
+            switch (((CollectionType)cfDef.type).kind)
+            {
+                case LIST:
+                    return CompositesIndexOnCollectionValue.buildIndexComparator(baseMetadata, cfDef);
+                case SET:
+                    return CompositesIndexOnCollectionKey.buildIndexComparator(baseMetadata, cfDef);
+                case MAP:
+                    return CompositesIndexOnCollectionValue.buildIndexComparator(baseMetadata, cfDef);
+            }
+        }
+
         switch (cfDef.kind)
         {
             case CLUSTERING_COLUMN:
@@ -127,9 +153,11 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
         ColumnDefinition columnDef = columnDefs.iterator().next();
         Map<String, String> options = new HashMap<String, String>(columnDef.getIndexOptions());
 
-        // We take no options though we used to have one called "prefix_size",
-        // so skip it silently for backward compatibility sake.
+        // We used to have an option called "prefix_size" so skip it silently for backward compatibility sake.
         options.remove("prefix_size");
+
+        if (columnDef.type.isCollection())
+            options.remove("index_values");
 
         if (!options.isEmpty())
             throw new ConfigurationException("Unknown options provided for COMPOSITES index: " + options.keySet());
@@ -143,14 +171,30 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
 
         public final ByteBuffer indexedKey;
         public final ColumnNameBuilder indexedEntryNameBuilder;
+        public final ByteBuffer indexedEntryCollectionKey; // may be null
 
-        public IndexedEntry(DecoratedKey indexValue, ByteBuffer indexEntry, long timestamp, ByteBuffer indexedKey, ColumnNameBuilder indexedEntryNameBuilder)
+        public IndexedEntry(DecoratedKey indexValue,
+                            ByteBuffer indexEntry,
+                            long timestamp,
+                            ByteBuffer indexedKey,
+                            ColumnNameBuilder indexedEntryNameBuilder)
+        {
+            this(indexValue, indexEntry, timestamp, indexedKey, indexedEntryNameBuilder, null);
+        }
+
+        public IndexedEntry(DecoratedKey indexValue,
+                            ByteBuffer indexEntry,
+                            long timestamp,
+                            ByteBuffer indexedKey,
+                            ColumnNameBuilder indexedEntryNameBuilder,
+                            ByteBuffer indexedEntryCollectionKey)
         {
             this.indexValue = indexValue;
             this.indexEntry = indexEntry;
             this.timestamp = timestamp;
             this.indexedKey = indexedKey;
             this.indexedEntryNameBuilder = indexedEntryNameBuilder;
+            this.indexedEntryCollectionKey = indexedEntryCollectionKey;
         }
 
         public ByteBuffer indexedEntryStart()

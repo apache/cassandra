@@ -18,9 +18,12 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.util.Collections;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
@@ -91,9 +94,6 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         if (cfm.isDense() && cd.kind != ColumnDefinition.Kind.REGULAR)
             throw new InvalidRequestException(String.format("Secondary index on %s column %s is not yet supported for compact table", cd.kind, columnName));
 
-        if (cd.type.isCollection() && !isCustom)
-            throw new InvalidRequestException("Indexes on collections are no yet supported");
-
         if (cd.kind == ColumnDefinition.Kind.PARTITION_KEY && cd.isOnAllComponents())
             throw new InvalidRequestException(String.format("Cannot add secondary index to already primarily indexed column %s", columnName));
     }
@@ -108,11 +108,24 @@ public class CreateIndexStatement extends SchemaAlteringStatement
             return;
 
         if (isCustom)
+        {
             cd.setIndexType(IndexType.CUSTOM, Collections.singletonMap(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, indexClass));
+        }
         else if (cfm.hasCompositeComparator())
-            cd.setIndexType(IndexType.COMPOSITES, Collections.<String, String>emptyMap());
+        {
+            Map<String, String> options = Collections.emptyMap();
+            // For now, we only allow indexing values for collections, but we could later allow
+            // to also index map keys, so we record that this is the values we index to make our
+            // lives easier then.
+            if (cd.type.isCollection())
+                options = ImmutableMap.of("index_values", "");
+
+            cd.setIndexType(IndexType.COMPOSITES, options);
+        }
         else
+        {
             cd.setIndexType(IndexType.KEYS, Collections.<String, String>emptyMap());
+        }
 
         cd.setIndexName(indexName);
         cfm.addDefaultIndexNames();

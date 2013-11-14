@@ -50,8 +50,19 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(baseCfs.metadata, columnDef, indexComparator);
         indexCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.keyspace,
                                                              indexedCfMetadata.cfName,
-                                                             new LocalPartitioner(columnDef.type),
+                                                             new LocalPartitioner(getIndexKeyComparator()),
                                                              indexedCfMetadata);
+    }
+
+    protected AbstractType<?> getIndexKeyComparator()
+    {
+        return columnDef.type;
+    }
+
+    @Override
+    public DecoratedKey getIndexKeyFor(ByteBuffer value)
+    {
+        return new DecoratedKey(new LocalToken(getIndexKeyComparator(), value), value);
     }
 
     protected abstract ByteBuffer makeIndexColumnName(ByteBuffer rowKey, Column column);
