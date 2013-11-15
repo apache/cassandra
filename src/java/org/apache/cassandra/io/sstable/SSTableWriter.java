@@ -313,8 +313,8 @@ public class SSTableWriter extends SSTable
         SSTableMetadata sstableMetadata = p.right;
 
         // finalize in-memory state for the reader
-        SegmentedFile ifile = iwriter.builder.complete(newdesc.filenameFor(SSTable.COMPONENT_INDEX));
-        SegmentedFile dfile = dbuilder.complete(newdesc.filenameFor(SSTable.COMPONENT_DATA));
+        SegmentedFile ifile = iwriter.builder.complete(newdesc.filenameFor(Component.PRIMARY_INDEX));
+        SegmentedFile dfile = dbuilder.complete(newdesc.filenameFor(Component.DATA));
         SSTableReader sstable = SSTableReader.internalOpen(newdesc,
                                                            components,
                                                            metadata,
@@ -328,7 +328,7 @@ public class SSTableWriter extends SSTable
         sstable.first = getMinimalKey(first);
         sstable.last = getMinimalKey(last);
         // try to save the summaries to disk
-        SSTableReader.saveSummary(sstable, iwriter.builder, dbuilder);
+        sstable.saveSummary(iwriter.builder, dbuilder);
         iwriter = null;
         dbuilder = null;
         return sstable;
@@ -355,7 +355,7 @@ public class SSTableWriter extends SSTable
 
     private static void writeMetadata(Descriptor desc, SSTableMetadata sstableMetadata,  Set<Integer> ancestors)
     {
-        SequentialWriter out = SequentialWriter.open(new File(desc.filenameFor(SSTable.COMPONENT_STATS)), true);
+        SequentialWriter out = SequentialWriter.open(new File(desc.filenameFor(Component.STATS)), true);
         try
         {
             SSTableMetadata.serializer.serialize(sstableMetadata, ancestors, out.stream);
@@ -411,7 +411,7 @@ public class SSTableWriter extends SSTable
 
         IndexWriter(long keyCount)
         {
-            indexFile = SequentialWriter.open(new File(descriptor.filenameFor(SSTable.COMPONENT_INDEX)),
+            indexFile = SequentialWriter.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)),
                                               !metadata.populateIoCacheOnFlush());
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
             summary = new IndexSummaryBuilder(keyCount, metadata.getIndexInterval());
@@ -446,7 +446,7 @@ public class SSTableWriter extends SSTable
         {
             if (components.contains(Component.FILTER))
             {
-                String path = descriptor.filenameFor(SSTable.COMPONENT_FILTER);
+                String path = descriptor.filenameFor(Component.FILTER);
                 try
                 {
                     // bloom filter

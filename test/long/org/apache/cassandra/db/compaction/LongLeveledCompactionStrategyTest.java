@@ -31,7 +31,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -106,7 +105,7 @@ public class LongLeveledCompactionStrategyTest extends SchemaLoader
         {
             List<SSTableReader> sstables = manifest.getLevel(level);
             // score check
-            assert (double) SSTable.getTotalBytes(sstables) / manifest.maxBytesForLevel(level) < 1.00;
+            assert (double) SSTableReader.getTotalBytes(sstables) / manifest.maxBytesForLevel(level) < 1.00;
             // overlap check for levels greater than 0
             if (level > 0)
             {

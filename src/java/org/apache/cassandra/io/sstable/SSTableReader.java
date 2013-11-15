@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Ordering;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
@@ -67,8 +68,28 @@ public class SSTableReader extends SSTable implements Closeable
     private static final ScheduledThreadPoolExecutor syncExecutor = new ScheduledThreadPoolExecutor(1);
     private static final RateLimiter meterSyncThrottle = RateLimiter.create(100.0);
 
+    public static final Comparator<SSTableReader> maxTimestampComparator = new Comparator<SSTableReader>()
+    {
+        public int compare(SSTableReader o1, SSTableReader o2)
+        {
+            long ts1 = o1.getMaxTimestamp();
+            long ts2 = o2.getMaxTimestamp();
+            return (ts1 > ts2 ? -1 : (ts1 == ts2 ? 0 : 1));
+        }
+    };
+
+    public static final Comparator<SSTableReader> sstableComparator = new Comparator<SSTableReader>()
+    {
+        public int compare(SSTableReader o1, SSTableReader o2)
+        {
+            return o1.first.compareTo(o2.first);
+        }
+    };
+
+    public static final Ordering<SSTableReader> sstableOrdering = Ordering.from(sstableComparator);
+
     /**
-     * maxDataAge is a timestamp in local server time (e.g. System.currentTimeMilli) which represents an uppper bound
+     * maxDataAge is a timestamp in local server time (e.g. System.currentTimeMilli) which represents an upper bound
      * to the newest piece of data stored in the sstable. In other words, this sstable does not contain items created
      * later than maxDataAge.
      *
@@ -168,7 +189,7 @@ public class SSTableReader extends SSTable implements Closeable
         SegmentedFile.Builder dbuilder = sstable.compression
                                        ? new CompressedSegmentedFile.Builder()
                                        : new BufferedSegmentedFile.Builder();
-        if (!loadSummary(sstable, ibuilder, dbuilder, sstable.metadata))
+        if (!sstable.loadSummary(ibuilder, dbuilder, sstable.metadata))
             sstable.buildSummary(false, ibuilder, dbuilder, false);
         sstable.ifile = ibuilder.complete(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX));
         sstable.dfile = dbuilder.complete(sstable.descriptor.filenameFor(Component.DATA));
@@ -218,7 +239,7 @@ public class SSTableReader extends SSTable implements Closeable
         assert components.contains(Component.DATA) : "Data component is missing for sstable" + descriptor;
         assert components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
 
-        logger.info("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(COMPONENT_DATA)).length());
+        logger.info("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(Component.DATA)).length());
 
         SSTableMetadata sstableMetadata = SSTableMetadata.serializer.deserialize(descriptor).left;
 
@@ -247,7 +268,7 @@ public class SSTableReader extends SSTable implements Closeable
                                                       final CFMetaData metadata,
                                                       final IPartitioner partitioner)
     {
-        final Collection<SSTableReader> sstables = new LinkedBlockingQueue<SSTableReader>();
+        final Collection<SSTableReader> sstables = new LinkedBlockingQueue<>();
 
         ExecutorService executor = DebuggableThreadPoolExecutor.createWithFixedPoolSize("SSTableBatchOpen", FBUtilities.getAvailableProcessors());
         for (final Map.Entry<Descriptor, Set<Component>> entry : entries)
@@ -365,6 +386,16 @@ public class SSTableReader extends SSTable implements Closeable
         this.bf = bloomFilter;
     }
 
+    public static long getTotalBytes(Iterable<SSTableReader> sstables)
+    {
+        long sum = 0;
+        for (SSTableReader sstable : sstables)
+        {
+            sum += sstable.onDiskLength();
+        }
+        return sum;
+    }
+
     /**
      * Clean up all opened resources.
      *
@@ -441,18 +472,18 @@ public class SSTableReader extends SSTable implements Closeable
                                          ? SegmentedFile.getCompressedBuilder()
                                          : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
 
-        boolean summaryLoaded = loadSummary(this, ibuilder, dbuilder, metadata);
+        boolean summaryLoaded = loadSummary(ibuilder, dbuilder, metadata);
         if (recreateBloomFilter || !summaryLoaded)
             buildSummary(recreateBloomFilter, ibuilder, dbuilder, summaryLoaded);
 
         ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
         dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
         if (saveSummaryIfCreated && (recreateBloomFilter || !summaryLoaded)) // save summary information to disk
-            saveSummary(this, ibuilder, dbuilder);
+            saveSummary(ibuilder, dbuilder);
     }
 
-     private void buildSummary(boolean recreateBloomFilter, SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder, boolean summaryLoaded) throws IOException
-     {
+    private void buildSummary(boolean recreateBloomFilter, SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder, boolean summaryLoaded) throws IOException
+    {
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
         RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
 
@@ -505,27 +536,27 @@ public class SSTableReader extends SSTable implements Closeable
         last = getMinimalKey(last);
     }
 
-    public static boolean loadSummary(SSTableReader reader, SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder, CFMetaData metadata)
+    public boolean loadSummary(SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder, CFMetaData metadata)
     {
-        File summariesFile = new File(reader.descriptor.filenameFor(Component.SUMMARY));
-        if (!reader.descriptor.version.offHeapSummaries || !summariesFile.exists())
+        File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
+        if (!descriptor.version.offHeapSummaries || !summariesFile.exists())
             return false;
 
         DataInputStream iStream = null;
         try
         {
             iStream = new DataInputStream(new FileInputStream(summariesFile));
-            reader.indexSummary = IndexSummary.serializer.deserialize(iStream, reader.partitioner);
-            if (reader.indexSummary.getIndexInterval() != metadata.getIndexInterval())
+            indexSummary = IndexSummary.serializer.deserialize(iStream, partitioner);
+            if (indexSummary.getIndexInterval() != metadata.getIndexInterval())
             {
                 iStream.close();
                 logger.debug("Cannot read the saved summary for {} because Index Interval changed from {} to {}.",
-                             reader.toString(), reader.indexSummary.getIndexInterval(), metadata.getIndexInterval());
+                             toString(), indexSummary.getIndexInterval(), metadata.getIndexInterval());
                 FileUtils.deleteWithConfirm(summariesFile);
                 return false;
             }
-            reader.first = reader.partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
-            reader.last = reader.partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
+            first = partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
+            last = partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
             ibuilder.deserializeBounds(iStream);
             dbuilder.deserializeBounds(iStream);
         }
@@ -544,9 +575,9 @@ public class SSTableReader extends SSTable implements Closeable
         return true;
     }
 
-    public static void saveSummary(SSTableReader reader, SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder)
+    public void saveSummary(SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder)
     {
-        File summariesFile = new File(reader.descriptor.filenameFor(Component.SUMMARY));
+        File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
         if (summariesFile.exists())
             summariesFile.delete();
 
@@ -554,9 +585,9 @@ public class SSTableReader extends SSTable implements Closeable
         try
         {
             oStream = new DataOutputStream(new FileOutputStream(summariesFile));
-            IndexSummary.serializer.serialize(reader.indexSummary, oStream);
-            ByteBufferUtil.writeWithLength(reader.first.key, oStream);
-            ByteBufferUtil.writeWithLength(reader.last.key, oStream);
+            IndexSummary.serializer.serialize(indexSummary, oStream);
+            ByteBufferUtil.writeWithLength(first.key, oStream);
+            ByteBufferUtil.writeWithLength(last.key, oStream);
             ibuilder.serializeBounds(oStream);
             dbuilder.serializeBounds(oStream);
         }

@@ -435,7 +435,7 @@ public class SSTableMetadata
         public Pair<SSTableMetadata, Set<Integer>> deserialize(Descriptor descriptor, boolean loadSSTableLevel) throws IOException
         {
             logger.debug("Load metadata for {}", descriptor);
-            File statsFile = new File(descriptor.filenameFor(SSTable.COMPONENT_STATS));
+            File statsFile = new File(descriptor.filenameFor(Component.STATS));
             if (!statsFile.exists())
             {
                 logger.debug("No sstable stats for {}", descriptor);

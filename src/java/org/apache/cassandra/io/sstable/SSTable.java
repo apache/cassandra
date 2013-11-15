@@ -24,7 +24,6 @@ import java.util.concurrent.CopyOnWriteArraySet;
 
 import com.google.common.base.Predicates;
 import com.google.common.collect.Collections2;
-import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
 import org.slf4j.Logger;
@@ -57,26 +56,9 @@ public abstract class SSTable
 {
     static final Logger logger = LoggerFactory.getLogger(SSTable.class);
 
-    // TODO: replace with 'Component' objects
-    public static final String COMPONENT_DATA = Component.Type.DATA.repr;
-    public static final String COMPONENT_INDEX = Component.Type.PRIMARY_INDEX.repr;
-    public static final String COMPONENT_FILTER = Component.Type.FILTER.repr;
-    public static final String COMPONENT_STATS = Component.Type.STATS.repr;
-    public static final String COMPONENT_DIGEST = Component.Type.DIGEST.repr;
-
     public static final String TEMPFILE_MARKER = "tmp";
 
     public static final int TOMBSTONE_HISTOGRAM_BIN_SIZE = 100;
-
-    public static final Comparator<SSTableReader> maxTimestampComparator = new Comparator<SSTableReader>()
-    {
-        public int compare(SSTableReader o1, SSTableReader o2)
-        {
-            long ts1 = o1.getMaxTimestamp();
-            long ts2 = o2.getMaxTimestamp();
-            return (ts1 > ts2 ? -1 : (ts1 == ts2 ? 0 : 1));
-        }
-    };
 
     public final Descriptor descriptor;
     protected final Set<Component> components;
@@ -101,25 +83,12 @@ public abstract class SSTable
         assert partitioner != null;
 
         this.descriptor = descriptor;
-        Set<Component> dataComponents = new HashSet<Component>(components);
-        for (Component component : components)
-            assert component.type != Component.Type.COMPACTED_MARKER;
-
+        Set<Component> dataComponents = new HashSet<>(components);
         this.compression = dataComponents.contains(Component.COMPRESSION_INFO);
-        this.components = new CopyOnWriteArraySet<Component>(dataComponents);
+        this.components = new CopyOnWriteArraySet<>(dataComponents);
         this.metadata = metadata;
         this.partitioner = partitioner;
     }
-
-    public static final Comparator<SSTableReader> sstableComparator = new Comparator<SSTableReader>()
-    {
-        public int compare(SSTableReader o1, SSTableReader o2)
-        {
-            return o1.first.compareTo(o2.first);
-        }
-    };
-
-    public static final Ordering<SSTableReader> sstableOrdering = Ordering.from(sstableComparator);
 
     /**
      * We use a ReferenceQueue to manage deleting files that have been compacted
@@ -139,15 +108,11 @@ public abstract class SSTable
             FileUtils.deleteWithConfirm(desc.filenameFor(Component.DATA));
         for (Component component : components)
         {
-            if (component.equals(Component.DATA) || component.equals(Component.COMPACTED_MARKER) || component.equals(Component.SUMMARY))
+            if (component.equals(Component.DATA) || component.equals(Component.SUMMARY))
                 continue;
 
             FileUtils.deleteWithConfirm(desc.filenameFor(component));
         }
-        // remove the COMPACTED_MARKER component last if it exists
-        // Note: newly created sstable should not have a marker, but we keep this for now to make sure
-        // we don't leave older marker around
-        FileUtils.delete(desc.filenameFor(Component.COMPACTED_MARKER));
         FileUtils.delete(desc.filenameFor(Component.SUMMARY));
 
         logger.debug("Deleted {}", desc);
@@ -167,12 +132,12 @@ public abstract class SSTable
 
     public String getFilename()
     {
-        return descriptor.filenameFor(COMPONENT_DATA);
+        return descriptor.filenameFor(Component.DATA);
     }
 
     public String getIndexFilename()
     {
-        return descriptor.filenameFor(COMPONENT_INDEX);
+        return descriptor.filenameFor(Component.PRIMARY_INDEX);
     }
 
     public String getColumnFamilyName()
@@ -260,16 +225,6 @@ public abstract class SSTable
         long estimatedRows = ifile.length() / (ifile.getFilePointer() / keys);
         ifile.seek(0);
         return estimatedRows;
-    }
-
-    public static long getTotalBytes(Iterable<SSTableReader> sstables)
-    {
-        long sum = 0;
-        for (SSTableReader sstable : sstables)
-        {
-            sum += sstable.onDiskLength();
-        }
-        return sum;
     }
 
     public long bytesOnDisk()

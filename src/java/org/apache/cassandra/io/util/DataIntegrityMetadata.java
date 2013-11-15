@@ -145,10 +145,10 @@ public class DataIntegrityMetadata
             byte[] bytes = digest.digest();
             if (bytes == null)
                 return;
-            SequentialWriter out = SequentialWriter.open(new File(descriptor.filenameFor(SSTable.COMPONENT_DIGEST)), true);
+            SequentialWriter out = SequentialWriter.open(new File(descriptor.filenameFor(Component.DIGEST)), true);
             // Writting output compatible with sha1sum
             Descriptor newdesc = descriptor.asTemporary(false);
-            String[] tmp = newdesc.filenameFor(SSTable.COMPONENT_DATA).split(Pattern.quote(File.separator));
+            String[] tmp = newdesc.filenameFor(Component.DATA).split(Pattern.quote(File.separator));
             String dataFileName = tmp[tmp.length - 1];
             try
             {

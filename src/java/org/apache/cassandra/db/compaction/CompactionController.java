@@ -30,7 +30,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataTracker;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.AlwaysPresentFilter;
@@ -118,7 +117,7 @@ public class CompactionController
         // we still need to keep candidates that might shadow something in a
         // non-candidate sstable. And if we remove a sstable from the candidates, we
         // must take it's timestamp into account (hence the sorting below).
-        Collections.sort(candidates, SSTable.maxTimestampComparator);
+        Collections.sort(candidates, SSTableReader.maxTimestampComparator);
 
         Iterator<SSTableReader> iterator = candidates.iterator();
         while (iterator.hasNext())

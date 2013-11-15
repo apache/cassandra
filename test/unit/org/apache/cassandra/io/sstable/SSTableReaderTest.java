@@ -278,7 +278,7 @@ public class SSTableReaderTest extends SchemaLoader
         SegmentedFile.Builder dbuilder = sstable.compression
                                           ? SegmentedFile.getCompressedBuilder()
                                           : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
-        SSTableReader.saveSummary(sstable, ibuilder, dbuilder);
+        sstable.saveSummary(ibuilder, dbuilder);
 
         SSTableReader reopened = SSTableReader.open(sstable.descriptor);
         assert reopened.first.token instanceof LocalToken;
