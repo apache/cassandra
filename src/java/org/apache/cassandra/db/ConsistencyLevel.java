@@ -48,7 +48,7 @@ public enum ConsistencyLevel
     ALL         (5),
     LOCAL_QUORUM(6, true),
     EACH_QUORUM (7),
-    LOCAL_ONE   (8, true);
+    LOCAL_ONE   (10, true);
 
     private static final Logger logger = LoggerFactory.getLogger(ConsistencyLevel.class);
 
