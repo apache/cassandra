@@ -37,7 +37,6 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.transport.ProtocolException;
 
-
 public enum ConsistencyLevel
 {
     ANY         (0),
