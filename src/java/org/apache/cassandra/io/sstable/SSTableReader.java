@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -106,6 +107,7 @@ public class SSTableReader extends SSTable implements Closeable
 
     @VisibleForTesting
     public RestorableMeter readMeter;
+    private ScheduledFuture readMeterSyncFuture;
 
     public static long getApproximateKeyCount(Iterable<SSTableReader> sstables, CFMetaData metadata)
     {
@@ -331,17 +333,21 @@ public class SSTableReader extends SSTable implements Closeable
         if (Keyspace.SYSTEM_KS.equals(desc.ksname) || Config.isClientMode())
         {
             readMeter = null;
+            readMeterSyncFuture = null;
             return;
         }
 
         readMeter = SystemKeyspace.getSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
         // sync the average read rate to system.sstable_activity every five minutes, starting one minute from now
-        syncExecutor.scheduleAtFixedRate(new Runnable()
+        readMeterSyncFuture = syncExecutor.scheduleAtFixedRate(new Runnable()
         {
             public void run()
             {
-                meterSyncThrottle.acquire();
-                SystemKeyspace.persistSSTableReadMeter(desc.ksname, desc.cfname, desc.generation, readMeter);
+                if (!isCompacted.get())
+                {
+                    meterSyncThrottle.acquire();
+                    SystemKeyspace.persistSSTableReadMeter(desc.ksname, desc.cfname, desc.generation, readMeter);
+                }
             }
         }, 1, 5, TimeUnit.MINUTES);
     }
@@ -372,6 +378,9 @@ public class SSTableReader extends SSTable implements Closeable
      */
     public void close() throws IOException
     {
+        if (readMeterSyncFuture != null)
+            readMeterSyncFuture.cancel(false);
+
         // Force finalizing mmapping if necessary
         ifile.cleanup();
         dfile.cleanup();

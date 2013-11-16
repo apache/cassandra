@@ -1,4 +1,5 @@
 2.0.3
+ * Cancel read meter task when closing SSTR (CASSANDRA-6358)
  * free off-heap IndexSummary during bulk (CASSANDRA-6359)
  * Recover from IOException in accept() thread (CASSANDRA-6349)
  * Improve Gossip tolerance of abnormally slow tasks (CASSANDRA-6338)
