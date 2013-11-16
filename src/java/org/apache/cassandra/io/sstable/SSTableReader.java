@@ -605,8 +605,9 @@ public class SSTableReader extends SSTable implements Closeable
         }
     }
 
-    public void releaseSummary()
+    public void releaseSummary() throws IOException
     {
+        indexSummary.close();
         indexSummary = null;
     }
 
