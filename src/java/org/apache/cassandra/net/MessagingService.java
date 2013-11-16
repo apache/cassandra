@@ -27,15 +27,16 @@ import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -50,6 +51,7 @@ import org.apache.cassandra.gms.GossipDigestAck;
 import org.apache.cassandra.gms.GossipDigestAck2;
 import org.apache.cassandra.gms.GossipDigestSyn;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.metrics.ConnectionMetrics;
 import org.apache.cassandra.metrics.DroppedMessageMetrics;
@@ -858,9 +860,10 @@ public final class MessagingService implements MessagingServiceMBean
         {
             while (true)
             {
+                Socket socket = null;
                 try
                 {
-                    Socket socket = server.accept();
+                    socket = server.accept();
                     if (authenticate(socket))
                     {
                         socket.setKeepAlive(true);
@@ -890,17 +893,18 @@ public final class MessagingService implements MessagingServiceMBean
                 catch (AsynchronousCloseException e)
                 {
                     // this happens when another thread calls close().
-                    logger.info("MessagingService shutting down server thread.");
+                    logger.info("MessagingService shutting down server thread");
                     break;
                 }
                 catch (ClosedChannelException e)
                 {
-                    logger.debug("MessagingService server thread already closed.");
+                    logger.debug("MessagingService server thread already closed");
                     break;
                 }
                 catch (IOException e)
                 {
-                    throw new RuntimeException(e);
+                    logger.debug("Error reading the socket " + socket, e);
+                    FileUtils.closeQuietly(socket);
                 }
             }
         }

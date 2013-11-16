@@ -12,6 +12,7 @@
 
 
 2.0.3
+ * Recover from IOException in accept() thread (CASSANDRA-6349)
  * Improve Gossip tolerance of abnormally slow tasks (CASSANDRA-6338)
  * Fix trying to hint timed out counter writes (CASSANDRA-6322)
  * Allow restoring specific columnfamilies from archived CL (CASSANDRA-4809)
