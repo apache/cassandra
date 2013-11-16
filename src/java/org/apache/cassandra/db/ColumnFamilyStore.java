@@ -328,6 +328,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SystemKeyspace.removeTruncationRecord(metadata.cfId);
             data.unreferenceSSTables();
             indexManager.invalidate();
+
+            for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
+            {
+                if (key.cfId == metadata.cfId)
+                    invalidateCachedRow(key);
+            }
         }
         catch (Exception e)
         {
@@ -1257,7 +1263,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         finally
         {
             if (sentinelSuccess && data == null)
-                CacheService.instance.rowCache.remove(key);
+                invalidateCachedRow(key);
         }
     }
 
@@ -1967,7 +1973,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
                 {
                     if (key.cfId == metadata.cfId)
-                        CacheService.instance.rowCache.remove(key);
+                        invalidateCachedRow(key);
                 }
             }
         };
