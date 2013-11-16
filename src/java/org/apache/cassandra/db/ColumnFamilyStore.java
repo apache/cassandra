@@ -297,6 +297,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SystemTable.removeTruncationRecord(metadata.cfId);
             data.unreferenceSSTables();
             indexManager.invalidate();
+
+            for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
+            {
+                if (key.cfId == metadata.cfId)
+                    invalidateCachedRow(key);
+            }
         }
         catch (Exception e)
         {
