@@ -106,7 +106,7 @@ public class SSTableLoader implements StreamEventHandler
 
                 try
                 {
-                    // To conserve heap space, open SSTableReaders without bloom filters and discard
+                    // To conserve memory, open SSTableReaders without bloom filters and discard
                     // the index summary after calculating the file sections to stream and the estimated
                     // number of keys for each endpoint. See CASSANDRA-5555 for details.
                     SSTableReader sstable = SSTableReader.openForBatch(desc, components, metadata, client.getPartitioner());
