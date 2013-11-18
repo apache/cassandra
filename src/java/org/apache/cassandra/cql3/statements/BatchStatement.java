@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.github.jamm.MemoryMeter;
+
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.IMutation;
@@ -34,7 +36,7 @@ import org.apache.cassandra.utils.Pair;
  * A <code>BATCH</code> statement parsed from a CQL query.
  *
  */
-public class BatchStatement implements CQLStatement
+public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
 {
     public static enum Type
     {
@@ -60,6 +62,14 @@ public class BatchStatement implements CQLStatement
         this.type = type;
         this.statements = statements;
         this.attrs = attrs;
+    }
+
+    public long measureForPreparedCache(MemoryMeter meter)
+    {
+        long size = meter.measure(this) + meter.measure(statements) + meter.measureDeep(attrs);
+        for (ModificationStatement stmt : statements)
+            size += stmt.measureForPreparedCache(meter);
+        return size;
     }
 
     public int getBoundsTerms()
