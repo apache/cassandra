@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.github.jamm.MemoryMeter;
+
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -49,6 +51,11 @@ public class DeleteStatement extends ModificationStatement
         this.deletions = deletions;
         this.whereClause = whereClause;
         this.toRemove = new ArrayList<Operation>(deletions.size());
+    }
+
+    public long measureForPreparedCache(MemoryMeter meter)
+    {
+        return meter.measureDeep(this) - meter.measureDeep(cfDef);
     }
 
     protected void validateConsistency(ConsistencyLevel cl) throws InvalidRequestException

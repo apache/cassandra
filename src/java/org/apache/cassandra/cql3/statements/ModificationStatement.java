@@ -38,7 +38,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 /**
  * Abstract class for statements that apply on a given column family.
  */
-public abstract class ModificationStatement extends CFStatement implements CQLStatement
+public abstract class ModificationStatement extends CFStatement implements CQLStatement, MeasurableForPreparedCache
 {
     public static enum Type
     {

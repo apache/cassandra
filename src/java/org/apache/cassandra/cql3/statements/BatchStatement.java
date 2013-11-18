@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.github.jamm.MemoryMeter;
+
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -29,6 +31,7 @@ import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.ObjectSizes;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
@@ -52,6 +55,14 @@ public class BatchStatement extends ModificationStatement
         super(null, attrs);
         this.type = type;
         this.statements = statements;
+    }
+
+    public long measureForPreparedCache(MemoryMeter meter)
+    {
+        long size = meter.measure(this) + meter.measure(statements);
+        for (ModificationStatement stmt : statements)
+            size += stmt.measureForPreparedCache(meter);
+        return size;
     }
 
     @Override

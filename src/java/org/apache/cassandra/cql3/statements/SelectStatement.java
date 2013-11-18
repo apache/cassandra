@@ -24,6 +24,7 @@ import java.util.concurrent.ExecutionException;
 import com.google.common.collect.AbstractIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.github.jamm.MemoryMeter;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
@@ -53,7 +54,7 @@ import org.apache.cassandra.utils.Pair;
  * column family, expression, result count, and ordering clause.
  *
  */
-public class SelectStatement implements CQLStatement
+public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 {
     private static final Logger logger = LoggerFactory.getLogger(SelectStatement.class);
 
@@ -97,6 +98,11 @@ public class SelectStatement implements CQLStatement
         this.keyRestrictions = new Restriction[cfDef.keys.size()];
         this.columnRestrictions = new Restriction[cfDef.columns.size()];
         this.parameters = parameters;
+    }
+
+    public long measureForPreparedCache(MemoryMeter meter)
+    {
+        return meter.measureDeep(this) - meter.measureDeep(cfDef);
     }
 
     public int getBoundsTerms()
