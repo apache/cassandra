@@ -14,6 +14,15 @@ restore snapshots created with the previous major version using the
 using the provided 'sstableupgrade' tool.
 
 
+1.2.12
+======
+
+Upgrading
+---------
+    - Altering CQL3 tables from Thrift is now rejected as this had the
+      potential of corrupting the schema. You should use cqlsh otherwise.
+
+
 1.2.11
 ======
 

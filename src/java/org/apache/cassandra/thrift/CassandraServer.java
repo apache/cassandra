@@ -1407,6 +1407,9 @@ public class CassandraServer implements Cassandra.Iface
             if (oldCfm == null)
                 throw new InvalidRequestException("Could not find column family definition to modify.");
 
+            if (!oldCfm.isThriftIncompatible())
+                throw new InvalidRequestException("Cannot modify CQL3 table " + oldCfm.cfName + " as it may break the schema. You should use cqlsh to modify CQL3 tables instead.");
+
             state().hasColumnFamilyAccess(cf_def.keyspace, cf_def.name, Permission.ALTER);
 
             CFMetaData.applyImplicitDefaults(cf_def);
