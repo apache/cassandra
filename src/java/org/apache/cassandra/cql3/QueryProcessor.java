@@ -72,7 +72,7 @@ public class QueryProcessor
     private static final ConcurrentLinkedHashMap<MD5Digest, CQLStatement> preparedStatements;
     private static final ConcurrentLinkedHashMap<Integer, CQLStatement> thriftPreparedStatements;
 
-    static 
+    static
     {
         if (MemoryMeter.isInitialized())
         {
@@ -439,6 +439,11 @@ public class QueryProcessor
 
     private static long measure(Object key)
     {
-        return MemoryMeter.isInitialized() ? meter.measureDeep(key) : 1;
+        if (!MemoryMeter.isInitialized())
+            return 1;
+
+        return key instanceof MeasurableForPreparedCache
+             ? ((MeasurableForPreparedCache)key).measureForPreparedCache(meter)
+             : meter.measureDeep(key);
     }
 }

@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.github.jamm.MemoryMeter;
+
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -43,7 +45,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 /*
  * Abstract parent class of individual modifications, i.e. INSERT, UPDATE and DELETE.
  */
-public abstract class ModificationStatement implements CQLStatement
+public abstract class ModificationStatement implements CQLStatement, MeasurableForPreparedCache
 {
     private static final ColumnIdentifier CAS_RESULT_COLUMN = new ColumnIdentifier("[applied]", false);
 
@@ -62,6 +64,11 @@ public abstract class ModificationStatement implements CQLStatement
         this.boundTerms = boundTerms;
         this.cfm = cfm;
         this.attrs = attrs;
+    }
+
+    public long measureForPreparedCache(MemoryMeter meter)
+    {
+        return meter.measureDeep(this) - meter.measureDeep(cfm);
     }
 
     public abstract boolean requireFullClusteringKey();

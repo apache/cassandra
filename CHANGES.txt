@@ -61,6 +61,8 @@ Merged from 1.2:
  * Fix AssertionError when doing set element deletion (CASSANDRA-6341)
  * Make CL code for the native protocol match the one in C* 2.0
    (CASSANDRA-6347)
+ * Disallow altering CQL3 table from thrift (CASSANDRA-6370)
+ * Fix size computation of prepared statement (CASSANDRA-6369)
 
 
 2.0.2
