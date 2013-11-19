@@ -186,7 +186,7 @@ public class Murmur3Partitioner extends AbstractPartitioner<LongToken>
             }
             catch (NumberFormatException e)
             {
-                throw new IllegalArgumentException(String.format("Invalid token for Murmur3Partitioner. Got %s but expected a long value (unsigned 8 bytes integer)."));
+                throw new IllegalArgumentException(String.format("Invalid token for Murmur3Partitioner. Got %s but expected a long value (unsigned 8 bytes integer).", string));
             }
         }
     };
