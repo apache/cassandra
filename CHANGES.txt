@@ -23,6 +23,7 @@
    (CASSANDRA-6347)
  * Disallow altering CQL3 table from thrift (CASSANDRA-6370)
  * Fix size computation of prepared statement (CASSANDRA-6369)
+ * Bump Xss to 256k (CASSANDRA-5517)
 
 
 1.2.11
