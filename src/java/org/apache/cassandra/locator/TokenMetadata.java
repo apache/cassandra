@@ -876,13 +876,21 @@ public class TokenMetadata
     /** used by tests */
     public void clearUnsafe()
     {
-        bootstrapTokens.clear();
-        tokenToEndpointMap.clear();
-        topology.clear();
-        leavingEndpoints.clear();
-        pendingRanges.clear();
-        endpointToHostIdMap.clear();
-        invalidateCaches();
+        lock.writeLock().lock();
+        try
+        {
+            bootstrapTokens.clear();
+            tokenToEndpointMap.clear();
+            topology.clear();
+            leavingEndpoints.clear();
+            pendingRanges.clear();
+            endpointToHostIdMap.clear();
+            invalidateCaches();
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
     }
 
     public String toString()

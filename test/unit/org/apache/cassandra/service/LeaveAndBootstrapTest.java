@@ -107,6 +107,8 @@ public class LeaveAndBootstrapTest
                 valueFactory.leaving(Collections.singleton(endpointTokens.get(LEAVING_NODE))));
         assertTrue(tmd.isLeaving(hosts.get(LEAVING_NODE)));
 
+        PendingRangeCalculatorService.instance.blockUntilFinished();
+
         AbstractReplicationStrategy strategy;
         for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
         {
@@ -232,6 +234,8 @@ public class LeaveAndBootstrapTest
         expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("85"), makeAddrs("127.0.0.10", "127.0.0.1", "127.0.0.2", "127.0.0.3"));
         expectedEndpoints.get("Keyspace4").putAll(new BigIntegerToken("95"), makeAddrs("127.0.0.1", "127.0.0.2", "127.0.0.3"));
 
+        PendingRangeCalculatorService.instance.blockUntilFinished();
+
         for (Map.Entry<String, AbstractReplicationStrategy> keyspaceStrategy : keyspaceStrategyMap.entrySet())
         {
             String keyspaceName = keyspaceStrategy.getKey();
@@ -351,6 +355,8 @@ public class LeaveAndBootstrapTest
         expectedEndpoints.get("Keyspace4").get(new BigIntegerToken("65")).removeAll(makeAddrs("127.0.0.10"));
         expectedEndpoints.get("Keyspace4").get(new BigIntegerToken("75")).removeAll(makeAddrs("127.0.0.10"));
         expectedEndpoints.get("Keyspace4").get(new BigIntegerToken("85")).removeAll(makeAddrs("127.0.0.10"));
+
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         for (Map.Entry<String, AbstractReplicationStrategy> keyspaceStrategy : keyspaceStrategyMap.entrySet())
         {
