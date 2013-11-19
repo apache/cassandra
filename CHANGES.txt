@@ -1,4 +1,5 @@
 2.1
+ * Removed multithreaded compaction (CASSANDRA-6142)
  * Parallelize fetching rows for low-cardinality indexes (CASSANDRA-1337)
  * change logging from log4j to logback (CASSANDRA-5883)
  * switch to LZ4 compression for internode communication (CASSANDRA-5887)

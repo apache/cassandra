@@ -27,6 +27,7 @@ Upgrading
      the coldest 5% of sstables.  This can be customized with the
      cold_reads_to_omit compaction option; 0.0 omits nothing (the old
      behavior) and 1.0 omits everything.
+   - Multithreaded compaction has been removed.
 
 
 2.0.3
