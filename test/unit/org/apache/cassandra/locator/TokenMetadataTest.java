@@ -40,21 +40,20 @@ public class TokenMetadataTest
     public final static String ONE = "1";
     public final static String SIX = "6";
 
-    public static ArrayList<Token> RING;
+    static TokenMetadata tmd;
 
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
-        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        tmd = StorageService.instance.getTokenMetadata();
         tmd.updateNormalToken(token(ONE), InetAddress.getByName("127.0.0.1"));
         tmd.updateNormalToken(token(SIX), InetAddress.getByName("127.0.0.6"));
-        RING = tmd.sortedTokens();
     }
 
-    private void testRingIterator(String start, boolean includeMin, String... expected)
+    private void testRingIterator(ArrayList<Token> ring, String start, boolean includeMin, String... expected)
     {
         ArrayList<Token> actual = new ArrayList<Token>();
-        Iterators.addAll(actual, TokenMetadata.ringIterator(RING, token(start), includeMin));
+        Iterators.addAll(actual, TokenMetadata.ringIterator(ring, token(start), includeMin));
         assertEquals(actual.toString(), expected.length, actual.size());
         for (int i = 0; i < expected.length; i++)
             assertEquals("Mismatch at index " + i + ": " + actual, token(expected[i]), actual.get(i));
@@ -63,25 +62,26 @@ public class TokenMetadataTest
     @Test
     public void testRingIterator()
     {
-        testRingIterator("2", false, "6", "1");
-        testRingIterator("7", false, "1", "6");
-        testRingIterator("0", false, "1", "6");
-        testRingIterator("", false, "1", "6");
+        ArrayList<Token> ring = tmd.sortedTokens();
+        testRingIterator(ring, "2", false, "6", "1");
+        testRingIterator(ring, "7", false, "1", "6");
+        testRingIterator(ring, "0", false, "1", "6");
+        testRingIterator(ring, "", false, "1", "6");
     }
 
     @Test
     public void testRingIteratorIncludeMin()
     {
-        testRingIterator("2", true, "6", "", "1");
-        testRingIterator("7", true, "", "1", "6");
-        testRingIterator("0", true, "1", "6", "");
-        testRingIterator("", true, "1", "6", "");
+        ArrayList<Token> ring = tmd.sortedTokens();
+        testRingIterator(ring, "2", true, "6", "", "1");
+        testRingIterator(ring, "7", true, "", "1", "6");
+        testRingIterator(ring, "0", true, "1", "6", "");
+        testRingIterator(ring, "", true, "1", "6", "");
     }
 
     @Test
     public void testRingIteratorEmptyRing()
     {
-        RING.clear();
-        testRingIterator("2", false);
+        testRingIterator(new ArrayList<Token>(), "2", false);
     }
 }

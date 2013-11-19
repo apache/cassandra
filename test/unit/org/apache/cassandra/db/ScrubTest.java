@@ -59,6 +59,7 @@ public class ScrubTest extends SchemaLoader
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        cfs.clearUnsafe();
 
         List<Row> rows;
 
@@ -80,6 +81,7 @@ public class ScrubTest extends SchemaLoader
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF3);
+        cfs.clearUnsafe();
 
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(KEYSPACE, CF3);
         cf.delete(new DeletionInfo(0, 1)); // expired tombstone
@@ -97,6 +99,7 @@ public class ScrubTest extends SchemaLoader
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        cfs.clearUnsafe();
 
         List<Row> rows;
 
@@ -119,6 +122,7 @@ public class ScrubTest extends SchemaLoader
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         String columnFamily = "Standard3";
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(columnFamily);
+        cfs.clearUnsafe();
 
         /*
          * Code used to generate an outOfOrder sstable. The test for out-of-order key in SSTableWriter must also be commented out.
