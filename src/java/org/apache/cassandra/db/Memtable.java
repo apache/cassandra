@@ -430,7 +430,7 @@ public class Memtable
 
                 if (newRatio < MIN_SANE_LIVE_RATIO)
                 {
-                    logger.warn("setting live ratio to minimum of {} instead of {}", MIN_SANE_LIVE_RATIO, newRatio);
+                    logger.debug("setting live ratio to minimum of {} instead of {}", MIN_SANE_LIVE_RATIO, newRatio);
                     newRatio = MIN_SANE_LIVE_RATIO;
                 }
                 if (newRatio > MAX_SANE_LIVE_RATIO)
