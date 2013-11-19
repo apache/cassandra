@@ -85,6 +85,7 @@ public class ScrubTest extends SchemaLoader
         CompactionManager.instance.disableAutoCompaction();
         Table table = Table.open(TABLE);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CF);
+        cfs.clearUnsafe();
 
         List<Row> rows;
 
@@ -106,6 +107,7 @@ public class ScrubTest extends SchemaLoader
         CompactionManager.instance.disableAutoCompaction();
         Table table = Table.open(TABLE);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CF3);
+        cfs.clearUnsafe();
 
         RowMutation rm;
         rm = new RowMutation(TABLE, ByteBufferUtil.bytes(1));
@@ -125,6 +127,7 @@ public class ScrubTest extends SchemaLoader
         CompactionManager.instance.disableAutoCompaction();
         Table table = Table.open(TABLE);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CF);
+        cfs.clearUnsafe();
 
         List<Row> rows;
 
@@ -147,6 +150,7 @@ public class ScrubTest extends SchemaLoader
          Table table = Table.open(TABLE);
          String columnFamily = "Standard3";
          ColumnFamilyStore cfs = table.getColumnFamilyStore(columnFamily);
+         cfs.clearUnsafe();
 
         /*
          * Code used to generate an outOfOrder sstable. The test for out-of-order key in SSTableWriter must also be commented out.
