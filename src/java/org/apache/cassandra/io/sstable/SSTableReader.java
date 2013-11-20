@@ -573,6 +573,7 @@ public class SSTableReader extends SSTable implements Closeable
         {
             logger.debug("Cannot deserialize SSTable Summary: ", e);
             // corrupted; delete it and fall back to creating a new summary
+            FileUtils.closeQuietly(iStream);
             FileUtils.deleteWithConfirm(summariesFile);
             return false;
         }
