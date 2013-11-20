@@ -29,7 +29,6 @@ import org.junit.Test;
 
 public class BoundedStatsDequeTest
 {
-
     @Test
     public void test()
     {
@@ -63,10 +62,5 @@ public class BoundedStatsDequeTest
         assertEquals(size, bsd.size());
         assertEquals(14, bsd.sum(), 0.001d);
         assertEquals(3.5, bsd.mean(), 0.001d);
-
-        //check that it clears properly
-        bsd.clear();
-        assertFalse(bsd.iterator().hasNext());
     }
-
 }

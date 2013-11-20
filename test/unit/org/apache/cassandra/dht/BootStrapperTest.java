@@ -198,7 +198,6 @@ public class BootStrapperTest extends SchemaLoader
             public void unregisterFailureDetectionEventListener(IFailureDetectionEventListener listener) { throw new UnsupportedOperationException(); }
             public void remove(InetAddress ep) { throw new UnsupportedOperationException(); }
             public void forceConviction(InetAddress ep) { throw new UnsupportedOperationException(); }
-            public void clear(InetAddress ep) { throw new UnsupportedOperationException(); }
         };
         s.addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(mockFailureDetector));
         s.addRanges(table, Table.open(table).getReplicationStrategy().getPendingAddressRanges(tmd, myToken, myEndpoint));

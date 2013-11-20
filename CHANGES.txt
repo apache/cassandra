@@ -1,3 +1,7 @@
+1.2.13
+ * Optimize FD phi calculation (CASSANDRA-6386)
+
+
 1.2.12
  * Invalidate row cache when dropping CF (CASSANDRA-6351)
  * add non-jamm path for cached statements (CASSANDRA-6293)

@@ -20,17 +20,22 @@ package org.apache.cassandra.utils;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.atomic.AtomicReference;
+
+import com.google.common.util.concurrent.AtomicDouble;
 
 /**
  * bounded threadsafe deque
  */
 public class BoundedStatsDeque implements Iterable<Double>
 {
-    protected final LinkedBlockingDeque<Double> deque;
+    private final LinkedBlockingDeque<Double> deque;
+    private final AtomicDouble sum;
 
     public BoundedStatsDeque(int size)
     {
         deque = new LinkedBlockingDeque<Double>(size);
+        sum = new AtomicDouble(0);
     }
 
     public Iterator<Double> iterator()
@@ -43,35 +48,20 @@ public class BoundedStatsDeque implements Iterable<Double>
         return deque.size();
     }
 
-    public void clear()
-    {
-        deque.clear();
-    }
-
     public void add(double i)
     {
         if (!deque.offer(i))
         {
-            try
-            {
-                deque.remove();
-            }
-            catch (NoSuchElementException e)
-            {
-                // oops, clear() beat us to it
-            }
+            Double removed = deque.remove();
+            sum.addAndGet(-removed);
             deque.offer(i);
         }
+        sum.addAndGet(i);
     }
 
     public double sum()
     {
-        double sum = 0d;
-        for (Double interval : deque)
-        {
-            sum += interval;
-        }
-        return sum;
+        return sum.get();
     }
 
     public double mean()

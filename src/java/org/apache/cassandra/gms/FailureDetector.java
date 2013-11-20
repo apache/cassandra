@@ -177,13 +177,6 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         return epState != null && epState.isAlive();
     }
 
-    public void clear(InetAddress ep)
-    {
-        ArrivalWindow heartbeatWindow = arrivalSamples.get(ep);
-        if (heartbeatWindow != null)
-            heartbeatWindow.clear();
-    }
-
     public void report(InetAddress ep)
     {
         if (logger.isTraceEnabled())
@@ -310,11 +303,6 @@ class ArrivalWindow
     double mean()
     {
         return arrivalIntervals.mean();
-    }
-
-    void clear()
-    {
-        arrivalIntervals.clear();
     }
 
     // see CASSANDRA-2597 for an explanation of the math at work here.
