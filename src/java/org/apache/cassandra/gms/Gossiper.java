@@ -788,7 +788,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 if (!localEndpointState.isAlive())
                 {
                     logger.debug("Clearing interval times for {} due to generation change", endpoint);
-                    fd.clear(endpoint);
+                    fd.remove(endpoint);
                 }
                 fd.report(endpoint);
                 return;
