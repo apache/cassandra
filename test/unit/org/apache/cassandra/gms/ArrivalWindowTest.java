@@ -27,7 +27,6 @@ import org.junit.Test;
 
 public class ArrivalWindowTest
 {
-
     @Test
     public void test()
     {
@@ -40,11 +39,9 @@ public class ArrivalWindowTest
         window.add(555);
 
         //all good
-        assertEquals(0.4342, window.phi(666), 0.01);
+        assertEquals(1.0, window.phi(666), 0.01);
 
         //oh noes, a much higher timestamp, something went wrong!
-        assertEquals(9.566, window.phi(3000), 0.01);
+        assertEquals(22.03, window.phi(3000), 0.01);
     }
-
-
 }

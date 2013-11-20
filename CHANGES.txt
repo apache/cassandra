@@ -1,5 +1,6 @@
 1.2.13
  * Optimize FD phi calculation (CASSANDRA-6386)
+ * Improve initial FD phi estimate when starting up (CASSANDRA-6385)
 
 
 1.2.12

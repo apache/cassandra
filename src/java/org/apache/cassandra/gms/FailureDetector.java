@@ -49,6 +49,12 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     public static final IFailureDetector instance = new FailureDetector();
     private static final Logger logger = LoggerFactory.getLogger(FailureDetector.class);
 
+    // this is useless except to provide backwards compatibility in phi_convict_threshold,
+    // because everyone seems pretty accustomed to the default of 8, and users who have
+    // already tuned their phi_convict_threshold for their own environments won't need to
+    // change.
+    private final double PHI_FACTOR = 1.0 / Math.log(10.0); // 0.434...
+
     private final Map<InetAddress, ArrivalWindow> arrivalSamples = new Hashtable<InetAddress, ArrivalWindow>();
     private final List<IFailureDetectionEventListener> fdEvntListeners = new CopyOnWriteArrayList<IFailureDetectionEventListener>();
 
@@ -183,12 +189,17 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             logger.trace("reporting {}", ep);
         long now = System.currentTimeMillis();
         ArrivalWindow heartbeatWindow = arrivalSamples.get(ep);
-        if ( heartbeatWindow == null )
+        if (heartbeatWindow == null)
         {
+            // avoid adding an empty ArrivalWindow to the Map
             heartbeatWindow = new ArrivalWindow(SAMPLE_SIZE);
+            heartbeatWindow.add(now);
             arrivalSamples.put(ep, heartbeatWindow);
         }
-        heartbeatWindow.add(now);
+        else
+        {
+            heartbeatWindow.add(now);
+        }
     }
 
     public void interpret(InetAddress ep)
@@ -203,7 +214,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         if (logger.isTraceEnabled())
             logger.trace("PHI for " + ep + " : " + phi);
 
-        if (phi > getPhiConvictThreshold())
+        if (PHI_FACTOR * phi > getPhiConvictThreshold())
         {
             logger.trace("notifying listeners that {} is down", ep);
             logger.trace("intervals: {} mean: {}", hbWnd, hbWnd.mean());
@@ -266,12 +277,6 @@ class ArrivalWindow
     private double tLast = 0L;
     private final BoundedStatsDeque arrivalIntervals;
 
-    // this is useless except to provide backwards compatibility in phi_convict_threshold,
-    // because everyone seems pretty accustomed to the default of 8, and users who have
-    // already tuned their phi_convict_threshold for their own environments won't need to
-    // change.
-    private final double PHI_FACTOR = 1.0 / Math.log(10.0);
-
     // in the event of a long partition, never record an interval longer than the rpc timeout,
     // since if a host is regularly experiencing connectivity problems lasting this long we'd
     // rather mark it down quickly instead of adapting
@@ -284,19 +289,21 @@ class ArrivalWindow
 
     synchronized void add(double value)
     {
-        double interArrivalTime;
-        if ( tLast > 0L )
+        if (tLast > 0L)
         {
-            interArrivalTime = (value - tLast);
+            double interArrivalTime = (value - tLast);
+            if (interArrivalTime <= MAX_INTERVAL_IN_MS)
+                arrivalIntervals.add(interArrivalTime);
+            else
+                logger.debug("Ignoring interval time of {}", interArrivalTime);
         }
         else
         {
-            interArrivalTime = Gossiper.intervalInMillis / 2;
+            // We use a very large initial interval since the "right" average depends on the cluster size
+            // and it's better to err high (false negatives, which will be corrected by waiting a bit longer)
+            // than low (false positives, which cause "flapping").
+            arrivalIntervals.add(Gossiper.intervalInMillis * 30);
         }
-        if (interArrivalTime <= MAX_INTERVAL_IN_MS)
-            arrivalIntervals.add(interArrivalTime);
-        else
-            logger.debug("Ignoring interval time of {}", interArrivalTime);
         tLast = value;
     }
 
@@ -308,11 +315,9 @@ class ArrivalWindow
     // see CASSANDRA-2597 for an explanation of the math at work here.
     double phi(long tnow)
     {
-        int size = arrivalIntervals.size();
+        assert arrivalIntervals.size() > 0 && tLast > 0; // should not be called before any samples arrive
         double t = tnow - tLast;
-        return (size > 0)
-               ? PHI_FACTOR * t / mean()
-               : 0.0;
+        return t / mean();
     }
 
     public String toString()
