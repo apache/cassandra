@@ -270,17 +270,18 @@ public class CollationController
 
                     sstable.incrementReadCount();
                     OnDiskAtomIterator iter = filter.getSSTableColumnIterator(sstable);
-                    if (iter.getColumnFamily() == null)
-                        continue;
-
                     ColumnFamily cf = iter.getColumnFamily();
                     // we are only interested in row-level tombstones here, and only if markedForDeleteAt is larger than minTimestamp
-                    if (cf.deletionInfo().getTopLevelDeletion().markedForDeleteAt > minTimestamp)
+                    if (cf != null && cf.deletionInfo().getTopLevelDeletion().markedForDeleteAt > minTimestamp)
                     {
                         includedDueToTombstones++;
                         iterators.add(iter);
                         returnCF.delete(cf.deletionInfo().getTopLevelDeletion());
                         sstablesIterated++;
+                    }
+                    else
+                    {
+                        FileUtils.closeQuietly(iter);
                     }
                 }
             }

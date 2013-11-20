@@ -13,6 +13,7 @@
 
 
 2.0.3
+ * Fix FD leak on slice read path (CASSANDRA-6275)
  * Cancel read meter task when closing SSTR (CASSANDRA-6358)
  * free off-heap IndexSummary during bulk (CASSANDRA-6359)
  * Recover from IOException in accept() thread (CASSANDRA-6349)
