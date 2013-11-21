@@ -67,6 +67,6 @@ public class BoundedStatsDeque implements Iterable<Long>
 
     public double mean()
     {
-        return size() > 0 ? sum() / size() : 0;
+        return size() > 0 ? ((double) sum()) / size() : 0;
     }
 }

@@ -39,12 +39,9 @@ public class ArrivalWindowTest
         windowWithNano.add(444 * toNano);
         windowWithNano.add(555 * toNano);
 
-
-        assertEquals(0.4342, windowWithNano.phi(666 * toNano), 0.01);
+        //all good
+        assertEquals(1.0, windowWithNano.phi(666 * toNano), 0.01);
         //oh noes, a much higher timestamp, something went wrong!
-        assertEquals(9.566, windowWithNano.phi(3000 * toNano), 0.01);
-
+        assertEquals(22.03, windowWithNano.phi(3000 * toNano), 0.01);
     }
-
-
 }
