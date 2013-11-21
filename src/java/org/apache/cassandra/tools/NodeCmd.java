@@ -306,19 +306,14 @@ public class NodeCmd
 
         // get the total amount of replicas for this dc and the last token in this dc's ring
         List<String> tokens = new ArrayList<String>();
-        float totalReplicas = 0f;
         String lastToken = "";
 
         for (Map.Entry<InetAddress, Float> entry : filteredOwnerships.entrySet())
         {
             tokens.addAll(endpointsToTokens.get(entry.getKey().getHostAddress()));
             lastToken = tokens.get(tokens.size() - 1);
-            totalReplicas += entry.getValue();
         }
 
-
-        if (keyspaceSelected)
-            outs.print("Replicas: " + (int) totalReplicas + "\n\n");
 
         outs.printf(format, "Address", "Rack", "Status", "State", "Load", "Owns", "Token");
 
