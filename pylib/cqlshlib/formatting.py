@@ -17,6 +17,7 @@
 import re
 import time
 import binascii
+import math
 from collections import defaultdict
 from . import wcwidth
 from .displaying import colorme, FormattedValue, DEFAULT_VALUE_COLORS
@@ -137,7 +138,12 @@ def format_value_boolean(val, colormap, **_):
     return format_python_formatted_type(val, colormap, 'boolean')
 
 def format_floating_point_type(val, colormap, float_precision, **_):
-    bval = '%.*g' % (float_precision, val)
+    if math.isnan(val):
+        bval = 'NaN'
+    elif math.isinf(val):
+        bval = 'Infinity'
+    else:
+        bval = '%.*g' % (float_precision, val)
     return colorme(bval, colormap, 'float')
 
 formatter_for('float')(format_floating_point_type)

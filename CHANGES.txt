@@ -26,6 +26,7 @@
  * Fix bug missing results with IN clauses (CASSANDRA-6327)
  * Fix paging with reversed slices (CASSANDRA-6343)
  * Set minTimestamp correctly to be able to drop expired sstables (CASSANDRA-6337)
+ * Support NaN and Infinity as float literals (CASSANDRA-6003)
 Merged from 1.2:
  * Optimize FD phi calculation (CASSANDRA-6386)
  * Improve initial FD phi estimate when starting up (CASSANDRA-6385)
