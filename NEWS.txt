@@ -40,6 +40,10 @@ New features
 
 Upgrading
 ---------
+    - NaN and Infinity are new valid floating point constants in CQL3 and are now reserved
+      keywords. In the unlikely case you were using one of them as an identifier (for a
+      column, a keyspace or a table), you will now have to double-quote them (see
+      http://cassandra.apache.org/doc/cql3/CQL.html#identifiers for "quoted identifiers").
     - The IEndpointStateChangeSubscriber has a new method, beforeChange, that
       any custom implemenations using the class will need to implement.
 

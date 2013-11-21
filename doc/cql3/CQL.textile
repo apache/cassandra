@@ -1,6 +1,6 @@
 <link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
-h1. Cassandra Query Language (CQL) v3.1.1
+h1. Cassandra Query Language (CQL) v3.1.2
 
 
  <span id="tableOfContents">
@@ -50,7 +50,7 @@ h3(#constants). Constants
 CQL defines the following kind of _constants_: strings, integers, floats, booleans, uuids and blobs:
 * A string constant is an arbitrary sequence of characters characters enclosed by single-quote(@'@). One can include a single-quote in a string by repeating it, e.g. @'It''s raining today'@. Those are not to be confused with quoted identifiers that use double-quotes.
 * An integer constant is defined by @'-'?[0-9]+@.
-* A float constant is defined by @'-'?[0-9]+('.'[0-9]*)?([eE][+-]?[0-9+])?@.
+* A float constant is defined by @'-'?[0-9]+('.'[0-9]*)?([eE][+-]?[0-9+])?@. On top of that, @NaN@ and @Infinity@ are also float constants.
 * A boolean constant is either @true@ or @false@ up to case-insensitivity (i.e. @True@ is a valid boolean constant).
 * A "UUID":http://en.wikipedia.org/wiki/Universally_unique_identifier constant is defined by @hex{8}-hex{4}-hex{4}-hex{4}-hex{12}@ where @hex@ is an hexadecimal character, e.g. @[0-9a-fA-F]@ and @{4}@ is the number of such characters.
 * A blob constant is an hexadecimal number defined by @0[xX](hex)+@ where @hex@ is an hexadecimal character, e.g. @[0-9a-fA-F]@.
@@ -1087,6 +1087,10 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 h2(#changes). Changes
 
 The following describes the addition/changes brought for each version of CQL.
+
+h3. 3.1.2
+
+* @NaN@ and @Infinity@ has been added as valid float contants. They are now reserved keywords. In the unlikely case you we using them as a column identifier (or keyspace/table one), you will noew need to double quote them (see "quote identifiers":#identifiers).
 
 h3. 3.1.1
 

@@ -807,6 +807,7 @@ constant returns [Constants.Literal constant]
     | t=BOOLEAN        { $constant = Constants.Literal.bool($t.text); }
     | t=UUID           { $constant = Constants.Literal.uuid($t.text); }
     | t=HEXNUMBER      { $constant = Constants.Literal.hex($t.text); }
+    | { String sign=""; } ('-' {sign = "-"; } )? t=(K_NAN | K_INFINITY) { $constant = Constants.Literal.floatingPoint(sign + $t.text); }
     ;
 
 map_literal returns [Maps.Literal map]
@@ -1142,6 +1143,8 @@ K_EXISTS:      E X I S T S;
 
 K_MAP:         M A P;
 K_LIST:        L I S T;
+K_NAN:         N A N;
+K_INFINITY:    I N F I N I T Y;
 
 K_TRIGGER:     T R I G G E R;
 
