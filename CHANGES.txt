@@ -1,3 +1,7 @@
+2.0.4
+ * remove RF from nodetool ring output (CASSANDRA-6289)
+
+
 2.0.3
  * Fix FD leak on slice read path (CASSANDRA-6275)
  * Cancel read meter task when closing SSTR (CASSANDRA-6358)
