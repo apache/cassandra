@@ -57,7 +57,7 @@ public class PendingRangeCalculatorService extends PendingRangeCalculatorService
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
     }
 
-    private class PendingRangeTask implements Runnable
+    private static class PendingRangeTask implements Runnable
     {
         public void run()
         {
