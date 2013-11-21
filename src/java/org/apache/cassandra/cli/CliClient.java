@@ -1163,8 +1163,10 @@ public class CliClient
 
         try
         {
-            // request correct cfDef from the server
-            CfDef cfDef = getCfDef(thriftClient.describe_keyspace(this.keySpace), cfName);
+            // request correct cfDef from the server (we let that call include CQL3 cf even though
+            // they can't be modified by thrift because the error message that will be thrown by
+            // system_update_column_family will be more useful)
+            CfDef cfDef = getCfDef(thriftClient.describe_keyspace(this.keySpace), cfName, true);
 
             if (cfDef == null)
                 throw new RuntimeException("Column Family " + cfName + " was not found in the current keyspace.");
@@ -2273,7 +2275,7 @@ public class CliClient
                                                          "of the keyspaces first.", entityName));
 
             CfDef inputCfDef = (inputKsDef == null)
-                    ? getCfDef(currentKeySpace, entityName)
+                    ? getCfDef(currentKeySpace, entityName, false)
                     : null;  // no need to lookup CfDef if we know that it was keyspace
 
             if (inputKsDef != null)
@@ -2298,7 +2300,7 @@ public class CliClient
             }
             else
             {
-                sessionState.out.println("Sorry, no Keyspace nor ColumnFamily was found with name: " + entityName);
+                sessionState.out.println("Sorry, no Keyspace nor (non-CQL3) ColumnFamily was found with name: " + entityName + " (if this is a CQL3 table, you should use cqlsh instead)");
             }
         }
     }
@@ -2371,7 +2373,7 @@ public class CliClient
     private CfDef getCfDef(String keySpaceName, String columnFamilyName)
     {
         KsDef ksDef = keyspacesMap.get(keySpaceName);
-        CfDef cfDef = getCfDef(ksDef, columnFamilyName);
+        CfDef cfDef = getCfDef(ksDef, columnFamilyName, true);
         if (cfDef == null)
             throw new RuntimeException("No such column family: " + columnFamilyName);
         return cfDef;
@@ -2387,7 +2389,7 @@ public class CliClient
         return getCfDef(this.keySpace, columnFamilyName);
     }
 
-    private CfDef getCfDef(KsDef keyspace, String columnFamilyName)
+    private CfDef getCfDef(KsDef keyspace, String columnFamilyName, boolean includeCQL3)
     {
         for (CfDef cfDef : keyspace.cf_defs)
         {
@@ -2395,7 +2397,7 @@ public class CliClient
                 return cfDef;
         }
 
-        return cql3KeyspacesMap.get(keyspace.name).get(columnFamilyName);
+        return includeCQL3 ? cql3KeyspacesMap.get(keyspace.name).get(columnFamilyName) : null;
     }
 
     /**
