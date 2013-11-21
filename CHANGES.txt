@@ -14,6 +14,7 @@
 
 2.0.4
  * remove RF from nodetool ring output (CASSANDRA-6289)
+ * fix attempting to flush empty rows (CASSANDRA-6374)
 
 
 2.0.3

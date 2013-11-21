@@ -362,7 +362,9 @@ public class Memtable
                         if (!cfs.indexManager.hasIndexes())
                             currentSize.addAndGet(-ColumnFamilyStore.removeDeletedColumnsOnly(cf, Integer.MIN_VALUE));
                     }
-                    writer.append((DecoratedKey)entry.getKey(), cf);
+
+                    if (cf.getColumnCount() > 0 || cf.isMarkedForDelete())
+                        writer.append((DecoratedKey)entry.getKey(), cf);
                 }
 
                 if (writer.getFilePointer() > 0)
