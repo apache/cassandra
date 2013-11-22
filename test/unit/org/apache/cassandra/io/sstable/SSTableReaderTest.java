@@ -23,16 +23,19 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import org.junit.Assert;
 import com.google.common.collect.Sets;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
@@ -54,11 +57,17 @@ import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
+
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class SSTableReaderTest extends SchemaLoader
 {
+    private static final Logger logger = LoggerFactory.getLogger(SSTableReaderTest.class);
+
     static Token t(int i)
     {
         return StorageService.getPartitioner().getToken(ByteBufferUtil.bytes(String.valueOf(i)));
@@ -252,8 +261,8 @@ public class SSTableReaderTest extends SchemaLoader
 
         // test to see if sstable can be opened as expected
         SSTableReader target = SSTableReader.open(desc);
-        Assert.assertEquals(target.getKeySampleSize(), 1);
-        Assert.assertArrayEquals(ByteBufferUtil.getArray(firstKey.key), target.getKeySample(0));
+        Assert.assertEquals(target.getIndexSummarySize(), 1);
+        Assert.assertArrayEquals(ByteBufferUtil.getArray(firstKey.key), target.getIndexSummaryKey(0));
         assert target.first.equals(firstKey);
         assert target.last.equals(lastKey);
     }
@@ -339,6 +348,64 @@ public class SSTableReaderTest extends SchemaLoader
         SSTableReader bulkLoaded = SSTableReader.openForBatch(sstable.descriptor, components, store.metadata, sstable.partitioner);
         sections = bulkLoaded.getPositionsForRanges(ranges);
         assert sections.size() == 1 : "Expected to find range in sstable opened for bulk loading";
+    }
+
+    @Test
+    public void testIndexSummaryReplacement() throws IOException, ExecutionException, InterruptedException
+    {
+        Keyspace keyspace = Keyspace.open("Keyspace1");
+        final ColumnFamilyStore store = keyspace.getColumnFamilyStore("StandardLowIndexInterval"); // index interval of 8, no key caching
+        CompactionManager.instance.disableAutoCompaction();
+
+        final int NUM_ROWS = 1000;
+        for (int j = 0; j < NUM_ROWS; j++)
+        {
+            ByteBuffer key = ByteBufferUtil.bytes(String.format("%3d", j));
+            RowMutation rm = new RowMutation("Keyspace1", key);
+            rm.add("StandardLowIndexInterval", ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes(String.format("%3d", j)), j);
+            rm.apply();
+        }
+        store.forceBlockingFlush();
+        CompactionManager.instance.performMaximal(store);
+
+        Collection<SSTableReader> sstables = store.getSSTables();
+        assert sstables.size() == 1;
+        final SSTableReader sstable = sstables.iterator().next();
+
+        ThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5);
+        List<Future> futures = new ArrayList<>(NUM_ROWS * 2);
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            final ByteBuffer key = ByteBufferUtil.bytes(String.format("%3d", i));
+            final int index = i;
+
+            futures.add(executor.submit(new Runnable()
+            {
+                public void run()
+                {
+                    ColumnFamily result = store.getColumnFamily(sstable.partitioner.decorateKey(key), ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 100, 100);
+                    assertFalse(result.isEmpty());
+                    assertEquals(0, ByteBufferUtil.compare(String.format("%3d", index).getBytes(), result.getColumn(ByteBufferUtil.bytes("0")).value()));
+                }
+            }));
+
+            futures.add(executor.submit(new Runnable()
+            {
+                public void run()
+                {
+                    Iterable<DecoratedKey> results = store.keySamples(
+                            new Range<>(sstable.partitioner.getMinimumToken(), sstable.partitioner.getToken(key)));
+                    assertTrue(results.iterator().hasNext());
+                }
+            }));
+        }
+
+        SSTableReader replacement = sstable.cloneWithNewSummarySamplingLevel(Downsampling.MIN_SAMPLING_LEVEL);
+        store.getDataTracker().replaceReaders(Arrays.asList(sstable), Arrays.asList(replacement));
+        for (Future future : futures)
+            future.get();
+
+        assertEquals(sstable.estimatedKeys(), replacement.estimatedKeys(), 1);
     }
 
     private void assertIndexQueryWorks(ColumnFamilyStore indexedCFS) throws IOException

@@ -1,4 +1,6 @@
 2.1
+ * allocate fixed index summary memory pool and resample cold index summaries 
+   to use less memory (CASSANDRA-5519)
  * Removed multithreaded compaction (CASSANDRA-6142)
  * Parallelize fetching rows for low-cardinality indexes (CASSANDRA-1337)
  * change logging from log4j to logback (CASSANDRA-5883)

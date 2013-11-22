@@ -487,10 +487,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         initialized = true;
         isClientMode = false;
 
-        // Ensure StorageProxy is initialized on start-up; see CASSANDRA-3797.
         try
         {
+            // Ensure StorageProxy is initialized on start-up; see CASSANDRA-3797.
             Class.forName("org.apache.cassandra.service.StorageProxy");
+            // also IndexSummaryManager, which is otherwise unreferenced
+            Class.forName("org.apache.cassandra.io.sstable.IndexSummaryManager");
         }
         catch (ClassNotFoundException e)
         {

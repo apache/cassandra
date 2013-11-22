@@ -269,6 +269,20 @@ concurrent_writes: 32
 # the maximum number of secondary indexes created on a single CF.
 memtable_flush_queue_size: 4
 
+# A fixed memory pool size in MB for for SSTable index summaries. If left
+# empty, this will default to 5% of the heap size. If the memory usage of
+# all index summaries exceeds this limit, SSTables with low read rates will
+# shrink their index summaries in order to meet this limit.  However, this
+# is a best-effort process. In extreme conditions Cassandra may need to use
+# more than this amount of memory.
+index_summary_capacity_in_mb:
+
+# How frequently index summaries should be resampled.  This is done
+# periodically to redistribute memory from the fixed-size pool to sstables
+# proportional their recent read rates.  Setting to -1 will disable this
+# process, leaving existing index summaries at their current sampling level.
+index_summary_resize_interval_in_minutes: 60
+
 # Whether to, when doing sequential writing, fsync() at intervals in
 # order to force the operating system to flush the dirty
 # buffers. Enable this to avoid sudden dirty buffer flushing from
