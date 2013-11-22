@@ -25,7 +25,7 @@ CASSANDRA_HOME=/usr/share/cassandra
 FD_LIMIT=100000
 
 # The first existing directory is used for JAVA_HOME if needed.
-JVM_SEARCH_DIRS="/usr/lib/jvm/java-6-openjdk /usr/lib/jvm/java-6-sun"
+JVM_SEARCH_DIRS="/usr/lib/jvm/default-java"
 
 [ -e /usr/share/cassandra/apache-cassandra.jar ] || exit 0
 [ -e /etc/cassandra/cassandra.yaml ] || exit 0
