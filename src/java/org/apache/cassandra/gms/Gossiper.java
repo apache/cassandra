@@ -401,7 +401,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     /**
      * This method will begin removing an existing endpoint from the cluster by spoofing its state
-     * This should never be called unless this coordinator has had 'removetoken' invoked
+     * This should never be called unless this coordinator has had 'removenode' invoked
      *
      * @param endpoint    - the endpoint being removed
      * @param hostId      - the ID of the host being removed

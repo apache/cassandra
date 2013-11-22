@@ -104,7 +104,7 @@ public class BootStrapper
             {
                 Token token = StorageService.getPartitioner().getTokenFactory().fromString(tokenString);
                 if (metadata.getEndpoint(token) != null)
-                    throw new ConfigurationException("Bootstraping to existing token " + tokenString + " is not allowed (decommission/removetoken the old node first).");
+                    throw new ConfigurationException("Bootstraping to existing token " + tokenString + " is not allowed (decommission/removenode the old node first).");
                 tokens.add(token);
             }
             return tokens;
