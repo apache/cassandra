@@ -186,6 +186,8 @@ def strftime(time_format, seconds):
 @formatter_for('text')
 def format_value_text(val, encoding, colormap, quote=False, **_):
     escapedval = val.replace(u'\\', u'\\\\')
+    if quote:
+        escapedval = escapedval.replace("'", "''")
     escapedval = unicode_controlchars_re.sub(_show_control_chars, escapedval)
     bval = escapedval.encode(encoding, 'backslashreplace')
     if quote:
