@@ -2,6 +2,8 @@
  * Fix divide-by-zero in PCI (CASSANDRA-6403)
  * Fix setting last compacted key in the wrong level for LCS (CASSANDRA-6284)
  * Add sub-ms precision formats to the timestamp parser (CASSANDRA-6395)
+Merged from 1.2:
+ * cqlsh: quote single quotes in strings inside collections (CASSANDRA-6172)
 
 
 2.0.3
