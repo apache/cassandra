@@ -17,6 +17,7 @@
 
 2.0.4
  * Fix setting last compacted key in the wrong level for LCS (CASSANDRA-6284)
+ * Add sub-ms precision formats to the timestamp parser (CASSANDRA-6395)
 
 
 2.0.3
