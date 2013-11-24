@@ -56,7 +56,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
 
     public ParallelCompactionIterable(OperationType type, List<ICompactionScanner> scanners, CompactionController controller)
     {
-        this(type, scanners, controller, DatabaseDescriptor.getInMemoryCompactionLimit() / scanners.size());
+        this(type, scanners, controller, DatabaseDescriptor.getInMemoryCompactionLimit() / (scanners.isEmpty() ? 1 : scanners.size()));
     }
 
     public ParallelCompactionIterable(OperationType type, List<ICompactionScanner> scanners, CompactionController controller, int maxInMemorySize)

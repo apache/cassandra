@@ -135,8 +135,8 @@ public class CompactionController
             }
             else
             {
-               logger.debug("Dropping expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
-                        candidate, candidate.getSSTableMetadata().maxLocalDeletionTime, gcBefore);
+                logger.debug("Dropping expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
+                             candidate, candidate.getSSTableMetadata().maxLocalDeletionTime, gcBefore);
             }
         }
         return new HashSet<SSTableReader>(candidates);
