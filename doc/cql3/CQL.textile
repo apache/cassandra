@@ -871,7 +871,7 @@ will only apply the TTL to the @{ 'color' : 'green' }@ record, the rest of the m
 Deleting a map record is done with:
 
 bc(sample). 
-DELETE favs['author'] FROM plays WHERE id = 'jsmith'
+DELETE favs['author'] FROM users WHERE id = 'jsmith'
 
 h4(#set). Sets
 
