@@ -976,7 +976,7 @@ public class TokenMetadata
         return sb.toString();
     }
 
-    public Collection<InetAddress> pendingEndpointsFor(Token token, String table)
+    public Collection<InetAddress> pendingEndpointsFor(Token token, String keyspaceName)
     {
         Map<Range<Token>, Collection<InetAddress>> ranges = getPendingRanges(keyspaceName);
         if (ranges.isEmpty())
