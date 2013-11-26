@@ -917,6 +917,8 @@ public class NodeProbe
     {
         try
         {
+            String type = cf.contains(".") ? "IndexColumnFamily": "ColumnFamily";
+            ObjectName oName = new ObjectName(String.format("org.apache.cassandra.metrics:type=%s,keyspace=%s,scope=%s,name=%s", type, ks, cf, metricName));
             switch(metricName)
             {
                 case "BloomFilterDiskSpaceUsed":
@@ -936,31 +938,23 @@ public class NodeProbe
                 case "RecentBloomFilterFalsePositives":
                 case "RecentBloomFilterFalseRatio":
                 case "SnapshotsSize":
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=ColumnFamily,keyspace=" + ks + ",scope=" + cf + ",name=" + metricName),
-                            JmxReporter.GaugeMBean.class).getValue();
+                    return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.GaugeMBean.class).getValue();
                 case "LiveDiskSpaceUsed":
                 case "MemtableSwitchCount":
                 case "SpeculativeRetries":
                 case "TotalDiskSpaceUsed":
                 case "WriteTotalLatency":
                 case "ReadTotalLatency":
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=ColumnFamily,keyspace=" + ks + ",scope=" + cf + ",name=" + metricName),
-                            JmxReporter.CounterMBean.class).getCount();
+                    return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.CounterMBean.class).getCount();
                 case "ReadLatency":
                 case "CoordinatorReadLatency":
                 case "CoordinatorScanLatency":
                 case "WriteLatency":
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=ColumnFamily,keyspace=" + ks + ",scope=" + cf + ",name=" + metricName),
-                            JmxReporter.TimerMBean.class);
+                    return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.TimerMBean.class);
                 case "LiveScannedHistogram":
                 case "SSTablesPerReadHistogram":
                 case "TombstoneScannedHistogram":
-                    return JMX.newMBeanProxy(mbeanServerConn,
-                            new ObjectName("org.apache.cassandra.metrics:type=ColumnFamily,keyspace=" + ks + ",scope=" + cf + ",name=" + metricName),
-                            JmxReporter.HistogramMBean.class);
+                    return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.HistogramMBean.class);
                 default:
                     throw new RuntimeException("Unknown column family metric.");
             }
