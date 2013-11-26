@@ -195,8 +195,6 @@ startswith() { [ "${1#$2}" != "$1" ]; }
 # Per-thread stack size.
 JVM_OPTS="$JVM_OPTS -Xss256k"
 
-echo "xss = $JVM_OPTS"
-
 # GC tuning options
 JVM_OPTS="$JVM_OPTS -XX:+UseParNewGC" 
 JVM_OPTS="$JVM_OPTS -XX:+UseConcMarkSweepGC" 
