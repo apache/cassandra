@@ -20,10 +20,12 @@ package org.apache.cassandra.locator;
 import java.lang.reflect.Constructor;
 import java.net.InetAddress;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.util.concurrent.Striped;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,6 +56,15 @@ public abstract class AbstractReplicationStrategy
     public final Map<String, String> configOptions;
     private final TokenMetadata tokenMetadata;
 
+    // We want to make updating our replicas asynchronous vs the "master" TokenMetadata instance,
+    // so that our ownership calculations never block Gossip from processing an ownership change.
+    // But, we also can't afford to re-clone TM for each range after cache invalidation (CASSANDRA-6345),
+    // so we keep our own copy here.
+    //
+    // Writes to tokenMetadataClone should be synchronized.
+    private volatile TokenMetadata tokenMetadataClone = null;
+    private volatile long clonedTokenMetadataVersion = 0;
+
     public IEndpointSnitch snitch;
 
     AbstractReplicationStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
@@ -63,7 +74,6 @@ public abstract class AbstractReplicationStrategy
         assert tokenMetadata != null;
         this.tokenMetadata = tokenMetadata;
         this.snitch = snitch;
-        this.tokenMetadata.register(this);
         this.configOptions = configOptions == null ? Collections.<String, String>emptyMap() : configOptions;
         this.keyspaceName = keyspaceName;
         // lazy-initialize keyspace itself since we don't create them until after the replication strategies
@@ -73,18 +83,23 @@ public abstract class AbstractReplicationStrategy
 
     public ArrayList<InetAddress> getCachedEndpoints(Token t)
     {
+        long lastVersion = tokenMetadata.getRingVersion();
+
+        if (lastVersion > clonedTokenMetadataVersion)
+        {
+            synchronized (this)
+            {
+                if (lastVersion > clonedTokenMetadataVersion)
+                {
+                    logger.debug("clearing cached endpoints");
+                    tokenMetadataClone = null;
+                    cachedEndpoints.clear();
+                    clonedTokenMetadataVersion = lastVersion;
+                }
+            }
+        }
+
         return cachedEndpoints.get(t);
-    }
-
-    public void cacheEndpoint(Token t, ArrayList<InetAddress> addr)
-    {
-        cachedEndpoints.put(t, addr);
-    }
-
-    public void clearEndpointCache()
-    {
-        logger.debug("clearing cached endpoints");
-        cachedEndpoints.clear();
     }
 
     /**
@@ -101,10 +116,20 @@ public abstract class AbstractReplicationStrategy
         ArrayList<InetAddress> endpoints = getCachedEndpoints(keyToken);
         if (endpoints == null)
         {
-            TokenMetadata tokenMetadataClone = tokenMetadata.cloneOnlyTokenMap();
-            keyToken = TokenMetadata.firstToken(tokenMetadataClone.sortedTokens(), searchToken);
+            if (tokenMetadataClone == null)
+            {
+                // synchronize to prevent thundering herd post-invalidation
+                synchronized (this)
+                {
+                    if (tokenMetadataClone == null)
+                        tokenMetadataClone = tokenMetadata.cloneOnlyTokenMap();
+                }
+                // if our clone got invalidated, it's possible there is a new token to account for too
+                keyToken = TokenMetadata.firstToken(tokenMetadataClone.sortedTokens(), searchToken);
+            }
+
             endpoints = new ArrayList<InetAddress>(calculateNaturalEndpoints(searchToken, tokenMetadataClone));
-            cacheEndpoint(keyToken, endpoints);
+            cachedEndpoints.put(keyToken, endpoints);
         }
 
         return new ArrayList<InetAddress>(endpoints);
@@ -202,11 +227,6 @@ public abstract class AbstractReplicationStrategy
         TokenMetadata temp = metadata.cloneOnlyTokenMap();
         temp.updateNormalTokens(pendingTokens, pendingAddress);
         return getAddressRanges(temp).get(pendingAddress);
-    }
-
-    public void invalidateCachedTokenEndpointValues()
-    {
-        clearEndpointCache();
     }
 
     public abstract void validateOptions() throws ConfigurationException;
