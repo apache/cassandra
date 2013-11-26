@@ -1,4 +1,5 @@
 1.2.13
+ * Fix thundering herd on endpoint cache invalidation (CASSANDRA-6345)
  * Optimize FD phi calculation (CASSANDRA-6386)
  * Improve initial FD phi estimate when starting up (CASSANDRA-6385)
  * Don't list CQL3 table in CLI describe even if named explicitely (CASSANDRA-5750)
