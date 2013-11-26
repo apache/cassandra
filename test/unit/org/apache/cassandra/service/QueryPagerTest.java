@@ -155,7 +155,7 @@ public class QueryPagerTest extends SchemaLoader
     }
 
     @Test
-    public void NamesQueryTest() throws Exception
+    public void namesQueryTest() throws Exception
     {
         QueryPager pager = QueryPagers.localPager(namesQuery("k0", "c1", "c5", "c7", "c8"));
 
@@ -168,7 +168,7 @@ public class QueryPagerTest extends SchemaLoader
     }
 
     @Test
-    public void SliceQueryTest() throws Exception
+    public void sliceQueryTest() throws Exception
     {
         QueryPager pager = QueryPagers.localPager(sliceQuery("k0", "c1", "c8", 10));
 
@@ -218,7 +218,7 @@ public class QueryPagerTest extends SchemaLoader
     }
 
     @Test
-    public void MultiQueryTest() throws Exception
+    public void multiQueryTest() throws Exception
     {
         QueryPager pager = QueryPagers.localPager(new Pageable.ReadCommands(new ArrayList<ReadCommand>() {{
             add(sliceQuery("k1", "c2", "c6", 10));
@@ -247,7 +247,7 @@ public class QueryPagerTest extends SchemaLoader
     }
 
     @Test
-    public void RangeNamesQueryTest() throws Exception
+    public void rangeNamesQueryTest() throws Exception
     {
         QueryPager pager = QueryPagers.localPager(rangeNamesQuery(range("k0", "k5"), 100, "c1", "c4", "c8"));
 
@@ -269,7 +269,7 @@ public class QueryPagerTest extends SchemaLoader
     }
 
     @Test
-    public void RangeSliceQueryTest() throws Exception
+    public void rangeSliceQueryTest() throws Exception
     {
         QueryPager pager = QueryPagers.localPager(rangeSliceQuery(range("k1", "k5"), 100, "c1", "c7"));
 
