@@ -192,7 +192,6 @@ if [ "`uname`" = "Linux" ] ; then
     # u34 and greater need 180k
     JVM_OPTS="$JVM_OPTS -Xss256k"
 fi
-echo "xss = $JVM_OPTS"
 
 # GC tuning options
 JVM_OPTS="$JVM_OPTS -XX:+UseParNewGC" 
