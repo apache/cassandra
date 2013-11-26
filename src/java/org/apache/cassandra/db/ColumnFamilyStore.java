@@ -2356,4 +2356,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Pair<ReplayPosition, Long> truncationRecord = SystemKeyspace.getTruncationRecords().get(metadata.cfId);
         return truncationRecord == null ? Long.MIN_VALUE : truncationRecord.right;
     }
+
+    public long trueSnapshotsSize()
+    {
+        return directories.trueSnapshotsSize();
+    }
 }

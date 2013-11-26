@@ -344,4 +344,9 @@ public interface ColumnFamilyStoreMBean
      * @return ratio
      */
     public double getDroppableTombstoneRatio();
+
+    /**
+     * @return the size of SSTables in "snapshots" subdirectory which aren't live anymore
+     */
+    public long trueSnapshotsSize();
 }

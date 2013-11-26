@@ -935,6 +935,7 @@ public class NodeProbe
                 case "PendingTasks":
                 case "RecentBloomFilterFalsePositives":
                 case "RecentBloomFilterFalseRatio":
+                case "SnapshotsSize":
                     return JMX.newMBeanProxy(mbeanServerConn,
                             new ObjectName("org.apache.cassandra.metrics:type=ColumnFamily,keyspace=" + ks + ",scope=" + cf + ",name=" + metricName),
                             JmxReporter.GaugeMBean.class).getValue();

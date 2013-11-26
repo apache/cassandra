@@ -17,16 +17,25 @@
  */
 package org.apache.cassandra.db;
 
+import static com.google.common.collect.Sets.newHashSet;
+
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOError;
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSet.Builder;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.Uninterruptibles;
 
@@ -35,7 +44,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
@@ -332,7 +340,7 @@ public class Directories
         private FileFilter getFilter()
         {
             // Note: the prefix needs to include cfname + separator to distinguish between a cfs and it's secondary indexes
-            final String sstablePrefix = keyspacename + Component.separator + cfname + Component.separator;
+            final String sstablePrefix = getSSTablePrefix();
             return new FileFilter()
             {
                 // This function always return false since accepts adds to the components map
@@ -401,6 +409,37 @@ public class Directories
         }
         throw new RuntimeException("Snapshot " + snapshotName + " doesn't exist");
     }
+    
+    public long trueSnapshotsSize()
+    {
+        long result = 0L;
+        for (File dir : sstableDirectories)
+            result += getTrueAllocatedSizeIn(new File(dir, join(SNAPSHOT_SUBDIR)));
+        return result;
+    }
+
+    private String getSSTablePrefix()
+    {
+        return keyspacename + Component.separator + cfname + Component.separator;
+    }
+
+    public long getTrueAllocatedSizeIn(File input)
+    {
+        if (!input.isDirectory())
+            return 0;
+        
+        TrueFilesSizeVisitor visitor = new TrueFilesSizeVisitor();
+        try
+        {
+            Files.walkFileTree(input.toPath(), visitor);
+        }
+        catch (IOException e)
+        {
+            logger.error("Could not calculate the size of {}. {}", input, e);
+        }
+    
+        return visitor.getAllocatedSize();
+    }
 
     private static File getOrCreate(File base, String... subdirs)
     {
@@ -435,5 +474,52 @@ public class Directories
         String[] locations = DatabaseDescriptor.getAllDataFileLocations();
         for (int i = 0; i < locations.length; ++i)
             dataFileLocations[i] = new DataDirectory(new File(locations[i]));
+    }
+    
+    private class TrueFilesSizeVisitor extends SimpleFileVisitor<Path>
+    {
+        private final AtomicLong size = new AtomicLong(0);
+        private final Set<String> visited = newHashSet(); //count each file only once
+        private final Set<String> alive;
+        private final String prefix = getSSTablePrefix();
+
+        public TrueFilesSizeVisitor()
+        {
+            super();
+            Builder<String> builder = ImmutableSet.builder();
+            for (File file: sstableLister().listFiles())
+                builder.add(file.getName());
+            alive = builder.build();
+        }
+
+        private boolean isAcceptable(Path file)
+        {
+            String fileName = file.toFile().getName(); 
+            return fileName.startsWith(prefix)
+                    && !visited.contains(fileName)
+                    && !alive.contains(fileName);
+        }
+
+        @Override
+        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
+        {
+            if (isAcceptable(file))
+            {
+                size.addAndGet(attrs.size());
+                visited.add(file.toFile().getName());
+            }
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException 
+        {
+            return FileVisitResult.CONTINUE;
+        }
+        
+        public long getAllocatedSize()
+        {
+            return size.get();
+        }
     }
 }

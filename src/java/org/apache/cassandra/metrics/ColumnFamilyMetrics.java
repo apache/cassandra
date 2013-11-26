@@ -82,6 +82,8 @@ public class ColumnFamilyMetrics
     public final Histogram tombstoneScannedHistogram;
     /** Live cells scanned in queries on this CF */
     public final Histogram liveScannedHistogram;
+    /** Disk space used by snapshot files which */
+    public final Gauge<Long> trueSnapshotsSize;
 
     public final Timer coordinatorReadLatency;
     public final Timer coordinatorScanLatency;
@@ -238,7 +240,7 @@ public class ColumnFamilyMetrics
             public Long value()
             {
                 long count = 0L;
-                for (SSTableReader sstable: cfs.getSSTables())
+                for (SSTableReader sstable : cfs.getSSTables())
                     count += sstable.getRecentBloomFilterFalsePositiveCount();
                 return count;
             }
@@ -249,7 +251,7 @@ public class ColumnFamilyMetrics
             {
                 long falseCount = 0L;
                 long trueCount = 0L;
-                for (SSTableReader sstable: cfs.getSSTables())
+                for (SSTableReader sstable : cfs.getSSTables())
                 {
                     falseCount += sstable.getBloomFilterFalsePositiveCount();
                     trueCount += sstable.getBloomFilterTruePositiveCount();
@@ -308,6 +310,14 @@ public class ColumnFamilyMetrics
         liveScannedHistogram = Metrics.newHistogram(factory.createMetricName("LiveScannedHistogram"), true);
         coordinatorReadLatency = Metrics.newTimer(factory.createMetricName("CoordinatorReadLatency"), TimeUnit.MICROSECONDS, TimeUnit.SECONDS);
         coordinatorScanLatency = Metrics.newTimer(factory.createMetricName("CoordinatorScanLatency"), TimeUnit.MICROSECONDS, TimeUnit.SECONDS);
+        
+        trueSnapshotsSize = Metrics.newGauge(factory.createMetricName("SnapshotsSize"), new Gauge<Long>()
+        {
+            public Long value()
+            {
+                return cfs.trueSnapshotsSize();
+            }
+        });
     }
 
     public void updateSSTableIterated(int count)
@@ -349,6 +359,7 @@ public class ColumnFamilyMetrics
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("LiveScannedHistogram"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("CoordinatorReadLatency"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("CoordinatorScanLatency"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("SnapshotsSize"));
     }
 
     class ColumnFamilyMetricNameFactory implements MetricNameFactory
