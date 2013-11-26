@@ -1054,7 +1054,7 @@ public class TokenMetadata
         return ringVersion;
     }
 
-    private void invalidateCachedRings()
+    public void invalidateCachedRings()
     {
         ringVersion++;
     }
