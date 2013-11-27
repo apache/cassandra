@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src/java"/>
+	<classpathentry kind="src" path="src/gen-java"/>
+	<classpathentry kind="src" path="interface/thrift/gen-java"/>
+	<classpathentry kind="src" path="tools/stress/src"/>
+	<classpathentry kind="src" path="test/unit"/>
+	<classpathentry kind="src" path="src/resources"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="lib/antlr-3.2.jar"/>
+	<classpathentry kind="lib" path="lib/commons-cli-1.1.jar"/>
+	<classpathentry kind="lib" path="lib/commons-codec-1.2.jar"/>
+	<classpathentry kind="lib" path="lib/commons-lang3-3.1.jar"/>
+	<classpathentry kind="lib" path="lib/compress-lzf-0.8.4.jar"/>
+	<classpathentry kind="lib" path="lib/cql-internal-only-1.4.1.zip"/>
+	<classpathentry kind="lib" path="lib/disruptor-3.0.1.jar"/>
+	<classpathentry kind="lib" path="lib/guava-15.0.jar"/>
+	<classpathentry kind="lib" path="lib/high-scale-lib-1.1.2.jar"/>
+	<classpathentry kind="lib" path="lib/jackson-core-asl-1.9.2.jar"/>
+	<classpathentry kind="lib" path="lib/jackson-mapper-asl-1.9.2.jar"/>
+	<classpathentry kind="lib" path="lib/jamm-0.2.5.jar"/>
+	<classpathentry kind="lib" path="lib/jbcrypt-0.3m.jar"/>
+	<classpathentry kind="lib" path="lib/jline-1.0.jar"/>
+	<classpathentry kind="lib" path="lib/json-simple-1.1.jar" sourcepath="/home/dave/.m2/repository/com/googlecode/json-simple/json-simple/1.1/json-simple-1.1-sources.jar"/>
+	<classpathentry kind="lib" path="lib/libthrift-0.9.1.jar"/>
+	<classpathentry kind="lib" path="lib/lz4-1.2.0.jar"/>
+	<classpathentry kind="lib" path="lib/metrics-core-2.2.0.jar"/>
+	<classpathentry kind="lib" path="lib/netty-3.6.6.Final.jar"/>
+	<classpathentry kind="lib" path="lib/reporter-config-2.1.0.jar"/>
+	<classpathentry kind="lib" path="lib/slf4j-api-1.7.2.jar"/>
+	<classpathentry kind="lib" path="lib/snakeyaml-1.11.jar"/>
+	<classpathentry kind="lib" path="lib/snappy-java-1.0.5.jar"/>
+	<classpathentry kind="lib" path="lib/snaptree-0.1.jar"/>
+	<classpathentry kind="lib" path="lib/thrift-python-internal-only-0.9.1.zip"/>
+	<classpathentry kind="lib" path="lib/thrift-server-0.3.2.jar"/>
+	<classpathentry kind="lib" path="build/lib/jars/junit-4.6.jar"/>
+	<classpathentry kind="lib" path="build/lib/jars/pig-0.11.1.jar"/>
+	<classpathentry kind="lib" path="build/lib/jars/hadoop-core-1.0.3.jar"/>
+	<classpathentry kind="lib" path="build/lib/jars/hadoop-minicluster-1.0.3.jar"/>
+	<classpathentry kind="lib" path="lib/concurrentlinkedhashmap-lru-1.4.jar"/>
+	<classpathentry kind="lib" path="lib/logback-classic-1.0.13.jar" sourcepath="/home/dave/.m2/repository/ch/qos/logback/logback-classic/1.0.13/logback-classic-1.0.13-sources.jar"/>
+	<classpathentry kind="lib" path="lib/logback-core-1.0.13.jar"/>
+	<classpathentry kind="lib" path="build/lib/jars/mina-core-2.0.0-M5.jar"/>
+	<classpathentry kind="lib" path="build/lib/jars/hadoop-test-1.0.3.jar"/>
+	<classpathentry kind="lib" path="build/lib/jars/jna-3.2.7.jar"/>
+	<classpathentry kind="output" path="build/classes"/>
+</classpath>
