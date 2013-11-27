@@ -21,102 +21,50 @@ package org.apache.cassandra.stress.operations;
  */
 
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
-import com.yammer.metrics.core.TimerContext;
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.utils.ByteBufferUtil;
-
-public class CqlCounterAdder extends CQLOperation
+public class CqlCounterAdder extends CqlOperation<Integer>
 {
-    private static String cqlQuery = null;
-
-    public CqlCounterAdder(Session client, int idx)
+    public CqlCounterAdder(State state, long idx)
     {
-        super(client, idx);
+        super(state, idx);
     }
 
-    protected void run(CQLQueryExecutor executor) throws IOException
+    @Override
+    protected String buildQuery()
     {
-        if (session.getColumnFamilyType() == ColumnFamilyType.Super)
-            throw new RuntimeException("Super columns are not implemented for CQL");
+        String counterCF = state.isCql2() ? "Counter1" : "Counter3";
 
-        if (cqlQuery == null)
+        StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired(counterCF));
+
+        if (state.isCql2())
+            query.append(" USING CONSISTENCY ").append(state.settings.command.consistencyLevel);
+
+        query.append(" SET ");
+
+        // TODO : increment distribution subset of columns
+        for (int i = 0; i < state.settings.columns.maxColumnsPerKey; i++)
         {
-            String counterCF = session.cqlVersion.startsWith("2") ? "Counter1" : "Counter3";
+            if (i > 0)
+                query.append(",");
 
-            StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired(counterCF));
-
-            if (session.cqlVersion.startsWith("2"))
-                query.append(" USING CONSISTENCY ").append(session.getConsistencyLevel());
-
-            query.append(" SET ");
-
-            for (int i = 0; i < session.getColumnsPerKey(); i++)
-            {
-                if (i > 0)
-                    query.append(",");
-
-                query.append('C').append(i).append("=C").append(i).append("+1");
-            }
-            query.append(" WHERE KEY=?");
-            cqlQuery = query.toString();
+            query.append('C').append(i).append("=C").append(i).append("+1");
         }
-
-        String key = String.format("%0" + session.getTotalKeysLength() + "d", index);
-        List<String> queryParams = Collections.singletonList(getUnQuotedCqlBlob(key, session.cqlVersion.startsWith("3")));
-
-        TimerContext context = session.latency.time();
-
-        boolean success = false;
-        String exceptionMessage = null;
-
-        for (int t = 0; t < session.getRetryTimes(); t++)
-        {
-            if (success)
-                break;
-
-            try
-            {
-                success = executor.execute(cqlQuery, queryParams);
-            }
-            catch (Exception e)
-            {
-                exceptionMessage = getExceptionMessage(e);
-                success = false;
-            }
-        }
-
-        if (!success)
-        {
-            error(String.format("Operation [%d] retried %d times - error incrementing key %s %s%n",
-                                index,
-                                session.getRetryTimes(),
-                                key,
-                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
-        }
-
-        session.operations.getAndIncrement();
-        session.keys.getAndIncrement();
-        context.stop();
+        query.append(" WHERE KEY=?");
+        return query.toString();
     }
 
-    protected boolean validateThriftResult(CqlResult result)
+    @Override
+    protected List<ByteBuffer> getQueryParameters(byte[] key)
     {
-        return true;
+        return Collections.singletonList(ByteBuffer.wrap(key));
     }
 
-    protected boolean validateNativeResult(ResultMessage result)
+    @Override
+    protected CqlRunOp buildRunOp(ClientWrapper client, String query, Object queryId, List<ByteBuffer> params, String keyid, ByteBuffer key)
     {
-        return true;
+        return new CqlRunOpAlwaysSucceed(client, query, queryId, params, keyid, key, 1);
     }
 }

@@ -48,6 +48,7 @@ public class CommitLogReplayer
 {
     private static final Logger logger = LoggerFactory.getLogger(CommitLogReplayer.class);
     private static final int MAX_OUTSTANDING_REPLAY_COUNT = 1024;
+    private static final int LEGACY_END_OF_SEGMENT_MARKER = 0;
 
     private final Set<Keyspace> keyspacesRecovered;
     private final List<Future<?>> futures;
@@ -112,6 +113,53 @@ public class CommitLogReplayer
             futures.addAll(keyspace.flush());
         FBUtilities.waitOnFutures(futures);
         return replayedCount.get();
+    }
+
+    private int readHeader(long segmentId, int offset, RandomAccessReader reader) throws IOException
+    {
+        if (offset > reader.length() - CommitLogSegment.SYNC_MARKER_SIZE)
+        {
+            if (offset != reader.length() && offset != Integer.MAX_VALUE)
+                logger.warn("Encountered bad header at position {} of Commit log {}; not enough room for a header");
+            // cannot possibly be a header here. if we're == length(), assume it's a correctly written final segment
+            return -1;
+        }
+        reader.seek(offset);
+        PureJavaCrc32 crc = new PureJavaCrc32();
+        crc.update((int) (segmentId & 0xFFFFFFFFL));
+        crc.update((int) (segmentId >>> 32));
+        crc.update((int) reader.getPosition());
+        int end = reader.readInt();
+        long filecrc = reader.readLong();
+        if (crc.getValue() != filecrc)
+        {
+            if (end != 0 || filecrc != 0)
+            {
+                logger.warn("Encountered bad header at position {} of commit log {}, with invalid CRC. The end of segment marker should be zero.", offset, reader.getPath());
+            }
+            return -1;
+        }
+        else if (end < offset || end > reader.length())
+        {
+            logger.warn("Encountered bad header at position {} of commit log {}, with bad position but valid CRC", offset, reader.getPath());
+            return -1;
+        }
+        return end;
+    }
+
+    private int getStartOffset(long segmentId, int version, File file)
+    {
+        if (globalPosition.segment < segmentId)
+        {
+            if (version >= CommitLogDescriptor.VERSION_21)
+                return CommitLogSegment.SYNC_MARKER_SIZE;
+            else
+                return 0;
+        }
+        else if (globalPosition.segment == segmentId)
+            return globalPosition.position;
+        else
+            return -1;
     }
 
     private abstract static class ReplayFilter
@@ -181,182 +229,199 @@ public class CommitLogReplayer
         final ReplayFilter replayFilter = ReplayFilter.create();
         logger.info("Replaying {}", file.getPath());
         CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
-        final long segment = desc.id;
+        final long segmentId = desc.id;
         int version = desc.getMessagingVersion();
         RandomAccessReader reader = RandomAccessReader.open(new File(file.getAbsolutePath()));
+
         try
         {
             assert reader.length() <= Integer.MAX_VALUE;
-            int replayPosition;
-            if (globalPosition.segment < segment)
-            {
-                replayPosition = 0;
-            }
-            else if (globalPosition.segment == segment)
-            {
-                replayPosition = globalPosition.position;
-            }
-            else
+            int offset = getStartOffset(segmentId, version, file);
+            if (offset < 0)
             {
                 logger.debug("skipping replay of fully-flushed {}", file);
                 return;
             }
 
-            if (logger.isDebugEnabled())
-                logger.debug("Replaying {} starting at {}", file, replayPosition);
-            reader.seek(replayPosition);
-
-            /* read the logs populate RowMutation and apply */
-            while (!reader.isEOF())
+            int prevEnd = 0;
+            main: while (true)
             {
+
+                int end = prevEnd;
+                if (version < CommitLogDescriptor.VERSION_21)
+                    end = Integer.MAX_VALUE;
+                else
+                {
+                    do { end = readHeader(segmentId, end, reader); }
+                    while (end < offset && end > prevEnd);
+                }
+
+                if (end < prevEnd)
+                    break;
+
                 if (logger.isDebugEnabled())
-                    logger.debug("Reading mutation at {}", reader.getFilePointer());
+                    logger.debug("Replaying {} between {} and {}", file, offset, prevEnd);
 
-                long claimedCRC32;
-                int serializedSize;
-                try
+                reader.seek(offset);
+
+                 /* read the logs populate RowMutation and apply */
+                while (reader.getPosition() < end && !reader.isEOF())
                 {
-                    // any of the reads may hit EOF
-                    serializedSize = reader.readInt();
-                    if (serializedSize == CommitLog.END_OF_SEGMENT_MARKER)
-                    {
-                        logger.debug("Encountered end of segment marker at {}", reader.getFilePointer());
-                        break;
-                    }
+                    if (logger.isDebugEnabled())
+                        logger.debug("Reading mutation at {}", reader.getFilePointer());
 
-                    // RowMutation must be at LEAST 10 bytes:
-                    // 3 each for a non-empty Keyspace and Key (including the
-                    // 2-byte length from writeUTF/writeWithShortLength) and 4 bytes for column count.
-                    // This prevents CRC by being fooled by special-case garbage in the file; see CASSANDRA-2128
-                    if (serializedSize < 10)
-                        break;
-
-                    long claimedSizeChecksum = reader.readLong();
-                    checksum.reset();
-                    if (version < CommitLogDescriptor.VERSION_20)
-                        checksum.update(serializedSize);
-                    else
-                        FBUtilities.updateChecksumInt(checksum, serializedSize);
-
-                    if (checksum.getValue() != claimedSizeChecksum)
-                        break; // entry wasn't synced correctly/fully. that's
-                               // ok.
-
-                    if (serializedSize > buffer.length)
-                        buffer = new byte[(int) (1.2 * serializedSize)];
-                    reader.readFully(buffer, 0, serializedSize);
-                    claimedCRC32 = reader.readLong();
-                }
-                catch (EOFException eof)
-                {
-                    break; // last CL entry didn't get completely written. that's ok.
-                }
-
-                checksum.update(buffer, 0, serializedSize);
-                if (claimedCRC32 != checksum.getValue())
-                {
-                    // this entry must not have been fsynced. probably the rest is bad too,
-                    // but just in case there is no harm in trying them (since we still read on an entry boundary)
-                    continue;
-                }
-
-                /* deserialize the commit log entry */
-                FastByteArrayInputStream bufIn = new FastByteArrayInputStream(buffer, 0, serializedSize);
-                final RowMutation rm;
-                try
-                {
-                    // assuming version here. We've gone to lengths to make sure what gets written to the CL is in
-                    // the current version. so do make sure the CL is drained prior to upgrading a node.
-                    rm = RowMutation.serializer.deserialize(new DataInputStream(bufIn), version, ColumnSerializer.Flag.LOCAL);
-                    // doublecheck that what we read is [still] valid for the current schema
-                    for (ColumnFamily cf : rm.getColumnFamilies())
-                        for (Column cell : cf)
-                            cf.getComparator().validate(cell.name());
-                }
-                catch (UnknownColumnFamilyException ex)
-                {
-                    if (ex.cfId == null)
-                        continue;
-                    AtomicInteger i = invalidMutations.get(ex.cfId);
-                    if (i == null)
-                    {
-                        i = new AtomicInteger(1);
-                        invalidMutations.put(ex.cfId, i);
-                    }
-                    else
-                        i.incrementAndGet();
-                    continue;
-                }
-                catch (Throwable t)
-                {
-                    File f = File.createTempFile("mutation", "dat");
-                    DataOutputStream out = new DataOutputStream(new FileOutputStream(f));
+                    long claimedCRC32;
+                    int serializedSize;
                     try
                     {
-                        out.write(buffer, 0, serializedSize);
-                    }
-                    finally
-                    {
-                        out.close();
-                    }
-                    String st = String.format("Unexpected error deserializing mutation; saved to %s and ignored.  This may be caused by replaying a mutation against a table with the same name but incompatible schema.  Exception follows: ",
-                                              f.getAbsolutePath());
-                    logger.error(st, t);
-                    continue;
-                }
-
-                if (logger.isDebugEnabled())
-                    logger.debug("replaying mutation for {}.{}: {}", rm.getKeyspaceName(), ByteBufferUtil.bytesToHex(rm.key()), "{" + StringUtils.join(rm.getColumnFamilies().iterator(), ", ") + "}");
-
-                final long entryLocation = reader.getFilePointer();
-                Runnable runnable = new WrappedRunnable()
-                {
-                    public void runMayThrow() throws IOException
-                    {
-                        if (Schema.instance.getKSMetaData(rm.getKeyspaceName()) == null)
-                            return;
-                        if (pointInTimeExceeded(rm))
-                            return;
-
-                        final Keyspace keyspace = Keyspace.open(rm.getKeyspaceName());
-
-                        // Rebuild the row mutation, omitting column families that
-                        //    a) the user has requested that we ignore,
-                        //    b) have already been flushed,
-                        // or c) are part of a cf that was dropped.
-                        // Keep in mind that the cf.name() is suspect. do every thing based on the cfid instead.
-                        RowMutation newRm = null;
-                        for (ColumnFamily columnFamily : replayFilter.filter(rm))
+                        // any of the reads may hit EOF
+                        serializedSize = reader.readInt();
+                        if (serializedSize == LEGACY_END_OF_SEGMENT_MARKER)
                         {
-                            if (Schema.instance.getCF(columnFamily.id()) == null)
-                                continue; // dropped
+                            logger.debug("Encountered end of segment marker at {}", reader.getFilePointer());
+                            break main;
+                        }
 
-                            ReplayPosition rp = cfPositions.get(columnFamily.id());
+                        // RowMutation must be at LEAST 10 bytes:
+                        // 3 each for a non-empty Keyspace and Key (including the
+                        // 2-byte length from writeUTF/writeWithShortLength) and 4 bytes for column count.
+                        // This prevents CRC by being fooled by special-case garbage in the file; see CASSANDRA-2128
+                        if (serializedSize < 10)
+                            break main;
 
-                            // replay if current segment is newer than last flushed one or,
-                            // if it is the last known segment, if we are after the replay position
-                            if (segment > rp.segment || (segment == rp.segment && entryLocation > rp.position))
+                        long claimedSizeChecksum = reader.readLong();
+                        checksum.reset();
+                        if (version < CommitLogDescriptor.VERSION_20)
+                            checksum.update(serializedSize);
+                        else
+                            FBUtilities.updateChecksumInt(checksum, serializedSize);
+
+                        if (checksum.getValue() != claimedSizeChecksum)
+                            break main; // entry wasn't synced correctly/fully. that's
+                        // ok.
+
+                        if (serializedSize > buffer.length)
+                            buffer = new byte[(int) (1.2 * serializedSize)];
+                        reader.readFully(buffer, 0, serializedSize);
+                        claimedCRC32 = reader.readLong();
+                    }
+                    catch (EOFException eof)
+                    {
+                        break main; // last CL entry didn't get completely written. that's ok.
+                    }
+
+                    checksum.update(buffer, 0, serializedSize);
+                    if (claimedCRC32 != checksum.getValue())
+                    {
+                        // this entry must not have been fsynced. probably the rest is bad too,
+                        // but just in case there is no harm in trying them (since we still read on an entry boundary)
+                        continue;
+                    }
+
+                    /* deserialize the commit log entry */
+                    FastByteArrayInputStream bufIn = new FastByteArrayInputStream(buffer, 0, serializedSize);
+                    final RowMutation rm;
+                    try
+                    {
+                        // assuming version here. We've gone to lengths to make sure what gets written to the CL is in
+                        // the current version. so do make sure the CL is drained prior to upgrading a node.
+                        rm = RowMutation.serializer.deserialize(new DataInputStream(bufIn), version, ColumnSerializer.Flag.LOCAL);
+                        // doublecheck that what we read is [still] valid for the current schema
+                        for (ColumnFamily cf : rm.getColumnFamilies())
+                            for (Column cell : cf)
+                                cf.getComparator().validate(cell.name());
+                    }
+                    catch (UnknownColumnFamilyException ex)
+                    {
+                        if (ex.cfId == null)
+                            continue;
+                        AtomicInteger i = invalidMutations.get(ex.cfId);
+                        if (i == null)
+                        {
+                            i = new AtomicInteger(1);
+                            invalidMutations.put(ex.cfId, i);
+                        }
+                        else
+                            i.incrementAndGet();
+                        continue;
+                    }
+                    catch (Throwable t)
+                    {
+                        File f = File.createTempFile("mutation", "dat");
+                        DataOutputStream out = new DataOutputStream(new FileOutputStream(f));
+                        try
+                        {
+                            out.write(buffer, 0, serializedSize);
+                        }
+                        finally
+                        {
+                            out.close();
+                        }
+                        String st = String.format("Unexpected error deserializing mutation; saved to %s and ignored.  This may be caused by replaying a mutation against a table with the same name but incompatible schema.  Exception follows: ",
+                                                  f.getAbsolutePath());
+                        logger.error(st, t);
+                        continue;
+                    }
+
+                    if (logger.isDebugEnabled())
+                        logger.debug("replaying mutation for {}.{}: {}", rm.getKeyspaceName(), ByteBufferUtil.bytesToHex(rm.key()), "{" + StringUtils.join(rm.getColumnFamilies().iterator(), ", ") + "}");
+
+                    final long entryLocation = reader.getFilePointer();
+                    Runnable runnable = new WrappedRunnable()
+                    {
+                        public void runMayThrow() throws IOException
+                        {
+                            if (Schema.instance.getKSMetaData(rm.getKeyspaceName()) == null)
+                                return;
+                            if (pointInTimeExceeded(rm))
+                                return;
+
+                            final Keyspace keyspace = Keyspace.open(rm.getKeyspaceName());
+
+                            // Rebuild the row mutation, omitting column families that
+                            //    a) the user has requested that we ignore,
+                            //    b) have already been flushed,
+                            // or c) are part of a cf that was dropped.
+                            // Keep in mind that the cf.name() is suspect. do every thing based on the cfid instead.
+                            RowMutation newRm = null;
+                            for (ColumnFamily columnFamily : replayFilter.filter(rm))
                             {
-                                if (newRm == null)
-                                    newRm = new RowMutation(rm.getKeyspaceName(), rm.key());
-                                newRm.add(columnFamily);
-                                replayedCount.incrementAndGet();
+                                if (Schema.instance.getCF(columnFamily.id()) == null)
+                                    continue; // dropped
+
+                                ReplayPosition rp = cfPositions.get(columnFamily.id());
+
+                                // replay if current segment is newer than last flushed one or,
+                                // if it is the last known segment, if we are after the replay position
+                                if (segmentId > rp.segment || (segmentId == rp.segment && entryLocation > rp.position))
+                                {
+                                    if (newRm == null)
+                                        newRm = new RowMutation(rm.getKeyspaceName(), rm.key());
+                                    newRm.add(columnFamily);
+                                    replayedCount.incrementAndGet();
+                                }
+                            }
+                            if (newRm != null)
+                            {
+                                assert !newRm.isEmpty();
+                                Keyspace.open(newRm.getKeyspaceName()).apply(newRm, false);
+                                keyspacesRecovered.add(keyspace);
                             }
                         }
-                        if (newRm != null)
-                        {
-                            assert !newRm.isEmpty();
-                            Keyspace.open(newRm.getKeyspaceName()).apply(newRm, false);
-                            keyspacesRecovered.add(keyspace);
-                        }
+                    };
+                    futures.add(StageManager.getStage(Stage.MUTATION).submit(runnable));
+                    if (futures.size() > MAX_OUTSTANDING_REPLAY_COUNT)
+                    {
+                        FBUtilities.waitOnFutures(futures);
+                        futures.clear();
                     }
-                };
-                futures.add(StageManager.getStage(Stage.MUTATION).submit(runnable));
-                if (futures.size() > MAX_OUTSTANDING_REPLAY_COUNT)
-                {
-                    FBUtilities.waitOnFutures(futures);
-                    futures.clear();
                 }
+
+                if (version < CommitLogDescriptor.VERSION_21)
+                    break;
+
+                offset = end + CommitLogSegment.SYNC_MARKER_SIZE;
+                prevEnd = end;
             }
         }
         finally

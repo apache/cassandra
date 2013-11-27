@@ -21,100 +21,48 @@ package org.apache.cassandra.stress.operations;
  */
 
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
-import com.yammer.metrics.core.TimerContext;
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.thrift.CqlResultType;
-import org.apache.cassandra.utils.ByteBufferUtil;
-
-public class CqlCounterGetter extends CQLOperation
+public class CqlCounterGetter extends CqlOperation<Integer>
 {
-    private static String cqlQuery = null;
 
-    public CqlCounterGetter(Session client, int idx)
+    public CqlCounterGetter(State state, long idx)
     {
-        super(client, idx);
+        super(state, idx);
     }
 
-    protected void run(CQLQueryExecutor executor) throws IOException
+    @Override
+    protected List<ByteBuffer> getQueryParameters(byte[] key)
     {
-        if (session.getColumnFamilyType() == ColumnFamilyType.Super)
-            throw new RuntimeException("Super columns are not implemented for CQL");
-
-        if (cqlQuery == null)
-        {
-            StringBuilder query = new StringBuilder("SELECT ");
-
-            if (session.cqlVersion.startsWith("2"))
-                query.append("FIRST ").append(session.getColumnsPerKey()).append(" ''..''");
-            else
-                query.append("*");
-
-            String counterCF = session.cqlVersion.startsWith("2") ? "Counter1" : "Counter3";
-
-            query.append(" FROM ").append(wrapInQuotesIfRequired(counterCF));
-
-            if (session.cqlVersion.startsWith("2"))
-                query.append(" USING CONSISTENCY ").append(session.getConsistencyLevel().toString());
-
-            cqlQuery = query.append(" WHERE KEY=?").toString();
-        }
-
-        byte[] key = generateKey();
-        List<String> queryParams = Collections.singletonList(getUnQuotedCqlBlob(key, session.cqlVersion.startsWith("3")));
-
-        TimerContext context = session.latency.time();
-
-        boolean success = false;
-        String exceptionMessage = null;
-
-        for (int t = 0; t < session.getRetryTimes(); t++)
-        {
-            if (success)
-                break;
-
-            try
-            {
-                success = executor.execute(cqlQuery, queryParams);
-            }
-            catch (Exception e)
-            {
-                exceptionMessage = getExceptionMessage(e);
-                success = false;
-            }
-        }
-
-        if (!success)
-        {
-            error(String.format("Operation [%d] retried %d times - error reading counter key %s %s%n",
-                                index,
-                                session.getRetryTimes(),
-                                new String(key),
-                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
-        }
-
-        session.operations.getAndIncrement();
-        session.keys.getAndIncrement();
-        context.stop();
+        return Collections.singletonList(ByteBuffer.wrap(key));
     }
 
-    protected boolean validateThriftResult(CqlResult result)
+    @Override
+    protected String buildQuery()
     {
-        return result.rows.get(0).columns.size() != 0;
+        StringBuilder query = new StringBuilder("SELECT ");
+
+        if (state.isCql2())
+            query.append("FIRST ").append(state.settings.columns.maxColumnsPerKey).append(" ''..''");
+        else
+            query.append("*");
+
+        String counterCF = state.isCql2() ? "Counter1" : "Counter3";
+
+        query.append(" FROM ").append(wrapInQuotesIfRequired(counterCF));
+
+        if (state.isCql2())
+            query.append(" USING CONSISTENCY ").append(state.settings.command.consistencyLevel);
+
+        return query.append(" WHERE KEY=?").toString();
     }
 
-    protected boolean validateNativeResult(ResultMessage result)
+    @Override
+    protected CqlRunOp buildRunOp(ClientWrapper client, String query, Object queryId, List<ByteBuffer> params, String keyid, ByteBuffer key)
     {
-        return result instanceof ResultMessage.Rows && ((ResultMessage.Rows)result).result.size() != 0;
+        return new CqlRunOpTestNonEmpty(client, query, queryId, params, keyid, key);
     }
+
 }

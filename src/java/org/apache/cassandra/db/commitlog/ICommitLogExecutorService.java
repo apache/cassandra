@@ -35,17 +35,4 @@ public interface ICommitLogExecutorService
      */
     public long getPendingTasks();
 
-
-    public <T> Future<T> submit(Callable<T> task);
-
-    /**
-     * submits the adder for execution and blocks for it to be synced, if necessary
-     */
-    public void add(CommitLog.LogRecordAdder adder);
-
-    /** shuts down the CommitLogExecutor in an orderly fashion */
-    public void shutdown();
-
-    /** Blocks until shutdown is complete. */
-    public void awaitTermination() throws InterruptedException;
 }
