@@ -57,6 +57,7 @@
     <property name="test.name" value="*Test"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="test.long.src" value="${test.dir}/long"/>
+    <property name="test.pig.src" value="${test.dir}/pig"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
 	
 	<property name="source.version" value="1.7"/>
@@ -1131,14 +1132,15 @@
     </testmacro>
   </target>
 
-  <target name="test-all" 
-          depends="test,long-test,test-compression,test-clientutil-jar" 
-          description="Run all tests" />
   <target name="pig-test" depends="build-test" description="Excute Pig tests">
-    <testmacro suitename="unit" inputdir="${test.unit.src}" 
-               timeout="1200000" filter="**/pig/*Test.java">
+    <testmacro suitename="pig" inputdir="${test.pig.src}" 
+               timeout="1200000">
     </testmacro>
   </target>
+
+  <target name="test-all" 
+          depends="test,long-test,test-compression,pig-test,test-clientutil-jar" 
+          description="Run all tests" />
 
   <!-- instruments the classes to later create code coverage reports -->
   <target name="cobertura-instrument" depends="build,build-test">
