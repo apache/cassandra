@@ -65,8 +65,11 @@ public class CommitLogAllocator
 {
     static final Logger logger = LoggerFactory.getLogger(CommitLogAllocator.class);
 
-    /** Queue of work to be done by allocator thread - if a CommitLogSegment is returned, adds to available queue */
-    private final BlockingQueue<Callable<CommitLogSegment>> allocatorQueue = new LinkedBlockingQueue<>();
+    /**
+     * Queue of work to be done by the allocator thread.  This is usually a recycle operation, which returns
+     * a CommitLogSegment, or a delete operation, which returns null.
+     */
+    private final BlockingQueue<Callable<CommitLogSegment>> segmentManagementTasks = new LinkedBlockingQueue<>();
 
     /** Segments that are ready to be used. Head of the queue is the one we allocate writes to */
     private final ConcurrentLinkedQueue<CommitLogSegment> availableSegments = new ConcurrentLinkedQueue<>();
@@ -103,13 +106,12 @@ public class CommitLogAllocator
         // The run loop for the allocation thread
         Runnable runnable = new WrappedRunnable()
         {
-
             public void runMayThrow() throws Exception
             {
                 while (run)
                 {
-                    Callable<CommitLogSegment> r = allocatorQueue.poll();
-                    if (r == null)
+                    Callable<CommitLogSegment> task = segmentManagementTasks.poll();
+                    if (task == null)
                     {
                         // if we have no more work to do, check if we should allocate a new segment
                         if (availableSegments.isEmpty() && (activeSegments.isEmpty() || createReserveSegments))
@@ -128,8 +130,9 @@ public class CommitLogAllocator
                         try
                         {
                             // wait for new work to be provided
-                            r = allocatorQueue.take();
-                        } catch (InterruptedException e)
+                            task = segmentManagementTasks.take();
+                        }
+                        catch (InterruptedException e)
                         {
                             // exit cleanly
                             continue;
@@ -137,11 +140,11 @@ public class CommitLogAllocator
                     }
 
                     // TODO : some error handling in case we fail on executing call (e.g. recycling)
-                    CommitLogSegment publish = r.call();
-                    if (publish != null)
+                    CommitLogSegment recycled = task.call();
+                    if (recycled != null)
                     {
                         // if the work resulted in a segment to recycle, publish it
-                        availableSegments.add(publish);
+                        availableSegments.add(recycled);
                         hasAvailableSegments.signalAll();
                     }
                 }
@@ -153,7 +156,7 @@ public class CommitLogAllocator
     }
 
     /**
-     * Allocate space in the current segment for the provided row mutation or, if there isn't space available,
+     * Reserve space in the current segment for the provided row mutation or, if there isn't space available,
      * allocate a new segment.
      *
      * @return the provided Allocation object
@@ -209,7 +212,7 @@ public class CommitLogAllocator
                     // if we've emptied the queue of available segments, trigger the allocator to maybe add another
                     wakeAllocator();
 
-                if (old != null && CommitLog.instance.archiver != null)
+                if (old != null)
                 {
                     // Now we can run the user defined command just after switching to the new commit log.
                     // (Do this here instead of in the recycle call so we can get a head start on the archive.)
@@ -252,7 +255,7 @@ public class CommitLogAllocator
     private void wakeAllocator()
     {
         // put a NO-OP on the queue, to trigger allocator thread
-        allocatorQueue.add(new Callable<CommitLogSegment>()
+        segmentManagementTasks.add(new Callable<CommitLogSegment>()
         {
             public CommitLogSegment call()
             {
@@ -319,7 +322,7 @@ public class CommitLogAllocator
         }
 
         logger.debug("Recycling {}", segment);
-        allocatorQueue.add(new Callable<CommitLogSegment>()
+        segmentManagementTasks.add(new Callable<CommitLogSegment>()
         {
             public CommitLogSegment call()
             {
@@ -349,7 +352,7 @@ public class CommitLogAllocator
         logger.debug("Recycling {}", file);
         // this wasn't previously a live segment, so add it to the managed size when we make it live
         size.addAndGet(DatabaseDescriptor.getCommitLogSegmentSize());
-        allocatorQueue.add(new Callable<CommitLogSegment>()
+        segmentManagementTasks.add(new Callable<CommitLogSegment>()
         {
             public CommitLogSegment call()
             {
@@ -368,7 +371,7 @@ public class CommitLogAllocator
         logger.debug("Segment {} is no longer active and will be deleted {}", segment, deleteFile ? "now" : "by the archive script");
         size.addAndGet(-DatabaseDescriptor.getCommitLogSegmentSize());
 
-        allocatorQueue.add(new Callable<CommitLogSegment>()
+        segmentManagementTasks.add(new Callable<CommitLogSegment>()
         {
             public CommitLogSegment call()
             {
@@ -425,7 +428,6 @@ public class CommitLogAllocator
         wakeAllocator();
     }
 
-
     /**
      * Force a flush on all dirty CFs represented in the oldest commitlog segments, until we are either
      * no longer over-limit or, if forceAll is set, we have flushed all dirty segments up to the provided upto
@@ -433,7 +435,6 @@ public class CommitLogAllocator
      */
     private Future<?> flushOldestKeyspaces(ExecutorService exec, CommitLogSegment upto, boolean forceAll)
     {
-
         // track how much space we are reclaiming (i.e. how many segments we are flushing keyspaces from)
         long reclaiming = 0;
 
@@ -495,20 +496,16 @@ public class CommitLogAllocator
         }
         return new Future<Object>()
         {
-
-            @Override
             public boolean cancel(boolean mayInterruptIfRunning)
             {
                 return false;
             }
 
-            @Override
             public boolean isCancelled()
             {
                 return false;
             }
 
-            @Override
             public boolean isDone()
             {
                 for (Future<?> f : outerFutures)
@@ -520,7 +517,6 @@ public class CommitLogAllocator
                 return true;
             }
 
-            @Override
             public Object get() throws InterruptedException, ExecutionException
             {
                 for (Future<?> f : outerFutures)
@@ -530,7 +526,6 @@ public class CommitLogAllocator
                 return null;
             }
 
-            @Override
             public Object get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
             {
                 throw new UnsupportedOperationException();
@@ -545,7 +540,7 @@ public class CommitLogAllocator
     {
         logger.debug("Closing and clearing existing commit log segments...");
 
-        while (!allocatorQueue.isEmpty())
+        while (!segmentManagementTasks.isEmpty())
             Thread.yield();
 
         activeSegments.clear();
@@ -577,6 +572,5 @@ public class CommitLogAllocator
     {
         return Collections.unmodifiableCollection(activeSegments);
     }
-
 }
 

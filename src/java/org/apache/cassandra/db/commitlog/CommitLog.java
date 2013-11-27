@@ -150,7 +150,7 @@ public class CommitLog implements CommitLogMBean
 
     /**
      * @return a Future representing a ReplayPosition such that when it is ready,
-     * all commitlog tasks enqueued prior to the getContext call will be markWritten (i.e., appended to the log)
+     * all Allocations created prior to the getContext call will be written to the log
      */
     public Future<ReplayPosition> getContext()
     {
@@ -158,7 +158,7 @@ public class CommitLog implements CommitLogMBean
     }
 
     /**
-     * Flushes all dirty CFs, waiting for them to free and recycle any CLS they were retaining
+     * Flushes all dirty CFs, waiting for them to free and recycle any segments they were retaining
      *
      * @param exec an executor to perform the necessary forceFlush() calls on
      */
@@ -168,7 +168,7 @@ public class CommitLog implements CommitLogMBean
     }
 
     /**
-     * Forces a disk flush on the commit log files that need it.
+     * Forces a disk flush on the commit log files that need it.  Blocking.
      */
     public void sync(boolean syncAllSegments)
     {
@@ -212,6 +212,7 @@ public class CommitLog implements CommitLogMBean
             final ByteBuffer buffer = alloc.getBuffer();
             DataOutputStream dos = new DataOutputStream(new ChecksummedOutputStream(new ByteBufferOutputStream(buffer), checksum));
 
+            // checksummed length
             dos.writeInt((int) size);
             buffer.putLong(checksum.getValue());
 
@@ -291,7 +292,7 @@ public class CommitLog implements CommitLogMBean
 
     public List<String> getActiveSegmentNames()
     {
-        List<String> segmentNames = new ArrayList<String>();
+        List<String> segmentNames = new ArrayList<>();
         for (CommitLogSegment segment : allocator.getActiveSegments())
             segmentNames.add(segment.getName());
         return segmentNames;
