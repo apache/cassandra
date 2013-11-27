@@ -253,8 +253,9 @@ public class IndexSummaryManagerTest extends SchemaLoader
 
         List<SSTableReader> sstables = new ArrayList<>(cfs.getSSTables());
         assertEquals(1, sstables.size());
-        SSTableReader sstable = sstables.get(0);
+        SSTableReader original = sstables.get(0);
 
+        SSTableReader sstable = original;
         for (int samplingLevel = MIN_SAMPLING_LEVEL; samplingLevel < BASE_SAMPLING_LEVEL; samplingLevel++)
         {
             sstable = sstable.cloneWithNewSummarySamplingLevel(samplingLevel);
@@ -262,6 +263,9 @@ public class IndexSummaryManagerTest extends SchemaLoader
             int expectedSize = (numRows * samplingLevel) / (sstable.metadata.getIndexInterval() * BASE_SAMPLING_LEVEL);
             assertEquals(expectedSize, sstable.getIndexSummarySize(), 1);
         }
+
+        // don't leave replaced SSTRs around to break other tests
+        cfs.getDataTracker().replaceReaders(Collections.singleton(original), Collections.singleton(sstable));
     }
 
     @Test
