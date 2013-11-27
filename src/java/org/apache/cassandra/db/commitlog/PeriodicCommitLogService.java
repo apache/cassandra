@@ -20,11 +20,11 @@ package org.apache.cassandra.db.commitlog;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.WaitQueue;
 
-class PeriodicCommitLogExecutorService extends AbstractCommitLogExecutorService
+class PeriodicCommitLogService extends AbstractCommitLogService
 {
     private final long blockWhenSyncLagsMillis;
 
-    public PeriodicCommitLogExecutorService(final CommitLog commitLog)
+    public PeriodicCommitLogService(final CommitLog commitLog)
     {
         super(commitLog, "PERIODIC-COMMIT-LOG-SYNCER", DatabaseDescriptor.getCommitLogSyncPeriod());
         blockWhenSyncLagsMillis = DatabaseDescriptor.getCommitLogSyncPeriod() + 10;
@@ -47,7 +47,9 @@ class PeriodicCommitLogExecutorService extends AbstractCommitLogExecutorService
         }
     }
 
-    // tests if sync is currently lagging behind inserts
+    /**
+     * @return true if sync is currently lagging behind inserts
+     */
     private boolean waitForSyncToCatchUp(long started)
     {
         long alive = lastAliveAt;

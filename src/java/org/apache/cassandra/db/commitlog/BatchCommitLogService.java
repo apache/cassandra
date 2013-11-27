@@ -19,9 +19,9 @@ package org.apache.cassandra.db.commitlog;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService
+class BatchCommitLogService extends AbstractCommitLogService
 {
-    public BatchCommitLogExecutorService(CommitLog commitLog)
+    public BatchCommitLogService(CommitLog commitLog)
     {
         super(commitLog, "COMMIT-LOG-WRITER", (int) DatabaseDescriptor.getCommitLogSyncBatchWindow());
     }

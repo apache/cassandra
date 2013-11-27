@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
 
-abstract class AbstractCommitLogExecutorService
+public abstract class AbstractCommitLogService
 {
     private final Thread thread;
     private volatile boolean shutdown = false;
@@ -42,13 +42,20 @@ abstract class AbstractCommitLogExecutorService
     protected final WaitQueue syncComplete = new WaitQueue();
     private final Semaphore haveWork = new Semaphore(1);
 
-    private static final Logger logger = LoggerFactory.getLogger(AbstractCommitLogExecutorService.class);
+    private static final Logger logger = LoggerFactory.getLogger(AbstractCommitLogService.class);
 
-    AbstractCommitLogExecutorService(final CommitLog commitLog, final String name, final long pollIntervalMillis)
+    /**
+     * CommitLogService provides a fsync service for Allocations, fulfilling either the
+     * Batch or Periodic contract.
+     *
+     * Subclasses may be notified when a sync finishes by using the syncComplete WaitQueue.
+     */
+    AbstractCommitLogService(final CommitLog commitLog, final String name, final long pollIntervalMillis)
     {
         if (pollIntervalMillis < 1)
             throw new IllegalArgumentException(String.format("Commit log flush interval must be positive: %dms", pollIntervalMillis));
-        thread = new Thread(new Runnable()
+
+        Runnable runnable = new Runnable()
         {
             public void run()
             {
@@ -61,17 +68,14 @@ abstract class AbstractCommitLogExecutorService
                         run = !shutdown;
 
                         // heartbeat and set time we plan to sleep until
-                        long nextSync;
-                        lastAliveAt = nextSync = System.currentTimeMillis();
-                        nextSync += pollIntervalMillis;
+                        long preSync = lastAliveAt = System.currentTimeMillis();
+                        long nextSync = preSync + pollIntervalMillis;
 
-                        // perform sync
                         commitLog.sync(shutdown);
 
                         // heartbeat
                         lastAliveAt = System.currentTimeMillis();
 
-                        // signal any threads blocking on a slow sync
                         syncComplete.signalAll();
 
                         long sleep = nextSync - System.currentTimeMillis();
@@ -84,17 +88,15 @@ abstract class AbstractCommitLogExecutorService
 
                         try
                         {
-                            // wait for the shutdown signal
                             haveWork.tryAcquire(sleep, TimeUnit.MILLISECONDS);
-                        } catch (InterruptedException e)
-                        {
-                            // ignore (shouldn't happen, but no point in panicking if it does)
                         }
-
+                        catch (InterruptedException e)
+                        {
+                            throw new AssertionError();
+                        }
                     }
                     catch (Throwable t)
                     {
-
                         logger.error("Commit log sync failed", t);
                         // sleep for full poll-interval after an error, so we don't spam the log file
                         try
@@ -103,16 +105,20 @@ abstract class AbstractCommitLogExecutorService
                         }
                         catch (InterruptedException e)
                         {
-                            // ignore
+                            throw new AssertionError();
                         }
-
                     }
                 }
             }
-        }, name);
+        };
+
+        thread = new Thread(runnable, name);
         thread.start();
     }
 
+    /**
+     * Block for @param alloc to be sync'd as necessary, and handle bookkeeping
+     */
     public void finishWriteFor(Allocation alloc)
     {
         maybeWaitForSync(alloc);
@@ -121,6 +127,9 @@ abstract class AbstractCommitLogExecutorService
 
     protected abstract void maybeWaitForSync(Allocation alloc);
 
+    /**
+     * Sync immediately, but don't block for the sync to cmplete
+     */
     public void requestExtraSync()
     {
         haveWork.release();
