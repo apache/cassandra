@@ -39,7 +39,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
 
-public class CQLSSTableWriterTest extends SchemaLoader
+public class CQLSSTableWriterTest
 {
     @BeforeClass
     public static void setup() throws Exception
@@ -78,7 +78,7 @@ public class CQLSSTableWriterTest extends SchemaLoader
         {
             public void init(String keyspace)
             {
-                for (Range<Token> range : StorageService.instance.getLocalRanges("Keyspace1"))
+                for (Range<Token> range : StorageService.instance.getLocalRanges("cql_keyspace"))
                     addRangeForEndpoint(range, FBUtilities.getBroadcastAddress());
                 setPartitioner(StorageService.getPartitioner());
             }
