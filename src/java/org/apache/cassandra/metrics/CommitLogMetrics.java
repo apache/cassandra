@@ -21,7 +21,7 @@ import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Gauge;
 
 import org.apache.cassandra.db.commitlog.CommitLogAllocator;
-import org.apache.cassandra.db.commitlog.ICommitLogExecutorService;
+import org.apache.cassandra.db.commitlog.CommitLogExecutorService;
 
 /**
  * Metrics for commit log
@@ -37,7 +37,7 @@ public class CommitLogMetrics
     /** Current size used by all the commit log segments */
     public final Gauge<Long> totalCommitLogSize;
 
-    public CommitLogMetrics(final ICommitLogExecutorService executor, final CommitLogAllocator allocator)
+    public CommitLogMetrics(final CommitLogExecutorService executor, final CommitLogAllocator allocator)
     {
         completedTasks = Metrics.newGauge(factory.createMetricName("CompletedTasks"), new Gauge<Long>()
         {

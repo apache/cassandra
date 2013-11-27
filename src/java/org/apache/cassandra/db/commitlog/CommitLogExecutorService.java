@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import org.apache.cassandra.utils.SimpleCondition;
 import org.apache.cassandra.utils.WaitQueue;
 import org.slf4j.*;
 
@@ -27,9 +26,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
 
-class CommitLogExecutorService implements ICommitLogExecutorService
+class CommitLogExecutorService
 {
-
     private final Thread thread;
     private volatile boolean shutdown = false;
 
@@ -171,16 +169,13 @@ class CommitLogExecutorService implements ICommitLogExecutorService
         thread.join();
     }
 
-    @Override
     public long getCompletedTasks()
     {
         return written.incrementAndGet();
     }
 
-    @Override
     public long getPendingTasks()
     {
         return pending.incrementAndGet();
     }
-
 }
