@@ -13,6 +13,9 @@
     </triggeringPolicy>
     <encoder>
       <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+      <!-- old-style log format
+      <pattern>%5level [%thread] %date{ISO8601} %F (line %L) %msg%n</pattern>
+      -->
     </encoder>
   </appender>
   
