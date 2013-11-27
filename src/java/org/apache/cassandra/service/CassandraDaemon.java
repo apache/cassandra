@@ -38,6 +38,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.MeteredFlusher;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -157,9 +158,24 @@ public class CassandraDaemon
         {
             logger.debug("Checking directory {}", dataDir);
             File dir = new File(dataDir);
-            if (dir.exists())
-                assert dir.isDirectory() && dir.canRead() && dir.canWrite() && dir.canExecute()
-                    : String.format("Directory %s is not accessible.", dataDir);
+
+            // check that directories exist.
+            if (!dir.exists())
+            {
+                logger.error("Directory {} doesn't exist", dataDir);
+                // if they don't, failing their creation, stop cassandra.
+                if (!dir.mkdirs())
+                {
+                    logger.error("Has no permission to create {} directory", dataDir);
+                    System.exit(3);
+                }
+            }
+            // if directories exist verify their permissions
+            if (!Directories.verifyFullPermissions(dir, dataDir))
+            {
+                // if permissions aren't sufficient, stop cassandra.
+                System.exit(3);
+            }
         }
 
         if (CacheService.instance == null) // should never happen
