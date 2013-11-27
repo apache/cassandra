@@ -22,12 +22,12 @@ import org.apache.cassandra.utils.WaitQueue;
 
 class PeriodicCommitLogService extends AbstractCommitLogService
 {
-    private final long blockWhenSyncLagsMillis;
+
+    private static final int blockWhenSyncLagsMillis = (int) (DatabaseDescriptor.getCommitLogSyncPeriod() * 1.5);
 
     public PeriodicCommitLogService(final CommitLog commitLog)
     {
         super(commitLog, "PERIODIC-COMMIT-LOG-SYNCER", DatabaseDescriptor.getCommitLogSyncPeriod());
-        blockWhenSyncLagsMillis = DatabaseDescriptor.getCommitLogSyncPeriod() + 10;
     }
 
     protected void maybeWaitForSync(CommitLogSegment.Allocation alloc)
@@ -52,7 +52,6 @@ class PeriodicCommitLogService extends AbstractCommitLogService
      */
     private boolean waitForSyncToCatchUp(long started)
     {
-        long alive = lastAliveAt;
-        return started > alive && alive + blockWhenSyncLagsMillis < System.currentTimeMillis() ;
+        return started > lastSyncedAt + blockWhenSyncLagsMillis;
     }
 }

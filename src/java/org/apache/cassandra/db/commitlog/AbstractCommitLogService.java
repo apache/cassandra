@@ -31,8 +31,8 @@ public abstract class AbstractCommitLogService
     private final Thread thread;
     private volatile boolean shutdown = false;
 
-    // updated before and after any sync
-    protected volatile long lastAliveAt = System.currentTimeMillis();
+    // all Allocations written before this time will be synced
+    protected volatile long lastSyncedAt = System.currentTimeMillis();
 
     // counts of total written, and pending, log messages
     private final AtomicLong written = new AtomicLong(0);
@@ -67,25 +67,20 @@ public abstract class AbstractCommitLogService
                         // always run once after shutdown signalled
                         run = !shutdown;
 
-                        // heartbeat and set time we plan to sleep until
-                        long preSync = lastAliveAt = System.currentTimeMillis();
-                        long nextSync = preSync + pollIntervalMillis;
-
+                        // sync and signal
+                        long syncStarted = System.currentTimeMillis();
                         commitLog.sync(shutdown);
-
-                        // heartbeat
-                        lastAliveAt = System.currentTimeMillis();
-
+                        lastSyncedAt = syncStarted;
                         syncComplete.signalAll();
 
-                        long sleep = nextSync - System.currentTimeMillis();
+                        // sleep any time we have left before the next one is due
+                        long sleep = syncStarted + pollIntervalMillis - System.currentTimeMillis();
                         if (sleep < 0)
                         {
                             logger.warn(String.format("Commit log sync took longer than sync interval (by %.2fs), indicating it is a bottleneck", sleep / -1000d));
                             // don't sleep, as we probably have work to do
                             continue;
                         }
-
                         try
                         {
                             haveWork.tryAcquire(sleep, TimeUnit.MILLISECONDS);
