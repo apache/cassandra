@@ -596,7 +596,6 @@ public class CommitLogSegment
      */
     static final class Allocation
     {
-
         private CommitLogSegment segment;
         private AppendLock appendLock;
         private int position;
@@ -627,7 +626,5 @@ public class CommitLogSegment
                     signal.awaitUninterruptibly();
             }
         }
-
     }
-
 }

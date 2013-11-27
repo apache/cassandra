@@ -19,11 +19,18 @@ package org.apache.cassandra.db.commitlog;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-class BatchCommitLogExecutorService extends CommitLogExecutorService
+class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService
 {
     public BatchCommitLogExecutorService(CommitLog commitLog)
     {
-        super(commitLog, "COMMIT-LOG-WRITER", (int) DatabaseDescriptor.getCommitLogSyncBatchWindow(), true);
+        super(commitLog, "COMMIT-LOG-WRITER", (int) DatabaseDescriptor.getCommitLogSyncBatchWindow());
     }
 
+    protected void maybeWaitForSync(CommitLogSegment.Allocation alloc)
+    {
+        // wait until record has been safely persisted to disk
+        pending.incrementAndGet();
+        alloc.awaitDiskSync();
+        pending.decrementAndGet();
+    }
 }

@@ -61,7 +61,7 @@ public class CommitLog implements CommitLogMBean
     public final CommitLogAllocator allocator;
     public final CommitLogArchiver archiver = new CommitLogArchiver();
     private final CommitLogMetrics metrics;
-    final CommitLogExecutorService executor;
+    final AbstractCommitLogExecutorService executor;
 
     private CommitLog()
     {
@@ -227,7 +227,8 @@ public class CommitLog implements CommitLogMBean
         {
             alloc.markWritten();
         }
-        executor.waitIfNeeded(alloc);
+
+        executor.finishWriteFor(alloc);
     }
 
     /**
@@ -329,5 +330,4 @@ public class CommitLog implements CommitLogMBean
     {
         return allocator.getActiveSegments().size();
     }
-
 }

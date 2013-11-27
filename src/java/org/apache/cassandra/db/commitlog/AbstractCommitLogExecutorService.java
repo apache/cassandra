@@ -26,36 +26,28 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
 
-class CommitLogExecutorService
+abstract class AbstractCommitLogExecutorService
 {
     private final Thread thread;
     private volatile boolean shutdown = false;
 
     // updated before and after any sync
-    private volatile long lastAliveAt = System.currentTimeMillis();
+    protected volatile long lastAliveAt = System.currentTimeMillis();
 
     // counts of total written, and pending, log messages
     private final AtomicLong written = new AtomicLong(0);
-    private final AtomicLong pending = new AtomicLong(0);
+    protected final AtomicLong pending = new AtomicLong(0);
 
     // signal that writers can wait on to be notified of a completed sync
-    private final WaitQueue syncComplete = new WaitQueue();
+    protected final WaitQueue syncComplete = new WaitQueue();
     private final Semaphore haveWork = new Semaphore(1);
 
-    // max number of overlapping
-    private final long blockWhenSyncLagsMillis;
+    private static final Logger logger = LoggerFactory.getLogger(AbstractCommitLogExecutorService.class);
 
-    // whether or not commits need to be safely on disk before they are acknowledged
-    private final boolean waitOnDiskSync;
-
-    private static final Logger logger = LoggerFactory.getLogger(CommitLogExecutorService.class);
-
-    CommitLogExecutorService(final CommitLog commitLog, final String name, final long pollIntervalMillis, boolean waitOnDiskSync)
+    AbstractCommitLogExecutorService(final CommitLog commitLog, final String name, final long pollIntervalMillis)
     {
         if (pollIntervalMillis < 1)
             throw new IllegalArgumentException(String.format("Commit log flush interval must be positive: %dms", pollIntervalMillis));
-        this.blockWhenSyncLagsMillis = pollIntervalMillis + 10;
-        this.waitOnDiskSync = waitOnDiskSync;
         thread = new Thread(new Runnable()
         {
             public void run()
@@ -121,37 +113,13 @@ class CommitLogExecutorService
         thread.start();
     }
 
-    // tests if sync is currently lagging behind inserts
-    private boolean waitForSyncToCatchUp(long started)
+    public void finishWriteFor(Allocation alloc)
     {
-        long alive = lastAliveAt;
-        return started > alive && alive + blockWhenSyncLagsMillis < System.currentTimeMillis() ;
-    }
-
-    void waitIfNeeded(Allocation alloc)
-    {
-        if (waitOnDiskSync)
-        {
-            // wait until record has been safely persisted to disk
-            pending.incrementAndGet();
-            alloc.awaitDiskSync();
-            pending.decrementAndGet();
-        }
-        else if (waitForSyncToCatchUp(Long.MAX_VALUE))
-        {
-            // wait until periodic sync() catches up with its schedule
-            long started = System.currentTimeMillis();
-            pending.incrementAndGet();
-            while (waitForSyncToCatchUp(started))
-            {
-                WaitQueue.Signal signal = syncComplete.register();
-                if (waitForSyncToCatchUp(started))
-                    signal.awaitUninterruptibly();
-            }
-            pending.decrementAndGet();
-        }
+        maybeWaitForSync(alloc);
         written.incrementAndGet();
     }
+
+    protected abstract void maybeWaitForSync(Allocation alloc);
 
     public void requestExtraSync()
     {

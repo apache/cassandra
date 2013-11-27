@@ -17,20 +17,40 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.IOException;
-import java.util.concurrent.*;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.WaitQueue;
-import org.apache.cassandra.utils.WrappedRunnable;
 
-import com.google.common.util.concurrent.Uninterruptibles;
-import org.slf4j.*;
-
-class PeriodicCommitLogExecutorService extends CommitLogExecutorService
+class PeriodicCommitLogExecutorService extends AbstractCommitLogExecutorService
 {
+    private final long blockWhenSyncLagsMillis;
+
     public PeriodicCommitLogExecutorService(final CommitLog commitLog)
     {
-        super(commitLog, "PERIODIC-COMMIT-LOG-SYNCER", DatabaseDescriptor.getCommitLogSyncPeriod(), false);
+        super(commitLog, "PERIODIC-COMMIT-LOG-SYNCER", DatabaseDescriptor.getCommitLogSyncPeriod());
+        blockWhenSyncLagsMillis = DatabaseDescriptor.getCommitLogSyncPeriod() + 10;
+    }
+
+    protected void maybeWaitForSync(CommitLogSegment.Allocation alloc)
+    {
+        if (waitForSyncToCatchUp(Long.MAX_VALUE))
+        {
+            // wait until periodic sync() catches up with its schedule
+            long started = System.currentTimeMillis();
+            pending.incrementAndGet();
+            while (waitForSyncToCatchUp(started))
+            {
+                WaitQueue.Signal signal = syncComplete.register();
+                if (waitForSyncToCatchUp(started))
+                    signal.awaitUninterruptibly();
+            }
+            pending.decrementAndGet();
+        }
+    }
+
+    // tests if sync is currently lagging behind inserts
+    private boolean waitForSyncToCatchUp(long started)
+    {
+        long alive = lastAliveAt;
+        return started > alive && alive + blockWhenSyncLagsMillis < System.currentTimeMillis() ;
     }
 }
