@@ -58,7 +58,7 @@ public class CommitLog implements CommitLogMBean
     // empty segments when writing large records
     private static final long MAX_MUTATION_SIZE = DatabaseDescriptor.getCommitLogSegmentSize() >> 1;
 
-    public final CommitLogAllocator allocator;
+    public final CommitLogSegmentManager allocator;
     public final CommitLogArchiver archiver = new CommitLogArchiver();
     private final CommitLogMetrics metrics;
     final AbstractCommitLogService executor;
@@ -67,7 +67,7 @@ public class CommitLog implements CommitLogMBean
     {
         DatabaseDescriptor.createAllDirectories();
 
-        allocator = new CommitLogAllocator();
+        allocator = new CommitLogSegmentManager();
 
         executor = DatabaseDescriptor.getCommitLogSync() == Config.CommitLogSync.batch
                  ? new BatchCommitLogService(this)

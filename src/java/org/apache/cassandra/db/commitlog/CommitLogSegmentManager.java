@@ -58,15 +58,15 @@ import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
 
 /**
- * Performs the pre-allocation of commit log segments in a background thread. All the
+ * Performs eager-creation of commit log segments in a background thread. All the
  * public methods are thread safe.
  */
-public class CommitLogAllocator
+public class CommitLogSegmentManager
 {
-    static final Logger logger = LoggerFactory.getLogger(CommitLogAllocator.class);
+    static final Logger logger = LoggerFactory.getLogger(CommitLogSegmentManager.class);
 
     /**
-     * Queue of work to be done by the allocator thread.  This is usually a recycle operation, which returns
+     * Queue of work to be done by the manager thread.  This is usually a recycle operation, which returns
      * a CommitLogSegment, or a delete operation, which returns null.
      */
     private final BlockingQueue<Callable<CommitLogSegment>> segmentManagementTasks = new LinkedBlockingQueue<>();
@@ -82,13 +82,13 @@ public class CommitLogAllocator
 
     private final WaitQueue hasAvailableSegments = new WaitQueue();
 
-    private static final AtomicReferenceFieldUpdater<CommitLogAllocator, CommitLogSegment> allocatingFromUpdater = AtomicReferenceFieldUpdater.newUpdater(CommitLogAllocator.class, CommitLogSegment.class, "allocatingFrom");
+    private static final AtomicReferenceFieldUpdater<CommitLogSegmentManager, CommitLogSegment> allocatingFromUpdater = AtomicReferenceFieldUpdater.newUpdater(CommitLogSegmentManager.class, CommitLogSegment.class, "allocatingFrom");
 
     /**
      * Tracks commitlog size, in multiples of the segment size.  We need to do this so we can "promise" size
      * adjustments ahead of actually adding/freeing segments on disk, so that the "evict oldest segment" logic
      * can see the effect of recycling segments immediately (even though they're really happening asynchronously
-     * on the allocator thread, which will take a ms or two).
+     * on the manager thread, which will take a ms or two).
      */
     private final AtomicLong size = new AtomicLong();
 
@@ -98,12 +98,12 @@ public class CommitLogAllocator
      */
     private volatile boolean createReserveSegments = false;
 
-    private final Thread allocationThread;
+    private final Thread managerThread;
     private volatile boolean run = true;
 
-    public CommitLogAllocator()
+    public CommitLogSegmentManager()
     {
-        // The run loop for the allocation thread
+        // The run loop for the manager thread
         Runnable runnable = new WrappedRunnable()
         {
             public void runMayThrow() throws Exception
@@ -113,7 +113,7 @@ public class CommitLogAllocator
                     Callable<CommitLogSegment> task = segmentManagementTasks.poll();
                     if (task == null)
                     {
-                        // if we have no more work to do, check if we should allocate a new segment
+                        // if we have no more work to do, check if we should create a new segment
                         if (availableSegments.isEmpty() && (activeSegments.isEmpty() || createReserveSegments))
                         {
                             logger.debug("No segments in reserve; creating a fresh one");
@@ -151,13 +151,13 @@ public class CommitLogAllocator
             }
         };
 
-        allocationThread = new Thread(runnable, "COMMIT-LOG-ALLOCATOR");
-        allocationThread.start();
+        managerThread = new Thread(runnable, "COMMIT-LOG-ALLOCATOR");
+        managerThread.start();
     }
 
     /**
      * Reserve space in the current segment for the provided row mutation or, if there isn't space available,
-     * allocate a new segment.
+     * create a new segment.
      *
      * @return the provided Allocation object
      */
@@ -188,9 +188,7 @@ public class CommitLogAllocator
     }
 
     /**
-     * Fetches a new segment from the allocator and activates it
-     *
-     * @return the newly activated segment
+     * Fetches a new segment from the queue, creating a new one if necessary, and activates it
      */
     private void advanceAllocatingFrom(CommitLogSegment old)
     {
@@ -209,8 +207,10 @@ public class CommitLogAllocator
                 activeSegments.add(next);
 
                 if (availableSegments.isEmpty())
-                    // if we've emptied the queue of available segments, trigger the allocator to maybe add another
-                    wakeAllocator();
+                {
+                    // if we've emptied the queue of available segments, trigger the manager to maybe add another
+                    wakeManager();
+                }
 
                 if (old != null)
                 {
@@ -231,9 +231,9 @@ public class CommitLogAllocator
             // no more segments, so register to receive a signal when not empty
             WaitQueue.Signal signal = hasAvailableSegments.register();
 
-            // trigger the allocator thread; this must occur after registering
-            // the signal to ensure we are woken by any new allocation
-            wakeAllocator();
+            // trigger the management thread; this must occur after registering
+            // the signal to ensure we are woken by any new segment creation
+            wakeManager();
 
             // check if the queue has already been added to before waiting on the signal, to catch modifications
             // that happened prior to registering the signal
@@ -252,9 +252,9 @@ public class CommitLogAllocator
         }
     }
 
-    private void wakeAllocator()
+    private void wakeManager()
     {
-        // put a NO-OP on the queue, to trigger allocator thread
+        // put a NO-OP on the queue, to trigger management thread (and create a new segment if necessary)
         segmentManagementTasks.add(new Callable<CommitLogSegment>()
         {
             public CommitLogSegment call()
@@ -333,7 +333,7 @@ public class CommitLogAllocator
 
     /**
      * Differs from the above because it can work on any file instead of just existing
-     * commit log segments managed by this allocator.
+     * commit log segments managed by this manager.
      *
      * @param file segment file that is no longer in use.
      */
@@ -391,7 +391,7 @@ public class CommitLogAllocator
 
     /**
      * @param name the filename to check
-     * @return true if file is managed by this allocator.
+     * @return true if file is managed by this manager.
      */
     public boolean manages(String name)
     {
@@ -425,7 +425,7 @@ public class CommitLogAllocator
     public void enableReserveSegmentCreation()
     {
         createReserveSegments = true;
-        wakeAllocator();
+        wakeManager();
     }
 
     /**
@@ -549,20 +549,20 @@ public class CommitLogAllocator
     }
 
     /**
-     * Initiates the shutdown process for the allocator thread.
+     * Initiates the shutdown process for the management thread.
      */
     public void shutdown()
     {
         run = false;
-        allocationThread.interrupt();
+        managerThread.interrupt();
     }
 
     /**
-     * Returns when the allocator thread terminates.
+     * Returns when the management thread terminates.
      */
     public void awaitTermination() throws InterruptedException
     {
-        allocationThread.join();
+        managerThread.join();
     }
 
     /**
