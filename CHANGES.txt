@@ -23,6 +23,7 @@ Merged from 1.2:
  * Fix thundering herd on endpoint cache invalidation (CASSANDRA-6345)
  * cqlsh: quote single quotes in strings inside collections (CASSANDRA-6172)
  * Improve gossip performance for typical messages (CASSANDRA-6409)
+ * Throw IRE if a prepared has more markers than supported (CASSANDRA-5598)
 
 
 2.0.3

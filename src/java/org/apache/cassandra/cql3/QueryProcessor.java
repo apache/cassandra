@@ -291,6 +291,11 @@ public class QueryProcessor
     throws RequestValidationException
     {
         ParsedStatement.Prepared prepared = getStatement(queryString, clientState);
+        int bountTerms = prepared.statement.getBoundsTerms();
+        if (bountTerms > FBUtilities.MAX_UNSIGNED_SHORT)
+            throw new InvalidRequestException(String.format("Too many markers(?). %d markers exceed the allowed maximum of %d", bountTerms, FBUtilities.MAX_UNSIGNED_SHORT));
+        assert bountTerms == prepared.boundNames.size();
+
         ResultMessage.Prepared msg = storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared, forThrift);
 
         if (!postPreparationHooks.isEmpty())
@@ -300,7 +305,6 @@ public class QueryProcessor
                 hook.processStatement(prepared.statement, context);
         }
 
-        assert prepared.statement.getBoundsTerms() == prepared.boundNames.size();
         return msg;
     }
 
