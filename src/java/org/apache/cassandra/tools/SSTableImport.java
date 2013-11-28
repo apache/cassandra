@@ -22,7 +22,6 @@ import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -51,7 +50,6 @@ import org.apache.cassandra.db.SuperColumn;
 import org.apache.cassandra.db.filter.QueryPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.SSTableWriter;
@@ -163,8 +161,7 @@ public class SSTableImport
                 }
                 else if (isRangeTombstone())
                 {
-                    AbstractType<?> type = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{meta.getColumnDefinitionComparator(0)}));
-                    value = type.fromString((String)fields.get(1));
+                    value = comparator.fromString((String)fields.get(1));
                 }
                 else
                 {
