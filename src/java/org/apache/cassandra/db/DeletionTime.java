@@ -83,9 +83,9 @@ public class DeletionTime implements Comparable<DeletionTime>
         return localDeletionTime < gcBefore;
     }
 
-    public boolean isDeleted(Column column)
+    public boolean isDeleted(OnDiskAtom atom)
     {
-        return column.timestamp() <= markedForDeleteAt;
+        return atom.maxTimestamp() <= markedForDeleteAt;
     }
 
     public long memorySize()

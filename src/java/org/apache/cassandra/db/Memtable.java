@@ -351,16 +351,6 @@ public class Memtable
                         // See CASSANDRA-4667.
                         if (cfs.name.equals(SystemKeyspace.BATCHLOG_CF) && cfs.keyspace.getName().equals(Keyspace.SYSTEM_KS) && !(cf.getColumnCount() == 0))
                             continue;
-
-                        // Pedantically, you could purge column level tombstones that are past GcGRace when writing to the SSTable.
-                        // But it can result in unexpected behaviour where deletes never make it to disk,
-                        // as they are lost and so cannot override existing column values. So we only remove deleted columns if there
-                        // is a CF level tombstone to ensure the delete makes it into an SSTable.
-                        // We also shouldn't be dropping any columns obsoleted by partition and/or range tombstones in case
-                        // the table has secondary indexes, or else the stale entries wouldn't be cleaned up during compaction,
-                        // and will only be dropped during 2i query read-repair, if at all.
-                        if (!cfs.indexManager.hasIndexes())
-                            currentSize.addAndGet(-ColumnFamilyStore.removeDeletedColumnsOnly(cf, Integer.MIN_VALUE));
                     }
 
                     if (cf.getColumnCount() > 0 || cf.isMarkedForDelete())

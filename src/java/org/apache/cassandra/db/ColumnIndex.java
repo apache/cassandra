@@ -119,18 +119,25 @@ public class ColumnIndex
         public ColumnIndex build(ColumnFamily cf) throws IOException
         {
             // cf has disentangled the columns and range tombstones, we need to re-interleave them in comparator order
+            Comparator<ByteBuffer> comparator = cf.getComparator();
+            DeletionInfo.InOrderTester tester = cf.deletionInfo().inOrderTester();
             Iterator<RangeTombstone> rangeIter = cf.deletionInfo().rangeIterator();
             RangeTombstone tombstone = rangeIter.hasNext() ? rangeIter.next() : null;
-            Comparator<ByteBuffer> comparator = cf.getComparator();
 
             for (Column c : cf)
             {
                 while (tombstone != null && comparator.compare(c.name(), tombstone.min) >= 0)
                 {
-                    add(tombstone);
+                    // skip range tombstones that are shadowed by partition tombstones
+                    if (!cf.deletionInfo().getTopLevelDeletion().isDeleted(tombstone))
+                        add(tombstone);
                     tombstone = rangeIter.hasNext() ? rangeIter.next() : null;
                 }
-                add(c);
+
+                // We can skip any cell if it's shadowed by a tombstone already.  This is a more
+                // general case than was handled by CASSANDRA-2589.
+                if (!tester.isDeleted(c))
+                    add(c);
             }
 
             while (tombstone != null)
@@ -158,9 +165,8 @@ public class ColumnIndex
                 OnDiskAtom c =  columns.next();
                 add(c);
             }
-            ColumnIndex index = build();
 
-            return index;
+            return build();
         }
 
         public void add(OnDiskAtom column) throws IOException
