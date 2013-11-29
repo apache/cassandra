@@ -159,12 +159,10 @@ public class CommitLog implements CommitLogMBean
 
     /**
      * Flushes all dirty CFs, waiting for them to free and recycle any segments they were retaining
-     *
-     * @param exec an executor to perform the necessary forceFlush() calls on
      */
-    public void forceRecycleAllSegments(ExecutorService exec)
+    public void forceRecycleAllSegments()
     {
-        allocator.forceRecycleAll(exec);
+        allocator.forceRecycleAll();
     }
 
     /**

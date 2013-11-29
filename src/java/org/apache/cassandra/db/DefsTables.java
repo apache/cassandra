@@ -464,7 +464,7 @@ public class DefsTables
         Schema.instance.clearKeyspaceDefinition(ksm);
 
         // force a new segment in the CL
-        CommitLog.instance.forceRecycleAllSegments(StorageService.optionalTasks);
+        CommitLog.instance.forceRecycleAllSegments();
 
         if (!StorageService.instance.isClientMode())
         {
@@ -487,7 +487,7 @@ public class DefsTables
 
         CompactionManager.instance.interruptCompactionFor(Arrays.asList(cfm), true);
 
-        CommitLog.instance.forceRecycleAllSegments(StorageService.optionalTasks);
+        CommitLog.instance.forceRecycleAllSegments();
 
         if (!StorageService.instance.isClientMode())
         {

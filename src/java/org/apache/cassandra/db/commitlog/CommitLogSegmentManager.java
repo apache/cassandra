@@ -29,13 +29,10 @@ import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
@@ -50,7 +47,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WaitQueue;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -138,7 +135,7 @@ public class CommitLogSegmentManager
                                 if (spaceToReclaim + unused >= 0)
                                     break;
                             }
-                            flushDataFrom(segmentsToRecycle, StorageService.optionalTasks);
+                            flushDataFrom(segmentsToRecycle);
                         }
 
                         try
@@ -148,7 +145,7 @@ public class CommitLogSegmentManager
                         }
                         catch (InterruptedException e)
                         {
-                            // exit cleanly
+                            // shutdown signal; exit cleanly
                             continue;
                         }
                     }
@@ -282,10 +279,8 @@ public class CommitLogSegmentManager
      *
      * Flushes any dirty CFs for this segment and any older segments, and then recycles
      * the segments
-     *
-     * @param exec the executor service to perform the forceFlush() on
      */
-    void forceRecycleAll(ExecutorService exec)
+    void forceRecycleAll()
     {
         CommitLogSegment last = allocatingFrom;
         last.discardUnusedTail();
@@ -293,7 +288,7 @@ public class CommitLogSegmentManager
         advanceAllocatingFrom(last);
 
         // flush and wait for all CFs that are dirty in segments up-to and including 'last'
-        Future<?> future = flushDataFrom(availableSegments, exec);
+        Future<?> future = flushDataFrom(availableSegments);
         try
         {
             future.get();
@@ -442,17 +437,15 @@ public class CommitLogSegmentManager
     }
 
     /**
-     * Force a flush on all CFs that are still dirty in @param segments.  Run the flushes on
-     * @param exec
+     * Force a flush on all CFs that are still dirty in @param segments.
      *
      * @return a Future that will finish when all the flushes are complete.
      */
-    private Future<?> flushDataFrom(Collection<CommitLogSegment> segments, ExecutorService exec)
+    private Future<?> flushDataFrom(Collection<CommitLogSegment> segments)
     {
         // a map of CfId -> forceFlush() to ensure we only queue one flush per cf
-        Map<UUID, Runnable> flushes = new LinkedHashMap<>();
+        final Map<UUID, Future<?>> flushes = new LinkedHashMap<>();
 
-        final List<Future<?>> innerFutures = new CopyOnWriteArrayList<>();
         for (CommitLogSegment segment : segments)
         {
             for (UUID dirtyCFId : segment.getDirtyCFIDs())
@@ -472,59 +465,19 @@ public class CommitLogSegmentManager
                     // flush shouldn't run on the commitlog executor, since it acquires Table.switchLock,
                     // which may already be held by a thread waiting for the CL executor (via getContext),
                     // causing deadlock
-                    flushes.put(dirtyCFId, new Runnable()
-                    {
-                        public void run()
-                        {
-                            innerFutures.add(cfs.forceFlush());
-                        }
-                    });
+                    flushes.put(dirtyCFId, cfs.forceFlush());
                 }
             }
         }
 
-        final List<Future<?>> outerFutures = new ArrayList<>();
-        for (Runnable runnable : flushes.values())
+        return new FutureTask<>(new Callable<Object>()
         {
-            outerFutures.add(exec.submit(runnable));
-        }
-        return new Future<Object>()
-        {
-            public boolean cancel(boolean mayInterruptIfRunning)
+            public Object call()
             {
-                return false;
-            }
-
-            public boolean isCancelled()
-            {
-                return false;
-            }
-
-            public boolean isDone()
-            {
-                for (Future<?> f : outerFutures)
-                    if (!f.isDone())
-                        return false;
-                for (Future<?> f : innerFutures)
-                    if (!f.isDone())
-                        return false;
-                return true;
-            }
-
-            public Object get() throws InterruptedException, ExecutionException
-            {
-                for (Future<?> f : outerFutures)
-                    f.get();
-                for (Future<?> f : innerFutures)
-                    f.get();
+                FBUtilities.waitOnFutures(flushes.values());
                 return null;
             }
-
-            public Object get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
-            {
-                throw new UnsupportedOperationException();
-            }
-        };
+        });
     }
 
     /**
