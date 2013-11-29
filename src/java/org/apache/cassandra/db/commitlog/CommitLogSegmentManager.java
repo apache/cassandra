@@ -124,8 +124,22 @@ public class CommitLogSegmentManager
                         }
 
                         // flush old Cfs if we're full
-                        if (isCapExceeded())
-                            flushOldestKeyspaces(StorageService.optionalTasks, null, false);
+                        long unused = unusedCapacity();
+                        if (unused < 0)
+                        {
+                            List<CommitLogSegment> segmentsToRecycle = new ArrayList<>();
+                            long spaceToReclaim = 0;
+                            for (CommitLogSegment segment : activeSegments)
+                            {
+                                if (segment == allocatingFrom)
+                                    break;
+                                segmentsToRecycle.add(segment);
+                                spaceToReclaim += DatabaseDescriptor.getCommitLogSegmentSize();
+                                if (spaceToReclaim + unused >= 0)
+                                    break;
+                            }
+                            flushDataFrom(segmentsToRecycle, StorageService.optionalTasks);
+                        }
 
                         try
                         {
@@ -275,10 +289,11 @@ public class CommitLogSegmentManager
     {
         CommitLogSegment last = allocatingFrom;
         last.discardUnusedTail();
+        List<CommitLogSegment> segmentsToRecycle = new ArrayList<>(availableSegments);
         advanceAllocatingFrom(last);
 
         // flush and wait for all CFs that are dirty in segments up-to and including 'last'
-        Future<?> future = flushOldestKeyspaces(exec, last, true);
+        Future<?> future = flushDataFrom(availableSegments, exec);
         try
         {
             future.get();
@@ -406,14 +421,14 @@ public class CommitLogSegmentManager
      */
     private boolean isCapExceeded()
     {
-        long currentSize = size.get();
-        logger.debug("Total active commitlog segment space used is {}", currentSize);
-        return isCapExceededBy(currentSize);
+        return unusedCapacity() < 0;
     }
 
-    private boolean isCapExceededBy(long size)
+    private long unusedCapacity()
     {
-        return size > DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024;
+        long currentSize = size.get();
+        logger.debug("Total active commitlog segment space used is {}", currentSize);
+        return DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024 - currentSize;
     }
 
     /**
@@ -427,34 +442,19 @@ public class CommitLogSegmentManager
     }
 
     /**
-     * Force a flush on all dirty CFs represented in the oldest commitlog segments, until we are either
-     * no longer over-limit or, if forceAll is set, we have flushed all dirty segments up to the provided upto
-     * (or all non-active segments otherwise)
+     * Force a flush on all CFs that are still dirty in @param segments.  Run the flushes on
+     * @param exec
+     *
+     * @return a Future that will finish when all the flushes are complete.
      */
-    private Future<?> flushOldestKeyspaces(ExecutorService exec, CommitLogSegment upto, boolean forceAll)
+    private Future<?> flushDataFrom(Collection<CommitLogSegment> segments, ExecutorService exec)
     {
-        // track how much space we are reclaiming (i.e. how many segments we are flushing keyspaces from)
-        long reclaiming = 0;
-
         // a map of CfId -> forceFlush() to ensure we only queue one flush per cf
-        Map<UUID, Runnable> flush = new LinkedHashMap<>();
-
-        Iterator<CommitLogSegment> iter = activeSegments.iterator();
+        Map<UUID, Runnable> flushes = new LinkedHashMap<>();
 
         final List<Future<?>> innerFutures = new CopyOnWriteArrayList<>();
-        // continue until we should get size down below cap
-        while (iter.hasNext())
+        for (CommitLogSegment segment : segments)
         {
-            CommitLogSegment segment = iter.next();
-
-            // stop if we've hit our limit
-            if (upto != null && upto.id < segment.id)
-                break;
-
-            // exit if we've hit the currently allocating segment
-            if (segment == allocatingFrom)
-                break;
-
             for (UUID dirtyCFId : segment.getDirtyCFIDs())
             {
                 Pair<String,String> pair = Schema.instance.getCF(dirtyCFId);
@@ -465,14 +465,14 @@ public class CommitLogSegmentManager
                     logger.debug("Marking clean CF {} that doesn't exist anymore", dirtyCFId);
                     segment.markClean(dirtyCFId, segment.getContext());
                 }
-                else if (!flush.containsKey(dirtyCFId))
+                else if (!flushes.containsKey(dirtyCFId))
                 {
                     String keyspace = pair.left;
                     final ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(dirtyCFId);
                     // flush shouldn't run on the commitlog executor, since it acquires Table.switchLock,
                     // which may already be held by a thread waiting for the CL executor (via getContext),
                     // causing deadlock
-                    flush.put(dirtyCFId, new Runnable()
+                    flushes.put(dirtyCFId, new Runnable()
                     {
                         public void run()
                         {
@@ -481,14 +481,10 @@ public class CommitLogSegmentManager
                     });
                 }
             }
-
-            reclaiming += DatabaseDescriptor.getCommitLogSegmentSize();
-            if (!forceAll && !isCapExceededBy(size.get() - reclaiming))
-                break;
         }
 
         final List<Future<?>> outerFutures = new ArrayList<>();
-        for (Runnable runnable : flush.values())
+        for (Runnable runnable : flushes.values())
         {
             outerFutures.add(exec.submit(runnable));
         }
