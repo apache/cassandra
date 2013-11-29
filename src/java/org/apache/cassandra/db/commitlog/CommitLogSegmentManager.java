@@ -194,7 +194,6 @@ public class CommitLogSegmentManager
     {
         while (true)
         {
-
             Iterator<CommitLogSegment> iter = availableSegments.iterator();
             if (iter.hasNext())
             {
@@ -223,7 +222,7 @@ public class CommitLogSegmentManager
                 if (old != null)
                     old.discardUnusedTail();
 
-                // request that the CL be flushed out-of-band, as we've finished a CLS
+                // request that the CL be synced out-of-band, as we've finished a segment
                 CommitLog.instance.requestExtraSync();
                 return;
             }
@@ -265,14 +264,14 @@ public class CommitLogSegmentManager
     }
 
     /**
-     * Switch to a new CLS, regardless of how much is left in the current CLS,
-     * flush any dirty CFs for this segment and any older segments, and then recycle
+     * Switch to a new segment, regardless of how much is left in the current one.
+     *
+     * Flushes any dirty CFs for this segment and any older segments, and then recycles
      * the segments
      *
      * @param exec the executor service to perform the forceFlush() on
-     * @return
      */
-    boolean forceRecycleAll(ExecutorService exec)
+    void forceRecycleAll(ExecutorService exec)
     {
         CommitLogSegment last = allocatingFrom;
         last.discardUnusedTail();
@@ -291,13 +290,11 @@ public class CommitLogSegmentManager
 
             CommitLogSegment first;
             assert (first = activeSegments.peek()) == null || first.id > last.id;
-            return true;
         }
         catch (Throwable t)
         {
             // for now just log the error and return false, indicating that we failed
             logger.error("Failed waiting for a forced recycle of in-use commit log segments", t);
-            return false;
         }
     }
 
@@ -340,8 +337,9 @@ public class CommitLogSegmentManager
     void recycleSegment(final File file)
     {
         // check against SEGMENT_SIZE avoids recycling odd-sized or empty segments from old C* versions and unit tests
-        if (isCapExceeded() || file.length() != DatabaseDescriptor.getCommitLogSegmentSize()
-                || CommitLogDescriptor.fromFileName(file.getName()).getMessagingVersion() != MessagingService.current_version)
+        if (isCapExceeded()
+            || file.length() != DatabaseDescriptor.getCommitLogSegmentSize()
+            || CommitLogDescriptor.fromFileName(file.getName()).getMessagingVersion() != MessagingService.current_version)
         {
             // (don't decrease managed size, since this was never a "live" segment)
             logger.debug("(Unopened) segment {} is no longer needed and will be deleted now", file);

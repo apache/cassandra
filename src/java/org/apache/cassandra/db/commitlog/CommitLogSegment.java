@@ -216,7 +216,7 @@ public class CommitLogSegment
         }
     }
 
-    // ensures no more of this CLS is writeable, by allocating any unused section at the end and marking it discarded
+    // ensures no more of this segment is writeable, by allocating any unused section at the end and marking it discarded
     synchronized void discardUnusedTail()
     {
         if (discardedTailFrom > 0)
@@ -231,7 +231,6 @@ public class CommitLogSegment
                 return;
             }
         }
-
     }
 
     /**
