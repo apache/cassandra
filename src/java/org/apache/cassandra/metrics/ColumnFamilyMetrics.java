@@ -36,6 +36,8 @@ public class ColumnFamilyMetrics
 {
     /** Total amount of data stored in the memtable, including column related overhead. */
     public final Gauge<Long> memtableDataSize;
+    /** Total amount of data stored in the memtables (2i and pending flush memtables included). */
+    public final Gauge<Long> allMemtablesDataSize;
     /** Total number of columns present in the memtable. */
     public final Gauge<Long> memtableColumnsCount;
     /** Number of times flush has resulted in the memtable being switched out. */
@@ -117,6 +119,13 @@ public class ColumnFamilyMetrics
             public Long value()
             {
                 return cfs.getDataTracker().getMemtable().getLiveSize();
+            }
+        });
+        allMemtablesDataSize = Metrics.newGauge(factory.createMetricName("AllMemtablesDataSize"), new Gauge<Long>()
+        {
+            public Long value()
+            {
+                return cfs.getTotalAllMemtablesLiveSize();
             }
         });
         memtableSwitchCount = Metrics.newCounter(factory.createMetricName("MemtableSwitchCount"));

@@ -19,6 +19,7 @@
  * Fix setting last compacted key in the wrong level for LCS (CASSANDRA-6284)
  * Add sub-ms precision formats to the timestamp parser (CASSANDRA-6395)
  * Add snapshot space used to cfstats (CASSANDRA-6231)
+ * Expose a total memtable size metric for a CF (CASSANDRA-6391)
 Merged from 1.2:
  * Fix thundering herd on endpoint cache invalidation (CASSANDRA-6345)
  * cqlsh: quote single quotes in strings inside collections (CASSANDRA-6172)

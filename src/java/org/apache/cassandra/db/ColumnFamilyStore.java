@@ -1102,6 +1102,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return size;
     }
 
+    /**
+     * @return the size of all the memtables, including the pending flush ones and 2i memtables, if any.
+     */
+    public long getTotalAllMemtablesLiveSize()
+    {
+        long size = getAllMemtablesLiveSize();
+        if (indexManager.hasIndexes())
+            for (ColumnFamilyStore index : indexManager.getIndexesBackedByCfs())
+                size += index.getAllMemtablesLiveSize();
+        return size;
+    }
+
     public int getMemtableSwitchCount()
     {
         return (int) metric.memtableSwitchCount.count();
