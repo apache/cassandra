@@ -294,6 +294,8 @@ public class CommitLogSegmentManager
             future.get();
 
             // now recycle segments that are unused, as we may not have triggered a discardCompletedSegments()
+            // if the previous active segment was the only one to recycle (since an active segment isn't
+            // necessarily dirty, and we only call dCS after a flush).
             for (CommitLogSegment segment : activeSegments)
                 if (segment.isUnused())
                     recycleSegment(segment);

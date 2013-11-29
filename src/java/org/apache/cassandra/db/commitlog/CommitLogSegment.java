@@ -29,7 +29,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -39,8 +38,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import org.apache.cassandra.utils.PureJavaCrc32;
-import org.apache.cassandra.utils.WaitQueue;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +49,8 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.PureJavaCrc32;
+import org.apache.cassandra.utils.WaitQueue;
 
 /*
  * A single commit log file on disk. Manages creation of the file and writing row mutations to disk,
@@ -298,7 +297,6 @@ public class CommitLogSegment
             }
 
             nextSyncMarkerPosition = nextMarker;
-
         }
         catch (Exception e) // MappedByteBuffer.force() does not declare IOException but can actually throw it
         {
@@ -310,7 +308,6 @@ public class CommitLogSegment
     {
         return nextSyncMarkerPosition == buffer.capacity();
     }
-
 
     /**
      * Completely discards a segment file by deleting it. (Potentially blocking operation)
@@ -523,9 +520,7 @@ public class CommitLogSegment
 
     public boolean equals(Object that)
     {
-        if (super.equals(that))
-            return true;
-        return false;
+        return super.equals(that);
     }
 
 
