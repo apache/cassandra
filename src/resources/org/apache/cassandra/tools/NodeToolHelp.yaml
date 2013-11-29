@@ -148,8 +148,12 @@ commands:
   - name: repair [keyspace] [cfnames]
     help: |
       Repair one or more column families
+         Use -dc to repair specific datacenters (csv list).
+         Use -et to specify a token at which repair range ends.
+         Use -local to only repair against nodes in the same datacenter.
          Use -pr to repair only the first range returned by the partitioner.
          Use -par to carry out a parallel repair.
+         Use -st to specify a token at which the repair range starts.
   - name: cleanup [keyspace] [cfnames]
     help: |
       Run cleanup on one or more column families
