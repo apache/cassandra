@@ -284,11 +284,11 @@ public class CommitLogSegmentManager
     {
         CommitLogSegment last = allocatingFrom;
         last.discardUnusedTail();
-        List<CommitLogSegment> segmentsToRecycle = new ArrayList<>(availableSegments);
+        List<CommitLogSegment> segmentsToRecycle = new ArrayList<>(activeSegments);
         advanceAllocatingFrom(last);
 
         // flush and wait for all CFs that are dirty in segments up-to and including 'last'
-        Future<?> future = flushDataFrom(availableSegments);
+        Future<?> future = flushDataFrom(segmentsToRecycle);
         try
         {
             future.get();
