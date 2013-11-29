@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.*;
 
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.concurrent.JMXConfigurableThreadPoolExecutor;
@@ -90,9 +91,9 @@ public class ActiveRepairService
      *
      * @return Future for asynchronous call or null if there is no need to repair
      */
-    public RepairFuture submitRepairSession(Range<Token> range, String keyspace, boolean isSequential, boolean isLocal, String... cfnames)
+    public RepairFuture submitRepairSession(Range<Token> range, String keyspace, boolean isSequential, Collection<String> dataCenters, String... cfnames)
     {
-        RepairSession session = new RepairSession(range, keyspace, isSequential, isLocal, cfnames);
+        RepairSession session = new RepairSession(range, keyspace, isSequential, dataCenters, cfnames);
         if (session.endpoints.isEmpty())
             return null;
         RepairFuture futureTask = new RepairFuture(session);
@@ -126,7 +127,7 @@ public class ActiveRepairService
     // add it to the sessions (avoid NPE in tests)
     RepairFuture submitArtificialRepairSession(RepairJobDesc desc)
     {
-        RepairSession session = new RepairSession(desc.sessionId, desc.range, desc.keyspace, false, false, new String[]{desc.columnFamily});
+        RepairSession session = new RepairSession(desc.sessionId, desc.range, desc.keyspace, false, null, new String[]{desc.columnFamily});
         sessions.put(session.getId(), session);
         RepairFuture futureTask = new RepairFuture(session);
         executor.execute(futureTask);
@@ -138,12 +139,15 @@ public class ActiveRepairService
      *
      * @param keyspaceName keyspace to repair
      * @param toRepair token to repair
-     * @param isLocal need to use only nodes from local datacenter
+     * @param dataCenters the data centers to involve in the repair
      *
      * @return neighbors with whom we share the provided range
      */
-    public static Set<InetAddress> getNeighbors(String keyspaceName, Range<Token> toRepair, boolean isLocal)
+    public static Set<InetAddress> getNeighbors(String keyspaceName, Range<Token> toRepair, Collection<String> dataCenters)
     {
+        if (dataCenters != null && !dataCenters.contains(DatabaseDescriptor.getLocalDataCenter()))
+            throw new IllegalArgumentException("The local data center must be part of the repair");
+
         StorageService ss = StorageService.instance;
         Map<Range<Token>, List<InetAddress>> replicaSets = ss.getRangeToAddressMap(keyspaceName);
         Range<Token> rangeSuperSet = null;
@@ -165,11 +169,18 @@ public class ActiveRepairService
         Set<InetAddress> neighbors = new HashSet<>(replicaSets.get(rangeSuperSet));
         neighbors.remove(FBUtilities.getBroadcastAddress());
 
-        if (isLocal)
+        if (dataCenters != null)
         {
             TokenMetadata.Topology topology = ss.getTokenMetadata().cloneOnlyTokenMap().getTopology();
-            Set<InetAddress> localEndpoints = Sets.newHashSet(topology.getDatacenterEndpoints().get(DatabaseDescriptor.getLocalDataCenter()));
-            return Sets.intersection(neighbors, localEndpoints);
+            Set<InetAddress> dcEndpoints = Sets.newHashSet();
+            Multimap<String,InetAddress> dcEndpointsMap = topology.getDatacenterEndpoints();
+            for (String dc : dataCenters)
+            {
+                Collection<InetAddress> c = dcEndpointsMap.get(dc);
+                if (c != null)
+                   dcEndpoints.addAll(c);
+            }
+            return Sets.intersection(neighbors, dcEndpoints);
         }
 
         return neighbors;

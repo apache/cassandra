@@ -16,6 +16,8 @@
 
 
 2.0.4
+ * Allow specifying datacenters to participate in a repair (CASSANDRA-6218)
+ * Fix divide-by-zero in PCI (CASSANDRA-6403)
  * Fix setting last compacted key in the wrong level for LCS (CASSANDRA-6284)
  * Add sub-ms precision formats to the timestamp parser (CASSANDRA-6395)
  * Add snapshot space used to cfstats (CASSANDRA-6231)
