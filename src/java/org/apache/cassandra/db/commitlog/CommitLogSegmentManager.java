@@ -483,7 +483,7 @@ public class CommitLogSegmentManager
             }
 
             reclaiming += DatabaseDescriptor.getCommitLogSegmentSize();
-            if (!forceAll && isCapExceededBy(size.get() - reclaiming))
+            if (!forceAll && !isCapExceededBy(size.get() - reclaiming))
                 break;
         }
 
