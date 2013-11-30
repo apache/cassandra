@@ -277,22 +277,20 @@ public class CommitLogSegment
             buffer.putInt(offset, nextMarker);
             buffer.putLong(offset + 4, crc.getValue());
 
+            // zero out the next sync marker so replayer can cleanly exit
             if (nextMarker < buffer.capacity())
             {
-                // zero out the next sync marker so replayer can cleanly exit
                 buffer.putInt(nextMarker, 0);
                 buffer.putLong(nextMarker + 4, 0);
             }
 
-            // synchronise to disk
+            // actually perform the sync and signal those waiting for it
             buffer.force();
-
-            // signal all records waiting on the CLS sync
             syncComplete.signalAll();
 
             if (close)
             {
-                close(false);
+                close();
                 nextMarker = buffer.capacity();
             }
 
@@ -314,7 +312,7 @@ public class CommitLogSegment
      */
     void discard(boolean deleteFile)
     {
-        close(deleteFile);
+        close();
         if (deleteFile)
             FileUtils.deleteWithConfirm(logFile);
     }
@@ -336,7 +334,7 @@ public class CommitLogSegment
             throw e;
         }
 
-        close(false);
+        close();
 
         return new CommitLogSegment(getPath());
     }
@@ -368,13 +366,12 @@ public class CommitLogSegment
     /**
      * Close the segment file.
      */
-    void close(boolean hardClose)
+    void close()
     {
         try
         {
             FileUtils.clean(buffer);
-            if (hardClose)
-                logFileAccessor.close();
+            logFileAccessor.close();
         }
         catch (IOException e)
         {
