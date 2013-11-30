@@ -47,6 +47,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WaitQueue;
@@ -464,10 +465,17 @@ public class CommitLogSegmentManager
                 {
                     String keyspace = pair.left;
                     final ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(dirtyCFId);
-                    // flush shouldn't run on the commitlog executor, since it acquires Table.switchLock,
-                    // which may already be held by a thread waiting for the CL executor (via getContext),
-                    // causing deadlock
-                    flushes.put(dirtyCFId, cfs.forceFlush());
+                    // Push the flush out to another thread to avoid potential deadlock: Table.add
+                    // acquires switchlock, and could be blocking for the manager thread.  So if the manager
+                    // thread itself tries to acquire switchlock (via flush -> switchMemtable) we'd have a problem.
+                    Runnable runnable = new Runnable()
+                    {
+                        public void run()
+                        {
+                            cfs.forceFlush();
+                        }
+                    };
+                    flushes.put(dirtyCFId, StorageService.optionalTasks.submit(runnable));
                 }
             }
         }
