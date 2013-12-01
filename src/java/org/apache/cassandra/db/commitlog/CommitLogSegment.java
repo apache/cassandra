@@ -441,8 +441,10 @@ public class CommitLogSegment
 
     private void removeCleanFromDirty()
     {
+        // if we're still allocating from this segment, don't touch anything since it can't be done thread-safely
         if (!isFullySynced())
             return;
+
         Iterator<Map.Entry<UUID, AtomicInteger>> iter = cfClean.entrySet().iterator();
         while (iter.hasNext())
         {
@@ -484,8 +486,10 @@ public class CommitLogSegment
      */
     public boolean isUnused()
     {
+        // if it's not fully synced, we assume we're still in use as the active allocatingFrom
         if (!isFullySynced())
             return false;
+
         removeCleanFromDirty();
         return cfDirty.isEmpty();
     }
