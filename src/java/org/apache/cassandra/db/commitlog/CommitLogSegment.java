@@ -145,7 +145,9 @@ public class CommitLogSegment
             if (isCreating)
                 logger.debug("Creating new commit log segment {}", logFile.getPath());
 
-            // Map the segment, extending or truncating it to the standard segment size
+            // Map the segment, extending or truncating it to the standard segment size.
+            // (We may have restarted after a segment size configuration change, leaving "incorrectly"
+            // sized segments on disk.)
             logFileAccessor.setLength(DatabaseDescriptor.getCommitLogSegmentSize());
 
             buffer = logFileAccessor.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, DatabaseDescriptor.getCommitLogSegmentSize());

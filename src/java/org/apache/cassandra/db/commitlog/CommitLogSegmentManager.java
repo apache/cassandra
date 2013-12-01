@@ -349,9 +349,7 @@ public class CommitLogSegmentManager
      */
     void recycleSegment(final File file)
     {
-        // check against SEGMENT_SIZE avoids recycling odd-sized or empty segments from old C* versions and unit tests
         if (isCapExceeded()
-            || file.length() != DatabaseDescriptor.getCommitLogSegmentSize()
             || CommitLogDescriptor.fromFileName(file.getName()).getMessagingVersion() != MessagingService.current_version)
         {
             // (don't decrease managed size, since this was never a "live" segment)
