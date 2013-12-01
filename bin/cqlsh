@@ -66,9 +66,11 @@ except ImportError:
 CQL_LIB_PREFIX = 'cql-internal-only-'
 THRIFT_LIB_PREFIX = 'thrift-python-internal-only-'
 
+CASSANDRA_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
+
 # use bundled libs for python-cql and thrift, if available. if there
 # is a ../lib dir, use bundled libs there preferentially.
-ZIPLIB_DIRS = [os.path.join(os.path.dirname(__file__), '..', 'lib')]
+ZIPLIB_DIRS = [os.path.join(CASSANDRA_PATH, 'lib')]
 myplatform = platform.system()
 if myplatform == 'Linux':
     ZIPLIB_DIRS.append('/usr/share/cassandra/lib')
@@ -106,7 +108,7 @@ from cql.cqltypes import (cql_types, cql_typename, lookup_casstype, lookup_cqlty
 
 # cqlsh should run correctly when run out of a Cassandra source tree,
 # out of an unpacked Cassandra tarball, and after a proper package install.
-cqlshlibdir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'pylib')
+cqlshlibdir = os.path.join(CASSANDRA_PATH, 'pylib')
 if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
