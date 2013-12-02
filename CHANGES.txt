@@ -6,6 +6,7 @@
  * cqlsh: quote single quotes in strings inside collections (CASSANDRA-6172)
  * Improve gossip performance for typical messages (CASSANDRA-6409)
  * Throw IRE if a prepared has more markers than supported (CASSANDRA-5598)
+ * Expose Thread metrics for the native protocol server (CASSANDRA-6234)
 
 
 1.2.12
