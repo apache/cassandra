@@ -834,6 +834,16 @@ The use of the counter type is limited in the following way:
 
 h3(#collections). Working with collections
 
+h4. Noteworthy characteristics
+
+Collections are meant for storing/denormalizing relatively small amount of data. They work well for things like "the phone numbers of a given user", "labels applied to an email", etc. But when items are expected to grow unbounded ("all the messages sent by a given user", "events registered by a sensor", ...), then collections are not appropriate anymore and a specific table (with clustering columns) should be used. Concretely, collections have the following limitations:
+* Collections are always read in their entirety (and reading one is not paged internally).
+* Collections cannot have more than 65535 elements. More precisely, while it may be possible to insert more than 65535 elements, it is not possible to read more than the 65535 first elements (see "CASSANDRA-5428":https://issues.apache.org/jira/browse/CASSANDRA-5428 for details).
+* While insertion operations on sets and maps never incur a read-before-write internally, some operations on lists do (see the section on lists below for details). It is thus advised to prefer sets over lists when possible.
+
+Please note that while some of those limitations may or may not be loosen in the future, the general rule that collections are for denormalizing small amount of data is meant to stay.
+
+
 h4(#map). Maps
 
 A @map@ is a "typed":#types set of key-value pairs, where keys are unique. Furthermore, note that the map are internally sorted by their keys and will thus always be returned in that order. To create a column of type @map@, use the @map@ keyword suffixed with comma-separated key and value types, enclosed in angle brackets.  For example:
