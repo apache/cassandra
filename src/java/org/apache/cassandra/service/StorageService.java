@@ -29,7 +29,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
 
 import javax.management.MBeanServer;
 import javax.management.Notification;
@@ -40,7 +39,6 @@ import static java.nio.charset.StandardCharsets.ISO_8859_1;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
-import com.google.common.util.concurrent.AtomicDouble;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -3253,6 +3251,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 flushes.add(cfs.forceFlush());
         }
         FBUtilities.waitOnFutures(flushes);
+
+        // whilst we've flushed all the CFs, which will have recycled all completed segments, we want to ensure
+        // there are no segments to replay, so we force the recycling of any remaining (should be at most one)
+        CommitLog.instance.forceRecycleAllSegments();
 
         ColumnFamilyStore.postFlushExecutor.shutdown();
         ColumnFamilyStore.postFlushExecutor.awaitTermination(60, TimeUnit.SECONDS);

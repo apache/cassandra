@@ -405,6 +405,7 @@ public final class CFMetaData
     private volatile boolean populateIoCacheOnFlush = DEFAULT_POPULATE_IO_CACHE_ON_FLUSH;
     private volatile Map<ColumnIdentifier, Long> droppedColumns = new HashMap<>();
     private volatile Map<String, TriggerDefinition> triggers = new HashMap<>();
+    private volatile boolean isPurged = false;
 
     /*
      * All CQL3 columns definition are stored in the columnMetadata map.
@@ -1544,6 +1545,16 @@ public final class CFMetaData
             td.deleteFromSchema(rm, cfName, timestamp);
 
         return rm;
+    }
+
+    public boolean isPurged()
+    {
+        return isPurged;
+    }
+
+    void markPurged()
+    {
+        isPurged = true;
     }
 
     public void toSchema(RowMutation rm, long timestamp)

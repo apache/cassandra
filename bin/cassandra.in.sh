@@ -39,3 +39,8 @@ CLASSPATH="$CASSANDRA_CONF:$cassandra_bin"
 for jar in "$CASSANDRA_HOME"/lib/*.jar; do
     CLASSPATH="$CLASSPATH:$jar"
 done
+TOOLSCLASSPATH="$CLASSPATH"
+for jar in "$CASSANDRA_HOME"/tools/lib/*.jar; do
+    TOOLSCLASSPATH="$TOOLSCLASSPATH:$jar"
+done
+

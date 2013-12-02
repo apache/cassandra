@@ -348,6 +348,7 @@ public class Schema
     public void purge(CFMetaData cfm)
     {
         cfIdMap.remove(Pair.create(cfm.ksName, cfm.cfName));
+        cfm.markPurged();
     }
 
     /* Version control */
