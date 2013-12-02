@@ -24,6 +24,7 @@ import java.util.*;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -461,6 +462,10 @@ public class DefsTables
         // remove the keyspace from the static instances.
         Keyspace.clear(ksm.name);
         Schema.instance.clearKeyspaceDefinition(ksm);
+
+        // force a new segment in the CL
+        CommitLog.instance.forceRecycleAllSegments();
+
         if (!StorageService.instance.isClientMode())
         {
             MigrationManager.instance.notifyDropKeyspace(ksm);
@@ -481,6 +486,8 @@ public class DefsTables
         Schema.instance.setKeyspaceDefinition(makeNewKeyspaceDefinition(ksm, cfm));
 
         CompactionManager.instance.interruptCompactionFor(Arrays.asList(cfm), true);
+
+        CommitLog.instance.forceRecycleAllSegments();
 
         if (!StorageService.instance.isClientMode())
         {

@@ -125,10 +125,11 @@ public class CommitLogTest extends SchemaLoader
     @Test
     public void testDeleteIfNotDirty() throws Exception
     {
+        DatabaseDescriptor.getCommitLogSegmentSize();
         CommitLog.instance.resetUnsafe();
         // Roughly 32 MB mutation
         RowMutation rm = new RowMutation("Keyspace1", bytes("k"));
-        rm.add("Standard1", bytes("c1"), ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize()/4), 0);
+        rm.add("Standard1", bytes("c1"), ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()/4) - 1), 0);
 
         // Adding it twice (won't change segment)
         CommitLog.instance.add(rm);
@@ -138,15 +139,17 @@ public class CommitLogTest extends SchemaLoader
 
         // "Flush": this won't delete anything
         UUID cfid1 = rm.getColumnFamilyIds().iterator().next();
+        CommitLog.instance.sync(true);
         CommitLog.instance.discardCompletedSegments(cfid1, CommitLog.instance.getContext().get());
 
         assert CommitLog.instance.activeSegments() == 1 : "Expecting 1 segment, got " + CommitLog.instance.activeSegments();
 
         // Adding new mutation on another CF, large enough (including CL entry overhead) that a new segment is created
         RowMutation rm2 = new RowMutation("Keyspace1", bytes("k"));
-        rm2.add("Standard2", bytes("c1"), ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize()/2), 0);
+        rm2.add("Standard2", bytes("c1"), ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()/2) - 100), 0);
         CommitLog.instance.add(rm2);
-        // also forces a new segment, since each entry-with-overhead is just over half the CL size
+        // also forces a new segment, since each entry-with-overhead is just under half the CL size
+        CommitLog.instance.add(rm2);
         CommitLog.instance.add(rm2);
 
         assert CommitLog.instance.activeSegments() == 3 : "Expecting 3 segments, got " + CommitLog.instance.activeSegments();

@@ -1,4 +1,5 @@
 2.1
+ * Multithreaded commitlog (CASSANDRA-3578)
  * allocate fixed index summary memory pool and resample cold index summaries 
    to use less memory (CASSANDRA-5519)
  * Removed multithreaded compaction (CASSANDRA-6142)

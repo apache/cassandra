@@ -17,35 +17,20 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
-/**
- * Like ExecutorService, but customized for batch and periodic commitlog execution.
- */
-public interface ICommitLogExecutorService
+class BatchCommitLogService extends AbstractCommitLogService
 {
-    /**
-     * Get the number of completed tasks
-     */
-    public long getCompletedTasks();
+    public BatchCommitLogService(CommitLog commitLog)
+    {
+        super(commitLog, "COMMIT-LOG-WRITER", (int) DatabaseDescriptor.getCommitLogSyncBatchWindow());
+    }
 
-    /**
-     * Get the number of tasks waiting to be executed
-     */
-    public long getPendingTasks();
-
-
-    public <T> Future<T> submit(Callable<T> task);
-
-    /**
-     * submits the adder for execution and blocks for it to be synced, if necessary
-     */
-    public void add(CommitLog.LogRecordAdder adder);
-
-    /** shuts down the CommitLogExecutor in an orderly fashion */
-    public void shutdown();
-
-    /** Blocks until shutdown is complete. */
-    public void awaitTermination() throws InterruptedException;
+    protected void maybeWaitForSync(CommitLogSegment.Allocation alloc)
+    {
+        // wait until record has been safely persisted to disk
+        pending.incrementAndGet();
+        alloc.awaitDiskSync();
+        pending.decrementAndGet();
+    }
 }
