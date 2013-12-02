@@ -26,7 +26,6 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.tracing.Tracing;
 
 public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
 {
@@ -39,7 +38,7 @@ public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
             Keyspace.open(command.keyspace).clearSnapshot(command.snapshot_name);
         else
             Keyspace.open(command.keyspace).getColumnFamilyStore(command.column_family).snapshot(command.snapshot_name);
-        Tracing.trace("Enqueuing response to snapshot request {} to {}", command.snapshot_name, message.from);
-        MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.REQUEST_RESPONSE), id, message.from);
+        logger.debug("Enqueuing response to snapshot request {} to {}", command.snapshot_name, message.from);
+        MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
     }
 }
