@@ -17,21 +17,25 @@
  */
 package org.apache.cassandra.transport;
 
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.jboss.netty.handler.execution.MemoryAwareThreadPoolExecutor;
 import org.jboss.netty.util.ObjectSizeEstimator;
-
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.ThreadPoolMetrics;
 
 public class RequestThreadPoolExecutor extends MemoryAwareThreadPoolExecutor
 {
     private final static int CORE_THREAD_TIMEOUT_SEC = 30;
     // Number of request we accept to queue before blocking. We could allow this to be configured...
     private final static int MAX_QUEUED_REQUESTS = 128;
+
+    private final static String THREAD_FACTORY_ID = "Native-Transport-Requests";
+
+    private final ThreadPoolMetrics metrics;
 
     public RequestThreadPoolExecutor()
     {
@@ -40,7 +44,8 @@ public class RequestThreadPoolExecutor extends MemoryAwareThreadPoolExecutor
               MAX_QUEUED_REQUESTS,
               CORE_THREAD_TIMEOUT_SEC, TimeUnit.SECONDS,
               sizeEstimator(),
-              new NamedThreadFactory("Native-Transport-Requests"));
+              new NamedThreadFactory(THREAD_FACTORY_ID));
+        metrics = new ThreadPoolMetrics(this, "transport", THREAD_FACTORY_ID);
     }
 
     /*
@@ -73,5 +78,25 @@ public class RequestThreadPoolExecutor extends MemoryAwareThreadPoolExecutor
     {
         super.afterExecute(r, t);
         DebuggableThreadPoolExecutor.logExceptionsAfterExecute(r, t);
+    }
+
+    @Override
+    public void shutdown()
+    {
+        if (!isShutdown())
+        {
+            metrics.release();
+        }
+        super.shutdown();
+    }
+
+    @Override
+    public List<Runnable> shutdownNow()
+    {
+        if (!isShutdown())
+        {
+            metrics.release();
+        }
+        return super.shutdownNow();
     }
 }
