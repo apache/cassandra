@@ -33,6 +33,7 @@ Merged from 1.2:
  * Throw IRE if a prepared has more markers than supported (CASSANDRA-5598)
  * Expose Thread metrics for the native protocol server (CASSANDRA-6234)
  * Change snapshot response message verb (CASSANDRA-6415)
+ * Warn when collection read has > 65K elements (CASSANDRA-5428)
 
 
 2.0.3
