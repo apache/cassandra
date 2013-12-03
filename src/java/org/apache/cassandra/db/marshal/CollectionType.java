@@ -113,7 +113,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return (ByteBuffer)result.flip();
     }
 
-    protected List<Pair<ByteBuffer, IColumn>> enforceLimit(List<Pair<ByteBuffer, IColumn>> columns)
+    protected List<Pair<ByteBuffer, Column>> enforceLimit(List<Pair<ByteBuffer, Column>> columns)
     {
         if (columns.size() <= MAX_ELEMENTS)
             return columns;
