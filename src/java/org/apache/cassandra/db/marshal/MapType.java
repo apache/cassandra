@@ -137,6 +137,8 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
      */
     public ByteBuffer serialize(List<Pair<ByteBuffer, IColumn>> columns)
     {
+        columns = enforceLimit(columns);
+
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(2 * columns.size());
         int size = 0;
         for (Pair<ByteBuffer, IColumn> p : columns)
