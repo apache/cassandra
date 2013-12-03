@@ -28,6 +28,9 @@ import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
 
 public abstract class AbstractCommitLogService
 {
+    // how often should we log syngs that lag behind our desired period
+    private static final long LAG_REPORT_INTERVAL = TimeUnit.MINUTES.toMillis(5);
+
     private final Thread thread;
     private volatile boolean shutdown = false;
 
@@ -59,6 +62,12 @@ public abstract class AbstractCommitLogService
         {
             public void run()
             {
+                long firstLagAt = 0;
+                long totalSyncDuration = 0; // total time spent syncing since firstLagAt
+                long syncExceededIntervalBy = 0; // time that syncs exceeded pollInterval since firstLagAt
+                int lagCount = 0;
+                int syncCount = 0;
+
                 boolean run = true;
                 while (run)
                 {
@@ -73,14 +82,35 @@ public abstract class AbstractCommitLogService
                         lastSyncedAt = syncStarted;
                         syncComplete.signalAll();
 
+
                         // sleep any time we have left before the next one is due
-                        long sleep = syncStarted + pollIntervalMillis - System.currentTimeMillis();
+                        long now = System.currentTimeMillis();
+                        long sleep = syncStarted + pollIntervalMillis - now;
                         if (sleep < 0)
                         {
-                            logger.warn(String.format("Commit log sync took longer than sync interval (by %.2fs), indicating it is a bottleneck", sleep / -1000d));
-                            // don't sleep, as we probably have work to do
-                            continue;
+                            // if we have lagged noticeably, update our lag counter
+                            if (firstLagAt == 0)
+                            {
+                                firstLagAt = now;
+                                totalSyncDuration = syncExceededIntervalBy = syncCount = lagCount = 0;
+                            }
+                            syncExceededIntervalBy -= sleep;
+                            lagCount++;
                         }
+                        syncCount++;
+                        totalSyncDuration += now - syncStarted;
+
+                        if (firstLagAt > 0 && now - firstLagAt >= LAG_REPORT_INTERVAL)
+                        {
+                            logger.warn(String.format("Out of %d commit log syncs over the past %ds with average duration of %.2fms, %d have exceeded the configured commit interval by an average of %.2fms",
+                                                      syncCount, (now - firstLagAt) / 1000, (double) totalSyncDuration / syncCount, lagCount, (double) syncExceededIntervalBy / lagCount));
+                            firstLagAt = 0;
+                        }
+
+                        // if we have lagged this round, we probably have work to do already so we don't sleep
+                        if (sleep < 0)
+                            continue;
+
                         try
                         {
                             haveWork.tryAcquire(sleep, TimeUnit.MILLISECONDS);

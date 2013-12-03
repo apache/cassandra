@@ -260,7 +260,7 @@ public class CommitLogReplayer
                     break;
 
                 if (logger.isDebugEnabled())
-                    logger.debug("Replaying {} between {} and {}", file, offset, prevEnd);
+                    logger.debug("Replaying {} between {} and {}", file, offset, end);
 
                 reader.seek(offset);
 
