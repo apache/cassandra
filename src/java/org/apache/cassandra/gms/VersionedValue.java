@@ -80,7 +80,7 @@ public class VersionedValue implements Comparable<VersionedValue>
     private VersionedValue(String value, int version)
     {
         assert value != null;
-        this.value = value;
+        this.value = value.intern();
         this.version = version;
     }
 
