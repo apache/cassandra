@@ -1,4 +1,5 @@
 2.0.4
+ * Reduce gossip memory use by interning VersionedValue strings (CASSANDRA-6410)
  * Allow specifying datacenters to participate in a repair (CASSANDRA-6218)
  * Fix divide-by-zero in PCI (CASSANDRA-6403)
  * Fix setting last compacted key in the wrong level for LCS (CASSANDRA-6284)
