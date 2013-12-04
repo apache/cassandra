@@ -47,9 +47,9 @@ public abstract class UserTypes
             this.entries = entries;
         }
 
-        public Term prepare(ColumnSpecification receiver) throws InvalidRequestException
+        public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            validateAssignableTo(receiver);
+            validateAssignableTo(keyspace, receiver);
 
             UserType ut = (UserType)receiver.type;
             boolean allTerminal = true;
@@ -57,7 +57,7 @@ public abstract class UserTypes
             for (int i = 0; i < ut.types.size(); i++)
             {
                 ColumnIdentifier field = new ColumnIdentifier(ut.columnNames.get(i), UTF8Type.instance);
-                Term value = entries.get(field).prepare(fieldSpecOf(receiver, i));
+                Term value = entries.get(field).prepare(keyspace, fieldSpecOf(receiver, i));
 
                 if (value instanceof Term.NonTerminal)
                     allTerminal = false;
@@ -68,7 +68,7 @@ public abstract class UserTypes
             return allTerminal ? value.bind(Collections.<ByteBuffer>emptyList()) : value;
         }
 
-        private void validateAssignableTo(ColumnSpecification receiver) throws InvalidRequestException
+        private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
             if (!(receiver.type instanceof UserType))
                 throw new InvalidRequestException(String.format("Invalid user type literal for %s of type %s", receiver, receiver.type.asCQL3Type()));
@@ -82,16 +82,16 @@ public abstract class UserTypes
                     throw new InvalidRequestException(String.format("Invalid user type literal for %s: missing field %s", receiver, field));
 
                 ColumnSpecification fieldSpec = fieldSpecOf(receiver, i);
-                if (!value.isAssignableTo(fieldSpec))
+                if (!value.isAssignableTo(keyspace, fieldSpec))
                     throw new InvalidRequestException(String.format("Invalid user type literal for %s: field %s is not of type %s", receiver, field, fieldSpec.type.asCQL3Type()));
             }
         }
 
-        public boolean isAssignableTo(ColumnSpecification receiver)
+        public boolean isAssignableTo(String keyspace, ColumnSpecification receiver)
         {
             try
             {
-                validateAssignableTo(receiver);
+                validateAssignableTo(keyspace, receiver);
                 return true;
             }
             catch (InvalidRequestException e)

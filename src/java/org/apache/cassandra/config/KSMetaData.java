@@ -43,7 +43,19 @@ public final class KSMetaData
     private final Map<String, CFMetaData> cfMetaData;
     public final boolean durableWrites;
 
+    public final UTMetaData userTypes;
+
     KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, boolean durableWrites, Iterable<CFMetaData> cfDefs)
+    {
+        this(name, strategyClass, strategyOptions, durableWrites, cfDefs, new UTMetaData());
+    }
+
+    KSMetaData(String name,
+               Class<? extends AbstractReplicationStrategy> strategyClass,
+               Map<String, String> strategyOptions,
+               boolean durableWrites,
+               Iterable<CFMetaData> cfDefs,
+               UTMetaData userTypes)
     {
         this.name = name;
         this.strategyClass = strategyClass == null ? NetworkTopologyStrategy.class : strategyClass;
@@ -53,6 +65,7 @@ public final class KSMetaData
             cfmap.put(cfm.cfName, cfm);
         this.cfMetaData = Collections.unmodifiableMap(cfmap);
         this.durableWrites = durableWrites;
+        this.userTypes = userTypes;
     }
 
     // For new user created keyspaces (through CQL)
@@ -67,12 +80,12 @@ public final class KSMetaData
 
     public static KSMetaData newKeyspace(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> options, boolean durablesWrites, Iterable<CFMetaData> cfDefs)
     {
-        return new KSMetaData(name, strategyClass, options, durablesWrites, cfDefs);
+        return new KSMetaData(name, strategyClass, options, durablesWrites, cfDefs, new UTMetaData());
     }
 
     public static KSMetaData cloneWith(KSMetaData ksm, Iterable<CFMetaData> cfDefs)
     {
-        return new KSMetaData(ksm.name, ksm.strategyClass, ksm.strategyOptions, ksm.durableWrites, cfDefs);
+        return new KSMetaData(ksm.name, ksm.strategyClass, ksm.strategyOptions, ksm.durableWrites, cfDefs, ksm.userTypes);
     }
 
     public static KSMetaData systemKeyspace()
@@ -127,7 +140,8 @@ public final class KSMetaData
                 && ObjectUtils.equals(other.strategyClass, strategyClass)
                 && ObjectUtils.equals(other.strategyOptions, strategyOptions)
                 && other.cfMetaData.equals(cfMetaData)
-                && other.durableWrites == durableWrites;
+                && other.durableWrites == durableWrites
+                && ObjectUtils.equals(other.userTypes, userTypes);
     }
 
     public Map<String, CFMetaData> cfMetaData()
@@ -215,7 +229,6 @@ public final class KSMetaData
         return this;
     }
 
-
     public KSMetaData reloadAttributes()
     {
         Row ksDefRow = SystemKeyspace.readSchemaRow(name);
@@ -223,7 +236,7 @@ public final class KSMetaData
         if (ksDefRow.cf == null)
             throw new RuntimeException(String.format("%s not found in the schema definitions keyspaceName (%s).", name, SystemKeyspace.SCHEMA_KEYSPACES_CF));
 
-        return fromSchema(ksDefRow, Collections.<CFMetaData>emptyList());
+        return fromSchema(ksDefRow, Collections.<CFMetaData>emptyList(), userTypes);
     }
 
     public Mutation dropFromSchema(long timestamp)
@@ -234,6 +247,7 @@ public final class KSMetaData
         mutation.delete(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF, timestamp);
         mutation.delete(SystemKeyspace.SCHEMA_COLUMNS_CF, timestamp);
         mutation.delete(SystemKeyspace.SCHEMA_TRIGGERS_CF, timestamp);
+        mutation.delete(SystemKeyspace.SCHEMA_USER_TYPES_CF, timestamp);
 
         return mutation;
     }
@@ -251,6 +265,7 @@ public final class KSMetaData
         for (CFMetaData cfm : cfMetaData.values())
             cfm.toSchema(mutation, timestamp);
 
+        userTypes.toSchema(mutation, timestamp);
         return mutation;
     }
 
@@ -261,7 +276,7 @@ public final class KSMetaData
      *
      * @return deserialized keyspace without cf_defs
      */
-    public static KSMetaData fromSchema(Row row, Iterable<CFMetaData> cfms)
+    public static KSMetaData fromSchema(Row row, Iterable<CFMetaData> cfms, UTMetaData userTypes)
     {
         UntypedResultSet.Row result = QueryProcessor.resultify("SELECT * FROM system.schema_keyspaces", row).one();
         try
@@ -270,7 +285,8 @@ public final class KSMetaData
                                   AbstractReplicationStrategy.getClass(result.getString("strategy_class")),
                                   fromJsonMap(result.getString("strategy_options")),
                                   result.getBoolean("durable_writes"),
-                                  cfms);
+                                  cfms,
+                                  userTypes);
         }
         catch (ConfigurationException e)
         {
@@ -286,10 +302,11 @@ public final class KSMetaData
      *
      * @return deserialized keyspace with cf_defs
      */
-    public static KSMetaData fromSchema(Row serializedKs, Row serializedCFs)
+    public static KSMetaData fromSchema(Row serializedKs, Row serializedCFs, Row serializedUserTypes)
     {
         Map<String, CFMetaData> cfs = deserializeColumnFamilies(serializedCFs);
-        return fromSchema(serializedKs, cfs.values());
+        UTMetaData userTypes = new UTMetaData(UTMetaData.fromSchema(serializedUserTypes));
+        return fromSchema(serializedKs, cfs.values(), userTypes);
     }
 
     /**

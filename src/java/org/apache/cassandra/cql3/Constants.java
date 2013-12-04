@@ -60,15 +60,15 @@ public abstract class Constants
             }
         };
 
-        public Term prepare(ColumnSpecification receiver) throws InvalidRequestException
+        public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            if (!isAssignableTo(receiver))
+            if (!isAssignableTo(keyspace, receiver))
                 throw new InvalidRequestException("Invalid null value for counter increment/decrement");
 
             return NULL_VALUE;
         }
 
-        public boolean isAssignableTo(ColumnSpecification receiver)
+        public boolean isAssignableTo(String keyspace, ColumnSpecification receiver)
         {
             return !(receiver.type instanceof CounterColumnType);
         }
@@ -122,9 +122,9 @@ public abstract class Constants
             return new Literal(Type.HEX, text);
         }
 
-        public Value prepare(ColumnSpecification receiver) throws InvalidRequestException
+        public Value prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            if (!isAssignableTo(receiver))
+            if (!isAssignableTo(keyspace, receiver))
                 throw new InvalidRequestException(String.format("Invalid %s constant (%s) for %s of type %s", type, text, receiver, receiver.type.asCQL3Type()));
 
             return new Value(parsedValue(receiver.type));
@@ -154,7 +154,7 @@ public abstract class Constants
             return text;
         }
 
-        public boolean isAssignableTo(ColumnSpecification receiver)
+        public boolean isAssignableTo(String keyspace, ColumnSpecification receiver)
         {
             CQL3Type receiverType = receiver.type.asCQL3Type();
             if (receiverType.isCollection())

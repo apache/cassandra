@@ -37,20 +37,23 @@ import org.apache.cassandra.utils.Pair;
  */
 public class UserType extends CompositeType
 {
+    public final String keyspace;
     public final ByteBuffer name;
     public final List<ByteBuffer> columnNames;
 
-    public UserType(ByteBuffer name, List<ByteBuffer> columnNames, List<AbstractType<?>> types)
+    public UserType(String keyspace, ByteBuffer name, List<ByteBuffer> columnNames, List<AbstractType<?>> types)
     {
         super(types);
+        this.keyspace = keyspace;
         this.name = name;
         this.columnNames = columnNames;
     }
 
     public static UserType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
-        Pair<ByteBuffer, List<Pair<ByteBuffer, AbstractType>>> params = parser.getUserTypeParameters();
-        ByteBuffer name = params.left;
+        Pair<Pair<String, ByteBuffer>, List<Pair<ByteBuffer, AbstractType>>> params = parser.getUserTypeParameters();
+        String keyspace = params.left.left;
+        ByteBuffer name = params.left.right;
         List<ByteBuffer> columnNames = new ArrayList<>(params.right.size());
         List<AbstractType<?>> columnTypes = new ArrayList<>(params.right.size());
         for (Pair<ByteBuffer, AbstractType> p : params.right)
@@ -58,13 +61,13 @@ public class UserType extends CompositeType
             columnNames.add(p.left);
             columnTypes.add(p.right);
         }
-        return new UserType(name, columnNames, columnTypes);
+        return new UserType(keyspace, name, columnNames, columnTypes);
     }
 
     @Override
     public final int hashCode()
     {
-        return Objects.hashCode(name, columnNames, types);
+        return Objects.hashCode(keyspace, name, columnNames, types);
     }
 
     @Override
@@ -74,18 +77,18 @@ public class UserType extends CompositeType
             return false;
 
         UserType that = (UserType)o;
-        return name.equals(that.name) && columnNames.equals(that.columnNames) && types.equals(that.types);
+        return keyspace.equals(that.keyspace) && name.equals(that.name) && columnNames.equals(that.columnNames) && types.equals(that.types);
     }
 
     @Override
     public CQL3Type asCQL3Type()
     {
-        return CQL3Type.UserDefined.create(name, this);
+        return CQL3Type.UserDefined.create(this);
     }
 
     @Override
     public String toString()
     {
-        return getClass().getName() + TypeParser.stringifyUserTypeParameters(name, columnNames, types);
+        return getClass().getName() + TypeParser.stringifyUserTypeParameters(keyspace, name, columnNames, types);
     }
 }

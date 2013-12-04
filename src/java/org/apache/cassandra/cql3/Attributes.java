@@ -120,8 +120,8 @@ public class Attributes
 
         public Attributes prepare(String ksName, String cfName) throws InvalidRequestException
         {
-            Term ts = timestamp == null ? null : timestamp.prepare(timestampReceiver(ksName, cfName));
-            Term ttl = timeToLive == null ? null : timeToLive.prepare(timeToLiveReceiver(ksName, cfName));
+            Term ts = timestamp == null ? null : timestamp.prepare(ksName, timestampReceiver(ksName, cfName));
+            Term ttl = timeToLive == null ? null : timeToLive.prepare(ksName, timeToLiveReceiver(ksName, cfName));
             return new Attributes(ts, ttl);
         }
 

@@ -1043,7 +1043,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             Term prepLimit = null;
             if (limit != null)
             {
-                prepLimit = limit.prepare(limitReceiver());
+                prepLimit = limit.prepare(keyspace(), limitReceiver());
                 prepLimit.collectMarkerSpecification(names);
             }
 
@@ -1424,7 +1424,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     {
                         if (restriction != null)
                             throw new InvalidRequestException(String.format("%s cannot be restricted by more than one relation if it includes an Equal", def.name));
-                        Term t = newRel.getValue().prepare(receiver);
+                        Term t = newRel.getValue().prepare(keyspace(), receiver);
                         t.collectMarkerSpecification(boundNames);
                         restriction = new Restriction.EQ(t, newRel.onToken);
                     }
@@ -1437,7 +1437,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     {
                         // Means we have a "SELECT ... IN ?"
                         assert newRel.getValue() != null;
-                        Term t = newRel.getValue().prepare(receiver);
+                        Term t = newRel.getValue().prepare(keyspace(), receiver);
                         t.collectMarkerSpecification(boundNames);
                         restriction = Restriction.IN.create(t);
                     }
@@ -1446,7 +1446,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                         List<Term> inValues = new ArrayList<Term>(newRel.getInValues().size());
                         for (Term.Raw raw : newRel.getInValues())
                         {
-                            Term t = raw.prepare(receiver);
+                            Term t = raw.prepare(keyspace(), receiver);
                             t.collectMarkerSpecification(boundNames);
                             inValues.add(t);
                         }
@@ -1462,7 +1462,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                             restriction = new Restriction.Slice(newRel.onToken);
                         else if (!restriction.isSlice())
                             throw new InvalidRequestException(String.format("%s cannot be restricted by both an equal and an inequal relation", def.name));
-                        Term t = newRel.getValue().prepare(receiver);
+                        Term t = newRel.getValue().prepare(keyspace(), receiver);
                         t.collectMarkerSpecification(boundNames);
                         ((Restriction.Slice)restriction).setBound(def.name, newRel.operator(), t);
                     }
@@ -1482,7 +1482,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                             throw new InvalidRequestException(String.format("Collection column %s can only be restricted by CONTAINS or CONTAINS KEY", def.name));
                         boolean isKey = newRel.operator() == Relation.Type.CONTAINS_KEY;
                         receiver = makeCollectionReceiver(receiver, isKey);
-                        Term t = newRel.getValue().prepare(receiver);
+                        Term t = newRel.getValue().prepare(keyspace(), receiver);
                         ((Restriction.Contains)restriction).add(t, isKey);
                     }
             }

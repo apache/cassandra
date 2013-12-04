@@ -150,7 +150,7 @@ public abstract class Selection
             if (returnType == null)
                 throw new InvalidRequestException(String.format("Unknown function '%s'", withFun.functionName));
             ColumnSpecification spec = makeFunctionSpec(cfm, withFun, returnType, raw.alias);
-            Function fun = Functions.get(withFun.functionName, args, spec);
+            Function fun = Functions.get(cfm.ksName, withFun.functionName, args, spec);
             if (metadata != null)
                 metadata.add(spec);
             return new FunctionSelector(fun, args);
@@ -352,7 +352,7 @@ public abstract class Selection
         public abstract ByteBuffer compute(ResultSetBuilder rs) throws InvalidRequestException;
         public abstract AbstractType<?> getType();
 
-        public boolean isAssignableTo(ColumnSpecification receiver)
+        public boolean isAssignableTo(String keyspace, ColumnSpecification receiver)
         {
             return getType().asCQL3Type().equals(receiver.type.asCQL3Type());
         }

@@ -150,7 +150,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
     public static class RawStatement extends CFStatement
     {
-        private final Map<ColumnIdentifier, CQL3Type> definitions = new HashMap<ColumnIdentifier, CQL3Type>();
+        private final Map<ColumnIdentifier, CQL3Type.Raw> definitions = new HashMap<>();
         public final CFPropDefs properties = new CFPropDefs();
 
         private final List<List<ColumnIdentifier>> keyAliases = new ArrayList<List<ColumnIdentifier>>();
@@ -188,10 +188,10 @@ public class CreateTableStatement extends SchemaAlteringStatement
             CreateTableStatement stmt = new CreateTableStatement(cfName, properties, ifNotExists);
 
             Map<ByteBuffer, CollectionType> definedCollections = null;
-            for (Map.Entry<ColumnIdentifier, CQL3Type> entry : definitions.entrySet())
+            for (Map.Entry<ColumnIdentifier, CQL3Type.Raw> entry : definitions.entrySet())
             {
                 ColumnIdentifier id = entry.getKey();
-                CQL3Type pt = entry.getValue();
+                CQL3Type pt = entry.getValue().prepare(keyspace());
                 if (pt.isCollection())
                 {
                     if (definedCollections == null)
@@ -358,7 +358,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
             return isReversed != null && isReversed ? ReversedType.getInstance(type) : type;
         }
 
-        public void addDefinition(ColumnIdentifier def, CQL3Type type)
+        public void addDefinition(ColumnIdentifier def, CQL3Type.Raw type)
         {
             definedNames.add(def);
             definitions.put(def, type);

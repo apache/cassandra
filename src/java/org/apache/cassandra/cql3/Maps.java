@@ -64,9 +64,9 @@ public abstract class Maps
             this.entries = entries;
         }
 
-        public Term prepare(ColumnSpecification receiver) throws InvalidRequestException
+        public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            validateAssignableTo(receiver);
+            validateAssignableTo(keyspace, receiver);
 
             ColumnSpecification keySpec = Maps.keySpecOf(receiver);
             ColumnSpecification valueSpec = Maps.valueSpecOf(receiver);
@@ -74,8 +74,8 @@ public abstract class Maps
             boolean allTerminal = true;
             for (Pair<Term.Raw, Term.Raw> entry : entries)
             {
-                Term k = entry.left.prepare(keySpec);
-                Term v = entry.right.prepare(valueSpec);
+                Term k = entry.left.prepare(keyspace, keySpec);
+                Term v = entry.right.prepare(keyspace, valueSpec);
 
                 if (k.containsBindMarker() || v.containsBindMarker())
                     throw new InvalidRequestException(String.format("Invalid map literal for %s: bind variables are not supported inside collection literals", receiver));
@@ -89,7 +89,7 @@ public abstract class Maps
             return allTerminal ? value.bind(Collections.<ByteBuffer>emptyList()) : value;
         }
 
-        private void validateAssignableTo(ColumnSpecification receiver) throws InvalidRequestException
+        private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
             if (!(receiver.type instanceof MapType))
                 throw new InvalidRequestException(String.format("Invalid map literal for %s of type %s", receiver, receiver.type.asCQL3Type()));
@@ -98,18 +98,18 @@ public abstract class Maps
             ColumnSpecification valueSpec = Maps.valueSpecOf(receiver);
             for (Pair<Term.Raw, Term.Raw> entry : entries)
             {
-                if (!entry.left.isAssignableTo(keySpec))
+                if (!entry.left.isAssignableTo(keyspace, keySpec))
                     throw new InvalidRequestException(String.format("Invalid map literal for %s: key %s is not of type %s", receiver, entry.left, keySpec.type.asCQL3Type()));
-                if (!entry.right.isAssignableTo(valueSpec))
+                if (!entry.right.isAssignableTo(keyspace, valueSpec))
                     throw new InvalidRequestException(String.format("Invalid map literal for %s: value %s is not of type %s", receiver, entry.right, valueSpec.type.asCQL3Type()));
             }
         }
 
-        public boolean isAssignableTo(ColumnSpecification receiver)
+        public boolean isAssignableTo(String keyspace, ColumnSpecification receiver)
         {
             try
             {
-                validateAssignableTo(receiver);
+                validateAssignableTo(keyspace, receiver);
                 return true;
             }
             catch (InvalidRequestException e)

@@ -33,19 +33,29 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class CreateTypeStatement extends SchemaAlteringStatement
 {
-    private final ColumnIdentifier name;
+    private final UTName name;
     private final List<ColumnIdentifier> columnNames = new ArrayList<>();
-    private final List<CQL3Type> columnTypes = new ArrayList<>();
+    private final List<CQL3Type.Raw> columnTypes = new ArrayList<>();
     private final boolean ifNotExists;
 
-    public CreateTypeStatement(ColumnIdentifier name, boolean ifNotExists)
+    public CreateTypeStatement(UTName name, boolean ifNotExists)
     {
         super();
         this.name = name;
         this.ifNotExists = ifNotExists;
     }
 
-    public void addDefinition(ColumnIdentifier name, CQL3Type type)
+    @Override
+    public void prepareKeyspace(ClientState state) throws InvalidRequestException
+    {
+        if (!name.hasKeyspace())
+            name.setKeyspace(state.getKeyspace());
+
+        if (name.getKeyspace() == null)
+            throw new InvalidRequestException("You need to be logged in a keyspace or use a fully qualified user type name");
+    }
+
+    public void addDefinition(ColumnIdentifier name, CQL3Type.Raw type)
     {
         columnNames.add(name);
         columnTypes.add(type);
@@ -53,13 +63,15 @@ public class CreateTypeStatement extends SchemaAlteringStatement
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
-        // We may want a slightly different permission?
-        state.hasAllKeyspacesAccess(Permission.CREATE);
+        state.hasKeyspaceAccess(keyspace(), Permission.CREATE);
     }
 
     public void validate(ClientState state) throws RequestValidationException
     {
-        if (Schema.instance.userTypes.getType(name) != null && !ifNotExists)
+        KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
+        if (ksm == null)
+            throw new InvalidRequestException(String.format("Cannot add type in unknown keyspace %s", name.getKeyspace()));
+        if (ksm.userTypes.getType(name.getUserTypeName()) != null && !ifNotExists)
             throw new InvalidRequestException(String.format("A user type of name %s already exists.", name));
     }
 
@@ -80,34 +92,35 @@ public class CreateTypeStatement extends SchemaAlteringStatement
 
     public ResultMessage.SchemaChange.Change changeType()
     {
-        return ResultMessage.SchemaChange.Change.CREATED;
+        return ResultMessage.SchemaChange.Change.UPDATED;
     }
 
     @Override
     public String keyspace()
     {
-        // Kind of ugly, but SchemaAlteringStatement uses that for notifying change, and an empty keyspace
-        // there kind of make sense
-        return "";
+        return name.getKeyspace();
     }
 
-    private UserType createType()
+    private UserType createType() throws InvalidRequestException
     {
         List<ByteBuffer> names = new ArrayList<>(columnNames.size());
         for (ColumnIdentifier name : columnNames)
             names.add(name.bytes);
 
         List<AbstractType<?>> types = new ArrayList<>(columnTypes.size());
-        for (CQL3Type type : columnTypes)
-            types.add(type.getType());
+        for (CQL3Type.Raw type : columnTypes)
+            types.add(type.prepare(keyspace()).getType());
 
-        return new UserType(name.bytes, names, types);
+        return new UserType(name.getKeyspace(), name.getUserTypeName(), names, types);
     }
 
     public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
+        KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
+        assert ksm != null; // should haven't validate otherwise
+
         // Can happen with ifNotExists
-        if (Schema.instance.userTypes.getType(name) != null)
+        if (ksm.userTypes.getType(name.getUserTypeName()) != null)
             return;
 
         UserType type = createType();

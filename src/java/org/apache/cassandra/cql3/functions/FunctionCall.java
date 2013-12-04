@@ -102,15 +102,15 @@ public class FunctionCall extends Term.NonTerminal
             this.terms = terms;
         }
 
-        public Term prepare(ColumnSpecification receiver) throws InvalidRequestException
+        public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            Function fun = Functions.get(functionName, terms, receiver);
+            Function fun = Functions.get(keyspace, functionName, terms, receiver);
 
             List<Term> parameters = new ArrayList<Term>(terms.size());
             boolean allTerminal = true;
             for (int i = 0; i < terms.size(); i++)
             {
-                Term t = terms.get(i).prepare(Functions.makeArgSpec(receiver, fun, i));
+                Term t = terms.get(i).prepare(keyspace, Functions.makeArgSpec(receiver, fun, i));
                 if (t instanceof NonTerminal)
                     allTerminal = false;
                 parameters.add(t);
@@ -135,7 +135,7 @@ public class FunctionCall extends Term.NonTerminal
             return fun.execute(buffers);
         }
 
-        public boolean isAssignableTo(ColumnSpecification receiver)
+        public boolean isAssignableTo(String keyspace, ColumnSpecification receiver)
         {
             AbstractType<?> returnType = Functions.getReturnType(functionName, receiver.ksName, receiver.cfName);
             // Note: if returnType == null, it means the function doesn't exist. We may get this if an undefined function

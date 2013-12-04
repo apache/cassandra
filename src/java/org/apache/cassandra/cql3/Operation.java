@@ -111,7 +111,7 @@ public abstract class Operation
          * be a true column.
          * @return the prepared update operation.
          */
-        public Operation prepare(ColumnDefinition receiver) throws InvalidRequestException;
+        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException;
 
         /**
          * @return whether this operation can be applied alongside the {@code
@@ -145,7 +145,7 @@ public abstract class Operation
          * @param receiver the "column" this operation applies to.
          * @return the prepared delete operation.
          */
-        public Operation prepare(ColumnDefinition receiver) throws InvalidRequestException;
+        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException;
     }
 
     public static class SetValue implements RawUpdate
@@ -157,9 +157,9 @@ public abstract class Operation
             this.value = value;
         }
 
-        public Operation prepare(ColumnDefinition receiver) throws InvalidRequestException
+        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
         {
-            Term v = value.prepare(receiver);
+            Term v = value.prepare(keyspace, receiver);
 
             if (receiver.type instanceof CounterColumnType)
                 throw new InvalidRequestException(String.format("Cannot set the value of counter column %s (counters can only be incremented/decremented, not set)", receiver));
@@ -203,7 +203,7 @@ public abstract class Operation
             this.value = value;
         }
 
-        public Operation prepare(ColumnDefinition receiver) throws InvalidRequestException
+        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
         {
             if (!(receiver.type instanceof CollectionType))
                 throw new InvalidRequestException(String.format("Invalid operation (%s) for non collection column %s", toString(receiver), receiver));
@@ -211,14 +211,14 @@ public abstract class Operation
             switch (((CollectionType)receiver.type).kind)
             {
                 case LIST:
-                    Term idx = selector.prepare(Lists.indexSpecOf(receiver));
-                    Term lval = value.prepare(Lists.valueSpecOf(receiver));
+                    Term idx = selector.prepare(keyspace, Lists.indexSpecOf(receiver));
+                    Term lval = value.prepare(keyspace, Lists.valueSpecOf(receiver));
                     return new Lists.SetterByIndex(receiver, idx, lval);
                 case SET:
                     throw new InvalidRequestException(String.format("Invalid operation (%s) for set column %s", toString(receiver), receiver));
                 case MAP:
-                    Term key = selector.prepare(Maps.keySpecOf(receiver));
-                    Term mval = value.prepare(Maps.valueSpecOf(receiver));
+                    Term key = selector.prepare(keyspace, Maps.keySpecOf(receiver));
+                    Term mval = value.prepare(keyspace, Maps.valueSpecOf(receiver));
                     return new Maps.SetterByKey(receiver, key, mval);
             }
             throw new AssertionError();
@@ -246,9 +246,9 @@ public abstract class Operation
             this.value = value;
         }
 
-        public Operation prepare(ColumnDefinition receiver) throws InvalidRequestException
+        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
         {
-            Term v = value.prepare(receiver);
+            Term v = value.prepare(keyspace, receiver);
 
             if (!(receiver.type instanceof CollectionType))
             {
@@ -289,9 +289,9 @@ public abstract class Operation
             this.value = value;
         }
 
-        public Operation prepare(ColumnDefinition receiver) throws InvalidRequestException
+        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
         {
-            Term v = value.prepare(receiver);
+            Term v = value.prepare(keyspace, receiver);
 
             if (!(receiver.type instanceof CollectionType))
             {
@@ -332,9 +332,9 @@ public abstract class Operation
             this.value = value;
         }
 
-        public Operation prepare(ColumnDefinition receiver) throws InvalidRequestException
+        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
         {
-            Term v = value.prepare(receiver);
+            Term v = value.prepare(keyspace, receiver);
 
             if (!(receiver.type instanceof ListType))
                 throw new InvalidRequestException(String.format("Invalid operation (%s) for non list column %s", toString(receiver), receiver));
@@ -367,7 +367,7 @@ public abstract class Operation
             return id;
         }
 
-        public Operation prepare(ColumnDefinition receiver) throws InvalidRequestException
+        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
         {
             // No validation, deleting a column is always "well typed"
             return new Constants.Deleter(receiver);
@@ -390,7 +390,7 @@ public abstract class Operation
             return id;
         }
 
-        public Operation prepare(ColumnDefinition receiver) throws InvalidRequestException
+        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
         {
             if (!(receiver.type instanceof CollectionType))
                 throw new InvalidRequestException(String.format("Invalid deletion operation for non collection column %s", receiver));
@@ -398,13 +398,13 @@ public abstract class Operation
             switch (((CollectionType)receiver.type).kind)
             {
                 case LIST:
-                    Term idx = element.prepare(Lists.indexSpecOf(receiver));
+                    Term idx = element.prepare(keyspace, Lists.indexSpecOf(receiver));
                     return new Lists.DiscarderByIndex(receiver, idx);
                 case SET:
-                    Term elt = element.prepare(Sets.valueSpecOf(receiver));
+                    Term elt = element.prepare(keyspace, Sets.valueSpecOf(receiver));
                     return new Sets.Discarder(receiver, elt);
                 case MAP:
-                    Term key = element.prepare(Maps.keySpecOf(receiver));
+                    Term key = element.prepare(keyspace, Maps.keySpecOf(receiver));
                     return new Maps.DiscarderByKey(receiver, key);
             }
             throw new AssertionError();

@@ -28,10 +28,10 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class DropTypeStatement extends SchemaAlteringStatement
 {
-    private final ColumnIdentifier name;
+    private final UTName name;
     private final boolean ifExists;
 
-    public DropTypeStatement(ColumnIdentifier name, boolean ifExists)
+    public DropTypeStatement(UTName name, boolean ifExists)
     {
         super();
         this.name = name;
@@ -40,13 +40,16 @@ public class DropTypeStatement extends SchemaAlteringStatement
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
-        // We may want a slightly different permission?
-        state.hasAllKeyspacesAccess(Permission.DROP);
+        state.hasKeyspaceAccess(keyspace(), Permission.DROP);
     }
 
     public void validate(ClientState state) throws RequestValidationException
     {
-        UserType old = Schema.instance.userTypes.getType(name);
+        KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
+        if (ksm == null)
+            throw new InvalidRequestException(String.format("Cannot drop type in unknown keyspace %s", name.getKeyspace()));
+
+        UserType old = ksm.userTypes.getType(name.getUserTypeName());
         if (old == null)
         {
             if (ifExists)
@@ -61,19 +64,22 @@ public class DropTypeStatement extends SchemaAlteringStatement
         // We have two places to check: 1) other user type that can nest the one
         // we drop and 2) existing tables referencing the type (maybe in a nested
         // way).
-        for (UserType ut : Schema.instance.userTypes.getAllTypes().values())
-        {
-            if (ut.name.equals(name.bytes))
-                continue;
-            if (isUsedBy(ut))
-                throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by user type %s", name, ut.asCQL3Type()));
-        }
 
-        for (KSMetaData ksm : Schema.instance.getKeyspaceDefinitions())
-            for (CFMetaData cfm : ksm.cfMetaData().values())
+        for (KSMetaData ksm2 : Schema.instance.getKeyspaceDefinitions())
+        {
+            for (UserType ut : ksm2.userTypes.getAllTypes().values())
+            {
+                if (ut.keyspace.equals(name.getKeyspace()) && ut.name.equals(name.getUserTypeName()))
+                    continue;
+                if (isUsedBy(ut))
+                    throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by user type %s", name, ut.asCQL3Type()));
+            }
+
+            for (CFMetaData cfm : ksm2.cfMetaData().values())
                 for (ColumnDefinition def : cfm.allColumns())
                     if (isUsedBy(def.type))
                         throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by table %s.%s", name, cfm.ksName, cfm.cfName));
+        }
     }
 
     private boolean isUsedBy(AbstractType<?> toCheck) throws RequestValidationException
@@ -82,8 +88,12 @@ public class DropTypeStatement extends SchemaAlteringStatement
         {
             CompositeType ct = (CompositeType)toCheck;
 
-            if ((ct instanceof UserType) && name.bytes.equals(((UserType)ct).name))
-                return true;
+            if ((ct instanceof UserType))
+            {
+                UserType ut = (UserType)ct;
+                if (name.getKeyspace().equals(ut.keyspace) && name.getUserTypeName().equals(ut.name))
+                    return true;
+            }
 
             // Also reach into subtypes
             for (AbstractType<?> subtype : ct.types)
@@ -110,20 +120,21 @@ public class DropTypeStatement extends SchemaAlteringStatement
 
     public ResultMessage.SchemaChange.Change changeType()
     {
-        return ResultMessage.SchemaChange.Change.DROPPED;
+        return ResultMessage.SchemaChange.Change.UPDATED;
     }
 
     @Override
     public String keyspace()
     {
-        // Kind of ugly, but SchemaAlteringStatement uses that for notifying change, and an empty keyspace
-        // there kind of make sense
-        return "";
+        return name.getKeyspace();
     }
 
     public void announceMigration() throws InvalidRequestException, ConfigurationException
     {
-        UserType toDrop = Schema.instance.userTypes.getType(name);
+        KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
+        assert ksm != null;
+
+        UserType toDrop = ksm.userTypes.getType(name.getUserTypeName());
         // Can be null with ifExists
         if (toDrop != null)
             MigrationManager.announceTypeDrop(toDrop);

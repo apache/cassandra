@@ -88,7 +88,7 @@ public interface Term
          * case this RawTerm describe a list index or a map key, etc...
          * @return the prepared term.
          */
-        public Term prepare(ColumnSpecification receiver) throws InvalidRequestException;
+        public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException;
     }
 
     /**

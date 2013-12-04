@@ -17,14 +17,18 @@
  */
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
+
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * Convenience object to populate a given CQL3 row in a ColumnFamily object.
@@ -57,12 +61,29 @@ public class CFRowAdder
         return add(cf.getComparator().create(prefix, def.name), def, value);
     }
 
+    public CFRowAdder resetCollection(String cql3ColumnName)
+    {
+        ColumnDefinition def = getDefinition(cql3ColumnName);
+        assert def.type.isCollection();
+        Composite name = cf.getComparator().create(prefix, def.name);
+        cf.addAtom(new RangeTombstone(name.start(), name.end(), timestamp - 1, ldt));
+        return this;
+    }
+
     public CFRowAdder addMapEntry(String cql3ColumnName, Object key, Object value)
     {
         ColumnDefinition def = getDefinition(cql3ColumnName);
         assert def.type instanceof MapType;
         MapType mt = (MapType)def.type;
         CellName name = cf.getComparator().create(prefix, def.name, mt.keys.decompose(key));
+        return add(name, def, value);
+    }
+
+    public CFRowAdder addListEntry(String cql3ColumnName, Object value)
+    {
+        ColumnDefinition def = getDefinition(cql3ColumnName);
+        assert def.type instanceof ListType;
+        CellName name = cf.getComparator().create(prefix, def.name, ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes()));
         return add(name, def, value);
     }
 

@@ -266,7 +266,6 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
     public static void announceTypeUpdate(UserType updatedType)
     {
-        // We don't make a difference with a new type. DefsTable.mergeType will make sure we keep the updated version.
         announceNewType(updatedType);
     }
 

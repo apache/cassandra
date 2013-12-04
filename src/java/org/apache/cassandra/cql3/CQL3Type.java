@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -28,8 +29,6 @@ import org.apache.cassandra.exceptions.SyntaxException;
 public interface CQL3Type
 {
     public boolean isCollection();
-    public boolean isCounter();
-    public boolean isUserType();
     public AbstractType<?> getType();
 
     public enum Native implements CQL3Type
@@ -68,16 +67,6 @@ public interface CQL3Type
             return type;
         }
 
-        public boolean isCounter()
-        {
-            return this == COUNTER;
-        }
-
-        public boolean isUserType()
-        {
-            return false;
-        }
-
         @Override
         public String toString()
         {
@@ -109,16 +98,6 @@ public interface CQL3Type
             return type;
         }
 
-        public boolean isCounter()
-        {
-            return false;
-        }
-
-        public boolean isUserType()
-        {
-            return false;
-        }
-
         @Override
         public final boolean equals(Object o)
         {
@@ -144,46 +123,11 @@ public interface CQL3Type
 
     public static class Collection implements CQL3Type
     {
-        CollectionType type;
+        private final CollectionType type;
 
         public Collection(CollectionType type)
         {
             this.type = type;
-        }
-
-        public static Collection map(CQL3Type t1, CQL3Type t2) throws InvalidRequestException
-        {
-            if (t1.isCollection() || t2.isCollection())
-                throw new InvalidRequestException("map type cannot contain another collection");
-            if (t1.isCounter() || t2.isCounter())
-                throw new InvalidRequestException("counters are not allowed inside a collection");
-
-            return new Collection(MapType.getInstance(t1.getType(), t2.getType()));
-        }
-
-        public static Collection list(CQL3Type t) throws InvalidRequestException
-        {
-            if (t.isCollection())
-                throw new InvalidRequestException("list type cannot contain another collection");
-            if (t.isCounter())
-                throw new InvalidRequestException("counters are not allowed inside a collection");
-
-            return new Collection(ListType.getInstance(t.getType()));
-        }
-
-        public static Collection set(CQL3Type t) throws InvalidRequestException
-        {
-            if (t.isCollection())
-                throw new InvalidRequestException("set type cannot contain another collection");
-            if (t.isCounter())
-                throw new InvalidRequestException("counters are not allowed inside a collection");
-
-            return new Collection(SetType.getInstance(t.getType()));
-        }
-
-        public boolean isCollection()
-        {
-            return true;
         }
 
         public AbstractType<?> getType()
@@ -191,14 +135,9 @@ public interface CQL3Type
             return type;
         }
 
-        public boolean isCounter()
+        public boolean isCollection()
         {
-            return false;
-        }
-
-        public boolean isUserType()
-        {
-            return false;
+            return true;
         }
 
         @Override
@@ -237,40 +176,21 @@ public interface CQL3Type
     public static class UserDefined implements CQL3Type
     {
         // Keeping this separatly from type just to simplify toString()
-        ColumnIdentifier name;
-        UserType type;
+        private final String name;
+        private final UserType type;
 
-        private UserDefined(ColumnIdentifier name, UserType type)
+        private UserDefined(String name, UserType type)
         {
             this.name = name;
             this.type = type;
         }
 
-        public static UserDefined create(ByteBuffer name, UserType type)
+        public static UserDefined create(UserType type)
         {
-            return new UserDefined(new ColumnIdentifier(name, UTF8Type.instance), type);
-        }
-
-        public static UserDefined create(ColumnIdentifier name) throws InvalidRequestException
-        {
-            UserType type = Schema.instance.userTypes.getType(name);
-            if (type == null)
-                throw new InvalidRequestException("Unknown type " + name);
-
-            return new UserDefined(name, type);
-        }
-
-        public boolean isUserType()
-        {
-            return true;
+            return new UserDefined(UTF8Type.instance.compose(type.name), type);
         }
 
         public boolean isCollection()
-        {
-            return false;
-        }
-
-        public boolean isCounter()
         {
             return false;
         }
@@ -299,7 +219,163 @@ public interface CQL3Type
         @Override
         public String toString()
         {
-            return name.toString();
+            return name;
         }
+    }
+
+    // For UserTypes, we need to know the current keyspace to resolve the
+    // actual type used, so Raw is a "not yet prepared" CQL3Type.
+    public abstract class Raw
+    {
+        public boolean isCollection()
+        {
+            return false;
+        }
+
+        public boolean isCounter()
+        {
+            return false;
+        }
+
+        public abstract CQL3Type prepare(String keyspace) throws InvalidRequestException;
+
+        public static Raw from(CQL3Type type)
+        {
+            return new RawType(type);
+        }
+
+        public static Raw userType(UTName name)
+        {
+            return new RawUT(name);
+        }
+
+        public static Raw map(CQL3Type.Raw t1, CQL3Type.Raw t2) throws InvalidRequestException
+        {
+            if (t1.isCollection() || t2.isCollection())
+                throw new InvalidRequestException("map type cannot contain another collection");
+            if (t1.isCounter() || t2.isCounter())
+                throw new InvalidRequestException("counters are not allowed inside a collection");
+
+            return new RawCollection(CollectionType.Kind.MAP, t1, t2);
+        }
+
+        public static Raw list(CQL3Type.Raw t) throws InvalidRequestException
+        {
+            if (t.isCollection())
+                throw new InvalidRequestException("list type cannot contain another collection");
+            if (t.isCounter())
+                throw new InvalidRequestException("counters are not allowed inside a collection");
+
+            return new RawCollection(CollectionType.Kind.LIST, null, t);
+        }
+
+        public static Raw set(CQL3Type.Raw t) throws InvalidRequestException
+        {
+            if (t.isCollection())
+                throw new InvalidRequestException("set type cannot contain another collection");
+            if (t.isCounter())
+                throw new InvalidRequestException("counters are not allowed inside a collection");
+
+            return new RawCollection(CollectionType.Kind.SET, null, t);
+        }
+
+        private static class RawType extends Raw
+        {
+            private CQL3Type type;
+
+            private RawType(CQL3Type type)
+            {
+                this.type = type;
+            }
+
+            public CQL3Type prepare(String keyspace) throws InvalidRequestException
+            {
+                return type;
+            }
+
+            public boolean isCounter()
+            {
+                return type == Native.COUNTER;
+            }
+
+            @Override
+            public String toString()
+            {
+                return type.toString();
+            }
+        }
+
+        private static class RawCollection extends Raw
+        {
+            private final CollectionType.Kind kind;
+            private final CQL3Type.Raw keys;
+            private final CQL3Type.Raw values;
+
+            private RawCollection(CollectionType.Kind kind, CQL3Type.Raw keys, CQL3Type.Raw values)
+            {
+                this.kind = kind;
+                this.keys = keys;
+                this.values = values;
+            }
+
+            public boolean isCollection()
+            {
+                return true;
+            }
+
+            public CQL3Type prepare(String keyspace) throws InvalidRequestException
+            {
+                switch (kind)
+                {
+                    case LIST: return new Collection(ListType.getInstance(values.prepare(keyspace).getType()));
+                    case SET:  return new Collection(SetType.getInstance(values.prepare(keyspace).getType()));
+                    case MAP:  return new Collection(MapType.getInstance(keys.prepare(keyspace).getType(), values.prepare(keyspace).getType()));
+                }
+                throw new AssertionError();
+            }
+
+            @Override
+            public String toString()
+            {
+                switch (kind)
+                {
+                    case LIST: return "list<" + values + ">";
+                    case SET:  return "set<" + values + ">";
+                    case MAP:  return "map<" + keys + ", " + values + ">";
+                }
+                throw new AssertionError();
+            }
+        }
+
+        private static class RawUT extends Raw
+        {
+
+            private final UTName name;
+
+            private RawUT(UTName name)
+            {
+                this.name = name;
+            }
+
+            public CQL3Type prepare(String keyspace) throws InvalidRequestException
+            {
+                name.setKeyspace(keyspace);
+
+                KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
+                if (ksm == null)
+                    throw new InvalidRequestException("Unknown keyspace " + name.getKeyspace());
+                UserType type = ksm.userTypes.getType(name.getUserTypeName());
+                if (type == null)
+                    throw new InvalidRequestException("Unknown type " + name);
+
+                return new UserDefined(name.toString(), type);
+            }
+
+            @Override
+            public String toString()
+            {
+                return name.toString();
+            }
+    }
     }
 }

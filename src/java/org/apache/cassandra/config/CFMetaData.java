@@ -39,6 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.statements.CFStatement;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
@@ -172,10 +173,11 @@ public final class CFMetaData
                                                               + ") WITH COMMENT='triggers metadata table'");
 
     public static final CFMetaData SchemaUserTypesCf = compile("CREATE TABLE " + SystemKeyspace.SCHEMA_USER_TYPES_CF + " ("
+                                                               + "keyspace_name text,"
                                                                + "type_name text,"
                                                                + "column_names list<text>,"
                                                                + "column_types list<text>,"
-                                                               + "PRIMARY KEY (type_name)"
+                                                               + "PRIMARY KEY (keyspace_name, type_name)"
                                                                + ") WITH COMMENT='Defined user types' AND gc_grace_seconds=8640");
 
     public static final CFMetaData HintsCf = compile("CREATE TABLE " + SystemKeyspace.HINTS_CF + " ("
@@ -517,7 +519,9 @@ public final class CFMetaData
     {
         try
         {
-            CreateTableStatement statement = (CreateTableStatement) QueryProcessor.parseStatement(cql).prepare().statement;
+            CFStatement parsed = (CFStatement)QueryProcessor.parseStatement(cql);
+            parsed.prepareKeyspace(keyspace);
+            CreateTableStatement statement = (CreateTableStatement) parsed.prepare().statement;
             CFMetaData cfm = newSystemMetadata(keyspace, statement.columnFamily(), "", statement.comparator);
             statement.applyPropertiesTo(cfm);
             return cfm.rebuild();

@@ -155,13 +155,13 @@ public class UpdateStatement extends ModificationStatement
                 {
                     case PARTITION_KEY:
                     case CLUSTERING_COLUMN:
-                        Term t = value.prepare(def);
+                        Term t = value.prepare(keyspace(), def);
                         t.collectMarkerSpecification(boundNames);
                         stmt.addKeyValue(def.name, t);
                         break;
                     case COMPACT_VALUE:
                     case REGULAR:
-                        Operation operation = new Operation.SetValue(value).prepare(def);
+                        Operation operation = new Operation.SetValue(value).prepare(keyspace(), def);
                         operation.collectMarkerSpecification(boundNames);
                         stmt.addOperation(operation);
                         break;
@@ -207,7 +207,7 @@ public class UpdateStatement extends ModificationStatement
                 if (def == null)
                     throw new InvalidRequestException(String.format("Unknown identifier %s", entry.left));
 
-                Operation operation = entry.right.prepare(def);
+                Operation operation = entry.right.prepare(keyspace(), def);
                 operation.collectMarkerSpecification(boundNames);
 
                 switch (def.kind)

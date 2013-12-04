@@ -533,7 +533,7 @@ cfamOrdering[CreateTableStatement.RawStatement expr]
 createTypeStatement returns [CreateTypeStatement expr]
     @init { boolean ifNotExists = false; }
     : K_CREATE K_TYPE (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
-         tn=non_type_ident { $expr = new CreateTypeStatement(tn, ifNotExists); }
+         tn=userTypeName { $expr = new CreateTypeStatement(tn, ifNotExists); }
          '(' typeColumns[expr] ( ',' typeColumns[expr]? )* ')'
     ;
 
@@ -617,10 +617,10 @@ alterTableStatement returns [AlterTableStatement expr]
  * ALTER TYPE <name> RENAME <field> TO <newtype> AND ...;
  */
 alterTypeStatement returns [AlterTypeStatement expr]
-    : K_ALTER K_TYPE name=non_type_ident
+    : K_ALTER K_TYPE name=userTypeName
           ( K_ALTER f=cident K_TYPE v=comparatorType { $expr = AlterTypeStatement.alter(name, f, v); }
           | K_ADD   f=cident v=comparatorType        { $expr = AlterTypeStatement.addition(name, f, v); }
-          | K_RENAME K_TO new_name=non_type_ident    { $expr = AlterTypeStatement.typeRename(name, new_name); }
+          | K_RENAME K_TO new_name=userTypeName      { $expr = AlterTypeStatement.typeRename(name, new_name); }
           | K_RENAME
                { Map<ColumnIdentifier, ColumnIdentifier> renames = new HashMap<ColumnIdentifier, ColumnIdentifier>(); }
                  id1=cident K_TO toId1=cident { renames.put(id1, toId1); }
@@ -651,7 +651,7 @@ dropTableStatement returns [DropTableStatement stmt]
  */
 dropTypeStatement returns [DropTypeStatement stmt]
     @init { boolean ifExists = false; }
-    : K_DROP K_TYPE (K_IF K_EXISTS { ifExists = true; } )? name=non_type_ident { $stmt = new DropTypeStatement(name, ifExists); }
+    : K_DROP K_TYPE (K_IF K_EXISTS { ifExists = true; } )? name=userTypeName { $stmt = new DropTypeStatement(name, ifExists); }
     ;
 
 /**
@@ -799,6 +799,10 @@ keyspaceName returns [String id]
 columnFamilyName returns [CFName name]
     @init { $name = new CFName(); }
     : (cfOrKsName[name, true] '.')? cfOrKsName[name, false]
+    ;
+
+userTypeName returns [UTName name]
+    : (ks=cident '.')? ut=non_type_ident { return new UTName(ks, ut); }
     ;
 
 cfOrKsName[CFName name, boolean isKs]
@@ -959,14 +963,14 @@ relation[List<Relation> clauses]
     | '(' relation[$clauses] ')'
     ;
 
-comparatorType returns [CQL3Type t]
-    : c=native_type     { $t = c; }
+comparatorType returns [CQL3Type.Raw t]
+    : n=native_type     { $t = CQL3Type.Raw.from(n); }
     | c=collection_type { $t = c; }
-    | id=non_type_ident  { try { $t = CQL3Type.UserDefined.create(id); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); }}
+    | id=userTypeName  { $t = CQL3Type.Raw.userType(id); }
     | s=STRING_LITERAL
       {
         try {
-            $t = new CQL3Type.Custom($s.text);
+            $t = CQL3Type.Raw.from(new CQL3Type.Custom($s.text));
         } catch (SyntaxException e) {
             addRecognitionError("Cannot parse type " + $s.text + ": " + e.getMessage());
         } catch (ConfigurationException e) {
@@ -994,17 +998,17 @@ native_type returns [CQL3Type t]
     | K_TIMEUUID  { $t = CQL3Type.Native.TIMEUUID; }
     ;
 
-collection_type returns [CQL3Type pt]
+collection_type returns [CQL3Type.Raw pt]
     : K_MAP  '<' t1=comparatorType ',' t2=comparatorType '>'
         { try {
             // if we can't parse either t1 or t2, antlr will "recover" and we may have t1 or t2 null.
             if (t1 != null && t2 != null)
-                $pt = CQL3Type.Collection.map(t1, t2);
+                $pt = CQL3Type.Raw.map(t1, t2);
           } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
     | K_LIST '<' t=comparatorType '>'
-        { try { if (t != null) $pt = CQL3Type.Collection.list(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+        { try { if (t != null) $pt = CQL3Type.Raw.list(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
     | K_SET  '<' t=comparatorType '>'
-        { try { if (t != null) $pt = CQL3Type.Collection.set(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+        { try { if (t != null) $pt = CQL3Type.Raw.set(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
     ;
 
 username

@@ -17,12 +17,42 @@
  */
 package org.apache.cassandra.cql3;
 
-import org.apache.cassandra.exceptions.InvalidRequestException;
+import java.nio.ByteBuffer;
 
-public interface AssignementTestable
+public class UTName
 {
-    /**
-     * @return whether this object can be assigned to the provided receiver
-     */
-    public boolean isAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException;
+    private String ksName;
+    private final ColumnIdentifier utName;
+
+    public UTName(ColumnIdentifier ksName, ColumnIdentifier utName)
+    {
+        this.ksName = ksName == null ? null : ksName.toString();
+        this.utName = utName;
+    }
+
+    public boolean hasKeyspace()
+    {
+        return ksName != null;
+    }
+
+    public void setKeyspace(String keyspace)
+    {
+        this.ksName = keyspace;
+    }
+
+    public String getKeyspace()
+    {
+        return ksName;
+    }
+
+    public ByteBuffer getUserTypeName()
+    {
+        return utName.bytes;
+    }
+
+    @Override
+    public String toString()
+    {
+        return (hasKeyspace() ? (ksName + ".") : "") + utName;
+    }
 }
