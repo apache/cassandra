@@ -20,6 +20,9 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.serializers.MarshalException;
@@ -34,6 +37,10 @@ import org.apache.cassandra.utils.Pair;
  */
 public abstract class CollectionType<T> extends AbstractType<T>
 {
+    private static final Logger logger = LoggerFactory.getLogger(CollectionType.class);
+
+    public static final int MAX_ELEMENTS = 65535;
+
     public enum Kind
     {
         MAP, SET, LIST
@@ -104,6 +111,16 @@ public abstract class CollectionType<T> extends AbstractType<T>
             result.put(bb.duplicate());
         }
         return (ByteBuffer)result.flip();
+    }
+
+    protected List<Pair<ByteBuffer, Column>> enforceLimit(List<Pair<ByteBuffer, Column>> columns)
+    {
+        if (columns.size() <= MAX_ELEMENTS)
+            return columns;
+
+        logger.error("Detected collection with {} elements, more than the {} limit. Only the first {} elements will be returned to the client. "
+                   + "Please see http://cassandra.apache.org/doc/cql3/CQL.html#collections for more details.", columns.size(), MAX_ELEMENTS, MAX_ELEMENTS);
+        return columns.subList(0, MAX_ELEMENTS);
     }
 
     public static ByteBuffer pack(List<ByteBuffer> buffers, int elements)

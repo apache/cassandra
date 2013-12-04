@@ -84,6 +84,8 @@ public class SetType<T> extends CollectionType<Set<T>>
 
     public ByteBuffer serialize(List<Pair<ByteBuffer, Column>> columns)
     {
+        columns = enforceLimit(columns);
+
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(columns.size());
         int size = 0;
         for (Pair<ByteBuffer, Column> p : columns)
