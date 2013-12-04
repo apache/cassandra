@@ -109,6 +109,7 @@ public class MoveTest
 
         // Third node leaves
         ss.onChange(hosts.get(MOVING_NODE), ApplicationState.STATUS, valueFactory.moving(newToken));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         assertTrue(tmd.isMoving(hosts.get(MOVING_NODE)));
 
@@ -197,6 +198,7 @@ public class MoveTest
         ss.onChange(boot2,
                     ApplicationState.STATUS,
                     valueFactory.bootstrapping(Collections.<Token>singleton(keyTokens.get(7))));
+        PendingRangeCalculatorService.instance.blockUntilFinished();
 
         // don't require test update every time a new keyspace is added to test/conf/cassandra.yaml
         Map<String, AbstractReplicationStrategy> keyspaceStrategyMap = new HashMap<String, AbstractReplicationStrategy>();
