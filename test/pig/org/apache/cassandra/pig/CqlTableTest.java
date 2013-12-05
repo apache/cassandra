@@ -50,6 +50,7 @@ public class CqlTableTest extends PigTestBase
             "INSERT INTO compactcqltable (key1, column1, column2) values ('key1', 100, 10.1)",
 
             "CREATE TABLE test (a int PRIMARY KEY, b int);",
+            "CREATE INDEX test_b on test (b);",
 
             "CREATE TABLE moredata (x int PRIMARY KEY, y int);",
             "INSERT INTO test (a,b) VALUES (1,1);",
@@ -158,10 +159,12 @@ public class CqlTableTest extends PigTestBase
         //(9,10,Ninen,nomatch)
         pig.registerQuery("result= LOAD 'cql://cql3ks/compotable?" + defaultParameters + "' USING CqlStorage();");
         Iterator<Tuple> it = pig.openIterator("result");
-        if (it.hasNext()) {
-            Tuple t = it.next();
-            Assert.assertEquals(t.get(3), "match");
+        int count = 0;
+        while (it.hasNext()) {
+            it.next();
+            count ++;
         }
+        Assert.assertEquals(count, 9);
     }
 
     @Test
