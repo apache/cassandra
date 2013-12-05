@@ -2,7 +2,8 @@
  * Fix thundering herd on endpoint cache invalidation (CASSANDRA-6345)
  * Optimize FD phi calculation (CASSANDRA-6386)
  * Improve initial FD phi estimate when starting up (CASSANDRA-6385)
- * Don't list CQL3 table in CLI describe even if named explicitely (CASSANDRA-5750)
+ * Don't list CQL3 table in CLI describe even if named explicitely 
+   (CASSANDRA-5750)
  * cqlsh: quote single quotes in strings inside collections (CASSANDRA-6172)
  * Improve gossip performance for typical messages (CASSANDRA-6409)
  * Throw IRE if a prepared statement has more markers than supported 
@@ -11,6 +12,8 @@
  * Change snapshot response message verb to INTERNAL to avoid dropping it 
    (CASSANDRA-6415)
  * Warn when collection read has > 65K elements (CASSANDRA-5428)
+ * Fix cache persistence when both row and key cache are enabled 
+   (CASSANDRA-6413)
 
 
 1.2.12
