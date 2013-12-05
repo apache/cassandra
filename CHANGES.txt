@@ -36,6 +36,8 @@ Merged from 1.2:
  * Change snapshot response message verb to INTERNAL to avoid dropping it 
    (CASSANDRA-6415)
  * Warn when collection read has > 65K elements (CASSANDRA-5428)
+ * Fix cache persistence when both row and key cache are enabled 
+   (CASSANDRA-6413)
 
 
 2.0.3
@@ -73,7 +75,8 @@ Merged from 1.2:
 Merged from 1.2:
  * Optimize FD phi calculation (CASSANDRA-6386)
  * Improve initial FD phi estimate when starting up (CASSANDRA-6385)
- * Don't list CQL3 table in CLI describe even if named explicitely (CASSANDRA-5750)
+ * Don't list CQL3 table in CLI describe even if named explicitely 
+   (CASSANDRA-5750)
  * Invalidate row cache when dropping CF (CASSANDRA-6351)
  * add non-jamm path for cached statements (CASSANDRA-6293)
  * (Hadoop) Require CFRR batchSize to be at least 2 (CASSANDRA-6114)

@@ -260,22 +260,18 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         private void deleteOldCacheFiles()
         {
             File savedCachesDir = new File(DatabaseDescriptor.getSavedCachesLocation());
+            assert savedCachesDir.exists() && savedCachesDir.isDirectory();
 
-            if (savedCachesDir.exists() && savedCachesDir.isDirectory())
+            for (File file : savedCachesDir.listFiles())
             {
-                for (File file : savedCachesDir.listFiles())
-                {
-                    if (file.isFile() && file.getName().endsWith(cacheType.toString()))
-                    {
-                        if (!file.delete())
-                            logger.warn("Failed to delete {}", file.getAbsolutePath());
-                    }
+                if (!file.isFile())
+                    continue; // someone's been messing with our directory.  naughty!
 
-                    if (file.isFile() && file.getName().endsWith(CURRENT_VERSION + ".db"))
-                    {
-                        if (!file.delete())
-                            logger.warn("Failed to delete {}", file.getAbsolutePath());
-                    }
+                if (file.getName().endsWith(cacheType.toString())
+                    || file.getName().endsWith(String.format("%s-%s.db", cacheType.toString(), CURRENT_VERSION)))
+                {
+                    if (!file.delete())
+                        logger.warn("Failed to delete {}", file.getAbsolutePath());
                 }
             }
         }
