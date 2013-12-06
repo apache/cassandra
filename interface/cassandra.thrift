@@ -55,7 +55,7 @@ namespace rb CassandraThrift
 # An effort should be made not to break forward-client-compatibility either
 # (e.g. one should avoid removing obsolete fields from the IDL), but no
 # guarantees in this respect are made by the Cassandra project.
-const string VERSION = "19.36.1"
+const string VERSION = "19.36.2"
 
 
 #
@@ -716,6 +716,11 @@ service Cassandra {
       for the same reason, we can't return a set here, even though
       order is neither important nor predictable. */
   list<TokenRange> describe_ring(1:required string keyspace)
+                   throws (1:InvalidRequestException ire),
+
+
+  /** same as describe_ring, but considers only nodes in the local DC */
+  list<TokenRange> describe_local_ring(1:required string keyspace)
                    throws (1:InvalidRequestException ire),
 
   /** get the mapping between token->node ip
