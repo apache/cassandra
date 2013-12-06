@@ -19,12 +19,7 @@ package org.apache.cassandra.hadoop;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -133,6 +128,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
         cfName = ConfigHelper.getInputColumnFamily(context.getConfiguration());
         partitioner = ConfigHelper.getInputPartitioner(context.getConfiguration());
         logger.debug("partitioner is {}", partitioner);
+
 
         // cannonical ranges, split into pieces, fetching the splits in parallel
         ExecutorService executor = new ThreadPoolExecutor(0, 128, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
@@ -330,7 +326,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
         List<TokenRange> map;
         try
         {
-            map = client.describe_ring(ConfigHelper.getInputKeyspace(conf));
+            map = client.describe_local_ring(ConfigHelper.getInputKeyspace(conf));
         }
         catch (InvalidRequestException e)
         {

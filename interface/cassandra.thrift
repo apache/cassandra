@@ -770,6 +770,11 @@ service Cassandra {
   list<TokenRange> describe_ring(1:required string keyspace)
                    throws (1:InvalidRequestException ire),
 
+
+  /** same as describe_ring, but considers only nodes in the local DC */
+  list<TokenRange> describe_local_ring(1:required string keyspace)
+                   throws (1:InvalidRequestException ire),
+
   /** get the mapping between token->node ip
       without taking replication into consideration
       https://issues.apache.org/jira/browse/CASSANDRA-4092 */
