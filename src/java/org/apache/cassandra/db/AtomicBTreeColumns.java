@@ -33,6 +33,8 @@ import com.google.common.collect.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.btree.BTree;
@@ -75,6 +77,8 @@ public class AtomicBTreeColumns extends ColumnFamily
     };
 
     private static final DeletionInfo LIVE = DeletionInfo.live();
+    // This is a small optimization: DeletionInfo is mutable, but we know that we will always copy it in that class,
+    // so we can safely alias one DeletionInfo.live() reference and avoid some allocations.
     private static final Holder EMPTY = new Holder(BTree.empty(), LIVE);
 
     private volatile Holder ref;
@@ -126,7 +130,8 @@ public class AtomicBTreeColumns extends ColumnFamily
         while (true)
         {
             Holder current = ref;
-            DeletionInfo newDelInfo = current.deletionInfo.copy().add(info);
+            DeletionInfo curDelInfo = current.deletionInfo;
+            DeletionInfo newDelInfo = info.mayModify(curDelInfo) ? curDelInfo.copy().add(info) : curDelInfo;
             if (refUpdater.compareAndSet(this, current, current.with(newDelInfo)))
                 break;
         }
@@ -233,15 +238,17 @@ public class AtomicBTreeColumns extends ColumnFamily
             DeletionInfo deletionInfo;
             if (cm.deletionInfo().mayModify(current.deletionInfo))
             {
-                if (cm.deletionInfo().hasRanges())
+                if (indexer != SecondaryIndexManager.nullUpdater && cm.deletionInfo().hasRanges())
                 {
-                    for (Iterator<Cell> iter : new Iterator[] { insert.iterator(), BTree.<Cell>slice(current.tree, true) })
+                    for (Iterator<RangeTombstone> rangeIterator = cm.deletionInfo().rangeIterator(); rangeIterator.hasNext(); )
                     {
-                        while (iter.hasNext())
+                        RangeTombstone rt = rangeIterator.next();
+                        long deleteAt = rt.maxTimestamp();
+                        for (Iterator<Cell> iter = current.cellRange(getComparator().columnComparator(), rt.min, rt.max); iter.hasNext(); )
                         {
-                            Cell col = iter.next();
-                            if (cm.deletionInfo().isDeleted(col))
-                                indexer.remove(col);
+                            Cell c = iter.next();
+                            if (deleteAt >= c.timestamp())
+                                indexer.remove(c);
                         }
                     }
                 }
@@ -361,8 +368,6 @@ public class AtomicBTreeColumns extends ColumnFamily
 
     private static class Holder
     {
-        // This is a small optimization: DeletionInfo is mutable, but we know that we will always copy it in that class,
-        // so we can safely alias one DeletionInfo.live() reference and avoid some allocations.
         final DeletionInfo deletionInfo;
         // the btree of columns
         final Object[] tree;
@@ -376,6 +381,11 @@ public class AtomicBTreeColumns extends ColumnFamily
         Holder with(DeletionInfo info)
         {
             return new Holder(this.tree, info);
+        }
+
+        private Iterator<Cell> cellRange(Comparator<Cell> comparator, Composite start, Composite finish)
+        {
+            return new ColumnSlice.NavigableSetIterator(new BTreeSet<>(tree, comparator), new ColumnSlice[]{ new ColumnSlice(start, finish) });
         }
     }
 

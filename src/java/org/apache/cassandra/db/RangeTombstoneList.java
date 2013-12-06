@@ -25,6 +25,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.composites.CType;
@@ -212,7 +213,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
      */
     public boolean isDeleted(Composite name, long timestamp)
     {
-        int idx = searchInternal(name);
+        int idx = searchInternal(name, 0);
         return idx >= 0 && markedAts[idx] >= timestamp;
     }
 
@@ -228,17 +229,28 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
      * Returns the DeletionTime for the tombstone overlapping {@code name} (there can't be more than one),
      * or null if {@code name} is not covered by any tombstone.
      */
-    public DeletionTime search(Composite name) {
-        int idx = searchInternal(name);
+    public DeletionTime searchDeletionTime(Composite name)
+    {
+        int idx = searchInternal(name, 0);
         return idx < 0 ? null : new DeletionTime(markedAts[idx], delTimes[idx]);
     }
 
-    private int searchInternal(Composite name)
+    public RangeTombstone search(Composite name)
+    {
+        int idx = searchInternal(name, 0);
+        return idx < 0 ? null : rangeTombstone(idx);
+    }
+
+    /*
+     * Return is the index of the range covering name if name is covered. If the return idx is negative,
+     * no range cover name and -idx-1 is the index of the first range whose start is greater than name.
+     */
+    private int searchInternal(Composite name, int startIdx)
     {
         if (isEmpty())
             return -1;
 
-        int pos = Arrays.binarySearch(starts, 0, size, name, comparator);
+        int pos = Arrays.binarySearch(starts, startIdx, size, name, comparator);
         if (pos >= 0)
         {
             // We're exactly on an interval start. The one subtility is that we need to check if
@@ -255,7 +267,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             if (idx < 0)
                 return -1;
 
-            return comparator.compare(name, ends[idx]) <= 0 ? idx : -1;
+            return comparator.compare(name, ends[idx]) <= 0 ? idx : -idx-2;
         }
     }
 
@@ -320,6 +332,11 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         return false;
     }
 
+    private RangeTombstone rangeTombstone(int idx)
+    {
+        return new RangeTombstone(starts[idx], ends[idx], markedAts[idx], delTimes[idx]);
+    }
+
     public Iterator<RangeTombstone> iterator()
     {
         return new AbstractIterator<RangeTombstone>()
@@ -331,9 +348,39 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                 if (idx >= size)
                     return endOfData();
 
-                RangeTombstone t = new RangeTombstone(starts[idx], ends[idx], markedAts[idx], delTimes[idx]);
-                idx++;
-                return t;
+                return rangeTombstone(idx++);
+            }
+        };
+    }
+
+    public Iterator<RangeTombstone> iterator(Composite from, Composite till)
+    {
+        int startIdx = from.isEmpty() ? 0 : searchInternal(from, 0);
+        final int start = startIdx < 0 ? -startIdx-1 : startIdx;
+
+        if (start >= size)
+            return Iterators.<RangeTombstone>emptyIterator();
+
+        int finishIdx = till.isEmpty() ? size : searchInternal(till, start);
+        // if stopIdx is the first range after 'till' we care only until the previous range
+        final int finish = finishIdx < 0 ? -finishIdx-2 : finishIdx;
+
+        // Note: the following is true because we know 'from' is before 'till' in sorted order.
+        if (start > finish)
+            return Iterators.<RangeTombstone>emptyIterator();
+        else if (start == finish)
+            return Iterators.<RangeTombstone>singletonIterator(rangeTombstone(start));
+
+        return new AbstractIterator<RangeTombstone>()
+        {
+            private int idx = start;
+
+            protected RangeTombstone computeNext()
+            {
+                if (idx >= size || idx > finish)
+                    return endOfData();
+
+                return rangeTombstone(idx++);
             }
         };
     }

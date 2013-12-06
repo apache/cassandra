@@ -234,4 +234,13 @@ public class QueryFilter
     {
         return filter.shouldInclude(sstable);
     }
+
+    public void delete(DeletionInfo target, ColumnFamily source)
+    {
+        target.add(source.deletionInfo().getTopLevelDeletion());
+        // source is the CF currently in the memtable, and it can be large compared to what the filter selects,
+        // so only consider those range tombstones that the filter do select.
+        for (Iterator<RangeTombstone> iter = filter.getRangeTombstoneIterator(source); iter.hasNext(); )
+            target.add(iter.next(), source.getComparator());
+    }
 }

@@ -27,6 +27,7 @@ import java.util.TreeSet;
 
 import org.apache.commons.lang3.StringUtils;
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
@@ -257,5 +258,34 @@ public class NamesQueryFilter implements IDiskAtomFilter
             size += sizes.sizeof(f.countCQL3Rows);
             return size;
         }
+    }
+
+    public Iterator<RangeTombstone> getRangeTombstoneIterator(final ColumnFamily source)
+    {
+        if (!source.deletionInfo().hasRanges())
+            return Iterators.<RangeTombstone>emptyIterator();
+
+        return new AbstractIterator<RangeTombstone>()
+        {
+            private final Iterator<CellName> names = columns.iterator();
+            private RangeTombstone lastFindRange;
+
+            protected RangeTombstone computeNext()
+            {
+                while (names.hasNext())
+                {
+                    CellName next = names.next();
+                    if (lastFindRange != null && lastFindRange.includes(source.getComparator(), next))
+                        return lastFindRange;
+
+                    // We keep the last range around as since names are in sort order, it's
+                    // possible it will match the next name too.
+                    lastFindRange = source.deletionInfo().rangeCovering(next);
+                    if (lastFindRange != null)
+                        return lastFindRange;
+                }
+                return endOfData();
+            }
+        };
     }
 }
