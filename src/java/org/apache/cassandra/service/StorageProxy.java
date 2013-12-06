@@ -1109,7 +1109,7 @@ public class StorageProxy implements StorageProxyMBean
                                              final String localDataCenter,
                                              final ConsistencyLevel consistency_level)
     {
-        return new LocalMutationRunnable()
+        return new DroppableRunnable(MessagingService.Verb.COUNTER_MUTATION)
         {
             public void runMayThrow()
             {
@@ -2030,43 +2030,6 @@ public class StorageProxy implements StorageProxyMBean
             if (TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - constructionTime) > DatabaseDescriptor.getTimeout(verb))
             {
                 MessagingService.instance().incrementDroppedMessages(verb);
-                return;
-            }
-
-            try
-            {
-                runMayThrow();
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-
-        abstract protected void runMayThrow() throws Exception;
-    }
-
-    /**
-     * Like DroppableRunnable, but if it aborts, it will rerun (on the mutation stage) after
-     * marking itself as a hint in progress so that the hint backpressure mechanism can function.
-     */
-    private static abstract class LocalMutationRunnable implements Runnable
-    {
-        private final long constructionTime = System.nanoTime();
-
-        public final void run()
-        {
-            if (TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - constructionTime) > DatabaseDescriptor.getTimeout(MessagingService.Verb.MUTATION))
-            {
-                MessagingService.instance().incrementDroppedMessages(MessagingService.Verb.MUTATION);
-                HintRunnable runnable = new HintRunnable(FBUtilities.getBroadcastAddress())
-                {
-                    protected void runMayThrow() throws Exception
-                    {
-                        LocalMutationRunnable.this.runMayThrow();
-                    }
-                };
-                submitHint(runnable);
                 return;
             }
 
