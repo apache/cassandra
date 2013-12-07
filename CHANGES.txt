@@ -40,6 +40,7 @@ Merged from 1.2:
  * Fix cache persistence when both row and key cache are enabled 
    (CASSANDRA-6413)
  * (Hadoop) add describe_local_ring (CASSANDRA-6268)
+ * Fix handling of concurrent directory creation failure (CASSANDRA-6459)
 
 
 2.0.3

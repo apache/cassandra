@@ -523,7 +523,7 @@ public class Directories
             if (!dir.isDirectory())
                 throw new AssertionError(String.format("Invalid directory path %s: path exists but is not a directory", dir));
         }
-        else if (!dir.mkdirs())
+        else if (!dir.mkdirs() && !(dir.exists() && dir.isDirectory()))
         {
             throw new FSWriteError(new IOException("Unable to create directory " + dir), dir);
         }

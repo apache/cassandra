@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.*;
 
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -194,6 +195,27 @@ public class DirectoriesTest
             }
             
             DatabaseDescriptor.setDiskFailurePolicy(origPolicy);
+        }
+    }
+
+    @Test
+    public void testMTSnapshots() throws Exception
+    {
+        for (final String cf : CFS)
+        {
+            final Directories directories = Directories.create(KS, cf);
+            Assert.assertEquals(cfDir(cf), directories.getDirectoryForNewSSTables(0));
+            final String n = Long.toString(System.nanoTime());
+            Callable<File> directoryGetter = new Callable<File>() {
+                public File call() throws Exception {
+                    Descriptor desc = new Descriptor(cfDir(cf), KS, cf, 1, false);
+                    return directories.getSnapshotDirectory(desc, n);
+                }
+            };
+            List<Future<File>> invoked = Executors.newFixedThreadPool(2).invokeAll(Arrays.asList(directoryGetter, directoryGetter));
+            for(Future<File> fut:invoked) {
+                Assert.assertTrue(fut.get().exists());
+            }
         }
     }
 }
