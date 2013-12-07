@@ -217,7 +217,7 @@ public class DirectoriesTest
         for (final String cf : CFS)
         {
             final Directories directories = Directories.create(KS, cf);
-            Assert.assertEquals(cfDir(cf), directories.getDirectoryForNewSSTables(0));
+            Assert.assertEquals(cfDir(cf), directories.getDirectoryForNewSSTables());
             final String n = Long.toString(System.nanoTime());
             Callable<File> directoryGetter = new Callable<File>() {
                 public File call() throws Exception {
