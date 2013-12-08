@@ -19,7 +19,6 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import org.slf4j.Logger;
@@ -37,9 +36,6 @@ public class DateType extends AbstractType<Date>
     private static final Logger logger = LoggerFactory.getLogger(DateType.class);
 
     public static final DateType instance = new DateType();
-
-    static final String DEFAULT_FORMAT = TimestampSerializer.iso8601Patterns[3];
-    static final SimpleDateFormat FORMATTER = new SimpleDateFormat(DEFAULT_FORMAT);
 
     DateType() {} // singleton
 
