@@ -43,7 +43,7 @@ if [ -z "$CLASSPATH" ]; then
     exit 1
 fi
 
-"$JAVA" -ea -cp "$CLASSPATH" -Xmx256M \
+"$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" -Xmx256M \
         -Dlog4j.configuration=log4j-tools.properties \
         org.apache.cassandra.tools.BulkLoader "$@"
 
