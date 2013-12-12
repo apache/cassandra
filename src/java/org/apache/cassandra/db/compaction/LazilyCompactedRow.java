@@ -90,7 +90,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         merger = Iterators.filter(MergeIterator.get(rows, emptyColumnFamily.getComparator().onDiskAtomComparator, reducer), Predicates.notNull());
     }
 
-    private static ColumnFamily removeDeletedAndOldShards(DecoratedKey key, boolean shouldPurge, CompactionController controller, ColumnFamily cf)
+    private static void removeDeletedAndOldShards(ColumnFamily cf, boolean shouldPurge, DecoratedKey key, CompactionController controller)
     {
         // We should only purge cell tombstones if shouldPurge is true, but regardless, it's still ok to remove cells that
         // are shadowed by a row or range tombstone; removeDeletedColumnsOnly(cf, Integer.MIN_VALUE) will accomplish this
@@ -99,10 +99,8 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         ColumnFamilyStore.removeDeletedColumnsOnly(cf, overriddenGCBefore, controller.cfs.indexManager.updaterFor(key));
 
         // if we have counters, remove old shards
-        if (cf.metadata().getDefaultValidator().isCommutative())
+        if (shouldPurge && cf.metadata().getDefaultValidator().isCommutative())
             CounterColumn.mergeAndRemoveOldShards(key, cf, controller.gcBefore, controller.mergeShardBefore);
-
-        return cf;
     }
 
     public RowIndexEntry write(long currentPosition, DataOutput out) throws IOException
@@ -260,7 +258,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                 boolean shouldPurge = container.getSortedColumns().iterator().next().timestamp() < maxPurgeableTimestamp;
                 // when we clear() the container, it removes the deletion info, so this needs to be reset each time
                 container.delete(maxRowTombstone);
-                removeDeletedAndOldShards(key, shouldPurge, controller, container);
+                removeDeletedAndOldShards(container, shouldPurge, key, controller);
                 Iterator<Column> iter = container.iterator();
                 if (!iter.hasNext())
                 {
