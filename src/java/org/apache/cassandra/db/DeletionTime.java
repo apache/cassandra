@@ -27,11 +27,27 @@ import com.google.common.base.Objects;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.utils.ObjectSizes;
 
+/**
+ * A top-level (row) tombstone.
+ */
 public class DeletionTime implements Comparable<DeletionTime>
 {
+    /**
+     * A special DeletionTime that signifies that there is no top-level (row) tombstone.
+     */
     public static final DeletionTime LIVE = new DeletionTime(Long.MIN_VALUE, Integer.MAX_VALUE);
 
+    /**
+     * A timestamp (typically in microseconds since the unix epoch, although this is not enforced) after which
+     * data should be considered deleted. If set to Long.MIN_VALUE, this implies that the data has not been marked
+     * for deletion at all.
+     */
     public final long markedForDeleteAt;
+
+    /**
+     * The local server timestamp, in seconds since the unix epoch, at which this tombstone was created. This is
+     * only used for purposes of purging the tombstone after gc_grace_seconds have elapsed.
+     */
     public final int localDeletionTime;
 
     public static final ISerializer<DeletionTime> serializer = new Serializer();

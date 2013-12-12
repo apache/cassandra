@@ -149,8 +149,9 @@ public class CompactionController
 
     /**
      * @return the largest timestamp before which it's okay to drop tombstones for the given partition;
-     * i.e., after the maxPurgeableTimestamp there may exist newer data that still needs to be supressed
-     * in other sstables.
+     * i.e., after the maxPurgeableTimestamp there may exist newer data that still needs to be suppressed
+     * in other sstables.  This returns the minimum timestamp for any SSTable that contains this partition and is not
+     * participating in this compaction, or LONG.MAX_VALUE if no such SSTable exists.
      */
     public long maxPurgeableTimestamp(DecoratedKey key)
     {

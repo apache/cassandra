@@ -185,7 +185,11 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
     public abstract void delete(DeletionTime deletionTime);
     protected abstract void delete(RangeTombstone tombstone);
 
-    public abstract void maybeResetDeletionTimes(int gcBefore);
+    /**
+     * Purges top-level and range tombstones whose localDeletionTime is older than gcBefore.
+     * @param gcBefore a timestamp (in seconds) before which tombstones should be purged
+     */
+    public abstract void purgeTombstones(int gcBefore);
 
     /**
      * Adds a column to this column map.
@@ -268,6 +272,9 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
      */
     public abstract boolean isInsertReversed();
 
+    /**
+     * If `columns` has any tombstones (top-level or range tombstones), they will be applied to this set of columns.
+     */
     public void delete(ColumnFamily columns)
     {
         delete(columns.deletionInfo());
@@ -459,7 +466,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
     public boolean hasIrrelevantData(int gcBefore)
     {
         // Do we have gcable deletion infos?
-        if (deletionInfo().hasIrrelevantData(gcBefore))
+        if (deletionInfo().hasPurgeableTombstones(gcBefore))
             return true;
 
         // Do we have colums that are either deleted by the container or gcable tombstone?

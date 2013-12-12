@@ -120,12 +120,12 @@ public class AtomicSortedColumns extends ColumnFamily
         ref.set(ref.get().with(newInfo));
     }
 
-    public void maybeResetDeletionTimes(int gcBefore)
+    public void purgeTombstones(int gcBefore)
     {
         while (true)
         {
             Holder current = ref.get();
-            if (!current.deletionInfo.hasIrrelevantData(gcBefore))
+            if (!current.deletionInfo.hasPurgeableTombstones(gcBefore))
                 break;
 
             DeletionInfo purgedInfo = current.deletionInfo.copy();

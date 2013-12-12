@@ -861,12 +861,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
+    /**
+     * Purges gc-able top-level and range tombstones, returning `cf` if there are any columns or tombstones left,
+     * null otherwise.
+     * @param gcBefore a timestamp (in seconds); tombstones with a localDeletionTime before this will be purged
+     */
     public static ColumnFamily removeDeletedCF(ColumnFamily cf, int gcBefore)
     {
-        cf.maybeResetDeletionTimes(gcBefore);
+        // purge old top-level and range tombstones
+        cf.purgeTombstones(gcBefore);
+
+        // if there are no columns or tombstones left, return null
         return cf.getColumnCount() == 0 && !cf.isMarkedForDelete() ? null : cf;
     }
 
+    /**
+     * Removes deleted columns and purges gc-able tombstones.
+     * @return an updated `cf` if any columns or tombstones remain, null otherwise
+     */
     public static ColumnFamily removeDeleted(ColumnFamily cf, int gcBefore)
     {
         return removeDeleted(cf, gcBefore, SecondaryIndexManager.nullUpdater);
@@ -885,6 +897,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return null;
         }
 
+        return removeDeletedCF(removeDeletedColumnsOnly(cf, gcBefore, indexer), gcBefore);
+    }
+
+    /**
+     * Removes only per-cell tombstones, cells that are shadowed by a row-level or range tombstone, or
+     * columns that have been dropped from the schema (for CQL3 tables only).
+     * @return the updated ColumnFamily
+     */
+    public static ColumnFamily removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore, SecondaryIndexManager.Updater indexer)
+    {
         Iterator<Column> iter = cf.iterator();
         DeletionInfo.InOrderTester tester = cf.inOrderDeletionTester();
         boolean hasDroppedColumns = !cf.metadata.getDroppedColumns().isEmpty();
@@ -902,7 +924,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         }
 
-        return removeDeletedCF(cf, gcBefore);
+        return cf;
     }
 
     // returns true if

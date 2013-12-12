@@ -145,7 +145,7 @@ public class KeyCacheTest extends SchemaLoader
 
         assertKeyCacheSize(2, KEYSPACE1, COLUMN_FAMILY1);
 
-        Util.compactAll(cfs).get();
+        Util.compactAll(cfs, Integer.MAX_VALUE).get();
         // after compaction cache should have entries for
         // new SSTables, if we had 2 keys in cache previously it should become 4
         assertKeyCacheSize(4, KEYSPACE1, COLUMN_FAMILY1);
