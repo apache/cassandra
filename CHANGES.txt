@@ -369,6 +369,7 @@ Merged from 1.2:
 
 
 2.0.0-beta1
+ * Add support for indexing clustered columns (CASSANDRA-5125)
  * Removed on-heap row cache (CASSANDRA-5348)
  * use nanotime consistently for node-local timeouts (CASSANDRA-5581)
  * Avoid unnecessary second pass on name-based queries (CASSANDRA-5577)
