@@ -245,12 +245,12 @@ public class Util
             assertTrue(ss.getTokenMetadata().isMember(hosts.get(i)));
     }
 
-    public static Future<?> compactAll(ColumnFamilyStore cfs)
+    public static Future<?> compactAll(ColumnFamilyStore cfs, int gcBefore)
     {
-        List<Descriptor> descriptors = new ArrayList<Descriptor>();
+        List<Descriptor> descriptors = new ArrayList<>();
         for (SSTableReader sstable : cfs.getSSTables())
             descriptors.add(sstable.descriptor);
-        return CompactionManager.instance.submitUserDefined(cfs, descriptors, Integer.MAX_VALUE);
+        return CompactionManager.instance.submitUserDefined(cfs, descriptors, gcBefore);
     }
 
     public static void compact(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)

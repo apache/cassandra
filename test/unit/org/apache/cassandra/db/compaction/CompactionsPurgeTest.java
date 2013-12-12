@@ -21,12 +21,12 @@ package org.apache.cassandra.db.compaction;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
-
-import org.junit.Assert;
+import java.util.concurrent.Future;
 
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.DecoratedKey;
@@ -38,7 +38,11 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.Util;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.apache.cassandra.db.KeyspaceTest.assertColumns;
+import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
+
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
@@ -144,7 +148,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         // verify that minor compaction still GC when key is present
         // in a non-compacted sstable but the timestamp ensures we won't miss anything
         cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key1, cfName, System.currentTimeMillis()));
-        Assert.assertEquals(1, cf.getColumnCount());
+        assertEquals(1, cf.getColumnCount());
     }
 
     @Test
@@ -181,8 +185,8 @@ public class CompactionsPurgeTest extends SchemaLoader
         // we should have both the c1 and c2 tombstones still, since the c2 timestamp is older than the c1 tombstone
         // so it would be invalid to assume we can throw out the c1 entry.
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key3, cfName, System.currentTimeMillis()));
-        Assert.assertFalse(cf.getColumn(ByteBufferUtil.bytes("c2")).isLive(System.currentTimeMillis()));
-        Assert.assertEquals(2, cf.getColumnCount());
+        assertFalse(cf.getColumn(ByteBufferUtil.bytes("c2")).isLive(System.currentTimeMillis()));
+        assertEquals(2, cf.getColumnCount());
     }
 
     @Test
@@ -216,7 +220,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         assert cfs.getSSTables().size() == 1 : cfs.getSSTables(); // inserts & deletes were in the same memtable -> only deletes in sstable
 
         // compact and test that the row is completely gone
-        Util.compactAll(cfs).get();
+        Util.compactAll(cfs, Integer.MAX_VALUE).get();
         assert cfs.getSSTables().isEmpty();
         ColumnFamily cf = keyspace.getColumnFamilyStore(cfName).getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
         assert cf == null : cf;
@@ -253,7 +257,7 @@ public class CompactionsPurgeTest extends SchemaLoader
 
         // flush and major compact
         cfs.forceBlockingFlush();
-        Util.compactAll(cfs).get();
+        Util.compactAll(cfs, Integer.MAX_VALUE).get();
 
         // re-inserts with timestamp lower than delete
         rm = new RowMutation(keyspaceName, key.key);
@@ -282,6 +286,7 @@ public class CompactionsPurgeTest extends SchemaLoader
 
         DecoratedKey key = Util.dk("key3");
         RowMutation rm;
+        QueryFilter filter = QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis());
 
         // inserts
         rm = new RowMutation(keyspaceName, key.key);
@@ -295,10 +300,13 @@ public class CompactionsPurgeTest extends SchemaLoader
         rm = new RowMutation(keyspaceName, key.key);
         rm.delete(cfName, 4);
         rm.apply();
+        ColumnFamily cf = cfs.getColumnFamily(filter);
+        assertTrue(cf.isMarkedForDelete());
 
         // flush and major compact (with tombstone purging)
         cfs.forceBlockingFlush();
-        Util.compactAll(cfs).get();
+        Util.compactAll(cfs, Integer.MAX_VALUE).get();
+        assertFalse(cfs.getColumnFamily(filter).isMarkedForDelete());
 
         // re-inserts with timestamp lower than delete
         rm = new RowMutation(keyspaceName, key.key);
@@ -308,10 +316,66 @@ public class CompactionsPurgeTest extends SchemaLoader
         }
         rm.apply();
 
-        // Check that the second insert did went in
-        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
+        // Check that the second insert went in
+        cf = cfs.getColumnFamily(filter);
         assertEquals(10, cf.getColumnCount());
         for (Column c : cf)
             assert !c.isMarkedForDelete(System.currentTimeMillis());
+    }
+
+    @Test
+    public void testRowTombstoneObservedBeforePurging() throws InterruptedException, ExecutionException, IOException
+    {
+        String keyspace = "cql_keyspace";
+        String table = "table1";
+        ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+        cfs.disableAutoCompaction();
+
+        // write a row out to one sstable
+        processInternal(String.format("INSERT INTO %s.%s (k, v1, v2) VALUES (%d, '%s', %d)",
+                                      keyspace, table, 1, "foo", 1));
+        cfs.forceBlockingFlush();
+
+        UntypedResultSet result = processInternal(String.format("SELECT * FROM %s.%s WHERE k = %d", keyspace, table, 1));
+        assertEquals(1, result.size());
+
+        // write a row tombstone out to a second sstable
+        processInternal(String.format("DELETE FROM %s.%s WHERE k = %d", keyspace, table, 1));
+        cfs.forceBlockingFlush();
+
+        // basic check that the row is considered deleted
+        assertEquals(2, cfs.getSSTables().size());
+        result = processInternal(String.format("SELECT * FROM %s.%s WHERE k = %d", keyspace, table, 1));
+        assertEquals(0, result.size());
+
+        // compact the two sstables with a gcBefore that does *not* allow the row tombstone to be purged
+        Future future = CompactionManager.instance.submitMaximal(cfs, (int) (System.currentTimeMillis() / 1000) - 10000);
+        future.get();
+
+        // the data should be gone, but the tombstone should still exist
+        assertEquals(1, cfs.getSSTables().size());
+        result = processInternal(String.format("SELECT * FROM %s.%s WHERE k = %d", keyspace, table, 1));
+        assertEquals(0, result.size());
+
+        // write a row out to one sstable
+        processInternal(String.format("INSERT INTO %s.%s (k, v1, v2) VALUES (%d, '%s', %d)",
+                                      keyspace, table, 1, "foo", 1));
+        cfs.forceBlockingFlush();
+        assertEquals(2, cfs.getSSTables().size());
+        result = processInternal(String.format("SELECT * FROM %s.%s WHERE k = %d", keyspace, table, 1));
+        assertEquals(1, result.size());
+
+        // write a row tombstone out to a different sstable
+        processInternal(String.format("DELETE FROM %s.%s WHERE k = %d", keyspace, table, 1));
+        cfs.forceBlockingFlush();
+
+        // compact the two sstables with a gcBefore that *does* allow the row tombstone to be purged
+        future = CompactionManager.instance.submitMaximal(cfs, (int) (System.currentTimeMillis() / 1000) + 10000);
+        future.get();
+
+        // both the data and the tombstone should be gone this time
+        assertEquals(0, cfs.getSSTables().size());
+        result = processInternal(String.format("SELECT * FROM %s.%s WHERE k = %d", keyspace, table, 1));
+        assertEquals(0, result.size());
     }
 }

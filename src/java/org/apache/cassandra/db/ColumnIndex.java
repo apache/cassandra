@@ -67,7 +67,7 @@ public class ColumnIndex
         private final RangeTombstone.Tracker tombstoneTracker;
         private int atomCount;
         private final ByteBuffer key;
-        private final DeletionInfo deletionInfo;
+        private final DeletionInfo deletionInfo; // only used for serializing and calculating row header size
 
         public Builder(ColumnFamily cf,
                        ByteBuffer key,

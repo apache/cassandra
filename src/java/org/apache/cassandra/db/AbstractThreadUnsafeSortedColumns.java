@@ -59,7 +59,11 @@ public abstract class AbstractThreadUnsafeSortedColumns extends ColumnFamily
         deletionInfo = newInfo;
     }
 
-    public void maybeResetDeletionTimes(int gcBefore)
+    /**
+     * Purges any tombstones with a local deletion time before gcBefore.
+     * @param gcBefore a timestamp (in seconds) before which tombstones should be purged
+     */
+    public void purgeTombstones(int gcBefore)
     {
         deletionInfo.purge(gcBefore);
     }

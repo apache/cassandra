@@ -136,7 +136,7 @@ public class StreamingTransferTest extends SchemaLoader
         for (int i = 1; i <= 3; i++)
             mutator.mutate("key" + i, "col" + i, timestamp);
         cfs.forceBlockingFlush();
-        Util.compactAll(cfs).get();
+        Util.compactAll(cfs, Integer.MAX_VALUE).get();
         assertEquals(1, cfs.getSSTables().size());
 
         // transfer the first and last key
@@ -468,7 +468,7 @@ public class StreamingTransferTest extends SchemaLoader
         for (int i = 1; i <= 6000; i++)
             mutator.mutate("key" + i, "col" + i, System.currentTimeMillis());
         cfs.forceBlockingFlush();
-        Util.compactAll(cfs).get();
+        Util.compactAll(cfs, Integer.MAX_VALUE).get();
         SSTableReader sstable = cfs.getSSTables().iterator().next();
         cfs.clearUnsafe();
 

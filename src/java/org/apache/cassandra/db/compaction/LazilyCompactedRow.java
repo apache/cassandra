@@ -59,6 +59,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
     private ColumnIndex.Builder indexBuilder;
     private final SecondaryIndexManager.Updater indexer;
     private long maxTombstoneTimestamp;
+    private DeletionInfo deletionInfo;
 
     public LazilyCompactedRow(CompactionController controller, List<? extends OnDiskAtomIterator> rows)
     {
@@ -67,17 +68,15 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         this.controller = controller;
         indexer = controller.cfs.indexManager.updaterFor(key);
 
-        ColumnFamily rawCf = null;
+        // Combine top-level tombstones, keeping the one with the highest markedForDeleteAt timestamp.  This may be
+        // purged (depending on gcBefore), but we need to remember it to properly delete columns during the merge
+        deletionInfo = DeletionInfo.live();
         maxTombstoneTimestamp = Long.MIN_VALUE;
         for (OnDiskAtomIterator row : rows)
         {
-            ColumnFamily cf = row.getColumnFamily();
-            maxTombstoneTimestamp = Math.max(maxTombstoneTimestamp, cf.deletionInfo().maxTimestamp());
-
-            if (rawCf == null)
-                rawCf = cf;
-            else
-                rawCf.delete(cf);
+            DeletionInfo delInfo = row.getColumnFamily().deletionInfo();
+            maxTombstoneTimestamp = Math.max(maxTombstoneTimestamp, delInfo.maxTimestamp());
+            deletionInfo = deletionInfo.add(delInfo);
         }
 
         // Don't pass maxTombstoneTimestamp to shouldPurge since we might well have cells with
@@ -86,12 +85,10 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         // no other versions of this row present.
         this.shouldPurge = controller.shouldPurge(key, Long.MAX_VALUE);
 
-        // even if we can't delete all the tombstones allowed by gcBefore, we should still call removeDeleted
-        // to get rid of redundant row-level and range tombstones
-        assert rawCf != null;
-        int overriddenGcBefore = shouldPurge ? controller.gcBefore : Integer.MIN_VALUE;
-        ColumnFamily purgedCf = ColumnFamilyStore.removeDeleted(rawCf, overriddenGcBefore);
-        emptyColumnFamily = purgedCf == null ? ArrayBackedSortedColumns.factory.create(controller.cfs.metadata) : purgedCf;
+        emptyColumnFamily = ArrayBackedSortedColumns.factory.create(controller.cfs.metadata);
+        emptyColumnFamily.setDeletionInfo(deletionInfo.copy());
+        if (shouldPurge)
+            emptyColumnFamily.purgeTombstones(controller.gcBefore);
     }
 
     public RowIndexEntry write(long currentPosition, DataOutput out) throws IOException
@@ -103,14 +100,10 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         {
             indexBuilder = new ColumnIndex.Builder(emptyColumnFamily, key.key, out);
             columnsIndex = indexBuilder.buildForCompaction(iterator());
-            if (columnsIndex.columnsIndex.isEmpty())
-            {
-                boolean cfIrrelevant = shouldPurge
-                                       ? ColumnFamilyStore.removeDeletedCF(emptyColumnFamily, controller.gcBefore) == null
-                                       : !emptyColumnFamily.isMarkedForDelete(); // tombstones are relevant
-                if (cfIrrelevant)
-                    return null;
-            }
+
+            // if there aren't any columns or tombstones, return null
+            if (columnsIndex.columnsIndex.isEmpty() && !emptyColumnFamily.isMarkedForDelete())
+                return null;
         }
         catch (IOException e)
         {
@@ -128,7 +121,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         );
         reducer = null;
 
+        // in case no columns were ever written, we may still need to write an empty header with a top-level tombstone
         indexBuilder.maybeWriteEmptyRowHeader();
+
         out.writeShort(SSTableWriter.END_OF_ROW);
 
         close();
@@ -201,7 +196,8 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         // in the container; we just want to leverage the conflict resolution code from CF
         ColumnFamily container = emptyColumnFamily.cloneMeShallow(ArrayBackedSortedColumns.factory, false);
 
-        // tombstone reference; will be reconciled w/ column during getReduced
+        // tombstone reference; will be reconciled w/ column during getReduced.  Note that the top-level (row) tombstone
+        // is held by LCR.deletionInfo.
         RangeTombstone tombstone;
 
         int columns = 0;
@@ -212,11 +208,16 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         List<ByteBuffer> minColumnNameSeen = Collections.emptyList();
         List<ByteBuffer> maxColumnNameSeen = Collections.emptyList();
 
+        /**
+         * Called once per version of a cell that we need to merge, after which getReduced() is called.  In other words,
+         * this will be called one or more times with cells that share the same column name.
+         */
         public void reduce(OnDiskAtom current)
         {
             if (current instanceof RangeTombstone)
             {
-                tombstone = (RangeTombstone)current;
+                if (tombstone == null || current.maxTimestamp() >= tombstone.maxTimestamp())
+                    tombstone = (RangeTombstone)current;
             }
             else
             {
@@ -235,6 +236,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
             }
         }
 
+        /**
+         * Called after reduce() has been called for each cell sharing the same name.
+         */
         protected OnDiskAtom getReduced()
         {
             if (tombstone != null)
@@ -253,6 +257,8 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
             }
             else
             {
+                // when we clear() the container, it removes the deletion info, so this needs to be reset each time
+                container.setDeletionInfo(deletionInfo);
                 ColumnFamily purged = PrecompactedRow.removeDeletedAndOldShards(key, shouldPurge, controller, container);
                 if (purged == null || !purged.iterator().hasNext())
                 {

@@ -1,4 +1,5 @@
 2.0.4
+ * Fix row tombstones in larger-than-memory compactions (CASSANDRA-6008)
  * Fix cleanup ClassCastException (CASSANDRA-6462)
  * Reduce gossip memory use by interning VersionedValue strings (CASSANDRA-6410)
  * Allow specifying datacenters to participate in a repair (CASSANDRA-6218)
