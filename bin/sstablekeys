@@ -48,7 +48,7 @@ if [ $# -eq "0" ]; then
     exit 2
 fi
 
-"$JAVA" -cp "$CLASSPATH" -Dstorage-config="$CASSANDRA_CONF" \
+"$JAVA" $JAVA_AGENT -cp "$CLASSPATH" -Dstorage-config="$CASSANDRA_CONF" \
         -Dlog4j.configuration=log4j-tools.properties \
         org.apache.cassandra.tools.SSTableExport "$@" -e
 
