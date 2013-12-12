@@ -50,4 +50,13 @@ public class CallbackInfo
     {
         return false;
     }
+
+    public String toString()
+    {
+        return "CallbackInfo(" +
+               "target=" + target +
+               ", callback=" + callback +
+               ", serializer=" + serializer +
+               ')';
+    }
 }
