@@ -43,7 +43,7 @@ if [ -z "$CLASSPATH" ]; then
     exit 1
 fi
 
-"$JAVA" -cp "$CLASSPATH" -Dstorage-config="$CASSANDRA_CONF" \
+"$JAVA" $JAVA_AGENT -cp "$CLASSPATH" -Dstorage-config="$CASSANDRA_CONF" \
         -Dlog4j.configuration=log4j-tools.properties \
         org.apache.cassandra.tools.SSTableImport "$@"
 
