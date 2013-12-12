@@ -1,3 +1,7 @@
+1.2.14
+ * Randomize batchlog candidates selection (CASSANDRA-6481)
+
+
 1.2.13
  * Fix thundering herd on endpoint cache invalidation (CASSANDRA-6345)
  * Optimize FD phi calculation (CASSANDRA-6386)
@@ -16,7 +20,6 @@
    (CASSANDRA-6413)
  * (Hadoop) add describe_local_ring (CASSANDRA-6268)
  * Fix handling of concurrent directory creation failure (CASSANDRA-6459)
- * Randomize batchlog candidates selection (CASSANDRA-6481)
 
 
 1.2.12
