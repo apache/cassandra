@@ -112,7 +112,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         // (however, if there are zero columns, iterator() will not be called by ColumnIndexer and reducer will be null)
         columnStats = new ColumnStats(reducer == null ? 0 : reducer.columns,
                                       reducer == null ? Long.MAX_VALUE : reducer.minTimestampSeen,
-                                      reducer == null ? maxRowTombstone.markedForDeleteAt : Math.max(maxRowTombstone.markedForDeleteAt, reducer.maxTimestampSeen),
+                                      reducer == null ? emptyColumnFamily.maxTimestamp() : Math.max(emptyColumnFamily.maxTimestamp(), reducer.maxTimestampSeen),
                                       reducer == null ? Integer.MIN_VALUE : reducer.maxLocalDeletionTimeSeen,
                                       reducer == null ? new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE) : reducer.tombstones,
                                       reducer == null ? Collections.<ByteBuffer>emptyList() : reducer.minColumnNameSeen,
