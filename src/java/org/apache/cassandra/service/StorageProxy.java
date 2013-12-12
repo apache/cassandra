@@ -447,8 +447,7 @@ public class StorageProxy implements StorageProxyMBean
 
         if (candidates.size() > 2)
         {
-            IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-            snitch.sortByProximity(FBUtilities.getBroadcastAddress(), candidates);
+            Collections.shuffle(candidates);
             candidates = candidates.subList(0, 2);
         }
 
