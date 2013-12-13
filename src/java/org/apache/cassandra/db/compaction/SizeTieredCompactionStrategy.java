@@ -112,12 +112,16 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     @VisibleForTesting
     static List<SSTableReader> filterColdSSTables(List<SSTableReader> sstables, double coldReadsToOmit)
     {
-        // sort the sstables by hotness (coldest-first)
+        if (coldReadsToOmit == 0.0)
+            return sstables;
+
+        // Sort the sstables by hotness (coldest-first). We first build a map because the hotness may change during the sort.
+        final Map<SSTableReader, Double> hotnessSnapshot = getHotnessMap(sstables);
         Collections.sort(sstables, new Comparator<SSTableReader>()
         {
             public int compare(SSTableReader o1, SSTableReader o2)
             {
-                int comparison = Double.compare(hotness(o1), hotness(o2));
+                int comparison = Double.compare(hotnessSnapshot.get(o1), hotnessSnapshot.get(o2));
                 if (comparison != 0)
                     return comparison;
 
@@ -190,12 +194,13 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     @VisibleForTesting
     static Pair<List<SSTableReader>, Double> trimToThresholdWithHotness(List<SSTableReader> bucket, int maxThreshold)
     {
-        // sort by sstable hotness (descending)
+        // Sort by sstable hotness (descending). We first build a map because the hotness may change during the sort.
+        final Map<SSTableReader, Double> hotnessSnapshot = getHotnessMap(bucket);
         Collections.sort(bucket, new Comparator<SSTableReader>()
         {
             public int compare(SSTableReader o1, SSTableReader o2)
             {
-                return -1 * Double.compare(hotness(o1), hotness(o2));
+                return -1 * Double.compare(hotnessSnapshot.get(o1), hotnessSnapshot.get(o2));
             }
         });
 
@@ -208,6 +213,14 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             bucketHotness += hotness(sstr);
 
         return Pair.create(prunedBucket, bucketHotness);
+    }
+
+    private static Map<SSTableReader, Double> getHotnessMap(Collection<SSTableReader> sstables)
+    {
+        Map<SSTableReader, Double> hotness = new HashMap<>();
+        for (SSTableReader sstable : sstables)
+            hotness.put(sstable, hotness(sstable));
+        return hotness;
     }
 
     /**
