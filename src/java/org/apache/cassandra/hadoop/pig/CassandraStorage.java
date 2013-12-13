@@ -517,7 +517,7 @@ public class CassandraStorage extends AbstractCassandraStorage
         {
             if (t.size() > 2)
                 throw new IOException("No arguments allowed after bag");
-            writeColumnsFromBag(key, (DefaultDataBag) t.get(1));
+            writeColumnsFromBag(key, (DataBag) t.get(1));
         }
         else
             throw new IOException("Second argument in output must be a tuple or bag");
@@ -530,7 +530,7 @@ public class CassandraStorage extends AbstractCassandraStorage
         for (int i = offset; i < t.size(); i++)
         {
             if (t.getType(i) == DataType.BAG)
-                writeColumnsFromBag(key, (DefaultDataBag) t.get(i));
+                writeColumnsFromBag(key, (DataBag) t.get(i));
             else if (t.getType(i) == DataType.TUPLE)
             {
                 Tuple inner = (Tuple) t.get(i);
@@ -576,7 +576,7 @@ public class CassandraStorage extends AbstractCassandraStorage
     }
 
     /** write bag data to Cassandra */
-    private void writeColumnsFromBag(ByteBuffer key, DefaultDataBag bag) throws IOException
+    private void writeColumnsFromBag(ByteBuffer key, DataBag bag) throws IOException
     {
         List<Mutation> mutationList = new ArrayList<Mutation>();
         for (Tuple pair : bag)
@@ -587,7 +587,7 @@ public class CassandraStorage extends AbstractCassandraStorage
                 SuperColumn sc = new SuperColumn();
                 sc.setName(objToBB(pair.get(0)));
                 List<org.apache.cassandra.thrift.Column> columns = new ArrayList<org.apache.cassandra.thrift.Column>();
-                for (Tuple subcol : (DefaultDataBag) pair.get(1))
+                for (Tuple subcol : (DataBag) pair.get(1))
                 {
                     org.apache.cassandra.thrift.Column column = new org.apache.cassandra.thrift.Column();
                     column.setName(objToBB(subcol.get(0)));
