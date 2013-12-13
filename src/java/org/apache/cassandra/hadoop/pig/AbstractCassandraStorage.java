@@ -618,7 +618,6 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
             cfDef.default_validation_class = ByteBufferUtil.string(cqlRow.columns.get(3).value);
             cfDef.key_validation_class = ByteBufferUtil.string(cqlRow.columns.get(4).value);
             String keyAliases = ByteBufferUtil.string(cqlRow.columns.get(5).value);
-            List<String> keys = FBUtilities.fromJsonList(keyAliases);
             if (FBUtilities.fromJsonList(keyAliases).size() > 0)
                 cql3Table = true;
         }
