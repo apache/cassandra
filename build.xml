@@ -413,7 +413,6 @@
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core"/>
       	<dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster"/>
         <dependency groupId="org.apache.pig" artifactId="pig"/>
-
         <dependency groupId="net.java.dev.jna" artifactId="jna"/>
       	<dependency groupId="com.google.code.findbugs" artifactId="jsr305"/>
       </artifact:pom>
@@ -431,6 +430,9 @@
         <parent groupId="org.apache.cassandra"
                 artifactId="cassandra-parent"
                 version="${version}"/>
+        <dependency groupId="joda-time" artifactId="joda-time" version="2.3" />
+        <dependency groupId="org.slf4j" artifactId="slf4j-log4j12" version="1.7.2"/>
+        <dependency groupId="log4j" artifactId="log4j" version="1.2.16" />
       </artifact:pom>
 
       <!-- now the pom's for artifacts being deployed to Maven Central -->
@@ -563,6 +565,25 @@
       </copy>
     </target>
 
+    <target name="maven-ant-tasks-retrieve-pig-test" depends="maven-ant-tasks-init">
+      <artifact:dependencies pomRefId="test-deps-pom"
+                             filesetId="test-dependency-jars"
+                             sourcesFilesetId="test-dependency-sources"
+                             cacheDependencyRefs="true"
+                             dependencyRefsBuildFile="${build.dir}/test-dependencies.xml">
+        <remoteRepository refid="apache"/>
+        <remoteRepository refid="central"/>
+        <remoteRepository refid="java.net2"/>
+      </artifact:dependencies>
+      <copy todir="${build.dir.lib}/jars">
+        <fileset refid="test-dependency-jars"/>
+        <mapper type="flatten"/>
+      </copy>
+      <copy todir="${build.dir.lib}/sources">
+        <fileset refid="test-dependency-sources"/>
+        <mapper type="flatten"/>
+      </copy>
+    </target>
 
     <!--
        Generate thrift code.  We have targets to build java because
@@ -995,6 +1016,7 @@
       </classpath>
       <src path="${test.unit.src}"/>
       <src path="${test.long.src}"/>
+      <src path="${test.pig.src}"/>
     </javac>
 
     <!-- Non-java resources needed by the test suite -->
@@ -1132,7 +1154,7 @@
     </testmacro>
   </target>
 
-  <target name="pig-test" depends="build-test" description="Excute Pig tests">
+  <target name="pig-test" depends="build-test,maven-ant-tasks-retrieve-pig-test" description="Excute Pig tests">
     <testmacro suitename="pig" inputdir="${test.pig.src}" 
                timeout="1200000">
     </testmacro>
@@ -1248,6 +1270,7 @@
   <classpathentry kind="src" path="interface/thrift/gen-java"/>
   <classpathentry kind="src" path="test/unit"/>
   <classpathentry kind="src" path="test/long"/>
+  <classpathentry kind="src" path="test/pig"/>
   <classpathentry kind="src" path="tools/stress/src"/>
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
   <classpathentry kind="output" path="build/classes/main"/>

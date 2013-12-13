@@ -83,7 +83,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
 
     public final static String PARTITION_FILTER_SIGNATURE = "cassandra.partition.filter";
 
-    protected static final Logger logger = LoggerFactory.getLogger(AbstractCassandraStorage.class);
+    private static final Logger logger = LoggerFactory.getLogger(AbstractCassandraStorage.class);
 
     protected String username;
     protected String password;
@@ -619,19 +619,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
             cfDef.key_validation_class = ByteBufferUtil.string(cqlRow.columns.get(4).value);
             String keyAliases = ByteBufferUtil.string(cqlRow.columns.get(5).value);
             List<String> keys = FBUtilities.fromJsonList(keyAliases);
-            // classis thrift tables
-            if (keys.size() == 0)
-            {
-                CFMetaData cfm = getCFMetaData(keyspace, column_family, client);
-                for (ColumnDefinition def : cfm.partitionKeyColumns())
-                {
-                    String key = def.name.toString();
-                    String type = def.type.toString();
-                    logger.debug("name: {}, type: {} ", key, type);
-                    keys.add(key);
-                }
-            }
-            else
+            if (FBUtilities.fromJsonList(keyAliases).size() > 0)
                 cql3Table = true;
         }
         cfDef.column_metadata = getColumnMetadata(client);
@@ -670,7 +658,8 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     {
         String query = "SELECT column_name, " +
                        "       validator, " +
-                       "       index_type " +
+                       "       index_type, " +
+                       "       type " +
                        "FROM system.schema_columns " +
                        "WHERE keyspace_name = '%s' " +
                        "  AND columnfamily_name = '%s'";
@@ -721,6 +710,9 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         {
             CqlRow row = iterator.next();
             ColumnDef cDef = new ColumnDef();
+            String type = ByteBufferUtil.string(row.getColumns().get(3).value);
+            if (!type.equals("regular"))
+                continue;
             cDef.setName(ByteBufferUtil.clone(row.getColumns().get(0).value));
             cDef.validation_class = ByteBufferUtil.string(row.getColumns().get(1).value);
             ByteBuffer indexType = row.getColumns().get(2).value;

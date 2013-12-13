@@ -22,8 +22,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
-
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.Column;
@@ -57,7 +55,6 @@ import org.slf4j.LoggerFactory;
 public class CqlStorage extends AbstractCassandraStorage
 {
     private static final Logger logger = LoggerFactory.getLogger(CqlStorage.class);
-
     private RecordReader<Map<String, ByteBuffer>, Map<String, ByteBuffer>> reader;
     private RecordWriter<Map<String, ByteBuffer>, List<ByteBuffer>> writer;
 

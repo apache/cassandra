@@ -67,6 +67,11 @@ public class PigTestBase extends SchemaLoader
     protected static PigServer pig;
     protected static String defaultParameters= "init_address=localhost&rpc_port=9170&partitioner=org.apache.cassandra.dht.ByteOrderedPartitioner";
 
+    static
+    {
+        System.setProperty("log4j.configuration", "log4j-junit.properties");
+    }
+
     @AfterClass
     public static void oneTimeTearDown() throws Exception {
         cluster.shutDown();
@@ -85,7 +90,7 @@ public class PigTestBase extends SchemaLoader
 
     protected static Cassandra.Client getClient() throws TTransportException
     {
-        TTransport tr = new TFramedTransport(new TSocket("localhost", DatabaseDescriptor.getRpcPort()));
+        TTransport tr = new TFramedTransport(new TSocket("localhost", 9170));
         TProtocol proto = new TBinaryProtocol(tr);
         Cassandra.Client client = new Cassandra.Client(proto);
         tr.open();

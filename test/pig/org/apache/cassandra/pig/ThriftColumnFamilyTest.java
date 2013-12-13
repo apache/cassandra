@@ -24,6 +24,7 @@ import java.nio.charset.CharacterCodingException;
 import java.util.Iterator;
 
 import org.apache.cassandra.cli.CliMain;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthorizationException;
 import org.apache.cassandra.thrift.Cassandra;
@@ -182,8 +183,15 @@ public class ThriftColumnFamilyTest extends PigTestBase
                         "and comparator = LongType;"
     };
 
+    private static String[] deleteCopyOfSomeAppTableData = { "use thriftKs;",
+            "DEL CopyOfSomeApp ['foo']",
+            "DEL CopyOfSomeApp ['bar']",
+            "DEL CopyOfSomeApp ['baz']",
+            "DEL CopyOfSomeApp ['qux']"
+    };
+
     @BeforeClass
-    public static void setup() throws TTransportException, IOException,
+    public static void setup() throws TTransportException, IOException, InterruptedException, ConfigurationException,
                                       AuthenticationException, AuthorizationException, InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException, CharacterCodingException, ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException
     {
         startCassandra();
@@ -192,7 +200,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCqlStorage() throws IOException
+    public void testCqlStorage() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
     {
         //regular thrift column families
         pig.registerQuery("data = load 'cql://thriftKs/SomeApp?" + defaultParameters + "' using CqlStorage();");
@@ -208,9 +216,8 @@ public class ThriftColumnFamilyTest extends PigTestBase
         while (it.hasNext()) {
             count ++;
             Tuple t = it.next();
-            if (count == 1)
+            if ("bar".equals(t.get(0)))
             {
-                Assert.assertEquals(t.get(0), "bar");
                 Assert.assertEquals(t.get(1), 3.141592653589793d);
                 Assert.assertEquals(t.get(3), "User Bar");
                 Assert.assertEquals(t.get(4), 35.0f);
@@ -218,16 +225,16 @@ public class ThriftColumnFamilyTest extends PigTestBase
                 Assert.assertEquals(t.get(6), 15000L);
                 Assert.assertEquals(t.get(7), "like");
             }
-            else if (count == 2)
+            else if ("baz".equals(t.get(0)))
             {
-                Assert.assertEquals(t.get(0), "baz");
                 Assert.assertEquals(t.get(1), 1.61803399d);
                 Assert.assertEquals(t.get(3), "User Baz");
                 Assert.assertEquals(t.get(4), 95.3f);
                 Assert.assertEquals(t.get(5), 3);
                 Assert.assertEquals(t.get(6), 512000L);
                 Assert.assertEquals(t.get(7), "dislike");
-            }else if (count == 3)
+            }
+            else if ("foo".equals(t.get(0)))
             {
                 Assert.assertEquals(t.get(0), "foo");
                 Assert.assertEquals(t.get(1), 2.718281828459045d);
@@ -237,7 +244,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
                 Assert.assertEquals(t.get(6), 125000L);
                 Assert.assertEquals(t.get(7), "like");
             }
-            else if (count == 4)
+            else if ("qux".equals(t.get(0)))
             {
                 Assert.assertEquals(t.get(0), "qux");
                 Assert.assertEquals(t.get(1), 0.660161815846869d);
@@ -262,18 +269,10 @@ public class ThriftColumnFamilyTest extends PigTestBase
         while (it.hasNext()) {
             count ++;
             Tuple t = it.next();
-            if (count == 1)
-            {
-                Assert.assertEquals(t.get(0), "chuck");
-                Assert.assertEquals(t.get(1), "fist");
+            if ("chuck".equals(t.get(0)) && "fist".equals(t.get(1)))
                 Assert.assertEquals(t.get(2), 1L);
-            }
-            else if (count == 2)
-            {
-                Assert.assertEquals(t.get(0), "chuck");
-                Assert.assertEquals(t.get(1), "kick");
+            else if ("chuck".equals(t.get(0)) && "kick".equals(t.get(1)))
                 Assert.assertEquals(t.get(2), 3L);
-            }
         }
         Assert.assertEquals(count, 2);
 
@@ -291,40 +290,20 @@ public class ThriftColumnFamilyTest extends PigTestBase
         while (it.hasNext()) {
             count ++;
             Tuple t = it.next();
-            if (count == 1)
-            {
-                Assert.assertEquals(t.get(0), "kick");
-                Assert.assertEquals(t.get(1), "bruce");
-                Assert.assertEquals(t.get(2), "bruce");
+            if ("kick".equals(t.get(0)) && "bruce".equals(t.get(1)) && "bruce".equals(t.get(2)))
                 Assert.assertEquals(t.get(3), "watch it, mate");
-            }
-            else if (count == 2)
-            {
-                Assert.assertEquals(t.get(0), "kick");
-                Assert.assertEquals(t.get(1), "bruce");
-                Assert.assertEquals(t.get(2), "lee");
+            else if ("kick".equals(t.get(0)) && "bruce".equals(t.get(1)) && "lee".equals(t.get(2)))
                 Assert.assertEquals(t.get(3), "oww");
-            }
-            else if (count == 3)
-            {
-                Assert.assertEquals(t.get(0), "punch");
-                Assert.assertEquals(t.get(1), "bruce");
-                Assert.assertEquals(t.get(2), "bruce");
+            else if ("punch".equals(t.get(0)) && "bruce".equals(t.get(1)) && "bruce".equals(t.get(2)))
                 Assert.assertEquals(t.get(3), "hunh?");
-            }
-            else if (count == 4)
-            {
-                Assert.assertEquals(t.get(0), "punch");
-                Assert.assertEquals(t.get(1), "bruce");
-                Assert.assertEquals(t.get(2), "lee");
+            else if ("punch".equals(t.get(0)) && "bruce".equals(t.get(1)) && "lee".equals(t.get(2)))
                 Assert.assertEquals(t.get(3), "ouch");
-            }
         }
         Assert.assertEquals(count, 4);
     }
 
     @Test
-    public void testCassandraStorageSchema() throws IOException
+    public void testCassandraStorageSchema() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException
     {
         //results: (qux,(atomic_weight,0.660161815846869),(created,1335890877),(name,User Qux),(percent,64.7),
         //(rating,2),(score,12000),(vote_type,dislike),{(extra1,extra1),
@@ -377,9 +356,8 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageFullCopy() throws IOException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
+    public void testCassandraStorageFullCopy() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
     {
-        createColumnFamily("thriftKs", "CopyOfSomeApp", statements[3]);
         pig.setBatchOn();
         pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
         //full copy
@@ -391,9 +369,9 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageSigleTupleCopy() throws IOException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
+    public void testCassandraStorageSigleTupleCopy() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
     {
-        createColumnFamily("thriftKs", "CopyOfSomeApp", statements[3]);
+        executeCliStatements(deleteCopyOfSomeAppTableData);
         pig.setBatchOn();
         pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
         //sigle tuple
@@ -425,9 +403,9 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageBagOnlyCopy() throws IOException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
+    public void testCassandraStorageBagOnlyCopy() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
     {
-        createColumnFamily("thriftKs", "CopyOfSomeApp", statements[3]);
+        executeCliStatements(deleteCopyOfSomeAppTableData);
         pig.setBatchOn();
         pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
         //bag only
@@ -469,9 +447,9 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageFilter() throws IOException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
+    public void testCassandraStorageFilter() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
     {
-        createColumnFamily("thriftKs", "CopyOfSomeApp", statements[3]);
+        executeCliStatements(deleteCopyOfSomeAppTableData);
         pig.setBatchOn();
         pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
 
@@ -504,7 +482,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
         if (value != null)
             Assert.fail();
 
-        createColumnFamily("thriftKs", "CopyOfSomeApp", statements[3]);
+        executeCliStatements(deleteCopyOfSomeAppTableData);
         pig.setBatchOn();
         pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
         pig.registerQuery("dislikes_extras = FILTER rows by vote_type.value eq 'dislike' AND COUNT(columns) > 0;");
@@ -537,7 +515,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageJoin() throws IOException
+    public void testCassandraStorageJoin() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
     {
         //test key types with a join
         pig.registerQuery("U8 = load 'cassandra://thriftKs/U8?" + defaultParameters + "' using CassandraStorage();");
@@ -589,7 +567,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageCounterCF() throws IOException
+    public void testCassandraStorageCounterCF() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
     {
         pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
 
@@ -606,7 +584,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageCompositeColumnCF() throws IOException
+    public void testCassandraStorageCompositeColumnCF() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
     {
         //Test CompositeType
         pig.registerQuery("compo = load 'cassandra://thriftKs/Compo?" + defaultParameters + "' using CassandraStorage();");
@@ -620,16 +598,12 @@ public class ThriftColumnFamilyTest extends PigTestBase
         while (it.hasNext()) {
             count ++;
             Tuple t = it.next();
-            if (count == 1)
-                Assert.assertEquals(t.get(0), "kick");
-            else
-                Assert.assertEquals(t.get(0), "punch");
             Tuple t1 = (Tuple) t.get(1);
             Assert.assertEquals(t1.get(0), "bruce");
             Assert.assertEquals(t1.get(1), "lee");
-            if (count == 1)
+            if ("kick".equals(t.get(0)))
                 Assert.assertEquals(t.get(2), "oww");
-            else
+            else if ("kick".equals(t.get(0)))
                 Assert.assertEquals(t.get(2), "ouch");
         }
         Assert.assertEquals(count, 2);
@@ -665,37 +639,21 @@ public class ThriftColumnFamilyTest extends PigTestBase
                 count ++;
                 Tuple t1 = iter.next();
                 Tuple inner = (Tuple) t1.get(0);
-                if (count == 1)
-                {
-                    Assert.assertEquals(inner.get(0), 1L);
-                    Assert.assertEquals(inner.get(1), 0L);
+                if ((Long) inner.get(0) == 1L && (Long) inner.get(1) == 0L)
                     Assert.assertEquals(t1.get(1), "z");
-                }
-                else if (count == 2)
-                {
-                    Assert.assertEquals(inner.get(0), 1L);
-                    Assert.assertEquals(inner.get(1), 30L);
+                else if ((Long) inner.get(0) == 1L && (Long) inner.get(1) == 30L)
                     Assert.assertEquals(t1.get(1), "zzzz");
-                }
-                else if (count == 3)
-                {
-                    Assert.assertEquals(inner.get(0), 2L);
-                    Assert.assertEquals(inner.get(1), 30L);
+                else if ((Long) inner.get(0) == 2L && (Long) inner.get(1) == 30L)
                     Assert.assertEquals(t1.get(1), "daddy?");
-                }
-                else if (count == 4)
-                {
-                    Assert.assertEquals(inner.get(0), 6L);
-                    Assert.assertEquals(inner.get(1), 30L);
+                else if ((Long) inner.get(0) == 6L && (Long) inner.get(1) == 30L)
                     Assert.assertEquals(t1.get(1), "coffee...");
-                }
             }
             Assert.assertEquals(count, 4);
         }
     }
 
     @Test
-    public void testCassandraStorageCompositeKeyCF() throws IOException
+    public void testCassandraStorageCompositeKeyCF() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
     {
         //Test CompositeKey
         pig.registerQuery("compokeys = load 'cassandra://thriftKs/CompoKey?" + defaultParameters + "' using CassandraStorage();");
@@ -730,11 +688,9 @@ public class ThriftColumnFamilyTest extends PigTestBase
         while (it.hasNext()) {
             Tuple t = it.next();
             count ++;
-            if (count == 1)
+            Tuple key = (Tuple) t.get(0); 
+            if ("clock".equals(key.get(0)) && (Long) key.get(1) == 10L)
             {
-                Tuple key = (Tuple) t.get(0); 
-                Assert.assertEquals(key.get(0), "clock");
-                Assert.assertEquals(key.get(1), 10L);
                 DataBag columns = (DataBag) t.get(1);
                 Iterator<Tuple> iter = columns.iterator();
                 if (iter.hasNext())
@@ -744,11 +700,19 @@ public class ThriftColumnFamilyTest extends PigTestBase
                     Assert.assertEquals(t1.get(1), "z");
                 }
             }
-            else if (count == 2)
+            else if ("clock".equals(key.get(0)) && (Long) key.get(1) == 40L)
             {
-                Tuple key = (Tuple) t.get(0); 
-                Assert.assertEquals(key.get(0), "clock");
-                Assert.assertEquals(key.get(1), 20L);
+                DataBag columns = (DataBag) t.get(1);
+                Iterator<Tuple> iter = columns.iterator();
+                if (iter.hasNext())
+                {
+                    Tuple t1 = iter.next();
+                    Assert.assertEquals(t1.get(0), 6L);
+                    Assert.assertEquals(t1.get(1), "coffee...");
+                }
+            }
+            else if ("clock".equals(key.get(0)) && (Long) key.get(1) == 20L)
+            {
                 DataBag columns = (DataBag) t.get(1);
                 Iterator<Tuple> iter = columns.iterator();
                 if (iter.hasNext())
@@ -758,11 +722,8 @@ public class ThriftColumnFamilyTest extends PigTestBase
                     Assert.assertEquals(t1.get(1), "zzzz");
                 }
             }
-            else if (count == 3)
+            else if ("clock".equals(key.get(0)) && (Long) key.get(1) == 30L)
             {
-                Tuple key = (Tuple) t.get(0); 
-                Assert.assertEquals(key.get(0), "clock");
-                Assert.assertEquals(key.get(1), 30L);
                 DataBag columns = (DataBag) t.get(1);
                 Iterator<Tuple> iter = columns.iterator();
                 if (iter.hasNext())
@@ -770,20 +731,6 @@ public class ThriftColumnFamilyTest extends PigTestBase
                     Tuple t1 = iter.next();
                     Assert.assertEquals(t1.get(0), 2L);
                     Assert.assertEquals(t1.get(1), "daddy?");
-                }
-            }
-            else if (count == 4)
-            {
-                Tuple key = (Tuple) t.get(0); 
-                Assert.assertEquals(key.get(0), "clock");
-                Assert.assertEquals(key.get(1), 40L);
-                DataBag columns = (DataBag) t.get(1);
-                Iterator<Tuple> iter = columns.iterator();
-                if (iter.hasNext())
-                {
-                    Tuple t1 = iter.next();
-                    Assert.assertEquals(t1.get(0), 6L);
-                    Assert.assertEquals(t1.get(1), "coffee...");
                 }
             }
         }
@@ -797,7 +744,6 @@ public class ThriftColumnFamilyTest extends PigTestBase
         client.set_keyspace(ks);
 
         ByteBuffer key_user_id = ByteBufferUtil.bytes(key);
-
         ColumnPath cp = new ColumnPath(cf);
         cp.column = ByteBufferUtil.bytes(colName);
 
@@ -806,17 +752,16 @@ public class ThriftColumnFamilyTest extends PigTestBase
         return parseType(validator).getString(got.getColumn().value);
     }
 
-    private void createColumnFamily(String ks, String cf, String statement) throws CharacterCodingException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException
+    private void executeCliStatements(String[] statements) throws CharacterCodingException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException
     {
         CliMain.connect("127.0.0.1", 9170);
         try
         {
-            CliMain.processStatement("use " + ks + ";");
-            CliMain.processStatement("drop column family " + cf + ";");
+            for (String stmt : statements)
+                CliMain.processStatement(stmt);
         }
         catch (Exception e)
         {
         }
-        CliMain.processStatement(statement);
     }
 }
