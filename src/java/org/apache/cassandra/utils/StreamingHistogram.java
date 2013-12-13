@@ -17,14 +17,15 @@
  */
 package org.apache.cassandra.utils;
 
-import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.ISerializer;
-
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.*;
+
 import com.google.common.base.Objects;
+
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.ISerializer;
 
 /**
  * Histogram that can be constructed from streaming of data.
@@ -50,13 +51,13 @@ public class StreamingHistogram
     public StreamingHistogram(int maxBinSize)
     {
         this.maxBinSize = maxBinSize;
-        bin = new TreeMap<Double, Long>();
+        bin = new TreeMap<>();
     }
 
     private StreamingHistogram(int maxBinSize, Map<Double, Long> bin)
     {
         this.maxBinSize = maxBinSize;
-        this.bin = new TreeMap<Double, Long>(bin);
+        this.bin = new TreeMap<>(bin);
     }
 
     /**
@@ -185,7 +186,7 @@ public class StreamingHistogram
         {
             int maxBinSize = in.readInt();
             int size = in.readInt();
-            Map<Double, Long> tmp = new HashMap<Double, Long>(size);
+            Map<Double, Long> tmp = new HashMap<>(size);
             for (int i = 0; i < size; i++)
             {
                 tmp.put(in.readDouble(), in.readLong());
@@ -196,7 +197,12 @@ public class StreamingHistogram
 
         public long serializedSize(StreamingHistogram histogram, TypeSizes typeSizes)
         {
-            throw new UnsupportedOperationException();
+            long size = typeSizes.sizeof(histogram.maxBinSize);
+            Map<Double, Long> entries = histogram.getAsMap();
+            size += typeSizes.sizeof(entries.size());
+            // size of entries = size * (8(double) + 8(long))
+            size += entries.size() * (8 + 8);
+            return size;
         }
     }
 

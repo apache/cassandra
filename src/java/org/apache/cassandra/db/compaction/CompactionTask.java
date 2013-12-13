@@ -32,6 +32,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutorStatsCollector;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.CloseableIterator;
 
 public class CompactionTask extends AbstractCompactionTask
@@ -281,7 +282,7 @@ public class CompactionTask extends AbstractCompactionTask
                                  keysPerSSTable,
                                  cfs.metadata,
                                  cfs.partitioner,
-                                 SSTableMetadata.createCollector(toCompact, cfs.metadata.comparator, getLevel()));
+                                 new MetadataCollector(toCompact, cfs.metadata.comparator, getLevel()));
     }
 
     protected int getLevel()

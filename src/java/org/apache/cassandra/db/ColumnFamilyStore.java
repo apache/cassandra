@@ -62,6 +62,8 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
+import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.ColumnFamilyMetrics;
 import org.apache.cassandra.service.CacheService;
@@ -486,7 +488,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Directories directories = Directories.create(keyspace, columnfamily);
 
         // sanity-check unfinishedGenerations
-        Set<Integer> allGenerations = new HashSet<Integer>();
+        Set<Integer> allGenerations = new HashSet<>();
         for (Descriptor desc : directories.sstableLister().list().keySet())
             allGenerations.add(desc.generation);
         if (!allGenerations.containsAll(unfinishedGenerations))
@@ -497,7 +499,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // remove new sstables from compactions that didn't complete, and compute
         // set of ancestors that shouldn't exist anymore
-        Set<Integer> completedAncestors = new HashSet<Integer>();
+        Set<Integer> completedAncestors = new HashSet<>();
         for (Map.Entry<Descriptor, Set<Component>> sstableFiles : directories.sstableLister().list().entrySet())
         {
             Descriptor desc = sstableFiles.getKey();
@@ -506,7 +508,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             Set<Integer> ancestors;
             try
             {
-                ancestors = SSTableMetadata.serializer.deserialize(desc).right;
+                CompactionMetadata compactionMetadata = (CompactionMetadata) desc.getMetadataSerializer().deserialize(desc, MetadataType.COMPACTION);
+                ancestors = compactionMetadata.ancestors;
             }
             catch (IOException e)
             {
@@ -595,10 +598,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             try
             {
                 if (new File(descriptor.filenameFor(Component.STATS)).exists())
-                {
-                    Pair<SSTableMetadata, Set<Integer>> oldMetadata = SSTableMetadata.serializer.deserialize(descriptor);
-                    LeveledManifest.mutateLevel(oldMetadata, descriptor, descriptor.filenameFor(Component.STATS), 0);
-                }
+                    descriptor.getMetadataSerializer().mutateLevel(descriptor, 0);
             }
             catch (IOException e)
             {

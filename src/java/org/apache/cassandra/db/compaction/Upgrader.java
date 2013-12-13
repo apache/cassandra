@@ -26,6 +26,7 @@ import com.google.common.base.Throwables;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.OutputHandler;
 
@@ -62,7 +63,7 @@ public class Upgrader
 
     private SSTableWriter createCompactionWriter()
     {
-        SSTableMetadata.Collector sstableMetadataCollector = SSTableMetadata.createCollector(cfs.getComparator());
+        MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.getComparator());
 
         // Get the max timestamp of the precompacted sstables
         // and adds generation of live ancestors

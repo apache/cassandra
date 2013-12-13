@@ -22,6 +22,9 @@ import java.util.StringTokenizer;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
+import org.apache.cassandra.io.sstable.metadata.LegacyMetadataSerializer;
+import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.io.sstable.Component.separator;
@@ -43,8 +46,8 @@ public class Descriptor
     // we always incremented the major version.
     public static class Version
     {
-        // This needs to be at the beginning for initialization sake
-        public static final String current_version = "jc";
+        // This needs to be at the begining for initialization sake
+        public static final String current_version = "ka";
 
         // ic (1.2.5): omits per-row bloom filter of column names
         // ja (2.0.0): super columns are serialized as composites (note that there is no real format change,
@@ -57,7 +60,8 @@ public class Descriptor
         //             tracks max/min column values (according to comparator)
         // jb (2.0.1): switch from crc32 to adler32 for compression checksums
         //             checksum the compressed data
-        // jc (2.1.0): index summaries can be downsampled and the sampling level is persisted
+        // ka (2.1.0): new Statistics.db file format
+        //             index summaries can be downsampled and the sampling level is persisted
 
         public static final Version CURRENT = new Version(current_version);
 
@@ -72,6 +76,7 @@ public class Descriptor
         public final boolean tracksMaxMinColumnNames;
         public final boolean hasPostCompressionAdlerChecksums;
         public final boolean hasSamplingLevel;
+        public final boolean newStatsFile;
 
         public Version(String version)
         {
@@ -84,7 +89,8 @@ public class Descriptor
             hasRowSizeAndColumnCount = version.compareTo("ja") < 0;
             tracksMaxMinColumnNames = version.compareTo("ja") >= 0;
             hasPostCompressionAdlerChecksums = version.compareTo("jb") >= 0;
-            hasSamplingLevel = version.compareTo("jc") >= 0;
+            hasSamplingLevel = version.compareTo("ka") >= 0;
+            newStatsFile = version.compareTo("ka") >= 0;
         }
 
         /**
@@ -102,11 +108,6 @@ public class Descriptor
             return version.compareTo("ic") >= 0 && version.charAt(0) <= CURRENT.version.charAt(0);
         }
 
-        public boolean isStreamCompatible()
-        {
-            return isCompatible() && version.charAt(0) >= 'j';
-        }
-
         @Override
         public String toString()
         {
@@ -116,11 +117,7 @@ public class Descriptor
         @Override
         public boolean equals(Object o)
         {
-            if (o == this)
-                return true;
-            if (!(o instanceof Version))
-                return false;
-            return version.equals(((Version)o).version);
+            return o == this || o instanceof Version && version.equals(((Version) o).version);
         }
 
         @Override
@@ -256,23 +253,20 @@ public class Descriptor
         return new Descriptor(version, directory, ksname, cfname, generation, temporary);
     }
 
+    public IMetadataSerializer getMetadataSerializer()
+    {
+        if (version.newStatsFile)
+            return new MetadataSerializer();
+        else
+            return new LegacyMetadataSerializer();
+    }
+
     /**
      * @return true if the current Cassandra version can read the given sstable version
      */
     public boolean isCompatible()
     {
         return version.isCompatible();
-    }
-
-    /**
-     * @return true if the current Cassandra version can stream the given sstable version
-     * from another node.  This is stricter than opening it locally [isCompatible] because
-     * streaming needs to rebuild all the non-data components, and it only knows how to write
-     * the latest version.
-     */
-    public boolean isStreamCompatible()
-    {
-        return version.isStreamCompatible();
     }
 
     @Override
@@ -289,7 +283,11 @@ public class Descriptor
         if (!(o instanceof Descriptor))
             return false;
         Descriptor that = (Descriptor)o;
-        return that.directory.equals(this.directory) && that.generation == this.generation && that.ksname.equals(this.ksname) && that.cfname.equals(this.cfname) && that.temporary == this.temporary;
+        return that.directory.equals(this.directory)
+                       && that.generation == this.generation
+                       && that.ksname.equals(this.ksname)
+                       && that.cfname.equals(this.cfname)
+                       && that.temporary == this.temporary;
     }
 
     @Override

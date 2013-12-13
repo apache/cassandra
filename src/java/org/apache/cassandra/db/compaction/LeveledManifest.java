@@ -188,7 +188,7 @@ public class LeveledManifest
         String metaDataFile = sstable.descriptor.filenameFor(Component.STATS);
         try
         {
-            mutateLevel(Pair.create(sstable.getSSTableMetadata(), sstable.getAncestors()), sstable.descriptor, metaDataFile, 0);
+            sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 0);
             sstable.reloadSSTableMetadata();
             add(sstable);
         }
@@ -570,34 +570,5 @@ public class LeveledManifest
         }
         return newLevel;
 
-    }
-
-    /**
-     * Scary method mutating existing sstable component
-     *
-     * Tries to do it safely by moving the new file on top of the old one
-     *
-     * Caller needs to reload the sstable metadata (sstableReader.reloadSSTableMetadata())
-     *
-     * @see org.apache.cassandra.io.sstable.SSTableReader#reloadSSTableMetadata()
-     *
-     * @param oldMetadata
-     * @param descriptor
-     * @param filename
-     * @param level
-     * @throws IOException
-     */
-    public static synchronized void mutateLevel(Pair<SSTableMetadata, Set<Integer>> oldMetadata, Descriptor descriptor, String filename, int level) throws IOException
-    {
-        logger.debug("Mutating {} to level {}", descriptor.filenameFor(Component.STATS), level);
-        SSTableMetadata metadata = SSTableMetadata.copyWithNewSSTableLevel(oldMetadata.left, level);
-        DataOutputStream out = new DataOutputStream(new FileOutputStream(filename + "-tmp"));
-        SSTableMetadata.serializer.legacySerialize(metadata, oldMetadata.right, descriptor, out);
-        out.flush();
-        out.close();
-        // we cant move a file on top of another file in windows:
-        if (!FBUtilities.isUnix())
-            FileUtils.delete(filename);
-        FileUtils.renameWithConfirm(filename + "-tmp", filename);
     }
 }

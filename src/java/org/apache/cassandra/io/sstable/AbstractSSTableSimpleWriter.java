@@ -30,6 +30,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.Pair;
 
@@ -56,7 +57,7 @@ public abstract class AbstractSSTableSimpleWriter
             0, // We don't care about the bloom filter
             metadata,
             DatabaseDescriptor.getPartitioner(),
-            SSTableMetadata.createCollector(metadata.comparator));
+            new MetadataCollector(metadata.comparator));
     }
 
     // find available generation and pick up filename from that

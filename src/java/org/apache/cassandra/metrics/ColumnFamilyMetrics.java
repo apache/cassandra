@@ -25,8 +25,8 @@ import com.yammer.metrics.util.RatioGauge;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
 /**
@@ -166,13 +166,13 @@ public class ColumnFamilyMetrics
                 int total = 0;
                 for (SSTableReader sstable : cfs.getSSTables())
                 {
-                    if (sstable.getCompressionRatio() != SSTableMetadata.NO_COMPRESSION_RATIO)
+                    if (sstable.getCompressionRatio() != MetadataCollector.NO_COMPRESSION_RATIO)
                     {
                         sum += sstable.getCompressionRatio();
                         total++;
                     }
                 }
-                return total != 0 ? (double) sum / total : 0;
+                return total != 0 ? sum / total : 0;
             }
         });
         readLatency = new LatencyMetrics(factory, "Read");

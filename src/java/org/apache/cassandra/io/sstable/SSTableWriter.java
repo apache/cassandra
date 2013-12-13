@@ -33,6 +33,10 @@ import org.apache.cassandra.db.compaction.AbstractCompactedRow;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
+import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.sstable.metadata.MetadataType;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -53,7 +57,7 @@ public class SSTableWriter extends SSTable
     private final SequentialWriter dataFile;
     private DecoratedKey lastWrittenKey;
     private FileMark dataMark;
-    private final SSTableMetadata.Collector sstableMetadataCollector;
+    private final MetadataCollector sstableMetadataCollector;
 
     public SSTableWriter(String filename, long keyCount)
     {
@@ -61,7 +65,7 @@ public class SSTableWriter extends SSTable
              keyCount,
              Schema.instance.getCFMetaData(Descriptor.fromFilename(filename)),
              StorageService.getPartitioner(),
-             SSTableMetadata.createCollector(Schema.instance.getCFMetaData(Descriptor.fromFilename(filename)).comparator));
+             new MetadataCollector(Schema.instance.getCFMetaData(Descriptor.fromFilename(filename)).comparator));
     }
 
     private static Set<Component> components(CFMetaData metadata)
@@ -93,7 +97,7 @@ public class SSTableWriter extends SSTable
                          long keyCount,
                          CFMetaData metadata,
                          IPartitioner<?> partitioner,
-                         SSTableMetadata.Collector sstableMetadataCollector)
+                         MetadataCollector sstableMetadataCollector)
     {
         super(Descriptor.fromFilename(filename),
               components(metadata),
@@ -308,9 +312,9 @@ public class SSTableWriter extends SSTable
 
     public SSTableReader closeAndOpenReader(long maxDataAge)
     {
-        Pair<Descriptor, SSTableMetadata> p = close();
+        Pair<Descriptor, StatsMetadata> p = close();
         Descriptor newdesc = p.left;
-        SSTableMetadata sstableMetadata = p.right;
+        StatsMetadata sstableMetadata = p.right;
 
         // finalize in-memory state for the reader
         SegmentedFile ifile = iwriter.builder.complete(newdesc.filenameFor(Component.PRIMARY_INDEX));
@@ -335,36 +339,40 @@ public class SSTableWriter extends SSTable
     }
 
     // Close the writer and return the descriptor to the new sstable and it's metadata
-    public Pair<Descriptor, SSTableMetadata> close()
+    public Pair<Descriptor, StatsMetadata> close()
     {
         // index and filter
         iwriter.close();
         // main data, close will truncate if necessary
         dataFile.close();
         // write sstable statistics
-        SSTableMetadata sstableMetadata = sstableMetadataCollector.finalizeMetadata(partitioner.getClass().getCanonicalName(),
+        Map<MetadataType, MetadataComponent> metadataComponents = sstableMetadataCollector.finalizeMetadata(
+                                                                                    partitioner.getClass().getCanonicalName(),
                                                                                     metadata.getBloomFilterFpChance());
-        writeMetadata(descriptor, sstableMetadata, sstableMetadataCollector.ancestors);
+        writeMetadata(descriptor, metadataComponents);
 
         // save the table of components
         SSTable.appendTOC(descriptor, components);
 
         // remove the 'tmp' marker from all components
-        return Pair.create(rename(descriptor, components), sstableMetadata);
+        return Pair.create(rename(descriptor, components), (StatsMetadata) metadataComponents.get(MetadataType.STATS));
     }
 
-    private static void writeMetadata(Descriptor desc, SSTableMetadata sstableMetadata,  Set<Integer> ancestors)
+    private static void writeMetadata(Descriptor desc, Map<MetadataType, MetadataComponent> components)
     {
         SequentialWriter out = SequentialWriter.open(new File(desc.filenameFor(Component.STATS)), true);
         try
         {
-            SSTableMetadata.serializer.serialize(sstableMetadata, ancestors, out.stream);
+            desc.getMetadataSerializer().serialize(components, out.stream);
         }
         catch (IOException e)
         {
             throw new FSWriteError(e, out.getPath());
         }
-        out.close();
+        finally
+        {
+            out.close();
+        }
     }
 
     static Descriptor rename(Descriptor tmpdesc, Set<Component> components)

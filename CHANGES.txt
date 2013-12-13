@@ -15,6 +15,7 @@
  * Use of o.a.c.metrics in nodetool (CASSANDRA-5871, 6406)
  * Batch read from OTC's queue and cleanup (CASSANDRA-1632)
  * Secondary index support for collections (CASSANDRA-4511)
+ * SSTable metadata(Stats.db) format change (CASSANDRA-6356)
 
 
 2.0.4

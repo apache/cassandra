@@ -23,11 +23,10 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableMetadata;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.io.sstable.metadata.MetadataType;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 
 /**
  * Reset level to 0 on a given set of sstables
@@ -65,9 +64,9 @@ public class SSTableLevelResetter
             {
                 foundSSTable = true;
                 Descriptor descriptor = sstable.getKey();
-                Pair<SSTableMetadata, Set<Integer>> metadata = SSTableMetadata.serializer.deserialize(descriptor);
-                out.println("Changing level from " + metadata.left.sstableLevel + " to 0 on " + descriptor.filenameFor(Component.DATA));
-                LeveledManifest.mutateLevel(metadata, descriptor, descriptor.filenameFor(Component.STATS), 0);
+                StatsMetadata metadata = (StatsMetadata) descriptor.getMetadataSerializer().deserialize(descriptor, MetadataType.STATS);
+                out.println("Changing level from " + metadata.sstableLevel + " to 0 on " + descriptor.filenameFor(Component.DATA));
+                descriptor.getMetadataSerializer().mutateLevel(descriptor, 0);
             }
         }
 

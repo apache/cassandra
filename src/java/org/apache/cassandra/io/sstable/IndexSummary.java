@@ -202,9 +202,14 @@ public class IndexSummary implements Closeable
             FBUtilities.copy(new MemoryInputStream(t.bytes), out, t.bytes.size());
         }
 
-        public IndexSummary deserialize(DataInputStream in, IPartitioner partitioner, boolean haveSamplingLevel) throws IOException
+        public IndexSummary deserialize(DataInputStream in, IPartitioner partitioner, boolean haveSamplingLevel, int expectedIndexInterval) throws IOException
         {
             int indexInterval = in.readInt();
+            if (indexInterval != expectedIndexInterval)
+            {
+                throw new IOException(String.format("Cannot read index summary because Index Interval changed from %d to %d.",
+                                                           indexInterval, expectedIndexInterval));
+            }
             int summarySize = in.readInt();
             long offheapSize = in.readLong();
             int samplingLevel, fullSamplingSummarySize;

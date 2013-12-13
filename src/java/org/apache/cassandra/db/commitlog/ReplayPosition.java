@@ -130,9 +130,9 @@ public class ReplayPosition implements Comparable<ReplayPosition>
             return new ReplayPosition(in.readLong(), in.readInt());
         }
 
-        public long serializedSize(ReplayPosition object, TypeSizes typeSizes)
+        public long serializedSize(ReplayPosition rp, TypeSizes typeSizes)
         {
-            throw new UnsupportedOperationException();
+            return typeSizes.sizeof(rp.segment) + typeSizes.sizeof(rp.position);
         }
     }
 }

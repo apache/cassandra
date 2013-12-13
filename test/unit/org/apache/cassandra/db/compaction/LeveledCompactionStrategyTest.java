@@ -183,7 +183,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
         {
             assertTrue(s.getSSTableLevel() != 6);
             strategy.manifest.remove(s);
-            LeveledManifest.mutateLevel(Pair.create(s.getSSTableMetadata(), s.getAncestors()), s.descriptor, s.descriptor.filenameFor(Component.STATS), 6);
+            s.descriptor.getMetadataSerializer().mutateLevel(s.descriptor, 6);
             s.reloadSSTableMetadata();
             strategy.manifest.add(s);
         }
