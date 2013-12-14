@@ -1,9 +1,6 @@
-1.2.14
- * Randomize batchlog candidates selection (CASSANDRA-6481)
-
-
 1.2.13
- * Fix thundering herd on endpoint cache invalidation (CASSANDRA-6345)
+ * Randomize batchlog candidates selection (CASSANDRA-6481)
+ * Fix thundering herd on endpoint cache invalidation (CASSANDRA-6345, 6485)
  * Optimize FD phi calculation (CASSANDRA-6386)
  * Improve initial FD phi estimate when starting up (CASSANDRA-6385)
  * Don't list CQL3 table in CLI describe even if named explicitely 

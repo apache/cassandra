@@ -116,19 +116,20 @@ public abstract class AbstractReplicationStrategy
         ArrayList<InetAddress> endpoints = getCachedEndpoints(keyToken);
         if (endpoints == null)
         {
-            if (tokenMetadataClone == null)
+            TokenMetadata tm; // local reference in case another thread nulls tMC out from under us
+            if ((tm = tokenMetadataClone) == null)
             {
                 // synchronize to prevent thundering herd post-invalidation
                 synchronized (this)
                 {
-                    if (tokenMetadataClone == null)
-                        tokenMetadataClone = tokenMetadata.cloneOnlyTokenMap();
+                    if ((tm = tokenMetadataClone) == null)
+                        tm = tokenMetadataClone = tokenMetadata.cloneOnlyTokenMap();
                 }
                 // if our clone got invalidated, it's possible there is a new token to account for too
-                keyToken = TokenMetadata.firstToken(tokenMetadataClone.sortedTokens(), searchToken);
+                keyToken = TokenMetadata.firstToken(tm.sortedTokens(), searchToken);
             }
 
-            endpoints = new ArrayList<InetAddress>(calculateNaturalEndpoints(searchToken, tokenMetadataClone));
+            endpoints = new ArrayList<InetAddress>(calculateNaturalEndpoints(searchToken, tm));
             cachedEndpoints.put(keyToken, endpoints);
         }
 
