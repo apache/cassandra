@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.io.DataOutputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.*;
 
@@ -38,8 +36,6 @@ import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.*;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 public class LeveledManifest
@@ -185,7 +181,6 @@ public class LeveledManifest
     private synchronized void sendBackToL0(SSTableReader sstable)
     {
         remove(sstable);
-        String metaDataFile = sstable.descriptor.filenameFor(Component.STATS);
         try
         {
             sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 0);
