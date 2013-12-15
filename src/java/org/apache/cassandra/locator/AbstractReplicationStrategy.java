@@ -20,12 +20,10 @@ package org.apache.cassandra.locator;
 import java.lang.reflect.Constructor;
 import java.net.InetAddress;
 import java.util.*;
-import java.util.concurrent.locks.Lock;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import com.google.common.util.concurrent.Striped;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,14 +54,8 @@ public abstract class AbstractReplicationStrategy
     public final Map<String, String> configOptions;
     private final TokenMetadata tokenMetadata;
 
-    // We want to make updating our replicas asynchronous vs the "master" TokenMetadata instance,
-    // so that our ownership calculations never block Gossip from processing an ownership change.
-    // But, we also can't afford to re-clone TM for each range after cache invalidation (CASSANDRA-6345),
-    // so we keep our own copy here.
-    //
-    // Writes to tokenMetadataClone should be synchronized.
-    private volatile TokenMetadata tokenMetadataClone = null;
-    private volatile long clonedTokenMetadataVersion = 0;
+    // track when the token range changes, signaling we need to invalidate our endpoint cache
+    private volatile long lastInvalidatedVersion = 0;
 
     public IEndpointSnitch snitch;
 
@@ -85,16 +77,15 @@ public abstract class AbstractReplicationStrategy
     {
         long lastVersion = tokenMetadata.getRingVersion();
 
-        if (lastVersion > clonedTokenMetadataVersion)
+        if (lastVersion > lastInvalidatedVersion)
         {
             synchronized (this)
             {
-                if (lastVersion > clonedTokenMetadataVersion)
+                if (lastVersion > lastInvalidatedVersion)
                 {
                     logger.debug("clearing cached endpoints");
-                    tokenMetadataClone = null;
                     cachedEndpoints.clear();
-                    clonedTokenMetadataVersion = lastVersion;
+                    lastInvalidatedVersion = lastVersion;
                 }
             }
         }
@@ -116,19 +107,9 @@ public abstract class AbstractReplicationStrategy
         ArrayList<InetAddress> endpoints = getCachedEndpoints(keyToken);
         if (endpoints == null)
         {
-            TokenMetadata tm; // local reference in case another thread nulls tMC out from under us
-            if ((tm = tokenMetadataClone) == null)
-            {
-                // synchronize to prevent thundering herd post-invalidation
-                synchronized (this)
-                {
-                    if ((tm = tokenMetadataClone) == null)
-                        tm = tokenMetadataClone = tokenMetadata.cloneOnlyTokenMap();
-                }
-                // if our clone got invalidated, it's possible there is a new token to account for too
-                keyToken = TokenMetadata.firstToken(tm.sortedTokens(), searchToken);
-            }
-
+            TokenMetadata tm = tokenMetadata.cloneOnlyTokenMap();
+            // if our cache got invalidated, it's possible there is a new token to account for too
+            keyToken = TokenMetadata.firstToken(tm.sortedTokens(), searchToken);
             endpoints = new ArrayList<InetAddress>(calculateNaturalEndpoints(searchToken, tm));
             cachedEndpoints.put(keyToken, endpoints);
         }

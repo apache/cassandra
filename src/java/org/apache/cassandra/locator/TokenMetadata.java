@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -585,22 +586,37 @@ public class TokenMetadata
         }
     }
 
+    private final AtomicReference<TokenMetadata> cachedTokenMap = new AtomicReference<TokenMetadata>();
+
     /**
      * Create a copy of TokenMetadata with only tokenToEndpointMap. That is, pending ranges,
      * bootstrap tokens and leaving endpoints are not included in the copy.
+     *
+     * This uses a cached copy that is invalided when the ring changes, so in the common case
+     * no extra locking is required.
      */
     public TokenMetadata cloneOnlyTokenMap()
     {
-        lock.readLock().lock();
-        try
+        TokenMetadata tm = cachedTokenMap.get();
+        if (tm != null)
+            return tm;
+
+        // synchronize is to prevent thundering herd (CASSANDRA-6345); lock.readLock is for correctness vs updates to our internals
+        synchronized (this)
         {
-            return new TokenMetadata(SortedBiMultiValMap.<Token, InetAddress>create(tokenToEndpointMap, null, inetaddressCmp),
-                                     HashBiMap.create(endpointToHostIdMap),
-                                     new Topology(topology));
-        }
-        finally
-        {
-            lock.readLock().unlock();
+            lock.readLock().lock();
+            try
+            {
+                tm = new TokenMetadata(SortedBiMultiValMap.<Token, InetAddress>create(tokenToEndpointMap, null, inetaddressCmp),
+                                       HashBiMap.create(endpointToHostIdMap),
+                                       new Topology(topology));
+                cachedTokenMap.set(tm);
+                return tm;
+            }
+            finally
+            {
+                lock.readLock().unlock();
+            }
         }
     }
 
@@ -1057,6 +1073,7 @@ public class TokenMetadata
     public void invalidateCachedRings()
     {
         ringVersion++;
+        cachedTokenMap.set(null);
     }
 
     /**
