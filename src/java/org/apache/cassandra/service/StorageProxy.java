@@ -22,6 +22,7 @@ import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.Random;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.MBeanServer;
@@ -771,30 +772,32 @@ public class StorageProxy implements StorageProxyMBean
      * - replicas should be alive according to the failure detector
      * - replicas should be in the local datacenter
      * - choose min(2, number of qualifying candiates above)
-     * - allow the local node to be the only replica only if it's a single-node cluster
+     * - allow the local node to be the only replica only if it's a single-node DC
      */
-    private static Collection<InetAddress> getBatchlogEndpoints(String localDataCenter, ConsistencyLevel consistencyLevel) throws UnavailableException
+    private static Collection<InetAddress> getBatchlogEndpoints(String localDataCenter, ConsistencyLevel consistencyLevel)
+    throws UnavailableException
     {
-        // will include every known node in the DC, including localhost.
         TokenMetadata.Topology topology = StorageService.instance.getTokenMetadata().cloneOnlyTokenMap().getTopology();
-        Collection<InetAddress> localMembers = topology.getDatacenterEndpoints().get(localDataCenter);
+        List<InetAddress> localEndpoints = new ArrayList<>(topology.getDatacenterEndpoints().get(localDataCenter));
 
         // special case for single-node datacenters
-        if (localMembers.size() == 1)
-            return localMembers;
+        if (localEndpoints.size() == 1)
+            return localEndpoints;
 
-        // not a single-node cluster - don't count the local node.
-        localMembers.remove(FBUtilities.getBroadcastAddress());
+        List<InetAddress> chosenEndpoints = new ArrayList<>(2);
+        int startOffset = new Random().nextInt(localEndpoints.size());
 
-        // include only alive nodes
-        List<InetAddress> candidates = new ArrayList<InetAddress>(localMembers.size());
-        for (InetAddress member : localMembers)
+        // starts at some random point in the list, advances forward until the end, then loops
+        // around to the beginning, advancing again until it is back at the starting point again.
+        for (int i = 0; i < localEndpoints.size() && chosenEndpoints.size() < 2; i++)
         {
-            if (FailureDetector.instance.isAlive(member))
-                candidates.add(member);
+            InetAddress endpoint = localEndpoints.get((i + startOffset) % localEndpoints.size());
+            // skip localhost and non-alive nodes
+            if (!endpoint.equals(FBUtilities.getBroadcastAddress()) && FailureDetector.instance.isAlive(endpoint))
+                chosenEndpoints.add(endpoint);
         }
 
-        if (candidates.isEmpty())
+        if (chosenEndpoints.isEmpty())
         {
             if (consistencyLevel == ConsistencyLevel.ANY)
                 return Collections.singleton(FBUtilities.getBroadcastAddress());
@@ -802,13 +805,7 @@ public class StorageProxy implements StorageProxyMBean
             throw new UnavailableException(ConsistencyLevel.ONE, 1, 0);
         }
 
-        if (candidates.size() > 2)
-        {
-            Collections.shuffle(candidates);
-            candidates = candidates.subList(0, 2);
-        }
-
-        return candidates;
+        return chosenEndpoints;
     }
 
     /**

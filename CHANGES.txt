@@ -47,6 +47,7 @@ Merged from 1.2:
  * (Hadoop) add describe_local_ring (CASSANDRA-6268)
  * Fix handling of concurrent directory creation failure (CASSANDRA-6459)
  * Randomize batchlog candidates selection (CASSANDRA-6481)
+ * Improve batchlog write performance with vnodes (CASSANDRA-6488)
 
 
 2.0.3
