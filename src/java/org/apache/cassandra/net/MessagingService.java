@@ -37,7 +37,6 @@ import com.google.common.collect.Lists;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.concurrent.TracingAwareExecutorService;
@@ -392,7 +391,7 @@ public final class MessagingService implements MessagingServiceMBean
     public void listen(InetAddress localEp) throws ConfigurationException
     {
         callbacks.reset(); // hack to allow tests to stop/restart MS
-        for (ServerSocket ss : getServerSocket(localEp))
+        for (ServerSocket ss : getServerSockets(localEp))
         {
             SocketThread th = new SocketThread(ss, "ACCEPT-" + localEp);
             th.start();
@@ -401,7 +400,7 @@ public final class MessagingService implements MessagingServiceMBean
         listenGate.signalAll();
     }
 
-    private List<ServerSocket> getServerSocket(InetAddress localEp) throws ConfigurationException
+    private List<ServerSocket> getServerSockets(InetAddress localEp) throws ConfigurationException
     {
         final List<ServerSocket> ss = new ArrayList<ServerSocket>(2);
         if (DatabaseDescriptor.getServerEncryptionOptions().internode_encryption != ServerEncryptionOptions.InternodeEncryption.none)
@@ -829,42 +828,37 @@ public final class MessagingService implements MessagingServiceMBean
 
         public void run()
         {
-            while (true)
+            while (!server.isClosed())
             {
                 Socket socket = null;
                 try
                 {
                     socket = server.accept();
-                    if (authenticate(socket))
+                    if (!authenticate(socket))
                     {
-                        socket.setKeepAlive(true);
-                        // determine the connection type to decide whether to buffer
-                        DataInputStream in = new DataInputStream(socket.getInputStream());
-                        MessagingService.validateMagic(in.readInt());
-                        int header = in.readInt();
-                        boolean isStream = MessagingService.getBits(header, 3, 1) == 1;
-                        int version = MessagingService.getBits(header, 15, 8);
-                        logger.debug("Connection version {} from {}", version, socket.getInetAddress());
-
-                        if (isStream)
-                        {
-                            new IncomingStreamingConnection(version, socket).start();
-                        }
-                        else
-                        {
-                            boolean compressed = MessagingService.getBits(header, 2, 1) == 1;
-                            new IncomingTcpConnection(version, compressed, socket).start();
-                        }
-                    }
-                    else
-                    {
+                        logger.debug("remote failed to authenticate");
                         socket.close();
+                        continue;
                     }
+
+                    socket.setKeepAlive(true);
+                    // determine the connection type to decide whether to buffer
+                    DataInputStream in = new DataInputStream(socket.getInputStream());
+                    MessagingService.validateMagic(in.readInt());
+                    int header = in.readInt();
+                    boolean isStream = MessagingService.getBits(header, 3, 1) == 1;
+                    int version = MessagingService.getBits(header, 15, 8);
+                    logger.debug("Connection version {} from {}", version, socket.getInetAddress());
+
+                    Thread thread = isStream
+                                  ? new IncomingStreamingConnection(version, socket)
+                                  : new IncomingTcpConnection(version, MessagingService.getBits(header, 2, 1) == 1, socket);
+                    thread.start();
                 }
                 catch (AsynchronousCloseException e)
                 {
                     // this happens when another thread calls close().
-                    logger.info("MessagingService shutting down server thread");
+                    logger.debug("Asynchronous close seen by server thread");
                     break;
                 }
                 catch (ClosedChannelException e)
@@ -878,10 +872,12 @@ public final class MessagingService implements MessagingServiceMBean
                     FileUtils.closeQuietly(socket);
                 }
             }
+            logger.info("MessagingService has terminated the accept() thread");
         }
 
         void close() throws IOException
         {
+            logger.debug("Closing accept() thread");
             server.close();
         }
 
