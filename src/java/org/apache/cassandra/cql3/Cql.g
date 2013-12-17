@@ -120,12 +120,18 @@ options {
 
             if (!(entry.left instanceof Constants.Literal))
             {
-                addRecognitionError("Invalid property name: " + entry.left);
+                String msg = "Invalid property name: " + entry.left;
+                if (entry.left instanceof AbstractMarker.Raw)
+                    msg += " (bind variables are not supported in DDL queries)";
+                addRecognitionError(msg);
                 break;
             }
             if (!(entry.right instanceof Constants.Literal))
             {
-                addRecognitionError("Invalid property value: " + entry.right);
+                String msg = "Invalid property value: " + entry.right + " for property: " + entry.left;
+                if (entry.right instanceof AbstractMarker.Raw)
+                    msg += " (bind variables are not supported in DDL queries)";
+                addRecognitionError(msg);
                 break;
             }
 
