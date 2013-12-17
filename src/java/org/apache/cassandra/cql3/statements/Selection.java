@@ -43,21 +43,21 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public abstract class Selection
 {
     private final List<ColumnDefinition> columnsList;
-    private final List<ColumnSpecification> metadata;
+    private final ResultSet.Metadata metadata;
     private final boolean collectTimestamps;
     private final boolean collectTTLs;
 
     protected Selection(List<ColumnDefinition> columnsList, List<ColumnSpecification> metadata, boolean collectTimestamps, boolean collectTTLs)
     {
         this.columnsList = columnsList;
-        this.metadata = metadata;
+        this.metadata = new ResultSet.Metadata(metadata);
         this.collectTimestamps = collectTimestamps;
         this.collectTTLs = collectTTLs;
     }
 
     public ResultSet.Metadata getResultMetadata()
     {
-        return new ResultSet.Metadata(metadata);
+        return metadata;
     }
 
     public static Selection wildcard(CFMetaData cfm)
@@ -70,6 +70,13 @@ public abstract class Selection
     public static Selection forColumns(List<ColumnDefinition> columnsList)
     {
         return new SimpleSelection(columnsList);
+    }
+
+    public int addColumnForOrdering(ColumnDefinition c)
+    {
+        columnsList.add(c);
+        metadata.addNonSerializedColumn(c);
+        return columnsList.size() - 1;
     }
 
     private static boolean isUsingFunction(List<RawSelector> rawSelectors)
@@ -273,7 +280,7 @@ public abstract class Selection
 
         private ResultSetBuilder(long now)
         {
-            this.resultSet = new ResultSet(metadata);
+            this.resultSet = new ResultSet(getResultMetadata(), new ArrayList<List<ByteBuffer>>());
             this.timestamps = collectTimestamps ? new long[columnsList.size()] : null;
             this.ttls = collectTTLs ? new int[columnsList.size()] : null;
             this.now = now;

@@ -77,7 +77,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     private boolean isKeyRange;
     private boolean keyIsInRelation;
     private boolean usesSecondaryIndexing;
-    private boolean lastClusteringIsIn;
+    private boolean needOrderOnLastClustering;
 
     private Map<ColumnIdentifier, Integer> orderingIndexes;
 
@@ -939,10 +939,11 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
         /*
          * We need to do post-query ordering in 2 cases:
-         *   1) if the last clustering key is restricted by a IN.
-         *   2) if the row key is restricted by a IN and there is some ORDER BY values
+         *   1) if the last clustering column is restricted by a IN and has no explicit ORDER BY on it.
+         *   2) if the partition key is restricted by a IN and there is some ORDER BY values
          */
-        if (!(lastClusteringIsIn || (keyIsInRelation && parameters.orderings.size() > 0)))
+        boolean needOrderOnPartitionKey = keyIsInRelation && !parameters.orderings.isEmpty();
+        if (!needOrderOnLastClustering && !needOrderOnPartitionKey)
             return;
 
         assert orderingIndexes != null;
@@ -950,21 +951,21 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         List<Integer> idToSort = new ArrayList<Integer>();
         List<Comparator<ByteBuffer>> sorters = new ArrayList<Comparator<ByteBuffer>>();
 
-        // If the restriction for the last clustering key is an IN, respect requested order
-        if (lastClusteringIsIn)
-        {
-            List<ColumnDefinition> cc = cfm.clusteringColumns();
-            idToSort.add(orderingIndexes.get(cc.get(cc.size() - 1).name));
-            Restriction last = columnRestrictions[columnRestrictions.length - 1];
-            sorters.add(makeComparatorFor(last.values(variables), isReversed));
-        }
-
-        // Then add the order by
+        // Note that we add the ORDER BY sorters first as they should prevail over ordering
+        // on the last clustering restriction.
         for (ColumnIdentifier identifier : parameters.orderings.keySet())
         {
             ColumnDefinition orderingColumn = cfm.getColumnDefinition(identifier);
             idToSort.add(orderingIndexes.get(orderingColumn.name));
             sorters.add(orderingColumn.type);
+        }
+
+        if (needOrderOnLastClustering)
+        {
+            List<ColumnDefinition> cc = cfm.clusteringColumns();
+            idToSort.add(orderingIndexes.get(cc.get(cc.size() - 1).name));
+            Restriction last = columnRestrictions[columnRestrictions.length - 1];
+            sorters.add(makeComparatorFor(last.values(variables), isReversed));
         }
 
         Comparator<List<ByteBuffer>> comparator = idToSort.size() == 1
@@ -1234,7 +1235,16 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                         throw new InvalidRequestException(String.format("PRIMARY KEY part %s cannot be restricted by IN relation", cdef.name));
                     else if (stmt.selectACollection())
                         throw new InvalidRequestException(String.format("Cannot restrict PRIMARY KEY part %s by IN relation as a collection is selected by the query", cdef.name));
-                    stmt.lastClusteringIsIn = true;
+                    // We will return rows in the order of the IN, unless that clustering column has a specific order set on.
+                    if (parameters.orderings.get(cdef.name) == null)
+                    {
+                        stmt.needOrderOnLastClustering = true;
+                        stmt.orderingIndexes = new HashMap<ColumnIdentifier, Integer>();
+                        int index = indexOf(cdef, stmt.selection);
+                        if (index < 0)
+                            index = stmt.selection.addColumnForOrdering(cdef);
+                        stmt.orderingIndexes.put(cdef.name, index);
+                    }
                 }
 
                 previous = cdef;
@@ -1267,12 +1277,12 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 if (stmt.isKeyRange)
                     throw new InvalidRequestException("ORDER BY is only supported when the partition key is restricted by an EQ or an IN.");
 
-                // If we order an IN query, we'll have to do a manual sort post-query. Currently, this sorting requires that we
-                // have queried the column on which we sort (TODO: we should update it to add the column on which we sort to the one
-                // queried automatically, and then removing it from the resultSet afterwards if needed)
-                if (stmt.keyIsInRelation)
+                // If we order post-query (see orderResults), the sorted column needs to be in the ResultSet for sorting, even if we don't
+                // ultimately ship them to the client (CASSANDRA-4911).
+                if (stmt.keyIsInRelation || stmt.needOrderOnLastClustering)
                 {
-                    stmt.orderingIndexes = new HashMap<ColumnIdentifier, Integer>();
+                    if (stmt.orderingIndexes == null)
+                        stmt.orderingIndexes = new HashMap<ColumnIdentifier, Integer>();
                     for (ColumnIdentifier column : stmt.parameters.orderings.keySet())
                     {
                         final ColumnDefinition def = cfm.getColumnDefinition(column);
@@ -1284,27 +1294,10 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                                 throw new InvalidRequestException(String.format("Order by on unknown column %s", column));
                         }
 
-                        if (selectClause.isEmpty()) // wildcard
-                        {
-                            stmt.orderingIndexes.put(def.name, indexOf(def, cfm.allColumnsInSelectOrder()));
-                        }
-                        else
-                        {
-                            boolean hasColumn = false;
-                            for (int i = 0; i < selectClause.size(); i++)
-                            {
-                                RawSelector selector = selectClause.get(i);
-                                if (def.name.equals(selector.selectable))
-                                {
-                                    stmt.orderingIndexes.put(def.name, i);
-                                    hasColumn = true;
-                                    break;
-                                }
-                            }
-
-                            if (!hasColumn)
-                                throw new InvalidRequestException("ORDER BY could not be used on columns missing in select clause.");
-                        }
+                        int index = indexOf(def, stmt.selection);
+                        if (index < 0)
+                            index = stmt.selection.addColumnForOrdering(def);
+                        stmt.orderingIndexes.put(def.name, index);
                     }
                 }
 
@@ -1353,16 +1346,6 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 stmt.isReversed = isReversed;
             }
 
-            if (stmt.lastClusteringIsIn)
-            {
-                // This means we'll have to do post-query reordering, so update the orderingIndexes
-                if (stmt.orderingIndexes == null)
-                    stmt.orderingIndexes = new HashMap<ColumnIdentifier, Integer>();
-
-                ColumnDefinition last = cfm.clusteringColumns().get(cfm.clusteringColumns().size() - 1);
-                stmt.orderingIndexes.put(last.name, indexOf(last, stmt.selection.getColumnsList().iterator()));
-            }
-
             // Make sure this queries is allowed (note: non key range non indexed cannot involve filtering underneath)
             if (!parameters.allowFiltering && (stmt.isKeyRange || stmt.usesSecondaryIndexing))
             {
@@ -1375,6 +1358,11 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             }
 
             return new ParsedStatement.Prepared(stmt, names);
+        }
+
+        private int indexOf(ColumnDefinition def, Selection selection)
+        {
+            return indexOf(def, selection.getColumnsList().iterator());
         }
 
         private int indexOf(final ColumnDefinition def, Iterator<ColumnDefinition> defs)

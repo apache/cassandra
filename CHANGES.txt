@@ -32,6 +32,7 @@
  * Avoid repairing already repaired data (CASSANDRA-5351)
  * Reject counter updates with USING TTL/TIMESTAMP (CASSANDRA-6649)
  * Replace index_interval with min/max_index_interval (CASSANDRA-6379)
+ * Lift limitation that order by columns must be selected for IN queries (CASSANDRA-4911)
 
 
 2.0.6

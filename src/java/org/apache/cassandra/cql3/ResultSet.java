@@ -60,14 +60,14 @@ public class ResultSet
 
     public void addRow(List<ByteBuffer> row)
     {
-        assert row.size() == metadata.columnCount;
+        assert row.size() == metadata.valueCount();
         rows.add(row);
     }
 
     public void addColumnValue(ByteBuffer value)
     {
-        if (rows.isEmpty() || lastRow().size() == metadata.columnCount)
-            rows.add(new ArrayList<ByteBuffer>(metadata.columnCount));
+        if (rows.isEmpty() || lastRow().size() == metadata.valueCount())
+            rows.add(new ArrayList<ByteBuffer>(metadata.valueCount()));
 
         lastRow().add(value);
     }
@@ -123,8 +123,9 @@ public class ResultSet
                 // The 2 following ones shouldn't be needed in CQL3
                 UTF8, UTF8);
 
-        for (ColumnSpecification spec : metadata.names)
+        for (int i = 0; i < metadata.columnCount; i++)
         {
+            ColumnSpecification spec = metadata.names.get(i);
             ByteBuffer colName = ByteBufferUtil.bytes(spec.name.toString());
             schema.name_types.put(colName, UTF8);
             AbstractType<?> normalizedType = spec.type instanceof ReversedType ? ((ReversedType)spec.type).baseType : spec.type;
@@ -135,8 +136,8 @@ public class ResultSet
         List<CqlRow> cqlRows = new ArrayList<CqlRow>(rows.size());
         for (List<ByteBuffer> row : rows)
         {
-            List<Column> thriftCols = new ArrayList<Column>(metadata.names.size());
-            for (int i = 0; i < metadata.names.size(); i++)
+            List<Column> thriftCols = new ArrayList<Column>(metadata.columnCount);
+            for (int i = 0; i < metadata.columnCount; i++)
             {
                 Column col = new Column(ByteBufferUtil.bytes(metadata.names.get(i).name.toString()));
                 col.setValue(row.get(i));
@@ -214,8 +215,10 @@ public class ResultSet
             dest.writeInt(rs.rows.size());
             for (List<ByteBuffer> row : rs.rows)
             {
-                for (ByteBuffer bb : row)
-                    CBUtil.writeValue(bb, dest);
+                // Note that we do only want to serialize only the first columnCount values, even if the row
+                // as more: see comment on Metadata.names field.
+                for (int i = 0; i < rs.metadata.columnCount; i++)
+                    CBUtil.writeValue(row.get(i), dest);
             }
         }
 
@@ -224,8 +227,8 @@ public class ResultSet
             int size = Metadata.codec.encodedSize(rs.metadata, version) + 4;
             for (List<ByteBuffer> row : rs.rows)
             {
-                for (ByteBuffer bb : row)
-                    size += CBUtil.sizeOfValue(bb);
+                for (int i = 0; i < rs.metadata.columnCount; i++)
+                    size += CBUtil.sizeOfValue(row.get(i));
             }
             return size;
         }
@@ -238,6 +241,10 @@ public class ResultSet
         public static final Metadata EMPTY = new Metadata(EnumSet.of(Flag.NO_METADATA), 0);
 
         public final EnumSet<Flag> flags;
+        // Please note that columnCount can actually be smaller than names, even if names is not null. This is
+        // used to include columns in the resultSet that we need to do post-query re-orderings
+        // (SelectStatement.orderResults) but that shouldn't be sent to the user as they haven't been requested
+        // (CASSANDRA-4911). So the serialization code will exclude any columns in name whose index is >= columnCount.
         public final List<ColumnSpecification> names;
         public final int columnCount;
         public PagingState pagingState;
@@ -261,6 +268,19 @@ public class ResultSet
             this.flags = flags;
             this.names = null;
             this.columnCount = columnCount;
+        }
+
+        // The maximum number of values that the ResultSet can hold. This can be bigger than columnCount due to CASSANDRA-4911
+        public int valueCount()
+        {
+            return names == null ? columnCount : names.size();
+        }
+
+        public void addNonSerializedColumn(ColumnSpecification name)
+        {
+            // See comment above. Because columnCount doesn't account the newly added name, it
+            // won't be serialized.
+            names.add(name);
         }
 
         private boolean allInSameCF()
@@ -381,8 +401,9 @@ public class ResultSet
                         CBUtil.writeString(m.names.get(0).cfName, dest);
                     }
 
-                    for (ColumnSpecification name : m.names)
+                    for (int i = 0; i < m.columnCount; i++)
                     {
+                        ColumnSpecification name = m.names.get(i);
                         if (!globalTablesSpec)
                         {
                             CBUtil.writeString(name.ksName, dest);
@@ -412,8 +433,9 @@ public class ResultSet
                         size += CBUtil.sizeOfString(m.names.get(0).cfName);
                     }
 
-                    for (ColumnSpecification name : m.names)
+                    for (int i = 0; i < m.columnCount; i++)
                     {
+                        ColumnSpecification name = m.names.get(i);
                         if (!globalTablesSpec)
                         {
                             size += CBUtil.sizeOfString(name.ksName);
