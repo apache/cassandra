@@ -64,8 +64,8 @@ public class SSTableMetadataViewer
                 out.printf("Estimated droppable tombstones: %s%n", stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000)));
                 out.printf("SSTable Level: %d%n", stats.sstableLevel);
                 out.println(stats.replayPosition);
+                printHistograms(stats, out);
             }
-            printHistograms(stats, out);
         }
     }
 
