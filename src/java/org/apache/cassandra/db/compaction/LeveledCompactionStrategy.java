@@ -37,7 +37,6 @@ import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
-import org.apache.cassandra.utils.Pair;
 
 public class LeveledCompactionStrategy extends AbstractCompactionStrategy implements INotificationConsumer
 {
@@ -110,11 +109,9 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
     {
         while (true)
         {
-            Pair<? extends Collection<SSTableReader>, Integer> pair = manifest.getCompactionCandidates();
-            Collection<SSTableReader> sstables;
             OperationType op;
-            int level;
-            if (pair == null)
+            LeveledManifest.CompactionCandidate candidate = manifest.getCompactionCandidates();
+            if (candidate == null)
             {
                 // if there is no sstable to compact in standard way, try compacting based on droppable tombstone ratio
                 SSTableReader sstable = findDroppableSSTable(gcBefore);
@@ -123,20 +120,19 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
                     logger.debug("No compaction necessary for {}", this);
                     return null;
                 }
-                sstables = Collections.singleton(sstable);
+                candidate = new LeveledManifest.CompactionCandidate(Collections.singleton(sstable),
+                                                                    sstable.getSSTableLevel(),
+                                                                    getMaxSSTableBytes());
                 op = OperationType.TOMBSTONE_COMPACTION;
-                level = sstable.getSSTableLevel();
             }
             else
             {
                 op = OperationType.COMPACTION;
-                sstables = pair.left;
-                level = pair.right;
             }
 
-            if (cfs.getDataTracker().markCompacting(sstables))
+            if (cfs.getDataTracker().markCompacting(candidate.sstables))
             {
-                LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, sstables, level, gcBefore, maxSSTableSizeInMB);
+                LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, candidate.sstables, candidate.level, gcBefore, candidate.maxSSTableBytes);
                 newTask.setCompactionType(op);
                 return newTask;
             }
@@ -167,7 +163,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         }
     }
 
-    public long getMaxSSTableSize()
+    public long getMaxSSTableBytes()
     {
         return maxSSTableSizeInMB * 1024L * 1024L;
     }

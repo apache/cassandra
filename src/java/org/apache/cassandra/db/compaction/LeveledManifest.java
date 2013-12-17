@@ -223,7 +223,7 @@ public class LeveledManifest
      * @return highest-priority sstables to compact, and level to compact them to
      * If no compactions are necessary, will return null
      */
-    public synchronized Pair<? extends Collection<SSTableReader>, Integer> getCompactionCandidates()
+    public synchronized CompactionCandidate getCompactionCandidates()
     {
         // LevelDB gives each level a score of how much data it contains vs its ideal amount, and
         // compacts the level with the highest score. But this falls apart spectacularly once you
@@ -276,7 +276,10 @@ public class LeveledManifest
                                                                                                 options.minSSTableSize);
                     List<SSTableReader> mostInteresting = SizeTieredCompactionStrategy.mostInterestingBucket(buckets, 4, 32);
                     if (!mostInteresting.isEmpty())
-                        return Pair.create(mostInteresting, 0);
+                    {
+                        logger.debug("L0 is too far behind, performing size-tiering there first");
+                        return new CompactionCandidate(mostInteresting, 0, Long.MAX_VALUE);
+                    }
                 }
 
                 // L0 is fine, proceed with this level
@@ -284,7 +287,7 @@ public class LeveledManifest
                 if (logger.isDebugEnabled())
                     logger.debug("Compaction candidates for L{} are {}", i, toString(candidates));
                 if (!candidates.isEmpty())
-                    return Pair.create(candidates, getNextLevel(candidates));
+                    return new CompactionCandidate(candidates, getNextLevel(candidates), cfs.getCompactionStrategy().getMaxSSTableBytes());
             }
         }
 
@@ -294,7 +297,7 @@ public class LeveledManifest
         Collection<SSTableReader> candidates = getCandidatesFor(0);
         if (candidates.isEmpty())
             return null;
-        return Pair.create(candidates, getNextLevel(candidates));
+        return new CompactionCandidate(candidates, getNextLevel(candidates), cfs.getCompactionStrategy().getMaxSSTableBytes());
     }
 
     public synchronized int getLevelSize(int i)
@@ -565,5 +568,19 @@ public class LeveledManifest
         }
         return newLevel;
 
+    }
+
+    public static class CompactionCandidate
+    {
+        public final Collection<SSTableReader> sstables;
+        public final int level;
+        public final long maxSSTableBytes;
+
+        public CompactionCandidate(Collection<SSTableReader> sstables, int level, long maxSSTableBytes)
+        {
+            this.sstables = sstables;
+            this.level = level;
+            this.maxSSTableBytes = maxSSTableBytes;
+        }
     }
 }

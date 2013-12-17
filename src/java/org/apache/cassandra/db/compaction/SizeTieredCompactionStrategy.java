@@ -346,7 +346,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         estimatedRemainingTasks = n;
     }
 
-    public long getMaxSSTableSize()
+    public long getMaxSSTableBytes()
     {
         return Long.MAX_VALUE;
     }

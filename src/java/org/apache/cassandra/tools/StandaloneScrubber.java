@@ -96,7 +96,7 @@ public class StandaloneScrubber
             // If leveled, load the manifest
             if (cfs.getCompactionStrategy() instanceof LeveledCompactionStrategy)
             {
-                int maxSizeInMB = (int)((cfs.getCompactionStrategy().getMaxSSTableSize()) / (1024L * 1024L));
+                int maxSizeInMB = (int)((cfs.getCompactionStrategy().getMaxSSTableBytes()) / (1024L * 1024L));
                 manifest = LeveledManifest.create(cfs, maxSizeInMB, sstables);
             }
 
