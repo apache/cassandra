@@ -620,25 +620,15 @@ public class TokenMetadata
         if (tm != null)
             return tm;
 
-        // synchronize is to prevent thundering herd (CASSANDRA-6345); lock.readLock is for correctness vs updates to our internals
+        // synchronize to prevent thundering herd (CASSANDRA-6345)
         synchronized (this)
         {
             if ((tm = cachedTokenMap.get()) != null)
                 return tm;
 
-            lock.readLock().lock();
-            try
-            {
-                tm = new TokenMetadata(SortedBiMultiValMap.<Token, InetAddress>create(tokenToEndpointMap, null, inetaddressCmp),
-                                       HashBiMap.create(endpointToHostIdMap),
-                                       new Topology(topology));
-                cachedTokenMap.set(tm);
-                return tm;
-            }
-            finally
-            {
-                lock.readLock().unlock();
-            }
+            tm = cloneOnlyTokenMap();
+            cachedTokenMap.set(tm);
+            return tm;
         }
     }
 
