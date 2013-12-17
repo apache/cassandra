@@ -201,7 +201,7 @@ Table of Contents
                      0x0005    ALL
                      0x0006    LOCAL_QUORUM
                      0x0007    EACH_QUORUM
-                     0x0010    LOCAL_ONE
+                     0x000A    LOCAL_ONE
 
     [string map]      A [short] n, followed by n pair <k><v> where <k> and <v>
                       are [string].
