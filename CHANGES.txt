@@ -1,9 +1,8 @@
-1.2.14
- * Improved error message on bad properties in DDL queries (CASSANDRA-6453)
-
 1.2.13
+ * Improved error message on bad properties in DDL queries (CASSANDRA-6453)
  * Randomize batchlog candidates selection (CASSANDRA-6481)
  * Fix thundering herd on endpoint cache invalidation (CASSANDRA-6345, 6485)
+ * Improve batchlog write performance with vnodes (CASSANDRA-6488)
  * Optimize FD phi calculation (CASSANDRA-6386)
  * Improve initial FD phi estimate when starting up (CASSANDRA-6385)
  * Don't list CQL3 table in CLI describe even if named explicitely 
@@ -20,7 +19,6 @@
    (CASSANDRA-6413)
  * (Hadoop) add describe_local_ring (CASSANDRA-6268)
  * Fix handling of concurrent directory creation failure (CASSANDRA-6459)
- * Improve batchlog write performance with vnodes (CASSANDRA-6488)
 
 
 1.2.12
