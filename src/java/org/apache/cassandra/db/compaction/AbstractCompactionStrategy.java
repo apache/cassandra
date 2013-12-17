@@ -167,7 +167,7 @@ public abstract class AbstractCompactionStrategy
     /**
      * @return size in bytes of the largest sstables for this strategy
      */
-    public abstract long getMaxSSTableSize();
+    public abstract long getMaxSSTableBytes();
 
     public boolean isEnabled()
     {

@@ -1,4 +1,5 @@
 2.0.4
+ * Fix size-tiered compaction in LCS L0 (CASSANDRA-6496)
  * Fix assertion failure in filterColdSSTables (CASSANDRA-6483)
  * Fix row tombstones in larger-than-memory compactions (CASSANDRA-6008)
  * Fix cleanup ClassCastException (CASSANDRA-6462)
