@@ -36,11 +36,11 @@ public class SSTableUtils
     public static String KEYSPACENAME = "Keyspace1";
     public static String CFNAME = "Standard1";
 
-    public static ColumnFamily createCF(long mfda, int ldt, Column... cols)
+    public static ColumnFamily createCF(long mfda, int ldt, Cell... cols)
     {
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(KEYSPACENAME, CFNAME);
         cf.delete(new DeletionInfo(mfda, ldt));
-        for (Column col : cols)
+        for (Cell col : cols)
             cf.addColumn(col);
         return cf;
     }
@@ -98,9 +98,9 @@ public class SSTableUtils
         // iterate columns
         while (lhs.hasNext())
         {
-            Column clhs = (Column)lhs.next();
+            Cell clhs = (Cell)lhs.next();
             assert rhs.hasNext() : "LHS contained more columns than RHS for " + lhs.getKey();
-            Column crhs = (Column)rhs.next();
+            Cell crhs = (Cell)rhs.next();
 
             assertEquals("Mismatched columns for " + lhs.getKey(), clhs, crhs);
         }
@@ -163,7 +163,7 @@ public class SSTableUtils
             for (String key : keys)
             {
                 ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(ksname, cfname);
-                cf.addColumn(new Column(Util.cellname(key), ByteBufferUtil.bytes(key), 0));
+                cf.addColumn(new Cell(Util.cellname(key), ByteBufferUtil.bytes(key), 0));
                 map.put(key, cf);
             }
             return write(map);

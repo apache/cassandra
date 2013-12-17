@@ -129,7 +129,7 @@ public class ScrubTest extends SchemaLoader
          * The test also assumes an ordered partitioner.
          *
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfs.metadata);
-        cf.addColumn(new Column(ByteBufferUtil.bytes("someName"), ByteBufferUtil.bytes("someValue"), 0L));
+        cf.addColumn(new Cell(ByteBufferUtil.bytes("someName"), ByteBufferUtil.bytes("someValue"), 0L));
 
         SSTableWriter writer = new SSTableWriter(cfs.getTempSSTablePath(new File(System.getProperty("corrupt-sstable-root"))),
                                                  cfs.metadata.getIndexInterval(),

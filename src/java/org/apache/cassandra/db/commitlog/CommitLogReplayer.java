@@ -328,7 +328,7 @@ public class CommitLogReplayer
                         rm = RowMutation.serializer.deserialize(new DataInputStream(bufIn), version, ColumnSerializer.Flag.LOCAL);
                         // doublecheck that what we read is [still] valid for the current schema
                         for (ColumnFamily cf : rm.getColumnFamilies())
-                            for (Column cell : cf)
+                            for (Cell cell : cf)
                                 cf.getComparator().validate(cell.name());
                     }
                     catch (UnknownColumnFamilyException ex)

@@ -156,7 +156,7 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
         while (atomIterator.hasNext())
         {
             OnDiskAtom column = atomIterator.next();
-            if (column instanceof Column)
+            if (column instanceof Cell)
             {
                 if (columnNames.contains(column.name()))
                 {

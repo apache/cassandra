@@ -54,9 +54,9 @@ public interface OnDiskAtom
 
         public void serializeForSSTable(OnDiskAtom atom, DataOutput out) throws IOException
         {
-            if (atom instanceof Column)
+            if (atom instanceof Cell)
             {
-                type.columnSerializer().serialize((Column)atom, out);
+                type.columnSerializer().serialize((Cell)atom, out);
             }
             else
             {
@@ -88,9 +88,9 @@ public interface OnDiskAtom
 
         public long serializedSizeForSSTable(OnDiskAtom atom)
         {
-            if (atom instanceof Column)
+            if (atom instanceof Cell)
             {
-                return type.columnSerializer().serializedSize((Column)atom, TypeSizes.NATIVE);
+                return type.columnSerializer().serializedSize((Cell)atom, TypeSizes.NATIVE);
             }
             else
             {

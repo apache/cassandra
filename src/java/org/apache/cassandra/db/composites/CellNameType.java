@@ -24,7 +24,7 @@ import java.util.Comparator;
 
 import org.apache.cassandra.cql3.CQL3Row;
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnSerializer;
 import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
@@ -162,8 +162,8 @@ public interface CellNameType extends CType
     // Ultimately, those might be split into an IVersionedSerializer and an ISSTableSerializer
     public ISerializer<CellName> cellSerializer();
 
-    public Comparator<Column> columnComparator();
-    public Comparator<Column> columnReverseComparator();
+    public Comparator<Cell> columnComparator();
+    public Comparator<Cell> columnReverseComparator();
     public Comparator<OnDiskAtom> onDiskAtomComparator();
 
     public ColumnSerializer columnSerializer();

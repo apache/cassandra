@@ -30,7 +30,7 @@ import java.nio.ByteBuffer;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnSerializer;
 import org.apache.cassandra.db.EmptyColumns;
@@ -120,8 +120,8 @@ public class Commit
         // the collection and we want that to have a lower timestamp and our new values. Since tombstones wins over normal insert, using t-1
         // should not be a problem in general (see #6069).
         cf.deletionInfo().updateAllTimestamp(t-1);
-        for (Column column : updates)
-            cf.addAtom(column.withUpdatedTimestamp(t));
+        for (Cell cell : updates)
+            cf.addAtom(cell.withUpdatedTimestamp(t));
         return cf;
     }
 

@@ -38,8 +38,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class AbstractCellNameType extends AbstractCType implements CellNameType
 {
-    private final Comparator<Column> columnComparator;
-    private final Comparator<Column> columnReverseComparator;
+    private final Comparator<Cell> columnComparator;
+    private final Comparator<Cell> columnReverseComparator;
     private final Comparator<OnDiskAtom> onDiskAtomComparator;
 
     private final ISerializer<CellName> cellSerializer;
@@ -50,16 +50,16 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
 
     protected AbstractCellNameType()
     {
-        columnComparator = new Comparator<Column>()
+        columnComparator = new Comparator<Cell>()
         {
-            public int compare(Column c1, Column c2)
+            public int compare(Cell c1, Cell c2)
             {
                 return AbstractCellNameType.this.compare(c1.name(), c2.name());
             }
         };
-        columnReverseComparator = new Comparator<Column>()
+        columnReverseComparator = new Comparator<Cell>()
         {
-            public int compare(Column c1, Column c2)
+            public int compare(Cell c1, Cell c2)
             {
                 return AbstractCellNameType.this.compare(c2.name(), c1.name());
             }
@@ -122,12 +122,12 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
         diskAtomFilterSerializer = new IDiskAtomFilter.Serializer(this);
     }
 
-    public Comparator<Column> columnComparator()
+    public Comparator<Cell> columnComparator()
     {
         return columnComparator;
     }
 
-    public Comparator<Column> columnReverseComparator()
+    public Comparator<Cell> columnReverseComparator()
     {
         return columnReverseComparator;
     }
@@ -220,7 +220,7 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
     {
         return new CQL3Row.Builder()
         {
-            public Iterator<CQL3Row> group(final Iterator<Column> cells)
+            public Iterator<CQL3Row> group(final Iterator<Cell> cells)
             {
                 return new AbstractIterator<CQL3Row>()
                 {
@@ -228,7 +228,7 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
                     {
                         while (cells.hasNext())
                         {
-                            final Column cell = cells.next();
+                            final Cell cell = cells.next();
                             if (cell.isMarkedForDelete(now))
                                 continue;
 
@@ -239,12 +239,12 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
                                     return cell.name().get(i);
                                 }
 
-                                public Column getColumn(ColumnIdentifier name)
+                                public Cell getColumn(ColumnIdentifier name)
                                 {
                                     return cell;
                                 }
 
-                                public List<Column> getCollection(ColumnIdentifier name)
+                                public List<Cell> getCollection(ColumnIdentifier name)
                                 {
                                     return null;
                                 }
@@ -261,7 +261,7 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
     {
         return new CQL3Row.Builder()
         {
-            public Iterator<CQL3Row> group(final Iterator<Column> cells)
+            public Iterator<CQL3Row> group(final Iterator<Cell> cells)
             {
                 return new AbstractIterator<CQL3Row>()
                 {
@@ -272,7 +272,7 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
                     {
                         while (cells.hasNext())
                         {
-                            final Column cell = cells.next();
+                            final Cell cell = cells.next();
                             if (cell.isMarkedForDelete(now))
                                 continue;
 
@@ -305,8 +305,8 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
     private static class CQL3RowOfSparse implements CQL3Row
     {
         private final CellName cell;
-        private Map<ColumnIdentifier, Column> columns;
-        private Map<ColumnIdentifier, List<Column>> collections;
+        private Map<ColumnIdentifier, Cell> columns;
+        private Map<ColumnIdentifier, List<Cell>> collections;
 
         CQL3RowOfSparse(CellName cell)
         {
@@ -318,7 +318,7 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
             return cell.get(i);
         }
 
-        void add(Column cell)
+        void add(Cell cell)
         {
             CellName cellName = cell.name();
             ColumnIdentifier columnName =  cellName.cql3ColumnName();
@@ -327,10 +327,10 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
                 if (collections == null)
                     collections = new HashMap<>();
 
-                List<Column> values = collections.get(columnName);
+                List<Cell> values = collections.get(columnName);
                 if (values == null)
                 {
-                    values = new ArrayList<Column>();
+                    values = new ArrayList<Cell>();
                     collections.put(columnName, values);
                 }
                 values.add(cell);
@@ -343,12 +343,12 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
             }
         }
 
-        public Column getColumn(ColumnIdentifier name)
+        public Cell getColumn(ColumnIdentifier name)
         {
             return columns == null ? null : columns.get(name);
         }
 
-        public List<Column> getCollection(ColumnIdentifier name)
+        public List<Cell> getCollection(ColumnIdentifier name)
         {
             return collections == null ? null : collections.get(name);
         }

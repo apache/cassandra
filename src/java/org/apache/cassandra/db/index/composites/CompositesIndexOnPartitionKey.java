@@ -58,7 +58,7 @@ public class CompositesIndexOnPartitionKey extends CompositesIndex
         return new CompoundDenseCellNameType(types);
     }
 
-    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Column column)
+    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Cell cell)
     {
         CompositeType keyComparator = (CompositeType)baseCfs.metadata.getKeyValidator();
         ByteBuffer[] components = keyComparator.split(rowKey);
@@ -75,7 +75,7 @@ public class CompositesIndexOnPartitionKey extends CompositesIndex
         return builder.build();
     }
 
-    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Column indexEntry)
+    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Cell indexEntry)
     {
         int ckCount = baseCfs.metadata.clusteringColumns().size();
         CBuilder builder = baseCfs.getComparator().builder();

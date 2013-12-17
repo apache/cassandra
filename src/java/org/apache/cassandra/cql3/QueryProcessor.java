@@ -174,10 +174,10 @@ public class QueryProcessor
 
     public static void validateComposite(Composite name) throws InvalidRequestException
     {
-        if (name.dataSize() > Column.MAX_NAME_LENGTH)
+        if (name.dataSize() > Cell.MAX_NAME_LENGTH)
             throw new InvalidRequestException(String.format("The sum of all clustering columns is too long (%s > %s)",
                                                             name.dataSize(),
-                                                            Column.MAX_NAME_LENGTH));
+                                                            Cell.MAX_NAME_LENGTH));
     }
 
     private static ResultMessage processStatement(CQLStatement statement,

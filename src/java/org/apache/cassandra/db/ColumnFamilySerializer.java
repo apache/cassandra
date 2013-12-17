@@ -72,9 +72,9 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
             int count = cf.getColumnCount();
             out.writeInt(count);
             int written = 0;
-            for (Column column : cf)
+            for (Cell cell : cf)
             {
-                columnSerializer.serialize(column, out);
+                columnSerializer.serialize(cell, out);
                 written++;
             }
             assert count == written: "Column family had " + count + " columns, but " + written + " written";
@@ -131,8 +131,8 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
             size += cf.getComparator().deletionInfoSerializer().serializedSize(cf.deletionInfo(), typeSizes, version);
             size += typeSizes.sizeof(cf.getColumnCount());
             ColumnSerializer columnSerializer = cf.getComparator().columnSerializer();
-            for (Column column : cf)
-                size += columnSerializer.serializedSize(column, typeSizes);
+            for (Cell cell : cf)
+                size += columnSerializer.serializedSize(cell, typeSizes);
         }
         return size;
     }

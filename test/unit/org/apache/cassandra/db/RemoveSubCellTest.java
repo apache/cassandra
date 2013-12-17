@@ -35,7 +35,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 
-public class RemoveSubColumnTest extends SchemaLoader
+public class RemoveSubCellTest extends SchemaLoader
 {
     @Test
     public void testRemoveSubColumn()

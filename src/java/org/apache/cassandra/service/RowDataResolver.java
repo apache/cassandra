@@ -149,7 +149,7 @@ public class RowDataResolver extends AbstractRowResolver
         // this will handle removing columns and subcolumns that are supressed by a row or
         // supercolumn tombstone.
         QueryFilter filter = new QueryFilter(null, resolved.metadata().cfName, new IdentityQueryFilter(), now);
-        List<CloseableIterator<Column>> iters = new ArrayList<CloseableIterator<Column>>();
+        List<CloseableIterator<Cell>> iters = new ArrayList<CloseableIterator<Cell>>();
         for (ColumnFamily version : versions)
         {
             if (version == null)

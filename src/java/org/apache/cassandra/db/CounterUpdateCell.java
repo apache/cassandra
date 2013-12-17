@@ -29,17 +29,17 @@ import org.apache.cassandra.utils.HeapAllocator;
  * A counter update while it hasn't been applied yet by the leader replica.
  *
  * Contains a single counter update. When applied by the leader replica, this
- * is transformed to a relevant CounterColumn. This Column is a temporary data
+ * is transformed to a relevant CounterCell. This Cell is a temporary data
  * structure that should never be stored inside a memtable or an sstable.
  */
-public class CounterUpdateColumn extends Column
+public class CounterUpdateCell extends Cell
 {
-    public CounterUpdateColumn(CellName name, long value, long timestamp)
+    public CounterUpdateCell(CellName name, long value, long timestamp)
     {
         this(name, ByteBufferUtil.bytes(value), timestamp);
     }
 
-    public CounterUpdateColumn(CellName name, ByteBuffer value, long timestamp)
+    public CounterUpdateCell(CellName name, ByteBuffer value, long timestamp)
     {
         super(name, value, timestamp);
     }
@@ -50,27 +50,27 @@ public class CounterUpdateColumn extends Column
     }
 
     @Override
-    public Column diff(Column column)
+    public Cell diff(Cell cell)
     {
         // Diff is used during reads, but we should never read those columns
-        throw new UnsupportedOperationException("This operation is unsupported on CounterUpdateColumn.");
+        throw new UnsupportedOperationException("This operation is unsupported on CounterUpdateCell.");
     }
 
     @Override
-    public Column reconcile(Column column, Allocator allocator)
+    public Cell reconcile(Cell cell, Allocator allocator)
     {
         // The only time this could happen is if a batchAdd ships two
-        // increment for the same column. Hence we simply sums the delta.
+        // increment for the same cell. Hence we simply sums the delta.
 
-        assert (column instanceof CounterUpdateColumn) || (column instanceof DeletedColumn) : "Wrong class type.";
+        assert (cell instanceof CounterUpdateCell) || (cell instanceof DeletedCell) : "Wrong class type.";
 
         // tombstones take precedence
-        if (column.isMarkedForDelete(Long.MIN_VALUE)) // can't be an expired column, so the current time is irrelevant
-            return timestamp() > column.timestamp() ? this : column;
+        if (cell.isMarkedForDelete(Long.MIN_VALUE)) // can't be an expired cell, so the current time is irrelevant
+            return timestamp() > cell.timestamp() ? this : cell;
 
         // neither is tombstoned
-        CounterUpdateColumn c = (CounterUpdateColumn)column;
-        return new CounterUpdateColumn(name(), delta() + c.delta(), Math.max(timestamp(), c.timestamp()));
+        CounterUpdateCell c = (CounterUpdateCell) cell;
+        return new CounterUpdateCell(name(), delta() + c.delta(), Math.max(timestamp(), c.timestamp()));
     }
 
     @Override
@@ -80,18 +80,18 @@ public class CounterUpdateColumn extends Column
     }
 
     @Override
-    public CounterColumn localCopy(ColumnFamilyStore cfs)
+    public CounterCell localCopy(ColumnFamilyStore cfs)
     {
-        return new CounterColumn(name.copy(HeapAllocator.instance),
+        return new CounterCell(name.copy(HeapAllocator.instance),
                                  CounterContext.instance().create(delta(), HeapAllocator.instance),
                                  timestamp(),
                                  Long.MIN_VALUE);
     }
 
     @Override
-    public Column localCopy(ColumnFamilyStore cfs, Allocator allocator)
+    public Cell localCopy(ColumnFamilyStore cfs, Allocator allocator)
     {
-        return new CounterColumn(name.copy(allocator),
+        return new CounterCell(name.copy(allocator),
                                  CounterContext.instance().create(delta(), allocator),
                                  timestamp(),
                                  Long.MIN_VALUE);

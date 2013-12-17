@@ -91,7 +91,7 @@ public class CqlInserter extends CQLOperation
         List<String> queryParms = new ArrayList<String>();
         for (int i = 0; i < session.getColumnsPerKey(); i++)
         {
-            // Column value
+            // Cell value
             queryParms.add(getUnQuotedCqlBlob(values.get(i % values.size()).array(), session.cqlVersion.startsWith("3")));
         }
 

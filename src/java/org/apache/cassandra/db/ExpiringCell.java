@@ -30,28 +30,28 @@ import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.HeapAllocator;
 
 /**
- * Alternative to Column that have an expiring time.
- * ExpiringColumn is immutable (as Column is).
+ * Alternative to Cell that have an expiring time.
+ * ExpiringCell is immutable (as Cell is).
  *
- * Note that ExpiringColumn does not override Column.getMarkedForDeleteAt,
+ * Note that ExpiringCell does not override Cell.getMarkedForDeleteAt,
  * which means that it's in the somewhat unintuitive position of being deleted (after its expiration)
  * without having a time-at-which-it-became-deleted.  (Because ttl is a server-side measurement,
  * we can't mix it with the timestamp field, which is client-supplied and whose resolution we
  * can't assume anything about.)
  */
-public class ExpiringColumn extends Column
+public class ExpiringCell extends Cell
 {
     public static final int MAX_TTL = 20 * 365 * 24 * 60 * 60; // 20 years in seconds
 
     private final int localExpirationTime;
     private final int timeToLive;
 
-    public ExpiringColumn(CellName name, ByteBuffer value, long timestamp, int timeToLive)
+    public ExpiringCell(CellName name, ByteBuffer value, long timestamp, int timeToLive)
     {
       this(name, value, timestamp, timeToLive, (int) (System.currentTimeMillis() / 1000) + timeToLive);
     }
 
-    public ExpiringColumn(CellName name, ByteBuffer value, long timestamp, int timeToLive, int localExpirationTime)
+    public ExpiringCell(CellName name, ByteBuffer value, long timestamp, int timeToLive, int localExpirationTime)
     {
         super(name, value, timestamp);
         assert timeToLive > 0 : timeToLive;
@@ -60,16 +60,16 @@ public class ExpiringColumn extends Column
         this.localExpirationTime = localExpirationTime;
     }
 
-    /** @return Either a DeletedColumn, or an ExpiringColumn. */
-    public static Column create(CellName name, ByteBuffer value, long timestamp, int timeToLive, int localExpirationTime, int expireBefore, ColumnSerializer.Flag flag)
+    /** @return Either a DeletedCell, or an ExpiringCell. */
+    public static Cell create(CellName name, ByteBuffer value, long timestamp, int timeToLive, int localExpirationTime, int expireBefore, ColumnSerializer.Flag flag)
     {
         if (localExpirationTime >= expireBefore || flag == ColumnSerializer.Flag.PRESERVE_SIZE)
-            return new ExpiringColumn(name, value, timestamp, timeToLive, localExpirationTime);
+            return new ExpiringCell(name, value, timestamp, timeToLive, localExpirationTime);
         // The column is now expired, we can safely return a simple tombstone. Note that
         // as long as the expiring column and the tombstone put together live longer than GC grace seconds,
         // we'll fulfil our responsibility to repair.  See discussion at
         // http://cassandra-user-incubator-apache-org.3065146.n2.nabble.com/repair-compaction-and-tombstone-rows-td7583481.html
-        return new DeletedColumn(name, localExpirationTime - timeToLive, timestamp);
+        return new DeletedCell(name, localExpirationTime - timeToLive, timestamp);
     }
 
     public int getTimeToLive()
@@ -78,15 +78,15 @@ public class ExpiringColumn extends Column
     }
 
     @Override
-    public Column withUpdatedName(CellName newName)
+    public Cell withUpdatedName(CellName newName)
     {
-        return new ExpiringColumn(newName, value, timestamp, timeToLive, localExpirationTime);
+        return new ExpiringCell(newName, value, timestamp, timeToLive, localExpirationTime);
     }
 
     @Override
-    public Column withUpdatedTimestamp(long newTimestamp)
+    public Cell withUpdatedTimestamp(long newTimestamp)
     {
-        return new ExpiringColumn(name, value, newTimestamp, timeToLive, localExpirationTime);
+        return new ExpiringCell(name, value, newTimestamp, timeToLive, localExpirationTime);
     }
 
     @Override
@@ -99,7 +99,7 @@ public class ExpiringColumn extends Column
     public int serializedSize(CellNameType type, TypeSizes typeSizes)
     {
         /*
-         * An expired column adds to a Column :
+         * An expired column adds to a Cell :
          *    4 bytes for the localExpirationTime
          *  + 4 bytes for the timeToLive
         */
@@ -133,15 +133,15 @@ public class ExpiringColumn extends Column
     }
 
     @Override
-    public Column localCopy(ColumnFamilyStore cfs)
+    public Cell localCopy(ColumnFamilyStore cfs)
     {
         return localCopy(cfs, HeapAllocator.instance);
     }
 
     @Override
-    public Column localCopy(ColumnFamilyStore cfs, Allocator allocator)
+    public Cell localCopy(ColumnFamilyStore cfs, Allocator allocator)
     {
-        return new ExpiringColumn(name.copy(allocator), allocator.clone(value), timestamp, timeToLive, localExpirationTime);
+        return new ExpiringCell(name.copy(allocator), allocator.clone(value), timestamp, timeToLive, localExpirationTime);
     }
 
     @Override
@@ -185,10 +185,10 @@ public class ExpiringColumn extends Column
     @Override
     public boolean equals(Object o)
     {
-        // super.equals() returns false if o is not a CounterColumn
+        // super.equals() returns false if o is not a CounterCell
         return super.equals(o)
-            && localExpirationTime == ((ExpiringColumn)o).localExpirationTime
-            && timeToLive == ((ExpiringColumn)o).timeToLive;
+            && localExpirationTime == ((ExpiringCell)o).localExpirationTime
+            && timeToLive == ((ExpiringCell)o).timeToLive;
     }
 
     @Override

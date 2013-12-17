@@ -48,9 +48,9 @@ public class CounterColumnType extends AbstractCommutativeType
     /**
      * create commutative column
      */
-    public Column createColumn(CellName name, ByteBuffer value, long timestamp)
+    public Cell createColumn(CellName name, ByteBuffer value, long timestamp)
     {
-        return new CounterUpdateColumn(name, value, timestamp);
+        return new CounterUpdateCell(name, value, timestamp);
     }
 
     public ByteBuffer fromString(String source)

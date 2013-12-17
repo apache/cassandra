@@ -90,9 +90,9 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         ColumnFamily indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_ROW;
         assertNotNull(indexedRow);
 
-        for (Column column : indexedRow.getSortedColumns())
+        for (Cell cell : indexedRow.getSortedColumns())
         {
-            assertTrue(column.isMarkedForDelete(System.currentTimeMillis()));
+            assertTrue(cell.isMarkedForDelete(System.currentTimeMillis()));
         }
         assertTrue(Arrays.equals("k2".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
     }
@@ -108,9 +108,9 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
 
         ColumnFamily indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_ROW;
         assertNotNull(indexedRow);
-        for (Column column : indexedRow.getSortedColumns())
+        for (Cell cell : indexedRow.getSortedColumns())
         {
-            assertTrue(column.isMarkedForDelete(System.currentTimeMillis()));
+            assertTrue(cell.isMarkedForDelete(System.currentTimeMillis()));
         }
         assertTrue(Arrays.equals("k3".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
     }

@@ -22,10 +22,10 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
+import org.apache.cassandra.db.Cell;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -65,7 +65,7 @@ public class CassandraStorage extends AbstractCassandraStorage
     private boolean slice_reverse = false;
     private boolean allow_deletes = false;
 
-    private RecordReader<ByteBuffer, Map<ByteBuffer, Column>> reader;
+    private RecordReader<ByteBuffer, Map<ByteBuffer, Cell>> reader;
     private RecordWriter<ByteBuffer, List<Mutation>> writer;
 
     private boolean widerows = false;
@@ -73,7 +73,7 @@ public class CassandraStorage extends AbstractCassandraStorage
     
     // wide row hacks
     private ByteBuffer lastKey;
-    private Map<ByteBuffer, Column> lastRow;
+    private Map<ByteBuffer, Cell> lastRow;
     private boolean hasNext = true;
 
     public CassandraStorage()
@@ -125,7 +125,7 @@ public class CassandraStorage extends AbstractCassandraStorage
                             key = (ByteBuffer)reader.getCurrentKey();
                             tuple = keyToTuple(key, cfDef, parseType(cfDef.getKey_validation_class()));
                         }
-                        for (Map.Entry<ByteBuffer, Column> entry : lastRow.entrySet())
+                        for (Map.Entry<ByteBuffer, Cell> entry : lastRow.entrySet())
                         {
                             bag.add(columnToTuple(entry.getValue(), cfInfo, parseType(cfDef.getComparator_type())));
                         }
@@ -149,7 +149,7 @@ public class CassandraStorage extends AbstractCassandraStorage
                 {
                     // read too much, hold on to it for next time
                     lastKey = (ByteBuffer)reader.getCurrentKey();
-                    lastRow = (SortedMap<ByteBuffer, Column>)reader.getCurrentValue();
+                    lastRow = (SortedMap<ByteBuffer, Cell>)reader.getCurrentValue();
                     // but return what we have so far
                     tuple.append(bag);
                     return tuple;
@@ -163,13 +163,13 @@ public class CassandraStorage extends AbstractCassandraStorage
                             tuple = keyToTuple(lastKey, cfDef, parseType(cfDef.getKey_validation_class()));
                         else
                             addKeyToTuple(tuple, lastKey, cfDef, parseType(cfDef.getKey_validation_class()));
-                        for (Map.Entry<ByteBuffer, Column> entry : lastRow.entrySet())
+                        for (Map.Entry<ByteBuffer, Cell> entry : lastRow.entrySet())
                         {
                             bag.add(columnToTuple(entry.getValue(), cfInfo, parseType(cfDef.getComparator_type())));
                         }
                         tuple.append(bag);
                         lastKey = key;
-                        lastRow = (SortedMap<ByteBuffer, Column>)reader.getCurrentValue();
+                        lastRow = (SortedMap<ByteBuffer, Cell>)reader.getCurrentValue();
                         return tuple;
                     }
                     if (tuple == null)
@@ -177,17 +177,17 @@ public class CassandraStorage extends AbstractCassandraStorage
                     else
                         addKeyToTuple(tuple, lastKey, cfDef, parseType(cfDef.getKey_validation_class()));
                 }
-                SortedMap<ByteBuffer, Column> row = (SortedMap<ByteBuffer, Column>)reader.getCurrentValue();
+                SortedMap<ByteBuffer, Cell> row = (SortedMap<ByteBuffer, Cell>)reader.getCurrentValue();
                 if (lastRow != null) // prepend what was read last time
                 {
-                    for (Map.Entry<ByteBuffer, Column> entry : lastRow.entrySet())
+                    for (Map.Entry<ByteBuffer, Cell> entry : lastRow.entrySet())
                     {
                         bag.add(columnToTuple(entry.getValue(), cfInfo, parseType(cfDef.getComparator_type())));
                     }
                     lastKey = null;
                     lastRow = null;
                 }
-                for (Map.Entry<ByteBuffer, Column> entry : row.entrySet())
+                for (Map.Entry<ByteBuffer, Cell> entry : row.entrySet())
                 {
                     bag.add(columnToTuple(entry.getValue(), cfInfo, parseType(cfDef.getComparator_type())));
                 }
@@ -214,7 +214,7 @@ public class CassandraStorage extends AbstractCassandraStorage
             CfInfo cfInfo = getCfInfo(loadSignature);
             CfDef cfDef = cfInfo.cfDef;
             ByteBuffer key = reader.getCurrentKey();
-            Map<ByteBuffer, Column> cf = reader.getCurrentValue();
+            Map<ByteBuffer, Cell> cf = reader.getCurrentValue();
             assert key != null && cf != null;
 
             // output tuple, will hold the key, each indexed column in a tuple, then a bag of the rest
@@ -248,7 +248,7 @@ public class CassandraStorage extends AbstractCassandraStorage
                 added.put(cdef.name, true);
             }
             // now add all the other columns
-            for (Map.Entry<ByteBuffer, Column> entry : cf.entrySet())
+            for (Map.Entry<ByteBuffer, Cell> entry : cf.entrySet())
             {
                 if (!added.containsKey(entry.getKey()))
                     bag.add(columnToTuple(entry.getValue(), cfInfo, parseType(cfDef.getComparator_type())));

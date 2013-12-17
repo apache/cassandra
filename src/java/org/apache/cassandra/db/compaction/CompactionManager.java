@@ -668,7 +668,7 @@ public class CompactionManager implements CompactionManagerMBean
         {
             private final Collection<Range<Token>> ranges;
             private final ColumnFamilyStore cfs;
-            private List<Column> indexedColumnsInRow;
+            private List<Cell> indexedColumnsInRow;
             private final CounterId.OneShotRenewer renewer;
 
             public Full(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, CounterId.OneShotRenewer renewer)
@@ -699,15 +699,15 @@ public class CompactionManager implements CompactionManagerMBean
                 while (row.hasNext())
                 {
                     OnDiskAtom column = row.next();
-                    if (column instanceof CounterColumn)
-                        renewer.maybeRenew((CounterColumn) column);
+                    if (column instanceof CounterCell)
+                        renewer.maybeRenew((CounterCell) column);
 
-                    if (column instanceof Column && cfs.indexManager.indexes((Column) column))
+                    if (column instanceof Cell && cfs.indexManager.indexes((Cell) column))
                     {
                         if (indexedColumnsInRow == null)
                             indexedColumnsInRow = new ArrayList<>();
 
-                        indexedColumnsInRow.add((Column) column);
+                        indexedColumnsInRow.add((Cell) column);
                     }
                 }
 

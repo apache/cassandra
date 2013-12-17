@@ -184,7 +184,7 @@ public class CompositeTypeTest extends SchemaLoader
 
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("k"), cfName, System.currentTimeMillis()));
 
-        Iterator<Column> iter = cf.getSortedColumns().iterator();
+        Iterator<Cell> iter = cf.getSortedColumns().iterator();
 
         assert iter.next().name().toByteBuffer().equals(cname1);
         assert iter.next().name().toByteBuffer().equals(cname2);

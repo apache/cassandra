@@ -66,9 +66,9 @@ public interface IDiskAtomFilter
      * by the filter code, which should have some limit on the number of columns
      * to avoid running out of memory on large rows.
      */
-    public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore, long now);
+    public void collectReducedColumns(ColumnFamily container, Iterator<Cell> reducedColumns, int gcBefore, long now);
 
-    public Comparator<Column> getColumnComparator(CellNameType comparator);
+    public Comparator<Cell> getColumnComparator(CellNameType comparator);
 
     public boolean isReversed();
     public void updateColumnsLimit(int newLimit);

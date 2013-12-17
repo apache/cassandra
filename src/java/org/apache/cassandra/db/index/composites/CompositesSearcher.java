@@ -104,7 +104,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
         return new ColumnFamilyStore.AbstractScanIterator()
         {
             private Composite lastSeenPrefix = startPrefix;
-            private Deque<Column> indexColumns;
+            private Deque<Cell> indexCells;
             private int columnsRead = Integer.MAX_VALUE;
             private int limit = filter.currentLimit();
             private int columnsCount = 0;
@@ -145,7 +145,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                     if (columnsCount >= limit)
                         return makeReturn(currentKey, data);
 
-                    if (indexColumns == null || indexColumns.isEmpty())
+                    if (indexCells == null || indexCells.isEmpty())
                     {
                         if (columnsRead < rowsPerQuery)
                         {
@@ -168,31 +168,31 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                         if (indexRow == null || indexRow.getColumnCount() == 0)
                             return makeReturn(currentKey, data);
 
-                        Collection<Column> sortedColumns = indexRow.getSortedColumns();
-                        columnsRead = sortedColumns.size();
-                        indexColumns = new ArrayDeque<>(sortedColumns);
-                        Column firstColumn = sortedColumns.iterator().next();
+                        Collection<Cell> sortedCells = indexRow.getSortedColumns();
+                        columnsRead = sortedCells.size();
+                        indexCells = new ArrayDeque<>(sortedCells);
+                        Cell firstCell = sortedCells.iterator().next();
 
                         // Paging is racy, so it is possible the first column of a page is not the last seen one.
-                        if (lastSeenPrefix != startPrefix && lastSeenPrefix.equals(firstColumn.name()))
+                        if (lastSeenPrefix != startPrefix && lastSeenPrefix.equals(firstCell.name()))
                         {
                             // skip the row we already saw w/ the last page of results
-                            indexColumns.poll();
-                            logger.trace("Skipping {}", indexComparator.getString(firstColumn.name()));
+                            indexCells.poll();
+                            logger.trace("Skipping {}", indexComparator.getString(firstCell.name()));
                         }
                     }
 
-                    while (!indexColumns.isEmpty() && columnsCount <= limit)
+                    while (!indexCells.isEmpty() && columnsCount <= limit)
                     {
-                        Column column = indexColumns.poll();
-                        lastSeenPrefix = column.name();
-                        if (column.isMarkedForDelete(filter.timestamp))
+                        Cell cell = indexCells.poll();
+                        lastSeenPrefix = cell.name();
+                        if (cell.isMarkedForDelete(filter.timestamp))
                         {
-                            logger.trace("skipping {}", column.name());
+                            logger.trace("skipping {}", cell.name());
                             continue;
                         }
 
-                        CompositesIndex.IndexedEntry entry = index.decodeEntry(indexKey, column);
+                        CompositesIndex.IndexedEntry entry = index.decodeEntry(indexKey, cell);
                         DecoratedKey dk = baseCfs.partitioner.decorateKey(entry.indexedKey);
 
                         // Are we done for this row?
@@ -206,7 +206,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                             currentKey = dk;
 
                             // We're done with the previous row, return it if it had data, continue otherwise
-                            indexColumns.addFirst(column);
+                            indexCells.addFirst(cell);
                             if (data == null)
                                 continue;
                             else
@@ -229,7 +229,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                             }
                         }
 
-                        // Check if this entry cannot be a hit due to the original column filter
+                        // Check if this entry cannot be a hit due to the original cell filter
                         Composite start = entry.indexedEntryPrefix;
                         if (!filter.columnFilter(dk.key).maySelectPrefix(baseComparator, start))
                             continue;
@@ -244,7 +244,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                         else
                             previousPrefix = null;
 
-                        logger.trace("Adding index hit to current row for {}", indexComparator.getString(column.name()));
+                        logger.trace("Adding index hit to current row for {}", indexComparator.getString(cell.name()));
 
                         // We always query the whole CQL3 row. In the case where the original filter was a name filter this might be
                         // slightly wasteful, but this probably doesn't matter in practice and it simplify things.

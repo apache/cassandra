@@ -108,7 +108,7 @@ public class QueryPagerTest extends SchemaLoader
             return "";
 
         StringBuilder sb = new StringBuilder();
-        for (Column c : cf)
+        for (Cell c : cf)
             sb.append(" ").append(string(c.name()));
         return sb.toString();
     }
@@ -153,7 +153,7 @@ public class QueryPagerTest extends SchemaLoader
         assertNotNull(r.cf);
         assertEquals(toString(r.cf), names.length, r.cf.getColumnCount());
         int i = 0;
-        for (Column c : r.cf)
+        for (Cell c : r.cf)
         {
             String expected = names[i++];
             assertEquals("column " + i + " doesn't match: " + toString(r.cf), expected, string(c.name()));

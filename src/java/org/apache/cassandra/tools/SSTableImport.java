@@ -110,7 +110,7 @@ public class SSTableImport
                 CellNameType comparator = oldSCFormat ? new SimpleDenseCellNameType(SuperColumns.getComparatorFor(meta, isSubColumn)) : meta.comparator;
                 List fields = (List<?>) json;
 
-                assert fields.size() >= 3 : "Column definition should have at least 3";
+                assert fields.size() >= 3 : "Cell definition should have at least 3";
 
                 name  = stringAsType((String) fields.get(0), comparator.asAbstractType());
                 timestamp = (Long) fields.get(2);
@@ -257,11 +257,11 @@ public class SSTableImport
 
             if (col.isExpiring())
             {
-                cfamily.addColumn(new ExpiringColumn(cname, col.getValue(), col.timestamp, col.ttl, col.localExpirationTime));
+                cfamily.addColumn(new ExpiringCell(cname, col.getValue(), col.timestamp, col.ttl, col.localExpirationTime));
             }
             else if (col.isCounter())
             {
-                cfamily.addColumn(new CounterColumn(cname, col.getValue(), col.timestamp, col.timestampOfLastDelete));
+                cfamily.addColumn(new CounterCell(cname, col.getValue(), col.timestamp, col.timestampOfLastDelete));
             }
             else if (col.isDeleted())
             {

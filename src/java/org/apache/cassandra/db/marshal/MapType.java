@@ -20,7 +20,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -89,13 +89,13 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     /**
      * Creates the same output than serialize, but from the internal representation.
      */
-    public ByteBuffer serialize(List<Column> columns)
+    public ByteBuffer serialize(List<Cell> cells)
     {
-        columns = enforceLimit(columns);
+        cells = enforceLimit(cells);
 
-        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(2 * columns.size());
+        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(2 * cells.size());
         int size = 0;
-        for (Column c : columns)
+        for (Cell c : cells)
         {
             ByteBuffer key = c.name().collectionElement();
             ByteBuffer value = c.value();
@@ -103,6 +103,6 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
             bbs.add(value);
             size += 4 + key.remaining() + value.remaining();
         }
-        return pack(bbs, columns.size(), size);
+        return pack(bbs, cells.size(), size);
     }
 }

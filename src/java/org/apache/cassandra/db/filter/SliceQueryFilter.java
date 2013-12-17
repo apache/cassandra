@@ -139,7 +139,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
     public OnDiskAtomIterator getColumnFamilyIterator(final DecoratedKey key, final ColumnFamily cf)
     {
         assert cf != null;
-        final Iterator<Column> filteredIter = reversed ? cf.reverseIterator(slices) : cf.iterator(slices);
+        final Iterator<Cell> filteredIter = reversed ? cf.reverseIterator(slices) : cf.iterator(slices);
 
         return new OnDiskAtomIterator()
         {
@@ -182,24 +182,24 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return new SSTableSliceIterator(sstable, file, key, slices, reversed, indexEntry);
     }
 
-    public Comparator<Column> getColumnComparator(CellNameType comparator)
+    public Comparator<Cell> getColumnComparator(CellNameType comparator)
     {
         return reversed ? comparator.columnReverseComparator() : comparator.columnComparator();
     }
 
-    public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore, long now)
+    public void collectReducedColumns(ColumnFamily container, Iterator<Cell> reducedColumns, int gcBefore, long now)
     {
         columnCounter = columnCounter(container.getComparator(), now);
         DeletionInfo.InOrderTester tester = container.deletionInfo().inOrderTester(reversed);
 
         while (reducedColumns.hasNext())
         {
-            Column column = reducedColumns.next();
+            Cell cell = reducedColumns.next();
             if (logger.isTraceEnabled())
                 logger.trace(String.format("collecting %s of %s: %s",
-                                           columnCounter.live(), count, column.getString(container.getComparator())));
+                                           columnCounter.live(), count, cell.getString(container.getComparator())));
 
-            columnCounter.count(column, tester);
+            columnCounter.count(cell, tester);
 
             if (columnCounter.live() > count)
                 break;
@@ -211,7 +211,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
                 throw new TombstoneOverwhelmingException();
             }
 
-            container.addIfRelevant(column, tester, gcBefore);
+            container.addIfRelevant(cell, tester, gcBefore);
         }
 
         Tracing.trace("Read {} live and {} tombstoned cells", columnCounter.live(), columnCounter.ignored());
@@ -243,16 +243,16 @@ public class SliceQueryFilter implements IDiskAtomFilter
     {
         ColumnCounter counter = columnCounter(cf.getComparator(), now);
 
-        Collection<Column> columns = reversed
+        Collection<Cell> cells = reversed
                                    ? cf.getReverseSortedColumns()
                                    : cf.getSortedColumns();
 
         DeletionInfo.InOrderTester tester = cf.deletionInfo().inOrderTester(reversed);
 
-        for (Iterator<Column> iter = columns.iterator(); iter.hasNext(); )
+        for (Iterator<Cell> iter = cells.iterator(); iter.hasNext(); )
         {
-            Column column = iter.next();
-            counter.count(column, tester);
+            Cell cell = iter.next();
+            counter.count(cell, tester);
 
             if (counter.live() > trimTo)
             {

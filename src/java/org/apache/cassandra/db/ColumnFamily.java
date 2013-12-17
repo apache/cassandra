@@ -54,7 +54,7 @@ import org.apache.cassandra.utils.*;
  * Whether the implementation is thread safe or not is left to the
  * implementing classes.
  */
-public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
+public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
 {
     /* The column serializer for this Column Family. Create based on config. */
     public static final ColumnFamilySerializer serializer = new ColumnFamilySerializer();
@@ -102,20 +102,20 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         return metadata;
     }
 
-    public void addIfRelevant(Column column, DeletionInfo.InOrderTester tester, int gcBefore)
+    public void addIfRelevant(Cell cell, DeletionInfo.InOrderTester tester, int gcBefore)
     {
-        // the column itself must be not gc-able (it is live, or a still relevant tombstone), (1)
-        // and if its container is deleted, the column must be changed more recently than the container tombstone (2)
-        if ((column.getLocalDeletionTime() >= gcBefore) // (1)
-            && (!tester.isDeleted(column.name(), column.timestamp())))                                // (2)
+        // the cell itself must be not gc-able (it is live, or a still relevant tombstone), (1)
+        // and if its container is deleted, the cell must be changed more recently than the container tombstone (2)
+        if ((cell.getLocalDeletionTime() >= gcBefore) // (1)
+            && (!tester.isDeleted(cell.name(), cell.timestamp())))                                // (2)
         {
-            addColumn(column);
+            addColumn(cell);
         }
     }
 
-    public void addColumn(Column column)
+    public void addColumn(Cell cell)
     {
-        addColumn(column, HeapAllocator.instance);
+        addColumn(cell, HeapAllocator.instance);
     }
 
     public void addColumn(CellName name, ByteBuffer value, long timestamp)
@@ -126,30 +126,30 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
     public void addColumn(CellName name, ByteBuffer value, long timestamp, int timeToLive)
     {
         assert !metadata().getDefaultValidator().isCommutative();
-        Column column = Column.create(name, value, timestamp, timeToLive, metadata());
-        addColumn(column);
+        Cell cell = Cell.create(name, value, timestamp, timeToLive, metadata());
+        addColumn(cell);
     }
 
     public void addCounter(CellName name, long value)
     {
-        addColumn(new CounterUpdateColumn(name, value, System.currentTimeMillis()));
+        addColumn(new CounterUpdateCell(name, value, System.currentTimeMillis()));
     }
 
     public void addTombstone(CellName name, ByteBuffer localDeletionTime, long timestamp)
     {
-        addColumn(new DeletedColumn(name, localDeletionTime, timestamp));
+        addColumn(new DeletedCell(name, localDeletionTime, timestamp));
     }
 
     public void addTombstone(CellName name, int localDeletionTime, long timestamp)
     {
-        addColumn(new DeletedColumn(name, localDeletionTime, timestamp));
+        addColumn(new DeletedCell(name, localDeletionTime, timestamp));
     }
 
     public void addAtom(OnDiskAtom atom)
     {
-        if (atom instanceof Column)
+        if (atom instanceof Cell)
         {
-            addColumn((Column)atom);
+            addColumn((Cell)atom);
         }
         else
         {
@@ -194,35 +194,35 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
     public abstract void purgeTombstones(int gcBefore);
 
     /**
-     * Adds a column to this column map.
-     * If a column with the same name is already present in the map, it will
-     * be replaced by the newly added column.
+     * Adds a cell to this cell map.
+     * If a cell with the same name is already present in the map, it will
+     * be replaced by the newly added cell.
      */
-    public abstract void addColumn(Column column, Allocator allocator);
+    public abstract void addColumn(Cell cell, Allocator allocator);
 
     /**
      * Adds all the columns of a given column map to this column map.
      * This is equivalent to:
      *   <code>
-     *   for (Column c : cm)
+     *   for (Cell c : cm)
      *      addColumn(c, ...);
      *   </code>
      *  but is potentially faster.
      */
-    public abstract void addAll(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation);
+    public abstract void addAll(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation);
 
     /**
-     * Replace oldColumn if present by newColumn.
-     * Returns true if oldColumn was present and thus replaced.
-     * oldColumn and newColumn should have the same name.
+     * Replace oldCell if present by newCell.
+     * Returns true if oldCell was present and thus replaced.
+     * oldCell and newCell should have the same name.
      */
-    public abstract boolean replace(Column oldColumn, Column newColumn);
+    public abstract boolean replace(Cell oldCell, Cell newCell);
 
     /**
      * Get a column given its name, returning null if the column is not
      * present.
      */
-    public abstract Column getColumn(CellName name);
+    public abstract Cell getColumn(CellName name);
 
     /**
      * Returns an iterable with the names of columns in this column map in the same order
@@ -235,14 +235,14 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
      * The columns in the returned collection should be sorted as the columns
      * in this map.
      */
-    public abstract Collection<Column> getSortedColumns();
+    public abstract Collection<Cell> getSortedColumns();
 
     /**
      * Returns the columns of this column map as a collection.
      * The columns in the returned collection should be sorted in reverse
      * order of the columns in this map.
      */
-    public abstract Collection<Column> getReverseSortedColumns();
+    public abstract Collection<Cell> getReverseSortedColumns();
 
     /**
      * Returns the number of columns in this map.
@@ -261,13 +261,13 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
      * Returns an iterator over the columns of this map that returns only the matching @param slices.
      * The provided slices must be in order and must be non-overlapping.
      */
-    public abstract Iterator<Column> iterator(ColumnSlice[] slices);
+    public abstract Iterator<Cell> iterator(ColumnSlice[] slices);
 
     /**
      * Returns a reversed iterator over the columns of this map that returns only the matching @param slices.
      * The provided slices must be in reversed order and must be non-overlapping.
      */
-    public abstract Iterator<Column> reverseIterator(ColumnSlice[] slices);
+    public abstract Iterator<Cell> reverseIterator(ColumnSlice[] slices);
 
     /**
      * Returns if this map only support inserts in reverse order.
@@ -284,7 +284,7 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
 
     public void addAll(ColumnFamily cf, Allocator allocator)
     {
-        addAll(cf, allocator, Functions.<Column>identity());
+        addAll(cf, allocator, Functions.<Cell>identity());
     }
 
     /*
@@ -300,20 +300,20 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         // (don't need to worry about cfNew containing Columns that are shadowed by
         // the delete tombstone, since cfNew was generated by CF.resolve, which
         // takes care of those for us.)
-        for (Column columnExternal : cfComposite)
+        for (Cell cellExternal : cfComposite)
         {
-            CellName cName = columnExternal.name();
-            Column columnInternal = getColumn(cName);
-            if (columnInternal == null)
+            CellName cName = cellExternal.name();
+            Cell cellInternal = getColumn(cName);
+            if (cellInternal == null)
             {
-                cfDiff.addColumn(columnExternal);
+                cfDiff.addColumn(cellExternal);
             }
             else
             {
-                Column columnDiff = columnInternal.diff(columnExternal);
-                if (columnDiff != null)
+                Cell cellDiff = cellInternal.diff(cellExternal);
+                if (cellDiff != null)
                 {
-                    cfDiff.addColumn(columnDiff);
+                    cfDiff.addColumn(cellDiff);
                 }
             }
         }
@@ -326,16 +326,16 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
     public long dataSize()
     {
         long size = 0;
-        for (Column column : this)
-            size += column.dataSize();
+        for (Cell cell : this)
+            size += cell.dataSize();
         return size;
     }
 
     public long maxTimestamp()
     {
         long maxTimestamp = deletionInfo().maxTimestamp();
-        for (Column column : this)
-            maxTimestamp = Math.max(maxTimestamp, column.maxTimestamp());
+        for (Cell cell : this)
+            maxTimestamp = Math.max(maxTimestamp, cell.maxTimestamp());
         return maxTimestamp;
     }
 
@@ -345,8 +345,8 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         HashCodeBuilder builder = new HashCodeBuilder(373, 75437)
                 .append(metadata)
                 .append(deletionInfo());
-        for (Column column : this)
-            builder.append(column);
+        for (Cell cell : this)
+            builder.append(cell);
         return builder.toHashCode();
     }
 
@@ -388,8 +388,8 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
 
     public void updateDigest(MessageDigest digest)
     {
-        for (Column column : this)
-            column.updateDigest(digest);
+        for (Cell cell : this)
+            cell.updateDigest(digest);
     }
 
     public static ColumnFamily diff(ColumnFamily cf1, ColumnFamily cf2)
@@ -420,16 +420,16 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         int maxLocalDeletionTime = Integer.MIN_VALUE;
         List<ByteBuffer> minColumnNamesSeen = Collections.emptyList();
         List<ByteBuffer> maxColumnNamesSeen = Collections.emptyList();
-        for (Column column : this)
+        for (Cell cell : this)
         {
-            minTimestampSeen = Math.min(minTimestampSeen, column.minTimestamp());
-            maxTimestampSeen = Math.max(maxTimestampSeen, column.maxTimestamp());
-            maxLocalDeletionTime = Math.max(maxLocalDeletionTime, column.getLocalDeletionTime());
-            int deletionTime = column.getLocalDeletionTime();
+            minTimestampSeen = Math.min(minTimestampSeen, cell.minTimestamp());
+            maxTimestampSeen = Math.max(maxTimestampSeen, cell.maxTimestamp());
+            maxLocalDeletionTime = Math.max(maxLocalDeletionTime, cell.getLocalDeletionTime());
+            int deletionTime = cell.getLocalDeletionTime();
             if (deletionTime < Integer.MAX_VALUE)
                 tombstones.update(deletionTime);
-            minColumnNamesSeen = ColumnNameHelper.minComponents(minColumnNamesSeen, column.name, metadata.comparator);
-            maxColumnNamesSeen = ColumnNameHelper.maxComponents(maxColumnNamesSeen, column.name, metadata.comparator);
+            minColumnNamesSeen = ColumnNameHelper.minComponents(minColumnNamesSeen, cell.name, metadata.comparator);
+            maxColumnNamesSeen = ColumnNameHelper.maxComponents(maxColumnNamesSeen, cell.name, metadata.comparator);
         }
         return new ColumnStats(getColumnCount(), minTimestampSeen, maxTimestampSeen, maxLocalDeletionTime, tombstones, minColumnNamesSeen, maxColumnNamesSeen);
     }
@@ -449,18 +449,18 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
 
     public boolean hasOnlyTombstones(long now)
     {
-        for (Column column : this)
-            if (column.isLive(now))
+        for (Cell cell : this)
+            if (cell.isLive(now))
                 return false;
         return true;
     }
 
-    public Iterator<Column> iterator()
+    public Iterator<Cell> iterator()
     {
         return getSortedColumns().iterator();
     }
 
-    public Iterator<Column> reverseIterator()
+    public Iterator<Cell> reverseIterator()
     {
         return getReverseSortedColumns().iterator();
     }
@@ -473,8 +473,8 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
 
         // Do we have colums that are either deleted by the container or gcable tombstone?
         DeletionInfo.InOrderTester tester = inOrderDeletionTester();
-        for (Column column : this)
-            if (tester.isDeleted(column) || column.hasIrrelevantData(gcBefore))
+        for (Cell cell : this)
+            if (tester.isDeleted(cell) || cell.hasIrrelevantData(gcBefore))
                 return true;
 
         return false;
@@ -483,8 +483,8 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
     public Map<CellName, ByteBuffer> asMap()
     {
         ImmutableMap.Builder<CellName, ByteBuffer> builder = ImmutableMap.builder();
-        for (Column column : this)
-            builder.put(column.name, column.value);
+        for (Cell cell : this)
+            builder.put(cell.name, cell.value);
         return builder.build();
     }
 

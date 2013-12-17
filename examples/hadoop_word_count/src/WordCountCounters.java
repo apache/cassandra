@@ -18,8 +18,8 @@
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
 
+import org.apache.cassandra.db.Cell;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,10 +34,8 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
-import org.apache.cassandra.db.Column;
 import org.apache.cassandra.hadoop.ColumnFamilyInputFormat;
 import org.apache.cassandra.hadoop.ConfigHelper;
-import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -60,15 +58,15 @@ public class WordCountCounters extends Configured implements Tool
         System.exit(0);
     }
 
-    public static class SumMapper extends Mapper<ByteBuffer, SortedMap<ByteBuffer, Column>, Text, LongWritable>
+    public static class SumMapper extends Mapper<ByteBuffer, SortedMap<ByteBuffer, Cell>, Text, LongWritable>
     {
-        public void map(ByteBuffer key, SortedMap<ByteBuffer, Column> columns, Context context) throws IOException, InterruptedException
+        public void map(ByteBuffer key, SortedMap<ByteBuffer, Cell> columns, Context context) throws IOException, InterruptedException
         {
             long sum = 0;
-            for (Column column : columns.values())
+            for (Cell cell : columns.values())
             {
-                logger.debug("read " + key + ":" + column.name() + " from " + context.getInputSplit());
-                sum += ByteBufferUtil.toLong(column.value());
+                logger.debug("read " + key + ":" + cell.name() + " from " + context.getInputSplit());
+                sum += ByteBufferUtil.toLong(cell.value());
             }
             context.write(new Text(ByteBufferUtil.string(key)), new LongWritable(sum));
         }

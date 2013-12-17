@@ -135,19 +135,19 @@ public class AtomicSortedColumns extends ColumnFamily
         }
     }
 
-    public void addColumn(Column column, Allocator allocator)
+    public void addColumn(Cell cell, Allocator allocator)
     {
         Holder current, modified;
         do
         {
             current = ref.get();
             modified = current.cloneMe();
-            modified.addColumn(column, allocator, SecondaryIndexManager.nullUpdater);
+            modified.addColumn(cell, allocator, SecondaryIndexManager.nullUpdater);
         }
         while (!ref.compareAndSet(current, modified));
     }
 
-    public void addAll(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation)
+    public void addAll(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation)
     {
         addAllWithSizeDelta(cm, allocator, transformation, SecondaryIndexManager.nullUpdater);
     }
@@ -157,7 +157,7 @@ public class AtomicSortedColumns extends ColumnFamily
      *
      *  @return the difference in size seen after merging the given columns
      */
-    public long addAllWithSizeDelta(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
+    public long addAllWithSizeDelta(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation, SecondaryIndexManager.Updater indexer)
     {
         /*
          * This operation needs to atomicity and isolation. To that end, we
@@ -183,16 +183,16 @@ public class AtomicSortedColumns extends ColumnFamily
 
             if (cm.deletionInfo().hasRanges())
             {
-                for (Column currentColumn : Iterables.concat(current.map.values(), cm))
+                for (Cell currentCell : Iterables.concat(current.map.values(), cm))
                 {
-                    if (cm.deletionInfo().isDeleted(currentColumn))
-                        indexer.remove(currentColumn);
+                    if (cm.deletionInfo().isDeleted(currentCell))
+                        indexer.remove(currentCell);
                 }
             }
 
-            for (Column column : cm)
+            for (Cell cell : cm)
             {
-                sizeDelta += modified.addColumn(transformation.apply(column), allocator, indexer);
+                sizeDelta += modified.addColumn(transformation.apply(cell), allocator, indexer);
                 // bail early if we know we've been beaten
                 if (ref.get() != current)
                     continue main_loop;
@@ -205,9 +205,9 @@ public class AtomicSortedColumns extends ColumnFamily
         return sizeDelta;
     }
 
-    public boolean replace(Column oldColumn, Column newColumn)
+    public boolean replace(Cell oldCell, Cell newCell)
     {
-        if (!oldColumn.name().equals(newColumn.name()))
+        if (!oldCell.name().equals(newCell.name()))
             throw new IllegalArgumentException();
 
         Holder current, modified;
@@ -216,7 +216,7 @@ public class AtomicSortedColumns extends ColumnFamily
         {
             current = ref.get();
             modified = current.cloneMe();
-            replaced = modified.map.replace(oldColumn.name(), oldColumn, newColumn);
+            replaced = modified.map.replace(oldCell.name(), oldCell, newCell);
         }
         while (!ref.compareAndSet(current, modified));
         return replaced;
@@ -233,7 +233,7 @@ public class AtomicSortedColumns extends ColumnFamily
         while (!ref.compareAndSet(current, modified));
     }
 
-    public Column getColumn(CellName name)
+    public Cell getColumn(CellName name)
     {
         return ref.get().map.get(name);
     }
@@ -243,12 +243,12 @@ public class AtomicSortedColumns extends ColumnFamily
         return ref.get().map.keySet();
     }
 
-    public Collection<Column> getSortedColumns()
+    public Collection<Cell> getSortedColumns()
     {
         return ref.get().map.values();
     }
 
-    public Collection<Column> getReverseSortedColumns()
+    public Collection<Cell> getReverseSortedColumns()
     {
         return ref.get().map.descendingMap().values();
     }
@@ -258,12 +258,12 @@ public class AtomicSortedColumns extends ColumnFamily
         return ref.get().map.size();
     }
 
-    public Iterator<Column> iterator(ColumnSlice[] slices)
+    public Iterator<Cell> iterator(ColumnSlice[] slices)
     {
         return new ColumnSlice.NavigableMapIterator(ref.get().map, slices);
     }
 
-    public Iterator<Column> reverseIterator(ColumnSlice[] slices)
+    public Iterator<Cell> reverseIterator(ColumnSlice[] slices)
     {
         return new ColumnSlice.NavigableMapIterator(ref.get().map.descendingMap(), slices);
     }
@@ -279,15 +279,15 @@ public class AtomicSortedColumns extends ColumnFamily
         // so we can safely alias one DeletionInfo.live() reference and avoid some allocations.
         private static final DeletionInfo LIVE = DeletionInfo.live();
 
-        final SnapTreeMap<CellName, Column> map;
+        final SnapTreeMap<CellName, Cell> map;
         final DeletionInfo deletionInfo;
 
         Holder(CellNameType comparator)
         {
-            this(new SnapTreeMap<CellName, Column>(comparator), LIVE);
+            this(new SnapTreeMap<CellName, Cell>(comparator), LIVE);
         }
 
-        Holder(SnapTreeMap<CellName, Column> map, DeletionInfo deletionInfo)
+        Holder(SnapTreeMap<CellName, Cell> map, DeletionInfo deletionInfo)
         {
             this.map = map;
             this.deletionInfo = deletionInfo;
@@ -303,7 +303,7 @@ public class AtomicSortedColumns extends ColumnFamily
             return new Holder(map, info);
         }
 
-        Holder with(SnapTreeMap<CellName, Column> newMap)
+        Holder with(SnapTreeMap<CellName, Cell> newMap)
         {
             return new Holder(newMap, deletionInfo);
         }
@@ -312,33 +312,33 @@ public class AtomicSortedColumns extends ColumnFamily
         // afterwards.
         Holder clear()
         {
-            return new Holder(new SnapTreeMap<CellName, Column>(map.comparator()), LIVE);
+            return new Holder(new SnapTreeMap<CellName, Cell>(map.comparator()), LIVE);
         }
 
-        long addColumn(Column column, Allocator allocator, SecondaryIndexManager.Updater indexer)
+        long addColumn(Cell cell, Allocator allocator, SecondaryIndexManager.Updater indexer)
         {
-            CellName name = column.name();
+            CellName name = cell.name();
             while (true)
             {
-                Column oldColumn = map.putIfAbsent(name, column);
-                if (oldColumn == null)
+                Cell oldCell = map.putIfAbsent(name, cell);
+                if (oldCell == null)
                 {
-                    indexer.insert(column);
-                    return column.dataSize();
+                    indexer.insert(cell);
+                    return cell.dataSize();
                 }
 
-                Column reconciledColumn = column.reconcile(oldColumn, allocator);
-                if (map.replace(name, oldColumn, reconciledColumn))
+                Cell reconciledCell = cell.reconcile(oldCell, allocator);
+                if (map.replace(name, oldCell, reconciledCell))
                 {
                     // for memtable updates we only care about oldcolumn, reconciledcolumn, but when compacting
                     // we need to make sure we update indexes no matter the order we merge
-                    if (reconciledColumn == column)
-                        indexer.update(oldColumn, reconciledColumn);
+                    if (reconciledCell == cell)
+                        indexer.update(oldCell, reconciledCell);
                     else
-                        indexer.update(column, reconciledColumn);
-                    return reconciledColumn.dataSize() - oldColumn.dataSize();
+                        indexer.update(cell, reconciledCell);
+                    return reconciledCell.dataSize() - oldCell.dataSize();
                 }
-                // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
+                // We failed to replace cell due to a concurrent update or a concurrent removal. Keep trying.
                 // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
             }
         }

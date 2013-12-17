@@ -19,7 +19,6 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 import java.util.*;
 
@@ -33,7 +32,6 @@ import org.apache.cassandra.Util;
 
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
@@ -57,8 +55,8 @@ public class TimeSortTest extends SchemaLoader
         rm.apply();
 
         ColumnFamily cf = cfStore.getColumnFamily(key, cellname(10), Composites.EMPTY, false, 1000, System.currentTimeMillis());
-        Collection<Column> columns = cf.getSortedColumns();
-        assert columns.size() == 1;
+        Collection<Cell> cells = cf.getSortedColumns();
+        assert cells.size() == 1;
     }
 
     @Test
@@ -98,14 +96,14 @@ public class TimeSortTest extends SchemaLoader
 
         // verify
         ColumnFamily cf = cfStore.getColumnFamily(key, cellname(0), Composites.EMPTY, false, 1000, System.currentTimeMillis());
-        Collection<Column> columns = cf.getSortedColumns();
-        assertEquals(12, columns.size());
-        Iterator<Column> iter = columns.iterator();
-        Column column;
+        Collection<Cell> cells = cf.getSortedColumns();
+        assertEquals(12, cells.size());
+        Iterator<Cell> iter = cells.iterator();
+        Cell cell;
         for (int j = 0; j < 8; j++)
         {
-            column = iter.next();
-            assert column.name().toByteBuffer().equals(getBytes(j));
+            cell = iter.next();
+            assert cell.name().toByteBuffer().equals(getBytes(j));
         }
         TreeSet<CellName> columnNames = new TreeSet<CellName>(cfStore.getComparator());
         columnNames.add(cellname(10));
@@ -124,10 +122,10 @@ public class TimeSortTest extends SchemaLoader
             {
                 ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("StandardLong1");
                 ColumnFamily cf = cfs.getColumnFamily(key, cellname(j * 2), Composites.EMPTY, false, 1000, System.currentTimeMillis());
-                Collection<Column> columns = cf.getSortedColumns();
-                assert columns.size() == 8 - j;
+                Collection<Cell> cells = cf.getSortedColumns();
+                assert cells.size() == 8 - j;
                 int k = j;
-                for (Column c : columns)
+                for (Cell c : cells)
                 {
                     assertEquals((k++) * 2, c.timestamp());
 

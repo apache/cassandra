@@ -198,7 +198,7 @@ public class ThriftValidation
     private static void validateColumnNames(CFMetaData metadata, ByteBuffer superColumnName, Iterable<ByteBuffer> column_names)
     throws org.apache.cassandra.exceptions.InvalidRequestException
     {
-        int maxNameLength = org.apache.cassandra.db.Column.MAX_NAME_LENGTH;
+        int maxNameLength = Cell.MAX_NAME_LENGTH;
 
         if (superColumnName != null)
         {
@@ -349,8 +349,8 @@ public class ThriftValidation
             if (column.ttl <= 0)
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("ttl must be positive");
 
-            if (column.ttl > ExpiringColumn.MAX_TTL)
-                throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", column.ttl, ExpiringColumn.MAX_TTL));
+            if (column.ttl > ExpiringCell.MAX_TTL)
+                throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", column.ttl, ExpiringCell.MAX_TTL));
         }
         else
         {
@@ -423,7 +423,7 @@ public class ThriftValidation
     }
 
     /**
-     * Validates the data part of the column (everything in the Column object but the name, which is assumed to be valid)
+     * Validates the data part of the column (everything in the column object but the name, which is assumed to be valid)
      */
     public static void validateColumnData(CFMetaData metadata, ByteBuffer scName, Column column) throws org.apache.cassandra.exceptions.InvalidRequestException
     {
@@ -464,12 +464,12 @@ public class ThriftValidation
                                                                               metadata.ksName));
     }
 
-    private static org.apache.cassandra.db.Column asDBColumn(CellName name, Column column)
+    private static Cell asDBColumn(CellName name, Column column)
     {
         if (column.ttl <= 0)
-            return new org.apache.cassandra.db.Column(name, column.value, column.timestamp);
+            return new Cell(name, column.value, column.timestamp);
         else
-            return new org.apache.cassandra.db.ExpiringColumn(name, column.value, column.timestamp, column.ttl);
+            return new ExpiringCell(name, column.value, column.timestamp, column.ttl);
     }
 
     /**

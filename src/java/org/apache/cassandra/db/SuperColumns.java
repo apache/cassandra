@@ -55,14 +55,14 @@ public class SuperColumns
          *   subcolumns range deletions).
          */
         DeletionInfo delInfo = scf.deletionInfo();
-        Map<CellName, List<Column>> scMap = groupSuperColumns(scf);
+        Map<CellName, List<Cell>> scMap = groupSuperColumns(scf);
 
         // Actually Serialize
         scf.getComparator().deletionInfoSerializer().serialize(new DeletionInfo(delInfo.getTopLevelDeletion()), out, version);
         out.writeInt(scMap.size());
 
         CellNameType subComparator = subType(scf.getComparator());
-        for (Map.Entry<CellName, List<Column>> entry : scMap.entrySet())
+        for (Map.Entry<CellName, List<Cell>> entry : scMap.entrySet())
         {
             scf.getComparator().cellSerializer().serialize(entry.getKey(), out);
 
@@ -72,35 +72,35 @@ public class SuperColumns
 
             out.writeInt(entry.getValue().size());
             ColumnSerializer serializer = subComparator.columnSerializer();
-            for (Column subColumn : entry.getValue())
-                serializer.serialize(subColumn, out);
+            for (Cell subCell : entry.getValue())
+                serializer.serialize(subCell, out);
         }
     }
 
-    private static Map<CellName, List<Column>> groupSuperColumns(ColumnFamily scf)
+    private static Map<CellName, List<Cell>> groupSuperColumns(ColumnFamily scf)
     {
         CellNameType type = scf.getComparator();
         // The order of insertion matters!
-        Map<CellName, List<Column>> scMap = new LinkedHashMap<>();
+        Map<CellName, List<Cell>> scMap = new LinkedHashMap<>();
 
         CellName scName = null;
-        List<Column> subColumns = null;
+        List<Cell> subCells = null;
         CellNameType scType = scType(type);
         CellNameType subType = subType(type);
-        for (Column column : scf)
+        for (Cell cell : scf)
         {
-            CellName newScName = scType.makeCellName(scName(column.name()));
-            CellName newSubName = subType.makeCellName(subName(column.name()));
+            CellName newScName = scType.makeCellName(scName(cell.name()));
+            CellName newSubName = subType.makeCellName(subName(cell.name()));
 
             if (scName == null || scType.compare(scName, newScName) != 0)
             {
-                // new super column
+                // new super cell
                 scName = newScName;
-                subColumns = new ArrayList<>();
-                scMap.put(scName, subColumns);
+                subCells = new ArrayList<>();
+                scMap.put(scName, subCells);
             }
 
-            subColumns.add(((Column)column).withUpdatedName(newSubName));
+            subCells.add(((Cell) cell).withUpdatedName(newSubName));
         }
         return scMap;
     }
@@ -118,7 +118,7 @@ public class SuperColumns
 
     public static long serializedSize(ColumnFamily scf, TypeSizes typeSizes, int version)
     {
-        Map<CellName, List<Column>> scMap = groupSuperColumns(scf);
+        Map<CellName, List<Cell>> scMap = groupSuperColumns(scf);
         DeletionInfo delInfo = scf.deletionInfo();
 
         // Actually Serialize
@@ -127,7 +127,7 @@ public class SuperColumns
         CellNameType scType = scType(scf.getComparator());
         CellNameType subType = subType(scf.getComparator());
         ColumnSerializer colSer = subType.columnSerializer();
-        for (Map.Entry<CellName, List<Column>> entry : scMap.entrySet())
+        for (Map.Entry<CellName, List<Cell>> entry : scMap.entrySet())
         {
             size += scType.cellSerializer().serializedSize(entry.getKey(), typeSizes);
 
@@ -136,8 +136,8 @@ public class SuperColumns
             size += DeletionTime.serializer.serializedSize(scDelInfo.getTopLevelDeletion(), TypeSizes.NATIVE);
 
             size += typeSizes.sizeof(entry.getValue().size());
-            for (Column subColumn : entry.getValue())
-                size += colSer.serializedSize(subColumn, typeSizes);
+            for (Cell subCell : entry.getValue())
+                size += colSer.serializedSize(subCell, typeSizes);
         }
         return size;
     }
@@ -154,7 +154,7 @@ public class SuperColumns
 
         private int read;
         private ByteBuffer scName;
-        private Iterator<Column> subColumnsIterator;
+        private Iterator<Cell> subColumnsIterator;
 
         private SCIterator(DataInput in, int superColumnCount, ColumnSerializer.Flag flag, int expireBefore, CellNameType type)
         {
@@ -176,7 +176,7 @@ public class SuperColumns
             {
                 if (subColumnsIterator != null && subColumnsIterator.hasNext())
                 {
-                    Column c = subColumnsIterator.next();
+                    Cell c = subColumnsIterator.next();
                     return c.withUpdatedName(type.makeCellName(scName, c.name().toByteBuffer()));
                 }
 
@@ -188,13 +188,13 @@ public class SuperColumns
 
                 /* read the number of columns */
                 int size = in.readInt();
-                List<Column> subColumns = new ArrayList<>(size);
+                List<Cell> subCells = new ArrayList<>(size);
 
                 ColumnSerializer colSer = subType(type).columnSerializer();
                 for (int i = 0; i < size; ++i)
-                    subColumns.add(colSer.deserialize(in, flag, expireBefore));
+                    subCells.add(colSer.deserialize(in, flag, expireBefore));
 
-                subColumnsIterator = subColumns.iterator();
+                subColumnsIterator = subCells.iterator();
 
                 // If the SC was deleted, return that first, otherwise return the first subcolumn
                 DeletionTime dtime = delInfo.getTopLevelDeletion();

@@ -30,7 +30,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class RemoveColumnTest extends SchemaLoader
+public class RemoveCellTest extends SchemaLoader
 {
     @Test
     public void testRemoveColumn()
@@ -60,9 +60,9 @@ public class RemoveColumnTest extends SchemaLoader
                                               Integer.MAX_VALUE));
     }
 
-    private static DeletedColumn dc(String name, int ldt, long timestamp)
+    private static DeletedCell dc(String name, int ldt, long timestamp)
     {
-        return new DeletedColumn(Util.cellname(name), ldt, timestamp);
+        return new DeletedCell(Util.cellname(name), ldt, timestamp);
     }
 
     @Test
@@ -71,16 +71,16 @@ public class RemoveColumnTest extends SchemaLoader
         // Check for bug in #4307
         long timestamp = System.currentTimeMillis();
         int localDeletionTime = (int) (timestamp / 1000);
-        Column c = dc("dc1", localDeletionTime, timestamp);
-        assertTrue("DeletedColumn was not marked for delete", c.isMarkedForDelete(timestamp));
+        Cell c = dc("dc1", localDeletionTime, timestamp);
+        assertTrue("DeletedCell was not marked for delete", c.isMarkedForDelete(timestamp));
 
         // Simulate a node that is 30 seconds behind
         c = dc("dc2", localDeletionTime + 30, timestamp + 30000);
-        assertTrue("DeletedColumn was not marked for delete", c.isMarkedForDelete(timestamp));
+        assertTrue("DeletedCell was not marked for delete", c.isMarkedForDelete(timestamp));
 
         // Simulate a node that is 30 ahead behind
         c = dc("dc3", localDeletionTime - 30, timestamp - 30000);
-        assertTrue("DeletedColumn was not marked for delete", c.isMarkedForDelete(timestamp));
+        assertTrue("DeletedCell was not marked for delete", c.isMarkedForDelete(timestamp));
     }
 
 }

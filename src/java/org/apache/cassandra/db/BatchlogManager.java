@@ -128,9 +128,9 @@ public class BatchlogManager implements BatchlogManagerMBean
         ByteBuffer data = serializeRowMutations(mutations);
 
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(CFMetaData.BatchlogCf);
-        cf.addColumn(new Column(cellName(""), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp));
-        cf.addColumn(new Column(cellName("data"), data, timestamp));
-        cf.addColumn(new Column(cellName("written_at"), writtenAt, timestamp));
+        cf.addColumn(new Cell(cellName(""), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp));
+        cf.addColumn(new Cell(cellName("data"), data, timestamp));
+        cf.addColumn(new Cell(cellName("written_at"), writtenAt, timestamp));
 
         return new RowMutation(Keyspace.SYSTEM_KS, UUIDType.instance.decompose(uuid), cf);
     }

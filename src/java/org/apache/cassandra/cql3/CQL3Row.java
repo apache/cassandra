@@ -21,16 +21,16 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 
-import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.Cell;
 
 public interface CQL3Row
 {
     public ByteBuffer getClusteringColumn(int i);
-    public Column getColumn(ColumnIdentifier name);
-    public List<Column> getCollection(ColumnIdentifier name);
+    public Cell getColumn(ColumnIdentifier name);
+    public List<Cell> getCollection(ColumnIdentifier name);
 
     public interface Builder
     {
-        Iterator<CQL3Row> group(Iterator<Column> cells);
+        Iterator<CQL3Row> group(Iterator<Cell> cells);
     }
 }

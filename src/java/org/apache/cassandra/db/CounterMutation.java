@@ -129,7 +129,7 @@ public class CounterMutation implements IMutation
 
     public void apply()
     {
-        // transform all CounterUpdateColumn to CounterColumn: accomplished by localCopy
+        // transform all CounterUpdateCell to CounterCell: accomplished by localCopy
         RowMutation rm = new RowMutation(rowMutation.getKeyspaceName(), ByteBufferUtil.clone(rowMutation.key()));
         Keyspace keyspace = Keyspace.open(rm.getKeyspaceName());
 
@@ -137,9 +137,9 @@ public class CounterMutation implements IMutation
         {
             ColumnFamily cf = cf_.cloneMeShallow();
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cf.id());
-            for (Column column : cf_)
+            for (Cell cell : cf_)
             {
-                cf.addColumn(column.localCopy(cfs), HeapAllocator.instance);
+                cf.addColumn(cell.localCopy(cfs), HeapAllocator.instance);
             }
             rm.add(cf);
         }

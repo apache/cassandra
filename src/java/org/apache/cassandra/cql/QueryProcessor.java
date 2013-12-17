@@ -33,7 +33,7 @@ import org.apache.cassandra.cql.hooks.ExecutionContext;
 import org.apache.cassandra.cql.hooks.PostPreparationHook;
 import org.apache.cassandra.cql.hooks.PreExecutionHook;
 import org.apache.cassandra.cql.hooks.PreparationContext;
-import org.apache.cassandra.db.CounterColumn;
+import org.apache.cassandra.db.CounterCell;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
@@ -310,10 +310,10 @@ public class QueryProcessor
     {
         for (CellName name : columns)
         {
-            if (name.dataSize() > org.apache.cassandra.db.Column.MAX_NAME_LENGTH)
+            if (name.dataSize() > org.apache.cassandra.db.Cell.MAX_NAME_LENGTH)
                 throw new InvalidRequestException(String.format("column name is too long (%s > %s)",
                                                                 name.dataSize(),
-                                                                org.apache.cassandra.db.Column.MAX_NAME_LENGTH));
+                                                                org.apache.cassandra.db.Cell.MAX_NAME_LENGTH));
             if (name.isEmpty())
                 throw new InvalidRequestException("zero-length column name");
         }
@@ -467,7 +467,7 @@ public class QueryProcessor
                         // preserve comparator order
                         if (row.cf != null)
                         {
-                            for (org.apache.cassandra.db.Column c : row.cf.getSortedColumns())
+                            for (org.apache.cassandra.db.Cell c : row.cf.getSortedColumns())
                             {
                                 if (c.isMarkedForDelete(now))
                                     continue;
@@ -514,7 +514,7 @@ public class QueryProcessor
                             ColumnDefinition cd = metadata.getColumnDefinition(name);
                             if (cd != null)
                                 result.schema.value_types.put(nameBytes, TypeParser.getShortName(cd.type));
-                            org.apache.cassandra.db.Column c = row.cf.getColumn(name);
+                            org.apache.cassandra.db.Cell c = row.cf.getColumn(name);
                             if (c == null || c.isMarkedForDelete(System.currentTimeMillis()))
                                 thriftColumns.add(new Column().setName(nameBytes));
                             else
@@ -854,9 +854,9 @@ public class QueryProcessor
         return cql.hashCode();
     }
 
-    private static Column thriftify(org.apache.cassandra.db.Column c)
+    private static Column thriftify(org.apache.cassandra.db.Cell c)
     {
-        ByteBuffer value = (c instanceof CounterColumn)
+        ByteBuffer value = (c instanceof CounterCell)
                            ? ByteBufferUtil.bytes(CounterContext.instance().total(c.value()))
                            : c.value();
         return new Column(c.name().toByteBuffer()).setValue(value).setTimestamp(c.timestamp());

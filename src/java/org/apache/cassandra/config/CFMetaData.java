@@ -1347,7 +1347,7 @@ public final class CFMetaData
     {
         if (version.hasSuperColumns && cfType == ColumnFamilyType.Super)
             return SuperColumns.onDiskIterator(in, count, flag, expireBefore, comparator);
-        return Column.onDiskIterator(in, count, flag, expireBefore, version, comparator);
+        return Cell.onDiskIterator(in, count, flag, expireBefore, version, comparator);
     }
 
     public AtomDeserializer getOnDiskDeserializer(DataInput in, Descriptor.Version version)
@@ -2101,10 +2101,10 @@ public final class CFMetaData
         return true;
     }
 
-    public void validateColumns(Iterable<Column> columns)
+    public void validateColumns(Iterable<Cell> columns)
     {
-        for (Column column : columns)
-            column.validateFields(this);
+        for (Cell cell : columns)
+            cell.validateFields(this);
     }
 
     @Override

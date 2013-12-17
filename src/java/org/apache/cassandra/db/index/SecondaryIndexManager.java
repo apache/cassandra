@@ -46,11 +46,11 @@ public class SecondaryIndexManager
 
     public static final Updater nullUpdater = new Updater()
     {
-        public void insert(Column column) { }
+        public void insert(Cell cell) { }
 
-        public void update(Column oldColumn, Column column) { }
+        public void update(Cell oldCell, Cell cell) { }
 
-        public void remove(Column current) { }
+        public void remove(Cell current) { }
 
         public void updateRowLevelIndexes() {}
     };
@@ -164,9 +164,9 @@ public class SecondaryIndexManager
         return matching == null ? Collections.<SecondaryIndex>emptyList() : matching;
     }
 
-    public boolean indexes(Column column)
+    public boolean indexes(Cell cell)
     {
-        return indexes(column.name());
+        return indexes(cell.name());
     }
 
     public boolean indexes(CellName name)
@@ -417,9 +417,9 @@ public class SecondaryIndexManager
             }
             else
             {
-                for (Column column : cf)
-                    if (index.indexes(column.name()))
-                        ((PerColumnSecondaryIndex) index).insert(key, column);
+                for (Cell cell : cf)
+                    if (index.indexes(cell.name()))
+                        ((PerColumnSecondaryIndex) index).insert(key, cell);
             }
         }
     }
@@ -430,15 +430,15 @@ public class SecondaryIndexManager
      * @param key the row key
      * @param indexedColumnsInRow all column names in row
      */
-    public void deleteFromIndexes(DecoratedKey key, List<Column> indexedColumnsInRow)
+    public void deleteFromIndexes(DecoratedKey key, List<Cell> indexedColumnsInRow)
     {
         // Update entire row only once per row level index
         Set<Class<? extends SecondaryIndex>> cleanedRowLevelIndexes = null;
 
-        for (Column column : indexedColumnsInRow)
+        for (Cell cell : indexedColumnsInRow)
         {
             // TODO: this is probably incorrect, we should pull all indexes
-            SecondaryIndex index = indexesByColumn.get(column.name().toByteBuffer());
+            SecondaryIndex index = indexesByColumn.get(cell.name().toByteBuffer());
             if (index == null)
                 continue;
 
@@ -452,7 +452,7 @@ public class SecondaryIndexManager
             }
             else
             {
-                ((PerColumnSecondaryIndex) index).delete(key.key, column);
+                ((PerColumnSecondaryIndex) index).delete(key.key, cell);
             }
         }
     }
@@ -558,11 +558,11 @@ public class SecondaryIndexManager
             index.setIndexRemoved();
     }
 
-    public boolean validate(Column column)
+    public boolean validate(Cell cell)
     {
-        for (SecondaryIndex index : indexFor(column.name()))
+        for (SecondaryIndex index : indexFor(cell.name()))
         {
-            if (!index.validate(column))
+            if (!index.validate(cell))
                 return false;
         }
         return true;
@@ -571,13 +571,13 @@ public class SecondaryIndexManager
     public static interface Updater
     {
         /** called when constructing the index against pre-existing data */
-        public void insert(Column column);
+        public void insert(Cell cell);
 
         /** called when updating the index from a memtable */
-        public void update(Column oldColumn, Column column);
+        public void update(Cell oldCell, Cell cell);
 
         /** called when lazy-updating the index during compaction (CASSANDRA-2897) */
-        public void remove(Column current);
+        public void remove(Cell current);
 
         /** called after memtable updates are complete (CASSANDRA-5397) */
         public void updateRowLevelIndexes();
@@ -594,42 +594,42 @@ public class SecondaryIndexManager
             this.cf = cf;
         }
 
-        public void insert(Column column)
+        public void insert(Cell cell)
         {
-            if (column.isMarkedForDelete(System.currentTimeMillis()))
+            if (cell.isMarkedForDelete(System.currentTimeMillis()))
                 return;
 
-            for (SecondaryIndex index : indexFor(column.name()))
+            for (SecondaryIndex index : indexFor(cell.name()))
                 if (index instanceof PerColumnSecondaryIndex)
-                    ((PerColumnSecondaryIndex) index).insert(key.key, column);
+                    ((PerColumnSecondaryIndex) index).insert(key.key, cell);
         }
 
-        public void update(Column oldColumn, Column column)
+        public void update(Cell oldCell, Cell cell)
         {
-            if (oldColumn.equals(column))
+            if (oldCell.equals(cell))
                 return;
             
-            for (SecondaryIndex index : indexFor(column.name()))
+            for (SecondaryIndex index : indexFor(cell.name()))
             {
                 if (index instanceof PerColumnSecondaryIndex)
                 {
                     // insert the new value before removing the old one, so we never have a period
                     // where the row is invisible to both queries (the opposite seems preferable); see CASSANDRA-5540
-                    if (!column.isMarkedForDelete(System.currentTimeMillis()))
-                        ((PerColumnSecondaryIndex) index).insert(key.key, column);
-                    ((PerColumnSecondaryIndex) index).delete(key.key, oldColumn);
+                    if (!cell.isMarkedForDelete(System.currentTimeMillis()))
+                        ((PerColumnSecondaryIndex) index).insert(key.key, cell);
+                    ((PerColumnSecondaryIndex) index).delete(key.key, oldCell);
                 }
             }
         }
 
-        public void remove(Column column)
+        public void remove(Cell cell)
         {
-            if (column.isMarkedForDelete(System.currentTimeMillis()))
+            if (cell.isMarkedForDelete(System.currentTimeMillis()))
                 return;
 
-            for (SecondaryIndex index : indexFor(column.name()))
+            for (SecondaryIndex index : indexFor(cell.name()))
                 if (index instanceof PerColumnSecondaryIndex)
-                   ((PerColumnSecondaryIndex) index).delete(key.key, column);
+                   ((PerColumnSecondaryIndex) index).delete(key.key, cell);
         }
 
         public void updateRowLevelIndexes()

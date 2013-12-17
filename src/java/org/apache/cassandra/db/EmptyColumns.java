@@ -63,22 +63,22 @@ public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
         return factory;
     }
 
-    public void addColumn(Column column, Allocator allocator)
+    public void addColumn(Cell cell, Allocator allocator)
     {
         throw new UnsupportedOperationException();
     }
 
-    public void addAll(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation)
+    public void addAll(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation)
     {
         throw new UnsupportedOperationException();
     }
 
-    public boolean replace(Column oldColumn, Column newColumn)
+    public boolean replace(Cell oldCell, Cell newCell)
     {
         throw new UnsupportedOperationException();
     }
 
-    public Column getColumn(CellName name)
+    public Cell getColumn(CellName name)
     {
         throw new UnsupportedOperationException();
     }
@@ -88,12 +88,12 @@ public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
         return Collections.emptyList();
     }
 
-    public Collection<Column> getSortedColumns()
+    public Collection<Cell> getSortedColumns()
     {
         return Collections.emptyList();
     }
 
-    public Collection<Column> getReverseSortedColumns()
+    public Collection<Cell> getReverseSortedColumns()
     {
         return Collections.emptyList();
     }
@@ -103,12 +103,12 @@ public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
         return 0;
     }
 
-    public Iterator<Column> iterator(ColumnSlice[] slices)
+    public Iterator<Cell> iterator(ColumnSlice[] slices)
     {
         return Iterators.emptyIterator();
     }
 
-    public Iterator<Column> reverseIterator(ColumnSlice[] slices)
+    public Iterator<Cell> reverseIterator(ColumnSlice[] slices)
     {
         return Iterators.emptyIterator();
     }

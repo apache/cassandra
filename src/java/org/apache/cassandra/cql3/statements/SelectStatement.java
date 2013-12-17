@@ -808,7 +808,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return value;
     }
 
-    private Iterator<Column> applySliceRestriction(final Iterator<Column> cells, final List<ByteBuffer> variables) throws InvalidRequestException
+    private Iterator<Cell> applySliceRestriction(final Iterator<Cell> cells, final List<ByteBuffer> variables) throws InvalidRequestException
     {
         assert sliceRestriction != null;
 
@@ -816,14 +816,14 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         final CellName excludedStart = sliceRestriction.isInclusive(Bound.START) ? null : type.makeCellName(sliceRestriction.bound(Bound.START, variables));
         final CellName excludedEnd = sliceRestriction.isInclusive(Bound.END) ? null : type.makeCellName(sliceRestriction.bound(Bound.END, variables));
 
-        return new AbstractIterator<Column>()
+        return new AbstractIterator<Cell>()
         {
-            protected Column computeNext()
+            protected Cell computeNext()
             {
                 if (!cells.hasNext())
                     return endOfData();
 
-                Column c = cells.next();
+                Cell c = cells.next();
 
                 // For dynamic CF, the column could be out of the requested bounds (because we don't support strict bounds internally (unless
                 // the comparator is composite that is)), filter here
@@ -876,7 +876,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             keyComponents = new ByteBuffer[]{ key };
         }
 
-        Iterator<Column> cells = cf.getSortedColumns().iterator();
+        Iterator<Cell> cells = cf.getSortedColumns().iterator();
         if (sliceRestriction != null)
             cells = applySliceRestriction(cells, variables);
 
@@ -903,7 +903,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     case REGULAR:
                         if (def.type.isCollection())
                         {
-                            List<Column> collection = cql3Row.getCollection(def.name);
+                            List<Cell> collection = cql3Row.getCollection(def.name);
                             ByteBuffer value = collection == null
                                              ? null
                                              : ((CollectionType)def.type).serialize(collection);
@@ -1325,7 +1325,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 Boolean isReversed = null;
                 for (Boolean b : reversedMap)
                 {
-                    // Column on which order is specified can be in any order
+                    // Cell on which order is specified can be in any order
                     if (b == null)
                         continue;
 

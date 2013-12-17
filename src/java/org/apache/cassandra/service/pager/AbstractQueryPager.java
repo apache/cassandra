@@ -249,14 +249,14 @@ abstract class AbstractQueryPager implements QueryPager
              : discardTail(cf, toDiscard, newCf, cf.iterator(), tester);
     }
 
-    private int discardHead(ColumnFamily cf, int toDiscard, ColumnFamily copy, Iterator<Column> iter, DeletionInfo.InOrderTester tester)
+    private int discardHead(ColumnFamily cf, int toDiscard, ColumnFamily copy, Iterator<Cell> iter, DeletionInfo.InOrderTester tester)
     {
         ColumnCounter counter = columnCounter();
 
         // Discard the first 'toDiscard' live
         while (iter.hasNext())
         {
-            Column c = iter.next();
+            Cell c = iter.next();
             counter.count(c, tester);
             if (counter.live() > toDiscard)
             {
@@ -268,7 +268,7 @@ abstract class AbstractQueryPager implements QueryPager
         return Math.min(counter.live(), toDiscard);
     }
 
-    private int discardTail(ColumnFamily cf, int toDiscard, ColumnFamily copy, Iterator<Column> iter, DeletionInfo.InOrderTester tester)
+    private int discardTail(ColumnFamily cf, int toDiscard, ColumnFamily copy, Iterator<Cell> iter, DeletionInfo.InOrderTester tester)
     {
         // Redoing the counting like that is not extremely efficient.
         // This is called only for reversed slices or in the case of a race between
@@ -279,7 +279,7 @@ abstract class AbstractQueryPager implements QueryPager
         // Discard the last 'toDiscard' live (so stop adding as sound as we're past 'liveCount - toDiscard')
         while (iter.hasNext())
         {
-            Column c = iter.next();
+            Cell c = iter.next();
             counter.count(c, tester);
             if (counter.live() > liveCount - toDiscard)
                 break;

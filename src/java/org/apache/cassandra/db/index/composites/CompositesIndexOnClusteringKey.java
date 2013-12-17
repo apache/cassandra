@@ -61,9 +61,9 @@ public class CompositesIndexOnClusteringKey extends CompositesIndex
         return new CompoundDenseCellNameType(types);
     }
 
-    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Column column)
+    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Cell cell)
     {
-        return column.name().get(columnDef.position());
+        return cell.name().get(columnDef.position());
     }
 
     protected Composite makeIndexColumnPrefix(ByteBuffer rowKey, Composite columnName)
@@ -78,7 +78,7 @@ public class CompositesIndexOnClusteringKey extends CompositesIndex
         return builder.build();
     }
 
-    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Column indexEntry)
+    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Cell indexEntry)
     {
         int ckCount = baseCfs.metadata.clusteringColumns().size();
 

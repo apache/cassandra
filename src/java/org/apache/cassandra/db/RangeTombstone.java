@@ -173,7 +173,7 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
 
         /**
          * Update this tracker given an {@code atom}.
-         * If column is a Column, check if any tracked range is useless and
+         * If column is a Cell, check if any tracked range is useless and
          * can be removed. If it is a RangeTombstone, add it to this tracker.
          */
         public void update(OnDiskAtom atom)
@@ -200,7 +200,7 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
             }
             else
             {
-                assert atom instanceof Column;
+                assert atom instanceof Cell;
                 Iterator<RangeTombstone> iter = maxOrderingSet.iterator();
                 while (iter.hasNext())
                 {
@@ -221,13 +221,13 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
             }
         }
 
-        public boolean isDeleted(Column column)
+        public boolean isDeleted(Cell cell)
         {
             for (RangeTombstone tombstone : ranges)
             {
-                if (comparator.compare(column.name(), tombstone.min) >= 0
-                    && comparator.compare(column.name(), tombstone.max) <= 0
-                    && tombstone.maxTimestamp() >= column.timestamp())
+                if (comparator.compare(cell.name(), tombstone.min) >= 0
+                    && comparator.compare(cell.name(), tombstone.max) <= 0
+                    && tombstone.maxTimestamp() >= cell.timestamp())
                 {
                     return true;
                 }

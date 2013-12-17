@@ -47,7 +47,7 @@ public class CFRowAdder
 
         // If a CQL3 table, add the row marker
         if (cf.metadata().isCQL3Table())
-            cf.addColumn(new Column(cf.getComparator().rowMarker(prefix), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp));
+            cf.addColumn(new Cell(cf.getComparator().rowMarker(prefix), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp));
     }
 
     public CFRowAdder add(String cql3ColumnName, Object value)
@@ -73,9 +73,9 @@ public class CFRowAdder
     private CFRowAdder add(CellName name, ColumnDefinition def, Object value)
     {
         if (value == null)
-            cf.addColumn(new DeletedColumn(name, ldt, timestamp));
+            cf.addColumn(new DeletedCell(name, ldt, timestamp));
         else
-            cf.addColumn(new Column(name, ((AbstractType)def.type).decompose(value), timestamp));
+            cf.addColumn(new Cell(name, ((AbstractType)def.type).decompose(value), timestamp));
         return this;
     }
 }

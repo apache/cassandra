@@ -23,11 +23,11 @@ import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import org.apache.cassandra.db.Cell;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowMutation;
@@ -277,7 +277,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         // Check that the second insert did went in
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
         assertEquals(10, cf.getColumnCount());
-        for (Column c : cf)
+        for (Cell c : cf)
             assert !c.isMarkedForDelete(System.currentTimeMillis());
     }
 
@@ -321,7 +321,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         // Check that the second insert went in
         cf = cfs.getColumnFamily(filter);
         assertEquals(10, cf.getColumnCount());
-        for (Column c : cf)
+        for (Cell c : cf)
             assert !c.isMarkedForDelete(System.currentTimeMillis());
     }
 

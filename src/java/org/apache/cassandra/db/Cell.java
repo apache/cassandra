@@ -39,9 +39,9 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.HeapAllocator;
 
 /**
- * Column is immutable, which prevents all kinds of confusion in a multithreaded environment.
+ * Cell is immutable, which prevents all kinds of confusion in a multithreaded environment.
  */
-public class Column implements OnDiskAtom
+public class Cell implements OnDiskAtom
 {
     public static final int MAX_NAME_LENGTH = FBUtilities.MAX_UNSIGNED_SHORT;
 
@@ -86,17 +86,17 @@ public class Column implements OnDiskAtom
     protected final ByteBuffer value;
     protected final long timestamp;
 
-    Column(CellName name)
+    Cell(CellName name)
     {
         this(name, ByteBufferUtil.EMPTY_BYTE_BUFFER);
     }
 
-    public Column(CellName name, ByteBuffer value)
+    public Cell(CellName name, ByteBuffer value)
     {
         this(name, value, 0);
     }
 
-    public Column(CellName name, ByteBuffer value, long timestamp)
+    public Cell(CellName name, ByteBuffer value, long timestamp)
     {
         assert name != null;
         assert value != null;
@@ -105,14 +105,14 @@ public class Column implements OnDiskAtom
         this.timestamp = timestamp;
     }
 
-    public Column withUpdatedName(CellName newName)
+    public Cell withUpdatedName(CellName newName)
     {
-        return new Column(newName, value, timestamp);
+        return new Cell(newName, value, timestamp);
     }
 
-    public Column withUpdatedTimestamp(long newTimestamp)
+    public Cell withUpdatedTimestamp(long newTimestamp)
     {
-        return new Column(name, value, newTimestamp);
+        return new Cell(name, value, newTimestamp);
     }
 
     public CellName name()
@@ -180,10 +180,10 @@ public class Column implements OnDiskAtom
         return 0;
     }
 
-    public Column diff(Column column)
+    public Cell diff(Cell cell)
     {
-        if (timestamp() < column.timestamp())
-            return column;
+        if (timestamp() < cell.timestamp())
+            return cell;
         return null;
     }
 
@@ -210,23 +210,23 @@ public class Column implements OnDiskAtom
         return Integer.MAX_VALUE;
     }
 
-    public Column reconcile(Column column)
+    public Cell reconcile(Cell cell)
     {
-        return reconcile(column, HeapAllocator.instance);
+        return reconcile(cell, HeapAllocator.instance);
     }
 
-    public Column reconcile(Column column, Allocator allocator)
+    public Cell reconcile(Cell cell, Allocator allocator)
     {
         // tombstones take precedence.  (if both are tombstones, then it doesn't matter which one we use.)
         if (isMarkedForDelete(System.currentTimeMillis()))
-            return timestamp() < column.timestamp() ? column : this;
-        if (column.isMarkedForDelete(System.currentTimeMillis()))
-            return timestamp() > column.timestamp() ? this : column;
+            return timestamp() < cell.timestamp() ? cell : this;
+        if (cell.isMarkedForDelete(System.currentTimeMillis()))
+            return timestamp() > cell.timestamp() ? this : cell;
         // break ties by comparing values.
-        if (timestamp() == column.timestamp())
-            return value().compareTo(column.value()) < 0 ? column : this;
+        if (timestamp() == cell.timestamp())
+            return value().compareTo(cell.value()) < 0 ? cell : this;
         // neither is tombstoned and timestamps are different
-        return timestamp() < column.timestamp() ? column : this;
+        return timestamp() < cell.timestamp() ? cell : this;
     }
 
     @Override
@@ -237,14 +237,14 @@ public class Column implements OnDiskAtom
         if (o == null || getClass() != o.getClass())
             return false;
 
-        Column column = (Column)o;
+        Cell cell = (Cell)o;
 
-        if (timestamp != column.timestamp)
+        if (timestamp != cell.timestamp)
             return false;
-        if (!name.equals(column.name))
+        if (!name.equals(cell.name))
             return false;
 
-        return value.equals(column.value);
+        return value.equals(cell.value);
     }
 
     @Override
@@ -256,14 +256,14 @@ public class Column implements OnDiskAtom
         return result;
     }
 
-    public Column localCopy(ColumnFamilyStore cfs)
+    public Cell localCopy(ColumnFamilyStore cfs)
     {
         return localCopy(cfs, HeapAllocator.instance);
     }
 
-    public Column localCopy(ColumnFamilyStore cfs, Allocator allocator)
+    public Cell localCopy(ColumnFamilyStore cfs, Allocator allocator)
     {
-        return new Column(name.copy(allocator), allocator.clone(value), timestamp);
+        return new Cell(name.copy(allocator), allocator.clone(value), timestamp);
     }
 
     public String getString(CellNameType comparator)
@@ -298,13 +298,13 @@ public class Column implements OnDiskAtom
         return getLocalDeletionTime() < gcBefore;
     }
 
-    public static Column create(CellName name, ByteBuffer value, long timestamp, int ttl, CFMetaData metadata)
+    public static Cell create(CellName name, ByteBuffer value, long timestamp, int ttl, CFMetaData metadata)
     {
         if (ttl <= 0)
             ttl = metadata.getDefaultTimeToLive();
 
         return ttl > 0
-               ? new ExpiringColumn(name, value, timestamp, ttl)
-               : new Column(name, value, timestamp);
+               ? new ExpiringCell(name, value, timestamp, ttl)
+               : new Cell(name, value, timestamp);
     }
 }

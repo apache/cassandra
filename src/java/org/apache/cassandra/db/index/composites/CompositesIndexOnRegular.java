@@ -57,9 +57,9 @@ public class CompositesIndexOnRegular extends CompositesIndex
         return new CompoundDenseCellNameType(types);
     }
 
-    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Column column)
+    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Cell cell)
     {
-        return column.value();
+        return cell.value();
     }
 
     protected Composite makeIndexColumnPrefix(ByteBuffer rowKey, Composite cellName)
@@ -71,7 +71,7 @@ public class CompositesIndexOnRegular extends CompositesIndex
         return builder.build();
     }
 
-    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Column indexEntry)
+    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Cell indexEntry)
     {
         CBuilder builder = baseCfs.getComparator().builder();
         for (int i = 0; i < columnDef.position(); i++)
@@ -90,11 +90,11 @@ public class CompositesIndexOnRegular extends CompositesIndex
     public boolean isStale(IndexedEntry entry, ColumnFamily data, long now)
     {
         CellName name = data.getComparator().create(entry.indexedEntryPrefix, columnDef.name);
-        Column liveColumn = data.getColumn(name);
-        if (liveColumn == null || liveColumn.isMarkedForDelete(now))
+        Cell liveCell = data.getColumn(name);
+        if (liveCell == null || liveCell.isMarkedForDelete(now))
             return true;
 
-        ByteBuffer liveValue = liveColumn.value();
+        ByteBuffer liveValue = liveCell.value();
         return columnDef.type.compare(entry.indexValue.key, liveValue) != 0;
     }
 }

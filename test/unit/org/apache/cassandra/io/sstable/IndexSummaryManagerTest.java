@@ -32,7 +32,6 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.metrics.RestorableMeter;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 import static org.apache.cassandra.io.sstable.Downsampling.MIN_SAMPLING_LEVEL;
@@ -78,9 +77,9 @@ public class IndexSummaryManagerTest extends SchemaLoader
             QueryFilter filter = QueryFilter.getIdentityFilter(key, cfs.getColumnFamilyName(), System.currentTimeMillis());
             ColumnFamily row = cfs.getColumnFamily(filter);
             assertNotNull(row);
-            Column column = row.getColumn(Util.cellname("column"));
-            assertNotNull(column);
-            assertEquals(100, column.value().array().length);
+            Cell cell = row.getColumn(Util.cellname("cell"));
+            assertNotNull(cell);
+            assertEquals(100, cell.value().array().length);
         }
     }
 

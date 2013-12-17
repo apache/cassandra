@@ -29,7 +29,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.*;
-import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
@@ -181,7 +180,7 @@ public class DefsTest extends SchemaLoader
 
         ColumnFamily cfam = store.getColumnFamily(Util.namesQueryFilter(store, dk, col0));
         assert cfam.getColumn(col0) != null;
-        Column col = cfam.getColumn(col0);
+        Cell col = cfam.getColumn(col0);
         assert ByteBufferUtil.bytes("value0").equals(col.value());
     }
 
@@ -255,7 +254,7 @@ public class DefsTest extends SchemaLoader
 
         ColumnFamily cfam = store.getColumnFamily(Util.namesQueryFilter(store, dk, col0));
         assert cfam.getColumn(col0) != null;
-        Column col = cfam.getColumn(col0);
+        Cell col = cfam.getColumn(col0);
         assert ByteBufferUtil.bytes("value0").equals(col.value());
     }
 
@@ -364,7 +363,7 @@ public class DefsTest extends SchemaLoader
 
         ColumnFamily cfam = store.getColumnFamily(Util.namesQueryFilter(store, dk, col0));
         assert cfam.getColumn(col0) != null;
-        Column col = cfam.getColumn(col0);
+        Cell col = cfam.getColumn(col0);
         assert ByteBufferUtil.bytes("value0").equals(col.value());
     }
 

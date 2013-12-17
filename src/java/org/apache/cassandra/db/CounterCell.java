@@ -46,48 +46,48 @@ import org.apache.cassandra.utils.*;
 /**
  * A column that represents a partitioned counter.
  */
-public class CounterColumn extends Column
+public class CounterCell extends Cell
 {
-    private static final Logger logger = LoggerFactory.getLogger(CounterColumn.class);
+    private static final Logger logger = LoggerFactory.getLogger(CounterCell.class);
 
     protected static final CounterContext contextManager = CounterContext.instance();
 
     private final long timestampOfLastDelete;
 
-    public CounterColumn(CellName name, long value, long timestamp)
+    public CounterCell(CellName name, long value, long timestamp)
     {
         this(name, contextManager.create(value, HeapAllocator.instance), timestamp);
     }
 
-    public CounterColumn(CellName name, long value, long timestamp, long timestampOfLastDelete)
+    public CounterCell(CellName name, long value, long timestamp, long timestampOfLastDelete)
     {
         this(name, contextManager.create(value, HeapAllocator.instance), timestamp, timestampOfLastDelete);
     }
 
-    public CounterColumn(CellName name, ByteBuffer value, long timestamp)
+    public CounterCell(CellName name, ByteBuffer value, long timestamp)
     {
         this(name, value, timestamp, Long.MIN_VALUE);
     }
 
-    public CounterColumn(CellName name, ByteBuffer value, long timestamp, long timestampOfLastDelete)
+    public CounterCell(CellName name, ByteBuffer value, long timestamp, long timestampOfLastDelete)
     {
         super(name, value, timestamp);
         this.timestampOfLastDelete = timestampOfLastDelete;
     }
 
-    public static CounterColumn create(CellName name, ByteBuffer value, long timestamp, long timestampOfLastDelete, ColumnSerializer.Flag flag)
+    public static CounterCell create(CellName name, ByteBuffer value, long timestamp, long timestampOfLastDelete, ColumnSerializer.Flag flag)
     {
         // #elt being negative means we have to clean delta
         short count = value.getShort(value.position());
         if (flag == ColumnSerializer.Flag.FROM_REMOTE || (flag == ColumnSerializer.Flag.LOCAL && count < 0))
             value = CounterContext.instance().clearAllDelta(value);
-        return new CounterColumn(name, value, timestamp, timestampOfLastDelete);
+        return new CounterCell(name, value, timestamp, timestampOfLastDelete);
     }
 
     @Override
-    public Column withUpdatedName(CellName newName)
+    public Cell withUpdatedName(CellName newName)
     {
-        return new CounterColumn(newName, value, timestamp, timestampOfLastDelete);
+        return new CounterCell(newName, value, timestamp, timestampOfLastDelete);
     }
 
     public long timestampOfLastDelete()
@@ -104,7 +104,7 @@ public class CounterColumn extends Column
     public int dataSize()
     {
         /*
-         * A counter column adds to a Column :
+         * A counter column adds to a Cell :
          *  + 8 bytes for timestampOfLastDelete
          */
         return super.dataSize() + TypeSizes.NATIVE.sizeof(timestampOfLastDelete);
@@ -117,25 +117,25 @@ public class CounterColumn extends Column
     }
 
     @Override
-    public Column diff(Column column)
+    public Cell diff(Cell cell)
     {
-        assert (column instanceof CounterColumn) || (column instanceof DeletedColumn) : "Wrong class type: " + column.getClass();
+        assert (cell instanceof CounterCell) || (cell instanceof DeletedCell) : "Wrong class type: " + cell.getClass();
 
-        if (timestamp() < column.timestamp())
-            return column;
+        if (timestamp() < cell.timestamp())
+            return cell;
 
-        // Note that if at that point, column can't be a tombstone. Indeed,
-        // column is the result of merging us with other nodes results, and
-        // merging a CounterColumn with a tombstone never return a tombstone
-        // unless that tombstone timestamp is greater that the CounterColumn
+        // Note that if at that point, cell can't be a tombstone. Indeed,
+        // cell is the result of merging us with other nodes results, and
+        // merging a CounterCell with a tombstone never return a tombstone
+        // unless that tombstone timestamp is greater that the CounterCell
         // one.
-        assert !(column instanceof DeletedColumn) : "Wrong class type: " + column.getClass();
+        assert !(cell instanceof DeletedCell) : "Wrong class type: " + cell.getClass();
 
-        if (timestampOfLastDelete() < ((CounterColumn)column).timestampOfLastDelete())
-            return column;
-        ContextRelationship rel = contextManager.diff(column.value(), value());
+        if (timestampOfLastDelete() < ((CounterCell) cell).timestampOfLastDelete())
+            return cell;
+        ContextRelationship rel = contextManager.diff(cell.value(), value());
         if (ContextRelationship.GREATER_THAN == rel || ContextRelationship.DISJOINT == rel)
-            return column;
+            return cell;
         return null;
     }
 
@@ -166,45 +166,45 @@ public class CounterColumn extends Column
     }
 
     @Override
-    public Column reconcile(Column column, Allocator allocator)
+    public Cell reconcile(Cell cell, Allocator allocator)
     {
-        assert (column instanceof CounterColumn) || (column instanceof DeletedColumn) : "Wrong class type: " + column.getClass();
+        assert (cell instanceof CounterCell) || (cell instanceof DeletedCell) : "Wrong class type: " + cell.getClass();
 
         // live + tombstone: track last tombstone
-        if (column.isMarkedForDelete(Long.MIN_VALUE)) // cannot be an expired column, so the current time is irrelevant
+        if (cell.isMarkedForDelete(Long.MIN_VALUE)) // cannot be an expired cell, so the current time is irrelevant
         {
             // live < tombstone
-            if (timestamp() < column.timestamp())
+            if (timestamp() < cell.timestamp())
             {
-                return column;
+                return cell;
             }
             // live last delete >= tombstone
-            if (timestampOfLastDelete() >= column.timestamp())
+            if (timestampOfLastDelete() >= cell.timestamp())
             {
                 return this;
             }
             // live last delete < tombstone
-            return new CounterColumn(name(), value(), timestamp(), column.timestamp());
+            return new CounterCell(name(), value(), timestamp(), cell.timestamp());
         }
         // live < live last delete
-        if (timestamp() < ((CounterColumn)column).timestampOfLastDelete())
-            return column;
+        if (timestamp() < ((CounterCell) cell).timestampOfLastDelete())
+            return cell;
         // live last delete > live
-        if (timestampOfLastDelete() > column.timestamp())
+        if (timestampOfLastDelete() > cell.timestamp())
             return this;
         // live + live: merge clocks; update value
-        return new CounterColumn(
+        return new CounterCell(
             name(),
-            contextManager.merge(value(), column.value(), allocator),
-            Math.max(timestamp(), column.timestamp()),
-            Math.max(timestampOfLastDelete(), ((CounterColumn)column).timestampOfLastDelete()));
+            contextManager.merge(value(), cell.value(), allocator),
+            Math.max(timestamp(), cell.timestamp()),
+            Math.max(timestampOfLastDelete(), ((CounterCell) cell).timestampOfLastDelete()));
     }
 
     @Override
     public boolean equals(Object o)
     {
-        // super.equals() returns false if o is not a CounterColumn
-        return super.equals(o) && timestampOfLastDelete == ((CounterColumn)o).timestampOfLastDelete;
+        // super.equals() returns false if o is not a CounterCell
+        return super.equals(o) && timestampOfLastDelete == ((CounterCell)o).timestampOfLastDelete;
     }
 
     @Override
@@ -216,15 +216,15 @@ public class CounterColumn extends Column
     }
 
     @Override
-    public Column localCopy(ColumnFamilyStore cfs)
+    public Cell localCopy(ColumnFamilyStore cfs)
     {
         return localCopy(cfs, HeapAllocator.instance);
     }
 
     @Override
-    public Column localCopy(ColumnFamilyStore cfs, Allocator allocator)
+    public Cell localCopy(ColumnFamilyStore cfs, Allocator allocator)
     {
-        return new CounterColumn(name.copy(allocator), allocator.clone(value), timestamp, timestampOfLastDelete);
+        return new CounterCell(name.copy(allocator), allocator.clone(value), timestamp, timestampOfLastDelete);
     }
 
     @Override
@@ -259,30 +259,30 @@ public class CounterColumn extends Column
     }
 
     /**
-     * Check if a given counterId is found in this CounterColumn context.
+     * Check if a given counterId is found in this CounterCell context.
      */
     public boolean hasCounterId(CounterId id)
     {
         return contextManager.hasCounterId(value(), id);
     }
 
-    private CounterColumn computeOldShardMerger(int mergeBefore)
+    private CounterCell computeOldShardMerger(int mergeBefore)
     {
         ByteBuffer bb = contextManager.computeOldShardMerger(value(), CounterId.getOldLocalCounterIds(), mergeBefore);
         if (bb == null)
             return null;
         else
-            return new CounterColumn(name(), bb, timestamp(), timestampOfLastDelete);
+            return new CounterCell(name(), bb, timestamp(), timestampOfLastDelete);
     }
 
-    private CounterColumn removeOldShards(int gcBefore)
+    private CounterCell removeOldShards(int gcBefore)
     {
         ByteBuffer bb = contextManager.removeOldShards(value(), gcBefore);
         if (bb == value())
             return this;
         else
         {
-            return new CounterColumn(name(), bb, timestamp(), timestampOfLastDelete);
+            return new CounterCell(name(), bb, timestamp(), timestampOfLastDelete);
         }
     }
 
@@ -308,21 +308,21 @@ public class CounterColumn extends Column
     {
         ColumnFamily remoteMerger = null;
 
-        for (Column c : cf)
+        for (Cell c : cf)
         {
-            if (!(c instanceof CounterColumn))
+            if (!(c instanceof CounterCell))
                 continue;
-            CounterColumn cc = (CounterColumn) c;
-            CounterColumn shardMerger = cc.computeOldShardMerger(mergeBefore);
-            CounterColumn merged = cc;
+            CounterCell cc = (CounterCell) c;
+            CounterCell shardMerger = cc.computeOldShardMerger(mergeBefore);
+            CounterCell merged = cc;
             if (shardMerger != null)
             {
-                merged = (CounterColumn) cc.reconcile(shardMerger);
+                merged = (CounterCell) cc.reconcile(shardMerger);
                 if (remoteMerger == null)
                     remoteMerger = cf.cloneMeShallow();
                 remoteMerger.addColumn(merged);
             }
-            CounterColumn cleaned = merged.removeOldShards(gcBefore);
+            CounterCell cleaned = merged.removeOldShards(gcBefore);
             if (cleaned != cc)
             {
                 cf.replace(cc, cleaned);
@@ -342,9 +342,9 @@ public class CounterColumn extends Column
         }
     }
 
-    public Column markDeltaToBeCleared()
+    public Cell markDeltaToBeCleared()
     {
-        return new CounterColumn(name, contextManager.markDeltaToBeCleared(value), timestamp, timestampOfLastDelete);
+        return new CounterCell(name, contextManager.markDeltaToBeCleared(value), timestamp, timestampOfLastDelete);
     }
 
     private static void sendToOtherReplica(DecoratedKey key, ColumnFamily cf) throws RequestExecutionException

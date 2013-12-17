@@ -62,9 +62,9 @@ public class CompositesIndexOnCollectionValue extends CompositesIndex
         return ((CollectionType)columnDef.type).valueComparator();
     }
 
-    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Column column)
+    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Cell cell)
     {
-        return column.value();
+        return cell.value();
     }
 
     protected Composite makeIndexColumnPrefix(ByteBuffer rowKey, Composite cellName)
@@ -77,7 +77,7 @@ public class CompositesIndexOnCollectionValue extends CompositesIndex
         return builder.build();
     }
 
-    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Column indexEntry)
+    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Cell indexEntry)
     {
         int prefixSize = columnDef.position();
         CellName name = indexEntry.name();
@@ -98,11 +98,11 @@ public class CompositesIndexOnCollectionValue extends CompositesIndex
     public boolean isStale(IndexedEntry entry, ColumnFamily data, long now)
     {
         CellName name = data.getComparator().create(entry.indexedEntryPrefix, columnDef.name, entry.indexedEntryCollectionKey);
-        Column liveColumn = data.getColumn(name);
-        if (liveColumn == null || liveColumn.isMarkedForDelete(now))
+        Cell liveCell = data.getColumn(name);
+        if (liveCell == null || liveCell.isMarkedForDelete(now))
             return true;
 
-        ByteBuffer liveValue = liveColumn.value();
+        ByteBuffer liveValue = liveCell.value();
         return ((CollectionType)columnDef.type).valueComparator().compare(entry.indexValue.key, liveValue) != 0;
     }
 }

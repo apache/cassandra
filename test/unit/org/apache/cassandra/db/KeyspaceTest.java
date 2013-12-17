@@ -35,9 +35,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.expiringColumn;
@@ -230,7 +227,7 @@ public class KeyspaceTest extends SchemaLoader
         for (int i = 0; i < 10; i++)
         {
             ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "StandardLong1");
-            cf.addColumn(new Column(cellname((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
+            cf.addColumn(new Cell(cellname((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
             RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
             rm.apply();
         }
@@ -240,7 +237,7 @@ public class KeyspaceTest extends SchemaLoader
         for (int i = 10; i < 20; i++)
         {
             ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "StandardLong1");
-            cf.addColumn(new Column(cellname((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
+            cf.addColumn(new Cell(cellname((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
             RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
             rm.apply();
 
@@ -453,7 +450,7 @@ public class KeyspaceTest extends SchemaLoader
         ColumnFamily cf = cfStore.getColumnFamily(key, Composites.EMPTY, cellname("col1499"), false, 1000, System.currentTimeMillis());
         assertEquals(cfStore.metric.sstablesPerReadHistogram.max(), 5, 0.1);
         int i = 0;
-        for (Column c : cf.getSortedColumns())
+        for (Cell c : cf.getSortedColumns())
         {
             assertEquals(ByteBufferUtil.string(c.name.toByteBuffer()), "col" + (1000 + i++));
         }
@@ -462,7 +459,7 @@ public class KeyspaceTest extends SchemaLoader
         cf = cfStore.getColumnFamily(key, cellname("col1500"), cellname("col2000"), false, 1000, System.currentTimeMillis());
         assertEquals(cfStore.metric.sstablesPerReadHistogram.max(), 5, 0.1);
 
-        for (Column c : cf.getSortedColumns())
+        for (Cell c : cf.getSortedColumns())
         {
             assertEquals(ByteBufferUtil.string(c.name.toByteBuffer()), "col"+(1000 + i++));
         }
@@ -473,7 +470,7 @@ public class KeyspaceTest extends SchemaLoader
         cf = cfStore.getColumnFamily(key, cellname("col2000"), cellname("col1500"), true, 1000, System.currentTimeMillis());
         assertEquals(cfStore.metric.sstablesPerReadHistogram.max(), 5, 0.1);
         i = 500;
-        for (Column c : cf.getSortedColumns())
+        for (Cell c : cf.getSortedColumns())
         {
             assertEquals(ByteBufferUtil.string(c.name.toByteBuffer()), "col"+(1000 + i++));
         }
@@ -521,7 +518,7 @@ public class KeyspaceTest extends SchemaLoader
         cfs.metric.sstablesPerReadHistogram.clear();
         ColumnFamily cf = cfs.getColumnFamily(key, start, finish, false, 1000, System.currentTimeMillis());
         int colCount = 0;
-        for (Column c : cf)
+        for (Cell c : cf)
             colCount++;
         assertEquals(2, colCount);
         assertEquals(2, cfs.metric.sstablesPerReadHistogram.max(), 0.1);
@@ -554,13 +551,13 @@ public class KeyspaceTest extends SchemaLoader
 
 
         cf = cfStore.getColumnFamily(key, cellname("col1996"), Composites.EMPTY, true, 1000, System.currentTimeMillis());
-        Column[] columns = cf.getSortedColumns().toArray(new Column[0]);
+        Cell[] cells = cf.getSortedColumns().toArray(new Cell[0]);
         for (int i = 1000; i < 1996; i++)
         {
             String expectedName = "col" + i;
-            Column column = columns[i - 1000];
-            assertEquals(ByteBufferUtil.string(column.name().toByteBuffer()), expectedName);
-            assertEquals(ByteBufferUtil.string(column.value()), ("v" + i));
+            Cell cell = cells[i - 1000];
+            assertEquals(ByteBufferUtil.string(cell.name().toByteBuffer()), expectedName);
+            assertEquals(ByteBufferUtil.string(cell.value()), ("v" + i));
         }
 
         cf = cfStore.getColumnFamily(key, cellname("col1990"), Composites.EMPTY, false, 3, System.currentTimeMillis());
@@ -590,11 +587,11 @@ public class KeyspaceTest extends SchemaLoader
 
     public static void assertColumns(ColumnFamily container, String... columnNames)
     {
-        Collection<Column> columns = container == null ? new TreeSet<Column>() : container.getSortedColumns();
+        Collection<Cell> cells = container == null ? new TreeSet<Cell>() : container.getSortedColumns();
         List<String> L = new ArrayList<String>();
-        for (Column column : columns)
+        for (Cell cell : cells)
         {
-            L.add(Util.string(column.name().toByteBuffer()));
+            L.add(Util.string(cell.name().toByteBuffer()));
         }
 
         List<String> names = new ArrayList<String>(columnNames.length);
@@ -602,11 +599,11 @@ public class KeyspaceTest extends SchemaLoader
         names.addAll(Arrays.asList(columnNames));
 
         String[] columnNames1 = names.toArray(new String[0]);
-        String[] la = L.toArray(new String[columns.size()]);
+        String[] la = L.toArray(new String[cells.size()]);
 
         assert Arrays.equals(la, columnNames1)
                 : String.format("Columns [%s])] is not expected [%s]",
-                                ((container == null) ? "" : CellNames.getColumnsString(container.getComparator(), columns)),
+                                ((container == null) ? "" : CellNames.getColumnsString(container.getComparator(), cells)),
                                 StringUtils.join(columnNames1, ","));
     }
 
@@ -615,10 +612,10 @@ public class KeyspaceTest extends SchemaLoader
         assertColumn(cf.getColumn(cellname(name)), value, timestamp);
     }
 
-    public static void assertColumn(Column column, String value, long timestamp)
+    public static void assertColumn(Cell cell, String value, long timestamp)
     {
-        assertNotNull(column);
-        assertEquals(0, ByteBufferUtil.compareUnsigned(column.value(), ByteBufferUtil.bytes(value)));
-        assertEquals(timestamp, column.timestamp());
+        assertNotNull(cell);
+        assertEquals(0, ByteBufferUtil.compareUnsigned(cell.value(), ByteBufferUtil.bytes(value)));
+        assertEquals(timestamp, cell.timestamp());
     }
 }

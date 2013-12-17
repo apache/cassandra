@@ -28,7 +28,6 @@ import java.util.concurrent.ExecutionException;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.filter.QueryFilter;
 import org.junit.Test;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -64,7 +63,7 @@ public class RecoveryManagerTruncateTest extends SchemaLoader
 		assertNull(getFromTable(keyspace, "Standard1", "keymulti", "col1"));
 	}
 
-	private Column getFromTable(Keyspace keyspace, String cfName, String keyName, String columnName)
+	private Cell getFromTable(Keyspace keyspace, String cfName, String keyName, String columnName)
 	{
 		ColumnFamily cf;
 		ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore(cfName);

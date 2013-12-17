@@ -113,14 +113,14 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
         throw new AssertionError();
     }
 
-    protected CellName makeIndexColumnName(ByteBuffer rowKey, Column column)
+    protected CellName makeIndexColumnName(ByteBuffer rowKey, Cell cell)
     {
-        return getIndexComparator().create(makeIndexColumnPrefix(rowKey, column.name()), null);
+        return getIndexComparator().create(makeIndexColumnPrefix(rowKey, cell.name()), null);
     }
 
     protected abstract Composite makeIndexColumnPrefix(ByteBuffer rowKey, Composite columnName);
 
-    public abstract IndexedEntry decodeEntry(DecoratedKey indexedValue, Column indexEntry);
+    public abstract IndexedEntry decodeEntry(DecoratedKey indexedValue, Cell indexEntry);
 
     public abstract boolean isStale(IndexedEntry entry, ColumnFamily data, long now);
 

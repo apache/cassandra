@@ -52,16 +52,16 @@ public class UpdateParameters
         this.prefetchedLists = prefetchedLists;
     }
 
-    public Column makeColumn(CellName name, ByteBuffer value) throws InvalidRequestException
+    public Cell makeColumn(CellName name, ByteBuffer value) throws InvalidRequestException
     {
         QueryProcessor.validateCellName(name);
-        return Column.create(name, value, timestamp, ttl, metadata);
+        return Cell.create(name, value, timestamp, ttl, metadata);
     }
 
-    public Column makeTombstone(CellName name) throws InvalidRequestException
+    public Cell makeTombstone(CellName name) throws InvalidRequestException
     {
         QueryProcessor.validateCellName(name);
-        return new DeletedColumn(name, localDeletionTime, timestamp);
+        return new DeletedCell(name, localDeletionTime, timestamp);
     }
 
     public RangeTombstone makeRangeTombstone(ColumnSlice slice) throws InvalidRequestException
@@ -78,12 +78,12 @@ public class UpdateParameters
         return new RangeTombstone(slice.start, slice.finish, timestamp - 1, localDeletionTime);
     }
 
-    public List<Column> getPrefetchedList(ByteBuffer rowKey, ColumnIdentifier cql3ColumnName)
+    public List<Cell> getPrefetchedList(ByteBuffer rowKey, ColumnIdentifier cql3ColumnName)
     {
         if (prefetchedLists == null)
             return Collections.emptyList();
 
         CQL3Row row = prefetchedLists.get(rowKey);
-        return row == null ? Collections.<Column>emptyList() : row.getCollection(cql3ColumnName);
+        return row == null ? Collections.<Cell>emptyList() : row.getCollection(cql3ColumnName);
     }
 }

@@ -30,8 +30,8 @@ Important options:
     -y or --family-type:
         Sets the ColumnFamily type.  One of 'Standard' or 'Super'.  If using super,
         you probably want to set the -u option also.
-    -c or --columns:
-        the number of columns per row, defaults to 5
+    -c or --cells:
+        the number of cells per row, defaults to 5
     -u or --supercolumns:
         use the number of supercolumns specified NOTE: you must set the -y
         option appropriately, or this option has no effect.

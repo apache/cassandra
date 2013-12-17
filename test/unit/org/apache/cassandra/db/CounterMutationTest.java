@@ -67,12 +67,12 @@ public class CounterMutationTest extends SchemaLoader
         ColumnFamily cf = Util.getColumnFamily(Keyspace.open("Keyspace1"), dk, "Counter1");
 
         // First merges old shards
-        CounterColumn.mergeAndRemoveOldShards(dk, cf, Integer.MIN_VALUE, Integer.MAX_VALUE, false);
+        CounterCell.mergeAndRemoveOldShards(dk, cf, Integer.MIN_VALUE, Integer.MAX_VALUE, false);
         long now = System.currentTimeMillis();
-        Column c = cf.getColumn(Util.cellname("Column1"));
+        Cell c = cf.getColumn(Util.cellname("Column1"));
         assert c != null;
-        assert c instanceof CounterColumn;
-        assert ((CounterColumn)c).total() == 12L;
+        assert c instanceof CounterCell;
+        assert ((CounterCell)c).total() == 12L;
         ContextState s = new ContextState(c.value());
         assert s.getCounterId().equals(id1);
         assert s.getCount() == 0L;
@@ -88,11 +88,11 @@ public class CounterMutationTest extends SchemaLoader
         assert s.getCount() == 12L;
 
         // Then collect old shards
-        CounterColumn.mergeAndRemoveOldShards(dk, cf, Integer.MAX_VALUE, Integer.MIN_VALUE, false);
+        CounterCell.mergeAndRemoveOldShards(dk, cf, Integer.MAX_VALUE, Integer.MIN_VALUE, false);
         c = cf.getColumn(Util.cellname("Column1"));
         assert c != null;
-        assert c instanceof CounterColumn;
-        assert ((CounterColumn)c).total() == 12L;
+        assert c instanceof CounterCell;
+        assert ((CounterCell)c).total() == 12L;
         s = new ContextState(c.value());
         assert s.getCounterId().equals(id3);
         assert s.getCount() == 12L;

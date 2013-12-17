@@ -363,7 +363,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
             List<WriteResponseHandler> responseHandlers = Lists.newArrayList();
             Map<UUID, Long> truncationTimesCache = new HashMap<UUID, Long>();
-            for (final Column hint : hintsPage)
+            for (final Cell hint : hintsPage)
             {
                 // check if hints delivery has been paused during the process
                 if (hintedHandOffPaused)

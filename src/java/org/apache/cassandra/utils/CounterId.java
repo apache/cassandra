@@ -26,7 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.db.CounterColumn;
+import org.apache.cassandra.db.CounterCell;
 import org.apache.cassandra.db.SystemKeyspace;
 
 public class CounterId implements Comparable<CounterId>
@@ -174,7 +174,7 @@ public class CounterId implements Comparable<CounterId>
             initialId = getLocalId();
         }
 
-        public void maybeRenew(CounterColumn column)
+        public void maybeRenew(CounterCell column)
         {
             if (!renewed && column.hasCounterId(initialId))
             {

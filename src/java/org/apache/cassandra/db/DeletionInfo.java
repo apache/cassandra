@@ -106,14 +106,14 @@ public class DeletionInfo
     }
 
     /**
-     * Return whether a given column is deleted by the container having this deletion info.
+     * Return whether a given cell is deleted by the container having this deletion info.
      *
-     * @param column the column to check.
-     * @return true if the column is deleted, false otherwise
+     * @param cell the cell to check.
+     * @return true if the cell is deleted, false otherwise
      */
-    public boolean isDeleted(Column column)
+    public boolean isDeleted(Cell cell)
     {
-        return isDeleted(column.name(), column.timestamp());
+        return isDeleted(cell.name(), cell.timestamp());
     }
 
     public boolean isDeleted(Composite name, long timestamp)
@@ -375,9 +375,9 @@ public class DeletionInfo
             this.reversed = reversed;
         }
 
-        public boolean isDeleted(Column column)
+        public boolean isDeleted(Cell cell)
         {
-            return isDeleted(column.name(), column.timestamp());
+            return isDeleted(cell.name(), cell.timestamp());
         }
 
         public boolean isDeleted(Composite name, long timestamp)

@@ -128,65 +128,65 @@ public class CassandraServer implements Cassandra.Iface
         return columnFamilyKeyMap;
     }
 
-    public List<ColumnOrSuperColumn> thriftifyColumns(Collection<org.apache.cassandra.db.Column> columns, boolean reverseOrder, long now)
+    public List<ColumnOrSuperColumn> thriftifyColumns(Collection<Cell> cells, boolean reverseOrder, long now)
     {
-        ArrayList<ColumnOrSuperColumn> thriftColumns = new ArrayList<ColumnOrSuperColumn>(columns.size());
-        for (org.apache.cassandra.db.Column column : columns)
+        ArrayList<ColumnOrSuperColumn> thriftColumns = new ArrayList<ColumnOrSuperColumn>(cells.size());
+        for (Cell cell : cells)
         {
-            if (column.isMarkedForDelete(now))
+            if (cell.isMarkedForDelete(now))
                 continue;
 
-            thriftColumns.add(thriftifyColumnWithName(column, column.name().toByteBuffer()));
+            thriftColumns.add(thriftifyColumnWithName(cell, cell.name().toByteBuffer()));
         }
 
         // we have to do the reversing here, since internally we pass results around in ColumnFamily
-        // objects, which always sort their columns in the "natural" order
+        // objects, which always sort their cells in the "natural" order
         // TODO this is inconvenient for direct users of StorageProxy
         if (reverseOrder)
             Collections.reverse(thriftColumns);
         return thriftColumns;
     }
 
-    private ColumnOrSuperColumn thriftifyColumnWithName(org.apache.cassandra.db.Column column, ByteBuffer newName)
+    private ColumnOrSuperColumn thriftifyColumnWithName(Cell cell, ByteBuffer newName)
     {
-        if (column instanceof org.apache.cassandra.db.CounterColumn)
-            return new ColumnOrSuperColumn().setCounter_column(thriftifySubCounter(column).setName(newName));
+        if (cell instanceof CounterCell)
+            return new ColumnOrSuperColumn().setCounter_column(thriftifySubCounter(cell).setName(newName));
         else
-            return new ColumnOrSuperColumn().setColumn(thriftifySubColumn(column).setName(newName));
+            return new ColumnOrSuperColumn().setColumn(thriftifySubColumn(cell).setName(newName));
     }
 
-    private Column thriftifySubColumn(org.apache.cassandra.db.Column column)
+    private Column thriftifySubColumn(Cell cell)
     {
-        assert !(column instanceof org.apache.cassandra.db.CounterColumn);
+        assert !(cell instanceof CounterCell);
 
-        Column thrift_column = new Column(column.name().toByteBuffer()).setValue(column.value()).setTimestamp(column.timestamp());
-        if (column instanceof ExpiringColumn)
+        Column thrift_column = new Column(cell.name().toByteBuffer()).setValue(cell.value()).setTimestamp(cell.timestamp());
+        if (cell instanceof ExpiringCell)
         {
-            thrift_column.setTtl(((ExpiringColumn) column).getTimeToLive());
+            thrift_column.setTtl(((ExpiringCell) cell).getTimeToLive());
         }
         return thrift_column;
     }
 
-    private List<Column> thriftifyColumnsAsColumns(Collection<org.apache.cassandra.db.Column> columns, long now)
+    private List<Column> thriftifyColumnsAsColumns(Collection<Cell> cells, long now)
     {
-        List<Column> thriftColumns = new ArrayList<Column>(columns.size());
-        for (org.apache.cassandra.db.Column column : columns)
+        List<Column> thriftColumns = new ArrayList<Column>(cells.size());
+        for (Cell cell : cells)
         {
-            if (column.isMarkedForDelete(now))
+            if (cell.isMarkedForDelete(now))
                 continue;
 
-            thriftColumns.add(thriftifySubColumn(column));
+            thriftColumns.add(thriftifySubColumn(cell));
         }
         return thriftColumns;
     }
 
-    private CounterColumn thriftifySubCounter(org.apache.cassandra.db.Column column)
+    private CounterColumn thriftifySubCounter(Cell cell)
     {
-        assert column instanceof org.apache.cassandra.db.CounterColumn;
-        return new CounterColumn(column.name().toByteBuffer(), CounterContext.instance().total(column.value()));
+        assert cell instanceof CounterCell;
+        return new CounterColumn(cell.name().toByteBuffer(), CounterContext.instance().total(cell.value()));
     }
 
-    private List<ColumnOrSuperColumn> thriftifySuperColumns(Collection<org.apache.cassandra.db.Column> columns,
+    private List<ColumnOrSuperColumn> thriftifySuperColumns(Collection<Cell> cells,
                                                             boolean reverseOrder,
                                                             long now,
                                                             boolean subcolumnsOnly,
@@ -194,13 +194,13 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (subcolumnsOnly)
         {
-            ArrayList<ColumnOrSuperColumn> thriftSuperColumns = new ArrayList<ColumnOrSuperColumn>(columns.size());
-            for (org.apache.cassandra.db.Column column : columns)
+            ArrayList<ColumnOrSuperColumn> thriftSuperColumns = new ArrayList<ColumnOrSuperColumn>(cells.size());
+            for (Cell cell : cells)
             {
-                if (column.isMarkedForDelete(now))
+                if (cell.isMarkedForDelete(now))
                     continue;
 
-                thriftSuperColumns.add(thriftifyColumnWithName(column, SuperColumns.subName(column.name())));
+                thriftSuperColumns.add(thriftifyColumnWithName(cell, SuperColumns.subName(cell.name())));
             }
             if (reverseOrder)
                 Collections.reverse(thriftSuperColumns);
@@ -209,28 +209,28 @@ public class CassandraServer implements Cassandra.Iface
         else
         {
             if (isCounterCF)
-                return thriftifyCounterSuperColumns(columns, reverseOrder, now);
+                return thriftifyCounterSuperColumns(cells, reverseOrder, now);
             else
-                return thriftifySuperColumns(columns, reverseOrder, now);
+                return thriftifySuperColumns(cells, reverseOrder, now);
         }
     }
 
-    private List<ColumnOrSuperColumn> thriftifySuperColumns(Collection<org.apache.cassandra.db.Column> columns, boolean reverseOrder, long now)
+    private List<ColumnOrSuperColumn> thriftifySuperColumns(Collection<Cell> cells, boolean reverseOrder, long now)
     {
-        ArrayList<ColumnOrSuperColumn> thriftSuperColumns = new ArrayList<ColumnOrSuperColumn>(columns.size());
+        ArrayList<ColumnOrSuperColumn> thriftSuperColumns = new ArrayList<ColumnOrSuperColumn>(cells.size());
         SuperColumn current = null;
-        for (org.apache.cassandra.db.Column column : columns)
+        for (Cell cell : cells)
         {
-            if (column.isMarkedForDelete(now))
+            if (cell.isMarkedForDelete(now))
                 continue;
 
-            ByteBuffer scName = SuperColumns.scName(column.name());
+            ByteBuffer scName = SuperColumns.scName(cell.name());
             if (current == null || !scName.equals(current.bufferForName()))
             {
                 current = new SuperColumn(scName, new ArrayList<Column>());
                 thriftSuperColumns.add(new ColumnOrSuperColumn().setSuper_column(current));
             }
-            current.getColumns().add(thriftifySubColumn(column).setName(SuperColumns.subName(column.name())));
+            current.getColumns().add(thriftifySubColumn(cell).setName(SuperColumns.subName(cell.name())));
         }
 
         if (reverseOrder)
@@ -239,22 +239,22 @@ public class CassandraServer implements Cassandra.Iface
         return thriftSuperColumns;
     }
 
-    private List<ColumnOrSuperColumn> thriftifyCounterSuperColumns(Collection<org.apache.cassandra.db.Column> columns, boolean reverseOrder, long now)
+    private List<ColumnOrSuperColumn> thriftifyCounterSuperColumns(Collection<Cell> cells, boolean reverseOrder, long now)
     {
-        ArrayList<ColumnOrSuperColumn> thriftSuperColumns = new ArrayList<ColumnOrSuperColumn>(columns.size());
+        ArrayList<ColumnOrSuperColumn> thriftSuperColumns = new ArrayList<ColumnOrSuperColumn>(cells.size());
         CounterSuperColumn current = null;
-        for (org.apache.cassandra.db.Column column : columns)
+        for (Cell cell : cells)
         {
-            if (column.isMarkedForDelete(now))
+            if (cell.isMarkedForDelete(now))
                 continue;
 
-            ByteBuffer scName = SuperColumns.scName(column.name());
+            ByteBuffer scName = SuperColumns.scName(cell.name());
             if (current == null || !scName.equals(current.bufferForName()))
             {
                 current = new CounterSuperColumn(scName, new ArrayList<CounterColumn>());
                 thriftSuperColumns.add(new ColumnOrSuperColumn().setCounter_super_column(current));
             }
-            current.getColumns().add(thriftifySubCounter(column).setName(SuperColumns.subName(column.name())));
+            current.getColumns().add(thriftifySubCounter(cell).setName(SuperColumns.subName(cell.name())));
         }
 
         if (reverseOrder)

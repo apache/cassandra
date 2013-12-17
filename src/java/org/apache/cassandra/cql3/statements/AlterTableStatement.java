@@ -106,7 +106,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
 
             case ALTER:
                 if (def == null)
-                    throw new InvalidRequestException(String.format("Column %s was not found in table %s", columnName, columnFamily()));
+                    throw new InvalidRequestException(String.format("Cell %s was not found in table %s", columnName, columnFamily()));
 
                 switch (def.kind)
                 {
@@ -181,7 +181,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 if (!cfm.isCQL3Table())
                     throw new InvalidRequestException("Cannot drop columns from a non-CQL3 CF");
                 if (def == null)
-                    throw new InvalidRequestException(String.format("Column %s was not found in table %s", columnName, columnFamily()));
+                    throw new InvalidRequestException(String.format("Cell %s was not found in table %s", columnName, columnFamily()));
 
                 switch (def.kind)
                 {

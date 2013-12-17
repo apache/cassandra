@@ -28,7 +28,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 
 /**
- *  A Column Iterator over SSTable
+ *  A Cell Iterator over SSTable
  */
 public class SSTableSliceIterator implements OnDiskAtomIterator
 {

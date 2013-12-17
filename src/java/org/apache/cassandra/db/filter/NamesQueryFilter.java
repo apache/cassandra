@@ -85,14 +85,14 @@ public class NamesQueryFilter implements IDiskAtomFilter
         return new SSTableNamesIterator(sstable, file, key, columns, indexEntry);
     }
 
-    public void collectReducedColumns(ColumnFamily container, Iterator<Column> reducedColumns, int gcBefore, long now)
+    public void collectReducedColumns(ColumnFamily container, Iterator<Cell> reducedColumns, int gcBefore, long now)
     {
         DeletionInfo.InOrderTester tester = container.inOrderDeletionTester();
         while (reducedColumns.hasNext())
             container.addIfRelevant(reducedColumns.next(), tester, gcBefore);
     }
 
-    public Comparator<Column> getColumnComparator(CellNameType comparator)
+    public Comparator<Cell> getColumnComparator(CellNameType comparator)
     {
         return comparator.columnComparator();
     }
@@ -122,9 +122,9 @@ public class NamesQueryFilter implements IDiskAtomFilter
             return cf.hasOnlyTombstones(now) ? 0 : 1;
 
         int count = 0;
-        for (Column column : cf)
+        for (Cell cell : cf)
         {
-            if (column.isLive(now))
+            if (cell.isLive(now))
                 count++;
         }
         return count;
@@ -185,9 +185,9 @@ public class NamesQueryFilter implements IDiskAtomFilter
             while (iter.hasNext())
             {
                 CellName current = iter.next();
-                Column column = cf.getColumn(current);
-                if (column != null)
-                    return column;
+                Cell cell = cf.getColumn(current);
+                if (cell != null)
+                    return cell;
             }
             return endOfData();
         }

@@ -45,7 +45,6 @@ import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.dht.*;
@@ -60,7 +59,6 @@ import org.apache.cassandra.utils.WrappedRunnable;
 import static org.junit.Assert.*;
 import static org.apache.cassandra.Util.*;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-import static org.apache.commons.lang3.ArrayUtils.EMPTY_BYTE_ARRAY;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class ColumnFamilyStoreTest extends SchemaLoader
@@ -306,7 +304,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assert rows.isEmpty();
 
         // verify that it's not being indexed under the deletion column value either
-        Column deletion = rm.getColumnFamilies().iterator().next().iterator().next();
+        Cell deletion = rm.getColumnFamilies().iterator().next().iterator().next();
         ByteBuffer deletionLong = ByteBufferUtil.bytes((long) ByteBufferUtil.toInt(deletion.value()));
         IndexExpression expr0 = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexExpression.Operator.EQ, deletionLong);
         List<IndexExpression> clause0 = Arrays.asList(expr0);
@@ -703,16 +701,16 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         // create an isolated sstable.
         putColsSuper(cfs, key, scfName,
-                new Column(cellname(1L), ByteBufferUtil.bytes("val1"), 1),
-                new Column(cellname(2L), ByteBufferUtil.bytes("val2"), 1),
-                new Column(cellname(3L), ByteBufferUtil.bytes("val3"), 1));
+                new Cell(cellname(1L), ByteBufferUtil.bytes("val1"), 1),
+                new Cell(cellname(2L), ByteBufferUtil.bytes("val2"), 1),
+                new Cell(cellname(3L), ByteBufferUtil.bytes("val3"), 1));
         cfs.forceBlockingFlush();
 
         // insert, don't flush.
         putColsSuper(cfs, key, scfName,
-                new Column(cellname(4L), ByteBufferUtil.bytes("val4"), 1),
-                new Column(cellname(5L), ByteBufferUtil.bytes("val5"), 1),
-                new Column(cellname(6L), ByteBufferUtil.bytes("val6"), 1));
+                new Cell(cellname(4L), ByteBufferUtil.bytes("val4"), 1),
+                new Cell(cellname(5L), ByteBufferUtil.bytes("val5"), 1),
+                new Cell(cellname(6L), ByteBufferUtil.bytes("val6"), 1));
 
         // verify insert.
         final SlicePredicate sp = new SlicePredicate();
@@ -739,17 +737,17 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         // late insert.
         putColsSuper(cfs, key, scfName,
-                new Column(cellname(4L), ByteBufferUtil.bytes("val4"), 1L),
-                new Column(cellname(7L), ByteBufferUtil.bytes("val7"), 1L));
+                new Cell(cellname(4L), ByteBufferUtil.bytes("val4"), 1L),
+                new Cell(cellname(7L), ByteBufferUtil.bytes("val7"), 1L));
 
         // re-verify delete.
         assertRowAndColCount(1, 0, false, cfs.getRangeSlice(Util.range("f", "g"), null, ThriftValidation.asIFilter(sp, cfs.metadata, scfName), 100));
 
         // make sure new writes are recognized.
         putColsSuper(cfs, key, scfName,
-                new Column(cellname(3L), ByteBufferUtil.bytes("val3"), 3),
-                new Column(cellname(8L), ByteBufferUtil.bytes("val8"), 3),
-                new Column(cellname(9L), ByteBufferUtil.bytes("val9"), 3));
+                new Cell(cellname(3L), ByteBufferUtil.bytes("val3"), 3),
+                new Cell(cellname(8L), ByteBufferUtil.bytes("val8"), 3),
+                new Cell(cellname(9L), ByteBufferUtil.bytes("val9"), 3));
         assertRowAndColCount(1, 3, false, cfs.getRangeSlice(Util.range("f", "g"), null, ThriftValidation.asIFilter(sp, cfs.metadata, scfName), 100));
     }
 
@@ -768,24 +766,24 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     private static String str(ColumnFamily cf) throws CharacterCodingException
     {
         StringBuilder sb = new StringBuilder();
-        for (Column col : cf.getSortedColumns())
+        for (Cell col : cf.getSortedColumns())
             sb.append(String.format("(%s,%s,%d),", ByteBufferUtil.string(col.name().toByteBuffer()), ByteBufferUtil.string(col.value()), col.timestamp()));
         return sb.toString();
     }
 
-    private static void putColsSuper(ColumnFamilyStore cfs, DecoratedKey key, ByteBuffer scfName, Column... cols) throws Throwable
+    private static void putColsSuper(ColumnFamilyStore cfs, DecoratedKey key, ByteBuffer scfName, Cell... cols) throws Throwable
     {
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfs.keyspace.getName(), cfs.name);
-        for (Column col : cols)
+        for (Cell col : cols)
             cf.addColumn(col.withUpdatedName(CellNames.compositeDense(scfName, col.name().toByteBuffer())));
         RowMutation rm = new RowMutation(cfs.keyspace.getName(), key.key, cf);
         rm.apply();
     }
 
-    private static void putColsStandard(ColumnFamilyStore cfs, DecoratedKey key, Column... cols) throws Throwable
+    private static void putColsStandard(ColumnFamilyStore cfs, DecoratedKey key, Cell... cols) throws Throwable
     {
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfs.keyspace.getName(), cfs.name);
-        for (Column col : cols)
+        for (Cell col : cols)
             cf.addColumn(col);
         RowMutation rm = new RowMutation(cfs.keyspace.getName(), key.key, cf);
         rm.apply();
@@ -890,8 +888,8 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         DecoratedKey key = Util.dk("slice-get-uuid-type");
 
         // Insert a row with one supercolumn and multiple subcolumns
-        putColsSuper(cfs, key, superColName, new Column(cellname("a"), ByteBufferUtil.bytes("A"), 1),
-                                             new Column(cellname("b"), ByteBufferUtil.bytes("B"), 1));
+        putColsSuper(cfs, key, superColName, new Cell(cellname("a"), ByteBufferUtil.bytes("A"), 1),
+                                             new Cell(cellname("b"), ByteBufferUtil.bytes("B"), 1));
 
         // Get the entire supercolumn like normal
         ColumnFamily cfGet = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
@@ -921,8 +919,8 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
         cfs.clearUnsafe();
 
-        // Create a column a 'high timestamp'
-        putColsStandard(cfs, key, new Column(cname, ByteBufferUtil.bytes("a"), 2));
+        // Create a cell a 'high timestamp'
+        putColsStandard(cfs, key, new Cell(cname, ByteBufferUtil.bytes("a"), 2));
         cfs.forceBlockingFlush();
 
         // Nuke the metadata and reload that sstable
@@ -934,14 +932,14 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         new File(ssTables.iterator().next().descriptor.filenameFor(Component.STATS)).delete();
         cfs.loadNewSSTables();
 
-        // Add another column with a lower timestamp
-        putColsStandard(cfs, key, new Column(cname, ByteBufferUtil.bytes("b"), 1));
+        // Add another cell with a lower timestamp
+        putColsStandard(cfs, key, new Cell(cname, ByteBufferUtil.bytes("b"), 1));
 
-        // Test fetching the column by name returns the first column
+        // Test fetching the cell by name returns the first cell
         SliceByNamesReadCommand cmd = new SliceByNamesReadCommand(keyspaceName, key.key, cfName, System.currentTimeMillis(), new NamesQueryFilter(FBUtilities.singleton(cname, cfs.getComparator())));
         ColumnFamily cf = cmd.getRow(keyspace).cf;
-        Column column = cf.getColumn(cname);
-        assert column.value().equals(ByteBufferUtil.bytes("a")) : "expecting a, got " + ByteBufferUtil.string(column.value());
+        Cell cell = cf.getColumn(cname);
+        assert cell.value().equals(ByteBufferUtil.bytes("a")) : "expecting a, got " + ByteBufferUtil.string(cell.value());
     }
 
     private static void assertTotalColCount(Collection<Row> rows, int expectedCount)
@@ -964,7 +962,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
         cfs.clearUnsafe();
 
-        Column[] cols = new Column[5];
+        Cell[] cols = new Cell[5];
         for (int i = 0; i < 5; i++)
             cols[i] = column("c" + i, "value", 1);
 
@@ -1080,7 +1078,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
         cfs.clearUnsafe();
 
-        Column[] cols = new Column[4];
+        Cell[] cols = new Cell[4];
         for (int i = 0; i < 4; i++)
             cols[i] = column("c" + i, "value", 1);
 
@@ -1171,7 +1169,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
                 sb.append(":");
                 if (row.cf != null && !row.cf.isEmpty())
                 {
-                    for (Column c : row.cf)
+                    for (Cell c : row.cf)
                         sb.append(" ").append(row.cf.getComparator().getString(c.name()));
                 }
                 sb.append("} ");
@@ -1189,12 +1187,12 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         if (row == null || row.cf == null)
             throw new AssertionError("The row should not be empty");
 
-        Iterator<Column> columns = row.cf.getSortedColumns().iterator();
+        Iterator<Cell> columns = row.cf.getSortedColumns().iterator();
         Iterator<String> names = Arrays.asList(columnNames).iterator();
 
         while (columns.hasNext())
         {
-            Column c = columns.next();
+            Cell c = columns.next();
             assert names.hasNext() : "Got more columns that expected (first unexpected column: " + ByteBufferUtil.string(c.name().toByteBuffer()) + ")";
             String n = names.next();
             assert c.name().toByteBuffer().equals(ByteBufferUtil.bytes(n)) : "Expected " + n + ", got " + ByteBufferUtil.string(c.name().toByteBuffer());
@@ -1216,7 +1214,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
         cfs.clearUnsafe();
 
-        Column[] cols = new Column[5];
+        Cell[] cols = new Cell[5];
         for (int i = 0; i < 5; i++)
             cols[i] = column("c" + i, "value", 1);
 
@@ -1313,10 +1311,10 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         cfs.clearUnsafe();
 
         String[] letters = new String[] { "a", "b", "c", "d", "i" };
-        Column[] cols = new Column[letters.length];
+        Cell[] cols = new Cell[letters.length];
         for (int i = 0; i < cols.length; i++)
         {
-            cols[i] = new Column(cellname("col" + letters[i].toUpperCase()),
+            cols[i] = new Cell(cellname("col" + letters[i].toUpperCase()),
                     ByteBuffer.wrap(new byte[1]), 1);
         }
 
@@ -1362,10 +1360,10 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         cfs.clearUnsafe();
 
         String[] letters = new String[] { "a", "b", "c", "d", "i" };
-        Column[] cols = new Column[letters.length];
+        Cell[] cols = new Cell[letters.length];
         for (int i = 0; i < cols.length; i++)
         {
-            cols[i] = new Column(cellname("col" + letters[i].toUpperCase()),
+            cols[i] = new Cell(cellname("col" + letters[i].toUpperCase()),
                     ByteBuffer.wrap(new byte[1366]), 1);
         }
 
@@ -1411,10 +1409,10 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         cfs.clearUnsafe();
 
         String[] letters = new String[] { "a", "b", "c", "d", "e", "f", "g", "h", "i" };
-        Column[] cols = new Column[letters.length];
+        Cell[] cols = new Cell[letters.length];
         for (int i = 0; i < cols.length; i++)
         {
-            cols[i] = new Column(cellname("col" + letters[i].toUpperCase()),
+            cols[i] = new Cell(cellname("col" + letters[i].toUpperCase()),
                     ByteBuffer.wrap(new byte[1]), 1);
         }
 
@@ -1461,10 +1459,10 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         cfs.clearUnsafe();
 
         String[] letters = new String[] { "a", "b", "c", "d", "e", "f", "g", "h", "i" };
-        Column[] cols = new Column[letters.length];
+        Cell[] cols = new Cell[letters.length];
         for (int i = 0; i < cols.length; i++)
         {
-            cols[i] = new Column(cellname("col" + letters[i].toUpperCase()),
+            cols[i] = new Cell(cellname("col" + letters[i].toUpperCase()),
                     ByteBuffer.wrap(new byte[1366]), 1);
         }
 
@@ -1509,10 +1507,10 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         cfs.clearUnsafe();
 
         String[] letters = new String[] { "a", "b", "c", "d", "e", "f", "g", "h", "i" };
-        Column[] cols = new Column[letters.length];
+        Cell[] cols = new Cell[letters.length];
         for (int i = 0; i < cols.length; i++)
         {
-            cols[i] = new Column(cellname("col" + letters[i].toUpperCase()),
+            cols[i] = new Cell(cellname("col" + letters[i].toUpperCase()),
                     // use 1366 so that three cols make an index segment
                     ByteBuffer.wrap(new byte[1366]), 1);
         }
@@ -1628,10 +1626,10 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         cfs.clearUnsafe();
 
         String[] letters = new String[] { "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l" };
-        Column[] cols = new Column[12];
+        Cell[] cols = new Cell[12];
         for (int i = 0; i < cols.length; i++)
         {
-            cols[i] = new Column(cellname("col" + letters[i]), ByteBuffer.wrap(new byte[valueSize]), 1);
+            cols[i] = new Cell(cellname("col" + letters[i]), ByteBuffer.wrap(new byte[valueSize]), 1);
         }
 
         for (int i = 0; i < 12; i++)
@@ -1863,11 +1861,11 @@ public class ColumnFamilyStoreTest extends SchemaLoader
                                            false);
         assertSame("unexpected number of rows ", 1, rows.size());
         Row row = rows.get(0);
-        Collection<Column> cols = !filter.isReversed() ? row.cf.getSortedColumns() : row.cf.getReverseSortedColumns();
+        Collection<Cell> cols = !filter.isReversed() ? row.cf.getSortedColumns() : row.cf.getReverseSortedColumns();
         // printRow(cfs, new String(row.key.key.array()), cols);
-        String[] returnedColsNames = Iterables.toArray(Iterables.transform(cols, new Function<Column, String>()
+        String[] returnedColsNames = Iterables.toArray(Iterables.transform(cols, new Function<Cell, String>()
         {
-            public String apply(Column arg0)
+            public String apply(Cell arg0)
             {
                 return Util.string(arg0.name().toByteBuffer());
             }
@@ -1877,29 +1875,29 @@ public class ColumnFamilyStoreTest extends SchemaLoader
                 "Columns did not match. Expected: " + Arrays.toString(colNames) + " but got:"
                         + Arrays.toString(returnedColsNames), Arrays.equals(colNames, returnedColsNames));
         int i = 0;
-        for (Column col : cols)
+        for (Cell col : cols)
         {
             assertEquals(colNames[i++], Util.string(col.name().toByteBuffer()));
         }
     }
 
-    private void printRow(ColumnFamilyStore cfs, String rowKey, Collection<Column> cols)
+    private void printRow(ColumnFamilyStore cfs, String rowKey, Collection<Cell> cols)
     {
         DecoratedKey ROW = Util.dk(rowKey);
         System.err.println("Original:");
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(ROW, "Standard1", System.currentTimeMillis()));
         System.err.println("Row key: " + rowKey + " Cols: "
-                + Iterables.transform(cf.getSortedColumns(), new Function<Column, String>()
+                + Iterables.transform(cf.getSortedColumns(), new Function<Cell, String>()
                 {
-                    public String apply(Column arg0)
+                    public String apply(Cell arg0)
                     {
                         return Util.string(arg0.name().toByteBuffer());
                     }
                 }));
         System.err.println("Filtered:");
-        Iterable<String> transformed = Iterables.transform(cols, new Function<Column, String>()
+        Iterable<String> transformed = Iterables.transform(cols, new Function<Cell, String>()
         {
-            public String apply(Column arg0)
+            public String apply(Cell arg0)
             {
                 return Util.string(arg0.name().toByteBuffer());
             }

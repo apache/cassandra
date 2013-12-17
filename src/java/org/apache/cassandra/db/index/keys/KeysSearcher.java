@@ -87,7 +87,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
         return new ColumnFamilyStore.AbstractScanIterator()
         {
             private Composite lastSeenKey = startKey;
-            private Iterator<Column> indexColumns;
+            private Iterator<Cell> indexColumns;
             private int columnsRead = Integer.MAX_VALUE;
 
             protected Row computeNext()
@@ -124,19 +124,19 @@ public class KeysSearcher extends SecondaryIndexSearcher
                             return endOfData();
                         }
 
-                        Collection<Column> sortedColumns = indexRow.getSortedColumns();
-                        columnsRead = sortedColumns.size();
-                        indexColumns = sortedColumns.iterator();
-                        Column firstColumn = sortedColumns.iterator().next();
+                        Collection<Cell> sortedCells = indexRow.getSortedColumns();
+                        columnsRead = sortedCells.size();
+                        indexColumns = sortedCells.iterator();
+                        Cell firstCell = sortedCells.iterator().next();
 
                         // Paging is racy, so it is possible the first column of a page is not the last seen one.
-                        if (lastSeenKey != startKey && lastSeenKey.equals(firstColumn.name()))
+                        if (lastSeenKey != startKey && lastSeenKey.equals(firstCell.name()))
                         {
                             // skip the row we already saw w/ the last page of results
                             indexColumns.next();
-                            logger.trace("Skipping {}", baseCfs.metadata.getKeyValidator().getString(firstColumn.name().toByteBuffer()));
+                            logger.trace("Skipping {}", baseCfs.metadata.getKeyValidator().getString(firstCell.name().toByteBuffer()));
                         }
-                        else if (range instanceof Range && indexColumns.hasNext() && firstColumn.name().equals(startKey))
+                        else if (range instanceof Range && indexColumns.hasNext() && firstCell.name().equals(startKey))
                         {
                             // skip key excluded by range
                             indexColumns.next();
@@ -146,11 +146,11 @@ public class KeysSearcher extends SecondaryIndexSearcher
 
                     while (indexColumns.hasNext())
                     {
-                        Column column = indexColumns.next();
-                        lastSeenKey = column.name();
-                        if (column.isMarkedForDelete(filter.timestamp))
+                        Cell cell = indexColumns.next();
+                        lastSeenKey = cell.name();
+                        if (cell.isMarkedForDelete(filter.timestamp))
                         {
-                            logger.trace("skipping {}", column.name());
+                            logger.trace("skipping {}", cell.name());
                             continue;
                         }
 
@@ -168,7 +168,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
 
                         logger.trace("Returning index hit for {}", dk);
                         ColumnFamily data = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, filter.columnFilter(lastSeenKey.toByteBuffer()), filter.timestamp));
-                        // While the column family we'll get in the end should contains the primary clause column, the initialFilter may not have found it and can thus be null
+                        // While the column family we'll get in the end should contains the primary clause cell, the initialFilter may not have found it and can thus be null
                         if (data == null)
                             data = TreeMapBackedSortedColumns.factory.create(baseCfs.metadata);
 
@@ -185,8 +185,8 @@ public class KeysSearcher extends SecondaryIndexSearcher
                         if (((KeysIndex)index).isIndexEntryStale(indexKey.key, data, filter.timestamp))
                         {
                             // delete the index entry w/ its own timestamp
-                            Column dummyColumn = new Column(primaryColumn, indexKey.key, column.timestamp());
-                            ((PerColumnSecondaryIndex)index).delete(dk.key, dummyColumn);
+                            Cell dummyCell = new Cell(primaryColumn, indexKey.key, cell.timestamp());
+                            ((PerColumnSecondaryIndex)index).delete(dk.key, dummyCell);
                             continue;
                         }
                         return new Row(dk, data);

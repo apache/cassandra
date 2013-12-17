@@ -297,9 +297,9 @@ public class StorageProxy implements StorageProxyMBean
         // that excepted don't have. So we just check that for each columns in expected:
         //   - if it is a tombstone, whether current has no column or a tombstone;
         //   - otherwise, that current has a live column with the same value.
-        for (Column e : expected)
+        for (Cell e : expected)
         {
-            Column c = current.getColumn(e.name());
+            Cell c = current.getColumn(e.name());
             if (e.isLive(now))
             {
                 if (!(c != null && c.isLive(now) && c.value().equals(e.value())))

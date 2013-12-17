@@ -20,12 +20,11 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.SetSerializer;
-import org.apache.cassandra.utils.Pair;
 
 public class SetType<T> extends CollectionType<Set<T>>
 {
@@ -82,18 +81,18 @@ public class SetType<T> extends CollectionType<Set<T>>
         sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Collections.<AbstractType<?>>singletonList(elements)));
     }
 
-    public ByteBuffer serialize(List<Column> columns)
+    public ByteBuffer serialize(List<Cell> cells)
     {
-        columns = enforceLimit(columns);
+        cells = enforceLimit(cells);
 
-        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(columns.size());
+        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(cells.size());
         int size = 0;
-        for (Column c : columns)
+        for (Cell c : cells)
         {
             ByteBuffer key = c.name().collectionElement();
             bbs.add(key);
             size += 2 + key.remaining();
         }
-        return pack(bbs, columns.size(), size);
+        return pack(bbs, cells.size(), size);
     }
 }

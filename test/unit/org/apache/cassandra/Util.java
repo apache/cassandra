@@ -25,7 +25,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -45,7 +44,6 @@ import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
@@ -108,19 +106,19 @@ public class Util
         return CellNames.simpleDense(ByteBufferUtil.bytes(l));
     }
 
-    public static Column column(String name, String value, long timestamp)
+    public static Cell column(String name, String value, long timestamp)
     {
-        return new Column(cellname(name), ByteBufferUtil.bytes(value), timestamp);
+        return new Cell(cellname(name), ByteBufferUtil.bytes(value), timestamp);
     }
 
-    public static Column expiringColumn(String name, String value, long timestamp, int ttl)
+    public static Cell expiringColumn(String name, String value, long timestamp, int ttl)
     {
-        return new ExpiringColumn(cellname(name), ByteBufferUtil.bytes(value), timestamp, ttl);
+        return new ExpiringCell(cellname(name), ByteBufferUtil.bytes(value), timestamp, ttl);
     }
 
-    public static Column counterColumn(String name, long value, long timestamp)
+    public static Cell counterColumn(String name, long value, long timestamp)
     {
-        return new CounterUpdateColumn(cellname(name), value, timestamp);
+        return new CounterUpdateCell(cellname(name), value, timestamp);
     }
 
     public static Token token(String key)

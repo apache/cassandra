@@ -59,9 +59,9 @@ public class ArrayBackedSortedColumnsTest extends SchemaLoader
         int[] values = new int[]{ 1, 2, 2, 3 };
 
         for (int i = 0; i < values.length; ++i)
-            map.addColumn(new Column(type.makeCellName(values[reversed ? values.length - 1 - i : i])), HeapAllocator.instance);
+            map.addColumn(new Cell(type.makeCellName(values[reversed ? values.length - 1 - i : i])), HeapAllocator.instance);
 
-        Iterator<Column> iter = map.iterator();
+        Iterator<Cell> iter = map.iterator();
         assertEquals("1st column", 1, iter.next().name().toByteBuffer().getInt(0));
         assertEquals("2nd column", 2, iter.next().name().toByteBuffer().getInt(0));
         assertEquals("3rd column", 3, iter.next().name().toByteBuffer().getInt(0));
@@ -84,14 +84,14 @@ public class ArrayBackedSortedColumnsTest extends SchemaLoader
         int[] values2 = new int[]{ 2, 4, 5, 6 };
 
         for (int i = 0; i < values1.length; ++i)
-            map.addColumn(new Column(type.makeCellName(values1[reversed ? values1.length - 1 - i : i])), HeapAllocator.instance);
+            map.addColumn(new Cell(type.makeCellName(values1[reversed ? values1.length - 1 - i : i])), HeapAllocator.instance);
 
         for (int i = 0; i < values2.length; ++i)
-            map2.addColumn(new Column(type.makeCellName(values2[reversed ? values2.length - 1 - i : i])), HeapAllocator.instance);
+            map2.addColumn(new Cell(type.makeCellName(values2[reversed ? values2.length - 1 - i : i])), HeapAllocator.instance);
 
-        map2.addAll(map, HeapAllocator.instance, Functions.<Column>identity());
+        map2.addAll(map, HeapAllocator.instance, Functions.<Cell>identity());
 
-        Iterator<Column> iter = map2.iterator();
+        Iterator<Cell> iter = map2.iterator();
         assertEquals("1st column", 1, iter.next().name().toByteBuffer().getInt(0));
         assertEquals("2nd column", 2, iter.next().name().toByteBuffer().getInt(0));
         assertEquals("3rd column", 3, iter.next().name().toByteBuffer().getInt(0));
@@ -113,14 +113,14 @@ public class ArrayBackedSortedColumnsTest extends SchemaLoader
         ColumnFamily map = ArrayBackedSortedColumns.factory.create(metadata(), reversed);
         int[] values = new int[]{ 1, 2, 3, 5, 9 };
 
-        List<Column> sorted = new ArrayList<Column>();
+        List<Cell> sorted = new ArrayList<Cell>();
         for (int v : values)
-            sorted.add(new Column(type.makeCellName(v)));
-        List<Column> reverseSorted = new ArrayList<Column>(sorted);
+            sorted.add(new Cell(type.makeCellName(v)));
+        List<Cell> reverseSorted = new ArrayList<Cell>(sorted);
         Collections.reverse(reverseSorted);
 
         for (int i = 0; i < values.length; ++i)
-            map.addColumn(new Column(type.makeCellName(values[reversed ? values.length - 1 - i : i])), HeapAllocator.instance);
+            map.addColumn(new Cell(type.makeCellName(values[reversed ? values.length - 1 - i : i])), HeapAllocator.instance);
 
         assertSame(sorted, map.getSortedColumns());
         assertSame(reverseSorted, map.getReverseSortedColumns());
@@ -141,7 +141,7 @@ public class ArrayBackedSortedColumnsTest extends SchemaLoader
         int[] values = new int[]{ 1, 2, 3, 5, 9 };
 
         for (int i = 0; i < values.length; ++i)
-            map.addColumn(new Column(type.makeCellName(values[reversed ? values.length - 1 - i : i])), HeapAllocator.instance);
+            map.addColumn(new Cell(type.makeCellName(values[reversed ? values.length - 1 - i : i])), HeapAllocator.instance);
 
         assertSame(new int[]{ 3, 2, 1 }, map.reverseIterator(new ColumnSlice[]{ new ColumnSlice(type.make(3), Composites.EMPTY) }));
         assertSame(new int[]{ 3, 2, 1 }, map.reverseIterator(new ColumnSlice[]{ new ColumnSlice(type.make(4), Composites.EMPTY) }));
@@ -162,7 +162,7 @@ public class ArrayBackedSortedColumnsTest extends SchemaLoader
             fail("The collection don't have the same size");
     }
 
-    private void assertSame(int[] names, Iterator<Column> iter)
+    private void assertSame(int[] names, Iterator<Cell> iter)
     {
         for (int name : names)
         {

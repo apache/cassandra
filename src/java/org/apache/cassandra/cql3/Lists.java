@@ -24,8 +24,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.CollectionType;
@@ -305,7 +305,7 @@ public abstract class Lists
             if (index == null)
                 throw new InvalidRequestException("Invalid null value for list index");
 
-            List<Column> existingList = params.getPrefetchedList(rowKey, column.name);
+            List<Cell> existingList = params.getPrefetchedList(rowKey, column.name);
             int idx = ByteBufferUtil.toInt(index);
             if (idx < 0 || idx >= existingList.size())
                 throw new InvalidRequestException(String.format("List index %d out of bound, list has size %d", idx, existingList.size()));
@@ -399,7 +399,7 @@ public abstract class Lists
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            List<Column> existingList = params.getPrefetchedList(rowKey, column.name);
+            List<Cell> existingList = params.getPrefetchedList(rowKey, column.name);
             if (existingList.isEmpty())
                 return;
 
@@ -414,7 +414,7 @@ public abstract class Lists
             // the read-before-write this operation requires limits its usefulness on big lists, so in practice
             // toDiscard will be small and keeping a list will be more efficient.
             List<ByteBuffer> toDiscard = ((Lists.Value)value).elements;
-            for (Column cell : existingList)
+            for (Cell cell : existingList)
             {
                 if (toDiscard.contains(cell.value()))
                     cf.addColumn(params.makeTombstone(cell.name()));
@@ -443,7 +443,7 @@ public abstract class Lists
 
             assert index instanceof Constants.Value;
 
-            List<Column> existingList = params.getPrefetchedList(rowKey, column.name);
+            List<Cell> existingList = params.getPrefetchedList(rowKey, column.name);
             int idx = ByteBufferUtil.toInt(((Constants.Value)index).bytes);
             if (idx < 0 || idx >= existingList.size())
                 throw new InvalidRequestException(String.format("List index %d out of bound, list has size %d", idx, existingList.size()));

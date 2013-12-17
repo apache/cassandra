@@ -76,9 +76,9 @@ public class Session implements Serializable
         availableOptions.addOption("F",  "num-different-keys",   true,   "Number of different keys (if < NUM-KEYS, the same key will re-used multiple times), default:NUM-KEYS");
         availableOptions.addOption("N",  "skip-keys",            true,   "Fraction of keys to skip initially, default:0");
         availableOptions.addOption("t",  "threads",              true,   "Number of threads to use, default:50");
-        availableOptions.addOption("c",  "columns",              true,   "Number of columns per key, default:5");
+        availableOptions.addOption("c",  "cells",                true,   "Number of cells per key, default:5");
         availableOptions.addOption("S",  "column-size",          true,   "Size of column values in bytes, default:34");
-        availableOptions.addOption("C",  "cardinality",          true,   "Number of unique values stored in columns, default:50");
+        availableOptions.addOption("C",  "cardinality",          true,   "Number of unique values stored in cells, default:50");
         availableOptions.addOption("d",  "nodes",                true,   "Host nodes (comma separated), default:locahost");
         availableOptions.addOption("D",  "nodesfile",            true,   "File containing host nodes (one per line)");
         availableOptions.addOption("s",  "stdev",                true,   "Standard Deviation Factor, default:0.1");
@@ -107,7 +107,7 @@ public class Session implements Serializable
         availableOptions.addOption("I",  "compression",          true,   "Specify the compression to use for sstable, default:no compression");
         availableOptions.addOption("Q",  "query-names",          true,   "Comma-separated list of column names to retrieve from each row.");
         availableOptions.addOption("Z",  "compaction-strategy",  true,   "CompactionStrategy to use.");
-        availableOptions.addOption("U",  "comparator",           true,   "Column Comparator to use. Currently supported types are: TimeUUIDType, AsciiType, UTF8Type.");
+        availableOptions.addOption("U",  "comparator",           true,   "Cell Comparator to use. Currently supported types are: TimeUUIDType, AsciiType, UTF8Type.");
         availableOptions.addOption("tf", "transport-factory",    true,   "Fully-qualified TTransportFactory class name for creating a connection. Note: For Thrift over SSL, use org.apache.cassandra.stress.SSLTransportFactory.");
         availableOptions.addOption("ns", "no-statistics",        false,  "Turn off the aggegate statistics that is normally output after completion.");
         availableOptions.addOption("ts", SSL_TRUSTSTORE,         true, "SSL: full path to truststore");

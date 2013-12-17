@@ -229,7 +229,7 @@ public class StreamingTransferTest extends SchemaLoader
                 long val = key.hashCode();
                 ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(keyspace.getName(), cfs.name);
                 cf.addColumn(column(col, "v", timestamp));
-                cf.addColumn(new Column(cellname("birthdate"), ByteBufferUtil.bytes(val), timestamp));
+                cf.addColumn(new Cell(cellname("birthdate"), ByteBufferUtil.bytes(val), timestamp));
                 RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key), cf);
                 logger.debug("Applying row to transfer " + rm);
                 rm.apply();
@@ -320,8 +320,8 @@ public class StreamingTransferTest extends SchemaLoader
                 state.writeElement(CounterId.fromInt(4), 4L, 2L);
                 state.writeElement(CounterId.fromInt(6), 3L, 3L);
                 state.writeElement(CounterId.fromInt(8), 2L, 4L);
-                cf.addColumn(new CounterColumn(cellname(col), state.context, timestamp));
-                cfCleaned.addColumn(new CounterColumn(cellname(col), cc.clearAllDelta(state.context), timestamp));
+                cf.addColumn(new CounterCell(cellname(col), state.context, timestamp));
+                cfCleaned.addColumn(new CounterCell(cellname(col), cc.clearAllDelta(state.context), timestamp));
 
                 entries.put(key, cf);
                 cleanedEntries.put(key, cfCleaned);
@@ -453,7 +453,7 @@ public class StreamingTransferTest extends SchemaLoader
             {
                 ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(keyspace.getName(), cfs.name);
                 cf.addColumn(column(colName, "value", timestamp));
-                cf.addColumn(new Column(cellname("birthdate"), ByteBufferUtil.bytes(new Date(timestamp).toString()), timestamp));
+                cf.addColumn(new Cell(cellname("birthdate"), ByteBufferUtil.bytes(new Date(timestamp).toString()), timestamp));
                 RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key), cf);
                 logger.debug("Applying row to transfer " + rm);
                 rm.apply();

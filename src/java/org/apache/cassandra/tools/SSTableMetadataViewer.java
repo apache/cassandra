@@ -76,7 +76,7 @@ public class SSTableMetadataViewer
         long[] ecch = metadata.estimatedColumnCount.getBuckets(false);
 
         out.println(String.format("%-10s%18s%18s",
-                                  "Count", "Row Size", "Column Count"));
+                                  "Count", "Row Size", "Cell Count"));
 
         for (int i = 0; i < offsets.length; i++)
         {

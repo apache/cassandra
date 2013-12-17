@@ -109,16 +109,16 @@ public abstract class AbstractSSTableSimpleWriter
         currentSuperColumn = name;
     }
 
-    private void addColumn(Column column)
+    private void addColumn(Cell cell)
     {
         if (columnFamily.metadata().isSuper())
         {
             if (currentSuperColumn == null)
-                throw new IllegalStateException("Trying to add a column to a super column family, but no super column has been started.");
+                throw new IllegalStateException("Trying to add a cell to a super column family, but no super cell has been started.");
 
-            column = column.withUpdatedName(columnFamily.getComparator().makeCellName(currentSuperColumn, column.name().toByteBuffer()));
+            cell = cell.withUpdatedName(columnFamily.getComparator().makeCellName(currentSuperColumn, cell.name().toByteBuffer()));
         }
-        columnFamily.addColumn(column);
+        columnFamily.addColumn(cell);
     }
 
     /**
@@ -129,7 +129,7 @@ public abstract class AbstractSSTableSimpleWriter
      */
     public void addColumn(ByteBuffer name, ByteBuffer value, long timestamp)
     {
-        addColumn(new Column(metadata.comparator.cellFromByteBuffer(name), value, timestamp));
+        addColumn(new Cell(metadata.comparator.cellFromByteBuffer(name), value, timestamp));
     }
 
     /**
@@ -144,7 +144,7 @@ public abstract class AbstractSSTableSimpleWriter
      */
     public void addExpiringColumn(ByteBuffer name, ByteBuffer value, long timestamp, int ttl, long expirationTimestampMS)
     {
-        addColumn(new ExpiringColumn(metadata.comparator.cellFromByteBuffer(name), value, timestamp, ttl, (int)(expirationTimestampMS / 1000)));
+        addColumn(new ExpiringCell(metadata.comparator.cellFromByteBuffer(name), value, timestamp, ttl, (int)(expirationTimestampMS / 1000)));
     }
 
     /**
@@ -154,7 +154,7 @@ public abstract class AbstractSSTableSimpleWriter
      */
     public void addCounterColumn(ByteBuffer name, long value)
     {
-        addColumn(new CounterColumn(metadata.comparator.cellFromByteBuffer(name), CounterContext.instance().create(counterid, 1L, value, false), System.currentTimeMillis()));
+        addColumn(new CounterCell(metadata.comparator.cellFromByteBuffer(name), CounterContext.instance().create(counterid, 1L, value, false), System.currentTimeMillis()));
     }
 
     /**

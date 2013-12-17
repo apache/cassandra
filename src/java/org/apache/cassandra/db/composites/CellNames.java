@@ -20,7 +20,7 @@ package org.apache.cassandra.db.composites;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ColumnToCollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -81,11 +81,11 @@ public abstract class CellNames
         return new CompoundDenseCellName(bbs);
     }
 
-    public static String getColumnsString(CellNameType type, Iterable<Column> columns)
+    public static String getColumnsString(CellNameType type, Iterable<Cell> columns)
     {
         StringBuilder builder = new StringBuilder();
-        for (Column column : columns)
-            builder.append(column.getString(type)).append(",");
+        for (Cell cell : columns)
+            builder.append(cell.getString(type)).append(",");
         return builder.toString();
     }
 }

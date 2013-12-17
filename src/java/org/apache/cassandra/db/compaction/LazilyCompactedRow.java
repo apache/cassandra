@@ -100,7 +100,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
 
         // if we have counters, remove old shards
         if (shouldPurge && cf.metadata().getDefaultValidator().isCommutative())
-            CounterColumn.mergeAndRemoveOldShards(key, cf, controller.gcBefore, controller.mergeShardBefore);
+            CounterCell.mergeAndRemoveOldShards(key, cf, controller.gcBefore, controller.mergeShardBefore);
     }
 
     public RowIndexEntry write(long currentPosition, DataOutput out) throws IOException
@@ -219,17 +219,17 @@ public class LazilyCompactedRow extends AbstractCompactedRow
             }
             else
             {
-                Column column = (Column) current;
-                container.addColumn(column);
+                Cell cell = (Cell) current;
+                container.addColumn(cell);
 
                 // skip the index-update checks if there is no indexing needed since they are a bit expensive
                 if (indexer == SecondaryIndexManager.nullUpdater)
                     return;
 
-                if (!column.isMarkedForDelete(System.currentTimeMillis())
-                    && !container.getColumn(column.name()).equals(column))
+                if (!cell.isMarkedForDelete(System.currentTimeMillis())
+                    && !container.getColumn(cell.name()).equals(cell))
                 {
-                    indexer.remove(column);
+                    indexer.remove(cell);
                 }
             }
         }
@@ -259,13 +259,13 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                 // when we clear() the container, it removes the deletion info, so this needs to be reset each time
                 container.delete(maxRowTombstone);
                 removeDeletedAndOldShards(container, shouldPurge, key, controller);
-                Iterator<Column> iter = container.iterator();
+                Iterator<Cell> iter = container.iterator();
                 if (!iter.hasNext())
                 {
                     container.clear();
                     return null;
                 }
-                Column reduced = iter.next();
+                Cell reduced = iter.next();
                 container.clear();
 
                 // removeDeletedAndOldShards have only checked the top-level CF deletion times,

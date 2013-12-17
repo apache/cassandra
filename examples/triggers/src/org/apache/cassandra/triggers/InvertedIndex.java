@@ -24,10 +24,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Properties;
 
+import org.apache.cassandra.db.Cell;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.io.util.FileUtils;
@@ -40,7 +40,7 @@ public class InvertedIndex implements ITrigger
     public Collection<RowMutation> augment(ByteBuffer key, ColumnFamily update)
     {
         List<RowMutation> mutations = new ArrayList<>();
-        for (Column cell : update)
+        for (Cell cell : update)
         {
             RowMutation mutation = new RowMutation(properties.getProperty("keyspace"), cell.value());
             mutation.add(properties.getProperty("columnfamily"), cell.name(), key, System.currentTimeMillis());

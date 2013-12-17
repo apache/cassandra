@@ -176,8 +176,8 @@ public class CollationController
         for (Iterator<CellName> iterator = ((NamesQueryFilter) filter.filter).columns.iterator(); iterator.hasNext(); )
         {
             CellName filterColumn = iterator.next();
-            Column column = container.getColumn(filterColumn);
-            if (column != null && column.timestamp() > sstableTimestamp)
+            Cell cell = container.getColumn(filterColumn);
+            if (cell != null && cell.timestamp() > sstableTimestamp)
                 iterator.remove();
         }
     }

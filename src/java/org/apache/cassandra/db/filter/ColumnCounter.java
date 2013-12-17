@@ -20,9 +20,9 @@
  */
 package org.apache.cassandra.db.filter;
 
+import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
-import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DeletionInfo;
 
@@ -37,17 +37,17 @@ public class ColumnCounter
         this.timestamp = timestamp;
     }
 
-    public void count(Column column, DeletionInfo.InOrderTester tester)
+    public void count(Cell cell, DeletionInfo.InOrderTester tester)
     {
-        if (!isLive(column, tester, timestamp))
+        if (!isLive(cell, tester, timestamp))
             ignored++;
         else
             live++;
     }
 
-    protected static boolean isLive(Column column, DeletionInfo.InOrderTester tester, long timestamp)
+    protected static boolean isLive(Cell cell, DeletionInfo.InOrderTester tester, long timestamp)
     {
-        return column.isLive(timestamp) && (!tester.isDeleted(column));
+        return cell.isLive(timestamp) && (!tester.isDeleted(cell));
     }
 
     public int live()
@@ -66,7 +66,7 @@ public class ColumnCounter
             return this;
 
         DeletionInfo.InOrderTester tester = container.inOrderDeletionTester();
-        for (Column c : container)
+        for (Cell c : container)
             count(c, tester);
         return this;
     }
@@ -96,9 +96,9 @@ public class ColumnCounter
             assert toGroup == 0 || type != null;
         }
 
-        public void count(Column column, DeletionInfo.InOrderTester tester)
+        public void count(Cell cell, DeletionInfo.InOrderTester tester)
         {
-            if (!isLive(column, tester, timestamp))
+            if (!isLive(cell, tester, timestamp))
             {
                 ignored++;
                 return;
@@ -110,7 +110,7 @@ public class ColumnCounter
                 return;
             }
 
-            CellName current = column.name();
+            CellName current = cell.name();
             assert current.size() >= toGroup;
 
             if (last != null)

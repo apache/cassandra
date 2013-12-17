@@ -67,7 +67,7 @@ public class RowTest extends SchemaLoader
     @Test
     public void testExpiringColumnExpiration()
     {
-        Column c = new ExpiringColumn(CellNames.simpleDense(ByteBufferUtil.bytes("one")), ByteBufferUtil.bytes("A"), 0, 1);
+        Cell c = new ExpiringCell(CellNames.simpleDense(ByteBufferUtil.bytes("one")), ByteBufferUtil.bytes("A"), 0, 1);
         assert !c.isMarkedForDelete(System.currentTimeMillis());
 
         // Because we keep the local deletion time with a precision of a

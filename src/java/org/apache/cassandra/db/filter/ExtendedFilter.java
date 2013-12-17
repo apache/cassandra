@@ -291,11 +291,11 @@ public abstract class ExtendedFilter
                 if (def == null)
                 {
                     // This can't happen with CQL3 as this should be rejected upfront. For thrift however,
-                    // column name are not predefined. But that means the column name correspond to an internal one.
-                    Column column = data.getColumn(data.getComparator().cellFromByteBuffer(expression.column));
-                    if (column != null)
+                    // cell name are not predefined. But that means the cell name correspond to an internal one.
+                    Cell cell = data.getColumn(data.getComparator().cellFromByteBuffer(expression.column));
+                    if (cell != null)
                     {
-                        dataValue = column.value();
+                        dataValue = cell.value();
                         validator = data.metadata().getDefaultValidator();
                     }
                 }
@@ -363,8 +363,8 @@ public abstract class ExtendedFilter
                                    ? data.getComparator().cellFromByteBuffer(def.name.bytes)
                                    : data.getComparator().create(prefix, def.name);
 
-                    Column column = data.getColumn(cname);
-                    return column == null ? null : column.value();
+                    Cell cell = data.getColumn(cname);
+                    return cell == null ? null : cell.value();
                 case COMPACT_VALUE:
                     assert data.getColumnCount() == 1;
                     return data.getSortedColumns().iterator().next().value();

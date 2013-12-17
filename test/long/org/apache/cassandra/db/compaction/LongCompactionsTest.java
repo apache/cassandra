@@ -81,7 +81,7 @@ public class LongCompactionsTest extends SchemaLoader
             for (int j = 0; j < rowsPerSSTable; j++)
             {
                 String key = String.valueOf(j);
-                Column[] cols = new Column[colsPerRow];
+                Cell[] cols = new Cell[colsPerRow];
                 for (int i = 0; i < colsPerRow; i++)
                 {
                     // last sstable has highest timestamps
