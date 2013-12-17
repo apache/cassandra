@@ -827,7 +827,7 @@ public final class MessagingService implements MessagingServiceMBean
 
         public void run()
         {
-            while (true)
+            while (!server.isClosed())
             {
                 Socket socket = null;
                 try
