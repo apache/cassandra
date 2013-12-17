@@ -107,7 +107,7 @@ public abstract class AbstractReplicationStrategy
         ArrayList<InetAddress> endpoints = getCachedEndpoints(keyToken);
         if (endpoints == null)
         {
-            TokenMetadata tm = tokenMetadata.cloneOnlyTokenMap();
+            TokenMetadata tm = tokenMetadata.cachedOnlyTokenMap();
             // if our cache got invalidated, it's possible there is a new token to account for too
             keyToken = TokenMetadata.firstToken(tm.sortedTokens(), searchToken);
             endpoints = new ArrayList<InetAddress>(calculateNaturalEndpoints(searchToken, tm));
