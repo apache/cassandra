@@ -73,6 +73,11 @@ public class CFPropDefs extends PropertyDefinitions
 
     public void validate() throws ConfigurationException, SyntaxException
     {
+        // Skip validation if the comapction strategy class is already set as it means we've alreayd
+        // prepared (and redoing it would set strategyClass back to null, which we don't want)
+        if (compactionStrategyClass != null)
+            return;
+
         validate(keywords, obsoleteKeywords);
 
         Map<String, String> compactionOptions = getCompactionOptions();
