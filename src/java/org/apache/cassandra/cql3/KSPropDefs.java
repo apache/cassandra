@@ -44,6 +44,11 @@ public class KSPropDefs extends PropertyDefinitions
 
     public void validate() throws ConfigurationException, SyntaxException
     {
+        // Skip validation if the strategy class is already set as it means we've alreayd
+        // prepared (and redoing it would set strategyClass back to null, which we don't want)
+        if (strategyClass != null)
+            return;
+
         validate(keywords, obsoleteKeywords);
 
         Map<String, String> replicationOptions = getReplicationOptions();

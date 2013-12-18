@@ -1,3 +1,6 @@
+1.2.14
+ * Allow executing CREATE statements multiple times (CASSANDRA-6471)
+
 1.2.13
  * Improved error message on bad properties in DDL queries (CASSANDRA-6453)
  * Randomize batchlog candidates selection (CASSANDRA-6481)
