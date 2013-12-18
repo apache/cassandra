@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.service.pager;
 
+import java.nio.ByteBuffer;
+
 import org.apache.cassandra.db.filter.ColumnCounter;
 
 /**
@@ -26,5 +28,6 @@ import org.apache.cassandra.db.filter.ColumnCounter;
  */
 public interface SinglePartitionPager extends QueryPager
 {
+    public ByteBuffer key();
     public ColumnCounter columnCounter();
 }
