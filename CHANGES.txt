@@ -53,6 +53,7 @@ Merged from 1.2:
  * (Hadoop) add describe_local_ring (CASSANDRA-6268)
  * Fix handling of concurrent directory creation failure (CASSANDRA-6459)
  * Allow executing CREATE statements multiple times (CASSANDRA-6471)
+ * Don't send confusing info with timeouts (CASSANDRA-6491)
 
 
 2.0.3

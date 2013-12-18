@@ -1357,7 +1357,7 @@ public class StorageProxy implements StorageProxyMBean
                     {
                         Tracing.trace("Timed out on digest mismatch retries");
                         int blockFor = consistencyLevel.blockFor(Keyspace.open(command.getKeyspace()));
-                        throw new ReadTimeoutException(consistencyLevel, blockFor, blockFor, true);
+                        throw new ReadTimeoutException(consistencyLevel, blockFor-1, blockFor, true);
                     }
 
                     // retry any potential short reads
@@ -1664,7 +1664,7 @@ public class StorageProxy implements StorageProxyMBean
                         Tracing.trace("Timed out while read-repairing after receiving all {} data and digest responses", blockFor);
                     else
                         logger.debug("Range slice timeout while read-repairing after receiving all {} data and digest responses", blockFor);
-                    throw new ReadTimeoutException(consistency_level, blockFor, blockFor, true);
+                    throw new ReadTimeoutException(consistency_level, blockFor-1, blockFor, true);
                 }
 
                 if (haveSufficientRows)
