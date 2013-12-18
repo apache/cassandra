@@ -8,7 +8,7 @@
  * Allow specifying datacenters to participate in a repair (CASSANDRA-6218)
  * Fix divide-by-zero in PCI (CASSANDRA-6403)
  * Fix setting last compacted key in the wrong level for LCS (CASSANDRA-6284)
- * Add sub-ms precision formats to the timestamp parser (CASSANDRA-6395)
+ * Add millisecond precision formats to the timestamp parser (CASSANDRA-6395)
  * Expose a total memtable size metric for a CF (CASSANDRA-6391)
  * cqlsh: handle symlinks properly (CASSANDRA-6425)
  * Don't resubmit counter mutation runnables internally (CASSANDRA-6427)
