@@ -21,6 +21,7 @@
 
 
 2.0.4
+ * add client encryption support to sstableloader (CASSANDRA-6378)
  * Fix accept() loop for SSL sockets post-shutdown (CASSANDRA-6468)
  * Fix size-tiered compaction in LCS L0 (CASSANDRA-6496)
  * Fix assertion failure in filterColdSSTables (CASSANDRA-6483)
