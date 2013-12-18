@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service.pager;
 
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
@@ -55,9 +56,9 @@ public class NamesQueryPager implements SinglePartitionPager
         this.localQuery = localQuery;
     }
 
-    NamesQueryPager(SliceByNamesReadCommand command, ConsistencyLevel consistencyLevel, boolean localQuery, PagingState state)
+    public ByteBuffer key()
     {
-        this(command, consistencyLevel, localQuery);
+        return command.key;
     }
 
     public ColumnCounter columnCounter()

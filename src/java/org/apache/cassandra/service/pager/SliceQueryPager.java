@@ -54,6 +54,11 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
         }
     }
 
+    public ByteBuffer key()
+    {
+        return command.key;
+    }
+
     public PagingState state()
     {
         return lastReturned == null

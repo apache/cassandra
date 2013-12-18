@@ -43,44 +43,72 @@ class MultiPartitionPager implements QueryPager
     private final SinglePartitionPager[] pagers;
     private final long timestamp;
 
-    private volatile int current;
-
-    MultiPartitionPager(List<ReadCommand> commands, ConsistencyLevel consistencyLevel, boolean localQuery)
-    {
-        this(commands, consistencyLevel, localQuery, null);
-    }
+    private int remaining;
+    private int current;
 
     MultiPartitionPager(List<ReadCommand> commands, ConsistencyLevel consistencyLevel, boolean localQuery, PagingState state)
     {
-        this.pagers = new SinglePartitionPager[commands.size()];
+        int i = 0;
+        // If it's not the beginning (state != null), we need to find where we were and skip previous commands
+        // since they are done.
+        if (state != null)
+            for (; i < commands.size(); i++)
+                if (commands.get(i).key.equals(state.partitionKey))
+                    break;
 
-        long tstamp = -1;
-        for (int i = 0; i < commands.size(); i++)
+        if (i >= commands.size())
         {
-            ReadCommand command = commands.get(i);
-            if (tstamp == -1)
-                tstamp = command.timestamp;
-            else if (tstamp != command.timestamp)
-                throw new IllegalArgumentException("All commands must have the same timestamp or weird results may happen.");
-
-            PagingState tmpState = state != null && command.key.equals(state.partitionKey) ? state : null;
-            pagers[i] = command instanceof SliceFromReadCommand
-                      ? new SliceQueryPager((SliceFromReadCommand)command, consistencyLevel, localQuery, tmpState)
-                      : new NamesQueryPager((SliceByNamesReadCommand)command, consistencyLevel, localQuery, tmpState);
+            pagers = null;
+            timestamp = -1;
+            return;
         }
-        timestamp = tstamp;
+
+        pagers = new SinglePartitionPager[commands.size() - i];
+        // 'i' is on the first non exhausted pager for the previous page (or the first one)
+        pagers[0] = makePager(commands.get(i), consistencyLevel, localQuery, state);
+        timestamp = commands.get(i).timestamp;
+
+        // Following ones haven't been started yet
+        for (int j = i + 1; j < commands.size(); j++)
+        {
+            ReadCommand command = commands.get(j);
+            if (command.timestamp != timestamp)
+                throw new IllegalArgumentException("All commands must have the same timestamp or weird results may happen.");
+            pagers[j - i] = makePager(command, consistencyLevel, localQuery, null);
+        }
+        remaining = state == null ? computeRemaining(pagers) : state.remaining;
+    }
+
+    private static SinglePartitionPager makePager(ReadCommand command, ConsistencyLevel consistencyLevel, boolean localQuery, PagingState state)
+    {
+        return command instanceof SliceFromReadCommand
+             ? new SliceQueryPager((SliceFromReadCommand)command, consistencyLevel, localQuery, state)
+             : new NamesQueryPager((SliceByNamesReadCommand)command, consistencyLevel, localQuery);
+    }
+
+    private static int computeRemaining(SinglePartitionPager[] pagers)
+    {
+        long remaining = 0;
+        for (SinglePartitionPager pager : pagers)
+            remaining += pager.maxRemaining();
+        return remaining > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int)remaining;
     }
 
     public PagingState state()
     {
+        // Sets current to the first non-exhausted pager
+        if (isExhausted())
+            return null;
+
         PagingState state = pagers[current].state();
-        return state == null
-             ? null
-             : new PagingState(state.partitionKey, state.cellName, maxRemaining());
+        return new PagingState(pagers[current].key(), state == null ? null : state.cellName, remaining);
     }
 
     public boolean isExhausted()
     {
+        if (remaining <= 0 || pagers == null)
+            return true;
+
         while (current < pagers.length)
         {
             if (!pagers[current].isExhausted())
@@ -93,18 +121,20 @@ class MultiPartitionPager implements QueryPager
 
     public List<Row> fetchPage(int pageSize) throws RequestValidationException, RequestExecutionException
     {
-        int remaining = pageSize;
         List<Row> result = new ArrayList<Row>();
 
-        while (!isExhausted() && remaining > 0)
+        int remainingThisQuery = pageSize;
+        while (remainingThisQuery > 0 && !isExhausted())
         {
-            // Exhausted also sets us on the first non-exhausted pager
-            List<Row> page = pagers[current].fetchPage(remaining);
+            // isExhausted has set us on the first non-exhausted pager
+            List<Row> page = pagers[current].fetchPage(remainingThisQuery);
             if (page.isEmpty())
                 continue;
 
             Row row = page.get(0);
-            remaining -= pagers[current].columnCounter().countAll(row.cf).live();
+            int fetched = pagers[current].columnCounter().countAll(row.cf).live();
+            remaining -= fetched;
+            remainingThisQuery -= fetched;
             result.add(row);
         }
 
@@ -113,10 +143,7 @@ class MultiPartitionPager implements QueryPager
 
     public int maxRemaining()
     {
-        int max = 0;
-        for (int i = current; i < pagers.length; i++)
-            max += pagers[i].maxRemaining();
-        return max;
+        return remaining;
     }
 
     public long timestamp()

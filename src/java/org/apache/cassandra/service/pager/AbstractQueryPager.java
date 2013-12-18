@@ -40,9 +40,9 @@ abstract class AbstractQueryPager implements QueryPager
     protected final IDiskAtomFilter columnFilter;
     private final long timestamp;
 
-    private volatile int remaining;
-    private volatile boolean exhausted;
-    private volatile boolean lastWasRecorded;
+    private int remaining;
+    private boolean exhausted;
+    private boolean lastWasRecorded;
 
     protected AbstractQueryPager(ConsistencyLevel consistencyLevel,
                                  int toFetch,

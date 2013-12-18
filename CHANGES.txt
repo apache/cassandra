@@ -12,6 +12,7 @@
  * Expose a total memtable size metric for a CF (CASSANDRA-6391)
  * cqlsh: handle symlinks properly (CASSANDRA-6425)
  * Don't resubmit counter mutation runnables internally (CASSANDRA-6427)
+ * Fix potential infinite loop when paging query with IN (CASSANDRA-6464)
 Merged from 1.2:
  * Improved error message on bad properties in DDL queries (CASSANDRA-6453)
  * Randomize batchlog candidates selection (CASSANDRA-6481)
