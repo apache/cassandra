@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service.pager;
 
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
