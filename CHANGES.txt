@@ -1,5 +1,6 @@
 1.2.14
  * Allow executing CREATE statements multiple times (CASSANDRA-6471)
+ * Don't send confusing info with timeouts (CASSANDRA-6491)
 
 1.2.13
  * Improved error message on bad properties in DDL queries (CASSANDRA-6453)

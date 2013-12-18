@@ -97,7 +97,13 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         }
 
         if (!success)
-            throw new ReadTimeoutException(consistencyLevel, received.get(), blockfor, resolver.isDataPresent());
+        {
+            // Same as for writes, see AbstractWriteResponseHandler
+            int acks = received.get();
+            if (resolver.isDataPresent() && acks >= blockfor)
+                acks = blockfor - 1;
+            throw new ReadTimeoutException(consistencyLevel, acks, blockfor, resolver.isDataPresent());
+        }
 
         return blockfor == 1 ? resolver.getData() : resolver.resolve();
     }
