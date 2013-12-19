@@ -646,15 +646,14 @@ public class StorageProxy implements StorageProxyMBean
 
     private static void insertLocal(final RowMutation rm, final AbstractWriteResponseHandler responseHandler)
     {
-        Runnable runnable = new DroppableRunnable(MessagingService.Verb.MUTATION)
+        StageManager.getStage(Stage.MUTATION).execute(new LocalMutationRunnable()
         {
             public void runMayThrow() throws IOException
             {
                 rm.apply();
                 responseHandler.response(null);
             }
-        };
-        StageManager.getStage(Stage.MUTATION).execute(runnable);
+        });
     }
 
     /**
@@ -758,7 +757,7 @@ public class StorageProxy implements StorageProxyMBean
                                              final String localDataCenter,
                                              final ConsistencyLevel consistency_level)
     {
-        return new LocalMutationRunnable()
+        return new DroppableRunnable(MessagingService.Verb.COUNTER_MUTATION)
         {
             public void runMayThrow() throws IOException
             {
