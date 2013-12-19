@@ -231,6 +231,11 @@ public class DatabaseDescriptor
         }
         paritionerName = partitioner.getClass().getCanonicalName();
 
+        if (conf.max_hint_window_in_ms == null)
+        {
+            throw new ConfigurationException("max_hint_window_in_ms cannot be set to null");
+        }
+
         /* phi convict threshold for FailureDetector */
         if (conf.phi_convict_threshold < 5 || conf.phi_convict_threshold > 16)
         {
