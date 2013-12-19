@@ -809,6 +809,7 @@ public class DatabaseDescriptor
                 return getTruncateRpcTimeout();
             case READ_REPAIR:
             case MUTATION:
+            case COUNTER_MUTATION:
                 return getWriteRpcTimeout();
             default:
                 return getRpcTimeout();
