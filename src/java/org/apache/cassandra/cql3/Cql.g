@@ -552,11 +552,17 @@ createIndexStatement returns [CreateIndexStatement expr]
         boolean ifNotExists = false;
     }
     : K_CREATE (K_CUSTOM { props.isCustom = true; })? K_INDEX (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
-        (idxName=IDENT)? K_ON cf=columnFamilyName '(' id=cident ')'
+        (idxName=IDENT)? K_ON cf=columnFamilyName '(' id=indexIdent ')'
         (K_USING cls=STRING_LITERAL { props.customClass = $cls.text; })?
         (K_WITH properties[props])?
       { $expr = new CreateIndexStatement(cf, $idxName.text, id, props, ifNotExists); }
     ;
+
+indexIdent returns [IndexTarget id]
+    : c=cident                { $id = IndexTarget.of(c); }
+    | K_KEYS '(' c=cident ')' { $id = IndexTarget.keysOf(c); }
+    ;
+
 
 /**
  * CREATE TRIGGER triggerName ON columnFamily USING 'triggerClass';
@@ -958,7 +964,7 @@ relation[List<Relation> clauses]
         { $clauses.add(new Relation(name, Relation.Type.IN, marker)); }
     | name=cident K_IN { Relation rel = Relation.createInRelation($name.id); }
        '(' ( f1=term { rel.addInValue(f1); } (',' fN=term { rel.addInValue(fN); } )* )? ')' { $clauses.add(rel); }
-    | name=cident K_CONTAINS { Relation.Type rt = Relation.Type.CONTAINS; } /* (K_KEY { rt = Relation.Type.CONTAINS_KEY })? */
+    | name=cident K_CONTAINS { Relation.Type rt = Relation.Type.CONTAINS; } (K_KEY { rt = Relation.Type.CONTAINS_KEY; })?
         t=term { $clauses.add(new Relation(name, rt, t)); }
     | '(' relation[$clauses] ')'
     ;
@@ -1036,6 +1042,7 @@ unreserved_function_keyword returns [String str]
 
 basic_unreserved_keyword returns [String str]
     : k=( K_KEY
+        | K_KEYS
         | K_AS
         | K_CLUSTERING
         | K_COMPACT
@@ -1070,6 +1077,7 @@ K_AS:          A S;
 K_WHERE:       W H E R E;
 K_AND:         A N D;
 K_KEY:         K E Y;
+K_KEYS:        K E Y S;
 K_INSERT:      I N S E R T;
 K_UPDATE:      U P D A T E;
 K_WITH:        W I T H;

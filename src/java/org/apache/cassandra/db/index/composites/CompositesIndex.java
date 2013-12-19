@@ -65,7 +65,9 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
                 case SET:
                     return new CompositesIndexOnCollectionKey();
                 case MAP:
-                    return new CompositesIndexOnCollectionValue();
+                    return cfDef.getIndexOptions().containsKey("index_keys")
+                         ? new CompositesIndexOnCollectionKey()
+                         : new CompositesIndexOnCollectionValue();
             }
         }
 
@@ -95,7 +97,9 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
                 case SET:
                     return CompositesIndexOnCollectionKey.buildIndexComparator(baseMetadata, cfDef);
                 case MAP:
-                    return CompositesIndexOnCollectionValue.buildIndexComparator(baseMetadata, cfDef);
+                    return cfDef.getIndexOptions().containsKey("index_keys")
+                         ? CompositesIndexOnCollectionKey.buildIndexComparator(baseMetadata, cfDef)
+                         : CompositesIndexOnCollectionValue.buildIndexComparator(baseMetadata, cfDef);
             }
         }
 
@@ -154,7 +158,10 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
         options.remove("prefix_size");
 
         if (columnDef.type.isCollection())
+        {
             options.remove("index_values");
+            options.remove("index_keys");
+        }
 
         if (!options.isEmpty())
             throw new ConfigurationException("Unknown options provided for COMPOSITES index: " + options.keySet());
