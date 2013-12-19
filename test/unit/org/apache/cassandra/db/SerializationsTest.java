@@ -50,7 +50,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     Statics statics = new Statics();
 
     @BeforeClass
-    public static void loadSchema() throws IOException, ConfigurationException
+    public static void loadSchema() throws ConfigurationException
     {
         loadSchema(true);
     }

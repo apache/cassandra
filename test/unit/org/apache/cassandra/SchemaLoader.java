@@ -34,7 +34,6 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
-import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
@@ -51,12 +50,12 @@ public class SchemaLoader
     private static Logger logger = LoggerFactory.getLogger(SchemaLoader.class);
 
     @BeforeClass
-    public static void loadSchema() throws IOException, ConfigurationException
+    public static void loadSchema() throws ConfigurationException
     {
         loadSchema(false);
     }
 
-    public static void loadSchema(boolean withOldCfIds) throws IOException, ConfigurationException
+    public static void loadSchema(boolean withOldCfIds) throws ConfigurationException
     {
         // Cleanup first
         cleanupAndLeaveDirs();
@@ -115,8 +114,6 @@ public class SchemaLoader
         Map<String, String> opts_rf3 = KSMetaData.optsWithRF(3);
         Map<String, String> opts_rf5 = KSMetaData.optsWithRF(5);
 
-        ColumnFamilyType st = ColumnFamilyType.Standard;
-        ColumnFamilyType su = ColumnFamilyType.Super;
         AbstractType bytes = BytesType.instance;
 
         AbstractType<?> composite = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{BytesType.instance, TimeUUIDType.instance, IntegerType.instance}));
@@ -397,7 +394,7 @@ public class SchemaLoader
         DatabaseDescriptor.createAllDirectories();
     }
 
-    protected void insertData(String keyspace, String columnFamily, int offset, int numberOfRows) throws IOException
+    protected void insertData(String keyspace, String columnFamily, int offset, int numberOfRows)
     {
         for (int i = offset; i < offset + numberOfRows; i++)
         {
@@ -409,7 +406,7 @@ public class SchemaLoader
     }
 
     /* usually used to populate the cache */
-    protected void readData(String keyspace, String columnFamily, int offset, int numberOfRows) throws IOException
+    protected void readData(String keyspace, String columnFamily, int offset, int numberOfRows)
     {
         ColumnFamilyStore store = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
         for (int i = offset; i < offset + numberOfRows; i++)
