@@ -231,7 +231,7 @@ public class CompoundSparseCellNameType extends AbstractCompoundCellNameType
                 return super.copyAndMakeWith(components, size, eoc);
 
             ByteBuffer[] clusteringColumns = Arrays.copyOfRange(components, 0, clusteringSize);
-            return new CompoundSparseCellName.WithCollection(clusteringColumns, idFor(components[clusteringSize]), components[fullSize + 1]);
+            return new CompoundSparseCellName.WithCollection(clusteringColumns, idFor(components[clusteringSize]), components[clusteringSize + 1]);
         }
     }
 }
