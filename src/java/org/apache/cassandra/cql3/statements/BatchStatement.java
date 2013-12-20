@@ -72,7 +72,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
         return size;
     }
 
-    public int getBoundsTerms()
+    public int getBoundTerms()
     {
         return boundTerms;
     }
@@ -206,7 +206,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
 
         public ParsedStatement.Prepared prepare() throws InvalidRequestException
         {
-            VariableSpecifications boundNames = getBoundsVariables();
+            VariableSpecifications boundNames = getBoundVariables();
 
             List<ModificationStatement> statements = new ArrayList<ModificationStatement>(parsedStatements.size());
             for (ModificationStatement.Parsed parsed : parsedStatements)

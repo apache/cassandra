@@ -115,7 +115,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return meter.measureDeep(this) - meter.measureDeep(cfDef);
     }
 
-    public int getBoundsTerms()
+    public int getBoundTerms()
     {
         return boundTerms;
     }
@@ -1069,7 +1069,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
             CFDefinition cfDef = cfm.getCfDef();
 
-            VariableSpecifications names = getBoundsVariables();
+            VariableSpecifications names = getBoundVariables();
 
             // Select clause
             if (parameters.isCount && !selectClause.isEmpty())

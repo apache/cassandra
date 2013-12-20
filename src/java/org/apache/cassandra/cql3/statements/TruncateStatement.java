@@ -36,7 +36,7 @@ public class TruncateStatement extends CFStatement implements CQLStatement
         super(name);
     }
 
-    public int getBoundsTerms()
+    public int getBoundTerms()
     {
         return 0;
     }

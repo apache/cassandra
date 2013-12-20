@@ -27,7 +27,7 @@ public interface CQLStatement
     /**
      * Returns the number of bound terms in this statement.
      */
-    public int getBoundsTerms();
+    public int getBoundTerms();
 
     /**
      * Perform any access verification necessary for the statement.

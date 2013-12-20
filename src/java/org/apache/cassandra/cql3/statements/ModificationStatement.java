@@ -72,7 +72,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
     public abstract boolean requireFullClusteringKey();
     public abstract ColumnFamily updateForKey(ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params) throws InvalidRequestException;
 
-    public int getBoundsTerms()
+    public int getBoundTerms()
     {
         return boundTerms;
     }
@@ -578,7 +578,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
 
         public ParsedStatement.Prepared prepare() throws InvalidRequestException
         {
-            VariableSpecifications boundNames = getBoundsVariables();
+            VariableSpecifications boundNames = getBoundVariables();
             ModificationStatement statement = prepare(boundNames);
             return new ParsedStatement.Prepared(statement, boundNames);
         }
