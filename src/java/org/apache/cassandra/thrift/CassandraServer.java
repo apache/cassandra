@@ -388,13 +388,12 @@ public class CassandraServer implements Cassandra.Iface
     private IDiskAtomFilter toInternalFilter(CFMetaData metadata, ColumnParent parent, SlicePredicate predicate)
     {
         IDiskAtomFilter filter;
-        CellNameType columnType = metadata.isSuper()
-                                ? new SimpleDenseCellNameType(metadata.comparator.subtype(parent.isSetSuper_column() ? 1 : 0))
-                                : metadata.comparator;
+
         if (predicate.column_names != null)
         {
             if (metadata.isSuper())
             {
+                CellNameType columnType = new SimpleDenseCellNameType(metadata.comparator.subtype(parent.isSetSuper_column() ? 1 : 0));
                 SortedSet<CellName> s = new TreeSet<CellName>(columnType);
                 for (ByteBuffer bb : predicate.column_names)
                     s.add(columnType.cellFromByteBuffer(bb));
