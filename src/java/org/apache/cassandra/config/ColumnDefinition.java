@@ -289,7 +289,6 @@ public class ColumnDefinition extends ColumnSpecification
         ColumnFamily cf = rm.addOrGet(CFMetaData.SchemaColumnsCf);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
-        ByteBuffer nameBytes = ByteBufferUtil.bytes(name.toString());
         // Note: we do want to use name.toString(), not name.bytes directly for backward compatibility (For CQL3, this won't make a difference).
         Composite prefix = CFMetaData.SchemaColumnsCf.comparator.make(cfName, name.toString());
         cf.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
