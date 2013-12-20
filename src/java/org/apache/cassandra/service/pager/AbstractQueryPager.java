@@ -197,7 +197,7 @@ abstract class AbstractQueryPager implements QueryPager
         }
 
         // If there is less live data than to discard, all is discarded
-        if (i >= rows.size())
+        if (toDiscard > 0 && i >= rows.size())
             return Collections.<Row>emptyList();
 
         int count = firstCf.getColumnCount();
@@ -234,7 +234,7 @@ abstract class AbstractQueryPager implements QueryPager
         }
 
         // If there is less live data than to discard, all is discarded
-        if (i < 0)
+        if (toDiscard > 0 && i < 0)
             return Collections.<Row>emptyList();
 
         int count = lastCf.getColumnCount();
