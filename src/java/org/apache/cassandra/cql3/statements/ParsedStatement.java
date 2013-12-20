@@ -27,7 +27,7 @@ public abstract class ParsedStatement
 {
     private VariableSpecifications variables;
 
-    public VariableSpecifications getBoundsVariables()
+    public VariableSpecifications getBoundVariables()
     {
         return variables;
     }

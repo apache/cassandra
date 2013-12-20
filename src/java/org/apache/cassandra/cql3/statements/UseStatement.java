@@ -34,7 +34,7 @@ public class UseStatement extends ParsedStatement implements CQLStatement
         this.keyspace = keyspace;
     }
 
-    public int getBoundsTerms()
+    public int getBoundTerms()
     {
         return 0;
     }

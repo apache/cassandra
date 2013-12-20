@@ -44,7 +44,7 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
         this.isColumnFamilyLevel = true;
     }
 
-    public int getBoundsTerms()
+    public int getBoundTerms()
     {
         return 0;
     }

@@ -115,7 +115,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return meter.measureDeep(this) - meter.measureDeep(cfm);
     }
 
-    public int getBoundsTerms()
+    public int getBoundTerms()
     {
         return boundTerms;
     }
@@ -1027,7 +1027,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         {
             CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
 
-            VariableSpecifications names = getBoundsVariables();
+            VariableSpecifications names = getBoundVariables();
 
             // Select clause
             if (parameters.isCount && !selectClause.isEmpty())
