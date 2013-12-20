@@ -220,10 +220,10 @@ public class QueryProcessor
         ParsedStatement.Prepared prepared = getStatement(queryString, clientState);
         ResultMessage.Prepared msg = storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared, forThrift);
 
-        int bountTerms = prepared.statement.getBoundTerms();
-        if (bountTerms > FBUtilities.MAX_UNSIGNED_SHORT)
-            throw new InvalidRequestException(String.format("Too many markers(?). %d markers exceed the allowed maximum of %d", bountTerms, FBUtilities.MAX_UNSIGNED_SHORT));
-        assert bountTerms == prepared.boundNames.size();
+        int boundTerms = prepared.statement.getBoundTerms();
+        if (boundTerms > FBUtilities.MAX_UNSIGNED_SHORT)
+            throw new InvalidRequestException(String.format("Too many markers(?). %d markers exceed the allowed maximum of %d", boundTerms, FBUtilities.MAX_UNSIGNED_SHORT));
+        assert boundTerms == prepared.boundNames.size();
         return msg;
     }
 
