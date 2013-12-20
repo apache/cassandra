@@ -175,18 +175,37 @@ abstract class AbstractQueryPager implements QueryPager
 
     private List<Row> discardFirst(List<Row> rows)
     {
-        Row first = rows.get(0);
-        ColumnFamily newCf = first.cf.cloneMeShallow();
-        int discarded = isReversed()
-                      ? discardLast(first.cf, 1, newCf)
-                      : discardFirst(first.cf, 1, newCf);
-        assert discarded == 1;
+        return discardFirst(rows, 1);
+    }
 
-        int count = newCf.getColumnCount();
-        List<Row> newRows = new ArrayList<Row>(count == 0 ? rows.size() - 1 : rows.size());
+    private List<Row> discardFirst(List<Row> rows, int toDiscard)
+    {
+        if (toDiscard == 0)
+            return rows;
+
+        int i = 0;
+        DecoratedKey firstKey = null;
+        ColumnFamily firstCf = null;
+        while (toDiscard > 0 && i < rows.size())
+        {
+            Row first = rows.get(i++);
+            firstKey = first.key;
+            firstCf = first.cf.cloneMeShallow();
+            toDiscard -= isReversed()
+                       ? discardLast(first.cf, toDiscard, firstCf)
+                       : discardFirst(first.cf, toDiscard, firstCf);
+        }
+
+        // If there is less live data than to discard, all is discarded
+        if (i >= rows.size())
+            return Collections.<Row>emptyList();
+
+        int count = firstCf.getColumnCount();
+        int newSize = rows.size() - i;
+        List<Row> newRows = new ArrayList<Row>(count == 0 ? newSize-1 : newSize);
         if (count != 0)
-            newRows.add(new Row(first.key, newCf));
-        newRows.addAll(rows.subList(1, rows.size()));
+            newRows.add(new Row(firstKey, firstCf));
+        newRows.addAll(rows.subList(i, rows.size()));
 
         return newRows;
     }
@@ -201,12 +220,12 @@ abstract class AbstractQueryPager implements QueryPager
         if (toDiscard == 0)
             return rows;
 
-        int size = rows.size();
+        int i = rows.size()-1;
         DecoratedKey lastKey = null;
         ColumnFamily lastCf = null;
-        while (toDiscard > 0)
+        while (toDiscard > 0 && i >= 0)
         {
-            Row last = rows.get(--size);
+            Row last = rows.get(i--);
             lastKey = last.key;
             lastCf = last.cf.cloneMeShallow();
             toDiscard -= isReversed()
@@ -214,9 +233,14 @@ abstract class AbstractQueryPager implements QueryPager
                        : discardLast(last.cf, toDiscard, lastCf);
         }
 
+        // If there is less live data than to discard, all is discarded
+        if (i < 0)
+            return Collections.<Row>emptyList();
+
         int count = lastCf.getColumnCount();
-        List<Row> newRows = new ArrayList<Row>(count == 0 ? size : size+1);
-        newRows.addAll(rows.subList(0, size));
+        int newSize = i+1;
+        List<Row> newRows = new ArrayList<Row>(count == 0 ? newSize-1 : newSize);
+        newRows.addAll(rows.subList(0, i));
         if (count != 0)
             newRows.add(new Row(lastKey, lastCf));
 
