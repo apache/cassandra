@@ -98,7 +98,7 @@ package org.apache.cassandra.cli;
 {
     public void reportError(RecognitionException e) 
     {
-        StringBuilder errorMessage = new StringBuilder("Syntax error at position " + e.charPositionInLine + ": ");
+        StringBuilder errorMessage = new StringBuilder("Syntax error at position ").append(e.charPositionInLine).append(": ");
 
         if (e instanceof NoViableAltException)
         {
@@ -106,7 +106,7 @@ package org.apache.cassandra.cli;
             String error = this.input.substring(index, index);
             String statement = this.input.substring(0, this.input.size() - 1);
 
-            errorMessage.append("unexpected \"" + error + "\" for `" + statement + "`.");
+            errorMessage.append("unexpected \"").append(error).append("\" for `").append(statement).append("`.");
         }
         else
         {
