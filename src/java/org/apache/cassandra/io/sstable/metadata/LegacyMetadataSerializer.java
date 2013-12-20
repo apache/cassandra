@@ -148,7 +148,7 @@ public class LegacyMetadataSerializer extends MetadataSerializer
                                                      maxColumnNames));
                 if (types.contains(MetadataType.COMPACTION))
                     components.put(MetadataType.COMPACTION,
-                                   new CompactionMetadata(ancestors));
+                                   new CompactionMetadata(ancestors, null));
             }
         }
         return components;

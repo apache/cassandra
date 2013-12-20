@@ -21,12 +21,15 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
+import com.clearspring.analytics.stream.cardinality.ICardinality;
 import com.google.common.collect.Maps;
 
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.utils.StreamingHistogram;
 
 public class MetadataCollector
@@ -77,6 +80,13 @@ public class MetadataCollector
     protected int sstableLevel;
     protected List<ByteBuffer> minColumnNames = Collections.emptyList();
     protected List<ByteBuffer> maxColumnNames = Collections.emptyList();
+    /**
+     * Default cardinality estimation method is to use HyperLogLog++.
+     * Parameter here(p=13, sp=25) should give reasonable estimation
+     * while lowering bytes required to hold information.
+     * See CASSANDRA-5906 for detail.
+     */
+    protected ICardinality cardinality = new HyperLogLogPlus(13, 25);
     private final CellNameType columnNameComparator;
 
     public MetadataCollector(CellNameType columnNameComparator)
@@ -101,6 +111,12 @@ public class MetadataCollector
                     addAncestor(i);
             }
         }
+    }
+
+    public void addKey(ByteBuffer key)
+    {
+        long hashed = MurmurHash.hash2_64(key, key.position(), key.remaining(), 0);
+        cardinality.offerHashed(hashed);
     }
 
     public void addRowSize(long rowSize)
@@ -213,7 +229,7 @@ public class MetadataCollector
                                                              sstableLevel,
                                                              minColumnNames,
                                                              maxColumnNames));
-        components.put(MetadataType.COMPACTION, new CompactionMetadata(ancestors));
+        components.put(MetadataType.COMPACTION, new CompactionMetadata(ancestors, cardinality));
         return components;
     }
 

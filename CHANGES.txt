@@ -18,6 +18,7 @@
  * SSTable metadata(Stats.db) format change (CASSANDRA-6356)
  * Push composites support in the storage engine (CASSANDRA-5417)
  * Add snapshot space used to cfstats (CASSANDRA-6231)
+ * Add cardinality estimator for key count estimation (CASSANDRA-5906)
 
 
 2.0.4

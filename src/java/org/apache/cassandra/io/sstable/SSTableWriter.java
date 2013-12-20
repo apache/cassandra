@@ -149,6 +149,7 @@ public class SSTableWriter extends SSTable
 
     private void afterAppend(DecoratedKey decoratedKey, long dataPosition, RowIndexEntry index)
     {
+        sstableMetadataCollector.addKey(decoratedKey.key);
         lastWrittenKey = decoratedKey;
         last = lastWrittenKey;
         if (first == null)
