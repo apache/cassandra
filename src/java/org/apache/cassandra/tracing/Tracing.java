@@ -100,8 +100,8 @@ public class Tracing
     {
         for (Map.Entry<String, String> entry : rawPayload.entrySet())
         {
-            cf.addColumn(new ExpiringCell(buildName(cf.metadata(), "parameters", entry.getKey()),
-                                            bytes(entry.getValue()), System.currentTimeMillis(), TTL));
+            cf.addColumn(new ExpiringCell(buildName(CFMetaData.TraceSessionsCf, "parameters", entry.getKey()),
+                                          bytes(entry.getValue()), System.currentTimeMillis(), TTL));
         }
     }
 
