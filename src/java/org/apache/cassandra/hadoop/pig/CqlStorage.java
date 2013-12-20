@@ -187,10 +187,11 @@ public class CqlStorage extends AbstractCassandraStorage
     {
         // standard
         Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
-        if (validators.get(col.name()) == null)
+        ByteBuffer cellName = col.name().toByteBuffer();
+        if (validators.get(cellName) == null)
             return cassandraToObj(getDefaultMarshallers(cfDef).get(MarshallerType.DEFAULT_VALIDATOR), col.value());
         else
-            return cassandraToObj(validators.get(col.name()), col.value());
+            return cassandraToObj(validators.get(cellName), col.value());
     }
 
     /** set read configuration settings */
