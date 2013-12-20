@@ -209,7 +209,21 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
         for (int i = 0; i < components.length; i++)
         {
             Object c = components[i];
-            rawComponents[i] = c instanceof ByteBuffer ? (ByteBuffer)c : ((AbstractType)subtype(i)).decompose(c);
+            if (c instanceof ByteBuffer)
+            {
+                rawComponents[i] = (ByteBuffer)c;
+            }
+            else
+            {
+                AbstractType<?> type = (AbstractType)subtype(i);
+                // If it's a collection type, we need to find the right collection and use the key comparator (since we're building a cell name)
+                if (type instanceof ColumnToCollectionType)
+                {
+                    assert i > 0;
+                    type = ((ColumnToCollectionType)type).defined.get(rawComponents[i-1]).nameComparator();
+                }
+                rawComponents[i] = ((AbstractType)type).decompose(c);
+            }
         }
         return makeCellName(rawComponents);
     }
