@@ -29,9 +29,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutorStatsCollector;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.CloseableIterator;
 
@@ -116,24 +121,22 @@ public class CompactionTask extends AbstractCompactionTask
         logger.info("Compacting {}", toCompact);
 
         long start = System.nanoTime();
-        long totalkeysWritten = 0;
-
+        long totalKeysWritten = 0;
         long estimatedTotalKeys = Math.max(cfs.metadata.getIndexInterval(), SSTableReader.getApproximateKeyCount(actuallyCompact));
         long estimatedSSTables = Math.max(1, SSTableReader.getTotalBytes(actuallyCompact) / strategy.getMaxSSTableBytes());
         long keysPerSSTable = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
-        if (logger.isDebugEnabled())
-            logger.debug("Expected bloom filter size : {}", keysPerSSTable);
+        logger.debug("Expected bloom filter size : {}", keysPerSSTable);
 
         AbstractCompactionIterable ci = new CompactionIterable(compactionType, strategy.getScanners(actuallyCompact), controller);
         CloseableIterator<AbstractCompactedRow> iter = ci.iterator();
-        Map<DecoratedKey, RowIndexEntry> cachedKeys = new HashMap<DecoratedKey, RowIndexEntry>();
+        Map<DecoratedKey, RowIndexEntry> cachedKeys = new HashMap<>();
 
         // we can't preheat until the tracker has been set. This doesn't happen until we tell the cfs to
         // replace the old entries.  Track entries to preheat here until then.
-        Map<Descriptor, Map<DecoratedKey, RowIndexEntry>> cachedKeyMap =  new HashMap<Descriptor, Map<DecoratedKey, RowIndexEntry>>();
+        Map<Descriptor, Map<DecoratedKey, RowIndexEntry>> cachedKeyMap =  new HashMap<>();
 
-        Collection<SSTableReader> sstables = new ArrayList<SSTableReader>();
-        Collection<SSTableWriter> writers = new ArrayList<SSTableWriter>();
+        Collection<SSTableReader> sstables = new ArrayList<>();
+        Collection<SSTableWriter> writers = new ArrayList<>();
 
         if (collector != null)
             collector.beginCompaction(ci);
@@ -164,7 +167,7 @@ public class CompactionTask extends AbstractCompactionTask
                     continue;
                 }
 
-                totalkeysWritten++;
+                totalKeysWritten++;
 
                 if (DatabaseDescriptor.getPreheatKeyCache())
                 {
@@ -184,7 +187,7 @@ public class CompactionTask extends AbstractCompactionTask
                     cachedKeyMap.put(writer.descriptor.asTemporary(false), cachedKeys);
                     writer = createCompactionWriter(sstableDirectory, keysPerSSTable);
                     writers.add(writer);
-                    cachedKeys = new HashMap<DecoratedKey, RowIndexEntry>();
+                    cachedKeys = new HashMap<>();
                 }
             }
 
@@ -257,7 +260,7 @@ public class CompactionTask extends AbstractCompactionTask
         long totalSourceRows = 0;
         long[] counts = ci.getMergedRowCounts();
         StringBuilder mergeSummary = new StringBuilder(counts.length * 10);
-        Map<Integer, Long> mergedRows = new HashMap<Integer, Long>();
+        Map<Integer, Long> mergedRows = new HashMap<>();
         for (int i = 0; i < counts.length; i++)
         {
             long count = counts[i];
@@ -272,8 +275,9 @@ public class CompactionTask extends AbstractCompactionTask
 
         SystemKeyspace.updateCompactionHistory(cfs.keyspace.getName(), cfs.name, start, startsize, endsize, mergedRows);
         logger.info(String.format("Compacted %d sstables to [%s].  %,d bytes to %,d (~%d%% of original) in %,dms = %fMB/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
-                                  toCompact.size(), builder.toString(), startsize, endsize, (int) (ratio * 100), dTime, mbps, totalSourceRows, totalkeysWritten, mergeSummary.toString()));
+                                         toCompact.size(), builder.toString(), startsize, endsize, (int) (ratio * 100), dTime, mbps, totalSourceRows, totalKeysWritten, mergeSummary.toString()));
         logger.debug(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
+        logger.debug("Actual #keys: {}, Estimated #keys:{}, Err%: {}", totalKeysWritten, estimatedTotalKeys, ((double)(totalKeysWritten - estimatedTotalKeys)/totalKeysWritten));
     }
 
     private SSTableWriter createCompactionWriter(File sstableDirectory, long keysPerSSTable)
