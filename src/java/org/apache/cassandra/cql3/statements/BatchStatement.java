@@ -31,7 +31,6 @@ import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.ObjectSizes;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
@@ -140,7 +139,7 @@ public class BatchStatement extends ModificationStatement
 
     public ParsedStatement.Prepared prepare() throws InvalidRequestException
     {
-        CFDefinition.Name[] boundNames = new CFDefinition.Name[getBoundsTerms()];
+        CFDefinition.Name[] boundNames = new CFDefinition.Name[getBoundTerms()];
         return prepare(boundNames);
     }
 

@@ -105,7 +105,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return meter.measureDeep(this) - meter.measureDeep(cfDef);
     }
 
-    public int getBoundsTerms()
+    public int getBoundTerms()
     {
         return boundTerms;
     }
@@ -1002,7 +1002,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
             CFDefinition cfDef = cfm.getCfDef();
 
-            ColumnSpecification[] names = new ColumnSpecification[getBoundsTerms()];
+            ColumnSpecification[] names = new ColumnSpecification[getBoundTerms()];
 
             // Select clause
             if (parameters.isCount && !selectClause.isEmpty())
@@ -1012,7 +1012,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                                 ? Selection.wildcard(cfDef)
                                 : Selection.fromSelectors(cfDef, selectClause);
 
-            SelectStatement stmt = new SelectStatement(cfDef, getBoundsTerms(), parameters, selection);
+            SelectStatement stmt = new SelectStatement(cfDef, getBoundTerms(), parameters, selection);
 
             /*
              * WHERE clause. For a given entity, rules are:

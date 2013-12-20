@@ -348,7 +348,7 @@ public class UpdateStatement extends ModificationStatement
 
     public ParsedStatement.Prepared prepare() throws InvalidRequestException
     {
-        ColumnSpecification[] names = new ColumnSpecification[getBoundsTerms()];
+        ColumnSpecification[] names = new ColumnSpecification[getBoundTerms()];
         return prepare(names);
     }
 

@@ -36,7 +36,7 @@ public abstract class AuthorizationStatement extends ParsedStatement implements 
         return new Prepared(this);
     }
 
-    public int getBoundsTerms()
+    public int getBoundTerms()
     {
         return 0;
     }

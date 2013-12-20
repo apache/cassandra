@@ -175,7 +175,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
             properties.validate();
 
             CreateColumnFamilyStatement stmt = new CreateColumnFamilyStatement(cfName, properties);
-            stmt.setBoundTerms(getBoundsTerms());
+            stmt.setBoundTerms(getBoundTerms());
 
             Map<ByteBuffer, CollectionType> definedCollections = null;
             for (Map.Entry<ColumnIdentifier, CQL3Type> entry : definitions.entrySet())

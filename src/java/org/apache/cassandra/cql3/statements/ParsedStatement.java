@@ -27,7 +27,7 @@ public abstract class ParsedStatement
 {
     private int boundTerms;
 
-    public int getBoundsTerms()
+    public int getBoundTerms()
     {
         return boundTerms;
     }

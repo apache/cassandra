@@ -35,7 +35,7 @@ public abstract class AuthenticationStatement extends ParsedStatement implements
         return new Prepared(this);
     }
 
-    public int getBoundsTerms()
+    public int getBoundTerms()
     {
         return 0;
     }

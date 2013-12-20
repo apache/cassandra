@@ -153,7 +153,7 @@ public class QueryProcessor
     throws RequestExecutionException, RequestValidationException
     {
         CQLStatement prepared = getStatement(queryString, queryState.getClientState()).statement;
-        if (prepared.getBoundsTerms() > 0)
+        if (prepared.getBoundTerms() > 0)
             throw new InvalidRequestException("Cannot execute query with bind variables");
         return processStatement(prepared, cl, queryState, Collections.<ByteBuffer>emptyList());
     }
@@ -220,7 +220,7 @@ public class QueryProcessor
         ParsedStatement.Prepared prepared = getStatement(queryString, clientState);
         ResultMessage.Prepared msg = storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared, forThrift);
 
-        int bountTerms = prepared.statement.getBoundsTerms();
+        int bountTerms = prepared.statement.getBoundTerms();
         if (bountTerms > FBUtilities.MAX_UNSIGNED_SHORT)
             throw new InvalidRequestException(String.format("Too many markers(?). %d markers exceed the allowed maximum of %d", bountTerms, FBUtilities.MAX_UNSIGNED_SHORT));
         assert bountTerms == prepared.boundNames.size();
@@ -246,7 +246,7 @@ public class QueryProcessor
             thriftPreparedStatements.put(statementId, prepared.statement);
             logger.trace(String.format("Stored prepared statement #%d with %d bind markers",
                                        statementId,
-                                       prepared.statement.getBoundsTerms()));
+                                       prepared.statement.getBoundTerms()));
             return ResultMessage.Prepared.forThrift(statementId, prepared.boundNames);
         }
         else
@@ -255,7 +255,7 @@ public class QueryProcessor
             preparedStatements.put(statementId, prepared.statement);
             logger.trace(String.format("Stored prepared statement %s with %d bind markers",
                          statementId,
-                         prepared.statement.getBoundsTerms()));
+                         prepared.statement.getBoundTerms()));
             return new ResultMessage.Prepared(statementId, prepared.boundNames);
         }
     }
@@ -264,11 +264,11 @@ public class QueryProcessor
     throws RequestExecutionException, RequestValidationException
     {
         // Check to see if there are any bound variables to verify
-        if (!(variables.isEmpty() && (statement.getBoundsTerms() == 0)))
+        if (!(variables.isEmpty() && (statement.getBoundTerms() == 0)))
         {
-            if (variables.size() != statement.getBoundsTerms())
+            if (variables.size() != statement.getBoundTerms())
                 throw new InvalidRequestException(String.format("there were %d markers(?) in CQL but %d bound variables",
-                                                                statement.getBoundsTerms(),
+                                                                statement.getBoundTerms(),
                                                                 variables.size()));
 
             // at this point there is a match in count between markers and variables that is non-zero

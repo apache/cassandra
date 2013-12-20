@@ -1849,7 +1849,7 @@ public class CassandraServer implements Cassandra.Iface
                                                                 " (either the query was not prepared on this host (maybe the host has been restarted?)" +
                                                                 " or you have prepared too many queries and it has been evicted from the internal cache)",
                                                                 itemId));
-            logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId, statement.getBoundsTerms());
+            logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId, statement.getBoundTerms());
 
             return org.apache.cassandra.cql3.QueryProcessor.processPrepared(statement, ThriftConversion.fromThrift(cLevel), cState.getQueryState(), bindVariables).toThriftResult();
         }

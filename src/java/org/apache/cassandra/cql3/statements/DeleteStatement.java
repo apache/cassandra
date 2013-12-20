@@ -173,7 +173,7 @@ public class DeleteStatement extends ModificationStatement
 
     public ParsedStatement.Prepared prepare() throws InvalidRequestException
     {
-        ColumnSpecification[] boundNames = new ColumnSpecification[getBoundsTerms()];
+        ColumnSpecification[] boundNames = new ColumnSpecification[getBoundTerms()];
         return prepare(boundNames);
     }
 
