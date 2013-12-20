@@ -163,6 +163,7 @@ public class NodeCmd
         STATUSBINARY,
         STATUSTHRIFT,
         STOP,
+        STOPDAEMON,
         TPSTATS,
         UPGRADESSTABLES,
         VERSION,
@@ -1316,6 +1317,12 @@ public class NodeCmd
                 case STOP:
                     if (arguments.length != 1) { badUse("stop requires a type."); }
                     probe.stop(arguments[0].toUpperCase());
+                    break;
+
+                case STOPDAEMON:
+                    if (arguments.length != 0) { badUse("stopdaemon does not take arguments."); }
+                    try { probe.stopCassandraDaemon(); }
+                    catch (Throwable t) { System.out.println("Cassandra has shut down.\n"); }
                     break;
 
                 case DESCRIBERING :
