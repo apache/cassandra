@@ -1,4 +1,5 @@
 2.0.4
+ * add StorageService.stopDaemon() (CASSANDRA-4268)
  * add IRE for invalid CF supplied to get_count (CASSANDRA-5701)
  * add client encryption support to sstableloader (CASSANDRA-6378)
  * Fix accept() loop for SSL sockets post-shutdown (CASSANDRA-6468)

@@ -766,6 +766,11 @@ public class NodeProbe
         return ssProxy.isRPCServerRunning();
     }
 
+    public void stopCassandraDaemon()
+    {
+        ssProxy.stopDaemon();
+    }
+
     public boolean isInitialized()
     {
         return ssProxy.isInitialized();
