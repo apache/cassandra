@@ -273,7 +273,6 @@ public class IndexSummaryManagerTest extends SchemaLoader
         IndexSummaryManager manager = IndexSummaryManager.instance;
 
         // resize interval
-        assertNotNull(manager.getResizeIntervalInMinutes());
         manager.setResizeIntervalInMinutes(-1);
         assertNull(manager.getTimeToNextResize(TimeUnit.MINUTES));
 
