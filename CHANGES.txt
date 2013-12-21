@@ -22,6 +22,7 @@
 
 
 2.0.4
+ * Allow removing snapshots of no-longer-existing CFs (CASSANDRA-6418)
  * add StorageService.stopDaemon() (CASSANDRA-4268)
  * add IRE for invalid CF supplied to get_count (CASSANDRA-5701)
  * add client encryption support to sstableloader (CASSANDRA-6378)
