@@ -279,14 +279,14 @@ public class ColumnDefinition extends ColumnSpecification
     }
 
     /**
-     * Drop specified column from the schema using given row.
+     * Drop specified column from the schema using given mutation.
      *
-     * @param rm         The schema row mutation
-     * @param timestamp  The timestamp to use for column modification
+     * @param mutation  The schema mutation
+     * @param timestamp The timestamp to use for column modification
      */
-    public void deleteFromSchema(RowMutation rm, long timestamp)
+    public void deleteFromSchema(Mutation mutation, long timestamp)
     {
-        ColumnFamily cf = rm.addOrGet(CFMetaData.SchemaColumnsCf);
+        ColumnFamily cf = mutation.addOrGet(CFMetaData.SchemaColumnsCf);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
         // Note: we do want to use name.toString(), not name.bytes directly for backward compatibility (For CQL3, this won't make a difference).
@@ -294,9 +294,9 @@ public class ColumnDefinition extends ColumnSpecification
         cf.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
     }
 
-    public void toSchema(RowMutation rm, long timestamp)
+    public void toSchema(Mutation mutation, long timestamp)
     {
-        ColumnFamily cf = rm.addOrGet(CFMetaData.SchemaColumnsCf);
+        ColumnFamily cf = mutation.addOrGet(CFMetaData.SchemaColumnsCf);
         Composite prefix = CFMetaData.SchemaColumnsCf.comparator.make(cfName, name.toString());
         CFRowAdder adder = new CFRowAdder(cf, prefix, timestamp);
 

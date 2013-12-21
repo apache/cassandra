@@ -121,7 +121,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
      * Returns a mutation representing a Hint to be sent to <code>targetId</code>
      * as soon as it becomes available again.
      */
-    public RowMutation hintFor(RowMutation mutation, int ttl, UUID targetId)
+    public Mutation hintFor(Mutation mutation, int ttl, UUID targetId)
     {
         assert ttl > 0;
 
@@ -135,18 +135,18 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         UUID hintId = UUIDGen.getTimeUUID();
         // serialize the hint with id and version as a composite column name
         CellName name = CFMetaData.HintsCf.comparator.makeCellName(hintId, MessagingService.current_version);
-        ByteBuffer value = ByteBuffer.wrap(FBUtilities.serialize(mutation, RowMutation.serializer, MessagingService.current_version));
+        ByteBuffer value = ByteBuffer.wrap(FBUtilities.serialize(mutation, Mutation.serializer, MessagingService.current_version));
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Schema.instance.getCFMetaData(Keyspace.SYSTEM_KS, SystemKeyspace.HINTS_CF));
         cf.addColumn(name, value, System.currentTimeMillis(), ttl);
-        return new RowMutation(Keyspace.SYSTEM_KS, UUIDType.instance.decompose(targetId), cf);
+        return new Mutation(Keyspace.SYSTEM_KS, UUIDType.instance.decompose(targetId), cf);
     }
 
     /*
-     * determine the TTL for the hint RowMutation
+     * determine the TTL for the hint Mutation
      * this is set at the smallest GCGraceSeconds for any of the CFs in the RM
      * this ensures that deletes aren't "undone" by delivery of an old hint
      */
-    public static int calculateHintTTL(RowMutation mutation)
+    public static int calculateHintTTL(Mutation mutation)
     {
         int ttl = maxHintTTL;
         for (ColumnFamily cf : mutation.getColumnFamilies())
@@ -181,9 +181,9 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     private static void deleteHint(ByteBuffer tokenBytes, CellName columnName, long timestamp)
     {
-        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, tokenBytes);
-        rm.delete(SystemKeyspace.HINTS_CF, columnName, timestamp);
-        rm.applyUnsafe(); // don't bother with commitlog since we're going to flush as soon as we're done with delivery
+        Mutation mutation = new Mutation(Keyspace.SYSTEM_KS, tokenBytes);
+        mutation.delete(SystemKeyspace.HINTS_CF, columnName, timestamp);
+        mutation.applyUnsafe(); // don't bother with commitlog since we're going to flush as soon as we're done with delivery
     }
 
     public void deleteHintsForEndpoint(final String ipOrHostname)
@@ -206,8 +206,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             return;
         UUID hostId = StorageService.instance.getTokenMetadata().getHostId(endpoint);
         ByteBuffer hostIdBytes = ByteBuffer.wrap(UUIDGen.decompose(hostId));
-        final RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, hostIdBytes);
-        rm.delete(SystemKeyspace.HINTS_CF, System.currentTimeMillis());
+        final Mutation mutation = new Mutation(Keyspace.SYSTEM_KS, hostIdBytes);
+        mutation.delete(SystemKeyspace.HINTS_CF, System.currentTimeMillis());
 
         // execute asynchronously to avoid blocking caller (which may be processing gossip)
         Runnable runnable = new Runnable()
@@ -217,7 +217,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 try
                 {
                     logger.info("Deleting any stored hints for {}", endpoint);
-                    rm.apply();
+                    mutation.apply();
                     compact();
                 }
                 catch (Exception e)
@@ -384,10 +384,10 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
                 int version = Int32Type.instance.compose(hint.name().get(1));
                 DataInputStream in = new DataInputStream(ByteBufferUtil.inputStream(hint.value()));
-                RowMutation rm;
+                Mutation mutation;
                 try
                 {
-                    rm = RowMutation.serializer.deserialize(in, version);
+                    mutation = Mutation.serializer.deserialize(in, version);
                 }
                 catch (UnknownColumnFamilyException e)
                 {
@@ -401,12 +401,12 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 }
 
                 truncationTimesCache.clear();
-                for (UUID cfId : ImmutableSet.copyOf((rm.getColumnFamilyIds())))
+                for (UUID cfId : ImmutableSet.copyOf((mutation.getColumnFamilyIds())))
                 {
                     Long truncatedAt = truncationTimesCache.get(cfId);
                     if (truncatedAt == null)
                     {
-                        ColumnFamilyStore cfs = Keyspace.open(rm.getKeyspaceName()).getColumnFamilyStore(cfId);
+                        ColumnFamilyStore cfs = Keyspace.open(mutation.getKeyspaceName()).getColumnFamilyStore(cfId);
                         truncatedAt = cfs.getTruncationTime();
                         truncationTimesCache.put(cfId, truncatedAt);
                     }
@@ -414,17 +414,17 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                     if (hint.maxTimestamp() < truncatedAt)
                     {
                         logger.debug("Skipping delivery of hint for truncated columnfamily {}", cfId);
-                        rm = rm.without(cfId);
+                        mutation = mutation.without(cfId);
                     }
                 }
 
-                if (rm.isEmpty())
+                if (mutation.isEmpty())
                 {
                     deleteHint(hostIdBytes, hint.name(), hint.maxTimestamp());
                     continue;
                 }
 
-                MessageOut<RowMutation> message = rm.createMessage();
+                MessageOut<Mutation> message = mutation.createMessage();
                 rateLimiter.acquire(message.serializedSize(MessagingService.current_version));
                 Runnable callback = new Runnable()
                 {

@@ -19,7 +19,6 @@
 package org.apache.cassandra.config;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -127,7 +126,7 @@ public class CFMetaDataTest extends SchemaLoader
         assert before.equals(after) : String.format("\n%s\n!=\n%s", before, after);
 
         // Test schema conversion
-        RowMutation rm = cfm.toSchema(System.currentTimeMillis());
+        Mutation rm = cfm.toSchema(System.currentTimeMillis());
         ColumnFamily serializedCf = rm.getColumnFamily(Schema.instance.getId(Keyspace.SYSTEM_KS, SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF));
         ColumnFamily serializedCD = rm.getColumnFamily(Schema.instance.getId(Keyspace.SYSTEM_KS, SystemKeyspace.SCHEMA_COLUMNS_CF));
         UntypedResultSet.Row result = QueryProcessor.resultify("SELECT * FROM system.schema_columnfamilies", new Row(k, serializedCf)).one();

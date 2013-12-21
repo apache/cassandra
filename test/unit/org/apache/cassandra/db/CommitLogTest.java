@@ -99,7 +99,7 @@ public class CommitLogTest extends SchemaLoader
     {
         CommitLog.instance.resetUnsafe();
         // Roughly 32 MB mutation
-        RowMutation rm = new RowMutation("Keyspace1", bytes("k"));
+        Mutation rm = new Mutation("Keyspace1", bytes("k"));
         rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize()/4), 0);
 
         // Adding it 5 times
@@ -110,7 +110,7 @@ public class CommitLogTest extends SchemaLoader
         CommitLog.instance.add(rm);
 
         // Adding new mutation on another CF
-        RowMutation rm2 = new RowMutation("Keyspace1", bytes("k"));
+        Mutation rm2 = new Mutation("Keyspace1", bytes("k"));
         rm2.add("Standard2", Util.cellname("c1"), ByteBuffer.allocate(4), 0);
         CommitLog.instance.add(rm2);
 
@@ -129,7 +129,7 @@ public class CommitLogTest extends SchemaLoader
         DatabaseDescriptor.getCommitLogSegmentSize();
         CommitLog.instance.resetUnsafe();
         // Roughly 32 MB mutation
-        RowMutation rm = new RowMutation("Keyspace1", bytes("k"));
+        Mutation rm = new Mutation("Keyspace1", bytes("k"));
         rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()/4) - 1), 0);
 
         // Adding it twice (won't change segment)
@@ -146,7 +146,7 @@ public class CommitLogTest extends SchemaLoader
         assert CommitLog.instance.activeSegments() == 1 : "Expecting 1 segment, got " + CommitLog.instance.activeSegments();
 
         // Adding new mutation on another CF, large enough (including CL entry overhead) that a new segment is created
-        RowMutation rm2 = new RowMutation("Keyspace1", bytes("k"));
+        Mutation rm2 = new Mutation("Keyspace1", bytes("k"));
         rm2.add("Standard2", Util.cellname("c1"), ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()/2) - 100), 0);
         CommitLog.instance.add(rm2);
         // also forces a new segment, since each entry-with-overhead is just under half the CL size
@@ -172,7 +172,7 @@ public class CommitLogTest extends SchemaLoader
     {
         CommitLog.instance.resetUnsafe();
 
-        RowMutation rm = new RowMutation("Keyspace1", bytes("k"));
+        Mutation rm = new Mutation("Keyspace1", bytes("k"));
         rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()) - 83), 0);
         CommitLog.instance.add(rm);
     }

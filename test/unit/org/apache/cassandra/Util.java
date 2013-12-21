@@ -141,7 +141,7 @@ public class Util
         return new Bounds<RowPosition>(rp(left), rp(right));
     }
 
-    public static void addMutation(RowMutation rm, String columnFamilyName, String superColumnName, long columnName, String value, long timestamp)
+    public static void addMutation(Mutation rm, String columnFamilyName, String superColumnName, long columnName, String value, long timestamp)
     {
         CellName cname = superColumnName == null
                        ? CellNames.simpleDense(getBytes(columnName))
@@ -185,7 +185,7 @@ public class Util
     /**
      * Writes out a bunch of mutations for a single column family.
      *
-     * @param mutations A group of RowMutations for the same keyspace and column family.
+     * @param mutations A group of Mutations for the same keyspace and column family.
      * @return The ColumnFamilyStore that was used.
      */
     public static ColumnFamilyStore writeColumnFamily(List<IMutation> mutations) throws IOException, ExecutionException, InterruptedException

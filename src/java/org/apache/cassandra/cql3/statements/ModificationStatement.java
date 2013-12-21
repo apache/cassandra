@@ -516,18 +516,18 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
 
     private IMutation makeMutation(ByteBuffer key, ColumnFamily cf, ConsistencyLevel cl, boolean isBatch)
     {
-        RowMutation rm;
+        Mutation mutation;
         if (isBatch)
         {
             // we might group other mutations together with this one later, so make it mutable
-            rm = new RowMutation(cfm.ksName, key);
-            rm.add(cf);
+            mutation = new Mutation(cfm.ksName, key);
+            mutation.add(cf);
         }
         else
         {
-            rm = new RowMutation(cfm.ksName, key, cf);
+            mutation = new Mutation(cfm.ksName, key, cf);
         }
-        return isCounter() ? new CounterMutation(rm, cl) : rm;
+        return isCounter() ? new CounterMutation(mutation, cl) : mutation;
     }
 
     private ColumnFamily buildConditions(ByteBuffer key, Composite clusteringPrefix, UpdateParameters params)

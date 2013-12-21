@@ -58,8 +58,8 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
     public void testIndexInsertAndUpdate() throws IOException
     {
         // create a row then test that the configured index instance was able to read the row
-        RowMutation rm;
-        rm = new RowMutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k1"));
+        Mutation rm;
+        rm = new Mutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", Util.cellname("indexed"), ByteBufferUtil.bytes("foo"), 1);
         rm.apply();
 
@@ -68,7 +68,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         assertEquals(ByteBufferUtil.bytes("foo"), indexedRow.getColumn(Util.cellname("indexed")).value());
 
         // update the row and verify what was indexed
-        rm = new RowMutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k1"));
+        rm = new Mutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", Util.cellname("indexed"), ByteBufferUtil.bytes("bar"), 2);
         rm.apply();
 
@@ -82,8 +82,8 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
     public void testColumnDelete() throws IOException
     {
         // issue a column delete and test that the configured index instance was notified to update
-        RowMutation rm;
-        rm = new RowMutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k2"));
+        Mutation rm;
+        rm = new Mutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k2"));
         rm.delete("Indexed1", Util.cellname("indexed"), 1);
         rm.apply();
 
@@ -101,8 +101,8 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
     public void testRowDelete() throws IOException
     {
         // issue a row level delete and test that the configured index instance was notified to update
-        RowMutation rm;
-        rm = new RowMutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k3"));
+        Mutation rm;
+        rm = new Mutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k3"));
         rm.delete("Indexed1", 1);
         rm.apply();
 

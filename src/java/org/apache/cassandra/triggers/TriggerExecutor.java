@@ -29,11 +29,8 @@ import com.google.common.collect.Maps;
 
 import org.apache.cassandra.config.TriggerDefinition;
 import org.apache.cassandra.cql.QueryProcessor;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.CounterMutation;
-import org.apache.cassandra.db.IMutation;
-import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -63,15 +60,15 @@ public class TriggerExecutor
         cachedTriggers.clear();
     }
 
-    public Collection<RowMutation> execute(Collection<? extends IMutation> updates) throws InvalidRequestException
+    public Collection<Mutation> execute(Collection<? extends IMutation> updates) throws InvalidRequestException
     {
         boolean hasCounters = false;
-        Collection<RowMutation> tmutations = null;
+        Collection<Mutation> tmutations = null;
         for (IMutation mutation : updates)
         {
             for (ColumnFamily cf : mutation.getColumnFamilies())
             {
-                List<RowMutation> intermediate = execute(mutation.key(), cf);
+                List<Mutation> intermediate = execute(mutation.key(), cf);
                 if (intermediate == null)
                     continue;
 
@@ -89,9 +86,9 @@ public class TriggerExecutor
         return tmutations;
     }
 
-    private void validate(Collection<RowMutation> tmutations) throws InvalidRequestException
+    private void validate(Collection<Mutation> tmutations) throws InvalidRequestException
     {
-        for (RowMutation mutation : tmutations)
+        for (Mutation mutation : tmutations)
         {
             QueryProcessor.validateKey(mutation.key());
             for (ColumnFamily tcf : mutation.getColumnFamilies())
@@ -104,12 +101,12 @@ public class TriggerExecutor
      * Switch class loader before using the triggers for the column family, if
      * not loaded them with the custom class loader.
      */
-    private List<RowMutation> execute(ByteBuffer key, ColumnFamily columnFamily)
+    private List<Mutation> execute(ByteBuffer key, ColumnFamily columnFamily)
     {
         Map<String,TriggerDefinition> triggers = columnFamily.metadata().getTriggers();
         if (triggers.isEmpty())
             return null;
-        List<RowMutation> tmutations = Lists.newLinkedList();
+        List<Mutation> tmutations = Lists.newLinkedList();
         Thread.currentThread().setContextClassLoader(customClassLoader);
         try
         {
@@ -121,7 +118,7 @@ public class TriggerExecutor
                     trigger = loadTriggerInstance(td.classOption);
                     cachedTriggers.put(td.classOption, trigger);
                 }
-                Collection<RowMutation> temp = trigger.augment(key, columnFamily);
+                Collection<Mutation> temp = trigger.augment(key, columnFamily);
                 if (temp != null)
                     tmutations.addAll(temp);
             }

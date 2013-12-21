@@ -36,12 +36,12 @@ public class CounterMutationTest extends SchemaLoader
     @Test
     public void testMergeOldShards() throws IOException
     {
-        RowMutation rm;
+        Mutation rm;
         CounterMutation cm;
 
         CounterId id1 = CounterId.getLocalId();
 
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("key1"));
         rm.addCounter("Counter1", Util.cellname("Column1"), 3);
         cm = new CounterMutation(rm, ConsistencyLevel.ONE);
         cm.apply();
@@ -49,7 +49,7 @@ public class CounterMutationTest extends SchemaLoader
         CounterId.renewLocalId(2L); // faking time of renewal for test
         CounterId id2 = CounterId.getLocalId();
 
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("key1"));
         rm.addCounter("Counter1", Util.cellname("Column1"), 4);
         cm = new CounterMutation(rm, ConsistencyLevel.ONE);
         cm.apply();
@@ -57,7 +57,7 @@ public class CounterMutationTest extends SchemaLoader
         CounterId.renewLocalId(4L); // faking time of renewal for test
         CounterId id3 = CounterId.getLocalId();
 
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("key1"));
         rm.addCounter("Counter1", Util.cellname("Column1"), 5);
         rm.addCounter("Counter1", Util.cellname("Column2"), 1);
         cm = new CounterMutation(rm, ConsistencyLevel.ONE);

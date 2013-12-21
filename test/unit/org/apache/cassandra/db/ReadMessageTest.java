@@ -83,11 +83,11 @@ public class ReadMessageTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
         CellNameType type = keyspace.getColumnFamilyStore("Standard1").getComparator();
-        RowMutation rm;
+        Mutation rm;
         DecoratedKey dk = Util.dk("key1");
 
         // add data
-        rm = new RowMutation("Keyspace1", dk.key);
+        rm = new Mutation("Keyspace1", dk.key);
         rm.add("Standard1", Util.cellname("Column1"), ByteBufferUtil.bytes("abcd"), 0);
         rm.apply();
 
@@ -100,11 +100,11 @@ public class ReadMessageTest extends SchemaLoader
     @Test
     public void testNoCommitLog() throws Exception
     {
-        RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("row"));
+        Mutation rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("row"));
         rm.add("Standard1", Util.cellname("commit1"), ByteBufferUtil.bytes("abcd"), 0);
         rm.apply();
 
-        rm = new RowMutation("NoCommitlogSpace", ByteBufferUtil.bytes("row"));
+        rm = new Mutation("NoCommitlogSpace", ByteBufferUtil.bytes("row"));
         rm.add("Standard1", Util.cellname("commit2"), ByteBufferUtil.bytes("abcd"), 0);
         rm.apply();
 

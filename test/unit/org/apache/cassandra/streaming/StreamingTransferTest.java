@@ -230,7 +230,7 @@ public class StreamingTransferTest extends SchemaLoader
                 ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(keyspace.getName(), cfs.name);
                 cf.addColumn(column(col, "v", timestamp));
                 cf.addColumn(new Cell(cellname("birthdate"), ByteBufferUtil.bytes(val), timestamp));
-                RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key), cf);
+                Mutation rm = new Mutation("Keyspace1", ByteBufferUtil.bytes(key), cf);
                 logger.debug("Applying row to transfer " + rm);
                 rm.apply();
             }
@@ -264,7 +264,7 @@ public class StreamingTransferTest extends SchemaLoader
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
 
         String key = "key1";
-        RowMutation rm = new RowMutation(ks, ByteBufferUtil.bytes(key));
+        Mutation rm = new Mutation(ks, ByteBufferUtil.bytes(key));
         // add columns of size slightly less than column_index_size to force insert column index
         rm.add(cfname, cellname(1), ByteBuffer.wrap(new byte[DatabaseDescriptor.getColumnIndexSize() - 64]), 2);
         rm.add(cfname, cellname(6), ByteBuffer.wrap(new byte[DatabaseDescriptor.getColumnIndexSize()]), 2);
@@ -454,7 +454,7 @@ public class StreamingTransferTest extends SchemaLoader
                 ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(keyspace.getName(), cfs.name);
                 cf.addColumn(column(colName, "value", timestamp));
                 cf.addColumn(new Cell(cellname("birthdate"), ByteBufferUtil.bytes(new Date(timestamp).toString()), timestamp));
-                RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key), cf);
+                Mutation rm = new Mutation("Keyspace1", ByteBufferUtil.bytes(key), cf);
                 logger.debug("Applying row to transfer " + rm);
                 rm.apply();
             }

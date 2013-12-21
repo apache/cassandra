@@ -72,15 +72,15 @@ public class TriggerDefinition
     }
 
     /**
-     * Add specified trigger to the schema using given row.
+     * Add specified trigger to the schema using given mutation.
      *
-     * @param rm        The schema row mutation
+     * @param mutation  The schema mutation
      * @param cfName    The name of the parent ColumnFamily
      * @param timestamp The timestamp to use for the columns
      */
-    public void toSchema(RowMutation rm, String cfName, long timestamp)
+    public void toSchema(Mutation mutation, String cfName, long timestamp)
     {
-        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
+        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
 
         CFMetaData cfm = CFMetaData.SchemaTriggersCf;
         Composite prefix = cfm.comparator.make(cfName, name);
@@ -90,15 +90,15 @@ public class TriggerDefinition
     }
 
     /**
-     * Drop specified trigger from the schema using given row.
+     * Drop specified trigger from the schema using given mutation.
      *
-     * @param rm        The schema row mutation
+     * @param mutation  The schema mutation
      * @param cfName    The name of the parent ColumnFamily
      * @param timestamp The timestamp to use for the tombstone
      */
-    public void deleteFromSchema(RowMutation rm, String cfName, long timestamp)
+    public void deleteFromSchema(Mutation mutation, String cfName, long timestamp)
     {
-        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
+        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
         Composite prefix = CFMetaData.SchemaTriggersCf.comparator.make(cfName, name);

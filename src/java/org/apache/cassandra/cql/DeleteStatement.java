@@ -24,9 +24,9 @@ import java.util.List;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.IMutation;
-import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -76,27 +76,25 @@ public class DeleteStatement extends AbstractModification
         clientState.hasColumnFamilyAccess(keyspace, columnFamily, Permission.MODIFY);
         AbstractType<?> keyType = Schema.instance.getCFMetaData(keyspace, columnFamily).getKeyValidator();
 
-        List<IMutation> rowMutations = new ArrayList<IMutation>(keys.size());
+        List<IMutation> mutations = new ArrayList<IMutation>(keys.size());
 
         for (Term key : keys)
-        {
-            rowMutations.add(mutationForKey(key.getByteBuffer(keyType, variables), keyspace, timestamp, clientState, variables, metadata));
-        }
+            mutations.add(mutationForKey(key.getByteBuffer(keyType, variables), keyspace, timestamp, clientState, variables, metadata));
 
-        return rowMutations;
+        return mutations;
     }
 
-    public RowMutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp, ThriftClientState clientState, List<ByteBuffer> variables, CFMetaData metadata)
+    public Mutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp, ThriftClientState clientState, List<ByteBuffer> variables, CFMetaData metadata)
     throws InvalidRequestException
     {
-        RowMutation rm = new RowMutation(keyspace, key);
+        Mutation mutation = new Mutation(keyspace, key);
 
         QueryProcessor.validateKeyAlias(metadata, keyName);
 
         if (columns.size() < 1)
         {
-            // No columns, delete the row
-            rm.delete(columnFamily, (timestamp == null) ? getTimestamp(clientState) : timestamp);
+            // No columns, delete the partition
+            mutation.delete(columnFamily, (timestamp == null) ? getTimestamp(clientState) : timestamp);
         }
         else
         {
@@ -106,11 +104,11 @@ public class DeleteStatement extends AbstractModification
             {
                 CellName columnName = metadata.comparator.cellFromByteBuffer(column.getByteBuffer(at, variables));
                 validateColumnName(columnName);
-                rm.delete(columnFamily, columnName, (timestamp == null) ? getTimestamp(clientState) : timestamp);
+                mutation.delete(columnFamily, columnName, (timestamp == null) ? getTimestamp(clientState) : timestamp);
             }
         }
 
-        return rm;
+        return mutation;
     }
 
     public String toString()

@@ -299,21 +299,21 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
      * actively announce a new version to active hosts via rpc
      * @param schema The schema mutation to be applied
      */
-    private static void announce(RowMutation schema)
+    private static void announce(Mutation schema)
     {
         FBUtilities.waitOnFuture(announce(Collections.singletonList(schema)));
     }
 
-    private static void pushSchemaMutation(InetAddress endpoint, Collection<RowMutation> schema)
+    private static void pushSchemaMutation(InetAddress endpoint, Collection<Mutation> schema)
     {
-        MessageOut<Collection<RowMutation>> msg = new MessageOut<>(MessagingService.Verb.DEFINITIONS_UPDATE,
-                                                                   schema,
-                                                                   MigrationsSerializer.instance);
+        MessageOut<Collection<Mutation>> msg = new MessageOut<>(MessagingService.Verb.DEFINITIONS_UPDATE,
+                                                                schema,
+                                                                MigrationsSerializer.instance);
         MessagingService.instance().sendOneWay(msg, endpoint);
     }
 
     // Returns a future on the local application of the schema
-    private static Future<?> announce(final Collection<RowMutation> schema)
+    private static Future<?> announce(final Collection<Mutation> schema)
     {
         Future<?> f = StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
         {
@@ -386,33 +386,33 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         logger.info("Local schema reset is complete.");
     }
 
-    public static class MigrationsSerializer implements IVersionedSerializer<Collection<RowMutation>>
+    public static class MigrationsSerializer implements IVersionedSerializer<Collection<Mutation>>
     {
         public static MigrationsSerializer instance = new MigrationsSerializer();
 
-        public void serialize(Collection<RowMutation> schema, DataOutput out, int version) throws IOException
+        public void serialize(Collection<Mutation> schema, DataOutput out, int version) throws IOException
         {
             out.writeInt(schema.size());
-            for (RowMutation rm : schema)
-                RowMutation.serializer.serialize(rm, out, version);
+            for (Mutation mutation : schema)
+                Mutation.serializer.serialize(mutation, out, version);
         }
 
-        public Collection<RowMutation> deserialize(DataInput in, int version) throws IOException
+        public Collection<Mutation> deserialize(DataInput in, int version) throws IOException
         {
             int count = in.readInt();
-            Collection<RowMutation> schema = new ArrayList<RowMutation>(count);
+            Collection<Mutation> schema = new ArrayList<Mutation>(count);
 
             for (int i = 0; i < count; i++)
-                schema.add(RowMutation.serializer.deserialize(in, version));
+                schema.add(Mutation.serializer.deserialize(in, version));
 
             return schema;
         }
 
-        public long serializedSize(Collection<RowMutation> schema, int version)
+        public long serializedSize(Collection<Mutation> schema, int version)
         {
             int size = TypeSizes.NATIVE.sizeof(schema.size());
-            for (RowMutation rm : schema)
-                size += RowMutation.serializer.serializedSize(rm, version);
+            for (Mutation mutation : schema)
+                size += Mutation.serializer.serializedSize(mutation, version);
             return size;
         }
     }

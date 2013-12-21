@@ -82,13 +82,13 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
         cfs.truncateBlocking();
 
-        RowMutation rm;
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
+        Mutation rm;
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("key1"));
         rm.add("Standard1", cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);
         rm.apply();
         cfs.forceBlockingFlush();
 
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("key1"));
         rm.add("Standard1", cellname("Column1"), ByteBufferUtil.bytes("asdf"), 1);
         rm.apply();
         cfs.forceBlockingFlush();
@@ -106,8 +106,8 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         cfs.truncateBlocking();
 
         List<IMutation> rms = new LinkedList<IMutation>();
-        RowMutation rm;
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
+        Mutation rm;
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("key1"));
         rm.add("Standard1", cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);
         rm.add("Standard1", cellname("Column2"), ByteBufferUtil.bytes("asdf"), 0);
         rms.add(rm);
@@ -125,9 +125,9 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
         final ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
-        RowMutation rm;
+        Mutation rm;
 
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key1"));
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("key1"));
         rm.delete("Standard2", System.currentTimeMillis());
         rm.apply();
 
@@ -168,26 +168,26 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     public void testIndexScan()
     {
         ColumnFamilyStore cfs = Keyspace.open("Keyspace1").getColumnFamilyStore("Indexed1");
-        RowMutation rm;
+        Mutation rm;
         CellName nobirthdate = cellname("notbirthdate");
         CellName birthdate = cellname("birthdate");
 
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("k1"));
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", nobirthdate, ByteBufferUtil.bytes(1L), 0);
         rm.add("Indexed1", birthdate, ByteBufferUtil.bytes(1L), 0);
         rm.apply();
 
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("k2"));
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("k2"));
         rm.add("Indexed1", nobirthdate, ByteBufferUtil.bytes(2L), 0);
         rm.add("Indexed1", birthdate, ByteBufferUtil.bytes(2L), 0);
         rm.apply();
 
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("k3"));
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("k3"));
         rm.add("Indexed1", nobirthdate, ByteBufferUtil.bytes(2L), 0);
         rm.add("Indexed1", birthdate, ByteBufferUtil.bytes(1L), 0);
         rm.apply();
 
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("k4aaaa"));
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("k4aaaa"));
         rm.add("Indexed1", nobirthdate, ByteBufferUtil.bytes(2L), 0);
         rm.add("Indexed1", birthdate, ByteBufferUtil.bytes(3L), 0);
         rm.apply();
@@ -251,11 +251,11 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     @Test
     public void testLargeScan()
     {
-        RowMutation rm;
+        Mutation rm;
         ColumnFamilyStore cfs = Keyspace.open("Keyspace1").getColumnFamilyStore("Indexed1");
         for (int i = 0; i < 100; i++)
         {
-            rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("key" + i));
+            rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("key" + i));
             rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(34L), 0);
             rm.add("Indexed1", cellname("notbirthdate"), ByteBufferUtil.bytes((long) (i % 2)), 0);
             rm.applyUnsafe();
@@ -281,9 +281,9 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     public void testIndexDeletions() throws IOException
     {
         ColumnFamilyStore cfs = Keyspace.open("Keyspace3").getColumnFamilyStore("Indexed1");
-        RowMutation rm;
+        Mutation rm;
 
-        rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
+        rm = new Mutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(1L), 0);
         rm.apply();
 
@@ -297,7 +297,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assert "k1".equals( key );
 
         // delete the column directly
-        rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
+        rm = new Mutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.delete("Indexed1", cellname("birthdate"), 1);
         rm.apply();
         rows = cfs.search(range, clause, filter, 100);
@@ -312,7 +312,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assert rows.isEmpty();
 
         // resurrect w/ a newer timestamp
-        rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
+        rm = new Mutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(1L), 2);
         rm.apply();
         rows = cfs.search(range, clause, filter, 100);
@@ -321,7 +321,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assert "k1".equals( key );
 
         // verify that row and delete w/ older timestamp does nothing
-        rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
+        rm = new Mutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.delete("Indexed1", 1);
         rm.apply();
         rows = cfs.search(range, clause, filter, 100);
@@ -330,7 +330,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assert "k1".equals( key );
 
         // similarly, column delete w/ older timestamp should do nothing
-        rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
+        rm = new Mutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.delete("Indexed1", cellname("birthdate"), 1);
         rm.apply();
         rows = cfs.search(range, clause, filter, 100);
@@ -339,21 +339,21 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assert "k1".equals( key );
 
         // delete the entire row (w/ newer timestamp this time)
-        rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
+        rm = new Mutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.delete("Indexed1", 3);
         rm.apply();
         rows = cfs.search(range, clause, filter, 100);
         assert rows.isEmpty() : StringUtils.join(rows, ",");
 
         // make sure obsolete mutations don't generate an index entry
-        rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
+        rm = new Mutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(1L), 3);
         rm.apply();
         rows = cfs.search(range, clause, filter, 100);
         assert rows.isEmpty() : StringUtils.join(rows, ",");
 
         // try insert followed by row delete in the same mutation
-        rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
+        rm = new Mutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(1L), 1);
         rm.delete("Indexed1", 2);
         rm.apply();
@@ -361,7 +361,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assert rows.isEmpty() : StringUtils.join(rows, ",");
 
         // try row delete followed by insert in the same mutation
-        rm = new RowMutation("Keyspace3", ByteBufferUtil.bytes("k1"));
+        rm = new Mutation("Keyspace3", ByteBufferUtil.bytes("k1"));
         rm.delete("Indexed1", 3);
         rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(1L), 4);
         rm.apply();
@@ -379,11 +379,11 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         CellName birthdate = cellname("birthdate");
 
         // create a row and update the birthdate value, test that the index query fetches the new version
-        RowMutation rm;
-        rm = new RowMutation("Keyspace2", ByteBufferUtil.bytes("k1"));
+        Mutation rm;
+        rm = new Mutation("Keyspace2", ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", birthdate, ByteBufferUtil.bytes(1L), 1);
         rm.apply();
-        rm = new RowMutation("Keyspace2", ByteBufferUtil.bytes("k1"));
+        rm = new Mutation("Keyspace2", ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", birthdate, ByteBufferUtil.bytes(2L), 2);
         rm.apply();
 
@@ -401,7 +401,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assert "k1".equals( key );
 
         // update the birthdate value with an OLDER timestamp, and test that the index ignores this
-        rm = new RowMutation("Keyspace2", ByteBufferUtil.bytes("k1"));
+        rm = new Mutation("Keyspace2", ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", birthdate, ByteBufferUtil.bytes(3L), 0);
         rm.apply();
 
@@ -427,8 +427,8 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         ByteBuffer val2 = ByteBufferUtil.bytes(2L);
 
         // create a row and update the "birthdate" value, test that the index query fetches this version
-        RowMutation rm;
-        rm = new RowMutation(keySpace, rowKey);
+        Mutation rm;
+        rm = new Mutation(keySpace, rowKey);
         rm.add(cfName, colName, val1, 0);
         rm.apply();
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexExpression.Operator.EQ, val1);
@@ -442,7 +442,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         keyspace.getColumnFamilyStore(cfName).forceBlockingFlush();
 
         // now apply another update, but force the index update to be skipped
-        rm = new RowMutation(keySpace, rowKey);
+        rm = new Mutation(keySpace, rowKey);
         rm.add(cfName, colName, val2, 1);
         keyspace.apply(rm, true, false);
 
@@ -462,7 +462,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         // now, reset back to the original value, still skipping the index update, to
         // make sure the value was expunged from the index when it was discovered to be inconsistent
-        rm = new RowMutation(keySpace, rowKey);
+        rm = new Mutation(keySpace, rowKey);
         rm.add(cfName, colName, ByteBufferUtil.bytes(1L), 3);
         keyspace.apply(rm, true, false);
 
@@ -495,8 +495,8 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         ByteBuffer val2 = ByteBufferUtil.bytes("v2");
 
         // create a row and update the author value
-        RowMutation rm;
-        rm = new RowMutation(keySpace, rowKey);
+        Mutation rm;
+        rm = new Mutation(keySpace, rowKey);
         rm.add(cfName, compositeName, val1, 0);
         rm.apply();
 
@@ -514,7 +514,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assertEquals(1, rows.size());
 
         // now apply another update, but force the index update to be skipped
-        rm = new RowMutation(keySpace, rowKey);
+        rm = new Mutation(keySpace, rowKey);
         rm.add(cfName, compositeName, val2, 1);
         keyspace.apply(rm, true, false);
 
@@ -534,7 +534,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         // now, reset back to the original value, still skipping the index update, to
         // make sure the value was expunged from the index when it was discovered to be inconsistent
-        rm = new RowMutation(keySpace, rowKey);
+        rm = new Mutation(keySpace, rowKey);
         rm.add(cfName, compositeName, val1, 2);
         keyspace.apply(rm, true, false);
 
@@ -567,13 +567,13 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         ByteBuffer val1 = ByteBufferUtil.bytes("v2");
 
         // Insert indexed value.
-        RowMutation rm;
-        rm = new RowMutation(keySpace, rowKey);
+        Mutation rm;
+        rm = new Mutation(keySpace, rowKey);
         rm.add(cfName, compositeName, val1, 0);
         rm.apply();
 
         // Now delete the value and flush too.
-        rm = new RowMutation(keySpace, rowKey);
+        rm = new Mutation(keySpace, rowKey);
         rm.delete(cfName, 1);
         rm.apply();
 
@@ -597,27 +597,27 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     public void testIndexScanWithLimitOne()
     {
         ColumnFamilyStore cfs = Keyspace.open("Keyspace1").getColumnFamilyStore("Indexed1");
-        RowMutation rm;
+        Mutation rm;
 
         CellName nobirthdate = cellname("notbirthdate");
         CellName birthdate = cellname("birthdate");
 
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("kk1"));
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("kk1"));
         rm.add("Indexed1", nobirthdate, ByteBufferUtil.bytes(1L), 0);
         rm.add("Indexed1", birthdate, ByteBufferUtil.bytes(1L), 0);
         rm.apply();
 
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("kk2"));
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("kk2"));
         rm.add("Indexed1", nobirthdate, ByteBufferUtil.bytes(2L), 0);
         rm.add("Indexed1", birthdate, ByteBufferUtil.bytes(1L), 0);
         rm.apply();
 
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("kk3"));
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("kk3"));
         rm.add("Indexed1", nobirthdate, ByteBufferUtil.bytes(2L), 0);
         rm.add("Indexed1", birthdate, ByteBufferUtil.bytes(1L), 0);
         rm.apply();
 
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("kk4"));
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("kk4"));
         rm.add("Indexed1", nobirthdate, ByteBufferUtil.bytes(2L), 0);
         rm.add("Indexed1", birthdate, ByteBufferUtil.bytes(1L), 0);
         rm.apply();
@@ -641,8 +641,8 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Indexed2");
 
         // create a row and update the birthdate value, test that the index query fetches the new version
-        RowMutation rm;
-        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("k1"));
+        Mutation rm;
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("k1"));
         rm.add("Indexed2", cellname("birthdate"), ByteBufferUtil.bytes(1L), 1);
         rm.apply();
 
@@ -722,7 +722,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assertRowAndColCount(1, 6, false, cfs.getRangeSlice(Util.range("f", "g"), null, ThriftValidation.asIFilter(sp, cfs.metadata, scfName), 100));
 
         // delete
-        RowMutation rm = new RowMutation(keyspace.getName(), key.key);
+        Mutation rm = new Mutation(keyspace.getName(), key.key);
         rm.deleteRange(cfName, SuperColumns.startOf(scfName), SuperColumns.endOf(scfName), 2);
         rm.apply();
 
@@ -776,7 +776,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfs.keyspace.getName(), cfs.name);
         for (Cell col : cols)
             cf.addColumn(col.withUpdatedName(CellNames.compositeDense(scfName, col.name().toByteBuffer())));
-        RowMutation rm = new RowMutation(cfs.keyspace.getName(), key.key, cf);
+        Mutation rm = new Mutation(cfs.keyspace.getName(), key.key, cf);
         rm.apply();
     }
 
@@ -785,7 +785,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfs.keyspace.getName(), cfs.name);
         for (Cell col : cols)
             cf.addColumn(col);
-        RowMutation rm = new RowMutation(cfs.keyspace.getName(), key.key, cf);
+        Mutation rm = new Mutation(cfs.keyspace.getName(), key.key, cf);
         rm.apply();
     }
 
@@ -817,7 +817,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assertRowAndColCount(1, 4, false, cfs.getRangeSlice(Util.range("f", "g"), null, ThriftValidation.asIFilter(sp, cfs.metadata, null), 100));
 
         // delete (from sstable and memtable)
-        RowMutation rm = new RowMutation(keyspace.getName(), key.key);
+        Mutation rm = new Mutation(keyspace.getName(), key.key);
         rm.delete(cfs.name, 2);
         rm.apply();
 
@@ -850,13 +850,13 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     {
         ColumnFamilyStore cfs = Keyspace.open("Keyspace2").getColumnFamilyStore("Standard1");
         List<IMutation> rms = new LinkedList<IMutation>();
-        RowMutation rm;
-        rm = new RowMutation("Keyspace2", ByteBufferUtil.bytes("key1"));
+        Mutation rm;
+        rm = new Mutation("Keyspace2", ByteBufferUtil.bytes("key1"));
         rm.add("Standard1", cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);
         rms.add(rm);
         Util.writeColumnFamily(rms);
 
-        rm = new RowMutation("Keyspace2", ByteBufferUtil.bytes("key2"));
+        rm = new Mutation("Keyspace2", ByteBufferUtil.bytes("key2"));
         rm.add("Standard1", cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);
         rms.add(rm);
         return Util.writeColumnFamily(rms);
@@ -1270,7 +1270,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         for (int i = 0; i < 10; i++)
         {
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf("k" + i));
-            RowMutation rm = new RowMutation("Keyspace1", key);
+            Mutation rm = new Mutation("Keyspace1", key);
             rm.add("Indexed1", cellname("birthdate"), LongType.instance.decompose(1L), System.currentTimeMillis());
             rm.apply();
         }

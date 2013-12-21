@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -114,13 +113,13 @@ public class KeyCacheTest extends SchemaLoader
 
         DecoratedKey key1 = Util.dk("key1");
         DecoratedKey key2 = Util.dk("key2");
-        RowMutation rm;
+        Mutation rm;
 
         // inserts
-        rm = new RowMutation(KEYSPACE1, key1.key);
+        rm = new Mutation(KEYSPACE1, key1.key);
         rm.add(COLUMN_FAMILY1, Util.cellname("1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
-        rm = new RowMutation(KEYSPACE1, key2.key);
+        rm = new Mutation(KEYSPACE1, key2.key);
         rm.add(COLUMN_FAMILY1, Util.cellname("2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
 

@@ -35,15 +35,15 @@ public class RemoveColumnFamilyWithFlush2Test extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");
-        RowMutation rm;
+        Mutation rm;
         DecoratedKey dk = Util.dk("key1");
 
         // add data
-        rm = new RowMutation("Keyspace1", dk.key);
+        rm = new Mutation("Keyspace1", dk.key);
         rm.add("Standard1", Util.cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);
         rm.apply();
         // remove
-        rm = new RowMutation("Keyspace1", dk.key);
+        rm = new Mutation("Keyspace1", dk.key);
         rm.delete("Standard1", 1);
         rm.apply();
         store.forceBlockingFlush();

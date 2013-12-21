@@ -83,10 +83,10 @@ public final class UTMetaData
         return fromSchema(result);
     }
 
-    public static RowMutation toSchema(UserType newType, long timestamp)
+    public static Mutation toSchema(UserType newType, long timestamp)
     {
-        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, newType.name);
-        ColumnFamily cf = rm.addOrGet(SystemKeyspace.SCHEMA_USER_TYPES_CF);
+        Mutation mutation = new Mutation(Keyspace.SYSTEM_KS, newType.name);
+        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_USER_TYPES_CF);
 
         CFMetaData cfm = CFMetaData.SchemaUserTypesCf;
         UpdateParameters params = new UpdateParameters(cfm, Collections.<ByteBuffer>emptyList(), timestamp, 0, null);
@@ -106,14 +106,14 @@ public final class UTMetaData
             throw new AssertionError();
         }
 
-        return rm;
+        return mutation;
     }
 
-    public static RowMutation dropFromSchema(UserType droppedType, long timestamp)
+    public static Mutation dropFromSchema(UserType droppedType, long timestamp)
     {
-        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, droppedType.name);
-        rm.delete(SystemKeyspace.SCHEMA_USER_TYPES_CF, timestamp);
-        return rm;
+        Mutation mutation = new Mutation(Keyspace.SYSTEM_KS, droppedType.name);
+        mutation.delete(SystemKeyspace.SCHEMA_USER_TYPES_CF, timestamp);
+        return mutation;
     }
 
     public void addAll(UTMetaData types)

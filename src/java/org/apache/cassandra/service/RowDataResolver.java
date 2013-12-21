@@ -115,13 +115,12 @@ public class RowDataResolver extends AbstractRowResolver
             if (diffCf == null) // no repair needs to happen
                 continue;
 
-            // create and send the row mutation message based on the diff
-            RowMutation rowMutation = new RowMutation(keyspaceName, key.key, diffCf);
-            MessageOut repairMessage;
+            // create and send the mutation message based on the diff
+            Mutation mutation = new Mutation(keyspaceName, key.key, diffCf);
             // use a separate verb here because we don't want these to be get the white glove hint-
             // on-timeout behavior that a "real" mutation gets
-            repairMessage = rowMutation.createMessage(MessagingService.Verb.READ_REPAIR);
-            results.add(MessagingService.instance().sendRR(repairMessage, endpoints.get(i)));
+            results.add(MessagingService.instance().sendRR(mutation.createMessage(MessagingService.Verb.READ_REPAIR),
+                                                           endpoints.get(i)));
         }
 
         return results;

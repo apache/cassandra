@@ -194,7 +194,7 @@ public final class KSMetaData
         return ksdef;
     }
 
-    public RowMutation toSchemaUpdate(KSMetaData newState, long modificationTimestamp)
+    public Mutation toSchemaUpdate(KSMetaData newState, long modificationTimestamp)
     {
         return newState.toSchema(modificationTimestamp);
     }
@@ -226,21 +226,22 @@ public final class KSMetaData
         return fromSchema(ksDefRow, Collections.<CFMetaData>emptyList());
     }
 
-    public RowMutation dropFromSchema(long timestamp)
+    public Mutation dropFromSchema(long timestamp)
     {
-        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(name));
-        rm.delete(SystemKeyspace.SCHEMA_KEYSPACES_CF, timestamp);
-        rm.delete(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF, timestamp);
-        rm.delete(SystemKeyspace.SCHEMA_COLUMNS_CF, timestamp);
-        rm.delete(SystemKeyspace.SCHEMA_TRIGGERS_CF, timestamp);
+        Mutation mutation = new Mutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(name));
 
-        return rm;
+        mutation.delete(SystemKeyspace.SCHEMA_KEYSPACES_CF, timestamp);
+        mutation.delete(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF, timestamp);
+        mutation.delete(SystemKeyspace.SCHEMA_COLUMNS_CF, timestamp);
+        mutation.delete(SystemKeyspace.SCHEMA_TRIGGERS_CF, timestamp);
+
+        return mutation;
     }
 
-    public RowMutation toSchema(long timestamp)
+    public Mutation toSchema(long timestamp)
     {
-        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(name));
-        ColumnFamily cf = rm.addOrGet(CFMetaData.SchemaKeyspacesCf);
+        Mutation mutation = new Mutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(name));
+        ColumnFamily cf = mutation.addOrGet(CFMetaData.SchemaKeyspacesCf);
         CFRowAdder adder = new CFRowAdder(cf, CFMetaData.SchemaKeyspacesCf.comparator.builder().build(), timestamp);
 
         adder.add("durable_writes", durableWrites);
@@ -248,9 +249,9 @@ public final class KSMetaData
         adder.add("strategy_options", json(strategyOptions));
 
         for (CFMetaData cfm : cfMetaData.values())
-            cfm.toSchema(rm, timestamp);
+            cfm.toSchema(mutation, timestamp);
 
-        return rm;
+        return mutation;
     }
 
     /**

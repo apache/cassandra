@@ -79,7 +79,7 @@ public class QueryPagerTest extends SchemaLoader
          */
         for (int i = 0; i < nbKeys; i++)
         {
-            RowMutation rm = new RowMutation(KS, bytes("k" + i));
+            Mutation rm = new Mutation(KS, bytes("k" + i));
             ColumnFamily cf = rm.addOrGet(CF);
 
             for (int j = 0; j < nbCols; j++)

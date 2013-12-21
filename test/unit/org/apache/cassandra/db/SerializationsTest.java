@@ -210,23 +210,23 @@ public class SerializationsTest extends AbstractSerializationsTester
         in.close();
     }
 
-    private void testRowMutationWrite() throws IOException
+    private void testMutationWrite() throws IOException
     {
-        RowMutation standardRowRm = new RowMutation(statics.KS, statics.StandardRow);
-        RowMutation superRowRm = new RowMutation(statics.KS, statics.SuperRow);
-        RowMutation standardRm = new RowMutation(statics.KS, statics.Key, statics.StandardCf);
-        RowMutation superRm = new RowMutation(statics.KS, statics.Key, statics.SuperCf);
+        Mutation standardRowRm = new Mutation(statics.KS, statics.StandardRow);
+        Mutation superRowRm = new Mutation(statics.KS, statics.SuperRow);
+        Mutation standardRm = new Mutation(statics.KS, statics.Key, statics.StandardCf);
+        Mutation superRm = new Mutation(statics.KS, statics.Key, statics.SuperCf);
         Map<UUID, ColumnFamily> mods = new HashMap<UUID, ColumnFamily>();
         mods.put(statics.StandardCf.metadata().cfId, statics.StandardCf);
         mods.put(statics.SuperCf.metadata().cfId, statics.SuperCf);
-        RowMutation mixedRm = new RowMutation(statics.KS, statics.Key, mods);
+        Mutation mixedRm = new Mutation(statics.KS, statics.Key, mods);
 
         DataOutputStream out = getOutput("db.RowMutation.bin");
-        RowMutation.serializer.serialize(standardRowRm, out, getVersion());
-        RowMutation.serializer.serialize(superRowRm, out, getVersion());
-        RowMutation.serializer.serialize(standardRm, out, getVersion());
-        RowMutation.serializer.serialize(superRm, out, getVersion());
-        RowMutation.serializer.serialize(mixedRm, out, getVersion());
+        Mutation.serializer.serialize(standardRowRm, out, getVersion());
+        Mutation.serializer.serialize(superRowRm, out, getVersion());
+        Mutation.serializer.serialize(standardRm, out, getVersion());
+        Mutation.serializer.serialize(superRm, out, getVersion());
+        Mutation.serializer.serialize(mixedRm, out, getVersion());
 
         standardRowRm.createMessage().serialize(out, getVersion());
         superRowRm.createMessage().serialize(out, getVersion());
@@ -237,27 +237,27 @@ public class SerializationsTest extends AbstractSerializationsTester
         out.close();
 
         // test serializedSize
-        testSerializedSize(standardRowRm, RowMutation.serializer);
-        testSerializedSize(superRowRm, RowMutation.serializer);
-        testSerializedSize(standardRm, RowMutation.serializer);
-        testSerializedSize(superRm, RowMutation.serializer);
-        testSerializedSize(mixedRm, RowMutation.serializer);
+        testSerializedSize(standardRowRm, Mutation.serializer);
+        testSerializedSize(superRowRm, Mutation.serializer);
+        testSerializedSize(standardRm, Mutation.serializer);
+        testSerializedSize(superRm, Mutation.serializer);
+        testSerializedSize(mixedRm, Mutation.serializer);
     }
 
     @Test
-    public void testRowMutationRead() throws IOException
+    public void testMutationRead() throws IOException
     {
-        // row mutation deserialization requires being able to look up the keyspace in the schema,
+        // mutation deserialization requires being able to look up the keyspace in the schema,
         // so we need to rewrite this each time.  We can go back to testing on-disk data
         // once we pull RM.keyspace field out.
-        testRowMutationWrite();
+        testMutationWrite();
 
         DataInputStream in = getInput("db.RowMutation.bin");
-        assert RowMutation.serializer.deserialize(in, getVersion()) != null;
-        assert RowMutation.serializer.deserialize(in, getVersion()) != null;
-        assert RowMutation.serializer.deserialize(in, getVersion()) != null;
-        assert RowMutation.serializer.deserialize(in, getVersion()) != null;
-        assert RowMutation.serializer.deserialize(in, getVersion()) != null;
+        assert Mutation.serializer.deserialize(in, getVersion()) != null;
+        assert Mutation.serializer.deserialize(in, getVersion()) != null;
+        assert Mutation.serializer.deserialize(in, getVersion()) != null;
+        assert Mutation.serializer.deserialize(in, getVersion()) != null;
+        assert Mutation.serializer.deserialize(in, getVersion()) != null;
         assert MessageIn.read(in, getVersion(), -1) != null;
         assert MessageIn.read(in, getVersion(), -1) != null;
         assert MessageIn.read(in, getVersion(), -1) != null;

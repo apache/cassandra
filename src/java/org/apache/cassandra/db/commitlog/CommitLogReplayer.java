@@ -164,7 +164,7 @@ public class CommitLogReplayer
 
     private abstract static class ReplayFilter
     {
-        public abstract Iterable<ColumnFamily> filter(RowMutation rm);
+        public abstract Iterable<ColumnFamily> filter(Mutation mutation);
 
         public static ReplayFilter create()
         {
@@ -193,9 +193,9 @@ public class CommitLogReplayer
 
     private static class AlwaysReplayFilter extends ReplayFilter
     {
-        public Iterable<ColumnFamily> filter(RowMutation rm)
+        public Iterable<ColumnFamily> filter(Mutation mutation)
         {
-            return rm.getColumnFamilies();
+            return mutation.getColumnFamilies();
         }
     }
 
@@ -208,13 +208,13 @@ public class CommitLogReplayer
             this.toReplay = toReplay;
         }
 
-        public Iterable<ColumnFamily> filter(RowMutation rm)
+        public Iterable<ColumnFamily> filter(Mutation mutation)
         {
-            final Collection<String> cfNames = toReplay.get(rm.getKeyspaceName());
+            final Collection<String> cfNames = toReplay.get(mutation.getKeyspaceName());
             if (cfNames == null)
                 return Collections.emptySet();
 
-            return Iterables.filter(rm.getColumnFamilies(), new Predicate<ColumnFamily>()
+            return Iterables.filter(mutation.getColumnFamilies(), new Predicate<ColumnFamily>()
             {
                 public boolean apply(ColumnFamily cf)
                 {
@@ -264,7 +264,7 @@ public class CommitLogReplayer
 
                 reader.seek(offset);
 
-                 /* read the logs populate RowMutation and apply */
+                 /* read the logs populate Mutation and apply */
                 while (reader.getPosition() < end && !reader.isEOF())
                 {
                     if (logger.isDebugEnabled())
@@ -282,7 +282,7 @@ public class CommitLogReplayer
                             break main;
                         }
 
-                        // RowMutation must be at LEAST 10 bytes:
+                        // Mutation must be at LEAST 10 bytes:
                         // 3 each for a non-empty Keyspace and Key (including the
                         // 2-byte length from writeUTF/writeWithShortLength) and 4 bytes for column count.
                         // This prevents CRC by being fooled by special-case garbage in the file; see CASSANDRA-2128
@@ -320,14 +320,14 @@ public class CommitLogReplayer
 
                     /* deserialize the commit log entry */
                     FastByteArrayInputStream bufIn = new FastByteArrayInputStream(buffer, 0, serializedSize);
-                    final RowMutation rm;
+                    final Mutation mutation;
                     try
                     {
                         // assuming version here. We've gone to lengths to make sure what gets written to the CL is in
                         // the current version. so do make sure the CL is drained prior to upgrading a node.
-                        rm = RowMutation.serializer.deserialize(new DataInputStream(bufIn), version, ColumnSerializer.Flag.LOCAL);
+                        mutation = Mutation.serializer.deserialize(new DataInputStream(bufIn), version, ColumnSerializer.Flag.LOCAL);
                         // doublecheck that what we read is [still] valid for the current schema
-                        for (ColumnFamily cf : rm.getColumnFamilies())
+                        for (ColumnFamily cf : mutation.getColumnFamilies())
                             for (Cell cell : cf)
                                 cf.getComparator().validate(cell.name());
                     }
@@ -364,27 +364,27 @@ public class CommitLogReplayer
                     }
 
                     if (logger.isDebugEnabled())
-                        logger.debug("replaying mutation for {}.{}: {}", rm.getKeyspaceName(), ByteBufferUtil.bytesToHex(rm.key()), "{" + StringUtils.join(rm.getColumnFamilies().iterator(), ", ") + "}");
+                        logger.debug("replaying mutation for {}.{}: {}", mutation.getKeyspaceName(), ByteBufferUtil.bytesToHex(mutation.key()), "{" + StringUtils.join(mutation.getColumnFamilies().iterator(), ", ") + "}");
 
                     final long entryLocation = reader.getFilePointer();
                     Runnable runnable = new WrappedRunnable()
                     {
                         public void runMayThrow() throws IOException
                         {
-                            if (Schema.instance.getKSMetaData(rm.getKeyspaceName()) == null)
+                            if (Schema.instance.getKSMetaData(mutation.getKeyspaceName()) == null)
                                 return;
-                            if (pointInTimeExceeded(rm))
+                            if (pointInTimeExceeded(mutation))
                                 return;
 
-                            final Keyspace keyspace = Keyspace.open(rm.getKeyspaceName());
+                            final Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
 
-                            // Rebuild the row mutation, omitting column families that
+                            // Rebuild the mutation, omitting column families that
                             //    a) the user has requested that we ignore,
                             //    b) have already been flushed,
                             // or c) are part of a cf that was dropped.
                             // Keep in mind that the cf.name() is suspect. do every thing based on the cfid instead.
-                            RowMutation newRm = null;
-                            for (ColumnFamily columnFamily : replayFilter.filter(rm))
+                            Mutation newMutation = null;
+                            for (ColumnFamily columnFamily : replayFilter.filter(mutation))
                             {
                                 if (Schema.instance.getCF(columnFamily.id()) == null)
                                     continue; // dropped
@@ -395,16 +395,16 @@ public class CommitLogReplayer
                                 // if it is the last known segment, if we are after the replay position
                                 if (segmentId > rp.segment || (segmentId == rp.segment && entryLocation > rp.position))
                                 {
-                                    if (newRm == null)
-                                        newRm = new RowMutation(rm.getKeyspaceName(), rm.key());
-                                    newRm.add(columnFamily);
+                                    if (newMutation == null)
+                                        newMutation = new Mutation(mutation.getKeyspaceName(), mutation.key());
+                                    newMutation.add(columnFamily);
                                     replayedCount.incrementAndGet();
                                 }
                             }
-                            if (newRm != null)
+                            if (newMutation != null)
                             {
-                                assert !newRm.isEmpty();
-                                Keyspace.open(newRm.getKeyspaceName()).apply(newRm, false);
+                                assert !newMutation.isEmpty();
+                                Keyspace.open(newMutation.getKeyspaceName()).apply(newMutation, false);
                                 keyspacesRecovered.add(keyspace);
                             }
                         }
@@ -431,11 +431,11 @@ public class CommitLogReplayer
         }
     }
 
-    protected boolean pointInTimeExceeded(RowMutation frm)
+    protected boolean pointInTimeExceeded(Mutation fm)
     {
         long restoreTarget = CommitLog.instance.archiver.restorePointInTime;
 
-        for (ColumnFamily families : frm.getColumnFamilies())
+        for (ColumnFamily families : fm.getColumnFamilies())
         {
             if (CommitLog.instance.archiver.precision.toMillis(families.maxTimestamp()) > restoreTarget)
                 return true;

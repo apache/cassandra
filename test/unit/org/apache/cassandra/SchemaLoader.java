@@ -18,7 +18,6 @@
 package org.apache.cassandra;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -399,9 +398,9 @@ public class SchemaLoader
         for (int i = offset; i < offset + numberOfRows; i++)
         {
             ByteBuffer key = ByteBufferUtil.bytes("key" + i);
-            RowMutation rowMutation = new RowMutation(keyspace, key);
-            rowMutation.add(columnFamily, Util.cellname("col" + i), ByteBufferUtil.bytes("val" + i), System.currentTimeMillis());
-            rowMutation.applyUnsafe();
+            Mutation mutation = new Mutation(keyspace, key);
+            mutation.add(columnFamily, Util.cellname("col" + i), ByteBufferUtil.bytes("val" + i), System.currentTimeMillis());
+            mutation.applyUnsafe();
         }
     }
 

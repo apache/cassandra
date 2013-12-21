@@ -63,7 +63,7 @@ public class HintedHandOffTest extends SchemaLoader
         hintStore.disableAutoCompaction();
 
         // insert 1 hint
-        RowMutation rm = new RowMutation(KEYSPACE4, ByteBufferUtil.bytes(1));
+        Mutation rm = new Mutation(KEYSPACE4, ByteBufferUtil.bytes(1));
         rm.add(STANDARD1_CF, Util.cellname(COLUMN1), ByteBufferUtil.EMPTY_BYTE_BUFFER, System.currentTimeMillis());
 
         HintedHandOffManager.instance.hintFor(rm, HintedHandOffManager.calculateHintTTL(rm), UUID.randomUUID()).apply();

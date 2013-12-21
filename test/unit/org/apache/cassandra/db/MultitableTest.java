@@ -39,18 +39,18 @@ public class MultitableTest extends SchemaLoader
         Keyspace keyspace1 = Keyspace.open("Keyspace1");
         Keyspace keyspace2 = Keyspace.open("Keyspace2");
 
-        RowMutation rm;
+        Mutation rm;
         DecoratedKey dk = Util.dk("keymulti");
         ColumnFamily cf;
 
         cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         cf.addColumn(column("col1", "val1", 1L));
-        rm = new RowMutation("Keyspace1", dk.key, cf);
+        rm = new Mutation("Keyspace1", dk.key, cf);
         rm.apply();
 
         cf = TreeMapBackedSortedColumns.factory.create("Keyspace2", "Standard1");
         cf.addColumn(column("col2", "val2", 1L));
-        rm = new RowMutation("Keyspace2", dk.key, cf);
+        rm = new Mutation("Keyspace2", dk.key, cf);
         rm.apply();
 
         keyspace1.getColumnFamilyStore("Standard1").forceBlockingFlush();

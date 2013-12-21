@@ -38,8 +38,8 @@ public class AntiEntropyServiceStandardTest extends AntiEntropyServiceTestAbstra
     public List<IMutation> getWriteData()
     {
         List<IMutation> rms = new LinkedList<IMutation>();
-        RowMutation rm;
-        rm = new RowMutation(keyspaceName, ByteBufferUtil.bytes("key1"));
+        Mutation rm;
+        rm = new Mutation(keyspaceName, ByteBufferUtil.bytes("key1"));
         rm.add(cfname, Util.cellname("Column1"), ByteBufferUtil.bytes("asdfasdf"), 0);
         rms.add(rm);
         return rms;

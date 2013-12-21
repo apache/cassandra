@@ -659,7 +659,7 @@ public class CassandraServer implements Cassandra.Iface
         ThriftValidation.validateColumnNames(metadata, column_parent, Arrays.asList(column.name));
         ThriftValidation.validateColumnData(metadata, column_parent.super_column, column);
 
-        RowMutation rm;
+        org.apache.cassandra.db.Mutation mutation;
         try
         {
             CellName name = metadata.isSuper()
@@ -668,13 +668,13 @@ public class CassandraServer implements Cassandra.Iface
 
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cState.getKeyspace(), column_parent.column_family);
             cf.addColumn(name, column.value, column.timestamp, column.ttl);
-            rm = new RowMutation(cState.getKeyspace(), key, cf);
+            mutation = new org.apache.cassandra.db.Mutation(cState.getKeyspace(), key, cf);
         }
         catch (MarshalException e)
         {
             throw new org.apache.cassandra.exceptions.InvalidRequestException(e.getMessage());
         }
-        doInsert(consistency_level, Arrays.asList(rm));
+        doInsert(consistency_level, Arrays.asList(mutation));
     }
 
     public void insert(ByteBuffer key, ColumnParent column_parent, Column column, ConsistencyLevel consistency_level)
@@ -805,7 +805,7 @@ public class CassandraServer implements Cassandra.Iface
                                                boolean allowCounterMutations)
     throws RequestValidationException
     {
-        List<IMutation> rowMutations = new ArrayList<IMutation>();
+        List<IMutation> mutations = new ArrayList<>();
         ThriftClientState cState = state();
         String keyspace = cState.getKeyspace();
 
@@ -813,10 +813,10 @@ public class CassandraServer implements Cassandra.Iface
         {
             ByteBuffer key = mutationEntry.getKey();
 
-            // We need to separate row mutation for standard cf and counter cf (that will be encapsulated in a
+            // We need to separate mutation for standard cf and counter cf (that will be encapsulated in a
             // CounterMutation) because it doesn't follow the same code path
-            RowMutation rmStandard = null;
-            RowMutation rmCounter = null;
+            org.apache.cassandra.db.Mutation standardMutation = null;
+            org.apache.cassandra.db.Mutation counterMutation = null;
 
             Map<String, List<Mutation>> columnFamilyToMutations = mutationEntry.getValue();
             for (Map.Entry<String, List<Mutation>> columnFamilyMutations : columnFamilyToMutations.entrySet())
@@ -828,112 +828,112 @@ public class CassandraServer implements Cassandra.Iface
                 CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, cfName);
                 ThriftValidation.validateKey(metadata, key);
 
-                RowMutation rm;
+                org.apache.cassandra.db.Mutation mutation;
                 if (metadata.getDefaultValidator().isCommutative())
                 {
                     ThriftConversion.fromThrift(consistency_level).validateCounterForWrite(metadata);
-                    rmCounter = rmCounter == null ? new RowMutation(keyspace, key) : rmCounter;
-                    rm = rmCounter;
+                    counterMutation = counterMutation == null ? new org.apache.cassandra.db.Mutation(keyspace, key) : counterMutation;
+                    mutation = counterMutation;
                 }
                 else
                 {
-                    rmStandard = rmStandard == null ? new RowMutation(keyspace, key) : rmStandard;
-                    rm = rmStandard;
+                    standardMutation = standardMutation == null ? new org.apache.cassandra.db.Mutation(keyspace, key) : standardMutation;
+                    mutation = standardMutation;
                 }
 
-                for (Mutation mutation : columnFamilyMutations.getValue())
+                for (Mutation m : columnFamilyMutations.getValue())
                 {
-                    ThriftValidation.validateMutation(metadata, mutation);
+                    ThriftValidation.validateMutation(metadata, m);
 
-                    if (mutation.deletion != null)
+                    if (m.deletion != null)
                     {
-                        deleteColumnOrSuperColumn(rm, metadata, mutation.deletion);
+                        deleteColumnOrSuperColumn(mutation, metadata, m.deletion);
                     }
-                    if (mutation.column_or_supercolumn != null)
+                    if (m.column_or_supercolumn != null)
                     {
-                        addColumnOrSuperColumn(rm, metadata, mutation.column_or_supercolumn);
+                        addColumnOrSuperColumn(mutation, metadata, m.column_or_supercolumn);
                     }
                 }
             }
-            if (rmStandard != null && !rmStandard.isEmpty())
-                rowMutations.add(rmStandard);
+            if (standardMutation != null && !standardMutation.isEmpty())
+                mutations.add(standardMutation);
 
-            if (rmCounter != null && !rmCounter.isEmpty())
+            if (counterMutation != null && !counterMutation.isEmpty())
             {
                 if (allowCounterMutations)
-                    rowMutations.add(new CounterMutation(rmCounter, ThriftConversion.fromThrift(consistency_level)));
+                    mutations.add(new CounterMutation(counterMutation, ThriftConversion.fromThrift(consistency_level)));
                 else
                     throw new org.apache.cassandra.exceptions.InvalidRequestException("Counter mutations are not allowed in atomic batches");
             }
         }
 
-        return rowMutations;
+        return mutations;
     }
 
-    private void addColumnOrSuperColumn(RowMutation rm, CFMetaData cfm, ColumnOrSuperColumn cosc)
+    private void addColumnOrSuperColumn(org.apache.cassandra.db.Mutation mutation, CFMetaData cfm, ColumnOrSuperColumn cosc)
     {
         if (cosc.super_column != null)
         {
             for (Column column : cosc.super_column.columns)
             {
-                rm.add(cfm.cfName, cfm.comparator.makeCellName(cosc.super_column.name, column.name), column.value, column.timestamp, column.ttl);
+                mutation.add(cfm.cfName, cfm.comparator.makeCellName(cosc.super_column.name, column.name), column.value, column.timestamp, column.ttl);
             }
         }
         else if (cosc.column != null)
         {
-            rm.add(cfm.cfName, cfm.comparator.cellFromByteBuffer(cosc.column.name), cosc.column.value, cosc.column.timestamp, cosc.column.ttl);
+            mutation.add(cfm.cfName, cfm.comparator.cellFromByteBuffer(cosc.column.name), cosc.column.value, cosc.column.timestamp, cosc.column.ttl);
         }
         else if (cosc.counter_super_column != null)
         {
             for (CounterColumn column : cosc.counter_super_column.columns)
             {
-                rm.addCounter(cfm.cfName, cfm.comparator.makeCellName(cosc.counter_super_column.name, column.name), column.value);
+                mutation.addCounter(cfm.cfName, cfm.comparator.makeCellName(cosc.counter_super_column.name, column.name), column.value);
             }
         }
         else // cosc.counter_column != null
         {
-            rm.addCounter(cfm.cfName, cfm.comparator.cellFromByteBuffer(cosc.counter_column.name), cosc.counter_column.value);
+            mutation.addCounter(cfm.cfName, cfm.comparator.cellFromByteBuffer(cosc.counter_column.name), cosc.counter_column.value);
         }
     }
 
-    private void deleteColumnOrSuperColumn(RowMutation rm, CFMetaData cfm, Deletion del)
+    private void deleteColumnOrSuperColumn(org.apache.cassandra.db.Mutation mutation, CFMetaData cfm, Deletion del)
     {
         if (del.predicate != null && del.predicate.column_names != null)
         {
             for (ByteBuffer c : del.predicate.column_names)
             {
                 if (del.super_column == null && cfm.isSuper())
-                    rm.deleteRange(cfm.cfName, SuperColumns.startOf(c), SuperColumns.endOf(c), del.timestamp);
+                    mutation.deleteRange(cfm.cfName, SuperColumns.startOf(c), SuperColumns.endOf(c), del.timestamp);
                 else if (del.super_column != null)
-                    rm.delete(cfm.cfName, cfm.comparator.makeCellName(del.super_column, c), del.timestamp);
+                    mutation.delete(cfm.cfName, cfm.comparator.makeCellName(del.super_column, c), del.timestamp);
                 else
-                    rm.delete(cfm.cfName, cfm.comparator.cellFromByteBuffer(c), del.timestamp);
+                    mutation.delete(cfm.cfName, cfm.comparator.cellFromByteBuffer(c), del.timestamp);
             }
         }
         else if (del.predicate != null && del.predicate.slice_range != null)
         {
             if (del.super_column == null && cfm.isSuper())
-                rm.deleteRange(cfm.cfName,
-                               SuperColumns.startOf(del.predicate.getSlice_range().start),
-                               SuperColumns.startOf(del.predicate.getSlice_range().finish),
-                               del.timestamp);
+                mutation.deleteRange(cfm.cfName,
+                                     SuperColumns.startOf(del.predicate.getSlice_range().start),
+                                     SuperColumns.startOf(del.predicate.getSlice_range().finish),
+                                     del.timestamp);
             else if (del.super_column != null)
-                rm.deleteRange(cfm.cfName,
-                               cfm.comparator.makeCellName(del.super_column, del.predicate.getSlice_range().start),
-                               cfm.comparator.makeCellName(del.super_column, del.predicate.getSlice_range().finish),
-                               del.timestamp);
+                mutation.deleteRange(cfm.cfName,
+                                     cfm.comparator.makeCellName(del.super_column, del.predicate.getSlice_range().start),
+                                     cfm.comparator.makeCellName(del.super_column, del.predicate.getSlice_range().finish),
+                                     del.timestamp);
             else
-                rm.deleteRange(cfm.cfName,
-                               cfm.comparator.cellFromByteBuffer(del.predicate.getSlice_range().start),
-                               cfm.comparator.cellFromByteBuffer(del.predicate.getSlice_range().finish),
-                               del.timestamp);
+                mutation.deleteRange(cfm.cfName,
+                                     cfm.comparator.cellFromByteBuffer(del.predicate.getSlice_range().start),
+                                     cfm.comparator.cellFromByteBuffer(del.predicate.getSlice_range().finish),
+                                     del.timestamp);
         }
         else
         {
             if (del.super_column != null)
-                rm.deleteRange(cfm.cfName, SuperColumns.startOf(del.super_column), SuperColumns.endOf(del.super_column), del.timestamp);
+                mutation.deleteRange(cfm.cfName, SuperColumns.startOf(del.super_column), SuperColumns.endOf(del.super_column), del.timestamp);
             else
-                rm.delete(cfm.cfName, del.timestamp);
+                mutation.delete(cfm.cfName, del.timestamp);
         }
     }
 
@@ -1016,20 +1016,20 @@ public class CassandraServer implements Cassandra.Iface
         if (isCommutativeOp)
             ThriftConversion.fromThrift(consistency_level).validateCounterForWrite(metadata);
 
-        RowMutation rm = new RowMutation(keyspace, key);
+        org.apache.cassandra.db.Mutation mutation = new org.apache.cassandra.db.Mutation(keyspace, key);
         if (column_path.super_column == null && column_path.column == null)
-            rm.delete(column_path.column_family, timestamp);
+            mutation.delete(column_path.column_family, timestamp);
         else if (column_path.super_column == null)
-            rm.delete(column_path.column_family, metadata.comparator.cellFromByteBuffer(column_path.column), timestamp);
+            mutation.delete(column_path.column_family, metadata.comparator.cellFromByteBuffer(column_path.column), timestamp);
         else if (column_path.column == null)
-            rm.deleteRange(column_path.column_family, SuperColumns.startOf(column_path.super_column), SuperColumns.endOf(column_path.super_column), timestamp);
+            mutation.deleteRange(column_path.column_family, SuperColumns.startOf(column_path.super_column), SuperColumns.endOf(column_path.super_column), timestamp);
         else
-            rm.delete(column_path.column_family, metadata.comparator.makeCellName(column_path.super_column, column_path.column), timestamp);
+            mutation.delete(column_path.column_family, metadata.comparator.makeCellName(column_path.super_column, column_path.column), timestamp);
 
         if (isCommutativeOp)
-            doInsert(consistency_level, Arrays.asList(new CounterMutation(rm, ThriftConversion.fromThrift(consistency_level))));
+            doInsert(consistency_level, Arrays.asList(new CounterMutation(mutation, ThriftConversion.fromThrift(consistency_level))));
         else
-            doInsert(consistency_level, Arrays.asList(rm));
+            doInsert(consistency_level, Arrays.asList(mutation));
     }
 
     public void remove(ByteBuffer key, ColumnPath column_path, long timestamp, ConsistencyLevel consistency_level)
@@ -1777,19 +1777,19 @@ public class CassandraServer implements Cassandra.Iface
 
             ThriftValidation.validateColumnNames(metadata, column_parent, Arrays.asList(column.name));
 
-            RowMutation rm = new RowMutation(keyspace, key);
+            org.apache.cassandra.db.Mutation mutation = new org.apache.cassandra.db.Mutation(keyspace, key);
             try
             {
                 if (metadata.isSuper())
-                    rm.addCounter(column_parent.column_family, metadata.comparator.makeCellName(column_parent.super_column, column.name), column.value);
+                    mutation.addCounter(column_parent.column_family, metadata.comparator.makeCellName(column_parent.super_column, column.name), column.value);
                 else
-                    rm.addCounter(column_parent.column_family, metadata.comparator.cellFromByteBuffer(column.name), column.value);
+                    mutation.addCounter(column_parent.column_family, metadata.comparator.cellFromByteBuffer(column.name), column.value);
             }
             catch (MarshalException e)
             {
                 throw new InvalidRequestException(e.getMessage());
             }
-            doInsert(consistency_level, Arrays.asList(new CounterMutation(rm, ThriftConversion.fromThrift(consistency_level))));
+            doInsert(consistency_level, Arrays.asList(new CounterMutation(mutation, ThriftConversion.fromThrift(consistency_level))));
         }
         catch (RequestValidationException e)
         {

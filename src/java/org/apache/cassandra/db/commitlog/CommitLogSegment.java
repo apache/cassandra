@@ -46,14 +46,14 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.PureJavaCrc32;
 import org.apache.cassandra.utils.WaitQueue;
 
 /*
- * A single commit log file on disk. Manages creation of the file and writing row mutations to disk,
+ * A single commit log file on disk. Manages creation of the file and writing mutations to disk,
  * as well as tracking the last mutation position of any "dirty" CFs covered by the segment file. Segment
  * files are initially allocated to a fixed size and can grow to accomidate a larger value if necessary.
  */
@@ -166,11 +166,11 @@ public class CommitLogSegment
     }
 
     /**
-     * allocate space in this buffer for the provided row mutation, and populate the provided
+     * allocate space in this buffer for the provided mutation, and populate the provided
      * Allocation object, returning true on success. False indicates there is not enough room in
      * this segment, and a new segment is needed
      */
-    boolean allocate(RowMutation rowMutation, int size, Allocation alloc)
+    boolean allocate(Mutation mutation, int size, Allocation alloc)
     {
         final AppendLock appendLock = lockForAppend();
         try
@@ -185,7 +185,7 @@ public class CommitLogSegment
             alloc.position = position;
             alloc.segment = this;
             alloc.appendLock = appendLock;
-            markDirty(rowMutation, position);
+            markDirty(mutation, position);
             return true;
         }
         catch (Throwable t)
@@ -386,9 +386,9 @@ public class CommitLogSegment
         }
     }
 
-    void markDirty(RowMutation rowMutation, int allocatedPosition)
+    void markDirty(Mutation mutation, int allocatedPosition)
     {
-        for (ColumnFamily columnFamily : rowMutation.getColumnFamilies())
+        for (ColumnFamily columnFamily : mutation.getColumnFamilies())
         {
             // check for deleted CFS
             CFMetaData cfm = columnFamily.metadata();

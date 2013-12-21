@@ -171,7 +171,7 @@ public class DefsTest extends SchemaLoader
         // now read and write to it.
         CellName col0 = cellname("col0");
         DecoratedKey dk = Util.dk("key0");
-        RowMutation rm = new RowMutation(ks, dk.key);
+        Mutation rm = new Mutation(ks, dk.key);
         rm.add(cf, col0, ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
         ColumnFamilyStore store = Keyspace.open(ks).getColumnFamilyStore(cf);
@@ -195,7 +195,7 @@ public class DefsTest extends SchemaLoader
         assert cfm != null;
 
         // write some data, force a flush, then verify that files exist on disk.
-        RowMutation rm = new RowMutation(ks.name, dk.key);
+        Mutation rm = new Mutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
             rm.add(cfm.cfName, cellname("col" + i), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
@@ -209,7 +209,7 @@ public class DefsTest extends SchemaLoader
         assert !Schema.instance.getKSMetaData(ks.name).cfMetaData().containsKey(cfm.cfName);
 
         // any write should fail.
-        rm = new RowMutation(ks.name, dk.key);
+        rm = new Mutation(ks.name, dk.key);
         boolean success = true;
         try
         {
@@ -245,7 +245,7 @@ public class DefsTest extends SchemaLoader
 
         // test reads and writes.
         CellName col0 = cellname("col0");
-        RowMutation rm = new RowMutation(newCf.ksName, dk.key);
+        Mutation rm = new Mutation(newCf.ksName, dk.key);
         rm.add(newCf.cfName, col0, ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
         ColumnFamilyStore store = Keyspace.open(newCf.ksName).getColumnFamilyStore(newCf.cfName);
@@ -269,7 +269,7 @@ public class DefsTest extends SchemaLoader
         assert cfm != null;
 
         // write some data, force a flush, then verify that files exist on disk.
-        RowMutation rm = new RowMutation(ks.name, dk.key);
+        Mutation rm = new Mutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
             rm.add(cfm.cfName, cellname("col" + i), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
@@ -283,7 +283,7 @@ public class DefsTest extends SchemaLoader
         assert Schema.instance.getKSMetaData(ks.name) == null;
 
         // write should fail.
-        rm = new RowMutation(ks.name, dk.key);
+        rm = new Mutation(ks.name, dk.key);
         boolean success = true;
         try
         {
@@ -320,7 +320,7 @@ public class DefsTest extends SchemaLoader
         assert cfm != null;
 
         // write some data
-        RowMutation rm = new RowMutation(ks.name, dk.key);
+        Mutation rm = new Mutation(ks.name, dk.key);
         for (int i = 0; i < 100; i++)
             rm.add(cfm.cfName, cellname("col" + i), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
@@ -354,7 +354,7 @@ public class DefsTest extends SchemaLoader
         // now read and write to it.
         CellName col0 = cellname("col0");
         DecoratedKey dk = Util.dk("key0");
-        RowMutation rm = new RowMutation(newKs.name, dk.key);
+        Mutation rm = new Mutation(newKs.name, dk.key);
         rm.add(newCf.cfName, col0, ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
         ColumnFamilyStore store = Keyspace.open(newKs.name).getColumnFamilyStore(newCf.cfName);
@@ -503,7 +503,7 @@ public class DefsTest extends SchemaLoader
         ColumnFamilyStore cfs = Keyspace.open("Keyspace6").getColumnFamilyStore("Indexed1");
 
         // insert some data.  save the sstable descriptor so we can make sure it's marked for delete after the drop
-        RowMutation rm = new RowMutation("Keyspace6", ByteBufferUtil.bytes("k1"));
+        Mutation rm = new Mutation("Keyspace6", ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", cellname("notbirthdate"), ByteBufferUtil.bytes(1L), 0);
         rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(1L), 0);
         rm.apply();

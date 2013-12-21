@@ -88,8 +88,8 @@ public class KeyCollisionTest extends SchemaLoader
 
     private void insert(String key) throws IOException
     {
-        RowMutation rm;
-        rm = new RowMutation(KEYSPACE, ByteBufferUtil.bytes(key));
+        Mutation rm;
+        rm = new Mutation(KEYSPACE, ByteBufferUtil.bytes(key));
         rm.add(CF, Util.cellname("column"), ByteBufferUtil.bytes("asdf"), 0);
         rm.apply();
     }

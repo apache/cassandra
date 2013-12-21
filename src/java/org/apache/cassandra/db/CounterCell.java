@@ -349,12 +349,12 @@ public class CounterCell extends Cell
 
     private static void sendToOtherReplica(DecoratedKey key, ColumnFamily cf) throws RequestExecutionException
     {
-        RowMutation rm = new RowMutation(cf.metadata().ksName, key.key, cf);
+        Mutation mutation = new Mutation(cf.metadata().ksName, key.key, cf);
 
         final InetAddress local = FBUtilities.getBroadcastAddress();
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(local);
 
-        StorageProxy.performWrite(rm, ConsistencyLevel.ANY, localDataCenter, new StorageProxy.WritePerformer()
+        StorageProxy.performWrite(mutation, ConsistencyLevel.ANY, localDataCenter, new StorageProxy.WritePerformer()
         {
             public void apply(IMutation mutation, Iterable<InetAddress> targets, AbstractWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level)
             throws OverloadedException
@@ -363,7 +363,7 @@ public class CounterCell extends Cell
                 Set<InetAddress> remotes = Sets.difference(ImmutableSet.copyOf(targets), ImmutableSet.of(local));
                 // Fake local response to be a good lad but we won't wait on the responseHandler
                 responseHandler.response(null);
-                StorageProxy.sendToHintedEndpoints((RowMutation) mutation, remotes, responseHandler, localDataCenter);
+                StorageProxy.sendToHintedEndpoints((Mutation) mutation, remotes, responseHandler, localDataCenter);
             }
         }, null, WriteType.SIMPLE);
 

@@ -73,7 +73,7 @@ public class RecoveryManager2Test extends SchemaLoader
     {
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", cfname);
         cf.addColumn(column("col1", "val1", 1L));
-        RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key), cf);
+        Mutation rm = new Mutation("Keyspace1", ByteBufferUtil.bytes(key), cf);
         rm.apply();
     }
 }

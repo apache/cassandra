@@ -1022,7 +1022,7 @@ public final class CFMetaData
     /**
      * Create CFMetaData from thrift {@link CqlRow} that contains columns from schema_columnfamilies.
      *
-     * @param row CqlRow containing columns from schema_columnfamilies.
+     * @param cf CqlRow containing columns from schema_columnfamilies.
      * @return CFMetaData derived from CqlRow
      */
     public static CFMetaData fromThriftCqlRow(CqlRow cf, CqlResult columnsRes)
@@ -1476,11 +1476,11 @@ public final class CFMetaData
      *
      * @return Difference between attributes in form of schema mutation
      */
-    public RowMutation toSchemaUpdate(CFMetaData newState, long modificationTimestamp, boolean fromThrift)
+    public Mutation toSchemaUpdate(CFMetaData newState, long modificationTimestamp, boolean fromThrift)
     {
-        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(ksName));
+        Mutation mutation = new Mutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(ksName));
 
-        newState.toSchemaNoColumnsNoTriggers(rm, modificationTimestamp);
+        newState.toSchemaNoColumnsNoTriggers(mutation, modificationTimestamp);
 
         MapDifference<ByteBuffer, ColumnDefinition> columnDiff = Maps.difference(columnMetadata, newState.columnMetadata);
 
@@ -1492,31 +1492,31 @@ public final class CFMetaData
             if (fromThrift && cd.kind != ColumnDefinition.Kind.REGULAR)
                 continue;
 
-            cd.deleteFromSchema(rm, modificationTimestamp);
+            cd.deleteFromSchema(mutation, modificationTimestamp);
         }
 
         // newly added columns
         for (ColumnDefinition cd : columnDiff.entriesOnlyOnRight().values())
-            cd.toSchema(rm, modificationTimestamp);
+            cd.toSchema(mutation, modificationTimestamp);
 
         // old columns with updated attributes
         for (ByteBuffer name : columnDiff.entriesDiffering().keySet())
         {
             ColumnDefinition cd = newState.columnMetadata.get(name);
-            cd.toSchema(rm, modificationTimestamp);
+            cd.toSchema(mutation, modificationTimestamp);
         }
 
         MapDifference<String, TriggerDefinition> triggerDiff = Maps.difference(triggers, newState.triggers);
 
         // dropped triggers
         for (TriggerDefinition td : triggerDiff.entriesOnlyOnLeft().values())
-            td.deleteFromSchema(rm, cfName, modificationTimestamp);
+            td.deleteFromSchema(mutation, cfName, modificationTimestamp);
 
         // newly created triggers
         for (TriggerDefinition td : triggerDiff.entriesOnlyOnRight().values())
-            td.toSchema(rm, cfName, modificationTimestamp);
+            td.toSchema(mutation, cfName, modificationTimestamp);
 
-        return rm;
+        return mutation;
     }
 
     /**
@@ -1524,24 +1524,24 @@ public final class CFMetaData
      *
      * @param timestamp Timestamp to use
      *
-     * @return RowMutation to use to completely remove cf from schema
+     * @return Mutation to use to completely remove cf from schema
      */
-    public RowMutation dropFromSchema(long timestamp)
+    public Mutation dropFromSchema(long timestamp)
     {
-        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(ksName));
-        ColumnFamily cf = rm.addOrGet(SchemaColumnFamiliesCf);
+        Mutation mutation = new Mutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(ksName));
+        ColumnFamily cf = mutation.addOrGet(SchemaColumnFamiliesCf);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
         Composite prefix = SchemaColumnFamiliesCf.comparator.make(cfName);
         cf.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
 
         for (ColumnDefinition cd : allColumns())
-            cd.deleteFromSchema(rm, timestamp);
+            cd.deleteFromSchema(mutation, timestamp);
 
         for (TriggerDefinition td : triggers.values())
-            td.deleteFromSchema(rm, cfName, timestamp);
+            td.deleteFromSchema(mutation, cfName, timestamp);
 
-        return rm;
+        return mutation;
     }
 
     public boolean isPurged()
@@ -1554,19 +1554,19 @@ public final class CFMetaData
         isPurged = true;
     }
 
-    public void toSchema(RowMutation rm, long timestamp)
+    public void toSchema(Mutation mutation, long timestamp)
     {
-        toSchemaNoColumnsNoTriggers(rm, timestamp);
+        toSchemaNoColumnsNoTriggers(mutation, timestamp);
 
         for (ColumnDefinition cd : allColumns())
-            cd.toSchema(rm, timestamp);
+            cd.toSchema(mutation, timestamp);
     }
 
-    private void toSchemaNoColumnsNoTriggers(RowMutation rm, long timestamp)
+    private void toSchemaNoColumnsNoTriggers(Mutation mutation, long timestamp)
     {
         // For property that can be null (and can be changed), we insert tombstones, to make sure
         // we don't keep a property the user has removed
-        ColumnFamily cf = rm.addOrGet(SchemaColumnFamiliesCf);
+        ColumnFamily cf = mutation.addOrGet(SchemaColumnFamiliesCf);
         Composite prefix = SchemaColumnFamiliesCf.comparator.make(cfName);
         CFRowAdder adder = new CFRowAdder(cf, prefix, timestamp);
 
@@ -1790,11 +1790,11 @@ public final class CFMetaData
      *
      * @throws ConfigurationException if any of the attributes didn't pass validation
      */
-    public RowMutation toSchema(long timestamp) throws ConfigurationException
+    public Mutation toSchema(long timestamp) throws ConfigurationException
     {
-        RowMutation rm = new RowMutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(ksName));
-        toSchema(rm, timestamp);
-        return rm;
+        Mutation mutation = new Mutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(ksName));
+        toSchema(mutation, timestamp);
+        return mutation;
     }
 
     // The comparator to validate the definition name.

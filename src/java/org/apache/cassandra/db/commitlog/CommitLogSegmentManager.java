@@ -29,7 +29,6 @@ import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -44,7 +43,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
@@ -168,16 +167,16 @@ public class CommitLogSegmentManager
     }
 
     /**
-     * Reserve space in the current segment for the provided row mutation or, if there isn't space available,
+     * Reserve space in the current segment for the provided mutation or, if there isn't space available,
      * create a new segment.
      *
      * @return the provided Allocation object
      */
-    public Allocation allocate(RowMutation rowMutation, int size, Allocation alloc)
+    public Allocation allocate(Mutation mutation, int size, Allocation alloc)
     {
         CommitLogSegment segment = allocatingFrom();
 
-        while (!segment.allocate(rowMutation, size, alloc))
+        while (!segment.allocate(mutation, size, alloc))
         {
             // failed to allocate, so move to a new segment with enough room
             advanceAllocatingFrom(segment);

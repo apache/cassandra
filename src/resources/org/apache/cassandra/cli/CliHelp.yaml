@@ -250,7 +250,7 @@ commands:
           Options have the form {key:value}, see the information on each
           strategy and the examples.
 
-        - durable_writes: When set to false all RowMutations on keyspace will by-pass CommitLog.
+        - durable_writes: When set to false all Mutations on keyspace will by-pass CommitLog.
           Set to true by default.
 
         Examples:
@@ -318,7 +318,7 @@ commands:
           Options have the form {key:value}, see the information on each
           strategy and the examples.
 
-        - durable_writes: When set to false all RowMutations on keyspace will by-pass CommitLog.
+        - durable_writes: When set to false all Mutations on keyspace will by-pass CommitLog.
           Set to true by default.
 
         Examples:

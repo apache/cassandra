@@ -71,7 +71,7 @@ public class SSTableScannerTest extends SchemaLoader
     {
         long timestamp = System.currentTimeMillis();
         DecoratedKey decoratedKey = Util.dk(toKey(key));
-        RowMutation rm = new RowMutation(KEYSPACE, decoratedKey.key);
+        Mutation rm = new Mutation(KEYSPACE, decoratedKey.key);
         rm.add(TABLE, Util.cellname("col"), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp, 1000);
         rm.apply();
     }

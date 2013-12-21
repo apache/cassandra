@@ -26,7 +26,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertNull;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.marshal.CompositeType;
+
 import static org.apache.cassandra.Util.getBytes;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.SchemaLoader;
@@ -42,18 +42,18 @@ public class RemoveSubCellTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Super1");
-        RowMutation rm;
+        Mutation rm;
         DecoratedKey dk = Util.dk("key1");
 
         // add data
-        rm = new RowMutation("Keyspace1", dk.key);
+        rm = new Mutation("Keyspace1", dk.key);
         Util.addMutation(rm, "Super1", "SC1", 1, "asdf", 0);
         rm.apply();
         store.forceBlockingFlush();
 
         CellName cname = CellNames.compositeDense(ByteBufferUtil.bytes("SC1"), getBytes(1L));
         // remove
-        rm = new RowMutation("Keyspace1", dk.key);
+        rm = new Mutation("Keyspace1", dk.key);
         rm.delete("Super1", cname, 1);
         rm.apply();
 
@@ -67,11 +67,11 @@ public class RemoveSubCellTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Super1");
-        RowMutation rm;
+        Mutation rm;
         DecoratedKey dk = Util.dk("key2");
 
         // add data
-        rm = new RowMutation("Keyspace1", dk.key);
+        rm = new Mutation("Keyspace1", dk.key);
         Util.addMutation(rm, "Super1", "SC1", 1, "asdf", 0);
         rm.apply();
         store.forceBlockingFlush();
@@ -79,7 +79,7 @@ public class RemoveSubCellTest extends SchemaLoader
         // remove the SC
         ByteBuffer scName = ByteBufferUtil.bytes("SC1");
         CellName cname = CellNames.compositeDense(scName, getBytes(1L));
-        rm = new RowMutation("Keyspace1", dk.key);
+        rm = new Mutation("Keyspace1", dk.key);
         rm.deleteRange("Super1", SuperColumns.startOf(scName), SuperColumns.endOf(scName), 1);
         rm.apply();
 
@@ -89,7 +89,7 @@ public class RemoveSubCellTest extends SchemaLoader
         Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
 
         // remove the column itself
-        rm = new RowMutation("Keyspace1", dk.key);
+        rm = new Mutation("Keyspace1", dk.key);
         rm.delete("Super1", cname, 2);
         rm.apply();
 

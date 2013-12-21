@@ -147,8 +147,8 @@ public class CleanupTest extends SchemaLoader
         {
             String key = String.valueOf(i);
             // create a row and update the birthdate value, test that the index query fetches the new version
-            RowMutation rm;
-            rm = new RowMutation(KEYSPACE1, ByteBufferUtil.bytes(key));
+            Mutation rm;
+            rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes(key));
             rm.add(cfs.name, Util.cellname(COLUMN), VALUE, System.currentTimeMillis());
             rm.applyUnsafe();
         }

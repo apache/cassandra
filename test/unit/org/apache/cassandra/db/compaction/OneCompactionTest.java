@@ -28,10 +28,8 @@ import org.apache.cassandra.Util;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.ColumnFamilyStore;
+
+import org.apache.cassandra.db.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -49,7 +47,7 @@ public class OneCompactionTest extends SchemaLoader
         Set<DecoratedKey> inserted = new HashSet<DecoratedKey>();
         for (int j = 0; j < insertsPerTable; j++) {
             DecoratedKey key = Util.dk(String.valueOf(j));
-            RowMutation rm = new RowMutation("Keyspace1", key.key);
+            Mutation rm = new Mutation("Keyspace1", key.key);
             rm.add(columnFamilyName, Util.cellname("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
             inserted.add(key);

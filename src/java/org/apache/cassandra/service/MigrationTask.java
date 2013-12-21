@@ -24,9 +24,9 @@ import java.util.Collection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.DefsTables;
-import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageIn;
@@ -56,10 +56,10 @@ class MigrationTask extends WrappedRunnable
             return;
         }
 
-        IAsyncCallback<Collection<RowMutation>> cb = new IAsyncCallback<Collection<RowMutation>>()
+        IAsyncCallback<Collection<Mutation>> cb = new IAsyncCallback<Collection<Mutation>>()
         {
             @Override
-            public void response(MessageIn<Collection<RowMutation>> message)
+            public void response(MessageIn<Collection<Mutation>> message)
             {
                 try
                 {

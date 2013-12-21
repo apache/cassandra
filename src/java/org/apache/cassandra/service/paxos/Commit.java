@@ -30,12 +30,7 @@ import java.nio.ByteBuffer;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.Cell;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnSerializer;
-import org.apache.cassandra.db.EmptyColumns;
-import org.apache.cassandra.db.RowMutation;
-import org.apache.cassandra.db.UnsortedColumns;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
@@ -85,10 +80,10 @@ public class Commit
         return this.ballot.equals(ballot);
     }
 
-    public RowMutation makeMutation()
+    public Mutation makeMutation()
     {
         assert update != null;
-        return new RowMutation(key, update);
+        return new Mutation(key, update);
     }
 
     @Override

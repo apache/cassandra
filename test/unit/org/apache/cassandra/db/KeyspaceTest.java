@@ -65,7 +65,7 @@ public class KeyspaceTest extends SchemaLoader
 
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace2", "Standard3");
         cf.addColumn(column("col1","val1", 1L));
-        RowMutation rm = new RowMutation("Keyspace2", TEST_KEY.key, cf);
+        Mutation rm = new Mutation("Keyspace2", TEST_KEY.key, cf);
         rm.apply();
 
         Runnable verify = new WrappedRunnable()
@@ -97,7 +97,7 @@ public class KeyspaceTest extends SchemaLoader
         cf.addColumn(column("col1","val1", 1L));
         cf.addColumn(column("col2","val2", 1L));
         cf.addColumn(column("col3","val3", 1L));
-        RowMutation rm = new RowMutation("Keyspace1", TEST_KEY.key, cf);
+        Mutation rm = new Mutation("Keyspace1", TEST_KEY.key, cf);
         rm.apply();
 
         Runnable verify = new WrappedRunnable()
@@ -127,7 +127,7 @@ public class KeyspaceTest extends SchemaLoader
         cf.addColumn(column("a", "val1", 1L));
         cf.addColumn(column("b", "val2", 1L));
         cf.addColumn(column("c", "val3", 1L));
-        RowMutation rm = new RowMutation("Keyspace1", key.key, cf);
+        Mutation rm = new Mutation("Keyspace1", key.key, cf);
         rm.apply();
 
         cf = cfStore.getColumnFamily(key, cellname("b"), cellname("c"), false, 100, System.currentTimeMillis());
@@ -146,7 +146,7 @@ public class KeyspaceTest extends SchemaLoader
         Keyspace keyspace = Keyspace.open("Keyspace1");
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard2");
         cf.addColumn(column("col1", "val1", 1));
-        RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("row1000"), cf);
+        Mutation rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("row1000"), cf);
         rm.apply();
 
         validateGetSliceNoMatch(keyspace);
@@ -173,7 +173,7 @@ public class KeyspaceTest extends SchemaLoader
         // so if we go to 300, we'll get at least 4 blocks, which is plenty for testing.
         for (int i = 0; i < 300; i++)
             cf.addColumn(column("col" + fmt.format(i), "omg!thisisthevalue!"+i, 1L));
-        RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
+        Mutation rm = new Mutation("Keyspace1", ROW.key, cf);
         rm.apply();
 
         Runnable verify = new WrappedRunnable()
@@ -228,7 +228,7 @@ public class KeyspaceTest extends SchemaLoader
         {
             ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "StandardLong1");
             cf.addColumn(new Cell(cellname((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
-            RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
+            Mutation rm = new Mutation("Keyspace1", ROW.key, cf);
             rm.apply();
         }
 
@@ -238,7 +238,7 @@ public class KeyspaceTest extends SchemaLoader
         {
             ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "StandardLong1");
             cf.addColumn(new Cell(cellname((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
-            RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
+            Mutation rm = new Mutation("Keyspace1", ROW.key, cf);
             rm.apply();
 
             cf = cfs.getColumnFamily(ROW, Composites.EMPTY, Composites.EMPTY, true, 1, System.currentTimeMillis());
@@ -276,10 +276,10 @@ public class KeyspaceTest extends SchemaLoader
         cf.addColumn(column("col5", "val5", 1L));
         cf.addColumn(column("col7", "val7", 1L));
         cf.addColumn(column("col9", "val9", 1L));
-        RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
+        Mutation rm = new Mutation("Keyspace1", ROW.key, cf);
         rm.apply();
 
-        rm = new RowMutation("Keyspace1", ROW.key);
+        rm = new Mutation("Keyspace1", ROW.key);
         rm.delete("Standard1", cellname("col4"), 2L);
         rm.apply();
 
@@ -328,7 +328,7 @@ public class KeyspaceTest extends SchemaLoader
         cf.addColumn(column("col1", "val1", 1L));
         cf.addColumn(expiringColumn("col2", "val2", 1L, 60)); // long enough not to be tombstoned
         cf.addColumn(column("col3", "val3", 1L));
-        RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
+        Mutation rm = new Mutation("Keyspace1", ROW.key, cf);
         rm.apply();
 
         Runnable verify = new WrappedRunnable()
@@ -365,7 +365,7 @@ public class KeyspaceTest extends SchemaLoader
         cf.addColumn(column("col4", "val4", 1L));
         cf.addColumn(column("col5", "val5", 1L));
         cf.addColumn(column("col6", "val6", 1L));
-        RowMutation rm = new RowMutation("Keyspace1", ROW.key, cf);
+        Mutation rm = new Mutation("Keyspace1", ROW.key, cf);
         rm.apply();
         cfStore.forceBlockingFlush();
 
@@ -373,7 +373,7 @@ public class KeyspaceTest extends SchemaLoader
         cf.addColumn(column("col1", "valx", 2L));
         cf.addColumn(column("col2", "valx", 2L));
         cf.addColumn(column("col3", "valx", 2L));
-        rm = new RowMutation("Keyspace1", ROW.key, cf);
+        rm = new Mutation("Keyspace1", ROW.key, cf);
         rm.apply();
 
         Runnable verify = new WrappedRunnable()
@@ -409,7 +409,7 @@ public class KeyspaceTest extends SchemaLoader
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         for (int i = 1000; i < 2000; i++)
             cf.addColumn(column("col" + i, ("v" + i), 1L));
-        RowMutation rm = new RowMutation("Keyspace1", key.key, cf);
+        Mutation rm = new Mutation("Keyspace1", key.key, cf);
         rm.apply();
         cfStore.forceBlockingFlush();
 
@@ -442,7 +442,7 @@ public class KeyspaceTest extends SchemaLoader
             {
                 cf.addColumn(column("col" + i, ("v" + i), i));
             }
-            RowMutation rm = new RowMutation("Keyspace1", key.key, cf);
+            Mutation rm = new Mutation("Keyspace1", key.key, cf);
             rm.apply();
             cfStore.forceBlockingFlush();
         }
@@ -506,7 +506,7 @@ public class KeyspaceTest extends SchemaLoader
         {
             for (int i = 0; i < 10; i++)
             {
-                RowMutation rm = new RowMutation("Keyspace1", key.key);
+                Mutation rm = new Mutation("Keyspace1", key.key);
                 CellName colName = type.makeCellName(ByteBufferUtil.bytes("a" + i), ByteBufferUtil.bytes(j*10 + i));
                 rm.add("StandardComposite2", colName, ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
                 rm.apply();

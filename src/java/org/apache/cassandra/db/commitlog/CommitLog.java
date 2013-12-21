@@ -21,7 +21,6 @@ import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
 import javax.management.MBeanServer;
@@ -188,13 +187,13 @@ public class CommitLog implements CommitLogMBean
     }
 
     /**
-     * Add a RowMutation to the commit log.
+     * Add a Mutation to the commit log.
      *
-     * @param rowMutation the RowMutation to add to the log
+     * @param mutation the Mutation to add to the log
      */
-    public void add(RowMutation rowMutation)
+    public void add(Mutation mutation)
     {
-        long size = RowMutation.serializer.serializedSize(rowMutation, MessagingService.current_version);
+        long size = Mutation.serializer.serializedSize(mutation, MessagingService.current_version);
 
         long totalSize = size + ENTRY_OVERHEAD_SIZE;
         if (totalSize > MAX_MUTATION_SIZE)
@@ -203,7 +202,7 @@ public class CommitLog implements CommitLogMBean
             return;
         }
 
-        Allocation alloc = allocator.allocate(rowMutation, (int) totalSize, new Allocation());
+        Allocation alloc = allocator.allocate(mutation, (int) totalSize, new Allocation());
         try
         {
             PureJavaCrc32 checksum = new PureJavaCrc32();
@@ -215,7 +214,7 @@ public class CommitLog implements CommitLogMBean
             buffer.putLong(checksum.getValue());
 
             // checksummed mutation
-            RowMutation.serializer.serialize(rowMutation, dos, MessagingService.current_version);
+            Mutation.serializer.serialize(mutation, dos, MessagingService.current_version);
             buffer.putLong(checksum.getValue());
         }
         catch (IOException e)

@@ -34,45 +34,46 @@ import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-// TODO convert this to a Builder pattern instead of encouraging RM.add directly,
+// TODO convert this to a Builder pattern instead of encouraging M.add directly,
 // which is less-efficient since we have to keep a mutable HashMap around
-public class RowMutation implements IMutation
+public class Mutation implements IMutation
 {
-    public static final RowMutationSerializer serializer = new RowMutationSerializer();
+    public static final MutationSerializer serializer = new MutationSerializer();
+
     public static final String FORWARD_TO = "FWD_TO";
     public static final String FORWARD_FROM = "FWD_FRM";
 
     // todo this is redundant
-    // when we remove it, also restore SerializationsTest.testRowMutationRead to not regenerate new RowMutations each test
+    // when we remove it, also restore SerializationsTest.testMutationRead to not regenerate new Mutations each test
     private final String keyspaceName;
 
     private final ByteBuffer key;
     // map of column family id to mutations for that column family.
     private final Map<UUID, ColumnFamily> modifications;
 
-    public RowMutation(String keyspaceName, ByteBuffer key)
+    public Mutation(String keyspaceName, ByteBuffer key)
     {
         this(keyspaceName, key, new HashMap<UUID, ColumnFamily>());
     }
 
-    public RowMutation(String keyspaceName, ByteBuffer key, ColumnFamily cf)
+    public Mutation(String keyspaceName, ByteBuffer key, ColumnFamily cf)
     {
         this(keyspaceName, key, Collections.singletonMap(cf.id(), cf));
     }
 
-    public RowMutation(String keyspaceName, Row row)
+    public Mutation(String keyspaceName, Row row)
     {
         this(keyspaceName, row.key.key, row.cf);
     }
 
-    protected RowMutation(String keyspaceName, ByteBuffer key, Map<UUID, ColumnFamily> modifications)
+    protected Mutation(String keyspaceName, ByteBuffer key, Map<UUID, ColumnFamily> modifications)
     {
         this.keyspaceName = keyspaceName;
         this.key = key;
         this.modifications = modifications;
     }
 
-    public RowMutation(ByteBuffer key, ColumnFamily cf)
+    public Mutation(ByteBuffer key, ColumnFamily cf)
     {
         this(cf.metadata().ksName, key, cf);
     }
@@ -118,7 +119,7 @@ public class RowMutation implements IMutation
     }
 
     /**
-     * @return the ColumnFamily in this RowMutation corresponding to @param cfName, creating an empty one if necessary.
+     * @return the ColumnFamily in this Mutation corresponding to @param cfName, creating an empty one if necessary.
      */
     public ColumnFamily addOrGet(String cfName)
     {
@@ -176,14 +177,14 @@ public class RowMutation implements IMutation
 
     public void addAll(IMutation m)
     {
-        if (!(m instanceof RowMutation))
+        if (!(m instanceof Mutation))
             throw new IllegalArgumentException();
 
-        RowMutation rm = (RowMutation)m;
-        if (!keyspaceName.equals(rm.keyspaceName) || !key.equals(rm.key))
+        Mutation mutation = (Mutation)m;
+        if (!keyspaceName.equals(mutation.keyspaceName) || !key.equals(mutation.key))
             throw new IllegalArgumentException();
 
-        for (Map.Entry<UUID, ColumnFamily> entry : rm.modifications.entrySet())
+        for (Map.Entry<UUID, ColumnFamily> entry : mutation.modifications.entrySet())
         {
             // It's slighty faster to assume the key wasn't present and fix if
             // not in the case where it wasn't there indeed.
@@ -208,12 +209,12 @@ public class RowMutation implements IMutation
         Keyspace.open(keyspaceName).apply(this, false);
     }
 
-    public MessageOut<RowMutation> createMessage()
+    public MessageOut<Mutation> createMessage()
     {
         return createMessage(MessagingService.Verb.MUTATION);
     }
 
-    public MessageOut<RowMutation> createMessage(MessagingService.Verb verb)
+    public MessageOut<Mutation> createMessage(MessagingService.Verb verb)
     {
         return new MessageOut<>(verb, this, serializer);
     }
@@ -225,7 +226,7 @@ public class RowMutation implements IMutation
 
     public String toString(boolean shallow)
     {
-        StringBuilder buff = new StringBuilder("RowMutation(");
+        StringBuilder buff = new StringBuilder("Mutation(");
         buff.append("keyspace='").append(keyspaceName).append('\'');
         buff.append(", key='").append(ByteBufferUtil.bytesToHex(key)).append('\'');
         buff.append(", modifications=[");
@@ -244,33 +245,33 @@ public class RowMutation implements IMutation
         return buff.append("])").toString();
     }
 
-    public RowMutation without(UUID cfId)
+    public Mutation without(UUID cfId)
     {
-        RowMutation rm = new RowMutation(keyspaceName, key);
+        Mutation mutation = new Mutation(keyspaceName, key);
         for (Map.Entry<UUID, ColumnFamily> entry : modifications.entrySet())
             if (!entry.getKey().equals(cfId))
-                rm.add(entry.getValue());
-        return rm;
+                mutation.add(entry.getValue());
+        return mutation;
     }
 
-    public static class RowMutationSerializer implements IVersionedSerializer<RowMutation>
+    public static class MutationSerializer implements IVersionedSerializer<Mutation>
     {
-        public void serialize(RowMutation rm, DataOutput out, int version) throws IOException
+        public void serialize(Mutation mutation, DataOutput out, int version) throws IOException
         {
             if (version < MessagingService.VERSION_20)
-                out.writeUTF(rm.getKeyspaceName());
+                out.writeUTF(mutation.getKeyspaceName());
 
-            ByteBufferUtil.writeWithShortLength(rm.key(), out);
+            ByteBufferUtil.writeWithShortLength(mutation.key(), out);
 
             /* serialize the modifications in the mutation */
-            int size = rm.modifications.size();
+            int size = mutation.modifications.size();
             out.writeInt(size);
             assert size > 0;
-            for (Map.Entry<UUID, ColumnFamily> entry : rm.modifications.entrySet())
+            for (Map.Entry<UUID, ColumnFamily> entry : mutation.modifications.entrySet())
                 ColumnFamily.serializer.serialize(entry.getValue(), out, version);
         }
 
-        public RowMutation deserialize(DataInput in, int version, ColumnSerializer.Flag flag) throws IOException
+        public Mutation deserialize(DataInput in, int version, ColumnSerializer.Flag flag) throws IOException
         {
             String keyspaceName = null; // will always be set from cf.metadata but javac isn't smart enough to see that
             if (version < MessagingService.VERSION_20)
@@ -298,35 +299,35 @@ public class RowMutation implements IMutation
                 }
             }
 
-            return new RowMutation(keyspaceName, key, modifications);
+            return new Mutation(keyspaceName, key, modifications);
         }
 
         private ColumnFamily deserializeOneCf(DataInput in, int version, ColumnSerializer.Flag flag) throws IOException
         {
             ColumnFamily cf = ColumnFamily.serializer.deserialize(in, UnsortedColumns.factory, flag, version);
-            // We don't allow RowMutation with null column family, so we should never get null back.
+            // We don't allow Mutation with null column family, so we should never get null back.
             assert cf != null;
             return cf;
         }
 
-        public RowMutation deserialize(DataInput in, int version) throws IOException
+        public Mutation deserialize(DataInput in, int version) throws IOException
         {
             return deserialize(in, version, ColumnSerializer.Flag.FROM_REMOTE);
         }
 
-        public long serializedSize(RowMutation rm, int version)
+        public long serializedSize(Mutation mutation, int version)
         {
             TypeSizes sizes = TypeSizes.NATIVE;
             int size = 0;
 
             if (version < MessagingService.VERSION_20)
-                size += sizes.sizeof(rm.getKeyspaceName());
+                size += sizes.sizeof(mutation.getKeyspaceName());
 
-            int keySize = rm.key().remaining();
+            int keySize = mutation.key().remaining();
             size += sizes.sizeof((short) keySize) + keySize;
 
-            size += sizes.sizeof(rm.modifications.size());
-            for (Map.Entry<UUID,ColumnFamily> entry : rm.modifications.entrySet())
+            size += sizes.sizeof(mutation.modifications.size());
+            for (Map.Entry<UUID,ColumnFamily> entry : mutation.modifications.entrySet())
                 size += ColumnFamily.serializer.serializedSize(entry.getValue(), TypeSizes.NATIVE, version);
 
             return size;

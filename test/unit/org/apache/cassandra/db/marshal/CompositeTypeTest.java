@@ -174,7 +174,7 @@ public class CompositeTypeTest extends SchemaLoader
         ByteBuffer cname5 = createCompositeKey("test2", uuids[1], 42, false);
 
         ByteBuffer key = ByteBufferUtil.bytes("k");
-        RowMutation rm = new RowMutation("Keyspace1", key);
+        Mutation rm = new Mutation("Keyspace1", key);
         addColumn(rm, cname5);
         addColumn(rm, cname1);
         addColumn(rm, cname4);
@@ -256,7 +256,7 @@ public class CompositeTypeTest extends SchemaLoader
         }
     }
 
-    private void addColumn(RowMutation rm, ByteBuffer cname)
+    private void addColumn(Mutation rm, ByteBuffer cname)
     {
         rm.add(cfName, CellNames.simpleDense(cname), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
     }
