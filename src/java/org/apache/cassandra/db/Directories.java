@@ -402,11 +402,11 @@ public class Directories
         return false;
     }
 
-    public void clearSnapshot(String snapshotName)
+    public static void clearSnapshot(String snapshotName, List<File> snapshotDirectories)
     {
         // If snapshotName is empty or null, we will delete the entire snapshot directory
         String tag = snapshotName == null ? "" : snapshotName;
-        for (File dir : sstableDirectories)
+        for (File dir : snapshotDirectories)
         {
             File snapshotDir = new File(dir, join(SNAPSHOT_SUBDIR, tag));
             if (snapshotDir.exists())
@@ -428,6 +428,36 @@ public class Directories
                 return snapshotDir.lastModified();
         }
         throw new RuntimeException("Snapshot " + snapshotName + " doesn't exist");
+    }
+
+    // Recursively finds all the sub directories in the KS directory.
+    public static List<File> getKSChildDirectories(String ksName)
+    {
+        List<File> result = new ArrayList<File>();
+        for (DataDirectory dataDirectory : dataFileLocations)
+        {
+            File ksDir = new File(dataDirectory.location, ksName);
+            File[] cfDirs = ksDir.listFiles();
+            if (cfDirs == null)
+                continue;
+            for (File cfDir : cfDirs)
+            {
+                if (cfDir.isDirectory())
+                    result.add(cfDir);
+            }
+        }
+        return result;
+    }
+
+    public List<File> getCFDirectories()
+    {
+        List<File> result = new ArrayList<File>();
+        for (File dataDirectory : sstableDirectories)
+        {
+            if (dataDirectory.isDirectory())
+                result.add(dataDirectory);
+        }
+        return result;
     }
 
     private static File getOrCreate(File base, String... subdirs)

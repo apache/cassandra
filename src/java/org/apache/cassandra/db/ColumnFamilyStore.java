@@ -1825,9 +1825,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return directories.snapshotCreationTime(snapshotName);
     }
 
+    /**
+     * Clear all the snapshots for a given column family.
+     *
+     * @param snapshotName the user supplied snapshot name. If left empty,
+     *                     all the snapshots will be cleaned.
+     */
     public void clearSnapshot(String snapshotName)
     {
-        directories.clearSnapshot(snapshotName);
+        List<File> snapshotDirs = directories.getCFDirectories();
+        Directories.clearSnapshot(snapshotName, snapshotDirs);
     }
 
     public boolean hasUnreclaimedSpace()
