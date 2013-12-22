@@ -972,7 +972,7 @@ public class NodeProbe
 
     /**
      * Retrieve Proxy metrics
-     * @param scope; RangeSlice, Read or Write
+     * @param scope RangeSlice, Read or Write
      */
     public JmxReporter.TimerMBean getProxyMetric(String scope)
     {
@@ -990,7 +990,7 @@ public class NodeProbe
 
     /**
      * Retrieve Proxy metrics
-     * @param metricName; CompletedTasks, PendingTasks, BytesCompacted or TotalCompactionsCompleted.
+     * @param metricName CompletedTasks, PendingTasks, BytesCompacted or TotalCompactionsCompleted.
      */
     public Object getCompactionMetric(String metricName)
     {
@@ -1023,7 +1023,7 @@ public class NodeProbe
 
     /**
      * Retrieve Proxy metrics
-     * @param metricName; Exceptions, Load, TotalHints or TotalHintsInProgress.
+     * @param metricName Exceptions, Load, TotalHints or TotalHintsInProgress.
      */
     public long getStorageMetric(String metricName)
     {

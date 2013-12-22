@@ -44,7 +44,7 @@ public interface ITrigger
     /**
      * Called exactly once per CF update, returned mutations are atomically updated.
      *
-     * @param key - parition Key for the update.
+     * @param partitionKey - partition Key for the update.
      * @param update - update received for the CF
      * @return modifications to be applied, null if no action to be performed.
      */
