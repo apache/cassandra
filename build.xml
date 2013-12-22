@@ -384,6 +384,7 @@
           <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.3m" />
           <dependency groupId="io.netty" artifactId="netty" version="3.6.6.Final" />
           <dependency groupId="com.google.code.findbugs" artifactId="jsr305" version="2.0.2" />
+          <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.1" />
         </dependencyManagement>
         <developer id="alakshman" name="Avinash Lakshman"/>
         <developer id="antelder" name="Anthony Elder"/>
@@ -466,6 +467,7 @@
         <dependency groupId="com.yammer.metrics" artifactId="metrics-core"/>
         <dependency groupId="com.addthis.metrics" artifactId="reporter-config"/>
         <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.2"/>
+        <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.1" />
 
         <dependency groupId="ch.qos.logback" artifactId="logback-core"/>
         <dependency groupId="ch.qos.logback" artifactId="logback-classic"/>
