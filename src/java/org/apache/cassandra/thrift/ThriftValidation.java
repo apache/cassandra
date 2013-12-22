@@ -268,7 +268,7 @@ public class ThriftValidation
         if (range.count < 0)
             throw new org.apache.cassandra.exceptions.InvalidRequestException("get_slice requires non-negative count");
 
-        int maxNameLength = org.apache.cassandra.db.Column.MAX_NAME_LENGTH;
+        int maxNameLength = Cell.MAX_NAME_LENGTH;
         if (range.start.remaining() > maxNameLength)
             throw new org.apache.cassandra.exceptions.InvalidRequestException("range start length cannot be larger than " + maxNameLength);
         if (range.finish.remaining() > maxNameLength)
