@@ -62,6 +62,7 @@ Merged from 1.2:
  * Don't resubmit counter mutation runnables internally (CASSANDRA-6427)
  * Don't drop local mutations without a trace (CASSANDRA-6510)
  * Don't allow null max_hint_window_in_ms (CASSANDRA-6419)
+ * Validate SliceRange start and finish lengths (CASSANDRA-6521)
 
 
 2.0.3
