@@ -268,6 +268,15 @@ public class ThriftValidation
 
     public static void validateRange(CFMetaData metadata, ColumnParent column_parent, SliceRange range) throws org.apache.cassandra.exceptions.InvalidRequestException
     {
+        if (range.count < 0)
+            throw new org.apache.cassandra.exceptions.InvalidRequestException("get_slice requires non-negative count");
+
+        int maxNameLength = org.apache.cassandra.db.Column.MAX_NAME_LENGTH;
+        if (range.start.remaining() > maxNameLength)
+            throw new org.apache.cassandra.exceptions.InvalidRequestException("range start length cannot be larger than " + maxNameLength);
+        if (range.finish.remaining() > maxNameLength)
+            throw new org.apache.cassandra.exceptions.InvalidRequestException("range finish length cannot be larger than " + maxNameLength);
+
         AbstractType<?> comparator = SuperColumns.getComparatorFor(metadata, column_parent.super_column);
         try
         {
@@ -278,9 +287,6 @@ public class ThriftValidation
         {
             throw new org.apache.cassandra.exceptions.InvalidRequestException(e.getMessage());
         }
-
-        if (range.count < 0)
-            throw new org.apache.cassandra.exceptions.InvalidRequestException("get_slice requires non-negative count");
 
         Comparator<ByteBuffer> orderedComparator = range.isReversed() ? comparator.reverseComparator : comparator;
         if (range.start.remaining() > 0
