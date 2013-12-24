@@ -21,116 +21,67 @@ package org.apache.cassandra.stress.operations;
  */
 
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
-import com.yammer.metrics.core.TimerContext;
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.transport.SimpleClient;
-import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.CqlResult;
-import org.apache.cassandra.thrift.ThriftConversion;
-
-public class CqlReader extends CQLOperation
+public class CqlReader extends CqlOperation<Integer>
 {
-    private static String cqlQuery = null;
 
-    public CqlReader(Session client, int idx)
+    public CqlReader(State state, long idx)
     {
-        super(client, idx);
+        super(state, idx);
     }
 
-    protected void run(CQLQueryExecutor executor) throws IOException
+    @Override
+    protected String buildQuery()
     {
-        if (session.getColumnFamilyType() == ColumnFamilyType.Super)
-            throw new RuntimeException("Super columns are not implemented for CQL");
+        StringBuilder query = new StringBuilder("SELECT ");
 
-        if (cqlQuery == null)
+        if (state.settings.columns.names == null)
         {
-            StringBuilder query = new StringBuilder("SELECT ");
-
-            if (session.columnNames == null)
-            {
-                if (session.cqlVersion.startsWith("2"))
-                    query.append("FIRST ").append(session.getColumnsPerKey()).append(" ''..''");
-                else
-                    query.append("*");
-            }
+            if (state.isCql2())
+                query.append("FIRST ").append(state.settings.columns.maxColumnsPerKey).append(" ''..''");
             else
-            {
-                for (int i = 0; i < session.columnNames.size(); i++)
-                {
-                    if (i > 0) query.append(",");
-                    query.append('?');
-                }
-            }
-
-            query.append(" FROM ").append(wrapInQuotesIfRequired("Standard1"));
-
-            if (session.cqlVersion.startsWith("2"))
-                query.append(" USING CONSISTENCY ").append(session.getConsistencyLevel().toString());
-            query.append(" WHERE KEY=?");
-
-            cqlQuery = query.toString();
+                query.append("*");
         }
-
-        List<String> queryParams = new ArrayList<String>();
-        if (session.columnNames != null)
-            for (int i = 0; i < session.columnNames.size(); i++)
-                queryParams.add(getUnQuotedCqlBlob(session.columnNames.get(i).array(), session.cqlVersion.startsWith("3")));
-
-        byte[] key = generateKey();
-        queryParams.add(getUnQuotedCqlBlob(key, session.cqlVersion.startsWith("3")));
-
-        TimerContext context = session.latency.time();
-
-        boolean success = false;
-        String exceptionMessage = null;
-
-        for (int t = 0; t < session.getRetryTimes(); t++)
+        else
         {
-            if (success)
-                break;
-
-            try
+            for (int i = 0; i < state.settings.columns.names.size() ; i++)
             {
-                success = executor.execute(cqlQuery, queryParams);
-            }
-            catch (Exception e)
-            {
-                exceptionMessage = getExceptionMessage(e);
-                success = false;
+                if (i > 0)
+                    query.append(",");
+                query.append('?');
             }
         }
 
-        if (!success)
+        query.append(" FROM ").append(wrapInQuotesIfRequired(state.settings.schema.columnFamily));
+
+        if (state.isCql2())
+            query.append(" USING CONSISTENCY ").append(state.settings.command.consistencyLevel);
+        query.append(" WHERE KEY=?");
+        return query.toString();
+    }
+
+    @Override
+    protected List<ByteBuffer> getQueryParameters(byte[] key)
+    {
+        if (state.settings.columns.names != null)
         {
-            error(String.format("Operation [%d] retried %d times - error reading key %s %s%n with query %s",
-                                index,
-                                session.getRetryTimes(),
-                                new String(key),
-                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")",
-                                cqlQuery));
+            final List<ByteBuffer> queryParams = new ArrayList<>();
+            for (ByteBuffer name : state.settings.columns.names)
+                queryParams.add(name);
+            queryParams.add(ByteBuffer.wrap(key));
+            return queryParams;
         }
-
-        session.operations.getAndIncrement();
-        session.keys.getAndIncrement();
-        context.stop();
+        return Collections.singletonList(ByteBuffer.wrap(key));
     }
 
-    protected boolean validateThriftResult(CqlResult result)
+    @Override
+    protected CqlRunOp buildRunOp(ClientWrapper client, String query, Object queryId, List<ByteBuffer> params, String keyid, ByteBuffer key)
     {
-        return result.rows.get(0).columns.size() != 0;
+        return new CqlRunOpTestNonEmpty(client, query, queryId, params, keyid, key);
     }
 
-    protected boolean validateNativeResult(ResultMessage result)
-    {
-        return result instanceof ResultMessage.Rows && ((ResultMessage.Rows)result).result.size() != 0;
-    }
 }

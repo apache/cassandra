@@ -21,126 +21,66 @@ package org.apache.cassandra.stress.operations;
  */
 
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.yammer.metrics.core.TimerContext;
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.stress.Session;
-import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.stress.util.Operation;
-import org.apache.cassandra.transport.SimpleClient;
-import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.utils.UUIDGen;
 
-public class CqlInserter extends CQLOperation
+public class CqlInserter extends CqlOperation<Integer>
 {
-    private static List<ByteBuffer> values;
-    private static String cqlQuery = null;
 
-    public CqlInserter(Session client, int idx)
+    public CqlInserter(State state, long idx)
     {
-        super(client, idx);
+        super(state, idx);
     }
 
-    protected void run(CQLQueryExecutor executor) throws IOException
+    @Override
+    protected String buildQuery()
     {
-        if (session.getColumnFamilyType() == ColumnFamilyType.Super)
-            throw new RuntimeException("Super columns are not implemented for CQL");
+        StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired(state.settings.schema.columnFamily));
 
-        if (values == null)
-            values = generateValues();
+        if (state.isCql2())
+            query.append(" USING CONSISTENCY ").append(state.settings.command.consistencyLevel);
 
-        // Construct a query string once.
-        if (cqlQuery == null)
+        query.append(" SET ");
+
+        for (int i = 0 ; i < state.settings.columns.maxColumnsPerKey; i++)
         {
-            StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired("Standard1"));
+            if (i > 0)
+                query.append(',');
 
-            if (session.cqlVersion.startsWith("2"))
-                query.append(" USING CONSISTENCY ").append(session.getConsistencyLevel().toString());
-
-            query.append(" SET ");
-
-            for (int i = 0; i < session.getColumnsPerKey(); i++)
+            if (state.settings.columns.useTimeUUIDComparator)
             {
-                if (i > 0)
-                    query.append(',');
+                if (state.isCql3())
+                    throw new UnsupportedOperationException("Cannot use UUIDs in column names with CQL3");
 
-                if (session.timeUUIDComparator)
-                {
-                    if (session.cqlVersion.startsWith("3"))
-                        throw new UnsupportedOperationException("Cannot use UUIDs in column names with CQL3");
-
-                    query.append(wrapInQuotesIfRequired(UUIDGen.getTimeUUID().toString()))
-                         .append(" = ?");
-                }
-                else
-                {
-                    query.append(wrapInQuotesIfRequired("C" + i)).append(" = ?");
-                }
+                query.append(wrapInQuotesIfRequired(UUIDGen.getTimeUUID().toString()))
+                        .append(" = ?");
             }
-
-            query.append(" WHERE KEY=?");
-            cqlQuery = query.toString();
-        }
-
-        List<String> queryParms = new ArrayList<String>();
-        for (int i = 0; i < session.getColumnsPerKey(); i++)
-        {
-            // Cell value
-            queryParms.add(getUnQuotedCqlBlob(values.get(i % values.size()).array(), session.cqlVersion.startsWith("3")));
-        }
-
-        String key = String.format("%0" + session.getTotalKeysLength() + "d", index);
-        queryParms.add(getUnQuotedCqlBlob(key, session.cqlVersion.startsWith("3")));
-
-        TimerContext context = session.latency.time();
-
-        boolean success = false;
-        String exceptionMessage = null;
-
-        for (int t = 0; t < session.getRetryTimes(); t++)
-        {
-            if (success)
-                break;
-
-            try
+            else
             {
-                success = executor.execute(cqlQuery, queryParms);
-            }
-            catch (Exception e)
-            {
-                exceptionMessage = getExceptionMessage(e);
-                success = false;
+                query.append(wrapInQuotesIfRequired("C" + i)).append(" = ?");
             }
         }
 
-        if (!success)
-        {
-            error(String.format("Operation [%d] retried %d times - error inserting key %s %s%n with query %s",
-                                index,
-                                session.getRetryTimes(),
-                                key,
-                                (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")",
-                                cqlQuery));
-        }
-
-        session.operations.getAndIncrement();
-        session.keys.getAndIncrement();
-        context.stop();
+        query.append(" WHERE KEY=?");
+        return query.toString();
     }
 
-    protected boolean validateThriftResult(CqlResult result)
+    @Override
+    protected List<ByteBuffer> getQueryParameters(byte[] key)
     {
-        return true;
+        final ArrayList<ByteBuffer> queryParams = new ArrayList<>();
+        final List<ByteBuffer> values = generateColumnValues();
+        queryParams.addAll(values);
+        queryParams.add(ByteBuffer.wrap(key));
+        return queryParams;
     }
 
-    protected boolean validateNativeResult(ResultMessage result)
+    @Override
+    protected CqlRunOp buildRunOp(ClientWrapper client, String query, Object queryId, List<ByteBuffer> params, String keyid, ByteBuffer key)
     {
-        return true;
+        return new CqlRunOpAlwaysSucceed(client, query, queryId, params, keyid, key, 1);
     }
 }
