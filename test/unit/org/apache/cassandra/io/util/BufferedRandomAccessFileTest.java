@@ -338,30 +338,34 @@ public class BufferedRandomAccessFileTest
             for (final int offset : Arrays.asList(0, 8))
             {
                 File file1 = writeTemporaryFile(new byte[16]);
-                final RandomAccessReader file = RandomAccessReader.open(file1, bufferSize, null);
-                expectEOF(new Callable<Object>()
+                try (final RandomAccessReader file = RandomAccessReader.open(file1, bufferSize, null))
                 {
-                    public Object call() throws IOException
+                    expectEOF(new Callable<Object>()
                     {
-                        file.readFully(target, offset, 17);
-                        return null;
-                    }
-                });
+                        public Object call() throws IOException
+                        {
+                            file.readFully(target, offset, 17);
+                            return null;
+                        }
+                    });
+                }
             }
 
             // first read is ok but eventually EOFs
             for (final int n : Arrays.asList(1, 2, 4, 8))
             {
                 File file1 = writeTemporaryFile(new byte[16]);
-                final RandomAccessReader file = RandomAccessReader.open(file1, bufferSize, null);
-                expectEOF(new Callable<Object>()
+                try (final RandomAccessReader file = RandomAccessReader.open(file1, bufferSize, null))
                 {
-                    public Object call() throws IOException
+                    expectEOF(new Callable<Object>()
                     {
-                        while (true)
-                            file.readFully(target, 0, n);
-                    }
-                });
+                        public Object call() throws IOException
+                        {
+                            while (true)
+                                file.readFully(target, 0, n);
+                        }
+                    });
+                }
             }
         }
     }
@@ -408,15 +412,17 @@ public class BufferedRandomAccessFileTest
         tmpFile.deleteOnExit();
 
         // Create the BRAF by filename instead of by file.
-        final RandomAccessReader r = RandomAccessReader.open(new File(tmpFile.getPath()));
-        assert tmpFile.getPath().equals(r.getPath());
-
-        // Create a mark and move the rw there.
-        final FileMark mark = r.mark();
-        r.reset(mark);
-
-        // Expect this call to succeed.
-        r.bytesPastMark(mark);
+        try (final RandomAccessReader r = RandomAccessReader.open(new File(tmpFile.getPath())))
+        {
+            assert tmpFile.getPath().equals(r.getPath());
+    
+            // Create a mark and move the rw there.
+            final FileMark mark = r.mark();
+            r.reset(mark);
+    
+            // Expect this call to succeed.
+            r.bytesPastMark(mark);
+        }
     }
 
     @Test
@@ -450,11 +456,13 @@ public class BufferedRandomAccessFileTest
             }
         }, ClosedChannelException.class);
 
-        RandomAccessReader copy = RandomAccessReader.open(new File(r.getPath()));
-        ByteBuffer contents = copy.readBytes((int) copy.length());
-
-        assertEquals(contents.limit(), data.length);
-        assertEquals(ByteBufferUtil.compare(contents, data), 0);
+        try (RandomAccessReader copy = RandomAccessReader.open(new File(r.getPath())))
+        {
+            ByteBuffer contents = copy.readBytes((int) copy.length());
+    
+            assertEquals(contents.limit(), data.length);
+            assertEquals(ByteBufferUtil.compare(contents, data), 0);
+        }
     }
 
     @Test
@@ -495,16 +503,20 @@ public class BufferedRandomAccessFileTest
     @Test (expected = AssertionError.class)
     public void testAssertionErrorWhenBytesPastMarkIsNegative() throws IOException
     {
-        SequentialWriter w = createTempFile("brafAssertionErrorWhenBytesPastMarkIsNegative");
-        w.write(new byte[30]);
-        w.close();
-
-        RandomAccessReader r = RandomAccessReader.open(w);
-        r.seek(10);
-        r.mark();
-
-        r.seek(0);
-        r.bytesPastMark();
+        try (SequentialWriter w = createTempFile("brafAssertionErrorWhenBytesPastMarkIsNegative"))
+        {
+            w.write(new byte[30]);
+            w.flush();
+    
+            try (RandomAccessReader r = RandomAccessReader.open(w))
+            {
+                r.seek(10);
+                r.mark();
+        
+                r.seek(0);
+                r.bytesPastMark();
+            }
+        }
     }
 
     @Test
@@ -601,16 +613,20 @@ public class BufferedRandomAccessFileTest
     public void testSetNegativeLength() throws IOException, IllegalArgumentException
     {
         File tmpFile = File.createTempFile("set_negative_length", "bin");
-        SequentialWriter file = SequentialWriter.open(tmpFile);
-        file.truncate(-8L);
+        try (SequentialWriter file = SequentialWriter.open(tmpFile))
+        {
+            file.truncate(-8L);
+        }
     }
 
     @Test (expected=IOException.class)
     public void testSetLengthDuringReadMode() throws IOException
     {
         File tmpFile = File.createTempFile("set_length_during_read_mode", "bin");
-        RandomAccessReader file = RandomAccessReader.open(tmpFile);
-        file.setLength(4L);
+        try (RandomAccessReader file = RandomAccessReader.open(tmpFile))
+        {
+            file.setLength(4L);
+        }
     }
 
     private SequentialWriter createTempFile(String name) throws IOException
