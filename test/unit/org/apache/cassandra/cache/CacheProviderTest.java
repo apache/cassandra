@@ -51,7 +51,7 @@ public class CacheProviderTest extends SchemaLoader
     private void simpleCase(ColumnFamily cf, ICache<MeasureableString, IRowCacheEntry> cache)
     {
         cache.put(key1, cf);
-        assert cache.get(key1) != null;
+        assertNotNull(cache.get(key1));
 
         assertDigests(cache.get(key1), cf);
         cache.put(key2, cf);
@@ -65,8 +65,8 @@ public class CacheProviderTest extends SchemaLoader
     private void assertDigests(IRowCacheEntry one, ColumnFamily two)
     {
         // CF does not implement .equals
-        assert one instanceof ColumnFamily;
-        assert ColumnFamily.digest((ColumnFamily)one).equals(ColumnFamily.digest(two));
+        assertTrue(one instanceof ColumnFamily);
+        assertEquals(ColumnFamily.digest((ColumnFamily)one), ColumnFamily.digest(two));
     }
 
     // TODO this isn't terribly useful
