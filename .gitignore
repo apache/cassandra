@@ -1,0 +1,55 @@
+.gitignore
+
+# C*
+build/
+src/gen-java/
+src/resources/org/apache/cassandra/config/
+
+# C* debs
+build-stamp
+build.properties
+debian/cassandra*debhelper*
+debian/cassandra.substvars
+debian/cassandra/
+debian/files
+
+# gitignore doesn't help with modified files - you may wish to:
+#   git update-index --assume-unchanged test/data/serialization/2.0/db.RowMutation.bin
+# to undo:
+#   git update-index --no-assume-unchanged test/data/serialization/2.0/db.RowMutation.bin
+
+# IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Eclipse
+.classpath
+.project
+.metadata
+.settings/
+local.properties
+
+# Cscope
+cscope.*
+
+# NetBeans
+nbbuild/
+nbdist/
+nbproject/
+nb-configuration.xml
+nbactions.xml
+
+# Maven, etc.
+out/
+target/
+
+# General
+*.pyc
+*~
+*.bak
+*.sw[o,p]
+*.tmp
+.DS_Store
+Thumbs.db
