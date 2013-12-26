@@ -73,11 +73,11 @@ public class JavaDriverClient
         }
         cluster = clusterBuilder.build();
         Metadata metadata = cluster.getMetadata();
-        System.out.printf("Connected to cluster: %s\n",
+        System.out.printf("Connected to cluster: %s%n",
                 metadata.getClusterName());
         for (Host host : metadata.getAllHosts())
         {
-            System.out.printf("Datatacenter: %s; Host: %s; Rack: %s\n",
+            System.out.printf("Datatacenter: %s; Host: %s; Rack: %s%n",
                     host.getDatacenter(), host.getAddress(), host.getRack());
         }
 
