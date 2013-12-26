@@ -25,8 +25,15 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.Util;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.SSTableNamesIterator;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.StreamPlan;
+import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.junit.BeforeClass;
@@ -83,6 +90,46 @@ public class LegacySSTableTest extends SchemaLoader
         System.out.println(">>> Wrote " + dest);
     }
     */
+
+    @Test
+    public void testStreaming() throws Throwable
+    {
+        StorageService.instance.initServer();
+
+        for (File version : LEGACY_SSTABLE_ROOT.listFiles())
+            if (Descriptor.Version.validate(version.getName()))
+                testStreaming(version.getName());
+    }
+
+    private void testStreaming(String version) throws Exception
+    {
+        SSTableReader sstable = SSTableReader.open(getDescriptor(version));
+        IPartitioner p = StorageService.getPartitioner();
+        List<Range<Token>> ranges = new ArrayList<>();
+        ranges.add(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("100"))));
+        ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("100")), p.getMinimumToken()));
+        ArrayList<StreamSession.SSTableStreamingSections> details = new ArrayList<>();
+        details.add(new StreamSession.SSTableStreamingSections(sstable,
+                                                               sstable.getPositionsForRanges(ranges),
+                                                               sstable.estimatedKeysForRanges(ranges)));
+        new StreamPlan("LegacyStreamingTest").transferFiles(FBUtilities.getBroadcastAddress(), details)
+                                             .execute().get();
+        sstable.close();
+
+        ColumnFamilyStore cfs = Keyspace.open(KSNAME).getColumnFamilyStore(CFNAME);
+        assert cfs.getSSTables().size() == 1;
+        sstable = cfs.getSSTables().iterator().next();
+        for (String keystring : TEST_DATA)
+        {
+            ByteBuffer key = ByteBufferUtil.bytes(keystring);
+            SSTableNamesIterator iter = new SSTableNamesIterator(sstable, Util.dk(key), FBUtilities.singleton(key));
+            ColumnFamily cf = iter.getColumnFamily();
+
+            // check not deleted (CASSANDRA-6527)
+            assert cf.deletionInfo().equals(DeletionInfo.live());
+            assert iter.next().name().equals(key);
+        }
+    }
 
     @Test
     public void testVersions() throws Throwable
