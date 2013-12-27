@@ -63,7 +63,7 @@ public class CqlCounterAdder extends CqlOperation<Integer>
     }
 
     @Override
-    protected CqlRunOp buildRunOp(ClientWrapper client, String query, Object queryId, List<ByteBuffer> params, String keyid, ByteBuffer key)
+    protected CqlRunOp<Integer> buildRunOp(ClientWrapper client, String query, Object queryId, List<ByteBuffer> params, String keyid, ByteBuffer key)
     {
         return new CqlRunOpAlwaysSucceed(client, query, queryId, params, keyid, key, 1);
     }
