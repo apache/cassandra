@@ -1,3 +1,9 @@
+cassandra (2.0.4) unstable; urgency=medium
+
+  * New release
+
+ -- Eric Evans <eevans@apache.org>  Fri, 27 Dec 2013 12:38:37 -0600
+
 cassandra (2.0.3) unstable; urgency=low
 
   * New release
