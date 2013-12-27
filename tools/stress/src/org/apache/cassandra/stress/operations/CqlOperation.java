@@ -334,7 +334,7 @@ public abstract class CqlOperation<V> extends Operation
         {
             String formattedQuery = formatCqlQuery(query, queryParams, true);
             return handler.simpleNativeHandler().apply(
-                    client.execute_cql3_query(query, key, Compression.NONE, state.settings.command.consistencyLevel)
+                    client.execute_cql3_query(formattedQuery, key, Compression.NONE, state.settings.command.consistencyLevel)
             );
         }
 
