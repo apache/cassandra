@@ -28,3 +28,4 @@ examples/triggers/build.xml
 examples/triggers/conf/*
 examples/hadoop_word_count/conf/log4j.properties
 pylib/cqlshlib/test/**
+src/resources/org/apache/cassandra/config/version.properties

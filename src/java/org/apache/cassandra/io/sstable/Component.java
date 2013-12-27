@@ -51,7 +51,7 @@ public class Component
         DIGEST("Digest.sha1"),
         // holds the CRC32 for chunks in an a uncompressed file.
         CRC("CRC.db"),
-        // holds SSTable Index Summary and Boundaries
+        // holds SSTable Index Summary (sampling of Index component)
         SUMMARY("Summary.db"),
         // table of contents, stores the list of all components for the sstable
         TOC("TOC.txt"),
