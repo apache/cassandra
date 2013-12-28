@@ -317,26 +317,27 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /** call when dropping or renaming a CF. Performs mbean housekeeping and invalidates CFS to other operations */
     public void invalidate()
     {
+        valid = false;
+
         try
         {
-            valid = false;
             unregisterMBean();
-
-            SystemKeyspace.removeTruncationRecord(metadata.cfId);
-            data.unreferenceSSTables();
-            indexManager.invalidate();
-
-            for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
-            {
-                if (key.cfId == metadata.cfId)
-                    invalidateCachedRow(key);
-            }
         }
         catch (Exception e)
         {
             // this shouldn't block anything.
             logger.warn("Failed unregistering mbean: {}", mbeanName, e);
         }
+
+        compactionStrategy.shutdown();
+
+        SystemKeyspace.removeTruncationRecord(metadata.cfId);
+        data.unreferenceSSTables();
+        indexManager.invalidate();
+
+        for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
+            if (key.cfId == metadata.cfId)
+                invalidateCachedRow(key);
     }
 
     /**
