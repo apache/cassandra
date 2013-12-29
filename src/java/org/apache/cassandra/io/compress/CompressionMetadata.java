@@ -362,7 +362,8 @@ public class CompressionMetadata
 
         public void close() throws IOException
         {
-            getFD().sync();
+            if (getChannel().isOpen()) // if RAF.closed were public we could just use that, but it's not
+                getChannel().force(true);
             super.close();
         }
     }
