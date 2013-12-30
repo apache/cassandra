@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 public interface HintedHandOffManagerMBean
 {
@@ -27,6 +28,11 @@ public interface HintedHandOffManagerMBean
      * @param host String rep. of endpoint address to delete hints for, either ip address ("127.0.0.1") or hostname
      */
     public void deleteHintsForEndpoint(final String host);
+
+    /**
+     *  Truncate all the hints
+     */
+    public void truncateAllHints() throws ExecutionException, InterruptedException;
 
     /**
      * List all the endpoints that this node has hints for.

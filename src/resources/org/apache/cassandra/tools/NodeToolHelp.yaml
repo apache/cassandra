@@ -67,6 +67,9 @@ commands:
   - name: enablehandoff
     help: |
       Reenable the future hints storing on the current node
+  - name: truncatehints <host-name>
+    help: |
+        Truncate all hints on the local node, or truncate hints for the endpoint specified.
   - name: resumehandoff
     help: |
       Resume hints delivery process
