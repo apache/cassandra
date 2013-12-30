@@ -169,6 +169,11 @@ public class SystemKeyspace
         return compactionId;
     }
 
+    /**
+     * Deletes the entry for this compaction from the set of compactions in progress.  The compaction does not need
+     * to complete successfully for this to be called.
+     * @param taskId what was returned from {@code startCompaction}
+     */
     public static void finishCompaction(UUID taskId)
     {
         assert taskId != null;
@@ -179,21 +184,31 @@ public class SystemKeyspace
     }
 
     /**
-     * @return unfinished compactions, grouped by keyspace/columnfamily pair.
+     * Returns a Map whose keys are KS.CF pairs and whose values are maps from sstable generation numbers to the
+     * task ID of the compaction they were participating in.
      */
-    public static SetMultimap<Pair<String, String>, Integer> getUnfinishedCompactions()
+    public static Map<Pair<String, String>, Map<Integer, UUID>> getUnfinishedCompactions()
     {
         String req = "SELECT * FROM system.%s";
         UntypedResultSet resultSet = processInternal(String.format(req, COMPACTION_LOG));
 
-        SetMultimap<Pair<String, String>, Integer> unfinishedCompactions = HashMultimap.create();
+        Map<Pair<String, String>, Map<Integer, UUID>> unfinishedCompactions = new HashMap<>();
         for (UntypedResultSet.Row row : resultSet)
         {
             String keyspace = row.getString("keyspace_name");
             String columnfamily = row.getString("columnfamily_name");
             Set<Integer> inputs = row.getSet("inputs", Int32Type.instance);
+            UUID taskID = row.getUUID("id");
 
-            unfinishedCompactions.putAll(Pair.create(keyspace, columnfamily), inputs);
+            Pair<String, String> kscf = Pair.create(keyspace, columnfamily);
+            Map<Integer, UUID> generationToTaskID = unfinishedCompactions.get(kscf);
+            if (generationToTaskID == null)
+                generationToTaskID = new HashMap<>(inputs.size());
+
+            for (Integer generation : inputs)
+                generationToTaskID.put(generation, taskID);
+
+            unfinishedCompactions.put(kscf, generationToTaskID);
         }
         return unfinishedCompactions;
     }

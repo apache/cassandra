@@ -22,6 +22,7 @@
 
 
 2.0.5
+* Delete unfinished compaction incrementally (CASSANDRA-6086)
 Merged from 1.2:
  * fsync compression metadata (CASSANDRA-6531)
 
