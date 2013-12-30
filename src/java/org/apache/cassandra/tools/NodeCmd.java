@@ -74,6 +74,7 @@ public class NodeCmd
     private static final Pair<String, String> UPGRADE_ALL_SSTABLE_OPT = Pair.create("a", "include-all-sstables");
     private static final Pair<String, String> NO_SNAPSHOT = Pair.create("ns", "no-snapshot");
     private static final Pair<String, String> CFSTATS_IGNORE_OPT = Pair.create("i", "ignore");
+    private static final Pair<String, String> RESOLVE_IP = Pair.create("r", "resolve-ip");
 
     private static final String DEFAULT_HOST = "127.0.0.1";
     private static final int DEFAULT_PORT = 7199;
@@ -100,6 +101,7 @@ public class NodeCmd
         options.addOption(UPGRADE_ALL_SSTABLE_OPT, false, "includes sstables that are already on the most recent version during upgradesstables");
         options.addOption(NO_SNAPSHOT, false, "disables snapshot creation for scrub");
         options.addOption(CFSTATS_IGNORE_OPT, false, "ignore the supplied list of keyspace.columnfamiles in statistics");
+        options.addOption(RESOLVE_IP, false, "show node domain names instead of IPs");
     }
 
     public NodeCmd(NodeProbe probe)
@@ -374,11 +376,13 @@ public class NodeCmd
         Map<String, String> loadMap, hostIDMap, tokensToEndpoints;
         EndpointSnitchInfoMBean epSnitchInfo;
         PrintStream outs;
+        private final boolean resolveIp;
 
-        ClusterStatus(PrintStream outs, String kSpace)
+        ClusterStatus(PrintStream outs, String kSpace, boolean resolveIp)
         {
             this.kSpace = kSpace;
             this.outs = outs;
+            this.resolveIp = resolveIp;
             joiningNodes = probe.getJoiningNodes();
             leavingNodes = probe.getLeavingNodes();
             movingNodes = probe.getMovingNodes();
@@ -396,18 +400,58 @@ public class NodeCmd
             outs.println("|/ State=Normal/Leaving/Joining/Moving");
         }
 
-        private Map<String, Map<InetAddress, Float>> getOwnershipByDc(Map<InetAddress, Float> ownerships)
+        class SetHostStat implements Iterable<HostStat> {
+            final List<HostStat> hostStats = new ArrayList<HostStat>();
+
+            public SetHostStat() {}
+
+            public SetHostStat(Map<InetAddress, Float> ownerships) {
+                for (Map.Entry<InetAddress, Float> entry : ownerships.entrySet()) {
+                    hostStats.add(new HostStat(entry));
+                }
+            }
+
+            @Override
+            public Iterator<HostStat> iterator() {
+                return hostStats.iterator();
+            }
+
+            public void add(HostStat entry) {
+                hostStats.add(entry);
+            }
+        }
+
+        class HostStat {
+            public final String ip;
+            public final String dns;
+            public final Float owns;
+
+            public HostStat(Map.Entry<InetAddress, Float> ownership) {
+                this.ip = ownership.getKey().getHostAddress();
+                this.dns = ownership.getKey().getHostName();
+                this.owns = ownership.getValue();
+            }
+
+            public String ipOrDns() {
+                if (resolveIp) {
+                    return dns;
+                }
+                return ip;
+            }
+        }
+
+        private Map<String, SetHostStat> getOwnershipByDc(SetHostStat ownerships)
         throws UnknownHostException
         {
-            Map<String, Map<InetAddress, Float>> ownershipByDc = Maps.newLinkedHashMap();
+            Map<String, SetHostStat> ownershipByDc = Maps.newLinkedHashMap();
             EndpointSnitchInfoMBean epSnitchInfo = probe.getEndpointSnitchInfoProxy();
 
-            for (Map.Entry<InetAddress, Float> ownership : ownerships.entrySet())
+            for (HostStat ownership : ownerships)
             {
-                String dc = epSnitchInfo.getDatacenter(ownership.getKey().getHostAddress());
+                String dc = epSnitchInfo.getDatacenter(ownership.ip);
                 if (!ownershipByDc.containsKey(dc))
-                    ownershipByDc.put(dc, new LinkedHashMap<InetAddress, Float>());
-                ownershipByDc.get(dc).put(ownership.getKey(), ownership.getValue());
+                    ownershipByDc.put(dc, new SetHostStat());
+                ownershipByDc.get(dc).add(ownership);
             }
 
             return ownershipByDc;
@@ -435,12 +479,12 @@ public class NodeCmd
             return format;
         }
 
-        private void printNode(String endpoint, Float owns, Map<InetAddress, Float> ownerships,
+        private void printNode(HostStat hostStat,
                 boolean hasEffectiveOwns, boolean isTokenPerNode) throws UnknownHostException
         {
             String status, state, load, strOwns, hostID, rack, fmt;
             fmt = getFormat(hasEffectiveOwns, isTokenPerNode);
-
+            String endpoint = hostStat.ip;
             if      (liveNodes.contains(endpoint))        status = "U";
             else if (unreachableNodes.contains(endpoint)) status = "D";
             else                                          status = "?";
@@ -450,18 +494,18 @@ public class NodeCmd
             else                                          state = "N";
 
             load = loadMap.containsKey(endpoint) ? loadMap.get(endpoint) : "?";
-            strOwns = new DecimalFormat("##0.0%").format(ownerships.get(InetAddress.getByName(endpoint)));
+            strOwns = new DecimalFormat("##0.0%").format(hostStat.owns);
             hostID = hostIDMap.get(endpoint);
             rack = epSnitchInfo.getRack(endpoint);
 
             if (isTokenPerNode)
             {
-                outs.printf(fmt, status, state, endpoint, load, strOwns, hostID, probe.getTokens(endpoint).get(0), rack);
+                outs.printf(fmt, status, state, hostStat.ipOrDns(), load, strOwns, hostID, probe.getTokens(endpoint).get(0), rack);
             }
             else
             {
                 int tokens = probe.getTokens(endpoint).size();
-                outs.printf(fmt, status, state, endpoint, load, tokens, strOwns, hostID, rack);
+                outs.printf(fmt, status, state, hostStat.ipOrDns(), load, tokens, strOwns, hostID, rack);
             }
         }
 
@@ -476,42 +520,41 @@ public class NodeCmd
                 outs.printf(fmt, "-", "-", "Address", "Load", "Tokens", owns, "Host ID", "Rack");
         }
 
+        void findMaxAddressLength(Map<String, SetHostStat> dcs) {
+            maxAddressLength = 0;
+            for (Map.Entry<String, SetHostStat> dc : dcs.entrySet())
+            {
+                for (HostStat stat : dc.getValue()) {
+                    maxAddressLength = Math.max(maxAddressLength, stat.ipOrDns().length());
+                }
+            }
+        }
+
         void print() throws UnknownHostException
         {
-            Map<InetAddress, Float> ownerships;
+            SetHostStat ownerships;
             boolean hasEffectiveOwns = false, isTokenPerNode = true;
 
             try
             {
-                ownerships = probe.effectiveOwnership(kSpace);
+                ownerships = new SetHostStat(probe.effectiveOwnership(kSpace));
                 hasEffectiveOwns = true;
             }
             catch (IllegalStateException e)
             {
-                ownerships = probe.getOwnership();
+                ownerships = new SetHostStat(probe.getOwnership());
             }
 
             // More tokens then nodes (aka vnodes)?
             if (new HashSet<String>(tokensToEndpoints.values()).size() < tokensToEndpoints.keySet().size())
                 isTokenPerNode = false;
 
-            maxAddressLength = 0;
-            for (Map.Entry<String, Map<InetAddress, Float>> dc : getOwnershipByDc(ownerships).entrySet())
-            {
-                int dcMaxAddressLength = Collections.max(dc.getValue().keySet(), new Comparator<InetAddress>() {
-                    @Override
-                    public int compare(InetAddress first, InetAddress second)
-                    {
-                        return ((Integer)first.getHostAddress().length()).compareTo((Integer)second.getHostAddress().length());
-                    }
-                }).getHostAddress().length();
+            Map<String, SetHostStat> dcs = getOwnershipByDc(ownerships);
 
-                if(dcMaxAddressLength > maxAddressLength)
-                    maxAddressLength = dcMaxAddressLength;
-            }
+            findMaxAddressLength(dcs);
 
             // Datacenters
-            for (Map.Entry<String, Map<InetAddress, Float>> dc : getOwnershipByDc(ownerships).entrySet())
+            for (Map.Entry<String, SetHostStat> dc : dcs.entrySet())
             {
                 String dcHeader = String.format("Datacenter: %s%n", dc.getKey());
                 outs.printf(dcHeader);
@@ -522,21 +565,17 @@ public class NodeCmd
                 printNodesHeader(hasEffectiveOwns, isTokenPerNode);
 
                 // Nodes
-                for (Map.Entry<InetAddress, Float> entry : dc.getValue().entrySet())
-                    printNode(entry.getKey().getHostAddress(),
-                              entry.getValue(),
-                              ownerships,
-                              hasEffectiveOwns,
-                              isTokenPerNode);
+                for (HostStat entry : dc.getValue())
+                    printNode(entry, hasEffectiveOwns, isTokenPerNode);
             }
         }
     }
 
     /** Writes a keyspaceName of cluster-wide node information to a PrintStream
      * @throws UnknownHostException */
-    public void printClusterStatus(PrintStream outs, String keyspace) throws UnknownHostException
+    public void printClusterStatus(PrintStream outs, String keyspace, boolean resolveIp) throws UnknownHostException
     {
-        new ClusterStatus(outs, keyspace).print();
+        new ClusterStatus(outs, keyspace, resolveIp).print();
     }
 
     public void printThreadPoolStats(PrintStream outs)
@@ -1155,8 +1194,9 @@ public class NodeCmd
                     break;
 
                 case STATUS :
-                    if (arguments.length > 0) nodeCmd.printClusterStatus(System.out, arguments[0]);
-                    else                      nodeCmd.printClusterStatus(System.out, null);
+                    boolean resolveIp = cmd.hasOption(RESOLVE_IP.left);
+                    if (arguments.length > 0) nodeCmd.printClusterStatus(System.out, arguments[0], resolveIp);
+                    else                      nodeCmd.printClusterStatus(System.out, null, resolveIp);
                     break;
 
                 case DECOMMISSION :
