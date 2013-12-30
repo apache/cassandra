@@ -727,6 +727,27 @@ public class NodeProbe
         hhProxy.pauseHintsDelivery(false);
     }
 
+    public void truncateHints(final String host)
+    {
+        hhProxy.deleteHintsForEndpoint(host);
+    }
+
+    public void truncateHints()
+    {
+        try
+        {
+            hhProxy.truncateAllHints();
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException("Error while executing truncate hints", e);
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException("Error while executing truncate hints", e);
+        }
+    }
+
     public void stopNativeTransport()
     {
         ssProxy.stopNativeTransport();

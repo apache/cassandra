@@ -226,7 +226,29 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 }
             }
         };
-        StorageService.optionalTasks.execute(runnable);
+        StorageService.optionalTasks.submit(runnable);
+    }
+
+    //foobar
+    public void truncateAllHints() throws ExecutionException, InterruptedException
+    {
+        Runnable runnable = new Runnable()
+        {
+            public void run()
+            {
+                try
+                {
+                    logger.info("Truncating all stored hints.");
+                    Keyspace.open(Keyspace.SYSTEM_KS).getColumnFamilyStore(SystemKeyspace.HINTS_CF).truncateBlocking();
+                }
+                catch (Exception e)
+                {
+                    logger.warn("Could not truncate all hints.", e);
+                }
+            }
+        };
+        StorageService.optionalTasks.submit(runnable).get();
+
     }
 
     @VisibleForTesting

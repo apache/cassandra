@@ -93,4 +93,36 @@ public class HintedHandOffTest extends SchemaLoader
         Map<UUID, Integer> returned = rows.one().getMap("hints_dropped", UUIDType.instance, Int32Type.instance);
         assertEquals(Iterators.getLast(returned.values().iterator()).intValue(), 99);
     }
+
+    @Test(timeout = 5000)
+    public void testTruncateHints() throws Exception
+    {
+        Keyspace systemKeyspace = Keyspace.open("system");
+        ColumnFamilyStore hintStore = systemKeyspace.getColumnFamilyStore(SystemKeyspace.HINTS_CF);
+        hintStore.clearUnsafe();
+
+        // insert 1 hint
+        RowMutation rm = new RowMutation(KEYSPACE4, ByteBufferUtil.bytes(1));
+        rm.add(STANDARD1_CF, ByteBufferUtil.bytes(String.valueOf(COLUMN1)), ByteBufferUtil.EMPTY_BYTE_BUFFER, System.currentTimeMillis());
+
+        HintedHandOffManager.instance.hintFor(rm, HintedHandOffManager.calculateHintTTL(rm), UUID.randomUUID()).apply();
+
+        assert getNoOfHints() == 1;
+
+        HintedHandOffManager.instance.truncateAllHints();
+
+        while(getNoOfHints() > 0)
+        {
+            Thread.sleep(100);
+        }
+
+        assert getNoOfHints() == 0;
+    }
+
+    private int getNoOfHints()
+    {
+        String req = "SELECT * FROM system.%s";
+        UntypedResultSet resultSet = processInternal(String.format(req, SystemKeyspace.HINTS_CF));
+        return resultSet.size();
+    }
 }

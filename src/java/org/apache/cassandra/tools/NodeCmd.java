@@ -165,6 +165,7 @@ public class NodeCmd
         STOP,
         STOPDAEMON,
         TPSTATS,
+        TRUNCATEHINTS,
         UPGRADESSTABLES,
         VERSION,
         DESCRIBERING,
@@ -1146,7 +1147,12 @@ public class NodeCmd
                 case RESETLOCALSCHEMA: probe.resetLocalSchema(); break;
                 case ENABLEBACKUP    : probe.setIncrementalBackupsEnabled(true); break;
                 case DISABLEBACKUP   : probe.setIncrementalBackupsEnabled(false); break;
-                    
+
+                case TRUNCATEHINTS:
+                    if (arguments.length > 1) badUse("Too many arguments.");
+                    else if (arguments.length == 1) probe.truncateHints(arguments[0]);
+                    else probe.truncateHints();
+                    break;
 
                 case STATUS :
                     if (arguments.length > 0) nodeCmd.printClusterStatus(System.out, arguments[0]);
