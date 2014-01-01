@@ -97,7 +97,7 @@ public interface Restriction
             return new WithValues(values);
         }
 
-        public static IN create(Term value) throws InvalidRequestException
+        public static IN create(Term value)
         {
             assert value instanceof Lists.Marker; // we shouldn't have got there otherwise
             return new WithMarker((Lists.Marker)value);
