@@ -18,7 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
@@ -49,7 +49,9 @@ import org.apache.cassandra.utils.Allocator;
  */
 public class AtomicSortedColumns extends ColumnFamily
 {
-    private final AtomicReference<Holder> ref;
+    private volatile Holder ref;
+    private static final AtomicReferenceFieldUpdater<AtomicSortedColumns, Holder> refUpdater
+            = AtomicReferenceFieldUpdater.newUpdater(AtomicSortedColumns.class, Holder.class, "ref");
 
     public static final ColumnFamily.Factory<AtomicSortedColumns> factory = new Factory<AtomicSortedColumns>()
     {
@@ -67,12 +69,12 @@ public class AtomicSortedColumns extends ColumnFamily
     private AtomicSortedColumns(CFMetaData metadata, Holder holder)
     {
         super(metadata);
-        this.ref = new AtomicReference<>(holder);
+        this.ref = holder;
     }
 
     public CellNameType getComparator()
     {
-        return (CellNameType)ref.get().map.comparator();
+        return (CellNameType)ref.map.comparator();
     }
 
     public ColumnFamily.Factory getFactory()
@@ -82,12 +84,12 @@ public class AtomicSortedColumns extends ColumnFamily
 
     public ColumnFamily cloneMe()
     {
-        return new AtomicSortedColumns(metadata, ref.get().cloneMe());
+        return new AtomicSortedColumns(metadata, ref.cloneMe());
     }
 
     public DeletionInfo deletionInfo()
     {
-        return ref.get().deletionInfo;
+        return ref.deletionInfo;
     }
 
     public void delete(DeletionTime delTime)
@@ -108,29 +110,29 @@ public class AtomicSortedColumns extends ColumnFamily
         // Keeping deletion info for max markedForDeleteAt value
         while (true)
         {
-            Holder current = ref.get();
+            Holder current = ref;
             DeletionInfo newDelInfo = current.deletionInfo.copy().add(info);
-            if (ref.compareAndSet(current, current.with(newDelInfo)))
+            if (refUpdater.compareAndSet(this, current, current.with(newDelInfo)))
                 break;
         }
     }
 
     public void setDeletionInfo(DeletionInfo newInfo)
     {
-        ref.set(ref.get().with(newInfo));
+        ref = ref.with(newInfo);
     }
 
     public void purgeTombstones(int gcBefore)
     {
         while (true)
         {
-            Holder current = ref.get();
+            Holder current = ref;
             if (!current.deletionInfo.hasPurgeableTombstones(gcBefore))
                 break;
 
             DeletionInfo purgedInfo = current.deletionInfo.copy();
             purgedInfo.purge(gcBefore);
-            if (ref.compareAndSet(current, current.with(purgedInfo)))
+            if (refUpdater.compareAndSet(this, current, current.with(purgedInfo)))
                 break;
         }
     }
@@ -140,11 +142,11 @@ public class AtomicSortedColumns extends ColumnFamily
         Holder current, modified;
         do
         {
-            current = ref.get();
+            current = ref;
             modified = current.cloneMe();
             modified.addColumn(cell, allocator, SecondaryIndexManager.nullUpdater);
         }
-        while (!ref.compareAndSet(current, modified));
+        while (!refUpdater.compareAndSet(this, current, modified));
     }
 
     public void addAll(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation)
@@ -177,7 +179,7 @@ public class AtomicSortedColumns extends ColumnFamily
         do
         {
             sizeDelta = 0;
-            current = ref.get();
+            current = ref;
             DeletionInfo newDelInfo = current.deletionInfo.copy().add(cm.deletionInfo());
             modified = new Holder(current.map.clone(), newDelInfo);
 
@@ -194,11 +196,11 @@ public class AtomicSortedColumns extends ColumnFamily
             {
                 sizeDelta += modified.addColumn(transformation.apply(cell), allocator, indexer);
                 // bail early if we know we've been beaten
-                if (ref.get() != current)
+                if (ref != current)
                     continue main_loop;
             }
         }
-        while (!ref.compareAndSet(current, modified));
+        while (!refUpdater.compareAndSet(this, current, modified));
 
         indexer.updateRowLevelIndexes();
 
@@ -214,11 +216,11 @@ public class AtomicSortedColumns extends ColumnFamily
         boolean replaced;
         do
         {
-            current = ref.get();
+            current = ref;
             modified = current.cloneMe();
             replaced = modified.map.replace(oldCell.name(), oldCell, newCell);
         }
-        while (!ref.compareAndSet(current, modified));
+        while (!refUpdater.compareAndSet(this, current, modified));
         return replaced;
     }
 
@@ -227,45 +229,45 @@ public class AtomicSortedColumns extends ColumnFamily
         Holder current, modified;
         do
         {
-            current = ref.get();
+            current = ref;
             modified = current.clear();
         }
-        while (!ref.compareAndSet(current, modified));
+        while (!refUpdater.compareAndSet(this, current, modified));
     }
 
     public Cell getColumn(CellName name)
     {
-        return ref.get().map.get(name);
+        return ref.map.get(name);
     }
 
     public SortedSet<CellName> getColumnNames()
     {
-        return ref.get().map.keySet();
+        return ref.map.keySet();
     }
 
     public Collection<Cell> getSortedColumns()
     {
-        return ref.get().map.values();
+        return ref.map.values();
     }
 
     public Collection<Cell> getReverseSortedColumns()
     {
-        return ref.get().map.descendingMap().values();
+        return ref.map.descendingMap().values();
     }
 
     public int getColumnCount()
     {
-        return ref.get().map.size();
+        return ref.map.size();
     }
 
     public Iterator<Cell> iterator(ColumnSlice[] slices)
     {
-        return new ColumnSlice.NavigableMapIterator(ref.get().map, slices);
+        return new ColumnSlice.NavigableMapIterator(ref.map, slices);
     }
 
     public Iterator<Cell> reverseIterator(ColumnSlice[] slices)
     {
-        return new ColumnSlice.NavigableMapIterator(ref.get().map.descendingMap(), slices);
+        return new ColumnSlice.NavigableMapIterator(ref.map.descendingMap(), slices);
     }
 
     public boolean isInsertReversed()

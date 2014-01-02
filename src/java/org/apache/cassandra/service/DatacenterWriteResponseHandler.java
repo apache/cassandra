@@ -50,8 +50,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     {
         if (message == null || DatabaseDescriptor.getLocalDataCenter().equals(snitch.getDatacenter(message.from)))
         {
-            if (responses.decrementAndGet() == 0)
-                signal();
+            super.response(message);
         }
     }
 }

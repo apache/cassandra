@@ -21,7 +21,7 @@ import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -54,7 +54,9 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
     final List<InetAddress> endpoints;
     private final IReadCommand command;
     private final ConsistencyLevel consistencyLevel;
-    private final AtomicInteger received = new AtomicInteger(0);
+    private static final AtomicIntegerFieldUpdater<ReadCallback> recievedUpdater
+            = AtomicIntegerFieldUpdater.newUpdater(ReadCallback.class, "received");
+    private volatile int received = 0;
     private final Keyspace keyspace; // TODO push this into ConsistencyLevel?
 
     /**
@@ -96,10 +98,10 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         if (!await(command.getTimeout(), TimeUnit.MILLISECONDS))
         {
             // Same as for writes, see AbstractWriteResponseHandler
-            int acks = received.get();
+            int acks = received;
             if (resolver.isDataPresent() && acks >= blockfor)
                 acks = blockfor - 1;
-            ReadTimeoutException ex = new ReadTimeoutException(consistencyLevel, received.get(), blockfor, resolver.isDataPresent());
+            ReadTimeoutException ex = new ReadTimeoutException(consistencyLevel, received, blockfor, resolver.isDataPresent());
             if (logger.isDebugEnabled())
                 logger.debug("Read timeout: {}", ex.toString());
             throw ex;
@@ -112,8 +114,8 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
     {
         resolver.preprocess(message);
         int n = waitingFor(message)
-              ? received.incrementAndGet()
-              : received.get();
+              ? recievedUpdater.incrementAndGet(this)
+              : received;
         if (n >= blockfor && resolver.isDataPresent())
         {
             condition.signalAll();
@@ -136,7 +138,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
      */
     public int getReceivedCount()
     {
-        return received.get();
+        return received;
     }
 
     public void response(TMessage result)
@@ -155,7 +157,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
      */
     protected void maybeResolveForRepair()
     {
-        if (blockfor < endpoints.size() && received.get() == endpoints.size())
+        if (blockfor < endpoints.size() && received == endpoints.size())
         {
             assert resolver.isDataPresent();
             StageManager.getStage(Stage.READ_REPAIR).execute(new AsyncRepairRunner());
