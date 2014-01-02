@@ -25,6 +25,7 @@
 * Delete unfinished compaction incrementally (CASSANDRA-6086)
 Merged from 1.2:
  * fsync compression metadata (CASSANDRA-6531)
+ * Validate CF existence on execution for prepared statement (CASSANDRA-6535)
 
 
 2.0.4
