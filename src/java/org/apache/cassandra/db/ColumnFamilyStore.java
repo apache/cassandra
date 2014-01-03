@@ -501,7 +501,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // remove new sstables from compactions that didn't complete, and compute
         // set of ancestors that shouldn't exist anymore
         Set<Integer> completedAncestors = new HashSet<>();
-        for (Map.Entry<Descriptor, Set<Component>> sstableFiles : directories.sstableLister().list().entrySet())
+        for (Map.Entry<Descriptor, Set<Component>> sstableFiles : directories.sstableLister().skipTemporary(true).list().entrySet())
         {
             Descriptor desc = sstableFiles.getKey();
 
