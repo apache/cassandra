@@ -93,7 +93,7 @@ public class Memtable
     // We index the memtable by RowPosition only for the purpose of being able
     // to select key range using Token.KeyBound. However put() ensures that we
     // actually only store DecoratedKey.
-    private final ConcurrentNavigableMap<RowPosition, AtomicSortedColumns> rows = new ConcurrentSkipListMap<RowPosition, AtomicSortedColumns>();
+    private final ConcurrentNavigableMap<RowPosition, AtomicBTreeColumns> rows = new ConcurrentSkipListMap<>();
     public final ColumnFamilyStore cfs;
     private final long creationTime = System.currentTimeMillis();
     private final long creationNano = System.nanoTime();
@@ -180,11 +180,11 @@ public class Memtable
 
     private void resolve(DecoratedKey key, ColumnFamily cf, SecondaryIndexManager.Updater indexer)
     {
-        AtomicSortedColumns previous = rows.get(key);
+        AtomicBTreeColumns previous = rows.get(key);
 
         if (previous == null)
         {
-            AtomicSortedColumns empty = cf.cloneMeShallow(AtomicSortedColumns.factory, false);
+            AtomicBTreeColumns empty = cf.cloneMeShallow(AtomicBTreeColumns.factory, false);
             // We'll add the columns later. This avoids wasting works if we get beaten in the putIfAbsent
             previous = rows.putIfAbsent(new DecoratedKey(key.token, allocator.clone(key.key)), empty);
             if (previous == null)
@@ -203,7 +203,7 @@ public class Memtable
     {
         StringBuilder builder = new StringBuilder();
         builder.append("{");
-        for (Map.Entry<RowPosition, AtomicSortedColumns> entry : rows.entrySet())
+        for (Map.Entry<RowPosition, AtomicBTreeColumns> entry : rows.entrySet())
         {
             builder.append(entry.getKey()).append(": ").append(entry.getValue()).append(", ");
         }
@@ -226,29 +226,29 @@ public class Memtable
      * @param startWith Include data in the result from and including this key and to the end of the memtable
      * @return An iterator of entries with the data from the start key
      */
-    public Iterator<Map.Entry<DecoratedKey, AtomicSortedColumns>> getEntryIterator(final RowPosition startWith, final RowPosition stopAt)
+    public Iterator<Map.Entry<DecoratedKey, AtomicBTreeColumns>> getEntryIterator(final RowPosition startWith, final RowPosition stopAt)
     {
-        return new Iterator<Map.Entry<DecoratedKey, AtomicSortedColumns>>()
+        return new Iterator<Map.Entry<DecoratedKey, AtomicBTreeColumns>>()
         {
-            private Iterator<Map.Entry<RowPosition, AtomicSortedColumns>> iter = stopAt.isMinimum(cfs.partitioner)
-                                                                               ? rows.tailMap(startWith).entrySet().iterator()
-                                                                               : rows.subMap(startWith, true, stopAt, true).entrySet().iterator();
-            private Map.Entry<RowPosition, AtomicSortedColumns> currentEntry;
+            private Iterator<? extends Map.Entry<RowPosition, AtomicBTreeColumns>> iter = stopAt.isMinimum(cfs.partitioner)
+                                                                                        ? rows.tailMap(startWith).entrySet().iterator()
+                                                                                        : rows.subMap(startWith, true, stopAt, true).entrySet().iterator();
+            private Map.Entry<RowPosition, AtomicBTreeColumns> currentEntry;
 
             public boolean hasNext()
             {
                 return iter.hasNext();
             }
 
-            public Map.Entry<DecoratedKey, AtomicSortedColumns> next()
+            public Map.Entry<DecoratedKey, AtomicBTreeColumns> next()
             {
-                Map.Entry<RowPosition, AtomicSortedColumns> entry = iter.next();
+                Map.Entry<RowPosition, AtomicBTreeColumns> entry = iter.next();
                 // Store the reference to the current entry so that remove() can update the current size.
                 currentEntry = entry;
                 // Actual stored key should be true DecoratedKey
                 assert entry.getKey() instanceof DecoratedKey;
                 // Object cast is required since otherwise we can't turn RowPosition into DecoratedKey
-                return (Map.Entry<DecoratedKey, AtomicSortedColumns>) (Object)entry;
+                return (Map.Entry<DecoratedKey, AtomicBTreeColumns>) (Object)entry;
             }
 
             public void remove()
@@ -339,7 +339,7 @@ public class Memtable
             {
                 // (we can't clear out the map as-we-go to free up memory,
                 //  since the memtable is being used for queries in the "pending flush" category)
-                for (Map.Entry<RowPosition, AtomicSortedColumns> entry : rows.entrySet())
+                for (Map.Entry<RowPosition, AtomicBTreeColumns> entry : rows.entrySet())
                 {
                     ColumnFamily cf = entry.getValue();
                     if (cf.isMarkedForDelete())
@@ -413,7 +413,7 @@ public class Memtable
                 // So to reduce the memory overhead of doing a measurement, we break it up to row-at-a-time.
                 long deepSize = memtable.meter.measure(memtable.rows);
                 int objects = 0;
-                for (Map.Entry<RowPosition, AtomicSortedColumns> entry : memtable.rows.entrySet())
+                for (Map.Entry<RowPosition, AtomicBTreeColumns> entry : memtable.rows.entrySet())
                 {
                     deepSize += memtable.meter.measureDeep(entry.getKey()) + memtable.meter.measureDeep(entry.getValue());
                     objects += entry.getValue().getColumnCount();

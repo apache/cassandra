@@ -159,7 +159,7 @@ JMX_PORT="7199"
 
 # enable assertions.  disabling this in production will give a modest
 # performance benefit (around 5%).
-JVM_OPTS="$JVM_OPTS -ea"
+#JVM_OPTS="$JVM_OPTS -ea"
 
 # add the jamm javaagent
 if [ "$JVM_VENDOR" != "OpenJDK" -o "$JVM_VERSION" \> "1.6.0" ] \

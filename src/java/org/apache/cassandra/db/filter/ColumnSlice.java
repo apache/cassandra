@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
+import java.util.NavigableSet;
 
 import com.google.common.collect.AbstractIterator;
 
@@ -165,15 +166,15 @@ public class ColumnSlice
                     if (slice.finish.isEmpty())
                         currentSlice = map.values().iterator();
                     else
-                        currentSlice = map.headMap(new FakeCell(slice.finish), true).values().iterator();
+                        currentSlice = map.headMap(new FakeCellName(slice.finish), true).values().iterator();
                 }
                 else if (slice.finish.isEmpty())
                 {
-                    currentSlice = map.tailMap(new FakeCell(slice.start), true).values().iterator();
+                    currentSlice = map.tailMap(new FakeCellName(slice.start), true).values().iterator();
                 }
                 else
                 {
-                    currentSlice = map.subMap(new FakeCell(slice.start), true, new FakeCell(slice.finish), true).values().iterator();
+                    currentSlice = map.subMap(new FakeCellName(slice.start), true, new FakeCellName(slice.finish), true).values().iterator();
                 }
             }
 
@@ -185,6 +186,60 @@ public class ColumnSlice
         }
     }
 
+    public static class NavigableSetIterator extends AbstractIterator<Cell>
+    {
+        private final NavigableSet<Cell> set;
+        private final ColumnSlice[] slices;
+
+        private int idx = 0;
+        private Iterator<Cell> currentSlice;
+
+        public NavigableSetIterator(NavigableSet<Cell> set, ColumnSlice[] slices)
+        {
+            this.set = set;
+            this.slices = slices;
+        }
+
+        protected Cell computeNext()
+        {
+            if (currentSlice == null)
+            {
+                if (idx >= slices.length)
+                    return endOfData();
+
+                ColumnSlice slice = slices[idx++];
+                // We specialize the case of start == "" and finish = "" because it is slightly more efficient,
+                // but also they have a specific meaning (namely, they always extend to the beginning/end of the range).
+                if (slice.start.isEmpty())
+                {
+                    if (slice.finish.isEmpty())
+                        currentSlice = set.iterator();
+                    else
+                        currentSlice = set.headSet(fakeCell(slice.finish), true).iterator();
+                }
+                else if (slice.finish.isEmpty())
+                {
+                    currentSlice = set.tailSet(fakeCell(slice.start), true).iterator();
+                }
+                else
+                {
+                    currentSlice = set.subSet(fakeCell(slice.start), true, fakeCell(slice.finish), true).iterator();
+                }
+            }
+
+            if (currentSlice.hasNext())
+                return currentSlice.next();
+
+            currentSlice = null;
+            return computeNext();
+        }
+    }
+
+    private static Cell fakeCell(Composite name)
+    {
+        return new Cell(new FakeCellName(name), ByteBufferUtil.EMPTY_BYTE_BUFFER);
+    }
+
     /*
     * We need to take a slice (headMap/tailMap/subMap) of a CellName map
     * based on a Composite. While CellName and Composite are comparable
@@ -194,11 +249,11 @@ public class ColumnSlice
     * CellNameType, but this doesn't matter here (since we only care about
     * comparison). This is arguably a bit of a hack.
     */
-    private static class FakeCell extends AbstractComposite implements CellName
+    private static class FakeCellName extends AbstractComposite implements CellName
     {
         private final Composite prefix;
 
-        private FakeCell(Composite prefix)
+        private FakeCellName(Composite prefix)
         {
             this.prefix = prefix;
         }
