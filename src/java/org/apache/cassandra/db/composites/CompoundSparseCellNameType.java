@@ -30,29 +30,36 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class CompoundSparseCellNameType extends AbstractCompoundCellNameType
 {
-    private static final AbstractType<?> columnNameType = UTF8Type.instance;
     private static final ColumnIdentifier rowMarkerId = new ColumnIdentifier(ByteBufferUtil.EMPTY_BYTE_BUFFER, UTF8Type.instance);
     private static final CellName rowMarkerNoPrefix = new CompoundSparseCellName(rowMarkerId);
 
+    // For CQL3 columns, this is always UTF8Type. However, for compatibility with super columns, we need to allow it to be non-UTF8.
+    private final AbstractType<?> columnNameType;
     protected final Map<ByteBuffer, ColumnIdentifier> internedIds;
 
     public CompoundSparseCellNameType(List<AbstractType<?>> types)
     {
-        this(new CompoundCType(types));
+        this(types, UTF8Type.instance);
     }
 
-    public CompoundSparseCellNameType(CompoundCType clusteringType)
+    public CompoundSparseCellNameType(List<AbstractType<?>> types, AbstractType<?> columnNameType)
     {
-        this(clusteringType, makeCType(clusteringType, null), new HashMap<ByteBuffer, ColumnIdentifier>());
+        this(new CompoundCType(types), columnNameType);
     }
 
-    private CompoundSparseCellNameType(CompoundCType clusteringType, CompoundCType fullType, Map<ByteBuffer, ColumnIdentifier> internedIds)
+    private CompoundSparseCellNameType(CompoundCType clusteringType, AbstractType<?> columnNameType)
+    {
+        this(clusteringType, columnNameType, makeCType(clusteringType, columnNameType, null), new HashMap<ByteBuffer, ColumnIdentifier>());
+    }
+
+    private CompoundSparseCellNameType(CompoundCType clusteringType, AbstractType<?> columnNameType, CompoundCType fullType, Map<ByteBuffer, ColumnIdentifier> internedIds)
     {
         super(clusteringType, fullType);
+        this.columnNameType = columnNameType;
         this.internedIds = internedIds;
     }
 
-    protected static CompoundCType makeCType(CompoundCType clusteringType, ColumnToCollectionType collectionType)
+    protected static CompoundCType makeCType(CompoundCType clusteringType, AbstractType<?> columnNameType, ColumnToCollectionType collectionType)
     {
         List<AbstractType<?>> allSubtypes = new ArrayList<AbstractType<?>>(clusteringType.size() + (collectionType == null ? 1 : 2));
         for (int i = 0; i < clusteringType.size(); i++)
@@ -66,7 +73,7 @@ public class CompoundSparseCellNameType extends AbstractCompoundCellNameType
     public CellNameType setSubtype(int position, AbstractType<?> newType)
     {
         if (position < clusteringSize)
-            return new CompoundSparseCellNameType(clusteringType.setSubtype(position, newType), fullType.setSubtype(position, newType), internedIds);
+            return new CompoundSparseCellNameType(clusteringType.setSubtype(position, newType), columnNameType, fullType.setSubtype(position, newType), internedIds);
 
         if (position == clusteringSize)
             throw new IllegalArgumentException();
@@ -159,17 +166,17 @@ public class CompoundSparseCellNameType extends AbstractCompoundCellNameType
 
         WithCollection(CompoundCType clusteringType, ColumnToCollectionType collectionType)
         {
-            this(clusteringType, makeCType(clusteringType, collectionType), collectionType, new HashMap<ByteBuffer, ColumnIdentifier>());
+            this(clusteringType, collectionType, new HashMap<ByteBuffer, ColumnIdentifier>());
         }
 
         private WithCollection(CompoundCType clusteringType, ColumnToCollectionType collectionType, Map<ByteBuffer, ColumnIdentifier> internedIds)
         {
-            this(clusteringType, makeCType(clusteringType, collectionType), collectionType, internedIds);
+            this(clusteringType, makeCType(clusteringType, UTF8Type.instance, collectionType), collectionType, internedIds);
         }
 
         private WithCollection(CompoundCType clusteringType, CompoundCType fullCType, ColumnToCollectionType collectionType, Map<ByteBuffer, ColumnIdentifier> internedIds)
         {
-            super(clusteringType, fullCType, internedIds);
+            super(clusteringType, UTF8Type.instance, fullCType, internedIds);
             this.collectionType = collectionType;
         }
 

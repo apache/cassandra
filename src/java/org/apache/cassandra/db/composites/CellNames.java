@@ -50,13 +50,14 @@ public abstract class CellNames
                 List<AbstractType<?>> types = ((CompositeType)type).types;
                 if (types.get(types.size() - 1) instanceof ColumnToCollectionType)
                 {
+                    // We don't allow collection for super columns, so the "name" type *must* be UTF8
                     assert types.get(types.size() - 2) instanceof UTF8Type;
                     return new CompoundSparseCellNameType.WithCollection(types.subList(0, types.size() - 2), (ColumnToCollectionType)types.get(types.size() - 1));
                 }
                 else
                 {
-                    assert types.get(types.size() - 1) instanceof UTF8Type;
-                    return new CompoundSparseCellNameType(types.subList(0, types.size() - 1));
+                    AbstractType<?> nameType = types.get(types.size() - 1);
+                    return new CompoundSparseCellNameType(types.subList(0, types.size() - 1), nameType);
                 }
             }
             else
