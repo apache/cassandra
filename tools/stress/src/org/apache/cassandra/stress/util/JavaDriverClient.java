@@ -105,7 +105,7 @@ public class JavaDriverClient
     {
 
         stmt.setConsistencyLevel(from(consistency));
-        BoundStatement bstmt = stmt.bind(queryParams.toArray(new ByteBuffer[queryParams.size()]));
+        BoundStatement bstmt = stmt.bind((Object[]) queryParams.toArray(new ByteBuffer[queryParams.size()]));
         return getSession().execute(bstmt);
     }
 
