@@ -17,8 +17,16 @@
  */
 package org.apache.cassandra.db;
 
-import com.google.common.base.*;
-import com.google.common.collect.*;
+import java.util.AbstractCollection;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+
+import com.google.common.base.Function;
+import com.google.common.base.Functions;
+import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
@@ -29,13 +37,6 @@ import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.btree.ReplaceFunction;
-
-import java.util.AbstractCollection;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import static org.apache.cassandra.db.index.SecondaryIndexManager.Updater;
 
