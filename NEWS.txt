@@ -30,6 +30,15 @@ Upgrading
    - Multithreaded compaction has been removed.
 
 
+2.0.5
+=====
+
+New features
+--------
+    - Batchlog replay can be, and is throttled by default now.
+      See batchlog_replay_throttle_in_kb setting in cassandra.yaml.
+
+
 2.0.3
 =====
 
