@@ -150,6 +150,7 @@ public class Config
     public Integer index_interval = null;
 
     public int hinted_handoff_throttle_in_kb = 1024;
+    public int batchlog_replay_throttle_in_kb = 1024;
     public int max_hints_delivery_threads = 1;
     public boolean compaction_preheat_key_cache = true;
 

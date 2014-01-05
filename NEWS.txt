@@ -13,6 +13,16 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+
+2.0.5
+=====
+
+New features
+--------
+    - Batchlog replay can be, and is throttled by default now.
+      See batchlog_replay_throttle_in_kb setting in cassandra.yaml.
+
+
 2.0.3
 =====
 

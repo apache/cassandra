@@ -1170,6 +1170,11 @@ public class DatabaseDescriptor
         return conf.hinted_handoff_throttle_in_kb;
     }
 
+    public static int getBatchlogReplayThrottleInKB()
+    {
+        return conf.batchlog_replay_throttle_in_kb;
+    }
+
     public static int getMaxHintsThread()
     {
         return conf.max_hints_delivery_threads;
