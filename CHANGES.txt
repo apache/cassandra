@@ -7,6 +7,7 @@
  * Validate SliceRange start and finish lengths (CASSANDRA-6521)
  * fsync compression metadata (CASSANDRA-6531)
  * Validate CF existence on execution for prepared statement (CASSANDRA-6535)
+ * Add ability to throttle batchlog replay (CASSANDRA-6550)
 
 
 1.2.13

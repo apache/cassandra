@@ -35,6 +35,7 @@ import javax.management.ObjectName;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,7 +76,7 @@ public class BatchlogManager implements BatchlogManagerMBean
     private final AtomicBoolean isReplaying = new AtomicBoolean();
 
     private static final ScheduledExecutorService batchlogTasks = new DebuggableScheduledThreadPoolExecutor("BatchlogTasks");
-    
+
     public void start()
     {
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
@@ -163,11 +164,16 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         logger.debug("Started replayAllFailedBatches");
 
+        // rate limit is in bytes per second. Uses Double.MAX_VALUE if disabled (set to 0 in cassandra.yaml).
+        // max rate is scaled by the number of nodes in the cluster (same as for HHOM - see CASSANDRA-5272).
+        int throttleInKB = DatabaseDescriptor.getBatchlogReplayThrottleInKB() / StorageService.instance.getTokenMetadata().getAllEndpoints().size();
+        RateLimiter rateLimiter = RateLimiter.create(throttleInKB == 0 ? Double.MAX_VALUE : throttleInKB * 1024);
+
         try
         {
             for (UntypedResultSet.Row row : process("SELECT id, written_at FROM %s.%s", Table.SYSTEM_KS, SystemTable.BATCHLOG_CF))
                 if (System.currentTimeMillis() > row.getLong("written_at") + TIMEOUT)
-                    replayBatch(row.getUUID("id"));
+                    replayBatch(row.getUUID("id"), rateLimiter);
             cleanup();
         }
         finally
@@ -178,7 +184,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         logger.debug("Finished replayAllFailedBatches");
     }
 
-    private void replayBatch(UUID id)
+    private void replayBatch(UUID id, RateLimiter rateLimiter)
     {
         logger.debug("Replaying batch {}", id);
 
@@ -188,7 +194,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         try
         {
-            replaySerializedMutations(result.one().getBytes("data"), result.one().getLong("written_at"));
+            replaySerializedMutations(result.one().getBytes("data"), result.one().getLong("written_at"), rateLimiter);
         }
         catch (IOException e)
         {
@@ -200,19 +206,19 @@ public class BatchlogManager implements BatchlogManagerMBean
         totalBatchesReplayed.incrementAndGet();
     }
 
-    private void replaySerializedMutations(ByteBuffer data, long writtenAt) throws IOException
+    private void replaySerializedMutations(ByteBuffer data, long writtenAt, RateLimiter rateLimiter) throws IOException
     {
         DataInputStream in = new DataInputStream(ByteBufferUtil.inputStream(data));
         int size = in.readInt();
         for (int i = 0; i < size; i++)
-            replaySerializedMutation(RowMutation.serializer.deserialize(in, VERSION), writtenAt);
+            replaySerializedMutation(RowMutation.serializer.deserialize(in, VERSION), writtenAt, rateLimiter);
     }
 
     /*
      * We try to deliver the mutations to the replicas ourselves if they are alive and only resort to writing hints
      * when a replica is down or a write request times out.
      */
-    private void replaySerializedMutation(RowMutation mutation, long writtenAt) throws IOException
+    private void replaySerializedMutation(RowMutation mutation, long writtenAt, RateLimiter rateLimiter) throws IOException
     {
         int ttl = calculateHintTTL(mutation, writtenAt);
         if (ttl <= 0)
@@ -221,9 +227,12 @@ public class BatchlogManager implements BatchlogManagerMBean
         Set<InetAddress> liveEndpoints = new HashSet<InetAddress>();
         String ks = mutation.getTable();
         Token tk = StorageService.getPartitioner().getToken(mutation.key());
+        int mutationSize = (int) RowMutation.serializer.serializedSize(mutation, VERSION);
+
         for (InetAddress endpoint : Iterables.concat(StorageService.instance.getNaturalEndpoints(ks, tk),
                                                      StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, ks)))
         {
+            rateLimiter.acquire(mutationSize);
             if (endpoint.equals(FBUtilities.getBroadcastAddress()))
                 mutation.apply();
             else if (FailureDetector.instance.isAlive(endpoint))
