@@ -139,7 +139,7 @@ public class SSTableScanner implements ICompactionScanner
                 }
                 else
                 {
-                    sstable.metadata.comparator.rowIndexEntrySerializer().skip(ifile);
+                    RowIndexEntry.Serializer.skip(ifile);
                 }
             }
         }
