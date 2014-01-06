@@ -474,10 +474,10 @@ public class CassandraServer implements Cassandra.Iface
             IDiskAtomFilter filter;
             if (metadata.isSuper())
             {
-                CellNameType type = metadata.comparator;
-                SortedSet names = new TreeSet<ByteBuffer>(column_path.column == null ? type.subtype(0) : type.subtype(1));
-                names.add(column_path.column == null ? column_path.super_column : column_path.column);
-                filter = SuperColumns.fromSCNamesFilter(type, column_path.column == null ? null : column_path.bufferForSuper_column(), new NamesQueryFilter(names));
+                CellNameType columnType = new SimpleDenseCellNameType(metadata.comparator.subtype(column_path.column == null ? 0 : 1));
+                SortedSet<CellName> names = new TreeSet<CellName>(columnType);
+                names.add(columnType.cellFromByteBuffer(column_path.column == null ? column_path.super_column : column_path.column));
+                filter = SuperColumns.fromSCNamesFilter(metadata.comparator, column_path.column == null ? null : column_path.bufferForSuper_column(), new NamesQueryFilter(names));
             }
             else
             {
