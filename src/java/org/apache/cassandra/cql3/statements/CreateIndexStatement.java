@@ -26,7 +26,6 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.service.ClientState;
@@ -42,18 +41,20 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
     private final String indexName;
     private final ColumnIdentifier columnName;
+    private final IndexPropDefs properties;
     private final boolean ifNotExists;
-    private final boolean isCustom;
-    private final String indexClass;
 
-    public CreateIndexStatement(CFName name, String indexName, ColumnIdentifier columnName, boolean ifNotExists, boolean isCustom, String indexClass)
+    public CreateIndexStatement(CFName name,
+                                String indexName,
+                                ColumnIdentifier columnName,
+                                IndexPropDefs properties,
+                                boolean ifNotExists)
     {
         super(name);
         this.indexName = indexName;
         this.columnName = columnName;
+        this.properties = properties;
         this.ifNotExists = ifNotExists;
-        this.isCustom = isCustom;
-        this.indexClass = indexClass;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -80,24 +81,20 @@ public class CreateIndexStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException("Index already exists");
         }
 
-        if (isCustom && indexClass == null)
-            throw new InvalidRequestException("CUSTOM index requires specifiying the index class");
-
-        if (!isCustom && indexClass != null)
-            throw new InvalidRequestException("Cannot specify index class for a non-CUSTOM index");
+        properties.validate();
 
         // TODO: we could lift that limitation
         if (cfm.getCfDef().isCompact && cd.type != ColumnDefinition.Type.REGULAR)
             throw new InvalidRequestException(String.format("Secondary index on %s column %s is not yet supported for compact table", cd.type, columnName));
 
-        if (cd.getValidator().isCollection() && !isCustom)
+        if (cd.getValidator().isCollection() && !properties.isCustom)
             throw new InvalidRequestException("Indexes on collections are no yet supported");
 
         if (cd.type == ColumnDefinition.Type.PARTITION_KEY && cd.componentIndex == null)
             throw new InvalidRequestException(String.format("Cannot add secondary index to already primarily indexed column %s", columnName));
     }
 
-    public void announceMigration() throws InvalidRequestException, ConfigurationException
+    public void announceMigration() throws RequestValidationException
     {
         logger.debug("Updating column {} definition for index {}", columnName, indexName);
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).clone();
@@ -106,8 +103,8 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         if (cd.getIndexType() != null && ifNotExists)
             return;
 
-        if (isCustom)
-            cd.setIndexType(IndexType.CUSTOM, Collections.singletonMap(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, indexClass));
+        if (properties.isCustom)
+            cd.setIndexType(IndexType.CUSTOM, properties.getOptions());
         else if (cfm.getCfDef().isComposite)
             cd.setIndexType(IndexType.COMPOSITES, Collections.<String, String>emptyMap());
         else
