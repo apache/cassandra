@@ -60,7 +60,7 @@ public class ObjectSizeTest
     @Test
     public void testKeyCacheKey()
     {
-        KeyCacheKey key = new KeyCacheKey(null, ByteBuffer.wrap(new byte[0]));
+        KeyCacheKey key = new KeyCacheKey(null, null, ByteBuffer.wrap(new byte[0]));
         long size = key.memorySize();
         long size2 = meter.measureDeep(key);
         Assert.assertEquals(size, size2);

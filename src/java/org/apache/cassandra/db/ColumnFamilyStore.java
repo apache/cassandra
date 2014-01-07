@@ -397,7 +397,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                          boolean loadSSTables)
     {
         // get the max generation number, to prevent generation conflicts
-        Directories directories = Directories.create(keyspace.getName(), columnFamily);
+        Directories directories = new Directories(metadata);
         Directories.SSTableLister lister = directories.sstableLister().includeBackups(true);
         List<Integer> generations = new ArrayList<Integer>();
         for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
@@ -417,11 +417,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * Removes unnecessary files from the cf directory at startup: these include temp files, orphans, zero-length files
      * and compacted sstables. Files that cannot be recognized will be ignored.
      */
-    public static void scrubDataDirectories(String keyspaceName, String columnFamily)
+    public static void scrubDataDirectories(CFMetaData metadata)
     {
-        logger.debug("Removing compacted SSTable files from {} (see http://wiki.apache.org/cassandra/MemtableSSTable)", columnFamily);
+        logger.debug("Removing compacted SSTable files from {} (see http://wiki.apache.org/cassandra/MemtableSSTable)", metadata.cfName);
 
-        Directories directories = Directories.create(keyspaceName, columnFamily);
+        Directories directories = new Directories(metadata);
         for (Map.Entry<Descriptor,Set<Component>> sstableFiles : directories.sstableLister().list().entrySet())
         {
             Descriptor desc = sstableFiles.getKey();
@@ -447,7 +447,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         // cleanup incomplete saved caches
-        Pattern tmpCacheFilePattern = Pattern.compile(keyspaceName + "-" + columnFamily + "-(Key|Row)Cache.*\\.tmp$");
+        Pattern tmpCacheFilePattern = Pattern.compile(metadata.ksName + "-" + metadata.cfName + "-(Key|Row)Cache.*\\.tmp$");
         File dir = new File(DatabaseDescriptor.getSavedCachesLocation());
 
         if (dir.exists())
@@ -460,11 +460,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         // also clean out any index leftovers.
-        CFMetaData cfm = Schema.instance.getCFMetaData(keyspaceName, columnFamily);
-        if (cfm != null) // secondary indexes aren't stored in DD.
+        for (ColumnDefinition def : metadata.allColumns())
         {
-            for (ColumnDefinition def : cfm.allColumns())
-                scrubDataDirectories(keyspaceName, cfm.indexColumnFamilyName(def));
+            if (def.isIndexed())
+            {
+                CFMetaData indexMetadata = CFMetaData.newIndexMetadata(metadata, def, SecondaryIndex.getIndexComparator(metadata, def));
+                scrubDataDirectories(indexMetadata);
+            }
         }
     }
 
@@ -480,9 +482,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * compactions, we remove the new ones (since those may be incomplete -- under LCS, we may create multiple
      * sstables from any given ancestor).
      */
-    public static void removeUnfinishedCompactionLeftovers(String keyspace, String columnfamily, Map<Integer, UUID> unfinishedCompactions)
+    public static void removeUnfinishedCompactionLeftovers(CFMetaData metadata, Map<Integer, UUID> unfinishedCompactions)
     {
-        Directories directories = Directories.create(keyspace, columnfamily);
+        Directories directories = new Directories(metadata);
 
         Set<Integer> allGenerations = new HashSet<>();
         for (Descriptor desc : directories.sstableLister().list().keySet())
@@ -495,7 +497,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             HashSet<Integer> missingGenerations = new HashSet<>(unfinishedGenerations);
             missingGenerations.removeAll(allGenerations);
             logger.debug("Unfinished compactions of {}.{} reference missing sstables of generations {}",
-                         keyspace, columnfamily, missingGenerations);
+                         metadata.ksName, metadata.cfName, missingGenerations);
         }
 
         // remove new sstables from compactions that didn't complete, and compute

@@ -21,6 +21,8 @@
    (CASSANDRA-5417, CASSANDRA-6520)
  * Add snapshot space used to cfstats (CASSANDRA-6231)
  * Add cardinality estimator for key count estimation (CASSANDRA-5906)
+ * CF id is changed to be non-deterministic. Data dir/key cache are created
+   uniquely for CF id (CASSANDRA-5202)
 
 
 2.0.5

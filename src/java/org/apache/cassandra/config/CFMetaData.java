@@ -59,6 +59,7 @@ import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.utils.FBUtilities.*;
 
@@ -119,6 +120,7 @@ public final class CFMetaData
     public static final CFMetaData SchemaColumnFamiliesCf = compile("CREATE TABLE " + SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF + " ("
                                                                     + "keyspace_name text,"
                                                                     + "columnfamily_name text,"
+                                                                    + "cf_id uuid," // post-2.1 UUID cfid
                                                                     + "type text,"
                                                                     + "comparator text,"
                                                                     + "subcomparator text,"
@@ -452,9 +454,17 @@ public final class CFMetaData
     public CFMetaData droppedColumns(Map<ColumnIdentifier, Long> cols) {droppedColumns = cols; return this;}
     public CFMetaData triggers(Map<String, TriggerDefinition> prop) {triggers = prop; return this;}
 
+    /**
+     * Create new ColumnFamily metadata with generated random ID.
+     * When loading from existing schema, use CFMetaData
+     *
+     * @param keyspace keyspace name
+     * @param name column family name
+     * @param comp default comparator
+     */
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, CellNameType comp)
     {
-        this(keyspace, name, type, comp, getId(keyspace, name));
+        this(keyspace, name, type, comp, UUIDGen.getTimeUUID());
     }
 
     @VisibleForTesting
@@ -523,6 +533,12 @@ public final class CFMetaData
         return (comment == null) ? "" : comment.toString();
     }
 
+    /**
+     * Generates deterministic UUID from keyspace/columnfamily name pair.
+     * This is used to generate the same UUID for C* version < 2.1
+     *
+     * Since 2.1, this is only used for system columnfamilies and tests.
+     */
     static UUID getId(String ksName, String cfName)
     {
         return UUID.nameUUIDFromBytes(ArrayUtils.addAll(ksName.getBytes(), cfName.getBytes()));
@@ -530,7 +546,7 @@ public final class CFMetaData
 
     private static CFMetaData newSystemMetadata(String keyspace, String cfName, String comment, CellNameType comparator)
     {
-        CFMetaData newCFMD = new CFMetaData(keyspace, cfName, ColumnFamilyType.Standard, comparator);
+        CFMetaData newCFMD = new CFMetaData(keyspace, cfName, ColumnFamilyType.Standard, comparator, getId(keyspace, cfName));
         return newCFMD.comment(comment)
                 .readRepairChance(0)
                 .dcLocalReadRepairChance(0)
@@ -967,10 +983,15 @@ public final class CFMetaData
             boolean isDense = (cf_def.column_metadata == null || cf_def.column_metadata.isEmpty()) && !isCQL3OnlyPKComparator(rawComparator);
             CellNameType comparator = CellNames.fromAbstractType(makeRawAbstractType(rawComparator, subComparator), isDense);
 
+            UUID cfId = Schema.instance.getId(cf_def.keyspace, cf_def.name);
+            if (cfId == null)
+                cfId = UUIDGen.getTimeUUID();
+
             CFMetaData newCFMD = new CFMetaData(cf_def.keyspace,
                                                 cf_def.name,
                                                 cfType,
-                                                comparator);
+                                                comparator,
+                                                cfId);
 
             if (cf_def.isSetGc_grace_seconds()) { newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds); }
             if (cf_def.isSetMin_compaction_threshold()) { newCFMD.minCompactionThreshold(cf_def.min_compaction_threshold); }
@@ -1022,7 +1043,7 @@ public final class CFMetaData
     /**
      * Create CFMetaData from thrift {@link CqlRow} that contains columns from schema_columnfamilies.
      *
-     * @param cf CqlRow containing columns from schema_columnfamilies.
+     * @param columnsRes CqlRow containing columns from schema_columnfamilies.
      * @return CFMetaData derived from CqlRow
      */
     public static CFMetaData fromThriftCqlRow(CqlRow cf, CqlResult columnsRes)
@@ -1570,6 +1591,7 @@ public final class CFMetaData
         Composite prefix = SchemaColumnFamiliesCf.comparator.make(cfName);
         CFRowAdder adder = new CFRowAdder(cf, prefix, timestamp);
 
+        adder.add("cf_id", cfId);
         adder.add("type", cfType.toString());
 
         if (isSuper())
@@ -1637,10 +1659,18 @@ public final class CFMetaData
 
             CellNameType comparator = CellNames.fromAbstractType(fullRawComparator, isDense(fullRawComparator, columnDefs));
 
+            // if we are upgrading, we use id generated from names initially
+            UUID cfId;
+            if (result.has("cf_id"))
+                cfId = result.getUUID("cf_id");
+            else
+                cfId = getId(ksName, cfName);
+
             CFMetaData cfm = new CFMetaData(ksName,
                                             cfName,
                                             cfType,
-                                            comparator);
+                                            comparator,
+                                            cfId);
 
             cfm.readRepairChance(result.getDouble("read_repair_chance"));
             cfm.dcLocalReadRepairChance(result.getDouble("local_read_repair_chance"));

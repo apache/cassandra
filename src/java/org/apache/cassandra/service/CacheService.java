@@ -366,7 +366,7 @@ public class CacheService implements CacheServiceMBean
                 return null;
             }
             RowIndexEntry entry = reader.metadata.comparator.rowIndexEntrySerializer().deserialize(input, reader.descriptor.version);
-            return Futures.immediateFuture(Pair.create(new KeyCacheKey(reader.descriptor, key), entry));
+            return Futures.immediateFuture(Pair.create(new KeyCacheKey(cfs.metadata.cfId, reader.descriptor, key), entry));
         }
 
         private SSTableReader findDesc(int generation, Collection<SSTableReader> collection)

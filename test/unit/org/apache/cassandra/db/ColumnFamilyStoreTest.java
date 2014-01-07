@@ -1572,7 +1572,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         String cf = "Standard3"; // should be empty
 
         final CFMetaData cfmeta = Schema.instance.getCFMetaData(ks, cf);
-        Directories dir = Directories.create(ks, cf);
+        Directories dir = new Directories(cfmeta);
         ByteBuffer key = bytes("key");
 
         // 1st sstable
@@ -1616,7 +1616,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         Map<Integer, UUID> unfinishedCompaction = new HashMap<>();
         unfinishedCompaction.put(sstable1.descriptor.generation, compactionTaskID);
-        ColumnFamilyStore.removeUnfinishedCompactionLeftovers(ks, cf, unfinishedCompaction);
+        ColumnFamilyStore.removeUnfinishedCompactionLeftovers(cfmeta, unfinishedCompaction);
 
         // 2nd sstable should be removed (only 1st sstable exists in set of size 1)
         sstables = dir.sstableLister().list();
@@ -1637,7 +1637,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         final String cf = "Standard4"; // should be empty
 
         final CFMetaData cfmeta = Schema.instance.getCFMetaData(ks, cf);
-        Directories dir = Directories.create(ks, cf);
+        Directories dir = new Directories(cfmeta);
         ByteBuffer key = bytes("key");
 
         // Write SSTable generation 3 that has ancestors 1 and 2
@@ -1673,7 +1673,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         UUID compactionTaskID = UUID.randomUUID();
         for (Integer ancestor : ancestors)
             unfinishedCompactions.put(ancestor, compactionTaskID);
-        ColumnFamilyStore.removeUnfinishedCompactionLeftovers(ks, cf, unfinishedCompactions);
+        ColumnFamilyStore.removeUnfinishedCompactionLeftovers(cfmeta, unfinishedCompactions);
 
         // SSTable should not be deleted
         sstables = dir.sstableLister().list();

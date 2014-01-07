@@ -186,7 +186,7 @@ public class CassandraDaemon
         // we do a one-off scrub of the system keyspace first; we can't load the list of the rest of the keyspaces,
         // until system keyspace is opened.
         for (CFMetaData cfm : Schema.instance.getKeyspaceMetaData(Keyspace.SYSTEM_KS).values())
-            ColumnFamilyStore.scrubDataDirectories(Keyspace.SYSTEM_KS, cfm.cfName);
+            ColumnFamilyStore.scrubDataDirectories(cfm);
         try
         {
             SystemKeyspace.checkHealth();
@@ -203,14 +203,17 @@ public class CassandraDaemon
         // clean up compaction leftovers
         Map<Pair<String, String>, Map<Integer, UUID>> unfinishedCompactions = SystemKeyspace.getUnfinishedCompactions();
         for (Pair<String, String> kscf : unfinishedCompactions.keySet())
-            ColumnFamilyStore.removeUnfinishedCompactionLeftovers(kscf.left, kscf.right, unfinishedCompactions.get(kscf));
+        {
+            CFMetaData cfm = Schema.instance.getCFMetaData(kscf.left, kscf.right);
+            ColumnFamilyStore.removeUnfinishedCompactionLeftovers(cfm, unfinishedCompactions.get(kscf));
+        }
         SystemKeyspace.discardCompactionsInProgress();
 
         // clean up debris in the rest of the keyspaces
         for (String keyspaceName : Schema.instance.getKeyspaces())
         {
             for (CFMetaData cfm : Schema.instance.getKeyspaceMetaData(keyspaceName).values())
-                ColumnFamilyStore.scrubDataDirectories(keyspaceName, cfm.cfName);
+                ColumnFamilyStore.scrubDataDirectories(cfm);
         }
 
         // initialize keyspaces

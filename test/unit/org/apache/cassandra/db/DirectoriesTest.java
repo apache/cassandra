@@ -23,28 +23,38 @@ import java.util.*;
 import java.util.concurrent.*;
 
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.db.Directories.DataDirectory;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class DirectoriesTest
 {
     private static File tempDataDir;
-    private static String KS = "ks";
-    private static String[] CFS = new String[] { "cf1", "ks" };
+    private static final String KS = "ks";
+    private static final String[] CFS = new String[] { "cf1", "ks" };
 
+    private static final Set<CFMetaData> CFM = new HashSet<>(CFS.length);
     private static Map<String, List<File>> files = new HashMap<String, List<File>>();
 
     @BeforeClass
     public static void beforeClass() throws IOException
     {
+        for (String cf : CFS)
+        {
+            CFM.add(new CFMetaData(KS, cf, ColumnFamilyType.Standard, null));
+        }
+
         tempDataDir = File.createTempFile("cassandra", "unittest");
         tempDataDir.delete(); // hack to create a temp dir
         tempDataDir.mkdir();
@@ -63,23 +73,23 @@ public class DirectoriesTest
 
     private static void createTestFiles() throws IOException
     {
-        for (String cf : CFS)
+        for (CFMetaData cfm : CFM)
         {
-            List<File> fs = new ArrayList<File>();
-            files.put(cf, fs);
-            File dir = cfDir(cf);
+            List<File> fs = new ArrayList<>();
+            files.put(cfm.cfName, fs);
+            File dir = cfDir(cfm);
             dir.mkdirs();
 
-            createFakeSSTable(dir, cf, 1, false, fs);
-            createFakeSSTable(dir, cf, 2, true, fs);
+            createFakeSSTable(dir, cfm.cfName, 1, false, fs);
+            createFakeSSTable(dir, cfm.cfName, 2, true, fs);
 
             File backupDir = new File(dir, Directories.BACKUPS_SUBDIR);
             backupDir.mkdir();
-            createFakeSSTable(backupDir, cf, 1, false, fs);
+            createFakeSSTable(backupDir, cfm.cfName, 1, false, fs);
 
             File snapshotDir = new File(dir, Directories.SNAPSHOT_SUBDIR + File.separator + "42");
             snapshotDir.mkdirs();
-            createFakeSSTable(snapshotDir, cf, 1, false, fs);
+            createFakeSSTable(snapshotDir, cfm.cfName, 1, false, fs);
         }
     }
 
@@ -94,41 +104,42 @@ public class DirectoriesTest
         }
     }
 
-    private static File cfDir(String cf)
+    private static File cfDir(CFMetaData metadata)
     {
-        return new File(tempDataDir, KS + File.separator + cf);
+        String cfId = ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(metadata.cfId));
+        return new File(tempDataDir, metadata.ksName + File.separator + metadata.cfName + "-" + cfId);
     }
 
     @Test
     public void testStandardDirs()
     {
-        for (String cf : CFS)
+        for (CFMetaData cfm : CFM)
         {
-            Directories directories = Directories.create(KS, cf);
-            Assert.assertEquals(cfDir(cf), directories.getDirectoryForNewSSTables());
+            Directories directories = new Directories(cfm);
+            assertEquals(cfDir(cfm), directories.getDirectoryForNewSSTables());
 
-            Descriptor desc = new Descriptor(cfDir(cf), KS, cf, 1, false);
-            File snapshotDir = new File(cfDir(cf),  File.separator + Directories.SNAPSHOT_SUBDIR + File.separator + "42");
-            Assert.assertEquals(snapshotDir, directories.getSnapshotDirectory(desc, "42"));
+            Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.cfName, 1, false);
+            File snapshotDir = new File(cfDir(cfm),  File.separator + Directories.SNAPSHOT_SUBDIR + File.separator + "42");
+            assertEquals(snapshotDir, Directories.getSnapshotDirectory(desc, "42"));
 
-            File backupsDir = new File(cfDir(cf),  File.separator + Directories.BACKUPS_SUBDIR);
-            Assert.assertEquals(backupsDir, directories.getBackupsDirectory(desc));
+            File backupsDir = new File(cfDir(cfm),  File.separator + Directories.BACKUPS_SUBDIR);
+            assertEquals(backupsDir, Directories.getBackupsDirectory(desc));
         }
     }
 
     @Test
     public void testSSTableLister()
     {
-        for (String cf : CFS)
+        for (CFMetaData cfm : CFM)
         {
-            Directories directories = Directories.create(KS, cf);
+            Directories directories = new Directories(cfm);
             Directories.SSTableLister lister;
             Set<File> listed;
 
             // List all but no snapshot, backup
             lister = directories.sstableLister();
-            listed = new HashSet<File>(lister.listFiles());
-            for (File f : files.get(cf))
+            listed = new HashSet<>(lister.listFiles());
+            for (File f : files.get(cfm.cfName))
             {
                 if (f.getPath().contains(Directories.SNAPSHOT_SUBDIR) || f.getPath().contains(Directories.BACKUPS_SUBDIR))
                     assert !listed.contains(f) : f + " should not be listed";
@@ -138,8 +149,8 @@ public class DirectoriesTest
 
             // List all but including backup (but no snapshot)
             lister = directories.sstableLister().includeBackups(true);
-            listed = new HashSet<File>(lister.listFiles());
-            for (File f : files.get(cf))
+            listed = new HashSet<>(lister.listFiles());
+            for (File f : files.get(cfm.cfName))
             {
                 if (f.getPath().contains(Directories.SNAPSHOT_SUBDIR))
                     assert !listed.contains(f) : f + " should not be listed";
@@ -149,8 +160,8 @@ public class DirectoriesTest
 
             // Skip temporary and compacted
             lister = directories.sstableLister().skipTemporary(true);
-            listed = new HashSet<File>(lister.listFiles());
-            for (File f : files.get(cf))
+            listed = new HashSet<>(lister.listFiles());
+            for (File f : files.get(cfm.cfName))
             {
                 if (f.getPath().contains(Directories.SNAPSHOT_SUBDIR) || f.getPath().contains(Directories.BACKUPS_SUBDIR))
                     assert !listed.contains(f) : f + " should not be listed";
@@ -177,13 +188,13 @@ public class DirectoriesTest
                 dd.location.setExecutable(false);
                 dd.location.setWritable(false);
             }
-            
-            Directories.create(KS, "bad");
-            
-            for (DataDirectory dd : Directories.dataFileLocations)
+
+            CFMetaData cfm = new CFMetaData(KS, "bad", ColumnFamilyType.Standard, null);
+            Directories dir = new Directories(cfm);
+
+            for (File file : dir.getCFDirectories())
             {
-                File file = new File(dd.location, new File(KS, "bad").getPath());
-                Assert.assertTrue(BlacklistedDirectories.isUnwritable(file));
+                assertTrue(BlacklistedDirectories.isUnwritable(file));
             }
         } 
         finally 
@@ -201,20 +212,20 @@ public class DirectoriesTest
     @Test
     public void testMTSnapshots() throws Exception
     {
-        for (final String cf : CFS)
+        for (final CFMetaData cfm : CFM)
         {
-            final Directories directories = Directories.create(KS, cf);
-            Assert.assertEquals(cfDir(cf), directories.getDirectoryForNewSSTables());
+            final Directories directories = new Directories(cfm);
+            assertEquals(cfDir(cfm), directories.getDirectoryForNewSSTables());
             final String n = Long.toString(System.nanoTime());
             Callable<File> directoryGetter = new Callable<File>() {
                 public File call() throws Exception {
-                    Descriptor desc = new Descriptor(cfDir(cf), KS, cf, 1, false);
-                    return directories.getSnapshotDirectory(desc, n);
+                    Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.cfName, 1, false);
+                    return Directories.getSnapshotDirectory(desc, n);
                 }
             };
             List<Future<File>> invoked = Executors.newFixedThreadPool(2).invokeAll(Arrays.asList(directoryGetter, directoryGetter));
             for(Future<File> fut:invoked) {
-                Assert.assertTrue(fut.get().exists());
+                assertTrue(fut.get().exists());
             }
         }
     }

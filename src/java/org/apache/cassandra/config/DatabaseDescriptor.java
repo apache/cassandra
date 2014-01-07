@@ -39,7 +39,6 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.IAllocator;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
@@ -51,6 +50,7 @@ import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class DatabaseDescriptor
@@ -1133,9 +1133,16 @@ public class DatabaseDescriptor
         return conf.index_interval;
     }
 
-    public static File getSerializedCachePath(String ksName, String cfName, CacheService.CacheType cacheType, String version)
+    public static File getSerializedCachePath(String ksName, String cfName, UUID cfId, CacheService.CacheType cacheType, String version)
     {
-        return new File(conf.saved_caches_directory, ksName + "-" + cfName + "-" + cacheType + (version == null ? "" : "-" + version + ".db"));
+        StringBuilder builder = new StringBuilder();
+        builder.append(ksName).append('-');
+        builder.append(cfName).append('-');
+        if (cfId != null)
+            builder.append(ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(cfId))).append('-');
+        builder.append(cacheType);
+        builder.append((version == null ? "" : "-" + version + ".db"));
+        return new File(conf.saved_caches_directory, builder.toString());
     }
 
     public static int getDynamicUpdateInterval()

@@ -33,9 +33,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSet.Builder;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.Uninterruptibles;
 
@@ -49,15 +52,20 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
 /**
  * Encapsulate handling of paths to the data files.
  *
- * The directory layout is the following:
- *   /<path_to_data_dir>/ks/cf1/ks-cf1-hb-1-Data.db
- *                         /cf2/ks-cf2-hb-1-Data.db
+ * Since v2.1, the directory layout is the following:
+ *   /<path_to_data_dir>/ks/cf1-cfId/ks-cf1-ka-1-Data.db
+ *                         /cf2-cfId/ks-cf2-ka-1-Data.db
  *                         ...
+ *
+ * cfId is an hex encoded CFID.
+ *
+ * For backward compatibility, Directories uses older directory layout if exists.
  *
  * In addition, more that one 'root' data directory can be specified so that
  * <path_to_data_dir> potentially represents multiple locations.
@@ -162,27 +170,49 @@ public class Directories
         }
     }
 
-    private final String keyspacename;
-    private final String cfname;
+    private final CFMetaData metadata;
     private final File[] sstableDirectories;
 
-    public static Directories create(String keyspacename, String cfname)
+    /**
+     * Create Directories of given ColumnFamily.
+     * SSTable directories are created under data_directories defined in cassandra.yaml if not exist at this time.
+     *
+     * @param metadata metadata of ColumnFamily
+     */
+    public Directories(CFMetaData metadata)
     {
-        int idx = cfname.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
+        this.metadata = metadata;
+        this.sstableDirectories = new File[dataFileLocations.length];
+
+        // Determine SSTable directories
+        // If upgraded from version less than 2.1, use directories already exist.
+        for (int i = 0; i < dataFileLocations.length; ++i)
+        {
+            // check if old SSTable directory exists
+            sstableDirectories[i] = new File(dataFileLocations[i].location, join(metadata.ksName, metadata.cfName));
+        }
+        boolean olderDirectoryExists = Iterables.any(Arrays.asList(sstableDirectories), new Predicate<File>()
+        {
+            public boolean apply(File file)
+            {
+                return file.exists();
+            }
+        });
+        if (olderDirectoryExists)
+            return;
+
+        // create directory name
+        String directoryName;
+        String cfId = ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(metadata.cfId));
+        int idx = metadata.cfName.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
         if (idx > 0)
             // secondary index, goes in the same directory than the base cf
-            return new Directories(keyspacename, cfname, cfname.substring(0, idx));
+            directoryName = metadata.cfName.substring(0, idx) + "-" + cfId;
         else
-            return new Directories(keyspacename, cfname, cfname);
-    }
+            directoryName = metadata.cfName + "-" + cfId;
 
-    private Directories(String keyspacename, String cfname, String directoryName)
-    {
-        this.keyspacename = keyspacename;
-        this.cfname = cfname;
-        this.sstableDirectories = new File[dataFileLocations.length];
         for (int i = 0; i < dataFileLocations.length; ++i)
-            sstableDirectories[i] = new File(dataFileLocations[i].location, join(keyspacename, directoryName));
+            sstableDirectories[i] = new File(dataFileLocations[i].location, join(metadata.ksName, directoryName));
 
         if (!StorageService.instance.isClientMode())
         {
@@ -251,7 +281,7 @@ public class Directories
      */
     public DataDirectory getWriteableLocation()
     {
-        List<DataDirectory> candidates = new ArrayList<DataDirectory>();
+        List<DataDirectory> candidates = new ArrayList<>();
 
         // pick directories with enough space and so that resulting sstable dirs aren't blacklisted for writes.
         for (DataDirectory dataDir : dataFileLocations)
@@ -329,7 +359,7 @@ public class Directories
         private boolean includeBackups;
         private boolean onlyBackups;
         private int nbFiles;
-        private final Map<Descriptor, Set<Component>> components = new HashMap<Descriptor, Set<Component>>();
+        private final Map<Descriptor, Set<Component>> components = new HashMap<>();
         private boolean filtered;
         private String snapshotName;
 
@@ -375,7 +405,7 @@ public class Directories
         public List<File> listFiles()
         {
             filter();
-            List<File> l = new ArrayList<File>(nbFiles);
+            List<File> l = new ArrayList<>(nbFiles);
             for (Map.Entry<Descriptor, Set<Component>> entry : components.entrySet())
             {
                 for (Component c : entry.getValue())
@@ -434,7 +464,7 @@ public class Directories
                     Set<Component> previous = components.get(pair.left);
                     if (previous == null)
                     {
-                        previous = new HashSet<Component>();
+                        previous = new HashSet<>();
                         components.put(pair.left, previous);
                     }
                     previous.add(pair.right);
@@ -494,7 +524,7 @@ public class Directories
 
     private String getSSTablePrefix()
     {
-        return keyspacename + Component.separator + cfname + Component.separator;
+        return metadata.ksName + Component.separator + metadata.cfName + Component.separator;
     }
 
     public long getTrueAllocatedSizeIn(File input)
@@ -518,7 +548,7 @@ public class Directories
     // Recursively finds all the sub directories in the KS directory.
     public static List<File> getKSChildDirectories(String ksName)
     {
-        List<File> result = new ArrayList<File>();
+        List<File> result = new ArrayList<>();
         for (DataDirectory dataDirectory : dataFileLocations)
         {
             File ksDir = new File(dataDirectory.location, ksName);
@@ -536,7 +566,7 @@ public class Directories
 
     public List<File> getCFDirectories()
     {
-        List<File> result = new ArrayList<File>();
+        List<File> result = new ArrayList<>();
         for (File dataDirectory : sstableDirectories)
         {
             if (dataDirectory.isDirectory())

@@ -22,7 +22,9 @@ import java.io.PrintStream;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
@@ -54,11 +56,15 @@ public class SSTableLevelResetter
             System.exit(1);
         }
 
-        String keyspace = args[1];
+        // load keyspace descriptions.
+        DatabaseDescriptor.loadSchemas();
+
+        String keyspaceName = args[1];
         String columnfamily = args[2];
-        Directories directories = Directories.create(keyspace, columnfamily);
+        Keyspace keyspace = Keyspace.openWithoutSSTables(keyspaceName);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(columnfamily);
         boolean foundSSTable = false;
-        for (Map.Entry<Descriptor, Set<Component>> sstable : directories.sstableLister().list().entrySet())
+        for (Map.Entry<Descriptor, Set<Component>> sstable : cfs.directories.sstableLister().list().entrySet())
         {
             if (sstable.getValue().contains(Component.STATS))
             {

@@ -45,9 +45,10 @@ public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
         assert this.key != null;
     }
 
-    public Pair<String, String> getPathInfo()
+    public PathInfo getPathInfo()
     {
-        return Schema.instance.getCF(cfId);
+        Pair<String, String> cf = Schema.instance.getCF(cfId);
+        return new PathInfo(cf.left, cf.right, cfId);
     }
 
     public long memorySize()

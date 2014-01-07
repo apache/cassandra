@@ -16,6 +16,16 @@ using the provided 'sstableupgrade' tool.
 2.1
 ===
 
+New features
+------------
+   - SSTable data directory name is slightly changed. Each directory will
+     have hex string appended after CF name, e.g.
+         ks/cf-5be396077b811e3a3ab9dc4b9ac088d/
+     This hex string part represents unique ColumnFamily ID.
+     Note that existing directories are used as is, so only newly created
+     directories after upgrade have new directory name format.
+   - Saved key cache files also have ColumnFamily ID in their file name.
+
 Upgrading
 ---------
    - Rolling upgrades from anything pre-2.0 is not supported.
@@ -28,7 +38,6 @@ Upgrading
      cold_reads_to_omit compaction option; 0.0 omits nothing (the old
      behavior) and 1.0 omits everything.
    - Multithreaded compaction has been removed.
-
 
 2.0.5
 =====

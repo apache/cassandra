@@ -1058,7 +1058,7 @@ public class SSTableReader extends SSTable implements Closeable
             return;
         }
 
-        KeyCacheKey cacheKey = new KeyCacheKey(descriptor, key.key);
+        KeyCacheKey cacheKey = new KeyCacheKey(metadata.cfId, descriptor, key.key);
         logger.trace("Adding cache entry for {} -> {}", cacheKey, info);
         keyCache.put(cacheKey, info);
     }
@@ -1088,7 +1088,7 @@ public class SSTableReader extends SSTable implements Closeable
 
     public RowIndexEntry getCachedPosition(DecoratedKey key, boolean updateStats)
     {
-        return getCachedPosition(new KeyCacheKey(descriptor, key.key), updateStats);
+        return getCachedPosition(new KeyCacheKey(metadata.cfId, descriptor, key.key), updateStats);
     }
 
     private RowIndexEntry getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
@@ -1143,7 +1143,7 @@ public class SSTableReader extends SSTable implements Closeable
         if ((op == Operator.EQ || op == Operator.GE) && (key instanceof DecoratedKey))
         {
             DecoratedKey decoratedKey = (DecoratedKey)key;
-            KeyCacheKey cacheKey = new KeyCacheKey(descriptor, decoratedKey.key);
+            KeyCacheKey cacheKey = new KeyCacheKey(metadata.cfId, descriptor, decoratedKey.key);
             RowIndexEntry cachedPosition = getCachedPosition(cacheKey, updateCacheAndStats);
             if (cachedPosition != null)
             {
