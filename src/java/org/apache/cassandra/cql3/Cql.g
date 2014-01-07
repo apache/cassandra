@@ -548,13 +548,14 @@ typeColumns[CreateTypeStatement expr]
  */
 createIndexStatement returns [CreateIndexStatement expr]
     @init {
-        boolean isCustom = false;
+        IndexPropDefs props = new IndexPropDefs();
         boolean ifNotExists = false;
     }
-    : K_CREATE (K_CUSTOM { isCustom = true; })? K_INDEX (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
+    : K_CREATE (K_CUSTOM { props.isCustom = true; })? K_INDEX (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
         (idxName=IDENT)? K_ON cf=columnFamilyName '(' id=cident ')'
-        ( K_USING cls=STRING_LITERAL )?
-      { $expr = new CreateIndexStatement(cf, $idxName.text, id, ifNotExists, isCustom, $cls.text); }
+        (K_USING cls=STRING_LITERAL { props.customClass = $cls.text; })?
+        (K_WITH properties[props])?
+      { $expr = new CreateIndexStatement(cf, $idxName.text, id, props, ifNotExists); }
     ;
 
 /**
