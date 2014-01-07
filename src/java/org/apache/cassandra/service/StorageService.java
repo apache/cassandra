@@ -1178,6 +1178,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private List<TokenRange> describeRing(String keyspace, boolean includeOnlyLocalDC) throws InvalidRequestException
     {
+        if (!Schema.instance.getKeyspaces().contains(keyspace))
+            throw new InvalidRequestException("No such keyspace: " + keyspace);
+
         if (keyspace == null || Keyspace.open(keyspace).getReplicationStrategy() instanceof LocalStrategy)
             throw new InvalidRequestException("There is no ring for the keyspace: " + keyspace);
 
