@@ -77,7 +77,22 @@ public class BulkLoader
         OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
         SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(options.hosts, options.rpcPort, options.user, options.passwd, options.transportFactory), handler);
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
-        StreamResultFuture future = loader.stream(options.ignores);
+        StreamResultFuture future = null;
+        try
+        {
+            future = loader.stream(options.ignores);
+        }
+        catch (Exception e)
+        {
+            System.err.println(e.getMessage());
+            if (e.getCause() != null)
+                System.err.println(e.getCause());
+            if (options.debug)
+                e.printStackTrace(System.err);
+            else
+                System.err.println("Run with --debug to get full stack trace or --help to get help.");
+            System.exit(1);
+        }
         future.addEventListener(new ProgressIndicator());
         try
         {
