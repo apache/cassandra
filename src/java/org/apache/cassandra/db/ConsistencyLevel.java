@@ -88,9 +88,16 @@ public enum ConsistencyLevel
         return codeIdx[code];
     }
 
+    private int quorumFor(Table table)
+    {
+        return (table.getReplicationStrategy().getReplicationFactor() / 2) + 1;
+    }
+
     private int localQuorumFor(Table table, String dc)
     {
-        return (((NetworkTopologyStrategy) table.getReplicationStrategy()).getReplicationFactor(dc) / 2) + 1;
+        return (table.getReplicationStrategy() instanceof NetworkTopologyStrategy)
+             ? (((NetworkTopologyStrategy) table.getReplicationStrategy()).getReplicationFactor(dc) / 2) + 1
+             : quorumFor(table);
     }
 
     public int blockFor(Table table)
@@ -107,17 +114,24 @@ public enum ConsistencyLevel
             case THREE:
                 return 3;
             case QUORUM:
-                return (table.getReplicationStrategy().getReplicationFactor() / 2) + 1;
+                return quorumFor(table);
             case ALL:
                 return table.getReplicationStrategy().getReplicationFactor();
             case LOCAL_QUORUM:
                 return localQuorumFor(table, DatabaseDescriptor.getLocalDataCenter());
             case EACH_QUORUM:
-                NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) table.getReplicationStrategy();
-                int n = 0;
-                for (String dc : strategy.getDatacenters())
-                    n += localQuorumFor(table, dc);
-                return n;
+                if (table.getReplicationStrategy() instanceof NetworkTopologyStrategy)
+                {
+                    NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) table.getReplicationStrategy();
+                    int n = 0;
+                    for (String dc : strategy.getDatacenters())
+                        n += localQuorumFor(table, dc);
+                    return n;
+                }
+                else
+                {
+                    return quorumFor(table);
+                }
             default:
                 throw new UnsupportedOperationException("Invalid consistency level: " + toString());
         }
@@ -208,16 +222,20 @@ public enum ConsistencyLevel
                 // local hint is acceptable, and local node is always live
                 return true;
             case LOCAL_ONE:
-                    return countLocalEndpoints(liveEndpoints) >= 1;
+                return countLocalEndpoints(liveEndpoints) >= 1;
             case LOCAL_QUORUM:
                 return countLocalEndpoints(liveEndpoints) >= blockFor(table);
             case EACH_QUORUM:
-                for (Map.Entry<String, Integer> entry : countPerDCEndpoints(table, liveEndpoints).entrySet())
+                if (table.getReplicationStrategy() instanceof NetworkTopologyStrategy)
                 {
-                    if (entry.getValue() < localQuorumFor(table, entry.getKey()))
-                        return false;
+                    for (Map.Entry<String, Integer> entry : countPerDCEndpoints(table, liveEndpoints).entrySet())
+                    {
+                        if (entry.getValue() < localQuorumFor(table, entry.getKey()))
+                            return false;
+                    }
+                    return true;
                 }
-                return true;
+                // Fallthough on purpose for SimpleStrategy
             default:
                 return Iterables.size(liveEndpoints) >= blockFor(table);
         }
@@ -250,14 +268,18 @@ public enum ConsistencyLevel
                 }
                 break;
             case EACH_QUORUM:
-                for (Map.Entry<String, Integer> entry : countPerDCEndpoints(table, liveEndpoints).entrySet())
+                if (table.getReplicationStrategy() instanceof NetworkTopologyStrategy)
                 {
-                    int dcBlockFor = localQuorumFor(table, entry.getKey());
-                    int dcLive = entry.getValue();
-                    if (dcLive < dcBlockFor)
-                        throw new UnavailableException(this, dcBlockFor, dcLive);
+                    for (Map.Entry<String, Integer> entry : countPerDCEndpoints(table, liveEndpoints).entrySet())
+                    {
+                        int dcBlockFor = localQuorumFor(table, entry.getKey());
+                        int dcLive = entry.getValue();
+                        if (dcLive < dcBlockFor)
+                            throw new UnavailableException(this, dcBlockFor, dcLive);
+                    }
+                    break;
                 }
-                break;
+                // Fallthough on purpose for SimpleStrategy
             default:
                 int live = Iterables.size(liveEndpoints);
                 if (live < blockFor)
@@ -282,8 +304,6 @@ public enum ConsistencyLevel
 
     public void validateForWrite(String table) throws InvalidRequestException
     {
-        if(this == EACH_QUORUM)
-            requireNetworkTopologyStrategy(table);
     }
 
     public void validateCounterForWrite(CFMetaData metadata) throws InvalidRequestException
