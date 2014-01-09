@@ -296,6 +296,7 @@ public abstract class Constants
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
         {
+            prefix = maybeUpdatePrefix(cf.metadata(), prefix);
             ByteBuffer cname = columnName == null ? prefix.build() : prefix.add(columnName.key).build();
             ByteBuffer value = t.bindAndGet(params.variables);
             cf.addColumn(value == null ? params.makeTombstone(cname) : params.makeColumn(cname, value));
@@ -315,6 +316,7 @@ public abstract class Constants
             if (bytes == null)
                 throw new InvalidRequestException("Invalid null value for counter increment");
             long increment = ByteBufferUtil.toLong(bytes);
+            prefix = maybeUpdatePrefix(cf.metadata(), prefix);
             ByteBuffer cname = columnName == null ? prefix.build() : prefix.add(columnName.key).build();
             cf.addCounter(cname, increment);
         }
@@ -337,6 +339,7 @@ public abstract class Constants
             if (increment == Long.MIN_VALUE)
                 throw new InvalidRequestException("The negation of " + increment + " overflows supported counter precision (signed 8 bytes integer)");
 
+            prefix = maybeUpdatePrefix(cf.metadata(), prefix);
             ByteBuffer cname = columnName == null ? prefix.build() : prefix.add(columnName.key).build();
             cf.addCounter(cname, -increment);
         }
@@ -356,7 +359,7 @@ public abstract class Constants
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, ColumnNameBuilder prefix, UpdateParameters params) throws InvalidRequestException
         {
-            ColumnNameBuilder column = prefix.add(columnName.key);
+            ColumnNameBuilder column = maybeUpdatePrefix(cf.metadata(), prefix).add(columnName.key);
 
             if (isCollection)
                 cf.addAtom(params.makeRangeTombstone(column.build(), column.buildAsEndOfRange()));

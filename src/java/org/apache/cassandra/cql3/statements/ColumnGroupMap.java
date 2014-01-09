@@ -32,10 +32,12 @@ public class ColumnGroupMap
 {
     private final ByteBuffer[] fullPath;
     private final Map<ByteBuffer, Value> map = new HashMap<ByteBuffer, Value>();
+    public final boolean isStatic; // Whether or not the group correspond to "static" cells
 
-    private ColumnGroupMap(ByteBuffer[] fullPath)
+    private ColumnGroupMap(ByteBuffer[] fullPath, boolean isStatic)
     {
         this.fullPath = fullPath;
+        this.isStatic = isStatic;
     }
 
     private void add(ByteBuffer[] fullName, int idx, Column column)
@@ -126,7 +128,7 @@ public class ColumnGroupMap
 
             if (currentGroup == null)
             {
-                currentGroup = new ColumnGroupMap(current);
+                currentGroup = new ColumnGroupMap(current, composite.isStaticName(c.name()));
                 currentGroup.add(current, idx, c);
                 previous = current;
                 return;
@@ -135,7 +137,8 @@ public class ColumnGroupMap
             if (!isSameGroup(current))
             {
                 groups.add(currentGroup);
-                currentGroup = new ColumnGroupMap(current);
+                // Note that we know that only the first group built can be static
+                currentGroup = new ColumnGroupMap(current, false);
             }
             currentGroup.add(current, idx, c);
             previous = current;
@@ -166,6 +169,26 @@ public class ColumnGroupMap
                 currentGroup = null;
             }
             return groups;
+        }
+
+        public boolean isEmpty()
+        {
+            return currentGroup == null && groups.isEmpty();
+        }
+
+        public ColumnGroupMap firstGroup()
+        {
+            if (currentGroup != null)
+            {
+                groups.add(currentGroup);
+                currentGroup = null;
+            }
+            return groups.get(0);
+        }
+
+        public void discardFirst()
+        {
+            groups.remove(0);
         }
     }
 }

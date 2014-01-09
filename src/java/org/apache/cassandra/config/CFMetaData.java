@@ -27,6 +27,7 @@ import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
 import org.apache.commons.lang3.ArrayUtils;
@@ -408,6 +409,7 @@ public final class CFMetaData
     private volatile List<ColumnDefinition> partitionKeyColumns;  // Always of size keyValidator.componentsCount, null padded if necessary
     private volatile List<ColumnDefinition> clusteringKeyColumns; // Of size comparator.componentsCount or comparator.componentsCount -1, null padded if necessary
     private volatile Set<ColumnDefinition> regularColumns;
+    private volatile Set<ColumnDefinition> staticColumns;
     private volatile ColumnDefinition compactValueColumn;
 
     public volatile Class<? extends AbstractCompactionStrategy> compactionStrategyClass = DEFAULT_COMPACTION_STRATEGY_CLASS;
@@ -719,6 +721,16 @@ public final class CFMetaData
     public Set<ColumnDefinition> regularColumns()
     {
         return regularColumns;
+    }
+
+    public Set<ColumnDefinition> staticColumns()
+    {
+        return staticColumns;
+    }
+
+    public Iterable<ColumnDefinition> regularAndStaticColumns()
+    {
+        return Iterables.concat(staticColumns, regularColumns);
     }
 
     public ColumnDefinition compactValueColumn()
@@ -1328,7 +1340,7 @@ public final class CFMetaData
         // Mixing counter with non counter columns is not supported (#2614)
         if (defaultValidator instanceof CounterColumnType)
         {
-            for (ColumnDefinition def : regularColumns)
+            for (ColumnDefinition def : regularAndStaticColumns())
                 if (!(def.getValidator() instanceof CounterColumnType))
                     throw new ConfigurationException("Cannot add a non counter column (" + getColumnDefinitionComparator(def).getString(def.name) + ") in a counter column family");
         }
@@ -1839,7 +1851,7 @@ public final class CFMetaData
         if (column_metadata.get(to) != null)
             throw new InvalidRequestException(String.format("Cannot rename column %s to %s in keyspace %s; another column of that name already exist", strFrom, strTo, cfName));
 
-        if (def.type == ColumnDefinition.Type.REGULAR)
+        if (def.type == ColumnDefinition.Type.REGULAR || def.type == ColumnDefinition.Type.STATIC)
         {
             throw new InvalidRequestException(String.format("Cannot rename non PRIMARY KEY part %s", strFrom));
         }
@@ -1883,6 +1895,7 @@ public final class CFMetaData
                      : comparator.componentsCount() - (hasCollection() ? 2 : 1);
         List<ColumnDefinition> ckCols = nullInitializedList(nbCkCols);
         Set<ColumnDefinition> regCols = new HashSet<ColumnDefinition>();
+        Set<ColumnDefinition> statCols = new HashSet<ColumnDefinition>();
         ColumnDefinition compactCol = null;
 
         for (ColumnDefinition def : column_metadata.values())
@@ -1900,6 +1913,9 @@ public final class CFMetaData
                 case REGULAR:
                     regCols.add(def);
                     break;
+                case STATIC:
+                    statCols.add(def);
+                    break;
                 case COMPACT_VALUE:
                     assert compactCol == null : "There shouldn't be more than one compact value defined: got " + compactCol + " and " + def;
                     compactCol = def;
@@ -1911,6 +1927,7 @@ public final class CFMetaData
         partitionKeyColumns = addDefaultKeyAliases(pkCols);
         clusteringKeyColumns = addDefaultColumnAliases(ckCols);
         regularColumns = regCols;
+        staticColumns = statCols;
         compactValueColumn = addDefaultValueAlias(compactCol, isDense);
     }
 
@@ -2072,6 +2089,20 @@ public final class CFMetaData
                 return false;
         }
         return true;
+    }
+
+    public boolean hasStaticColumns()
+    {
+        return !staticColumns.isEmpty();
+    }
+
+    public ColumnNameBuilder getStaticColumnNameBuilder()
+    {
+        assert comparator instanceof CompositeType && clusteringKeyColumns().size() > 0;
+        CompositeType.Builder builder = CompositeType.Builder.staticBuilder((CompositeType)comparator);
+        for (int i = 0; i < clusteringKeyColumns().size(); i++)
+            builder.add(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        return builder;
     }
 
     public void validateColumns(Iterable<Column> columns)

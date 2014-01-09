@@ -26,10 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.ExtendedFilter;
-import org.apache.cassandra.db.filter.IDiskAtomFilter;
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -238,11 +235,28 @@ public class CompositesSearcher extends SecondaryIndexSearcher
 
                         // We always query the whole CQL3 row. In the case where the original filter was a name filter this might be
                         // slightly wasteful, but this probably doesn't matter in practice and it simplify things.
-                        SliceQueryFilter dataFilter = new SliceQueryFilter(start,
-                                                                           entry.indexedEntryEnd(),
-                                                                           false,
-                                                                           Integer.MAX_VALUE,
-                                                                           baseCfs.metadata.clusteringKeyColumns().size());
+                        ColumnSlice dataSlice = new ColumnSlice(start, entry.indexedEntryEnd());
+                        ColumnSlice[] slices;
+                        if (baseCfs.metadata.hasStaticColumns())
+                        {
+                            // If the table has static columns, we must fetch them too as they may need to be returned too.
+                            // Note that this is potentially wasteful for 2 reasons:
+                            //  1) we will retrieve the static parts for each indexed row, even if we have more than one row in
+                            //     the same partition. If we were to group data queries to rows on the same slice, which would
+                            //     speed up things in general, we would also optimize here since we would fetch static columns only
+                            //     once for each group.
+                            //  2) at this point we don't know if the user asked for static columns or not, so we might be fetching
+                            //     them for nothing. We would however need to ship the list of "CQL3 columns selected" with getRangeSlice
+                            //     to be able to know that.
+                            // TODO: we should improve both point above
+                            ColumnSlice staticSlice = new ColumnSlice(ByteBufferUtil.EMPTY_BYTE_BUFFER, baseCfs.metadata.getStaticColumnNameBuilder().buildAsEndOfRange());
+                            slices = new ColumnSlice[]{ staticSlice, dataSlice };
+                        }
+                        else
+                        {
+                            slices = new ColumnSlice[]{ dataSlice };
+                        }
+                        SliceQueryFilter dataFilter = new SliceQueryFilter(slices, false, Integer.MAX_VALUE, baseCfs.metadata.clusteringKeyColumns().size());
                         ColumnFamily newData = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, dataFilter, filter.timestamp));
                         if (newData == null || index.isStale(entry, newData, filter.timestamp))
                         {

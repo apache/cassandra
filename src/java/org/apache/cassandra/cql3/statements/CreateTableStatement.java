@@ -52,14 +52,16 @@ public class CreateTableStatement extends SchemaAlteringStatement
     private ByteBuffer valueAlias;
 
     private final Map<ColumnIdentifier, AbstractType> columns = new HashMap<ColumnIdentifier, AbstractType>();
+    private final Set<ColumnIdentifier> staticColumns;
     private final CFPropDefs properties;
     private final boolean ifNotExists;
 
-    public CreateTableStatement(CFName name, CFPropDefs properties, boolean ifNotExists)
+    public CreateTableStatement(CFName name, CFPropDefs properties, boolean ifNotExists, Set<ColumnIdentifier> staticColumns)
     {
         super(name);
         this.properties = properties;
         this.ifNotExists = ifNotExists;
+        this.staticColumns = staticColumns;
 
         try
         {
@@ -101,7 +103,10 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
         for (Map.Entry<ColumnIdentifier, AbstractType> col : columns.entrySet())
         {
-            columnDefs.put(col.getKey().key, ColumnDefinition.regularDef(col.getKey().key, col.getValue(), componentIndex));
+            ColumnIdentifier id = col.getKey();
+            columnDefs.put(id.key, staticColumns.contains(id)
+                                   ? ColumnDefinition.staticDef(id.key, col.getValue(), componentIndex)
+                                   : ColumnDefinition.regularDef(id.key, col.getValue(), componentIndex));
         }
 
         return columnDefs;
@@ -166,6 +171,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
         private final List<List<ColumnIdentifier>> keyAliases = new ArrayList<List<ColumnIdentifier>>();
         private final List<ColumnIdentifier> columnAliases = new ArrayList<ColumnIdentifier>();
         private final Map<ColumnIdentifier, Boolean> definedOrdering = new LinkedHashMap<ColumnIdentifier, Boolean>(); // Insertion ordering is important
+        private final Set<ColumnIdentifier> staticColumns = new HashSet<ColumnIdentifier>();
 
         private boolean useCompactStorage;
         private final Multiset<ColumnIdentifier> definedNames = HashMultiset.create(1);
@@ -195,7 +201,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
             properties.validate();
 
-            CreateTableStatement stmt = new CreateTableStatement(cfName, properties, ifNotExists);
+            CreateTableStatement stmt = new CreateTableStatement(cfName, properties, ifNotExists, staticColumns);
 
             Map<ByteBuffer, CollectionType> definedCollections = null;
             for (Map.Entry<ColumnIdentifier, CQL3Type> entry : definitions.entrySet())
@@ -225,6 +231,8 @@ public class CreateTableStatement extends SchemaAlteringStatement
                 AbstractType<?> t = getTypeAndRemove(stmt.columns, alias);
                 if (t instanceof CounterColumnType)
                     throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", alias));
+                if (staticColumns.contains(alias))
+                    throw new InvalidRequestException(String.format("Static column %s cannot be part of the PRIMARY KEY", alias));
                 keyTypes.add(t);
             }
             stmt.keyValidator = keyTypes.size() == 1 ? keyTypes.get(0) : CompositeType.getInstance(keyTypes);
@@ -260,10 +268,13 @@ public class CreateTableStatement extends SchemaAlteringStatement
                 {
                     if (definedCollections != null)
                         throw new InvalidRequestException("Collection types are not supported with COMPACT STORAGE");
-                    stmt.columnAliases.add(columnAliases.get(0).key);
-                    stmt.comparator = getTypeAndRemove(stmt.columns, columnAliases.get(0));
+                    ColumnIdentifier alias = columnAliases.get(0);
+                    stmt.columnAliases.add(alias.key);
+                    stmt.comparator = getTypeAndRemove(stmt.columns, alias);
                     if (stmt.comparator instanceof CounterColumnType)
-                        throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", stmt.columnAliases.get(0)));
+                        throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", alias));
+                    if (staticColumns.contains(alias))
+                        throw new InvalidRequestException(String.format("Static column %s cannot be part of the PRIMARY KEY", alias));
                 }
                 else
                 {
@@ -275,6 +286,8 @@ public class CreateTableStatement extends SchemaAlteringStatement
                         AbstractType<?> type = getTypeAndRemove(stmt.columns, t);
                         if (type instanceof CounterColumnType)
                             throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", t.key));
+                        if (staticColumns.contains(t))
+                            throw new InvalidRequestException(String.format("Static column %s cannot be part of the PRIMARY KEY", t));
                         types.add(type);
                     }
 
@@ -296,6 +309,16 @@ public class CreateTableStatement extends SchemaAlteringStatement
                         throw new IllegalStateException("Nonsensical empty parameter list for CompositeType");
                     stmt.comparator = CompositeType.getInstance(types);
                 }
+            }
+
+            if (!staticColumns.isEmpty())
+            {
+                // Only CQL3 tables can have static columns
+                if (useCompactStorage)
+                    throw new InvalidRequestException("Static columns are not supported in COMPACT STORAGE tables");
+                // Static columns only make sense if we have at least one clustering column. Otherwise everything is static anyway
+                if (columnAliases.isEmpty())
+                    throw new InvalidRequestException("Static columns are only useful (and thus allowed) if the table has at least one clustering column");
             }
 
             if (useCompactStorage && !stmt.columnAliases.isEmpty())
@@ -373,10 +396,12 @@ public class CreateTableStatement extends SchemaAlteringStatement
             return isReversed != null && isReversed ? ReversedType.getInstance(type) : type;
         }
 
-        public void addDefinition(ColumnIdentifier def, CQL3Type type)
+        public void addDefinition(ColumnIdentifier def, CQL3Type type, boolean isStatic)
         {
             definedNames.add(def);
             definitions.put(def, type);
+            if (isStatic)
+                staticColumns.add(def);
         }
 
         public void addKeyAliases(List<ColumnIdentifier> aliases)

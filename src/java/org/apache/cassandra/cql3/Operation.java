@@ -19,6 +19,8 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
@@ -52,6 +54,23 @@ public abstract class Operation
     {
         this.columnName = columnName;
         this.t = t;
+    }
+
+    // Whether the colum operated on is a static column (on trunk, Operation stores the ColumnDefinition directly,
+    // not just the column name, so we'll be able to remove that lookup and check ColumnDefinition.isStatic field
+    // directly. But for 2.0, it's simpler that way).
+    public boolean isStatic(CFMetaData cfm)
+    {
+        if (columnName == null)
+            return false;
+
+        ColumnDefinition def = cfm.getColumnDefinition(columnName.key);
+        return def != null && def.type == ColumnDefinition.Type.STATIC;
+    }
+
+    protected ColumnNameBuilder maybeUpdatePrefix(CFMetaData cfm, ColumnNameBuilder prefix)
+    {
+        return isStatic(cfm) ? cfm.getStaticColumnNameBuilder() : prefix;
     }
 
     /**

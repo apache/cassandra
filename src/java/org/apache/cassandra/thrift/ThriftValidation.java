@@ -245,7 +245,8 @@ public class ThriftValidation
                     continue; // Row marker, ok
 
                 ColumnIdentifier columnId = new ColumnIdentifier(CQL3ColumnName, composite.types.get(columnIndex));
-                if (cfDef.metadata.get(columnId) == null)
+                CFDefinition.Name columnName = cfDef.get(columnId);
+                if (columnName == null || columnName.isPrimaryKeyColumn())
                     throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Invalid cell for CQL3 table %s. The CQL3 column component (%s) does not correspond to a defined CQL3 column",
                                                                                                     metadata.cfName, columnId));
 

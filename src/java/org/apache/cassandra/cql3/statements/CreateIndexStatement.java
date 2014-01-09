@@ -87,6 +87,15 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         if (cfm.getCfDef().isCompact && cd.type != ColumnDefinition.Type.REGULAR)
             throw new InvalidRequestException(String.format("Secondary index on %s column %s is not yet supported for compact table", cd.type, columnName));
 
+        // It would be possible to support 2ndary index on static columns (but not without modifications of at least ExtendedFilter and
+        // CompositesIndex) and maybe we should, but that means a query like:
+        //     SELECT * FROM foo WHERE static_column = 'bar'
+        // would pull the full partition every time the static column of partition is 'bar', which sounds like offering a
+        // fair potential for foot-shooting, so I prefer leaving that to a follow up ticket once we have identified cases where
+        // such indexing is actually useful.
+        if (cd.type == ColumnDefinition.Type.STATIC)
+            throw new InvalidRequestException("Secondary indexes are not allowed on static columns");
+
         if (cd.getValidator().isCollection() && !properties.isCustom)
             throw new InvalidRequestException("Indexes on collections are no yet supported");
 

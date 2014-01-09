@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -674,11 +675,11 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
 
             // otherwise for CqlStorage, check metadata for classic thrift tables
             CFDefinition cfDefinition = getCfDefinition(keyspace, column_family, client);
-            for (ColumnIdentifier column : cfDefinition.metadata.keySet())
+            for (CFDefinition.Name column : Iterables.concat(cfDefinition.staticColumns(), cfDefinition.regularColumns()))
             {
                 ColumnDef cDef = new ColumnDef();
-                String columnName = column.toString();
-                String type = cfDefinition.metadata.get(column).type.toString();
+                String columnName = column.name.toString();
+                String type = column.type.toString();
                 logger.debug("name: {}, type: {} ", columnName, type);
                 cDef.name = ByteBufferUtil.bytes(columnName);
                 cDef.validation_class = type;
@@ -688,12 +689,12 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
             // could have already processed it as schema_columnfamilies.value_alias
             if (columnDefs.size() == 0 && includeCompactValueColumn)
             {
-                String value = cfDefinition.value != null ? cfDefinition.value.toString() : null;
+                String value = cfDefinition.compactValue() != null ? cfDefinition.compactValue().toString() : null;
                 if ("value".equals(value))
                 {
                     ColumnDef cDef = new ColumnDef();
                     cDef.name = ByteBufferUtil.bytes(value);
-                    cDef.validation_class = cfDefinition.value.type.toString();
+                    cDef.validation_class = cfDefinition.compactValue().type.toString();
                     columnDefs.add(cDef);
                 }
             }

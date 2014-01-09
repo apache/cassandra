@@ -47,8 +47,15 @@ public class AlterTableStatement extends SchemaAlteringStatement
     public final ColumnIdentifier columnName;
     private final CFPropDefs cfProps;
     private final Map<ColumnIdentifier, ColumnIdentifier> renames;
+    private final boolean isStatic; // Only for ALTER ADD
 
-    public AlterTableStatement(CFName name, Type type, ColumnIdentifier columnName, CQL3Type validator, CFPropDefs cfProps, Map<ColumnIdentifier, ColumnIdentifier> renames)
+    public AlterTableStatement(CFName name,
+                               Type type,
+                               ColumnIdentifier columnName,
+                               CQL3Type validator,
+                               CFPropDefs cfProps,
+                               Map<ColumnIdentifier, ColumnIdentifier> renames,
+                               boolean isStatic)
     {
         super(name);
         this.oType = type;
@@ -56,6 +63,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
         this.validator = validator; // used only for ADD/ALTER commands
         this.cfProps = cfProps;
         this.renames = renames;
+        this.isStatic = isStatic;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -79,7 +87,11 @@ public class AlterTableStatement extends SchemaAlteringStatement
         {
             case ADD:
                 if (cfDef.isCompact)
-                    throw new InvalidRequestException("Cannot add new column to a compact CF");
+                    throw new InvalidRequestException("Cannot add new column to a COMPACT STORAGE table");
+
+                if (isStatic && !cfDef.isComposite)
+                    throw new InvalidRequestException("Static columns are not allowed in COMPACT STORAGE tables");
+
                 if (name != null)
                 {
                     switch (name.kind)
@@ -87,7 +99,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         case KEY_ALIAS:
                         case COLUMN_ALIAS:
                             throw new InvalidRequestException(String.format("Invalid column name %s because it conflicts with a PRIMARY KEY part", columnName));
-                        case COLUMN_METADATA:
+                        default:
                             throw new InvalidRequestException(String.format("Invalid column name %s because it conflicts with an existing column", columnName));
                     }
                 }
@@ -117,7 +129,9 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 Integer componentIndex = cfDef.isComposite
                                        ? ((CompositeType)meta.comparator).types.size() - (cfDef.hasCollections ? 2 : 1)
                                        : null;
-                cfm.addColumnDefinition(ColumnDefinition.regularDef(columnName.key, type, componentIndex));
+                cfm.addColumnDefinition(isStatic
+                                        ? ColumnDefinition.staticDef(columnName.key, type, componentIndex)
+                                        : ColumnDefinition.regularDef(columnName.key, type, componentIndex));
                 break;
 
             case ALTER:
@@ -178,6 +192,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         cfm.defaultValidator(validator.getType());
                         break;
                     case COLUMN_METADATA:
+                    case STATIC:
                         ColumnDefinition column = cfm.getColumnDefinition(columnName.key);
                         // Thrift allows to change a column validator so CFMetaData.validateCompatibility will let it slide
                         // if we change to an incompatible type (contrarily to the comparator case). But we don't want to
@@ -196,10 +211,8 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 break;
 
             case DROP:
-                if (cfDef.isCompact)
-                    throw new InvalidRequestException("Cannot drop columns from a compact CF");
-                if (!cfDef.isComposite)
-                    throw new InvalidRequestException("Cannot drop columns from a non-CQL3 CF");
+                if (cfDef.isCompact || !cfDef.isComposite)
+                    throw new InvalidRequestException("Cannot drop columns from a COMPACT STORAGE table");
                 if (name == null)
                     throw new InvalidRequestException(String.format("Column %s was not found in table %s", columnName, columnFamily()));
 
@@ -209,8 +222,9 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     case COLUMN_ALIAS:
                         throw new InvalidRequestException(String.format("Cannot drop PRIMARY KEY part %s", columnName));
                     case COLUMN_METADATA:
+                    case STATIC:
                         ColumnDefinition toDelete = null;
-                        for (ColumnDefinition columnDef : cfm.regularColumns())
+                        for (ColumnDefinition columnDef : cfm.regularAndStaticColumns())
                         {
                             if (columnDef.name.equals(columnName.key))
                                 toDelete = columnDef;

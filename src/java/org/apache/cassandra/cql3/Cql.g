@@ -351,20 +351,21 @@ updateStatement returns [UpdateStatement.ParsedUpdate expr]
       ( usingClause[attrs] )?
       K_SET columnOperation[operations] (',' columnOperation[operations])*
       K_WHERE wclause=whereClause
-      ( K_IF conditions=updateCondition )?
+      ( K_IF conditions=updateConditions )?
       {
           return new UpdateStatement.ParsedUpdate(cf,
                                                   attrs,
                                                   operations,
                                                   wclause,
-                                                  conditions == null ? Collections.<Pair<ColumnIdentifier, Operation.RawUpdate>>emptyList() : conditions);
+                                                  conditions == null ? Collections.<Pair<ColumnIdentifier, ColumnCondition.Raw>>emptyList() : conditions);
      }
     ;
 
-updateCondition returns [List<Pair<ColumnIdentifier, Operation.RawUpdate>> conditions]
-    @init { conditions = new ArrayList<Pair<ColumnIdentifier, Operation.RawUpdate>>(); }
-    : columnOperation[conditions] ( K_AND columnOperation[conditions] )*
+updateConditions returns [List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions]
+    @init { conditions = new ArrayList<Pair<ColumnIdentifier, ColumnCondition.Raw>>(); }
+    : columnCondition[conditions] ( K_AND columnCondition[conditions] )*
     ;
+
 
 /**
  * DELETE name1, name2
@@ -381,13 +382,13 @@ deleteStatement returns [DeleteStatement.Parsed expr]
       K_FROM cf=columnFamilyName
       ( usingClauseDelete[attrs] )?
       K_WHERE wclause=whereClause
-      ( K_IF conditions=updateCondition )?
+      ( K_IF conditions=updateConditions )?
       {
           return new DeleteStatement.Parsed(cf,
                                             attrs,
                                             columnDeletions,
                                             wclause,
-                                            conditions == null ? Collections.<Pair<ColumnIdentifier, Operation.RawUpdate>>emptyList() : conditions);
+                                            conditions == null ? Collections.<Pair<ColumnIdentifier, ColumnCondition.Raw>>emptyList() : conditions);
       }
     ;
 
@@ -484,7 +485,8 @@ cfamDefinition[CreateTableStatement.RawStatement expr]
     ;
 
 cfamColumns[CreateTableStatement.RawStatement expr]
-    : k=cident v=comparatorType { $expr.addDefinition(k, v); } (K_PRIMARY K_KEY { $expr.addKeyAliases(Collections.singletonList(k)); })?
+    : k=cident v=comparatorType { boolean isStatic=false; } (K_STATIC {isStatic = true;})? { $expr.addDefinition(k, v, isStatic); }
+        (K_PRIMARY K_KEY { $expr.addKeyAliases(Collections.singletonList(k)); })?
     | K_PRIMARY K_KEY '(' pkDef[expr] (',' c=cident { $expr.addColumnAlias(c); } )* ')'
     ;
 
@@ -558,10 +560,11 @@ alterTableStatement returns [AlterTableStatement expr]
         AlterTableStatement.Type type = null;
         CFPropDefs props = new CFPropDefs();
         Map<ColumnIdentifier, ColumnIdentifier> renames = new HashMap<ColumnIdentifier, ColumnIdentifier>();
+        boolean isStatic = false;
     }
     : K_ALTER K_COLUMNFAMILY cf=columnFamilyName
           ( K_ALTER id=cident K_TYPE v=comparatorType { type = AlterTableStatement.Type.ALTER; }
-          | K_ADD   id=cident v=comparatorType        { type = AlterTableStatement.Type.ADD; }
+          | K_ADD   id=cident v=comparatorType ({ isStatic=true; } K_STATIC)? { type = AlterTableStatement.Type.ADD; }
           | K_DROP  id=cident                         { type = AlterTableStatement.Type.DROP; }
           | K_WITH  properties[props]                 { type = AlterTableStatement.Type.OPTS; }
           | K_RENAME                                  { type = AlterTableStatement.Type.RENAME; }
@@ -569,7 +572,7 @@ alterTableStatement returns [AlterTableStatement expr]
                ( K_AND idn=cident K_TO toIdn=cident { renames.put(idn, toIdn); } )*
           )
     {
-        $expr = new AlterTableStatement(cf, type, id, v, props, renames);
+        $expr = new AlterTableStatement(cf, type, id, v, props, renames, isStatic);
     }
     ;
 
@@ -845,6 +848,10 @@ columnOperation[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations]
       }
     ;
 
+columnCondition[List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions]
+    : key=cident '=' t=term { conditions.add(Pair.create(key, new ColumnCondition.Raw(t))); } // Note: we'll reject duplicates later
+    ;
+
 properties[PropertyDefinitions props]
     : property[props] (K_AND property[props])*
     ;
@@ -981,6 +988,7 @@ unreserved_function_keyword returns [String str]
         | K_CUSTOM
         | K_TRIGGER
         | K_DISTINCT
+        | K_STATIC
         ) { $str = $k.text; }
     | t=native_type { $str = t.toString(); }
     ;
@@ -1084,6 +1092,7 @@ K_NAN:         N A N;
 K_INFINITY:    I N F I N I T Y;
 
 K_TRIGGER:     T R I G G E R;
+K_STATIC:      S T A T I C;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

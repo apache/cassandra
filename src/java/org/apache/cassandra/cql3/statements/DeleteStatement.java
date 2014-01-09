@@ -31,9 +31,9 @@ import org.apache.cassandra.utils.Pair;
  */
 public class DeleteStatement extends ModificationStatement
 {
-    private DeleteStatement(CFMetaData cfm, Attributes attrs)
+    private DeleteStatement(StatementType type, CFMetaData cfm, Attributes attrs)
     {
-        super(cfm, attrs);
+        super(type, cfm, attrs);
     }
 
     public boolean requireFullClusteringKey()
@@ -44,15 +44,30 @@ public class DeleteStatement extends ModificationStatement
     public ColumnFamily updateForKey(ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params)
     throws InvalidRequestException
     {
-        CFDefinition cfDef = cfm.getCfDef();
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfm);
+        addUpdateForKey(cf, key, builder, params);
+        return cf;
+    }
+
+    public void addUpdateForKey(ColumnFamily cf, ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params)
+    throws InvalidRequestException
+    {
+        CFDefinition cfDef = cfm.getCfDef();
         List<Operation> deletions = getOperations();
 
-        boolean fullKey = builder.componentCount() == cfDef.columns.size();
+        boolean fullKey = builder.componentCount() == cfDef.clusteringColumnsCount();
         boolean isRange = cfDef.isCompact ? !fullKey : (!fullKey || deletions.isEmpty());
 
         if (!deletions.isEmpty() && isRange)
-            throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s since %s specified", getFirstEmptyKey(), deletions.get(0).columnName));
+        {
+            // We only get there if we have at least one non-static columns selected, as otherwise the builder will be
+            // the "static" builder and isRange will be false. But we may still have static columns, so pick the first
+            // non static one for the error message so it's not confusing
+            for (Operation deletion : deletions)
+                if (cfm.getCfDef().get(deletion.columnName).kind != CFDefinition.Name.Kind.STATIC)
+                    throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s since %s specified", getFirstEmptyKey(), deletion.columnName));
+            throw new AssertionError();
+        }
 
         if (deletions.isEmpty() && builder.componentCount() == 0)
         {
@@ -83,8 +98,6 @@ public class DeleteStatement extends ModificationStatement
                 }
             }
         }
-
-        return cf;
     }
 
     public static class Parsed extends ModificationStatement.Parsed
@@ -96,7 +109,7 @@ public class DeleteStatement extends ModificationStatement
                       Attributes.Raw attrs,
                       List<Operation.RawDeletion> deletions,
                       List<Relation> whereClause,
-                      List<Pair<ColumnIdentifier, Operation.RawUpdate>> conditions)
+                      List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions)
         {
             super(name, attrs, conditions, false);
             this.deletions = deletions;
@@ -105,7 +118,7 @@ public class DeleteStatement extends ModificationStatement
 
         protected ModificationStatement prepareInternal(CFDefinition cfDef, VariableSpecifications boundNames, Attributes attrs) throws InvalidRequestException
         {
-            DeleteStatement stmt = new DeleteStatement(cfDef.cfm, attrs);
+            DeleteStatement stmt = new DeleteStatement(ModificationStatement.StatementType.DELETE, cfDef.cfm, attrs);
 
             for (Operation.RawDeletion deletion : deletions)
             {
@@ -115,7 +128,7 @@ public class DeleteStatement extends ModificationStatement
 
                 // For compact, we only have one value except the key, so the only form of DELETE that make sense is without a column
                 // list. However, we support having the value name for coherence with the static/sparse case
-                if (name.kind != CFDefinition.Name.Kind.COLUMN_METADATA && name.kind != CFDefinition.Name.Kind.VALUE_ALIAS)
+                if (name.isPrimaryKeyColumn())
                     throw new InvalidRequestException(String.format("Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", name));
 
                 Operation op = deletion.prepare(name);

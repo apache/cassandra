@@ -52,9 +52,9 @@ public class TokenFct extends AbstractFunction
 
     private static AbstractType[] getKeyTypes(CFMetaData cfm)
     {
-        AbstractType[] types = new AbstractType[cfm.getCfDef().keys.size()];
+        AbstractType[] types = new AbstractType[cfm.getCfDef().partitionKeyCount()];
         int i = 0;
-        for (CFDefinition.Name name : cfm.getCfDef().keys.values())
+        for (CFDefinition.Name name : cfm.getCfDef().partitionKeys())
             types[i++] = name.type;
         return types;
     }

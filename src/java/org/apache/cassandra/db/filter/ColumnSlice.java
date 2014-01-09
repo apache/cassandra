@@ -63,7 +63,6 @@ public class ColumnSlice
         return !finish.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER) && cmp.compare(finish, name) < 0;
     }
 
-
     @Override
     public final int hashCode()
     {

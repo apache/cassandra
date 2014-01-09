@@ -49,6 +49,12 @@ public abstract class Selection
         this.collectTTLs = collectTTLs;
     }
 
+    // Overriden by SimpleSelection when appropriate.
+    public boolean isWildcard()
+    {
+        return false;
+    }
+
     public ResultSet.Metadata getResultMetadata()
     {
         return new ResultSet.Metadata(metadata);
@@ -59,12 +65,12 @@ public abstract class Selection
         List<CFDefinition.Name> all = new ArrayList<CFDefinition.Name>();
         for (CFDefinition.Name name : cfDef)
             all.add(name);
-        return new SimpleSelection(all);
+        return new SimpleSelection(all, true);
     }
 
     public static Selection forColumns(List<CFDefinition.Name> columnsList)
     {
-        return new SimpleSelection(columnsList);
+        return new SimpleSelection(columnsList, false);
     }
 
     private static boolean isUsingFunction(List<RawSelector> rawSelectors)
@@ -105,7 +111,7 @@ public abstract class Selection
             CFDefinition.Name name = cfDef.get(tot.id);
             if (name == null)
                 throw new InvalidRequestException(String.format("Undefined name %s in selection clause", tot.id));
-            if (name.kind != CFDefinition.Name.Kind.COLUMN_METADATA && name.kind != CFDefinition.Name.Kind.VALUE_ALIAS)
+            if (name.isPrimaryKeyColumn())
                 throw new InvalidRequestException(String.format("Cannot use selection function %s on PRIMARY KEY part %s", tot.isWritetime ? "writeTime" : "ttl", name));
             if (name.type.isCollection())
                 throw new InvalidRequestException(String.format("Cannot use selection function %s on collections", tot.isWritetime ? "writeTime" : "ttl"));
@@ -195,7 +201,7 @@ public abstract class Selection
                 names.add(name);
                 metadata.add(rawSelector.alias == null ? name : makeAliasSpec(cfDef, name.type, rawSelector.alias));
             }
-            return new SimpleSelection(names, metadata);
+            return new SimpleSelection(names, metadata, false);
         }
     }
 
@@ -204,12 +210,12 @@ public abstract class Selection
     /**
      * @return the list of CQL3 "regular" (the "COLUMN_METADATA" ones) column names to fetch.
      */
-    public List<ColumnIdentifier> regularColumnsToFetch()
+    public List<ColumnIdentifier> regularAndStaticColumnsToFetch()
     {
         List<ColumnIdentifier> toFetch = new ArrayList<ColumnIdentifier>();
         for (CFDefinition.Name name : columnsList)
         {
-            if (name.kind == CFDefinition.Name.Kind.COLUMN_METADATA)
+            if (name.kind == CFDefinition.Name.Kind.COLUMN_METADATA || name.kind == CFDefinition.Name.Kind.STATIC)
                 toFetch.add(name.name);
         }
         return toFetch;
@@ -307,12 +313,14 @@ public abstract class Selection
     // Special cased selection for when no function is used (this save some allocations).
     private static class SimpleSelection extends Selection
     {
-        public SimpleSelection(List<CFDefinition.Name> columnsList)
+        private final boolean isWildcard;
+
+        public SimpleSelection(List<CFDefinition.Name> columnsList, boolean isWildcard)
         {
-            this(columnsList, new ArrayList<ColumnSpecification>(columnsList));
+            this(columnsList, new ArrayList<ColumnSpecification>(columnsList), isWildcard);
         }
 
-        public SimpleSelection(List<CFDefinition.Name> columnsList, List<ColumnSpecification> metadata)
+        public SimpleSelection(List<CFDefinition.Name> columnsList, List<ColumnSpecification> metadata, boolean isWildcard)
         {
             /*
              * In theory, even a simple selection could have multiple time the same column, so we
@@ -320,11 +328,18 @@ public abstract class Selection
              * get much duplicate in practice, it's more efficient not to bother.
              */
             super(columnsList, metadata, false, false);
+            this.isWildcard = isWildcard;
         }
 
         protected List<ByteBuffer> handleRow(ResultSetBuilder rs)
         {
             return rs.current;
+        }
+
+        @Override
+        public boolean isWildcard()
+        {
+            return isWildcard;
         }
     }
 

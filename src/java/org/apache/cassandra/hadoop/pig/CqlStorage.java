@@ -524,17 +524,17 @@ public class CqlStorage extends AbstractCassandraStorage
             if (keys.size() == 0)
             {
                 CFDefinition cfDefinition = getCfDefinition(keyspace, column_family, client);
-                for (ColumnIdentifier column : cfDefinition.keys.keySet())
+                for (CFDefinition.Name column : cfDefinition.partitionKeys())
                 {
-                    String key = column.toString();
+                    String key = column.name.toString();
                     logger.debug("name: {} ", key);
                     ColumnDef cDef = new ColumnDef();
                     cDef.name = ByteBufferUtil.bytes(key);
                     keys.add(cDef);
                 }
-                for (ColumnIdentifier column : cfDefinition.columns.keySet())
+                for (CFDefinition.Name column : cfDefinition.clusteringColumns())
                 {
-                    String key = column.toString();
+                    String key = column.name.toString();
                     logger.debug("name: {} ", key);
                     ColumnDef cDef = new ColumnDef();
                     cDef.name = ByteBufferUtil.bytes(key);

@@ -64,7 +64,8 @@ public class ColumnDefinition
         PARTITION_KEY,
         CLUSTERING_KEY,
         REGULAR,
-        COMPACT_VALUE
+        COMPACT_VALUE,
+        STATIC
     }
 
     public final ByteBuffer name;
@@ -94,6 +95,11 @@ public class ColumnDefinition
     public static ColumnDefinition regularDef(ByteBuffer name, AbstractType<?> validator, Integer componentIndex)
     {
         return new ColumnDefinition(name, validator, componentIndex, Type.REGULAR);
+    }
+
+    public static ColumnDefinition staticDef(ByteBuffer name, AbstractType<?> validator, Integer componentIndex)
+    {
+        return new ColumnDefinition(name, validator, componentIndex, Type.STATIC);
     }
 
     public static ColumnDefinition compactValueDef(ByteBuffer name, AbstractType<?> validator)
@@ -174,6 +180,7 @@ public class ColumnDefinition
 
     public boolean isThriftCompatible()
     {
+        // componentIndex == null should always imply isStatic in practice, but there is no harm in being too careful here.
         return type == ColumnDefinition.Type.REGULAR && componentIndex == null;
     }
 
