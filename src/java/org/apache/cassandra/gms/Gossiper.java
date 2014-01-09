@@ -811,6 +811,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private void markAlive(final InetAddress addr, final EndpointState localState)
     {
+        if (MessagingService.instance().getVersion(addr) < MessagingService.VERSION_20)
+        {
+            realMarkAlive(addr, localState);
+            return;
+        }
+
         MessageOut<EchoMessage> echoMessage = new MessageOut<EchoMessage>(MessagingService.Verb.ECHO, new EchoMessage(), EchoMessage.serializer);
         logger.trace("Sending a EchoMessage to {}", addr);
         IAsyncCallback echoHandler = new IAsyncCallback()
@@ -822,22 +828,27 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
             public void response(MessageIn msg)
             {
-                if (logger.isTraceEnabled())
-                    logger.trace("marking as alive {}", addr);
-                localState.markAlive();
-                localState.updateTimestamp(); // prevents doStatusCheck from racing us and evicting if it was down > aVeryLongTime
-                liveEndpoints.add(addr);
-                unreachableEndpoints.remove(addr);
-                expireTimeEndpointMap.remove(addr);
-                logger.debug("removing expire time for endpoint : " + addr);
-                logger.info("InetAddress {} is now UP", addr);
-                for (IEndpointStateChangeSubscriber subscriber : subscribers)
-                    subscriber.onAlive(addr, localState);
-                if (logger.isTraceEnabled())
-                    logger.trace("Notified " + subscribers);
+                realMarkAlive(addr, localState);
             }
         };
         MessagingService.instance().sendRR(echoMessage, addr, echoHandler);
+    }
+
+    private void realMarkAlive(final InetAddress addr, final EndpointState localState)
+    {
+        if (logger.isTraceEnabled())
+                logger.trace("marking as alive {}", addr);
+        localState.markAlive();
+        localState.updateTimestamp(); // prevents doStatusCheck from racing us and evicting if it was down > aVeryLongTime
+        liveEndpoints.add(addr);
+        unreachableEndpoints.remove(addr);
+        expireTimeEndpointMap.remove(addr);
+        logger.debug("removing expire time for endpoint : " + addr);
+        logger.info("InetAddress {} is now UP", addr);
+        for (IEndpointStateChangeSubscriber subscriber : subscribers)
+            subscriber.onAlive(addr, localState);
+        if (logger.isTraceEnabled())
+                logger.trace("Notified " + subscribers);
     }
 
     private void markDead(InetAddress addr, EndpointState localState)
