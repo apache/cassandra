@@ -558,6 +558,15 @@ public final class CFMetaData
                 .memtableFlushPeriod(3600 * 1000);
     }
 
+    /**
+     * Creates CFMetaData for secondary index CF.
+     * Secondary index CF has the same CF ID as parent's.
+     *
+     * @param parent Parent CF where secondary index is created
+     * @param info Column definition containing secondary index definition
+     * @param indexComparator Comparator for secondary index
+     * @return CFMetaData for secondary index
+     */
     public static CFMetaData newIndexMetadata(CFMetaData parent, ColumnDefinition info, CellNameType indexComparator)
     {
         // Depends on parent's cache setting, turn on its index CF's cache.
@@ -566,7 +575,7 @@ public final class CFMetaData
                              ? Caching.KEYS_ONLY
                              : Caching.NONE;
 
-        return new CFMetaData(parent.ksName, parent.indexColumnFamilyName(info), ColumnFamilyType.Standard, indexComparator)
+        return new CFMetaData(parent.ksName, parent.indexColumnFamilyName(info), ColumnFamilyType.Standard, indexComparator, parent.cfId)
                              .keyValidator(info.type)
                              .readRepairChance(0.0)
                              .dcLocalReadRepairChance(0.0)
