@@ -248,6 +248,16 @@ public class Directories
         return null;
     }
 
+    public Descriptor find(String filename)
+    {
+        for (File dir : sstableDirectories)
+        {
+            if (new File(dir, filename).exists())
+                return Descriptor.fromFilename(dir, filename).left;
+        }
+        return null;
+    }
+
     public File getDirectoryForNewSSTables()
     {
         File path = getWriteableLocationAsFile();

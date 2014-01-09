@@ -303,7 +303,7 @@ public class CompactionManager implements CompactionManagerMBean
     public void forceUserDefinedCompaction(String dataFiles)
     {
         String[] filenames = dataFiles.split(",");
-        Multimap<Pair<String, String>, Descriptor> descriptors = ArrayListMultimap.create();
+        Multimap<ColumnFamilyStore, Descriptor> descriptors = ArrayListMultimap.create();
 
         for (String filename : filenames)
         {
@@ -314,19 +314,14 @@ public class CompactionManager implements CompactionManagerMBean
                 logger.warn("Schema does not exist for file {}. Skipping.", filename);
                 continue;
             }
-            File directory = new File(desc.ksname + File.separator + desc.cfname);
             // group by keyspace/columnfamily
-            Pair<Descriptor, String> p = Descriptor.fromFilename(directory, filename.trim());
-            Pair<String, String> key = Pair.create(p.left.ksname, p.left.cfname);
-            descriptors.put(key, p.left);
+            ColumnFamilyStore cfs = Keyspace.open(desc.ksname).getColumnFamilyStore(desc.cfname);
+            descriptors.put(cfs, cfs.directories.find(filename.trim()));
         }
 
         List<Future<?>> futures = new ArrayList<>();
-        for (Pair<String, String> key : descriptors.keySet())
-        {
-            ColumnFamilyStore cfs = Keyspace.open(key.left).getColumnFamilyStore(key.right);
-            futures.add(submitUserDefined(cfs, descriptors.get(key), getDefaultGcBefore(cfs)));
-        }
+        for (ColumnFamilyStore cfs : descriptors.keySet())
+            futures.add(submitUserDefined(cfs, descriptors.get(cfs), getDefaultGcBefore(cfs)));
         FBUtilities.waitOnFutures(futures);
     }
 
@@ -369,16 +364,12 @@ public class CompactionManager implements CompactionManagerMBean
     }
 
     // This acquire a reference on the sstable
-    // This is not efficent, do not use in any critical path
+    // This is not efficient, do not use in any critical path
     private SSTableReader lookupSSTable(final ColumnFamilyStore cfs, Descriptor descriptor)
     {
         for (SSTableReader sstable : cfs.getSSTables())
         {
-            // .equals() with no other changes won't work because in sstable.descriptor, the directory is an absolute path.
-            // We could construct descriptor with an absolute path too but I haven't found any satisfying way to do that
-            // (DB.getDataFileLocationForTable() may not return the right path if you have multiple volumes). Hence the
-            // endsWith.
-            if (sstable.descriptor.toString().endsWith(descriptor.toString()))
+            if (sstable.descriptor.equals(descriptor))
                 return sstable;
         }
         return null;
