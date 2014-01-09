@@ -1,4 +1,5 @@
 2.0.5
+ * Wait for gossip to settle before accepting client connections (CASSANDRA-4288)
  * Delete unfinished compaction incrementally (CASSANDRA-6086)
  * Allow specifying custom secondary index options in CQL3 (CASSANDRA-6480)
 Merged from 1.2:
