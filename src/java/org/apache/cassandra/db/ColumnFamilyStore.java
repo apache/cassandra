@@ -40,11 +40,8 @@ import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.cache.RowCacheSentinel;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.config.CFMetaData.SpeculativeRetry;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
@@ -464,8 +461,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (def.isIndexed())
             {
-                CFMetaData indexMetadata = CFMetaData.newIndexMetadata(metadata, def, SecondaryIndex.getIndexComparator(metadata, def));
-                scrubDataDirectories(indexMetadata);
+                CellNameType indexComparator = SecondaryIndex.getIndexComparator(metadata, def);
+                if (indexComparator != null)
+                {
+                    CFMetaData indexMetadata = CFMetaData.newIndexMetadata(metadata, def, indexComparator);
+                    scrubDataDirectories(indexMetadata);
+                }
             }
         }
     }
