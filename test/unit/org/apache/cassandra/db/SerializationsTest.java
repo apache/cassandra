@@ -200,8 +200,9 @@ public class SerializationsTest extends AbstractSerializationsTester
     @Test
     public void testRowRead() throws IOException
     {
-        if (EXECUTE_WRITES)
-            testRowWrite();
+        // Since every table creation generates different CF ID,
+        // we need to generate file every time
+        testRowWrite();
 
         DataInputStream in = getInput("db.Row.bin");
         assert Row.serializer.deserialize(in, getVersion()) != null;
@@ -248,8 +249,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     public void testMutationRead() throws IOException
     {
         // mutation deserialization requires being able to look up the keyspace in the schema,
-        // so we need to rewrite this each time.  We can go back to testing on-disk data
-        // once we pull RM.keyspace field out.
+        // so we need to rewrite this each time. plus, CF ID is different for every run.
         testMutationWrite();
 
         DataInputStream in = getInput("db.RowMutation.bin");
