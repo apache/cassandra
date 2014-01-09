@@ -30,11 +30,14 @@ import javax.management.ObjectName;
 import javax.management.StandardMBean;
 
 import com.addthis.metrics.reporter.config.ReporterConfig;
-
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
@@ -321,6 +324,8 @@ public class CassandraDaemon
             }
         }
 
+        waitForGossipToSettle();
+
         // Thift
         InetAddress rpcAddr = DatabaseDescriptor.getRpcAddress();
         int rpcPort = DatabaseDescriptor.getRpcPort();
@@ -444,6 +449,50 @@ public class CassandraDaemon
     {
         stop();
         destroy();
+    }
+
+
+    private void waitForGossipToSettle()
+    {
+        int forceAfter = Integer.getInteger("cassandra.skip_wait_for_gossip_to_settle", -1);
+        if (forceAfter == 0)
+        {
+            return;
+        }
+        final int GOSSIP_SETTLE_MIN_WAIT_MS = 5000;
+        final int GOSSIP_SETTLE_POLL_INTERVAL_MS = 1000;
+        final int GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED = 3;
+
+        logger.info("waiting for gossip to settle before accepting client requests...");
+        Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_MIN_WAIT_MS, TimeUnit.MILLISECONDS);
+        int totalPolls = 0;
+        int numOkay = 0;
+        JMXEnabledThreadPoolExecutor gossipStage = (JMXEnabledThreadPoolExecutor)StageManager.getStage(Stage.GOSSIP);
+        while (numOkay < GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED)
+        {
+            Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
+            long completed = gossipStage.getCompletedTasks();
+            long active = gossipStage.getActiveCount();
+            long pending = gossipStage.getPendingTasks();
+            totalPolls++;
+            if (active == 0 && pending == 0)
+            {
+                logger.debug("gossip looks settled. CompletedTasks: {}", completed);
+                numOkay++;
+            }
+            else
+            {
+                logger.info("gossip not settled after {} polls. Gossip Stage active/pending/completed: {}/{}/{}", totalPolls, active, pending, completed);
+                numOkay = 0;
+            }
+            if (forceAfter > 0 && totalPolls > forceAfter)
+            {
+                logger.warn("Gossip not settled but startup forced by cassandra.skip_wait_for_gossip_to_settle. Gossip Stage active/pending/completed: {}/{}/{}",
+                            totalPolls, active, pending, completed);
+                break;
+            }
+        }
+        logger.info("gossip settled after {} extra polls; proceeding", totalPolls - GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED);
     }
 
     public static void stop(String[] args)

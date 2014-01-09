@@ -26,12 +26,14 @@
 
 
 2.0.5
+ * Wait for gossip to settle before accepting client connections (CASSANDRA-4288)
  * Delete unfinished compaction incrementally (CASSANDRA-6086)
  * Allow specifying custom secondary index options in CQL3 (CASSANDRA-6480)
 Merged from 1.2:
  * fsync compression metadata (CASSANDRA-6531)
  * Validate CF existence on execution for prepared statement (CASSANDRA-6535)
  * Add ability to throttle batchlog replay (CASSANDRA-6550)
+ * Fix executing LOCAL_QUORUM with SimpleStrategy (CASSANDRA-6545)
 
 
 2.0.4
