@@ -64,7 +64,7 @@ import org.apache.cassandra.utils.SimpleCondition;
 /**
  * JMX client operations for Cassandra.
  */
-public class NodeProbe
+public class NodeProbe implements AutoCloseable
 {
     private static final String fmtUrl = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
     private static final String ssObjName = "org.apache.cassandra.db:type=StorageService";
