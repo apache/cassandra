@@ -24,6 +24,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.Schema;
 import org.junit.Test;
@@ -648,6 +649,36 @@ public class LeaveAndBootstrapTest
         assertTrue(tmd.getBootstrapTokens().size() == 0);
         assertFalse(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
+    }
+
+    /**
+     * Tests that the system.peers table is not updated after a node has been removed. (See CASSANDRA-6053)
+     */
+    @Test
+    public void testStateChangeOnRemovedNode() throws UnknownHostException
+    {
+        StorageService ss = StorageService.instance;
+        VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
+
+        // create a ring of 2 nodes
+        ArrayList<Token> endpointTokens = new ArrayList<>();
+        List<InetAddress> hosts = new ArrayList<>();
+        Util.createInitialRing(ss, partitioner, endpointTokens, new ArrayList<Token>(), hosts, new ArrayList<UUID>(), 2);
+
+        InetAddress toRemove = hosts.get(1);
+        SystemKeyspace.updatePeerInfo(toRemove, "data_center", "'dc42'");
+        SystemKeyspace.updatePeerInfo(toRemove, "rack", "'rack42'");
+        assertEquals("rack42", SystemKeyspace.loadDcRackInfo().get(toRemove).get("rack"));
+
+        // mark the node as removed
+        Gossiper.instance.injectApplicationState(toRemove, ApplicationState.STATUS,
+                valueFactory.left(Collections.singleton(endpointTokens.get(1)), Gossiper.computeExpireTime()));
+        assertTrue(Gossiper.instance.isDeadState(Gossiper.instance.getEndpointStateForEndpoint(hosts.get(1))));
+
+        // state changes made after the endpoint has left should be ignored
+        ss.onChange(hosts.get(1), ApplicationState.RACK,
+                valueFactory.rack("rack9999"));
+        assertEquals("rack42", SystemKeyspace.loadDcRackInfo().get(toRemove).get("rack"));
     }
 
     private static Collection<InetAddress> makeAddrs(String... hosts) throws UnknownHostException
