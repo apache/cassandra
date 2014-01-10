@@ -71,7 +71,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
         CFMetaData meta = validateColumnFamily(keyspace(), columnFamily());
         CFMetaData cfm = meta.clone();
 
-        CQL3Type validator = this.validator.prepare(keyspace());
+        CQL3Type validator = this.validator == null ? null : this.validator.prepare(keyspace());
 
         ColumnDefinition def = columnName == null ? null : cfm.getColumnDefinition(columnName);
         switch (oType)

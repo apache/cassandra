@@ -103,7 +103,7 @@ public class CFRowAdder
             AbstractType valueType = def.type.isCollection()
                                    ? ((CollectionType) def.type).valueComparator()
                                    : def.type;
-            cf.addColumn(new Cell(name, valueType.decompose(value), timestamp));
+            cf.addColumn(new Cell(name, value instanceof ByteBuffer ? (ByteBuffer)value : valueType.decompose(value), timestamp));
         }
         return this;
     }
