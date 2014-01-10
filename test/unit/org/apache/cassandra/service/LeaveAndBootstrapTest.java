@@ -24,7 +24,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
-import org.apache.cassandra.db.SystemTable;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.Schema;
 import org.junit.Test;
@@ -661,14 +661,14 @@ public class LeaveAndBootstrapTest
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
         // create a ring of 2 nodes
-        ArrayList<Token> endpointTokens = new ArrayList<Token>();
-        List<InetAddress> hosts = new ArrayList<InetAddress>();
+        ArrayList<Token> endpointTokens = new ArrayList<>();
+        List<InetAddress> hosts = new ArrayList<>();
         Util.createInitialRing(ss, partitioner, endpointTokens, new ArrayList<Token>(), hosts, new ArrayList<UUID>(), 2);
 
         InetAddress toRemove = hosts.get(1);
-        SystemTable.updatePeerInfo(toRemove, "data_center", "'dc42'");
-        SystemTable.updatePeerInfo(toRemove, "rack", "'rack42'");
-        assertEquals("rack42", SystemTable.loadDcRackInfo().get(toRemove).get("rack"));
+        SystemKeyspace.updatePeerInfo(toRemove, "data_center", "'dc42'");
+        SystemKeyspace.updatePeerInfo(toRemove, "rack", "'rack42'");
+        assertEquals("rack42", SystemKeyspace.loadDcRackInfo().get(toRemove).get("rack"));
 
         // mark the node as removed
         Gossiper.instance.injectApplicationState(toRemove, ApplicationState.STATUS,
@@ -678,7 +678,7 @@ public class LeaveAndBootstrapTest
         // state changes made after the endpoint has left should be ignored
         ss.onChange(hosts.get(1), ApplicationState.RACK,
                 valueFactory.rack("rack9999"));
-        assertEquals("rack42", SystemTable.loadDcRackInfo().get(toRemove).get("rack"));
+        assertEquals("rack42", SystemKeyspace.loadDcRackInfo().get(toRemove).get("rack"));
     }
 
     private static Collection<InetAddress> makeAddrs(String... hosts) throws UnknownHostException
