@@ -69,7 +69,7 @@ public class PigTestBase extends SchemaLoader
 
     static
     {
-        System.setProperty("log4j.configuration", "log4j-junit.properties");
+        System.setProperty("logback.configurationFile", "logback-test.xml");
     }
 
     @AfterClass

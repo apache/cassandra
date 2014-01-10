@@ -1,0 +1,14 @@
+<configuration>
+  <appender name="STDERR" target="System.err" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%-5level %date{HH:mm:ss,SSS} %msg%n</pattern>
+    </encoder>
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+      <level>WARN</level>
+    </filter>
+  </appender>
+
+  <root level="WARN">
+    <appender-ref ref="STDERR" />
+  </root>
+</configuration>

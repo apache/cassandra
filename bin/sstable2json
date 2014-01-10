@@ -45,7 +45,7 @@ if [ -z "$CLASSPATH" ]; then
 fi
 
 "$JAVA" $JAVA_AGENT -cp "$CLASSPATH" -Dstorage-config="$CASSANDRA_CONF" \
-        -Dlog4j.configuration=log4j-tools.properties \
+        -Dlogback.configurationFile=logback-tools.xml \
         org.apache.cassandra.tools.SSTableExport "$@"
 
 # vi:ai sw=4 ts=4 tw=0 et

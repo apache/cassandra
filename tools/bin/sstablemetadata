@@ -42,5 +42,5 @@ else
 fi
 
 $JAVA -cp $CLASSPATH \
-        -Dlog4j.configuration=log4j-tools.properties \
+        -Dlogback.configurationFile=logback-tools.xml \
         org.apache.cassandra.tools.SSTableMetadataViewer "$@"

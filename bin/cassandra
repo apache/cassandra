@@ -133,7 +133,7 @@ launch_service()
     foreground="$2"
     props="$3"
     class="$4"
-    cassandra_parms="-Dlog4j.configuration=log4j-server.properties -Dlog4j.defaultInitOverride=true"
+    cassandra_parms="-Dlogback.configurationFile=logback.xml"
 
     if [ "x$pidpath" != "x" ]; then
         cassandra_parms="$cassandra_parms -Dcassandra-pidfile=$pidpath"

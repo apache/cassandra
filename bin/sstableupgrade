@@ -48,7 +48,7 @@ if [ "x$MAX_HEAP_SIZE" = "x" ]; then
 fi
 
 $JAVA $JAVA_AGENT -ea -cp $CLASSPATH -Xmx$MAX_HEAP_SIZE \
-        -Dlog4j.configuration=log4j-tools.properties \
+        -Dlogback.configurationFile=logback-tools.xml \
         org.apache.cassandra.tools.StandaloneUpgrader "$@"
 
 # vi:ai sw=4 ts=4 tw=0 et

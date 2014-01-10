@@ -2,7 +2,7 @@ Required configuration files
 ============================
 
 cassandra.yaml: main Cassandra configuration file
-log4j-server.proprties: log4j configuration file for Cassandra server
+logback.xml: logback configuration file for Cassandra server
 
 
 Optional configuration files

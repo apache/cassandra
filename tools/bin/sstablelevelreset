@@ -45,5 +45,5 @@ if [ -z $CLASSPATH ]; then
 fi
 
 $JAVA -cp $CLASSPATH  -Dstorage-config=$CASSANDRA_CONF \
-        -Dlog4j.configuration=log4j-tools.properties \
+        -Dlogback.configurationFile=logback-tools.xml \
         org.apache.cassandra.tools.SSTableLevelResetter "$@"

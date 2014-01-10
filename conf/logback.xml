@@ -30,5 +30,5 @@
     <appender-ref ref="STDOUT" />
   </root>
   
-  <logger name="org.apache.thrift.server.TNonblockingServer" level="ERROR"/>
+  <logger name="com.thinkaurelius.thrift" level="ERROR"/>
 </configuration>

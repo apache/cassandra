@@ -24,7 +24,7 @@ if NOT DEFINED JAVA_HOME goto :err
 
 REM ***** JAVA options *****
 set JAVA_OPTS=^
- -Dlog4j.configuration=log4j-tools.properties
+ -Dlogback.configurationFile=logback-tools.xml
 
 REM ***** CLASSPATH library setting *****
 

@@ -1,11 +1,11 @@
 conf/cassandra-topology.yaml etc/cassandra
-conf/log4j-server.properties etc/cassandra
 conf/cassandra.yaml etc/cassandra
 conf/cassandra-env.sh etc/cassandra
 conf/cassandra-rackdc.properties etc/cassandra
 conf/commitlog_archiving.properties etc/cassandra
 conf/cassandra-topology.properties etc/cassandra
-conf/log4j-tools.properties etc/cassandra
+conf/logback.xml etc/cassandra
+conf/logback-tools.xml etc/cassandra
 conf/triggers/* etc/cassandra/triggers
 debian/cassandra.in.sh usr/share/cassandra
 debian/cassandra.conf etc/security/limits.d

@@ -44,7 +44,7 @@ if [ -z "$CLASSPATH" ]; then
 fi
 
 "$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" -Xmx256M \
-        -Dlog4j.configuration=log4j-tools.properties \
+        -Dlogback.configurationFile=logback-tools.xml \
         org.apache.cassandra.tools.BulkLoader "$@"
 
 # vi:ai sw=4 ts=4 tw=0 et
