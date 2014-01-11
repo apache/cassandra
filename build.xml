@@ -358,7 +358,7 @@
           <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
           <dependency groupId="com.github.stephenc.high-scale-lib" artifactId="high-scale-lib" version="1.1.2"/>
           <dependency groupId="com.github.stephenc" artifactId="jamm" version="0.2.5"/>
-          <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.2">
+          <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.3">
 	      	<exclusion groupId="org.slf4j" artifactId="slf4j-log4j12"/>
           </dependency>
           <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.11"/>
@@ -471,7 +471,7 @@
         <dependency groupId="org.mindrot" artifactId="jbcrypt"/>
         <dependency groupId="com.yammer.metrics" artifactId="metrics-core"/>
         <dependency groupId="com.addthis.metrics" artifactId="reporter-config"/>
-        <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.2"/>
+        <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.3"/>
         <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.1" />
 
         <dependency groupId="ch.qos.logback" artifactId="logback-core"/>
