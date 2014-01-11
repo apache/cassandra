@@ -487,7 +487,7 @@ public class CassandraDaemon
             }
             if (forceAfter > 0 && totalPolls > forceAfter)
             {
-                logger.warn("Gossip not settled but startup forced by cassandra.skip_wait_for_gossip_to_settle. Gossip Stage active/pending/completed: {}/{}/{}",
+                logger.warn("Gossip not settled but startup forced by cassandra.skip_wait_for_gossip_to_settle. Gossip Stage total/active/pending/completed: {}/{}/{}/{}",
                             totalPolls, active, pending, completed);
                 break;
             }
