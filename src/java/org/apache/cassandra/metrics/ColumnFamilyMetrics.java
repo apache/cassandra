@@ -343,6 +343,7 @@ public class ColumnFamilyMetrics
     {
         readLatency.release();
         writeLatency.release();
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("AllMemtablesDataSize"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableColumnsCount"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableDataSize"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableSwitchCount"));
@@ -363,7 +364,7 @@ public class ColumnFamilyMetrics
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("RecentBloomFilterFalseRatio"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("BloomFilterDiskSpaceUsed"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("KeyCacheHitRate"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("SpeculativeRetry"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("SpeculativeRetries"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("TombstoneScannedHistogram"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("LiveScannedHistogram"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("CoordinatorReadLatency"));
