@@ -38,7 +38,7 @@ goto runNodeTool
 
 :runNodeTool
 echo Starting NodeTool
-"%JAVA_HOME%\bin\java" -cp %CASSANDRA_CLASSPATH% -Dlogback.configurationFile=logback-tools.xml org.apache.cassandra.tools.NodeCmd %*
+"%JAVA_HOME%\bin\java" -cp %CASSANDRA_CLASSPATH% -Dlogback.configurationFile=logback-tools.xml org.apache.cassandra.tools.NodeTool %*
 goto finally
 
 :err
