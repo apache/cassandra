@@ -9,6 +9,7 @@
  * Validate CF existence on execution for prepared statement (CASSANDRA-6535)
  * Add ability to throttle batchlog replay (CASSANDRA-6550)
  * Fix executing LOCAL_QUORUM with SimpleStrategy (CASSANDRA-6545)
+ * Avoid StackOverflow when using large IN queries (CASSANDRA-6567)
 
 
 1.2.13
