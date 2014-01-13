@@ -108,7 +108,7 @@ public abstract class AbstractCommitLogService
                         }
 
                         // if we have lagged this round, we probably have work to do already so we don't sleep
-                        if (sleep < 0)
+                        if (sleep < 0 || !run)
                             continue;
 
                         try
