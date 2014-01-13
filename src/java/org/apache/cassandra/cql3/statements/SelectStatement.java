@@ -820,10 +820,13 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     Iterator<ByteBuffer> iter = requested.iterator();
                     public Column computeNext()
                     {
-                        if (!iter.hasNext())
-                            return endOfData();
-                        Column column = cf.getColumn(iter.next());
-                        return column == null ? computeNext() : column;
+                        while (iter.hasNext())
+                        {
+                            Column column = cf.getColumn(iter.next());
+                            if (column != null)
+                                return column;
+                        }
+                        return endOfData();
                     }
                 };
             }
