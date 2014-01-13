@@ -820,18 +820,19 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         {
             protected Cell computeNext()
             {
-                if (!cells.hasNext())
-                    return endOfData();
+                while (cells.hasNext())
+                {
+                    Cell c = cells.next();
 
-                Cell c = cells.next();
+                    // For dynamic CF, the column could be out of the requested bounds (because we don't support strict bounds internally (unless
+                    // the comparator is composite that is)), filter here
+                    if ( (excludedStart != null && type.compare(c.name(), excludedStart) == 0)
+                      || (excludedEnd != null && type.compare(c.name(), excludedEnd) == 0) )
+                        continue;
 
-                // For dynamic CF, the column could be out of the requested bounds (because we don't support strict bounds internally (unless
-                // the comparator is composite that is)), filter here
-                if ( (excludedStart != null && type.compare(c.name(), excludedStart) == 0)
-                  || (excludedEnd != null && type.compare(c.name(), excludedEnd) == 0) )
-                    return computeNext();
-
-                return c;
+                    return c;
+                }
+                return endOfData();
             }
         };
     }
