@@ -817,6 +817,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return;
         }
 
+        localState.markDead();
+
         MessageOut<EchoMessage> echoMessage = new MessageOut<EchoMessage>(MessagingService.Verb.ECHO, new EchoMessage(), EchoMessage.serializer);
         logger.trace("Sending a EchoMessage to {}", addr);
         IAsyncCallback echoHandler = new IAsyncCallback()
