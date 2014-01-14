@@ -26,6 +26,7 @@
 
 
 2.0.5
+ * Use LOCAL_QUORUM for LWT operations at LOCAL_SERIAL (CASSANDRA-6495)
  * Wait for gossip to settle before accepting client connections (CASSANDRA-4288)
  * Delete unfinished compaction incrementally (CASSANDRA-6086)
  * Allow specifying custom secondary index options in CQL3 (CASSANDRA-6480)
