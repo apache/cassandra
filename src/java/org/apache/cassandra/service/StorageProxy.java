@@ -243,7 +243,7 @@ public class StorageProxy implements StorageProxyMBean
                 assert !expected.isEmpty();
                 readCommand = new SliceByNamesReadCommand(keyspaceName, key, cfName, timestamp, new NamesQueryFilter(ImmutableSortedSet.copyOf(metadata.comparator, expected.getColumnNames())));
             }
-            List<Row> rows = read(Arrays.asList(readCommand), ConsistencyLevel.QUORUM);
+            List<Row> rows = read(Arrays.asList(readCommand), consistencyForPaxos == ConsistencyLevel.LOCAL_SERIAL? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM);
             ColumnFamily current = rows.get(0).cf;
             if (!casApplies(expected, current))
             {
