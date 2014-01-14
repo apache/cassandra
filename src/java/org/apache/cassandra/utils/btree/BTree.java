@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Comparator;
 
 import com.google.common.base.Function;
+import com.google.common.collect.Collections2;
 
 public class BTree
 {
@@ -128,7 +129,11 @@ public class BTree
                                       Function<?, Boolean> terminateEarly)
     {
         if (btree.length == 0)
+        {
+            if (replaceF != null)
+                updateWith = Collections2.transform(updateWith, replaceF);
             return build(updateWith, comparator, updateWithIsSorted);
+        }
 
         if (!updateWithIsSorted)
             updateWith = sorted(updateWith, comparator, updateWith.size());
@@ -168,7 +173,7 @@ public class BTree
                 else if (replaceF != null)
                 {
                     // new element but still need to apply replaceF to handle indexing and size-tracking
-                    v = replaceF.apply(null, v);
+                    v = replaceF.apply(v);
                 }
 
                 merged[mergedCount++] = v;

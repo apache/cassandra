@@ -231,7 +231,7 @@ final class NodeBuilder
     {
         ensureRoom(buildKeyPosition + 1);
         if (replaceF != null)
-            key = replaceF.apply(null, (V) key);
+            key = replaceF.apply((V) key);
         buildKeys[buildKeyPosition++] = key;
     }
 
