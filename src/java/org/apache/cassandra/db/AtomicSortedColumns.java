@@ -330,12 +330,7 @@ public class AtomicSortedColumns extends ColumnFamily
                 Column reconciledColumn = column.reconcile(oldColumn, allocator);
                 if (map.replace(name, oldColumn, reconciledColumn))
                 {
-                    // for memtable updates we only care about oldcolumn, reconciledcolumn, but when compacting
-                    // we need to make sure we update indexes no matter the order we merge
-                    if (reconciledColumn == column)
-                        indexer.update(oldColumn, reconciledColumn);
-                    else
-                        indexer.update(column, reconciledColumn);
+                    indexer.update(oldColumn, reconciledColumn);
                     return reconciledColumn.dataSize() - oldColumn.dataSize();
                 }
                 // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
