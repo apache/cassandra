@@ -193,10 +193,7 @@ public class AtomicBTreeColumns extends ColumnFamily
         public Cell apply(Cell replaced, Cell update)
         {
             Cell reconciled = update.reconcile(replaced, allocator);
-            if (reconciled == update)
-                indexer.update(replaced, reconciled);
-            else
-                indexer.update(update, reconciled);
+            indexer.update(replaced, reconciled);
             delta += reconciled.dataSize() - replaced.dataSize();
 
             return transform.apply(reconciled);
