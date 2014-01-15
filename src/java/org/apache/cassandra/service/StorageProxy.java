@@ -1463,7 +1463,7 @@ public class StorageProxy implements StorageProxyMBean
             SecondaryIndexSearcher searcher = Iterables.getOnlyElement(cfs.indexManager.getIndexSearchersForQuery(command.rowFilter));
             SecondaryIndex highestSelectivityIndex = searcher.highestSelectivityIndex(command.rowFilter);
             // use our own mean column count as our estimate for how many matching rows each node will have
-            resultRowsPerRange = highestSelectivityIndex.getIndexCfs().getMeanColumns();
+            resultRowsPerRange = highestSelectivityIndex.estimateResultRows();
         }
         else if (!command.countCQL3Rows())
         {

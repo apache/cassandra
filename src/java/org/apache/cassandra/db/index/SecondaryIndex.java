@@ -326,6 +326,8 @@ public abstract class SecondaryIndex
 
     public abstract boolean validate(Cell cell);
 
+    public abstract long estimateResultRows();
+
     /**
      * Returns the index comparator for index backed by CFS, or null.
      *
