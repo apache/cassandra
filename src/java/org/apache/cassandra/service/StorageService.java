@@ -2153,6 +2153,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void takeSnapshot(String tag, String... keyspaceNames) throws IOException
     {
+        if (operationMode.equals(Mode.JOINING))
+            throw new IOException("Cannot snapshot until bootstrap completes");
         if (tag == null || tag.equals(""))
             throw new IOException("You must supply a snapshot name.");
 
@@ -2190,6 +2192,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (keyspaceName == null)
             throw new IOException("You must supply a keyspace name");
+        if (operationMode.equals(Mode.JOINING))
+            throw new IOException("Cannot snapshot until bootstrap completes");
 
         if (columnFamilyName == null)
             throw new IOException("You must supply a column family name");
