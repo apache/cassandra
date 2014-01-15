@@ -1314,13 +1314,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             String moveName = pieces[0];
 
             if (moveName.equals(VersionedValue.STATUS_BOOTSTRAPPING))
-                handleStateBootstrap(endpoint, pieces);
+                handleStateBootstrap(endpoint);
             else if (moveName.equals(VersionedValue.STATUS_NORMAL))
-                handleStateNormal(endpoint, pieces);
+                handleStateNormal(endpoint);
             else if (moveName.equals(VersionedValue.REMOVING_TOKEN) || moveName.equals(VersionedValue.REMOVED_TOKEN))
                 handleStateRemoving(endpoint, pieces);
             else if (moveName.equals(VersionedValue.STATUS_LEAVING))
-                handleStateLeaving(endpoint, pieces);
+                handleStateLeaving(endpoint);
             else if (moveName.equals(VersionedValue.STATUS_LEFT))
                 handleStateLeft(endpoint, pieces);
             else if (moveName.equals(VersionedValue.STATUS_MOVING))
@@ -1372,21 +1372,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return vvalue.getBytes(ISO_8859_1);
     }
 
-    private Collection<Token> getTokensFor(InetAddress endpoint, String piece)
+    private Collection<Token> getTokensFor(InetAddress endpoint)
     {
-        if (Gossiper.instance.usesVnodes(endpoint))
+        try
         {
-            try
-            {
-                return TokenSerializer.deserialize(getPartitioner(), new DataInputStream(new ByteArrayInputStream(getApplicationStateValue(endpoint, ApplicationState.TOKENS))));
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+            return TokenSerializer.deserialize(getPartitioner(), new DataInputStream(new ByteArrayInputStream(getApplicationStateValue(endpoint, ApplicationState.TOKENS))));
         }
-        else
-            return Arrays.asList(getPartitioner().getTokenFactory().fromString(piece));
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -1395,16 +1390,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param endpoint bootstrapping node
      * @param pieces STATE_BOOTSTRAPPING,bootstrap token as string
      */
-    private void handleStateBootstrap(InetAddress endpoint, String[] pieces)
+    private void handleStateBootstrap(InetAddress endpoint)
     {
-        assert pieces.length >= 2;
-
-        // Parse versioned values according to end-point version:
-        //   versions  < 1.2 .....: STATUS,TOKEN
-        //   versions >= 1.2 .....: use TOKENS app state
         Collection<Token> tokens;
         // explicitly check for TOKENS, because a bootstrapping node might be bootstrapping in legacy mode; that is, not using vnodes and no token specified
-        tokens = getTokensFor(endpoint, pieces[1]);
+        tokens = getTokensFor(endpoint);
 
         if (logger.isDebugEnabled())
             logger.debug("Node {} state bootstrapping, token {}", endpoint, tokens);
@@ -1436,19 +1426,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * in reads.
      *
      * @param endpoint node
-     * @param pieces STATE_NORMAL,token
      */
-    private void handleStateNormal(final InetAddress endpoint, String[] pieces)
+    private void handleStateNormal(final InetAddress endpoint)
     {
-        assert pieces.length >= 2;
-
-        // Parse versioned values according to end-point version:
-        //   versions  < 1.2 .....: STATUS,TOKEN
-        //   versions >= 1.2 .....: uses HOST_ID/TOKENS app states
-
         Collection<Token> tokens;
 
-        tokens = getTokensFor(endpoint, pieces[1]);
+        tokens = getTokensFor(endpoint);
 
         if (logger.isDebugEnabled())
             logger.debug("Node {} state normal, token {}", endpoint, tokens);
@@ -1574,13 +1557,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * Handle node preparing to leave the ring
      *
      * @param endpoint node
-     * @param pieces STATE_LEAVING,token
      */
-    private void handleStateLeaving(InetAddress endpoint, String[] pieces)
+    private void handleStateLeaving(InetAddress endpoint)
     {
-        assert pieces.length >= 2;
         Collection<Token> tokens;
-        tokens = getTokensFor(endpoint, pieces[1]);
+        tokens = getTokensFor(endpoint);
 
         if (logger.isDebugEnabled())
             logger.debug("Node {} state leaving, tokens {}", endpoint, tokens);
@@ -1615,7 +1596,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         assert pieces.length >= 2;
         Collection<Token> tokens;
-        tokens = getTokensFor(endpoint, pieces[1]);
+        tokens = getTokensFor(endpoint);
 
         if (logger.isDebugEnabled())
             logger.debug("Node {} state left, tokens {}", endpoint, tokens);
