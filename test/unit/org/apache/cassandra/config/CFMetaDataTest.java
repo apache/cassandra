@@ -109,7 +109,7 @@ public class CFMetaDataTest extends SchemaLoader
                 checkInverses(cfm);
 
                 // Testing with compression to catch #3558
-                CFMetaData withCompression = CFMetaData.rename(cfm, cfm.cfName); // basically a clone
+                CFMetaData withCompression = cfm.clone();
                 withCompression.compressionParameters(new CompressionParameters(SnappyCompressor.instance, 32768, new HashMap<String, String>()));
                 checkInverses(withCompression);
             }

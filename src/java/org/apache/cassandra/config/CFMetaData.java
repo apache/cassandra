@@ -543,14 +543,14 @@ public final class CFMetaData
      *
      * Since 2.1, this is only used for system columnfamilies and tests.
      */
-    static UUID getId(String ksName, String cfName)
+    public static UUID generateLegacyCfId(String ksName, String cfName)
     {
         return UUID.nameUUIDFromBytes(ArrayUtils.addAll(ksName.getBytes(), cfName.getBytes()));
     }
 
     private static CFMetaData newSystemMetadata(String keyspace, String cfName, String comment, CellNameType comparator)
     {
-        CFMetaData newCFMD = new CFMetaData(keyspace, cfName, ColumnFamilyType.Standard, comparator, getId(keyspace, cfName));
+        CFMetaData newCFMD = new CFMetaData(keyspace, cfName, ColumnFamilyType.Standard, comparator, generateLegacyCfId(keyspace, cfName));
         return newCFMD.comment(comment)
                 .readRepairChance(0)
                 .dcLocalReadRepairChance(0)
@@ -603,10 +603,15 @@ public final class CFMetaData
         return copyOpts(new CFMetaData(ksName, cfName, cfType, comparator, cfId), this);
     }
 
-    // Create a new CFMD by changing just the cfName
-    public static CFMetaData rename(CFMetaData cfm, String newName)
+    /**
+     * Clones the CFMetaData, but sets a different cfId
+     *
+     * @param newCfId the cfId for the cloned CFMetaData
+     * @return the cloned CFMetaData instance with the new cfId
+     */
+    public CFMetaData clone(UUID newCfId)
     {
-        return copyOpts(new CFMetaData(cfm.ksName, newName, cfm.cfType, cfm.comparator, cfm.cfId), cfm);
+        return copyOpts(new CFMetaData(ksName, cfName, cfType, comparator, newCfId), this);
     }
 
     static CFMetaData copyOpts(CFMetaData newCFMD, CFMetaData oldCFMD)
@@ -1677,7 +1682,7 @@ public final class CFMetaData
             if (result.has("cf_id"))
                 cfId = result.getUUID("cf_id");
             else
-                cfId = getId(ksName, cfName);
+                cfId = generateLegacyCfId(ksName, cfName);
 
             CFMetaData cfm = new CFMetaData(ksName,
                                             cfName,

@@ -31,14 +31,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -168,7 +166,7 @@ public class PasswordAuthenticator implements ISaslAwareAuthenticator
 
     public void setup()
     {
-        setupCredentialsTable();
+        Auth.setupTable(CREDENTIALS_CF, CREDENTIALS_CF_SCHEMA);
 
         // the delay is here to give the node some time to see its peers - to reduce
         // "skipped default user setup: some nodes are were not ready" log spam.
@@ -203,21 +201,6 @@ public class PasswordAuthenticator implements ISaslAwareAuthenticator
     public SaslAuthenticator newAuthenticator()
     {
         return new PlainTextSaslAuthenticator();
-    }
-
-    private void setupCredentialsTable()
-    {
-        if (Schema.instance.getCFMetaData(Auth.AUTH_KS, CREDENTIALS_CF) == null)
-        {
-            try
-            {
-                process(CREDENTIALS_CF_SCHEMA, ConsistencyLevel.ANY);
-            }
-            catch (RequestExecutionException e)
-            {
-                throw new AssertionError(e);
-            }
-        }
     }
 
     // if there are no users yet - add default superuser.
