@@ -352,6 +352,18 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
             this.newName = newName;
         }
 
+        @Override
+        public void prepareKeyspace(ClientState state) throws InvalidRequestException
+        {
+            super.prepareKeyspace(state);
+
+            if (!newName.hasKeyspace())
+                newName.setKeyspace(state.getKeyspace());
+
+            if (newName.getKeyspace() == null)
+                throw new InvalidRequestException("You need to be logged in a keyspace or use a fully qualified user type name");
+        }
+
         protected UserType makeUpdatedType(UserType toUpdate) throws InvalidRequestException
         {
             KSMetaData ksm = Schema.instance.getKSMetaData(newName.getKeyspace());
