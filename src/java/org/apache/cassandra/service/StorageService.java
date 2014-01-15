@@ -2172,6 +2172,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void takeSnapshot(String tag, String... tableNames) throws IOException
     {
+        if (operationMode.equals(Mode.JOINING))
+            throw new IOException("Cannot snapshot until bootstrap completes");
         if (tag == null || tag.equals(""))
             throw new IOException("You must supply a snapshot name.");
 
@@ -2207,6 +2209,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void takeColumnFamilySnapshot(String tableName, String columnFamilyName, String tag) throws IOException
     {
+        if (operationMode.equals(Mode.JOINING))
+            throw new IOException("Cannot snapshot until bootstrap completes");
         if (tableName == null)
             throw new IOException("You must supply a table name");
 
