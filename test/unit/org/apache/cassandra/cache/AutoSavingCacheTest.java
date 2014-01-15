@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cache;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -43,7 +44,7 @@ public class AutoSavingCacheTest extends SchemaLoader
             cfs.forceBlockingFlush();
         }
 
-        assert cfs.getSSTables().size() == 2;
+        Assert.assertEquals(2, cfs.getSSTables().size());
 
         // preheat key cache
         for (SSTableReader sstable : cfs.getSSTables())
@@ -55,12 +56,12 @@ public class AutoSavingCacheTest extends SchemaLoader
         keyCache.submitWrite(keyCache.size()).get();
         keyCache.clear();
 
-        assert keyCache.size() == 0;
+        Assert.assertEquals(0, keyCache.size());
 
         // then load saved
         keyCache.loadSaved(cfs);
-        assert keyCache.size() == 2;
+        Assert.assertEquals(2, keyCache.size());
         for (SSTableReader sstable : cfs.getSSTables())
-            assert keyCache.get(new KeyCacheKey(cfs.metadata.cfId, sstable.descriptor, ByteBufferUtil.bytes("key1"))) != null;
+            Assert.assertNotNull(keyCache.get(new KeyCacheKey(cfs.metadata.cfId, sstable.descriptor, ByteBufferUtil.bytes("key1"))));
     }
 }
