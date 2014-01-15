@@ -55,7 +55,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
     }
 
     @Test
-    public void testIndexInsertAndUpdate() throws IOException
+    public void testIndexInsertAndUpdate()
     {
         // create a row then test that the configured index instance was able to read the row
         Mutation rm;
@@ -79,7 +79,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
     }
 
     @Test
-    public void testColumnDelete() throws IOException
+    public void testColumnDelete()
     {
         // issue a column delete and test that the configured index instance was notified to update
         Mutation rm;
@@ -98,7 +98,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
     }
 
     @Test
-    public void testRowDelete() throws IOException
+    public void testRowDelete()
     {
         // issue a row level delete and test that the configured index instance was notified to update
         Mutation rm;
@@ -204,6 +204,11 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         @Override
         public void truncateBlocking(long truncatedAt)
         {
+        }
+
+        @Override
+        public long estimateResultRows() {
+            return 0;
         }
     }
 }

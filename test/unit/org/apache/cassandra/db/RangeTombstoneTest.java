@@ -420,5 +420,10 @@ public class RangeTombstoneTest extends SchemaLoader
         public void truncateBlocking(long truncatedAt) { }
 
         public boolean indexes(CellName name) { return name.toByteBuffer().equals(ByteBufferUtil.bytes(1)); }
+
+        @Override
+        public long estimateResultRows() {
+            return 0;
+        }
     }
 }

@@ -143,6 +143,11 @@ public class SecondaryIndexCellSizeTest
         {
             return true;
         }
+
+        @Override
+        public long estimateResultRows() {
+            return 0;
+        }
     }
 
 
@@ -225,6 +230,11 @@ public class SecondaryIndexCellSizeTest
         public boolean indexes(CellName name)
         {
             return true;
+        }
+
+        @Override
+        public long estimateResultRows() {
+            return 0;
         }
     }
 }
