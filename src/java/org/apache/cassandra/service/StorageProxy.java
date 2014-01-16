@@ -276,7 +276,7 @@ public class StorageProxy implements StorageProxyMBean
             // continue to retry
         }
 
-        throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, -1, -1);
+        throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(Keyspace.open(keyspaceName)));
     }
 
     private static boolean hasLiveColumns(ColumnFamily cf, long now)
@@ -418,7 +418,7 @@ public class StorageProxy implements StorageProxyMBean
             return ballot;
         }
 
-        throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, -1, -1);
+        throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(Keyspace.open(metadata.ksName)));
     }
 
     /**
@@ -1182,7 +1182,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 catch (WriteTimeoutException e)
                 {
-                    throw new ReadTimeoutException(consistency_level, -1, -1, false);
+                    throw new ReadTimeoutException(consistency_level, 0, consistency_level.blockFor(Keyspace.open(command.ksName)), false);
                 }
 
                 rows = fetchRows(commands, ConsistencyLevel.QUORUM);
