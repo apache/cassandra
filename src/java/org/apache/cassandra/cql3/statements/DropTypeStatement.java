@@ -38,6 +38,16 @@ public class DropTypeStatement extends SchemaAlteringStatement
         this.ifExists = ifExists;
     }
 
+    @Override
+    public void prepareKeyspace(ClientState state) throws InvalidRequestException
+    {
+        if (!name.hasKeyspace())
+            name.setKeyspace(state.getKeyspace());
+
+        if (name.getKeyspace() == null)
+            throw new InvalidRequestException("You need to be logged in a keyspace or use a fully qualified user type name");
+    }
+
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
         state.hasKeyspaceAccess(keyspace(), Permission.DROP);
