@@ -1,4 +1,5 @@
 2.0.5
+ * Add ks.cf names to tombstone logging (CASSANDRA-6597)
  * Use LOCAL_QUORUM for LWT operations at LOCAL_SERIAL (CASSANDRA-6495)
  * Wait for gossip to settle before accepting client connections (CASSANDRA-4288)
  * Delete unfinished compaction incrementally (CASSANDRA-6086)
