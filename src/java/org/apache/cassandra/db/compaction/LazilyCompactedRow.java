@@ -259,7 +259,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
             {
                 // when we clear() the container, it removes the deletion info, so this needs to be reset each time
                 container.delete(maxRowTombstone);
-                ColumnFamily purged = PrecompactedRow.removeDeletedAndOldShards(key, shouldPurge, controller, container);
+                ColumnFamily purged = PrecompactedRow.removeDeleted(key, shouldPurge, controller, container);
                 if (purged == null || !purged.iterator().hasNext())
                 {
                     container.clear();
@@ -268,8 +268,8 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
                 Column reduced = purged.iterator().next();
                 container.clear();
 
-                // PrecompactedRow.removeDeletedAndOldShards have only checked the top-level CF deletion times,
-                // not the range tombstone. For that we use the columnIndexer tombstone tracker.
+                // PrecompactedRow.removeDeleted has only checked the top-level CF deletion times,
+                // not the range tombstones. For that we use the columnIndexer tombstone tracker.
                 if (indexBuilder.tombstoneTracker().isDeleted(reduced))
                 {
                     indexer.remove(reduced);

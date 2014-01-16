@@ -82,7 +82,7 @@ public class CounterUpdateColumn extends Column
     public CounterColumn localCopy(ColumnFamilyStore cfs)
     {
         return new CounterColumn(cfs.internOrCopy(name, HeapAllocator.instance),
-                                 CounterContext.instance().create(delta(), HeapAllocator.instance),
+                                 CounterContext.instance().createLocal(delta(), HeapAllocator.instance),
                                  timestamp(),
                                  Long.MIN_VALUE);
     }
@@ -91,7 +91,7 @@ public class CounterUpdateColumn extends Column
     public Column localCopy(ColumnFamilyStore cfs, Allocator allocator)
     {
         return new CounterColumn(cfs.internOrCopy(name, allocator),
-                                 CounterContext.instance().create(delta(), allocator),
+                                 CounterContext.instance().createLocal(delta(), allocator),
                                  timestamp(),
                                  Long.MIN_VALUE);
     }

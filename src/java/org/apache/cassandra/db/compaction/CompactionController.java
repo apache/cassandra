@@ -49,7 +49,6 @@ public class CompactionController
     private final Set<SSTableReader> compacting;
 
     public final int gcBefore;
-    public final int mergeShardBefore;
 
     /**
      * Constructor that subclasses may use when overriding shouldPurge to not need overlappingTree
@@ -65,11 +64,6 @@ public class CompactionController
         this.cfs = cfs;
         this.gcBefore = gcBefore;
         this.compacting = compacting;
-        // If we merge an old CounterId id, we must make sure that no further increment for that id are in an active memtable.
-        // For that, we must make sure that this id was renewed before the creation of the oldest unflushed memtable. We
-        // add 5 minutes to be sure we're on the safe side in terms of thread safety (though we should be fine in our
-        // current 'stop all write during memtable switch' situation).
-        this.mergeShardBefore = (int) ((cfs.oldestUnflushedMemtable() + 5 * 3600) / 1000);
         Set<SSTableReader> overlapping = compacting == null ? null : cfs.getAndReferenceOverlappingSSTables(compacting);
         this.overlappingSSTables = overlapping == null ? Collections.<SSTableReader>emptySet() : overlapping;
         this.overlappingTree = overlapping == null ? null : DataTracker.buildIntervalTree(overlapping);

@@ -187,7 +187,7 @@ public class ParallelCompactionIterable extends AbstractCompactionIterable
                 }
 
                 PrecompactedRow.merge(returnCF, data, controller.cfs.indexManager.updaterFor(rows.get(0).key));
-                return PrecompactedRow.removeDeletedAndOldShards(rows.get(0).key, controller, returnCF);
+                return PrecompactedRow.removeDeleted(rows.get(0).key, controller, returnCF);
             }
         }
 

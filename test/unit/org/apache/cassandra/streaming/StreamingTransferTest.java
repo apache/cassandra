@@ -52,6 +52,7 @@ import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.HeapAllocator;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -316,17 +317,13 @@ public class StreamingTransferTest extends SchemaLoader
                 Map<String, ColumnFamily> entries = new HashMap<>();
                 ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfs.metadata);
                 ColumnFamily cfCleaned = TreeMapBackedSortedColumns.factory.create(cfs.metadata);
-                CounterContext.ContextState state = CounterContext.ContextState.allocate(4, 1);
-                state.writeElement(CounterId.fromInt(2), 9L, 3L, true);
-                state.writeElement(CounterId.fromInt(4), 4L, 2L);
-                state.writeElement(CounterId.fromInt(6), 3L, 3L);
-                state.writeElement(CounterId.fromInt(8), 2L, 4L);
-                cf.addColumn(new CounterColumn(ByteBufferUtil.bytes(col),
-                        state.context,
-                        timestamp));
-                cfCleaned.addColumn(new CounterColumn(ByteBufferUtil.bytes(col),
-                        cc.clearAllDelta(state.context),
-                        timestamp));
+                CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 1, 3, HeapAllocator.instance);
+                state.writeLocal(CounterId.fromInt(2), 9L, 3L);
+                state.writeRemote(CounterId.fromInt(4), 4L, 2L);
+                state.writeRemote(CounterId.fromInt(6), 3L, 3L);
+                state.writeRemote(CounterId.fromInt(8), 2L, 4L);
+                cf.addColumn(new CounterColumn(ByteBufferUtil.bytes(col), state.context, timestamp));
+                cfCleaned.addColumn(new CounterColumn(ByteBufferUtil.bytes(col), cc.clearAllLocal(state.context), timestamp));
 
                 entries.put(key, cf);
                 cleanedEntries.put(key, cfCleaned);

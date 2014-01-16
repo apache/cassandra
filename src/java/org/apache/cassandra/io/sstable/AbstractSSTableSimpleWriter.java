@@ -31,6 +31,7 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.CounterId;
+import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.Pair;
 
 public abstract class AbstractSSTableSimpleWriter
@@ -154,7 +155,9 @@ public abstract class AbstractSSTableSimpleWriter
      */
     public void addCounterColumn(ByteBuffer name, long value)
     {
-        addColumn(new CounterColumn(name, CounterContext.instance().create(counterid, 1L, value, false), System.currentTimeMillis()));
+        addColumn(new CounterColumn(name,
+                                    CounterContext.instance().createRemote(counterid, 1L, value, HeapAllocator.instance),
+                                    System.currentTimeMillis()));
     }
 
     /**
