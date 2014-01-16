@@ -138,7 +138,6 @@ public class LeveledManifest
             int thisLevel = remove(sstable);
             minLevel = Math.min(minLevel, thisLevel);
         }
-        lastCompactedKeys[minLevel] = SSTableReader.sstableOrdering.max(added).last;
 
         // it's valid to do a remove w/o an add (e.g. on truncate)
         if (added.isEmpty())
@@ -149,6 +148,7 @@ public class LeveledManifest
 
         for (SSTableReader ssTableReader : added)
             add(ssTableReader);
+        lastCompactedKeys[minLevel] = SSTableReader.sstableOrdering.max(added).last;
     }
 
     public synchronized void repairOverlappingSSTables(int level)
