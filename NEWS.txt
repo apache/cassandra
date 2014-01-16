@@ -47,6 +47,17 @@ New features
     - Batchlog replay can be, and is throttled by default now.
       See batchlog_replay_throttle_in_kb setting in cassandra.yaml.
 
+Upgrading
+---------
+    - If your cluster began on a version before 1.2, check that your secondary
+      index SSTables are on version 'ic' before upgrading.  If not, run
+      'nodetool upgradesstables' if on 1.2.14 or later, or run 'nodetool
+      upgradesstables ks cf' with the keyspace and secondary index named
+      explicitly otherwise.  If you don't do this and upgrade to 2.0.x and it
+      refuses to start because of 'hf' version files in the secondary index,
+      you will need to delete/move them out of the way and recreate the index
+      when 2.0.x starts.
+
 
 2.0.3
 =====
