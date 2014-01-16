@@ -5,6 +5,7 @@
  * Allow specifying custom secondary index options in CQL3 (CASSANDRA-6480)
  * Improve replica pinning for cache efficiency in DES (CASSANDRA-6485)
  * Fix LOCAL_SERIAL from thrift (CASSANDRA-6584)
+ * Don't special case received counts in CAS timeout exceptions (CASSANDRA-6595)
 Merged from 1.2:
  * fsync compression metadata (CASSANDRA-6531)
  * Validate CF existence on execution for prepared statement (CASSANDRA-6535)
