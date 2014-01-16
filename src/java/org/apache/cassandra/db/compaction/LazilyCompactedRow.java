@@ -90,17 +90,13 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         merger = Iterators.filter(MergeIterator.get(rows, emptyColumnFamily.getComparator().onDiskAtomComparator(), reducer), Predicates.notNull());
     }
 
-    private static void removeDeletedAndOldShards(ColumnFamily cf, boolean shouldPurge, DecoratedKey key, CompactionController controller)
+    private static void removeDeleted(ColumnFamily cf, boolean shouldPurge, DecoratedKey key, CompactionController controller)
     {
         // We should only purge cell tombstones if shouldPurge is true, but regardless, it's still ok to remove cells that
         // are shadowed by a row or range tombstone; removeDeletedColumnsOnly(cf, Integer.MIN_VALUE) will accomplish this
         // without purging tombstones.
         int overriddenGCBefore = shouldPurge ? controller.gcBefore : Integer.MIN_VALUE;
         ColumnFamilyStore.removeDeletedColumnsOnly(cf, overriddenGCBefore, controller.cfs.indexManager.updaterFor(key));
-
-        // if we have counters, remove old shards
-        if (shouldPurge && cf.metadata().getDefaultValidator().isCommutative())
-            CounterCell.mergeAndRemoveOldShards(key, cf, controller.gcBefore, controller.mergeShardBefore);
     }
 
     public RowIndexEntry write(long currentPosition, DataOutput out) throws IOException
@@ -258,7 +254,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                 boolean shouldPurge = container.getSortedColumns().iterator().next().timestamp() < maxPurgeableTimestamp;
                 // when we clear() the container, it removes the deletion info, so this needs to be reset each time
                 container.delete(maxRowTombstone);
-                removeDeletedAndOldShards(container, shouldPurge, key, controller);
+                removeDeleted(container, shouldPurge, key, controller);
                 Iterator<Cell> iter = container.iterator();
                 if (!iter.hasNext())
                 {
@@ -268,7 +264,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                 Cell reduced = iter.next();
                 container.clear();
 
-                // removeDeletedAndOldShards have only checked the top-level CF deletion times,
+                // removeDeleted have only checked the top-level CF deletion times,
                 // not the range tombstone. For that we use the columnIndexer tombstone tracker.
                 if (indexBuilder.tombstoneTracker().isDeleted(reduced))
                 {

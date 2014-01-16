@@ -20,27 +20,27 @@ package org.apache.cassandra.db.context;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
-import org.apache.cassandra.serializers.MarshalException;
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.*;
 
 /**
  * An implementation of a partitioned counter context.
  *
  * A context is primarily a list of tuples (counter id, clock, count) -- called
- * shard in the following. But with some shard are flagged as delta (with
+ * shards, with some shards flagged as global or local (with
  * special resolution rules in merge()).
  *
  * The data structure has two parts:
- *   a) a header containing the lists of "delta" (a list of references to the second parts)
- *   b) a list of shard -- (counter id, logical clock, count) tuples -- (the so-called 'body' below)
+ *   a) a header containing the lists of global and local shard indexes in the body
+ *   b) a list of shards -- (counter id, logical clock, count) tuples -- (the so-called 'body' below)
  *
  * The exact layout is:
  *            | header  |   body   |
@@ -48,6 +48,9 @@ import org.apache.cassandra.utils.*;
  *             ^     ^
  *             |   list of indices in the body list (2*#elt bytes)
  *    #elt in rest of header (2 bytes)
+ *
+ * Non-negative indices refer to local shards. Global shard indices are encoded as [idx + Short.MIN_VALUE],
+ * and are thus always negative.
  *
  * The body layout being:
  *
@@ -57,14 +60,17 @@ import org.apache.cassandra.utils.*;
  *             |  clock_1      |  clock_2
  *       counterid_1         counterid_2
  *
- * The rules when merging two shard with the same counterid are:
- *   - delta + delta = sum counts (and logical clock)
- *   - delta + other = keep the delta one
- *   - other + other = keep the shard with highest logical clock
+ * The rules when merging two shard with the same counter id are:
+ *   - global + global = keep the shard with the highest logical clock
+ *   - global + local  = keep the global one
+ *   - global + remote = keep the global one
+ *   - local  + local  = sum counts (and logical clocks)
+ *   - local  + remote = keep the local one
+ *   - remote + remote = keep the shard with the highest logical clock
  *
- * For a detailed description of the meaning of a delta and why the merging
+ * For a detailed description of the meaning of a local and why the merging
  * rules work this way, see CASSANDRA-1938 - specifically the 1938_discussion
- * attachment.
+ * attachment (doesn't cover global shards, see CASSANDRA-4775 for that).
  */
 public class CounterContext implements IContext
 {
@@ -88,45 +94,23 @@ public class CounterContext implements IContext
     }
 
     /**
-     * Creates an initial counter context with an initial value for the local node.
-     *
-     *
-     * @param value the value for this initial update
-     *
-     * @param allocator
-     * @return an empty counter context.
+     * Creates a counter context with a single local shard.
      */
-    public ByteBuffer create(long value, Allocator allocator)
+    public ByteBuffer createLocal(long count, Allocator allocator)
     {
-        ByteBuffer context = allocator.allocate(HEADER_SIZE_LENGTH + HEADER_ELT_LENGTH + STEP_LENGTH);
-        // The first (and only) elt is a delta
-        context.putShort(context.position(), (short)1);
-        context.putShort(context.position() + HEADER_SIZE_LENGTH, (short)0);
-        writeElementAtOffset(context, context.position() + HEADER_SIZE_LENGTH + HEADER_ELT_LENGTH, CounterId.getLocalId(), 1L, value);
-        return context;
+        ContextState state = ContextState.allocate(0, 1, 0, allocator);
+        state.writeLocal(CounterId.getLocalId(), 1L, count);
+        return state.context;
     }
 
-    // Provided for use by unit tests
-    public ByteBuffer create(CounterId id, long clock, long value, boolean isDelta)
+    /**
+     * Creates a counter context with a single remote shard.
+     */
+    public ByteBuffer createRemote(CounterId id, long clock, long count, Allocator allocator)
     {
-        ByteBuffer context = ByteBuffer.allocate(HEADER_SIZE_LENGTH + (isDelta ? HEADER_ELT_LENGTH : 0) + STEP_LENGTH);
-        context.putShort(context.position(), (short)(isDelta ? 1 : 0));
-        if (isDelta)
-        {
-            context.putShort(context.position() + HEADER_SIZE_LENGTH, (short)0);
-        }
-        writeElementAtOffset(context, context.position() + HEADER_SIZE_LENGTH + (isDelta ? HEADER_ELT_LENGTH : 0), id, clock, value);
-        return context;
-    }
-
-    // write a tuple (counter id, clock, count) at an absolute (bytebuffer-wise) offset
-    private static void writeElementAtOffset(ByteBuffer context, int offset, CounterId id, long clock, long count)
-    {
-        context = context.duplicate();
-        context.position(offset);
-        context.put(id.bytes().duplicate());
-        context.putLong(clock);
-        context.putLong(count);
+        ContextState state = ContextState.allocate(0, 0, 1, allocator);
+        state.writeRemote(id, clock, count);
+        return state.context;
     }
 
     private static int headerLength(ByteBuffer context)
@@ -156,8 +140,8 @@ public class CounterContext implements IContext
     public ContextRelationship diff(ByteBuffer left, ByteBuffer right)
     {
         ContextRelationship relationship = ContextRelationship.EQUAL;
-        ContextState leftState = new ContextState(left, headerLength(left));
-        ContextState rightState = new ContextState(right, headerLength(right));
+        ContextState leftState = ContextState.wrap(left);
+        ContextState rightState = ContextState.wrap(right);
 
         while (leftState.hasRemaining() && rightState.hasRemaining())
         {
@@ -298,107 +282,90 @@ public class CounterContext implements IContext
      */
     public ByteBuffer merge(ByteBuffer left, ByteBuffer right, Allocator allocator)
     {
-        ContextState leftState = new ContextState(left, headerLength(left));
-        ContextState rightState = new ContextState(right, headerLength(right));
+        int globalCount = 0;
+        int localCount = 0;
+        int remoteCount = 0;
 
-        // Compute size of result
-        int mergedHeaderLength = HEADER_SIZE_LENGTH;
-        int mergedBodyLength = 0;
+        ContextState leftState = ContextState.wrap(left);
+        ContextState rightState = ContextState.wrap(right);
 
         while (leftState.hasRemaining() && rightState.hasRemaining())
         {
             int cmp = leftState.compareIdTo(rightState);
             if (cmp == 0)
             {
-                mergedBodyLength += STEP_LENGTH;
-                if (leftState.isDelta() || rightState.isDelta())
-                    mergedHeaderLength += HEADER_ELT_LENGTH;
+                if (leftState.isGlobal() || rightState.isGlobal())
+                    globalCount += 1;
+                else if (leftState.isLocal() || rightState.isLocal())
+                    localCount += 1;
+                else
+                    remoteCount += 1;
+
                 leftState.moveToNext();
                 rightState.moveToNext();
             }
             else if (cmp > 0)
             {
-                mergedBodyLength += STEP_LENGTH;
-                if (rightState.isDelta())
-                    mergedHeaderLength += HEADER_ELT_LENGTH;
+                if (rightState.isGlobal())
+                    globalCount += 1;
+                else if (rightState.isLocal())
+                    localCount += 1;
+                else
+                    remoteCount += 1;
+
                 rightState.moveToNext();
             }
             else // cmp < 0
             {
-                mergedBodyLength += STEP_LENGTH;
-                if (leftState.isDelta())
-                    mergedHeaderLength += HEADER_ELT_LENGTH;
+                if (leftState.isGlobal())
+                    globalCount += 1;
+                else if (leftState.isLocal())
+                    localCount += 1;
+                else
+                    remoteCount += 1;
+
                 leftState.moveToNext();
             }
         }
-        mergedHeaderLength += leftState.remainingHeaderLength() + rightState.remainingHeaderLength();
-        mergedBodyLength += leftState.remainingBodyLength() + rightState.remainingBodyLength();
 
-        // Do the actual merge
-        ByteBuffer merged = allocator.allocate(mergedHeaderLength + mergedBodyLength);
-        merged.putShort(merged.position(), (short) ((mergedHeaderLength - HEADER_SIZE_LENGTH) / HEADER_ELT_LENGTH));
-        ContextState mergedState = new ContextState(merged, mergedHeaderLength);
+        while (leftState.hasRemaining())
+        {
+            if (leftState.isGlobal())
+                globalCount += 1;
+            else if (leftState.isLocal())
+                localCount += 1;
+            else
+                remoteCount += 1;
+
+            leftState.moveToNext();
+        }
+
+        while (rightState.hasRemaining())
+        {
+            if (rightState.isGlobal())
+                globalCount += 1;
+            else if (rightState.isLocal())
+                localCount += 1;
+            else
+                remoteCount += 1;
+
+            rightState.moveToNext();
+        }
+
         leftState.reset();
         rightState.reset();
+
+        return merge(ContextState.allocate(globalCount, localCount, remoteCount, allocator), leftState, rightState);
+    }
+
+    private ByteBuffer merge(ContextState mergedState, ContextState leftState, ContextState rightState)
+    {
         while (leftState.hasRemaining() && rightState.hasRemaining())
         {
             int cmp = leftState.compareIdTo(rightState);
             if (cmp == 0)
             {
-                if (leftState.isDelta() || rightState.isDelta())
-                {
-                    // Local id and at least one is a delta
-                    if (leftState.isDelta() && rightState.isDelta())
-                    {
-                        // both delta, sum
-                        long clock = leftState.getClock() + rightState.getClock();
-                        long count = leftState.getCount() + rightState.getCount();
-                        mergedState.writeElement(leftState.getCounterId(), clock, count, true);
-                    }
-                    else
-                    {
-                        // Only one have delta, keep that one
-                        (leftState.isDelta() ? leftState : rightState).copyTo(mergedState);
-                    }
-                }
-                else
-                {
-                    long leftClock = leftState.getClock();
-                    long rightClock = rightState.getClock();
-
-                    if (leftClock == rightClock)
-                    {
-                        // We should never see non-delta shards w/ same id+clock but different counts. However, if we do
-                        // we should "heal" the problem by being deterministic in our selection of shard - and
-                        // log the occurrence so that the operator will know something is wrong.
-                        long leftCount = leftState.getCount();
-                        long rightCount = rightState.getCount();
-
-                        if (leftCount != rightCount && CompactionManager.isCompactionManager.get())
-                        {
-                            logger.warn("invalid counter shard detected; ({}, {}, {}) and ({}, {}, {}) differ only in "
-                                        + "count; will pick highest to self-heal on compaction",
-                                        leftState.getCounterId(), leftClock, leftCount, rightState.getCounterId(), rightClock, rightCount);
-                        }
-
-                        if (leftCount > rightCount)
-                        {
-                            leftState.copyTo(mergedState);
-                        }
-                        else
-                        {
-                            rightState.copyTo(mergedState);
-                        }
-                    }
-                    else
-                    {
-                        if ((leftClock >= 0 && rightClock > 0 && leftClock >= rightClock)
-                                || (leftClock < 0 && (rightClock > 0 || leftClock < rightClock)))
-                            leftState.copyTo(mergedState);
-                        else
-                            rightState.copyTo(mergedState);
-                    }
-                }
+                mergeTie(mergedState, leftState, rightState);
                 rightState.moveToNext();
                 leftState.moveToNext();
             }
@@ -413,18 +380,110 @@ public class CounterContext implements IContext
                 leftState.moveToNext();
             }
         }
+
         while (leftState.hasRemaining())
         {
             leftState.copyTo(mergedState);
             leftState.moveToNext();
         }
+
         while (rightState.hasRemaining())
         {
             rightState.copyTo(mergedState);
             rightState.moveToNext();
         }
 
-        return merged;
+        return mergedState.context;
+    }
+
+    private void mergeTie(ContextState mergedState, ContextState leftState, ContextState rightState)
+    {
+        if (leftState.isGlobal() || rightState.isGlobal())
+        {
+            if (leftState.isGlobal() && rightState.isGlobal())
+            {
+                long leftClock = leftState.getClock();
+                long rightClock = rightState.getClock();
+
+                if (leftClock == rightClock)
+                {
+                    long leftCount = leftState.getCount();
+                    long rightCount = rightState.getCount();
+
+                    // Can happen if an sstable gets lost and disk failure policy is set to 'best effort'
+                    if (leftCount != rightCount && CompactionManager.isCompactionManager.get())
+                    {
+                        logger.warn("invalid global counter shard detected; ({}, {}, {}) and ({}, {}, {}) differ only in "
+                                    + "count; will pick highest to self-heal on compaction",
+                                    leftState.getCounterId(), leftClock, leftCount,
+                                    rightState.getCounterId(), rightClock, rightCount);
+                    }
+
+                    if (leftCount > rightCount)
+                        leftState.copyTo(mergedState);
+                    else
+                        rightState.copyTo(mergedState);
+                }
+                else
+                {
+                    (leftClock > rightClock ? leftState : rightState).copyTo(mergedState);
+                }
+            }
+            else // only one is global - keep that one
+            {
+                (leftState.isGlobal() ? leftState : rightState).copyTo(mergedState);
+            }
+        }
+        else if (leftState.isLocal() || rightState.isLocal())
+        {
+            // Local id and at least one is a local shard.
+            if (leftState.isLocal() && rightState.isLocal())
+            {
+                // both local - sum
+                long clock = leftState.getClock() + rightState.getClock();
+                long count = leftState.getCount() + rightState.getCount();
+                mergedState.writeLocal(leftState.getCounterId(), clock, count);
+            }
+            else // only one is local - keep that one
+            {
+                (leftState.isLocal() ? leftState : rightState).copyTo(mergedState);
+            }
+        }
+        else // both are remote shards
+        {
+            long leftClock = leftState.getClock();
+            long rightClock = rightState.getClock();
+
+            if (leftClock == rightClock)
+            {
+                // We should never see non-local shards w/ same id+clock but different counts. However, if we do
+                // we should "heal" the problem by being deterministic in our selection of shard - and
+                // log the occurrence so that the operator will know something is wrong.
+                long leftCount = leftState.getCount();
+                long rightCount = rightState.getCount();
+
+                if (leftCount != rightCount && CompactionManager.isCompactionManager.get())
+                {
+                    logger.warn("invalid remote counter shard detected; ({}, {}, {}) and ({}, {}, {}) differ only in "
+                                + "count; will pick highest to self-heal on compaction",
+                                leftState.getCounterId(), leftClock, leftCount,
+                                rightState.getCounterId(), rightClock, rightCount);
+                }
+
+                if (leftCount > rightCount)
+                    leftState.copyTo(mergedState);
+                else
+                    rightState.copyTo(mergedState);
+            }
+            else
+            {
+                if ((leftClock >= 0 && rightClock > 0 && leftClock >= rightClock)
+                        || (leftClock < 0 && (rightClock > 0 || leftClock < rightClock)))
+                    leftState.copyTo(mergedState);
+                else
+                    rightState.copyTo(mergedState);
+            }
+        }
     }
 
     /**
@@ -435,25 +494,23 @@ public class CounterContext implements IContext
      */
     public String toString(ByteBuffer context)
     {
-        ContextState state = new ContextState(context, headerLength(context));
+        ContextState state = ContextState.wrap(context);
         StringBuilder sb = new StringBuilder();
         sb.append("[");
 
         while (state.hasRemaining())
         {
-            if (state.elementIdx() > 0)
-            {
+            if (state.getElementIndex() > 0)
                 sb.append(",");
-            }
             sb.append("{");
             sb.append(state.getCounterId().toString()).append(", ");
-            sb.append(state.getClock()).append(", ");;
+            sb.append(state.getClock()).append(", ");
             sb.append(state.getCount());
             sb.append("}");
-            if (state.isDelta())
-            {
+            if (state.isGlobal())
+                sb.append("$");
+            else if (state.isLocal())
                 sb.append("*");
-            }
             state.moveToNext();
         }
 
@@ -481,49 +538,87 @@ public class CounterContext implements IContext
         return total;
     }
 
+    public boolean shouldClearLocal(ByteBuffer context)
+    {
+        // #elt being negative means we have to clean local shards.
+        return context.getShort(context.position()) < 0;
+    }
+
     /**
-     * Mark context to delete delta afterward.
+     * Mark context to delete local references afterward.
      * Marking is done by multiply #elt by -1 to preserve header length
-     * and #elt count in order to clear all delta later.
+     * and #elt count in order to clear all local refs later.
      *
      * @param context a counter context
-     * @return context that marked to delete delta
+     * @return context that marked to delete local refs
      */
-    public ByteBuffer markDeltaToBeCleared(ByteBuffer context)
+    public ByteBuffer markLocalToBeCleared(ByteBuffer context)
     {
-        int headerLength = headerLength(context);
-        if (headerLength == HEADER_SIZE_LENGTH)
-            return context;
-
-        ByteBuffer marked = context.duplicate();
         short count = context.getShort(context.position());
-        // negate #elt to mark as deleted, without changing its size.
-        if (count > 0)
-            marked.putShort(marked.position(), (short) (count * -1));
+        if (count <= 0)
+            return context; // already marked or all are remote.
+
+        boolean hasLocalShards = false;
+        for (int i = 0; i < count; i++)
+        {
+            if (context.getShort(context.position() + HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH) >= 0)
+            {
+                hasLocalShards = true;
+                break;
+            }
+        }
+
+        if (!hasLocalShards)
+            return context; // all shards are global or remote.
+
+        ByteBuffer marked = ByteBuffer.allocate(context.remaining());
+        marked.putShort(marked.position(), (short) (count * -1));
+        ByteBufferUtil.arrayCopy(context,
+                                 context.position() + HEADER_SIZE_LENGTH,
+                                 marked,
+                                 marked.position() + HEADER_SIZE_LENGTH,
+                                 context.remaining() - HEADER_SIZE_LENGTH);
         return marked;
     }
 
     /**
-     * Remove all the delta of a context (i.e, set an empty header).
+     * Remove all the local of a context (but keep global).
      *
      * @param context a counter context
-     * @return a version of {@code context} where no count are a delta.
+     * @return a version of {@code context} where no shards are local.
      */
-    public ByteBuffer clearAllDelta(ByteBuffer context)
+    public ByteBuffer clearAllLocal(ByteBuffer context)
     {
-        int headerLength = headerLength(context);
-        if (headerLength == HEADER_SIZE_LENGTH)
-            return context;
+        int count = Math.abs(context.getShort(context.position()));
+        if (count == 0)
+            return context; // no local or global shards present.
 
-        ByteBuffer cleaned = ByteBuffer.allocate(context.remaining() - headerLength + HEADER_SIZE_LENGTH);
-        cleaned.putShort(cleaned.position(), (short)0);
-        ByteBufferUtil.arrayCopy(
-                context,
-                context.position() + headerLength,
-                cleaned,
-                cleaned.position() + HEADER_SIZE_LENGTH,
-                context.remaining() - headerLength);
-        return cleaned;
+        List<Short> globalShardIndexes = new ArrayList<>(count);
+        for (int i = 0; i < count; i++)
+        {
+            short elt = context.getShort(context.position() + HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH);
+            if (elt < 0)
+                globalShardIndexes.add(elt);
+        }
+
+        if (count == globalShardIndexes.size())
+            return context; // no local shards detected.
+
+        // allocate a smaller BB for the cleared context - with no local header elts.
+        ByteBuffer cleared = ByteBuffer.allocate(context.remaining() - (count - globalShardIndexes.size()) * HEADER_ELT_LENGTH);
+
+        cleared.putShort(cleared.position(), (short) globalShardIndexes.size());
+        for (int i = 0; i < globalShardIndexes.size(); i++)
+            cleared.putShort(cleared.position() + HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH, globalShardIndexes.get(i));
+
+        int origHeaderLength = headerLength(context);
+        ByteBufferUtil.arrayCopy(context,
+                                 context.position() + origHeaderLength,
+                                 cleared,
+                                 cleared.position() + headerLength(cleared),
+                                 context.remaining() - origHeaderLength);
+
+        return cleared;
     }
 
     public void validateContext(ByteBuffer context) throws MarshalException
@@ -535,15 +630,14 @@ public class CounterContext implements IContext
     /**
      * Update a MessageDigest with the content of a context.
      * Note that this skips the header entirely since the header information
-     * has local meaning only, while digests a meant for comparison across
+     * has local meaning only, while digests are meant for comparison across
      * nodes. This means in particular that we always have:
-     *  updateDigest(ctx) == updateDigest(clearAllDelta(ctx))
+     *  updateDigest(ctx) == updateDigest(clearAllLocal(ctx))
      */
     public void updateDigest(MessageDigest message, ByteBuffer context)
     {
-        int hlength = headerLength(context);
         ByteBuffer dup = context.duplicate();
-        dup.position(context.position() + hlength);
+        dup.position(context.position() + headerLength(context));
         message.update(dup);
     }
 
@@ -569,199 +663,6 @@ public class CounterContext implements IContext
     }
 
     /**
-     * Compute a new context such that if applied to context yields the same
-     * total but with old local counter ids nulified and there content merged to
-     * the current localCounterId.
-     */
-    public ByteBuffer computeOldShardMerger(ByteBuffer context, List<CounterId.CounterIdRecord> oldIds, long mergeBefore)
-    {
-        long now = System.currentTimeMillis();
-        int hlength = headerLength(context);
-        CounterId localId = CounterId.getLocalId();
-
-        Iterator<CounterId.CounterIdRecord> recordIterator = oldIds.iterator();
-        CounterId.CounterIdRecord currRecord = recordIterator.hasNext() ? recordIterator.next() : null;
-
-        ContextState state = new ContextState(context, hlength);
-
-        List<CounterId> toMerge = new ArrayList<CounterId>();
-        long mergeTotal = 0;
-        while (state.hasRemaining() && currRecord != null)
-        {
-            assert !currRecord.id.equals(localId);
-
-            CounterId counterId = state.getCounterId();
-            int c = counterId.compareTo(currRecord.id);
-
-            if (c > 0)
-            {
-                currRecord = recordIterator.hasNext() ? recordIterator.next() : null;
-                continue;
-            }
-
-            if (state.isDelta())
-            {
-                if (state.getClock() < 0)
-                {
-                    // Already merged shard, waiting to be collected
-
-                    if (counterId.equals(localId))
-                        // we should not get there, but we have been creating problematic context prior to #2968
-                        throw new RuntimeException("Current counterId with a negative clock (likely due to #2968). You need to restart this node with -Dcassandra.renew_counter_id=true to fix.");
-
-                    if (state.getCount() != 0)
-                    {
-                        // This should not happen, but previous bugs have generated this (#2968 in particular) so fixing it.
-                        logger.error(String.format("Invalid counter context (clock is %d and count is %d for CounterId %s), will fix", state.getCount(), state.getCount(), counterId.toString()));
-                        toMerge.add(counterId);
-                        mergeTotal += state.getCount();
-                    }
-                }
-                else if (c == 0)
-                {
-                    // Found an old id. However, merging an oldId that has just been renewed isn't safe, so
-                    // we check that it has been renewed before mergeBefore.
-                    if (currRecord.timestamp < mergeBefore)
-                    {
-                        toMerge.add(counterId);
-                        mergeTotal += state.getCount();
-                    }
-                }
-            }
-
-            if (c == 0)
-                currRecord = recordIterator.hasNext() ? recordIterator.next() : null;
-
-            state.moveToNext();
-        }
-        // Continuing the iteration so that we can repair invalid shards
-        while (state.hasRemaining())
-        {
-            CounterId counterId = state.getCounterId();
-            if (state.isDelta() && state.getClock() < 0)
-            {
-                if (counterId.equals(localId))
-                    // we should not get there, but we have been creating problematic context prior to #2968
-                    throw new RuntimeException("Current counterId with a negative clock (likely due to #2968). You need to restart this node with -Dcassandra.renew_counter_id=true to fix.");
-
-                if (state.getCount() != 0)
-                {
-                    // This should not happen, but previous bugs have generated this (#2968 in particular) so fixing it.
-                    logger.error(String.format("Invalid counter context (clock is %d and count is %d for CounterId %s), will fix", state.getClock(), state.getCount(), counterId.toString()));
-                    toMerge.add(counterId);
-                    mergeTotal += state.getCount();
-                }
-            }
-            state.moveToNext();
-        }
-
-        if (toMerge.isEmpty())
-            return null;
-
-        ContextState merger = ContextState.allocate(toMerge.size() + 1, toMerge.size() + 1);
-        state.reset();
-        int i = 0;
-        int removedTotal = 0;
-        boolean localWritten = false;
-        while (state.hasRemaining())
-        {
-            CounterId counterId = state.getCounterId();
-            if (counterId.compareTo(localId) > 0)
-            {
-                merger.writeElement(localId, 1L, mergeTotal, true);
-                localWritten = true;
-            }
-            else if (i < toMerge.size() && counterId.compareTo(toMerge.get(i)) == 0)
-            {
-                long count = state.getCount();
-                removedTotal += count;
-                merger.writeElement(counterId, -now - state.getClock(), -count, true);
-                ++i;
-            }
-            state.moveToNext();
-        }
-        if (!localWritten)
-            merger.writeElement(localId, 1L, mergeTotal, true);
-
-        // sanity check
-        assert mergeTotal == removedTotal;
-        return merger.context;
-    }
-
-    /**
-     * Remove shards that have been canceled through computeOldShardMerger
-     * since a time older than gcBefore.
-     * Used by compaction to strip context of unecessary information,
-     * shrinking them.
-     */
-    public ByteBuffer removeOldShards(ByteBuffer context, int gcBefore)
-    {
-        int hlength = headerLength(context);
-        ContextState state = new ContextState(context, hlength);
-        int removedShards = 0;
-        int removedDelta = 0;
-        while (state.hasRemaining())
-        {
-            long clock = state.getClock();
-            if (clock < 0)
-            {
-                // We should never have a count != 0 when clock < 0.
-                // We know that previous may have created those situation though, so:
-                //   * for delta shard: we throw an exception since computeOldShardMerger should
-                //     have corrected that situation
-                //   * for non-delta shard: it is a much more crappier situation because there is
-                //     not much we can do since we are not responsible for that shard. So we simply
-                //     ignore the shard.
-                if (state.getCount() != 0)
-                {
-                    if (state.isDelta())
-                    {
-                        throw new IllegalStateException("Counter shard with negative clock but count != 0; context = " + toString(context));
-                    }
-                    else
-                    {
-                        logger.debug("Ignoring non-removable non-delta corrupted shard in context {}", toString(context));
-                        state.moveToNext();
-                        continue;
-                    }
-                }
-
-                if (-((int)(clock / 1000)) < gcBefore)
-                {
-                    removedShards++;
-                    if (state.isDelta())
-                        removedDelta++;
-                }
-            }
-            state.moveToNext();
-        }
-
-        if (removedShards == 0)
-            return context;
-
-        int removedHeaderSize = removedDelta * HEADER_ELT_LENGTH;
-        int removedBodySize = removedShards * STEP_LENGTH;
-        int newSize = context.remaining() - removedHeaderSize - removedBodySize;
-        int newHlength = hlength - removedHeaderSize;
-        ByteBuffer cleanedContext = HeapAllocator.instance.allocate(newSize);
-        cleanedContext.putShort(cleanedContext.position(), (short) ((newHlength - HEADER_SIZE_LENGTH) / HEADER_ELT_LENGTH));
-        ContextState cleaned = new ContextState(cleanedContext, newHlength);
-
-        state.reset();
-        while (state.hasRemaining())
-        {
-            long clock = state.getClock();
-            if (clock >= 0 || state.getCount() != 0 || -((int)(clock / 1000)) >= gcBefore)
-            {
-                state.copyTo(cleaned);
-            }
-
-            state.moveToNext();
-        }
-        return cleanedContext;
-    }
-
-    /**
      * Helper class to work on contexts (works by iterating over them).
      * A context being abstractly a list of tuple (counterid, clock, count), a
      * ContextState encapsulate a context and a position to one of the tuple.
@@ -775,38 +676,67 @@ public class CounterContext implements IContext
     {
         public final ByteBuffer context;
         public final int headerLength;
-        private int headerOffset;  // offset from context.position()
-        private int bodyOffset;    // offset from context.position()
-        private boolean currentIsDelta;
 
-        public ContextState(ByteBuffer context, int headerLength)
-        {
-            this(context, headerLength, HEADER_SIZE_LENGTH, headerLength, false);
-            updateIsDelta();
-        }
+        private int headerOffset;        // offset from context.position()
+        private int bodyOffset;          // offset from context.position()
+        private boolean currentIsGlobal;
+        private boolean currentIsLocal;
 
-        public ContextState(ByteBuffer context)
-        {
-            this(context, headerLength(context));
-        }
-
-        private ContextState(ByteBuffer context, int headerLength, int headerOffset, int bodyOffset, boolean currentIsDelta)
+        private ContextState(ByteBuffer context)
         {
             this.context = context;
-            this.headerLength = headerLength;
-            this.headerOffset = headerOffset;
-            this.bodyOffset = bodyOffset;
-            this.currentIsDelta = currentIsDelta;
+            this.headerLength = this.bodyOffset = headerLength(context);
+            this.headerOffset = HEADER_SIZE_LENGTH;
+            updateIsGlobalOrLocal();
         }
 
-        public boolean isDelta()
+        public static ContextState wrap(ByteBuffer context)
         {
-            return currentIsDelta;
+            return new ContextState(context);
         }
 
-        private void updateIsDelta()
+        /**
+         * Allocate a new context big enough for globalCount + localCount + remoteCount elements
+         * and return the initial corresponding ContextState.
+         */
+        public static ContextState allocate(int globalCount, int localCount, int remoteCount, Allocator allocator)
         {
-            currentIsDelta = (headerOffset < headerLength) && context.getShort(context.position() + headerOffset) == (short) elementIdx();
+            int headerLength = HEADER_SIZE_LENGTH + (globalCount + localCount) * HEADER_ELT_LENGTH;
+            int bodyLength = (globalCount + localCount + remoteCount) * STEP_LENGTH;
+
+            ByteBuffer buffer = allocator.allocate(headerLength + bodyLength);
+            buffer.putShort(buffer.position(), (short) (globalCount + localCount));
+
+            return ContextState.wrap(buffer);
+        }
+
+        public boolean isGlobal()
+        {
+            return currentIsGlobal;
+        }
+
+        public boolean isLocal()
+        {
+            return currentIsLocal;
+        }
+
+        public boolean isRemote()
+        {
+            return !(currentIsGlobal || currentIsLocal);
+        }
+
+        private void updateIsGlobalOrLocal()
+        {
+            if (headerOffset >= headerLength)
+            {
+                currentIsGlobal = currentIsLocal = false;
+            }
+            else
+            {
+                short headerElt = context.getShort(context.position() + headerOffset);
+                currentIsGlobal = headerElt == getElementIndex() + Short.MIN_VALUE;
+                currentIsLocal = headerElt == getElementIndex();
+            }
         }
 
         public boolean hasRemaining()
@@ -814,35 +744,29 @@ public class CounterContext implements IContext
             return bodyOffset < context.remaining();
         }
 
-        public int remainingHeaderLength()
-        {
-            return headerLength - headerOffset;
-        }
-
-        public int remainingBodyLength()
-        {
-            return context.remaining() - bodyOffset;
-        }
-
         public void moveToNext()
         {
             bodyOffset += STEP_LENGTH;
-            if (currentIsDelta)
-            {
+            if (currentIsGlobal || currentIsLocal)
                 headerOffset += HEADER_ELT_LENGTH;
-            }
-            updateIsDelta();
+            updateIsGlobalOrLocal();
         }
 
-        // This advance other to the next position (but not this)
         public void copyTo(ContextState other)
         {
-            ByteBufferUtil.arrayCopy(context, context.position() + bodyOffset, other.context, other.context.position() + other.bodyOffset, STEP_LENGTH);
-            if (currentIsDelta)
-            {
-                other.context.putShort(other.context.position() + other.headerOffset, (short) other.elementIdx());
-            }
-            other.currentIsDelta = currentIsDelta;
+            ByteBufferUtil.arrayCopy(context,
+                                     context.position() + bodyOffset,
+                                     other.context,
+                                     other.context.position() + other.bodyOffset,
+                                     STEP_LENGTH);
+
+            if (currentIsGlobal)
+                other.context.putShort(other.context.position() + other.headerOffset, (short) (other.getElementIndex() + Short.MIN_VALUE));
+            else if (currentIsLocal)
+                context.putShort(other.context.position() + other.headerOffset, (short) other.getElementIndex());
+
+            other.currentIsGlobal = currentIsGlobal;
+            other.currentIsLocal = currentIsLocal;
             other.moveToNext();
         }
 
@@ -855,7 +779,12 @@ public class CounterContext implements IContext
         {
             this.headerOffset = HEADER_SIZE_LENGTH;
             this.bodyOffset = headerLength;
-            updateIsDelta();
+            updateIsGlobalOrLocal();
+        }
+
+        public int getElementIndex()
+        {
+            return (bodyOffset - headerLength) / STEP_LENGTH;
         }
 
         public CounterId getCounterId()
@@ -873,50 +802,44 @@ public class CounterContext implements IContext
             return context.getLong(context.position() + bodyOffset + CounterId.LENGTH + CLOCK_LENGTH);
         }
 
-        // Advance this to the next position
-        public void writeElement(CounterId id, long clock, long count, boolean isDelta)
+        // In 2.0 only used by the unit tests.
+        public void writeGlobal(CounterId id, long clock, long count)
+        {
+            writeElement(id, clock, count, true, false);
+        }
+
+        public void writeLocal(CounterId id, long clock, long count)
+        {
+            writeElement(id, clock, count, false, true);
+        }
+
+        public void writeRemote(CounterId id, long clock, long count)
+        {
+            writeElement(id, clock, count, false, false);
+        }
+
+        private void writeElement(CounterId id, long clock, long count, boolean isGlobal, boolean isLocal)
         {
             writeElementAtOffset(context, context.position() + bodyOffset, id, clock, count);
-            if (isDelta)
-            {
-                context.putShort(context.position() + headerOffset, (short)elementIdx());
-            }
-            currentIsDelta = isDelta;
+
+            if (isGlobal)
+                context.putShort(context.position() + headerOffset, (short) (getElementIndex() + Short.MIN_VALUE));
+            else if (isLocal)
+                context.putShort(context.position() + headerOffset, (short) getElementIndex());
+
+            currentIsGlobal = isGlobal;
+            currentIsLocal = isLocal;
             moveToNext();
         }
 
-        public void writeElement(CounterId id, long clock, long count)
+        // write a tuple (counter id, clock, count) at an absolute (bytebuffer-wise) offset
+        private void writeElementAtOffset(ByteBuffer ctx, int offset, CounterId id, long clock, long count)
         {
-            writeElement(id, clock, count, false);
-        }
-
-        public int elementIdx()
-        {
-            return (bodyOffset - headerLength) / STEP_LENGTH;
-        }
-
-        public ContextState duplicate()
-        {
-            return new ContextState(context, headerLength, headerOffset, bodyOffset, currentIsDelta);
-        }
-
-        /*
-         * Allocate a new context big enough for {@code elementCount} elements
-         * with {@code deltaCount} of them being delta, and return the initial
-         * ContextState corresponding.
-         */
-        public static ContextState allocate(int elementCount, int deltaCount)
-        {
-            return allocate(elementCount, deltaCount, HeapAllocator.instance);
-        }
-
-        public static ContextState allocate(int elementCount, int deltaCount, Allocator allocator)
-        {
-            assert deltaCount <= elementCount;
-            int hlength = HEADER_SIZE_LENGTH + deltaCount * HEADER_ELT_LENGTH;
-            ByteBuffer context = allocator.allocate(hlength + elementCount * STEP_LENGTH);
-            context.putShort(context.position(), (short)deltaCount);
-            return new ContextState(context, hlength);
+            ctx = ctx.duplicate();
+            ctx.position(offset);
+            ctx.put(id.bytes().duplicate());
+            ctx.putLong(clock);
+            ctx.putLong(count);
         }
     }
 }

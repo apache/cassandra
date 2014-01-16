@@ -83,17 +83,17 @@ public class CounterUpdateCell extends Cell
     public CounterCell localCopy(ColumnFamilyStore cfs)
     {
         return new CounterCell(name.copy(HeapAllocator.instance),
-                                 CounterContext.instance().create(delta(), HeapAllocator.instance),
-                                 timestamp(),
-                                 Long.MIN_VALUE);
+                               CounterContext.instance().createLocal(delta(), HeapAllocator.instance),
+                               timestamp(),
+                               Long.MIN_VALUE);
     }
 
     @Override
     public Cell localCopy(ColumnFamilyStore cfs, Allocator allocator)
     {
         return new CounterCell(name.copy(allocator),
-                                 CounterContext.instance().create(delta(), allocator),
-                                 timestamp(),
-                                 Long.MIN_VALUE);
+                               CounterContext.instance().createLocal(delta(), allocator),
+                               timestamp(),
+                               Long.MIN_VALUE);
     }
 }

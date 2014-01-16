@@ -251,7 +251,7 @@ public class SSTableWriter extends SSTable
                 if (atom == null)
                     break;
                 if (atom instanceof CounterCell)
-                    atom = ((CounterCell) atom).markDeltaToBeCleared();
+                    atom = ((CounterCell) atom).markLocalToBeCleared();
 
                 int deletionTime = atom.getLocalDeletionTime();
                 if (deletionTime < Integer.MAX_VALUE)

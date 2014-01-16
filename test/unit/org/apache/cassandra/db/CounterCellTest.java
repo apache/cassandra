@@ -23,6 +23,7 @@ import java.security.MessageDigest;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
@@ -31,12 +32,15 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.composites.*;
+import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.SimpleDenseCellNameType;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import static org.apache.cassandra.db.context.CounterContext.ContextState;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.*;
+
+import static org.apache.cassandra.Util.cellname;
+import static org.apache.cassandra.db.context.CounterContext.ContextState;
 
 public class CounterCellTest extends SchemaLoader
 {
@@ -58,22 +62,22 @@ public class CounterCellTest extends SchemaLoader
     }
 
     @Test
-    public void testCreate()
+    public void testCreate() throws UnknownHostException
     {
         long delta = 3L;
-        CounterUpdateCell cuc = new CounterUpdateCell(Util.cellname("x"), delta, 1L);
-        CounterCell column = cuc.localCopy(Keyspace.open("Keyspace5").getColumnFamilyStore("Counter1"));
+        CounterUpdateCell cuc = new CounterUpdateCell(cellname("x"), delta, 1L);
+        CounterCell cell = cuc.localCopy(Keyspace.open("Keyspace5").getColumnFamilyStore("Counter1"));
 
-        Assert.assertEquals(delta, column.total());
-        Assert.assertEquals(1, column.value().getShort(0));
-        Assert.assertEquals(0, column.value().getShort(2));
-        Assert.assertTrue(CounterId.wrap(column.value(), 4).isLocalId());
-        Assert.assertEquals(1L, column.value().getLong(4 + 0*stepLength + idLength));
-        Assert.assertEquals(delta, column.value().getLong(4 + 0*stepLength + idLength + clockLength));
+        assert delta == cell.total();
+        assert 1 == cell.value().getShort(0);
+        assert 0 == cell.value().getShort(2);
+        assert CounterId.wrap(cell.value(), 4).isLocalId();
+        assert 1L == cell.value().getLong(4 + idLength);
+        assert delta == cell.value().getLong(4 + idLength + clockLength);
     }
 
     @Test
-    public void testReconcile()
+    public void testReconcile() throws UnknownHostException
     {
         Cell left;
         Cell right;
@@ -81,210 +85,213 @@ public class CounterCellTest extends SchemaLoader
 
         ByteBuffer context;
 
-        // tombstone + tombstone
-        left  = new DeletedCell(Util.cellname("x"), 1, 1L);
-        right = new DeletedCell(Util.cellname("x"), 2, 2L);
+        Allocator allocator = HeapAllocator.instance;
 
-        Assert.assertEquals(left.reconcile(right).getMarkedForDeleteAt(), right.getMarkedForDeleteAt());
-        Assert.assertEquals(right.reconcile(left).getMarkedForDeleteAt(), right.getMarkedForDeleteAt());
+        // tombstone + tombstone
+        left  = new DeletedCell(cellname("x"), 1, 1L);
+        right = new DeletedCell(cellname("x"), 2, 2L);
+
+        assert left.reconcile(right).getMarkedForDeleteAt() == right.getMarkedForDeleteAt();
+        assert right.reconcile(left).getMarkedForDeleteAt() == right.getMarkedForDeleteAt();
 
         // tombstone > live
-        left  = new DeletedCell(Util.cellname("x"), 1, 2L);
-        right = new CounterCell(Util.cellname("x"), 0L, 1L);
+        left  = new DeletedCell(cellname("x"), 1, 2L);
+        right = new CounterCell(cellname("x"), 0L, 1L);
 
-        Assert.assertEquals(left.reconcile(right), left);
+        assert left.reconcile(right) == left;
 
         // tombstone < live last delete
-        left  = new DeletedCell(Util.cellname("x"), 1, 1L);
-        right = new CounterCell(Util.cellname("x"), 0L, 4L, 2L);
+        left  = new DeletedCell(cellname("x"), 1, 1L);
+        right = new CounterCell(cellname("x"), 0L, 4L, 2L);
 
-        Assert.assertEquals(left.reconcile(right), right);
+        assert left.reconcile(right) == right;
 
         // tombstone == live last delete
-        left  = new DeletedCell(Util.cellname("x"), 1, 2L);
-        right = new CounterCell(Util.cellname("x"), 0L, 4L, 2L);
+        left  = new DeletedCell(cellname("x"), 1, 2L);
+        right = new CounterCell(cellname("x"), 0L, 4L, 2L);
 
-        Assert.assertEquals(left.reconcile(right), right);
+        assert left.reconcile(right) == right;
 
         // tombstone > live last delete
-        left  = new DeletedCell(Util.cellname("x"), 1, 4L);
-        right = new CounterCell(Util.cellname("x"), 0L, 9L, 1L);
+        left  = new DeletedCell(cellname("x"), 1, 4L);
+        right = new CounterCell(cellname("x"), 0L, 9L, 1L);
 
         reconciled = left.reconcile(right);
-        Assert.assertEquals(reconciled.name(), right.name());
-        Assert.assertEquals(reconciled.value(), right.value());
-        Assert.assertEquals(reconciled.timestamp(), right.timestamp());
-        Assert.assertEquals(((CounterCell)reconciled).timestampOfLastDelete(), left.getMarkedForDeleteAt());
+        assert reconciled.name() == right.name();
+        assert reconciled.value() == right.value();
+        assert reconciled.timestamp() == right.timestamp();
+        assert ((CounterCell)reconciled).timestampOfLastDelete() == left.getMarkedForDeleteAt();
 
         // live < tombstone
-        left  = new CounterCell(Util.cellname("x"), 0L, 1L);
-        right = new DeletedCell(Util.cellname("x"), 1, 2L);
+        left  = new CounterCell(cellname("x"), 0L, 1L);
+        right = new DeletedCell(cellname("x"), 1, 2L);
 
-        Assert.assertEquals(left.reconcile(right), right);
+        assert left.reconcile(right) == right;
 
         // live last delete > tombstone
-        left  = new CounterCell(Util.cellname("x"), 0L, 4L, 2L);
-        right = new DeletedCell(Util.cellname("x"), 1, 1L);
+        left  = new CounterCell(cellname("x"), 0L, 4L, 2L);
+        right = new DeletedCell(cellname("x"), 1, 1L);
 
-        Assert.assertEquals(left.reconcile(right), left);
+        assert left.reconcile(right) == left;
 
         // live last delete == tombstone
-        left  = new CounterCell(Util.cellname("x"), 0L, 4L, 2L);
-        right = new DeletedCell(Util.cellname("x"), 1, 2L);
+        left  = new CounterCell(cellname("x"), 0L, 4L, 2L);
+        right = new DeletedCell(cellname("x"), 1, 2L);
 
-        Assert.assertEquals(left.reconcile(right), left);
+        assert left.reconcile(right) == left;
 
         // live last delete < tombstone
-        left  = new CounterCell(Util.cellname("x"), 0L, 9L, 1L);
-        right = new DeletedCell(Util.cellname("x"), 1, 4L);
+        left  = new CounterCell(cellname("x"), 0L, 9L, 1L);
+        right = new DeletedCell(cellname("x"), 1, 4L);
 
         reconciled = left.reconcile(right);
-        Assert.assertEquals(reconciled.name(), left.name());
-        Assert.assertEquals(reconciled.value(), left.value());
-        Assert.assertEquals(reconciled.timestamp(), left.timestamp());
-        Assert.assertEquals(((CounterCell)reconciled).timestampOfLastDelete(), right.getMarkedForDeleteAt());
+        assert reconciled.name() == left.name();
+        assert reconciled.value() == left.value();
+        assert reconciled.timestamp() == left.timestamp();
+        assert ((CounterCell)reconciled).timestampOfLastDelete() == right.getMarkedForDeleteAt();
 
         // live < live last delete
-        left  = new CounterCell(Util.cellname("x"), cc.create(CounterId.fromInt(1), 2L, 3L, false), 1L, Long.MIN_VALUE);
-        right = new CounterCell(Util.cellname("x"), cc.create(CounterId.fromInt(1), 1L, 1L, false), 4L, 3L);
+        left  = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L, allocator), 1L, Long.MIN_VALUE);
+        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 1L, 1L, allocator), 4L, 3L);
 
-        Assert.assertEquals(left.reconcile(right), right);
+        assert left.reconcile(right) == right;
 
         // live last delete > live
-        left  = new CounterCell(Util.cellname("x"), cc.create(CounterId.fromInt(1), 2L, 3L, false), 6L, 5L);
-        right = new CounterCell(Util.cellname("x"), cc.create(CounterId.fromInt(1), 1L, 1L, false), 4L, 3L);
+        left  = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L, allocator), 6L, 5L);
+        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 1L, 1L, allocator), 4L, 3L);
 
-        Assert.assertEquals(left.reconcile(right), left);
+        assert left.reconcile(right) == left;
 
         // live + live
-        left = new CounterCell(Util.cellname("x"), cc.create(CounterId.fromInt(1), 1L, 1L, false), 4L, Long.MIN_VALUE);
-        right = new CounterCell(Util.cellname("x"), cc.create(CounterId.fromInt(1), 2L, 3L, false), 1L, Long.MIN_VALUE);
+        left = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 1L, 1L, allocator), 4L, Long.MIN_VALUE);
+        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L, allocator), 1L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
-        Assert.assertEquals(reconciled.name(), left.name());
-        Assert.assertEquals(3L, ((CounterCell)reconciled).total());
-        Assert.assertEquals(4L, reconciled.timestamp());
+        assert reconciled.name().equals(left.name());
+        assert ((CounterCell)reconciled).total() == 3L;
+        assert reconciled.timestamp() == 4L;
 
         left = reconciled;
-        right = new CounterCell(Util.cellname("x"), cc.create(CounterId.fromInt(2), 1L, 5L, false), 2L, Long.MIN_VALUE);
+        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(2), 1L, 5L, allocator), 2L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
-        Assert.assertEquals(reconciled.name(), left.name());
-        Assert.assertEquals(8L, ((CounterCell)reconciled).total());
-        Assert.assertEquals(4L, reconciled.timestamp());
+        assert reconciled.name().equals(left.name());
+        assert ((CounterCell)reconciled).total() == 8L;
+        assert reconciled.timestamp() == 4L;
 
         left = reconciled;
-        right = new CounterCell(Util.cellname("x"), cc.create(CounterId.fromInt(2), 2L, 2L, false), 6L, Long.MIN_VALUE);
+        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(2), 2L, 2L, allocator), 6L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
-        Assert.assertEquals(reconciled.name(), left.name());
-        Assert.assertEquals(5L, ((CounterCell)reconciled).total());
-        Assert.assertEquals(6L, reconciled.timestamp());
+        assert reconciled.name().equals(left.name());
+        assert ((CounterCell)reconciled).total() == 5L;
+        assert reconciled.timestamp() == 6L;
 
         context = reconciled.value();
         int hd = 2; // header
-        Assert.assertEquals(hd + 2 * stepLength, context.remaining());
+        assert hd + 2 * stepLength == context.remaining();
 
-        Assert.assertTrue(Util.equalsCounterId(CounterId.fromInt(1), context, hd + 0 * stepLength));
-        Assert.assertEquals(2L, context.getLong(hd + 0*stepLength + idLength));
-        Assert.assertEquals(3L, context.getLong(hd + 0*stepLength + idLength + clockLength));
+        assert Util.equalsCounterId(CounterId.fromInt(1), context, hd);
+        assert 2L == context.getLong(hd + idLength);
+        assert 3L == context.getLong(hd + idLength + clockLength);
 
-        Assert.assertTrue(Util.equalsCounterId(CounterId.fromInt(2), context, hd + 1 * stepLength));
-        Assert.assertEquals(2L, context.getLong(hd + 1*stepLength + idLength));
-        Assert.assertEquals(2L, context.getLong(hd + 1*stepLength + idLength + clockLength));
+        assert Util.equalsCounterId(CounterId.fromInt(2), context, hd + stepLength);
+        assert 2L == context.getLong(hd + stepLength + idLength);
+        assert 2L == context.getLong(hd + stepLength + idLength + clockLength);
 
-        Assert.assertEquals(Long.MIN_VALUE, ((CounterCell)reconciled).timestampOfLastDelete());
+        assert ((CounterCell)reconciled).timestampOfLastDelete() == Long.MIN_VALUE;
     }
 
     @Test
-    public void testDiff()
+    public void testDiff() throws UnknownHostException
     {
         Allocator allocator = HeapAllocator.instance;
         ContextState left;
         ContextState right;
 
-        CounterCell leftCol;
-        CounterCell rightCol;
+        CounterCell leftCell;
+        CounterCell rightCell;
 
         // timestamp
-        leftCol = new CounterCell(Util.cellname("x"), 0, 1L);
-        rightCol = new CounterCell(Util.cellname("x"), 0, 2L);
+        leftCell = new CounterCell(cellname("x"), 0, 1L);
+        rightCell = new CounterCell(cellname("x"), 0, 2L);
 
-        Assert.assertEquals(rightCol, leftCol.diff(rightCol));
-        Assert.assertNull(rightCol.diff(leftCol));
+        assert rightCell == leftCell.diff(rightCell);
+        assert null      == rightCell.diff(leftCell);
 
         // timestampOfLastDelete
-        leftCol = new CounterCell(Util.cellname("x"), 0, 1L, 1L);
-        rightCol = new CounterCell(Util.cellname("x"), 0, 1L, 2L);
+        leftCell = new CounterCell(cellname("x"), 0, 1L, 1L);
+        rightCell = new CounterCell(cellname("x"), 0, 1L, 2L);
 
-        Assert.assertEquals(rightCol, leftCol.diff(rightCol));
-        Assert.assertNull(rightCol.diff(leftCol));
+        assert rightCell == leftCell.diff(rightCell);
+        assert null      == rightCell.diff(leftCell);
 
         // equality: equal nodes, all counts same
-        left = ContextState.allocate(3, 0, allocator);
-        left.writeElement(CounterId.fromInt(3), 3L, 0L);
-        left.writeElement(CounterId.fromInt(6), 2L, 0L);
-        left.writeElement(CounterId.fromInt(9), 1L, 0L);
-        right = new ContextState(ByteBufferUtil.clone(left.context), 2);
+        left = ContextState.allocate(0, 0, 3, allocator);
+        left.writeRemote(CounterId.fromInt(3), 3L, 0L);
+        left.writeRemote(CounterId.fromInt(6), 2L, 0L);
+        left.writeRemote(CounterId.fromInt(9), 1L, 0L);
+        right = ContextState.wrap(ByteBufferUtil.clone(left.context));
 
-        leftCol  = new CounterCell(Util.cellname("x"), left.context,  1L);
-        rightCol = new CounterCell(Util.cellname("x"), right.context, 1L);
-        Assert.assertNull(leftCol.diff(rightCol));
+        leftCell  = new CounterCell(cellname("x"), left.context,  1L);
+        rightCell = new CounterCell(cellname("x"), right.context, 1L);
+        assert leftCell.diff(rightCell) == null;
 
         // greater than: left has superset of nodes (counts equal)
-        left = ContextState.allocate(4, 0, allocator);
-        left.writeElement(CounterId.fromInt(3), 3L, 0L);
-        left.writeElement(CounterId.fromInt(6), 2L, 0L);
-        left.writeElement(CounterId.fromInt(9), 1L, 0L);
-        left.writeElement(CounterId.fromInt(12), 0L, 0L);
+        left = ContextState.allocate(0, 0, 4, allocator);
+        left.writeRemote(CounterId.fromInt(3), 3L, 0L);
+        left.writeRemote(CounterId.fromInt(6), 2L, 0L);
+        left.writeRemote(CounterId.fromInt(9), 1L, 0L);
+        left.writeRemote(CounterId.fromInt(12), 0L, 0L);
 
-        right = ContextState.allocate(3, 0, allocator);
-        right.writeElement(CounterId.fromInt(3), 3L, 0L);
-        right.writeElement(CounterId.fromInt(6), 2L, 0L);
-        right.writeElement(CounterId.fromInt(9), 1L, 0L);
+        right = ContextState.allocate(0, 0, 3, allocator);
+        right.writeRemote(CounterId.fromInt(3), 3L, 0L);
+        right.writeRemote(CounterId.fromInt(6), 2L, 0L);
+        right.writeRemote(CounterId.fromInt(9), 1L, 0L);
 
-        leftCol  = new CounterCell(Util.cellname("x"), left.context,  1L);
-        rightCol = new CounterCell(Util.cellname("x"), right.context, 1L);
-        Assert.assertNull(leftCol.diff(rightCol));
+        leftCell  = new CounterCell(cellname("x"), left.context,  1L);
+        rightCell = new CounterCell(cellname("x"), right.context, 1L);
+        assert leftCell.diff(rightCell) == null;
 
         // less than: right has subset of nodes (counts equal)
-        Assert.assertEquals(leftCol, rightCol.diff(leftCol));
+        assert leftCell == rightCell.diff(leftCell);
 
         // disjoint: right and left have disjoint node sets
-        left = ContextState.allocate(3, 0, allocator);
-        left.writeElement(CounterId.fromInt(3), 1L, 0L);
-        left.writeElement(CounterId.fromInt(4), 1L, 0L);
-        left.writeElement(CounterId.fromInt(9), 1L, 0L);
+        left = ContextState.allocate(0, 0, 3, allocator);
+        left.writeRemote(CounterId.fromInt(3), 1L, 0L);
+        left.writeRemote(CounterId.fromInt(4), 1L, 0L);
+        left.writeRemote(CounterId.fromInt(9), 1L, 0L);
 
-        right = ContextState.allocate(3, 0, allocator);
-        right.writeElement(CounterId.fromInt(3), 1L, 0L);
-        right.writeElement(CounterId.fromInt(6), 1L, 0L);
-        right.writeElement(CounterId.fromInt(9), 1L, 0L);
+        right = ContextState.allocate(0, 0, 3, allocator);
+        right.writeRemote(CounterId.fromInt(3), 1L, 0L);
+        right.writeRemote(CounterId.fromInt(6), 1L, 0L);
+        right.writeRemote(CounterId.fromInt(9), 1L, 0L);
 
-        leftCol  = new CounterCell(Util.cellname("x"), left.context,  1L);
-        rightCol = new CounterCell(Util.cellname("x"), right.context, 1L);
-        Assert.assertEquals(rightCol, leftCol.diff(rightCol));
-        Assert.assertEquals(leftCol, rightCol.diff(leftCol));
+        leftCell  = new CounterCell(cellname("x"), left.context,  1L);
+        rightCell = new CounterCell(cellname("x"), right.context, 1L);
+        assert rightCell == leftCell.diff(rightCell);
+        assert leftCell  == rightCell.diff(leftCell);
     }
 
     @Test
     public void testSerializeDeserialize() throws IOException
     {
         Allocator allocator = HeapAllocator.instance;
-        CounterContext.ContextState state = CounterContext.ContextState.allocate(4, 2, allocator);
-        state.writeElement(CounterId.fromInt(1), 4L, 4L);
-        state.writeElement(CounterId.fromInt(2), 4L, 4L, true);
-        state.writeElement(CounterId.fromInt(3), 4L, 4L);
-        state.writeElement(CounterId.fromInt(4), 4L, 4L, true);
+        CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 2, 2, allocator);
+        state.writeRemote(CounterId.fromInt(1), 4L, 4L);
+        state.writeLocal(CounterId.fromInt(2), 4L, 4L);
+        state.writeRemote(CounterId.fromInt(3), 4L, 4L);
+        state.writeLocal(CounterId.fromInt(4), 4L, 4L);
 
         CellNameType type = new SimpleDenseCellNameType(UTF8Type.instance);
-        CounterCell original = new CounterCell(Util.cellname("x"), state.context, 1L);
+        CounterCell original = new CounterCell(cellname("x"), state.context, 1L);
         byte[] serialized;
         try (DataOutputBuffer bufOut = new DataOutputBuffer())
         {
             type.columnSerializer().serialize(original, bufOut);
             serialized = bufOut.getData();
         }
+
 
         ByteArrayInputStream bufIn = new ByteArrayInputStream(serialized, 0, serialized.length);
         CounterCell deserialized = (CounterCell) type.columnSerializer().deserialize(new DataInputStream(bufIn));
@@ -294,7 +301,7 @@ public class CounterCellTest extends SchemaLoader
         CounterCell deserializedOnRemote = (CounterCell) type.columnSerializer().deserialize(new DataInputStream(bufIn), ColumnSerializer.Flag.FROM_REMOTE);
         Assert.assertEquals(deserializedOnRemote.name(), original.name());
         Assert.assertEquals(deserializedOnRemote.total(), original.total());
-        Assert.assertEquals(deserializedOnRemote.value(), cc.clearAllDelta(original.value()));
+        Assert.assertEquals(deserializedOnRemote.value(), cc.clearAllLocal(original.value()));
         Assert.assertEquals(deserializedOnRemote.timestamp(), deserialized.timestamp());
         Assert.assertEquals(deserializedOnRemote.timestampOfLastDelete(), deserialized.timestampOfLastDelete());
     }
@@ -306,18 +313,18 @@ public class CounterCellTest extends SchemaLoader
         MessageDigest digest1 = MessageDigest.getInstance("md5");
         MessageDigest digest2 = MessageDigest.getInstance("md5");
 
-        CounterContext.ContextState state = CounterContext.ContextState.allocate(4, 2, allocator);
-        state.writeElement(CounterId.fromInt(1), 4L, 4L);
-        state.writeElement(CounterId.fromInt(2), 4L, 4L, true);
-        state.writeElement(CounterId.fromInt(3), 4L, 4L);
-        state.writeElement(CounterId.fromInt(4), 4L, 4L, true);
+        CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 2, 2, allocator);
+        state.writeRemote(CounterId.fromInt(1), 4L, 4L);
+        state.writeLocal(CounterId.fromInt(2), 4L, 4L);
+        state.writeRemote(CounterId.fromInt(3), 4L, 4L);
+        state.writeLocal(CounterId.fromInt(4), 4L, 4L);
 
-        CounterCell original = new CounterCell(Util.cellname("x"), state.context, 1L);
-        CounterCell cleared = new CounterCell(Util.cellname("x"), cc.clearAllDelta(state.context), 1L);
+        CounterCell original = new CounterCell(cellname("x"), state.context, 1L);
+        CounterCell cleared = new CounterCell(cellname("x"), cc.clearAllLocal(state.context), 1L);
 
         original.updateDigest(digest1);
         cleared.updateDigest(digest2);
 
-        Assert.assertTrue(Arrays.equals(digest1.digest(), digest2.digest()));
+        assert Arrays.equals(digest1.digest(), digest2.digest());
     }
 }
