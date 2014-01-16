@@ -2238,13 +2238,27 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public Iterable<ColumnFamilyStore> getValidColumnFamilies(boolean allowIndexes, boolean autoAddIndexes, String keyspaceName, String... cfNames) throws IOException
     {
         Keyspace keyspace = getValidKeyspace(keyspaceName);
+        Set<ColumnFamilyStore> valid = new HashSet<>();
 
         if (cfNames.length == 0)
+        {
             // all stores are interesting
-            return keyspace.getColumnFamilyStores();
+            for (ColumnFamilyStore cfStore : keyspace.getColumnFamilyStores())
+            {
+                valid.add(cfStore);
+                if (autoAddIndexes)
+                {
+                    for (SecondaryIndex si : cfStore.indexManager.getIndexes())
+                    {
+                        logger.info("adding secondary index {} to operation", si.getIndexName());
+                        valid.add(si.getIndexCfs());
+                    }
 
+                }
+            }
+            return valid;
+        }
         // filter out interesting stores
-        Set<ColumnFamilyStore> valid = new HashSet<ColumnFamilyStore>();
         for (String cfName : cfNames)
         {
             //if the CF name is an index, just flush the CF that owns the index
