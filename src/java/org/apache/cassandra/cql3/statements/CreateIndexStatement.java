@@ -69,7 +69,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
     public void validate(ClientState state) throws RequestValidationException
     {
         CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
-        if (cfm.getDefaultValidator().isCommutative())
+        if (cfm.isCounter())
             throw new InvalidRequestException("Secondary indexes are not supported on counter tables");
 
         ColumnDefinition cd = cfm.getColumnDefinition(target.column);

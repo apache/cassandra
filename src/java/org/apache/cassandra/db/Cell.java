@@ -268,15 +268,11 @@ public class Cell implements OnDiskAtom
 
     public String getString(CellNameType comparator)
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append(comparator.getString(name));
-        sb.append(":");
-        sb.append(isMarkedForDelete(System.currentTimeMillis()));
-        sb.append(":");
-        sb.append(value.remaining());
-        sb.append("@");
-        sb.append(timestamp());
-        return sb.toString();
+        return String.format("%s:%b:%d@%d",
+                             comparator.getString(name),
+                             isMarkedForDelete(System.currentTimeMillis()),
+                             value.remaining(),
+                             timestamp);
     }
 
     protected void validateName(CFMetaData metadata) throws MarshalException

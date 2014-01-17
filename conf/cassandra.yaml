@@ -157,7 +157,7 @@ key_cache_save_period: 14400
 row_cache_size_in_mb: 0
 
 # Duration in seconds after which Cassandra should
-# safe the row cache. Caches are saved to saved_caches_directory as specified
+# save the row cache. Caches are saved to saved_caches_directory as specified
 # in this configuration file.
 #
 # Saved caches greatly improve cold-start speeds, and is relatively cheap in

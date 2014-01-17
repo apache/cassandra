@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -95,5 +96,11 @@ public class CounterUpdateCell extends Cell
                                CounterContext.instance().createLocal(delta(), allocator),
                                timestamp(),
                                Long.MIN_VALUE);
+    }
+
+    @Override
+    public String getString(CellNameType comparator)
+    {
+        return String.format("%s:%s@%d", comparator.getString(name), ByteBufferUtil.toLong(value), timestamp);
     }
 }

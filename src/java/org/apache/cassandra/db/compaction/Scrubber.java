@@ -84,7 +84,7 @@ public class Scrubber implements Closeable
         this.controller = isOffline
                         ? new ScrubController(cfs)
                         : new CompactionController(cfs, Collections.singleton(sstable), CompactionManager.getDefaultGcBefore(cfs));
-        this.isCommutative = cfs.metadata.getDefaultValidator().isCommutative();
+        this.isCommutative = cfs.metadata.isCounter();
         this.expectedBloomFilterSize = Math.max(cfs.metadata.getIndexInterval(), (int)(SSTableReader.getApproximateKeyCount(toScrub)));
 
         // loop through each row, deserializing to check for damage.

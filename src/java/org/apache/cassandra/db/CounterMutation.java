@@ -78,7 +78,7 @@ public class CounterMutation implements IMutation
 
     public Mutation makeReplicationMutation()
     {
-        List<ReadCommand> readCommands = new LinkedList<ReadCommand>();
+        List<ReadCommand> readCommands = new LinkedList<>();
         long timestamp = System.currentTimeMillis();
         for (ColumnFamily columnFamily : mutation.getColumnFamilies())
         {
@@ -111,7 +111,7 @@ public class CounterMutation implements IMutation
 
     public MessageOut<CounterMutation> makeMutationMessage()
     {
-        return new MessageOut<CounterMutation>(MessagingService.Verb.COUNTER_MUTATION, this, serializer);
+        return new MessageOut<>(MessagingService.Verb.COUNTER_MUTATION, this, serializer);
     }
 
     public boolean shouldReplicateOnWrite()
@@ -133,9 +133,7 @@ public class CounterMutation implements IMutation
             ColumnFamily cf = cf_.cloneMeShallow();
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cf.id());
             for (Cell cell : cf_)
-            {
                 cf.addColumn(cell.localCopy(cfs), HeapAllocator.instance);
-            }
             m.add(cf);
         }
         m.apply();
@@ -145,7 +143,6 @@ public class CounterMutation implements IMutation
     {
         if (!(m instanceof CounterMutation))
             throw new IllegalArgumentException();
-
         CounterMutation cm = (CounterMutation)m;
         mutation.addAll(cm.mutation);
     }
@@ -158,10 +155,7 @@ public class CounterMutation implements IMutation
 
     public String toString(boolean shallow)
     {
-        StringBuilder buff = new StringBuilder("CounterMutation(");
-        buff.append(mutation.toString(shallow));
-        buff.append(", ").append(consistency.toString());
-        return buff.append(")").toString();
+        return String.format("CounterMutation(%s, %s)", mutation.toString(shallow), consistency);
     }
 
     public static class CounterMutationSerializer implements IVersionedSerializer<CounterMutation>

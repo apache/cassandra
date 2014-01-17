@@ -37,8 +37,7 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
         try
         {
             final CounterMutation cm = message.payload;
-            if (logger.isDebugEnabled())
-              logger.debug("Applying forwarded {}", cm);
+            logger.debug("Applying forwarded {}", cm);
 
             String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
             // We should not wait for the result of the write in this thread,
@@ -48,11 +47,11 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
             // will not be called if the request timeout, but this is ok
             // because the coordinator of the counter mutation will timeout on
             // it's own in that case.
-            StorageProxy.applyCounterMutationOnLeader(cm, localDataCenter, new Runnable(){
+            StorageProxy.applyCounterMutationOnLeader(cm, localDataCenter, new Runnable()
+            {
                 public void run()
                 {
-                    WriteResponse response = new WriteResponse();
-                    MessagingService.instance().sendReply(response.createMessage(), id, message.from);
+                    MessagingService.instance().sendReply(new WriteResponse().createMessage(), id, message.from);
                 }
             });
         }

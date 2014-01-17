@@ -147,11 +147,7 @@ public class ExpiringCell extends Cell
     @Override
     public String getString(CellNameType comparator)
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append(super.getString(comparator));
-        sb.append("!");
-        sb.append(timeToLive);
-        return sb.toString();
+        return String.format("%s!%d", super.getString(comparator), timeToLive);
     }
 
     @Override

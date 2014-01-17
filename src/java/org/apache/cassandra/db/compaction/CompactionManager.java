@@ -616,7 +616,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         public static CleanupStrategy get(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, CounterId.OneShotRenewer renewer)
         {
-            if (cfs.indexManager.hasIndexes() || cfs.metadata.getDefaultValidator().isCommutative())
+            if (cfs.indexManager.hasIndexes() || cfs.metadata.isCounter())
                 return new Full(cfs, ranges, renewer);
 
             return new Bounded(cfs, ranges);

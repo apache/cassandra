@@ -50,25 +50,25 @@ public class Config
     public String initial_token;
     public Integer num_tokens = 1;
 
-    public volatile Long request_timeout_in_ms = new Long(10000);
+    public volatile Long request_timeout_in_ms = 10000L;
 
-    public Long read_request_timeout_in_ms = new Long(5000);
+    public volatile Long read_request_timeout_in_ms = 5000L;
 
-    public Long range_request_timeout_in_ms = new Long(10000);
+    public volatile Long range_request_timeout_in_ms = 10000L;
 
-    public Long write_request_timeout_in_ms = new Long(2000);
+    public volatile Long write_request_timeout_in_ms = 2000L;
 
-    public Long cas_contention_timeout_in_ms = new Long(1000);
+    public volatile Long cas_contention_timeout_in_ms = 1000L;
 
-    public Long truncate_request_timeout_in_ms = new Long(60000);
+    public volatile Long truncate_request_timeout_in_ms = 60000L;
 
-    public Integer streaming_socket_timeout_in_ms = new Integer(0);
+    public Integer streaming_socket_timeout_in_ms = 0;
 
     public boolean cross_node_timeout = false;
 
     public volatile Double phi_convict_threshold = 8.0;
 
-    public Integer concurrent_reads = 8;
+    public Integer concurrent_reads = 32;
     public Integer concurrent_writes = 32;
     public Integer concurrent_replicates = 32;
 
@@ -161,7 +161,7 @@ public class Config
 
     public Long key_cache_size_in_mb = null;
     public volatile int key_cache_save_period = 14400;
-    public int key_cache_keys_to_save = Integer.MAX_VALUE;
+    public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;
 
     public long row_cache_size_in_mb = 0;
     public volatile int row_cache_save_period = 0;

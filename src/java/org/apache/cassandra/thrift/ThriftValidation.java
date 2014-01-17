@@ -92,12 +92,12 @@ public class ThriftValidation
 
         if (isCommutativeOp)
         {
-            if (!metadata.getDefaultValidator().isCommutative())
+            if (!metadata.isCounter())
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("invalid operation for non commutative columnfamily " + cfName);
         }
         else
         {
-            if (metadata.getDefaultValidator().isCommutative())
+            if (metadata.isCounter())
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("invalid operation for commutative columnfamily " + cfName);
         }
         return metadata;
@@ -297,7 +297,7 @@ public class ThriftValidation
     public static void validateColumnOrSuperColumn(CFMetaData metadata, ColumnOrSuperColumn cosc)
             throws org.apache.cassandra.exceptions.InvalidRequestException
     {
-        boolean isCommutative = metadata.getDefaultValidator().isCommutative();
+        boolean isCommutative = metadata.isCounter();
 
         int nulls = 0;
         if (cosc.column == null) nulls++;
@@ -405,7 +405,7 @@ public class ThriftValidation
             throw new org.apache.cassandra.exceptions.InvalidRequestException(msg);
         }
 
-        if (metadata.getDefaultValidator().isCommutative())
+        if (metadata.isCounter())
         {
             // forcing server timestamp even if a timestamp was set for coherence with other counter operation
             del.timestamp = System.currentTimeMillis();

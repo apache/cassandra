@@ -21,9 +21,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
@@ -39,8 +36,6 @@ import org.apache.cassandra.utils.*;
  */
 public class CounterCell extends Cell
 {
-    private static final Logger logger = LoggerFactory.getLogger(CounterCell.class);
-
     protected static final CounterContext contextManager = CounterContext.instance();
 
     private final long timestampOfLastDelete;
@@ -92,10 +87,7 @@ public class CounterCell extends Cell
     @Override
     public int dataSize()
     {
-        /*
-         * A counter column adds to a Cell :
-         *  + 8 bytes for timestampOfLastDelete
-         */
+        // A counter column adds 8 bytes for timestampOfLastDelete to Cell.
         return super.dataSize() + TypeSizes.NATIVE.sizeof(timestampOfLastDelete);
     }
 
@@ -157,8 +149,6 @@ public class CounterCell extends Cell
     @Override
     public Cell reconcile(Cell cell, Allocator allocator)
     {
-        assert (cell instanceof CounterCell) || (cell instanceof DeletedCell) : "Wrong class type: " + cell.getClass();
-
         // live + tombstone: track last tombstone
         if (cell.isMarkedForDelete(Long.MIN_VALUE)) // cannot be an expired cell, so the current time is irrelevant
         {
@@ -175,6 +165,9 @@ public class CounterCell extends Cell
             // live last delete < tombstone
             return new CounterCell(name(), value(), timestamp(), cell.timestamp());
         }
+
+        assert cell instanceof CounterCell : "Wrong class type: " + cell.getClass();
+
         // live < live last delete
         if (timestamp() < ((CounterCell) cell).timestampOfLastDelete())
             return cell;
@@ -182,11 +175,10 @@ public class CounterCell extends Cell
         if (timestampOfLastDelete() > cell.timestamp())
             return this;
         // live + live: merge clocks; update value
-        return new CounterCell(
-            name(),
-            contextManager.merge(value(), cell.value(), allocator),
-            Math.max(timestamp(), cell.timestamp()),
-            Math.max(timestampOfLastDelete(), ((CounterCell) cell).timestampOfLastDelete()));
+        return new CounterCell(name(),
+                               contextManager.merge(value(), cell.value(), allocator),
+                               Math.max(timestamp(), cell.timestamp()),
+                               Math.max(timestampOfLastDelete(), ((CounterCell) cell).timestampOfLastDelete()));
     }
 
     @Override
@@ -199,9 +191,7 @@ public class CounterCell extends Cell
     @Override
     public int hashCode()
     {
-        int result = super.hashCode();
-        result = 31 * result + (int)(timestampOfLastDelete ^ (timestampOfLastDelete >>> 32));
-        return result;
+        return 31 * super.hashCode() + (int)(timestampOfLastDelete ^ (timestampOfLastDelete >>> 32));
     }
 
     @Override
@@ -219,17 +209,11 @@ public class CounterCell extends Cell
     @Override
     public String getString(CellNameType comparator)
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append(comparator.getString(name));
-        sb.append(":");
-        sb.append(false);
-        sb.append(":");
-        sb.append(contextManager.toString(value));
-        sb.append("@");
-        sb.append(timestamp());
-        sb.append("!");
-        sb.append(timestampOfLastDelete);
-        return sb.toString();
+        return String.format("%s:false:%s@%d!%d",
+                             comparator.getString(name),
+                             contextManager.toString(value),
+                             timestamp,
+                             timestampOfLastDelete);
     }
 
     @Override

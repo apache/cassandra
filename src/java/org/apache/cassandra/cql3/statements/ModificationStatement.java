@@ -91,7 +91,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
 
     public boolean isCounter()
     {
-        return cfm.getDefaultValidator().isCommutative();
+        return cfm.isCounter();
     }
 
     public long getTimestamp(long now, List<ByteBuffer> variables) throws InvalidRequestException

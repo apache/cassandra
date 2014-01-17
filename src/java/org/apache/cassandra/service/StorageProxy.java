@@ -139,10 +139,9 @@ public class StorageProxy implements StorageProxyMBean
                               Iterable<InetAddress> targets,
                               AbstractWriteResponseHandler responseHandler,
                               String localDataCenter,
-                              ConsistencyLevel consistency_level)
+                              ConsistencyLevel consistencyLevel)
             {
-                Runnable runnable = counterWriteTask(mutation, targets, responseHandler, localDataCenter, consistency_level);
-                runnable.run();
+                counterWriteTask(mutation, targets, responseHandler, localDataCenter).run();
             }
         };
 
@@ -152,10 +151,9 @@ public class StorageProxy implements StorageProxyMBean
                               Iterable<InetAddress> targets,
                               AbstractWriteResponseHandler responseHandler,
                               String localDataCenter,
-                              ConsistencyLevel consistency_level)
+                              ConsistencyLevel consistencyLevel)
             {
-                Runnable runnable = counterWriteTask(mutation, targets, responseHandler, localDataCenter, consistency_level);
-                StageManager.getStage(Stage.MUTATION).execute(runnable);
+                StageManager.getStage(Stage.MUTATION).execute(counterWriteTask(mutation, targets, responseHandler, localDataCenter));
             }
         };
     }
@@ -1100,8 +1098,7 @@ public class StorageProxy implements StorageProxyMBean
     private static Runnable counterWriteTask(final IMutation mutation,
                                              final Iterable<InetAddress> targets,
                                              final AbstractWriteResponseHandler responseHandler,
-                                             final String localDataCenter,
-                                             final ConsistencyLevel consistency_level)
+                                             final String localDataCenter)
     {
         return new DroppableRunnable(MessagingService.Verb.COUNTER_MUTATION)
         {
@@ -1120,7 +1117,7 @@ public class StorageProxy implements StorageProxyMBean
 
                 // then send to replicas, if any
                 final Set<InetAddress> remotes = Sets.difference(ImmutableSet.copyOf(targets), ImmutableSet.of(FBUtilities.getBroadcastAddress()));
-                if (cm.shouldReplicateOnWrite() && !remotes.isEmpty())
+                if (!remotes.isEmpty() && cm.shouldReplicateOnWrite())
                 {
                     // We do the replication on another stage because it involves a read (see CM.makeReplicationMutation)
                     // and we want to avoid blocking too much the MUTATION stage
@@ -2003,7 +2000,11 @@ public class StorageProxy implements StorageProxyMBean
 
     public interface WritePerformer
     {
-        public void apply(IMutation mutation, Iterable<InetAddress> targets, AbstractWriteResponseHandler responseHandler, String localDataCenter, ConsistencyLevel consistency_level) throws OverloadedException;
+        public void apply(IMutation mutation,
+                          Iterable<InetAddress> targets,
+                          AbstractWriteResponseHandler responseHandler,
+                          String localDataCenter,
+                          ConsistencyLevel consistencyLevel) throws OverloadedException;
     }
 
     /**

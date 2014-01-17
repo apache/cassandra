@@ -2149,6 +2149,11 @@ public final class CFMetaData
         return true;
     }
 
+    public boolean isCounter()
+    {
+        return defaultValidator.isCounter();
+    }
+
     public void validateColumns(Iterable<Cell> columns)
     {
         for (Cell cell : columns)

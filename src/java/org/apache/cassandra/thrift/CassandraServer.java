@@ -286,7 +286,7 @@ public class CassandraServer implements Cassandra.Iface
 
         if (cf.metadata().isSuper())
         {
-            boolean isCounterCF = cf.metadata().getDefaultValidator().isCommutative();
+            boolean isCounterCF = cf.metadata().isCounter();
             return thriftifySuperColumns(cf.getSortedColumns(), reverseOrder, now, subcolumnsOnly, isCounterCF);
         }
         else
@@ -829,7 +829,7 @@ public class CassandraServer implements Cassandra.Iface
                 ThriftValidation.validateKey(metadata, key);
 
                 org.apache.cassandra.db.Mutation mutation;
-                if (metadata.getDefaultValidator().isCommutative())
+                if (metadata.isCounter())
                 {
                     ThriftConversion.fromThrift(consistency_level).validateCounterForWrite(metadata);
                     counterMutation = counterMutation == null ? new org.apache.cassandra.db.Mutation(keyspace, key) : counterMutation;

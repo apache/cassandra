@@ -20,17 +20,33 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.CounterSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class CounterColumnType extends AbstractCommutativeType
+public class CounterColumnType extends AbstractType<Long>
 {
     public static final CounterColumnType instance = new CounterColumnType();
 
     CounterColumnType() {} // singleton
+
+    public boolean isCounter()
+    {
+        return true;
+    }
+
+    @Override
+    public Long compose(ByteBuffer bytes)
+    {
+        return CounterContext.instance().total(bytes);
+    }
+
+    @Override
+    public ByteBuffer decompose(Long value)
+    {
+        return ByteBufferUtil.bytes(value);
+    }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
@@ -43,14 +59,6 @@ public class CounterColumnType extends AbstractCommutativeType
     public String getString(ByteBuffer bytes)
     {
         return ByteBufferUtil.bytesToHex(bytes);
-    }
-
-    /**
-     * create commutative column
-     */
-    public Cell createColumn(CellName name, ByteBuffer value, long timestamp)
-    {
-        return new CounterUpdateCell(name, value, timestamp);
     }
 
     public ByteBuffer fromString(String source)
