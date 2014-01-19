@@ -279,6 +279,7 @@ public final class MessagingService implements MessagingServiceMBean
     public static final EnumSet<Verb> DROPPABLE_VERBS = EnumSet.of(Verb.BINARY,
                                                                    Verb._TRACE,
                                                                    Verb.MUTATION,
+                                                                   Verb.COUNTER_MUTATION,
                                                                    Verb.READ_REPAIR,
                                                                    Verb.READ,
                                                                    Verb.RANGE_SLICE,
