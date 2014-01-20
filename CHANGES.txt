@@ -10,6 +10,7 @@
  * Add ability to throttle batchlog replay (CASSANDRA-6550)
  * Fix executing LOCAL_QUORUM with SimpleStrategy (CASSANDRA-6545)
  * Avoid StackOverflow when using large IN queries (CASSANDRA-6567)
+ * Improve error message when schema doesn't match loaded sstable (CASSANDRA-6262)
 
 
 1.2.13
