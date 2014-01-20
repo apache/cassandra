@@ -92,12 +92,25 @@ public class CompositeType extends AbstractCompositeType
 
     protected AbstractType<?> getComparator(int i, ByteBuffer bb)
     {
-        return types.get(i);
+        try
+        {
+            return types.get(i);
+        }
+        catch (IndexOutOfBoundsException e)
+        {
+            // We shouldn't get there in general because 1) we shouldn't construct broken composites
+            // from CQL and 2) broken composites coming from thrift should be rejected by validate.
+            // There is a few cases however where, if the schema has changed since we created/validated
+            // the composite, this will be thrown (see #6262). Those cases are a user error but
+            // throwing a more meaningful error message to make understanding such error easier. .
+            throw new RuntimeException("Cannot get comparator " + i + " in " + this + ". "
+                                     + "This might due to a mismatch between the schema and the data read", e);
+        }
     }
 
     protected AbstractType<?> getComparator(int i, ByteBuffer bb1, ByteBuffer bb2)
     {
-        return types.get(i);
+        return getComparator(i, bb1);
     }
 
     protected AbstractType<?> getAndAppendComparator(int i, ByteBuffer bb, StringBuilder sb)
