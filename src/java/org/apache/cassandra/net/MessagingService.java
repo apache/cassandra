@@ -275,6 +275,7 @@ public final class MessagingService implements MessagingServiceMBean
     public static final EnumSet<Verb> DROPPABLE_VERBS = EnumSet.of(Verb.BINARY,
                                                                    Verb._TRACE,
                                                                    Verb.MUTATION,
+                                                                   Verb.COUNTER_MUTATION,
                                                                    Verb.READ_REPAIR,
                                                                    Verb.READ,
                                                                    Verb.RANGE_SLICE,
@@ -670,20 +671,6 @@ public final class MessagingService implements MessagingServiceMBean
     public void clearCallbacksUnsafe()
     {
         callbacks.reset();
-    }
-
-    public void waitForStreaming() throws InterruptedException
-    {
-        // this does not prevent new streams from beginning after a drain begins, but since streams are only
-        // started in response to explicit operator action (bootstrap/move/repair/etc) that feels like a feature.
-        for (DebuggableThreadPoolExecutor e : streamExecutors.values())
-            e.shutdown();
-
-        for (DebuggableThreadPoolExecutor e : streamExecutors.values())
-        {
-            if (!e.awaitTermination(24, TimeUnit.HOURS))
-                logger.error("Stream took more than 24H to complete; skipping");
-        }
     }
 
     /**

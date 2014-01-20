@@ -30,13 +30,15 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.utils.FBUtilities;
+import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.server.TNonblockingServer;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.transport.TNonblockingServerTransport;
@@ -184,6 +186,9 @@ public class CustomTHsHaServer extends TNonblockingServer
             }
             catch (Throwable t)
             {
+                if (t instanceof OutOfMemoryError)
+                    Throwables.propagate(t);
+                StorageMetrics.exceptions.inc();
                 LOGGER.error("Uncaught Exception: ", t);
             }
             finally
