@@ -526,12 +526,6 @@ public class CommitLogSegment
         return "CommitLogSegment(" + getPath() + ')';
     }
 
-    public boolean equals(Object that)
-    {
-        return super.equals(that);
-    }
-
-
     public static class CommitLogSegmentFileComparator implements Comparator<File>
     {
         public int compare(File f, File f2)
