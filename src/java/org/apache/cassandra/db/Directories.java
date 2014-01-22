@@ -485,6 +485,42 @@ public class Directories
         }
     }
 
+    /**
+     *
+     * @return  Return a map of all snapshots to space being used
+     * The pair for a snapshot has size on disk and true size.
+     */
+    public Map<String, Pair<Long, Long>> getSnapshotDetails()
+    {
+        final Map<String, Pair<Long, Long>> snapshotSpaceMap = new HashMap<>();
+        for (final File dir : sstableDirectories)
+        {
+            final File snapshotDir = new File(dir,SNAPSHOT_SUBDIR);
+            if (snapshotDir.exists() && snapshotDir.isDirectory())
+            {
+                final File[] snapshots  = snapshotDir.listFiles();
+                if (snapshots != null)
+                {
+                    for (final File snapshot : snapshots)
+                    {
+                        if (snapshot.isDirectory())
+                        {
+                            final long sizeOnDisk = FileUtils.folderSize(snapshot);
+                            final long trueSize = getTrueAllocatedSizeIn(snapshot);
+                            Pair<Long,Long> spaceUsed = snapshotSpaceMap.get(snapshot.getName());
+                            if (spaceUsed == null)
+                                spaceUsed =  Pair.create(sizeOnDisk,trueSize);
+                            else
+                                spaceUsed = Pair.create(spaceUsed.left + sizeOnDisk, spaceUsed.right + trueSize);
+                            snapshotSpaceMap.put(snapshot.getName(), spaceUsed);
+                        }
+                    }
+                }
+            }
+        }
+
+        return snapshotSpaceMap;
+    }
     public boolean snapshotExists(String snapshotName)
     {
         for (File dir : sstableDirectories)

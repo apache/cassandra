@@ -28,6 +28,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
 import javax.management.NotificationEmitter;
+import javax.management.openmbean.TabularData;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
@@ -214,6 +215,18 @@ public interface StorageServiceMBean extends NotificationEmitter
      * If no tag is specified we will remove all snapshots.
      */
     public void clearSnapshot(String tag, String... keyspaceNames) throws IOException;
+
+    /**
+     *  Get the details of all the snapshot
+     * @return A map of snapshotName to all its details in Tabular form.
+     */
+    public Map<String, TabularData> getSnapshotDetails();
+
+    /**
+     * Get the true size taken by all snapshots across all keyspaces.
+     * @return True size taken by all the snapshots.
+     */
+    public long trueSnapshotsSize();
 
     /**
      * Forces major compaction of a single keyspace

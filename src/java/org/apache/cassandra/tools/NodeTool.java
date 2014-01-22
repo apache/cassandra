@@ -42,6 +42,7 @@ import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.CacheServiceMBean;
@@ -117,6 +118,7 @@ public class NodeTool
                 SetStreamThroughput.class,
                 SetTraceProbability.class,
                 Snapshot.class,
+                ListSnapshots.class,
                 Status.class,
                 StatusBinary.class,
                 StatusThrift.class,
@@ -1641,6 +1643,48 @@ public class NodeTool
             } catch (IOException e)
             {
                 throw new RuntimeException("Error during taking a snapshot", e);
+            }
+        }
+    }
+
+    @Command(name = "listsnapshots", description = "Lists all the snapshots along with the size on disk and true size.")
+    public static class ListSnapshots extends NodeToolCmd
+    {
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            try
+            {
+                System.out.println("Snapshot Details: ");
+
+                final Map<String,TabularData> snapshotDetails = probe.getSnapshotDetails();
+                if (snapshotDetails.isEmpty())
+                {
+                    System.out.printf("There are no snapshots");
+                    return;
+                }
+
+                final long trueSnapshotsSize = probe.trueSnapshotsSize();
+                final String format = "%-20s%-29s%-29s%-19s%-19s%n";
+                // display column names only once
+                final List<String> indexNames = snapshotDetails.entrySet().iterator().next().getValue().getTabularType().getIndexNames();
+                System.out.printf(format, (Object[]) indexNames.toArray(new String[indexNames.size()]));
+
+                for (final Map.Entry<String, TabularData> snapshotDetail : snapshotDetails.entrySet())
+                {
+                    Set<?> values = snapshotDetail.getValue().keySet();
+                    for (Object eachValue : values)
+                    {
+                        final List<?> value = (List<?>) eachValue;
+                        System.out.printf(format, value.toArray(new Object[value.size()]));
+                    }
+                }
+
+                System.out.println("\nTotal TrueDiskSpaceUsed: " + FileUtils.stringifyFileSize(trueSnapshotsSize) + "\n");
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException("Error during list snapshot", e);
             }
         }
     }

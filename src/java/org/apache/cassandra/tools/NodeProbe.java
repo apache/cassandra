@@ -452,6 +452,16 @@ public class NodeProbe implements AutoCloseable
         ssProxy.clearSnapshot(tag, keyspaces);
     }
 
+    public Map<String, TabularData> getSnapshotDetails()
+    {
+        return ssProxy.getSnapshotDetails();
+    }
+
+    public long trueSnapshotsSize()
+    {
+        return ssProxy.trueSnapshotsSize();
+    }
+
     public boolean isJoined()
     {
         return ssProxy.isJoined();

@@ -34,6 +34,8 @@ import javax.management.MBeanServer;
 import javax.management.Notification;
 import javax.management.NotificationBroadcasterSupport;
 import javax.management.ObjectName;
+import javax.management.openmbean.TabularData;
+import javax.management.openmbean.TabularDataSupport;
 
 import static java.nio.charset.StandardCharsets.ISO_8859_1;
 
@@ -2227,6 +2229,49 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         if (logger.isDebugEnabled())
             logger.debug("Cleared out snapshot directories");
+    }
+
+    public Map<String, TabularData> getSnapshotDetails()
+    {
+        final Map<String, TabularData> snapshotMap = new HashMap<>();
+        for (final Keyspace keyspace : Keyspace.all())
+        {
+            if (Keyspace.SYSTEM_KS.equals(keyspace.getName()))
+                continue;
+
+            for (final ColumnFamilyStore cfStore : keyspace.getColumnFamilyStores())
+            {
+                for (final Map.Entry<String, Pair<Long,Long>> snapshotDetail : cfStore.getSnapshotDetails().entrySet())
+                {
+                    TabularDataSupport data = (TabularDataSupport)snapshotMap.get(snapshotDetail.getKey());
+                    if (data == null)
+                    {
+                        data = new TabularDataSupport(SnapshotDetailsTabularData.TABULAR_TYPE);
+                        snapshotMap.put(snapshotDetail.getKey(), data);
+                    }
+
+                    SnapshotDetailsTabularData.from(snapshotDetail.getKey(), keyspace.getName(), cfStore.getColumnFamilyName(), snapshotDetail, data);
+                }
+            }
+        }
+        return snapshotMap;
+    }
+
+    public long trueSnapshotsSize()
+    {
+        long total = 0;
+        for (final Keyspace keyspace : Keyspace.all())
+        {
+            if (Keyspace.SYSTEM_KS.equals(keyspace.getName()))
+                continue;
+
+            for (final ColumnFamilyStore cfStore : keyspace.getColumnFamilyStores())
+            {
+                total += cfStore.trueSnapshotsSize();
+            }
+        }
+
+        return total;
     }
 
     /**

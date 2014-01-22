@@ -1839,6 +1839,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         List<File> snapshotDirs = directories.getCFDirectories();
         Directories.clearSnapshot(snapshotName, snapshotDirs);
     }
+    /**
+     *
+     * @return  Return a map of all snapshots to space being used
+     * The pair for a snapshot has true size and size on disk.
+     */
+    public Map<String, Pair<Long,Long>> getSnapshotDetails()
+    {
+        return directories.getSnapshotDetails();
+    }
 
     public boolean hasUnreclaimedSpace()
     {

@@ -447,4 +447,22 @@ public class FileUtils
                 throw new IllegalStateException();
         }
     }
+
+    /**
+     * Get the size of a directory in bytes
+     * @param The directory for which we need size.
+     * @return The size of the directory
+     */
+    public static long folderSize(File directory)
+    {
+        long length = 0;
+        for (File file : directory.listFiles())
+        {
+            if (file.isFile())
+                length += file.length();
+            else
+                length += folderSize(file);
+        }
+        return length;
+    }
 }
