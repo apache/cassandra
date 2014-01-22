@@ -46,7 +46,7 @@ Upgrading
 
 Features
 --------
-    - Added a new consistenct level, LOCAL_ONE, that forces all CL.ONE operations to
+    - Added a new consistency level, LOCAL_ONE, that forces all CL.ONE operations to
       execute only in the local datacenter.
     - New replace_address to supplant the (now removed) replace_token and
       replace_node workflows to replace a dead node in place.  Works like the
@@ -134,9 +134,9 @@ Upgrading
 
 Upgrading
 ---------
-    - 'nodetool upgradesstables' now only upgrade/rewrite sstables that are not
-      on the current version (which is usually what you want). Use the new -a
-      flag to recover the old behavior of rewriting all sstables.
+    - 'nodetool upgradesstables' now only upgrades/rewrites sstables that are
+      not on the current version (which is usually what you want). Use the new
+      -a flag to recover the old behavior of rewriting all sstables.
 
 Features
 --------
