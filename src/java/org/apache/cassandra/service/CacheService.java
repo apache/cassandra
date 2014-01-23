@@ -116,10 +116,6 @@ public class CacheService implements CacheServiceMBean
 
         int keyCacheKeysToSave = DatabaseDescriptor.getKeyCacheKeysToSave();
 
-        logger.info("Scheduling key cache save to each {} seconds (going to save {} keys).",
-                DatabaseDescriptor.getKeyCacheSavePeriod(),
-                    keyCacheKeysToSave == Integer.MAX_VALUE ? "all" : keyCacheKeysToSave);
-
         keyCache.scheduleSaving(DatabaseDescriptor.getKeyCacheSavePeriod(), keyCacheKeysToSave);
 
         return keyCache;
@@ -139,10 +135,6 @@ public class CacheService implements CacheServiceMBean
         AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache = new AutoSavingCache<RowCacheKey, IRowCacheEntry>(rc, CacheType.ROW_CACHE, new RowCacheSerializer());
 
         int rowCacheKeysToSave = DatabaseDescriptor.getRowCacheKeysToSave();
-
-        logger.info("Scheduling row cache save to each {} seconds (going to save {} keys).",
-                DatabaseDescriptor.getRowCacheSavePeriod(),
-                    rowCacheKeysToSave == Integer.MAX_VALUE ? "all" : rowCacheKeysToSave);
 
         rowCache.scheduleSaving(DatabaseDescriptor.getRowCacheSavePeriod(), rowCacheKeysToSave);
 

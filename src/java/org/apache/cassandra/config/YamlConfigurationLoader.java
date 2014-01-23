@@ -18,16 +18,21 @@
 package org.apache.cassandra.config;
 
 import java.beans.IntrospectionException;
-import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.io.IOException;
 import java.net.URL;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
+import com.google.common.base.Joiner;
+import com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.util.FileUtils;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.YAMLException;
@@ -69,20 +74,23 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
     public Config loadConfig() throws ConfigurationException
     {
-        InputStream input = null;
         try
         {
             URL url = getStorageConfigURL();
             logger.info("Loading settings from {}", url);
-            try
+            byte[] configBytes;
+            try (InputStream is = url.openStream())
             {
-                input = url.openStream();
+                configBytes = ByteStreams.toByteArray(is);
             }
             catch (IOException e)
             {
                 // getStorageConfigURL should have ruled this out
                 throw new AssertionError(e);
             }
+            
+            logConfig(configBytes);
+            
             org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
             TypeDescription seedDesc = new TypeDescription(SeedProviderDef.class);
             seedDesc.putMapPropertyType("parameters", String.class, String.class);
@@ -90,7 +98,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             MissingPropertiesChecker propertiesChecker = new MissingPropertiesChecker();
             constructor.setPropertyUtils(propertiesChecker);
             Yaml yaml = new Yaml(constructor);
-            Config result = yaml.loadAs(input, Config.class);
+            Config result = yaml.loadAs(new ByteArrayInputStream(configBytes), Config.class);
             propertiesChecker.check();
             return result;
         }
@@ -98,10 +106,20 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         {
             throw new ConfigurationException("Invalid yaml", e);
         }
-        finally
+    }
+
+    private void logConfig(byte[] configBytes)
+    {
+        Map<Object, Object> configMap = new TreeMap<>((Map<?, ?>) new Yaml().load(new ByteArrayInputStream(configBytes)));
+        // these keys contain passwords, don't log them
+        for (String sensitiveKey : new String[] { "client_encryption_options", "server_encryption_options" })
         {
-            FileUtils.closeQuietly(input);
+            if (configMap.containsKey(sensitiveKey))
+            {
+                configMap.put(sensitiveKey, "<REDACTED>");
+            }
         }
+        logger.info("Node configuration:[" + Joiner.on("; ").join(configMap.entrySet()) + "]");
     }
     
     private static class MissingPropertiesChecker extends PropertyUtils 

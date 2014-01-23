@@ -44,7 +44,6 @@ public class TServerCustomFactory implements TServerFactory
         if (ThriftServer.SYNC.equalsIgnoreCase(serverType))
         {
             server = new CustomTThreadPoolServer.Factory().buildTServer(args);
-            logger.info(String.format("Using synchronous/threadpool thrift server on %s : %s", args.addr.getHostName(), args.addr.getPort()));
         }
         else if(ThriftServer.ASYNC.equalsIgnoreCase(serverType))
         {

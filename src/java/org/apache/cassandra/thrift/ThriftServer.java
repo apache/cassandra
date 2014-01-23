@@ -98,7 +98,6 @@ public class ThriftServer implements CassandraDaemon.Server
     protected TTransportFactory getTransportFactory()
     {
         int tFramedTransportSize = DatabaseDescriptor.getThriftFramedTransportSize();
-        logger.info("Using TFramedTransport with a max frame size of {} bytes.", tFramedTransportSize);
         return new TFramedTransport.Factory(tFramedTransportSize);
     }
 
