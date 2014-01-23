@@ -271,7 +271,7 @@ public abstract class AbstractReplicationStrategy
         catch (ConfigurationException e)
         {
             // If that happens at this point, there is nothing we can do about it.
-            throw new RuntimeException();
+            throw new RuntimeException(e);
         }
     }
 
