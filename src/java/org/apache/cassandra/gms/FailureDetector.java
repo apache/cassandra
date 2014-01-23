@@ -45,6 +45,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.net:type=FailureDetector";
     private static final int SAMPLE_SIZE = 1000;
+    protected static final int INITIAL_VALUE = getInitialValue();
 
     public static final IFailureDetector instance = new FailureDetector();
     private static final Logger logger = LoggerFactory.getLogger(FailureDetector.class);
@@ -70,6 +71,18 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         {
             throw new RuntimeException(e);
         }
+    }
+
+    private static int getInitialValue()
+    {
+        String newvalue = System.getProperty("cassandra.fd_initial_value_ms");
+        if (newvalue != null)
+        {
+            logger.info("Overriding FD INITIAL_VALUE to {}ms", newvalue);
+            return Integer.parseInt(newvalue);
+        }
+        else
+            return Gossiper.intervalInMillis * 30;
     }
 
     public String getAllEndpointStates()
@@ -288,11 +301,24 @@ class ArrivalWindow
     // in the event of a long partition, never record an interval longer than the rpc timeout,
     // since if a host is regularly experiencing connectivity problems lasting this long we'd
     // rather mark it down quickly instead of adapting
-    private final long MAX_INTERVAL_IN_NANO = DatabaseDescriptor.getRpcTimeout() * MILLI_TO_NANO;
+    // this value defaults to the same initial value the FD is seeded with
+    private final long MAX_INTERVAL_IN_NANO = getMaxInterval() * MILLI_TO_NANO;
 
     ArrivalWindow(int size)
     {
         arrivalIntervals = new BoundedStatsDeque(size);
+    }
+
+    private static int getMaxInterval()
+    {
+        String newvalue = System.getProperty("cassandra.fd_max_interval_ms");
+        if (newvalue != null)
+        {
+            logger.info("Overriding FD MAX_INTERVAL to {}ms", newvalue);
+            return Integer.parseInt(newvalue);
+        }
+        else
+            return FailureDetector.INITIAL_VALUE;
     }
 
     synchronized void add(long value)
@@ -311,7 +337,7 @@ class ArrivalWindow
             // We use a very large initial interval since the "right" average depends on the cluster size
             // and it's better to err high (false negatives, which will be corrected by waiting a bit longer)
             // than low (false positives, which cause "flapping").
-            arrivalIntervals.add(Gossiper.intervalInMillis * MILLI_TO_NANO * 30);
+            arrivalIntervals.add(FailureDetector.INITIAL_VALUE);
         }
         tLast = value;
     }
