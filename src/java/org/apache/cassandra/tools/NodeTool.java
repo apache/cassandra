@@ -1458,7 +1458,7 @@ public class NodeTool
     @Command(name = "removenode", description = "Show status of current node removal, force completion of pending removal or remove provided ID")
     public static class RemoveNode extends NodeToolCmd
     {
-        @Arguments(title = "remove_operation", usage = "<status>|<force>|<ID>", description = "The keyspace and column family name", required = true)
+        @Arguments(title = "remove_operation", usage = "<status>|<force>|<ID>", description = "Show status of current node removal, force completion of pending removal, or remove provided ID", required = true)
         private String removeOperation = EMPTY;
 
         @Override
