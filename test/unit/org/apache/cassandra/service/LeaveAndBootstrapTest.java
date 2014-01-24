@@ -681,6 +681,19 @@ public class LeaveAndBootstrapTest
         assertEquals("rack42", SystemKeyspace.loadDcRackInfo().get(toRemove).get("rack"));
     }
 
+    @Test
+    public void testRemovingStatusForNonMember()  throws UnknownHostException
+    {
+        // create a ring of 1 node
+        StorageService ss = StorageService.instance;
+        VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
+        Util.createInitialRing(ss, partitioner, new ArrayList<Token>(), new ArrayList<Token>(),  new ArrayList<InetAddress>(), new ArrayList<UUID>(), 1);
+
+        // make a REMOVING state change on a non-member endpoint; without the CASSANDRA-6564 fix, this
+        // would result in an ArrayIndexOutOfBoundsException
+        ss.onChange(InetAddress.getByName("192.168.1.42"), ApplicationState.STATUS, valueFactory.removingNonlocal(UUID.randomUUID()));
+    }
+
     private static Collection<InetAddress> makeAddrs(String... hosts) throws UnknownHostException
     {
         ArrayList<InetAddress> addrs = new ArrayList<InetAddress>(hosts.length);
