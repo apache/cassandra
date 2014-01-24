@@ -106,7 +106,6 @@ public class Server implements CassandraDaemon.Server
 	    if(!isRunning())
 	    {
                 run();
-                isRunning.set(true);
 	    }
     }
 
@@ -156,6 +155,7 @@ public class Server implements CassandraDaemon.Server
         logger.info("Starting listening for CQL clients on {}...", socket);
         Channel channel = bootstrap.bind(socket);
         connectionTracker.allChannels.add(channel);
+        isRunning.set(true);
     }
 
     private void registerMetrics()
