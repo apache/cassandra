@@ -28,9 +28,11 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.locks.Lock;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.util.concurrent.Futures;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,14 +44,14 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -62,7 +64,8 @@ public class CacheService implements CacheServiceMBean
     public static enum CacheType
     {
         KEY_CACHE("KeyCache"),
-        ROW_CACHE("RowCache");
+        ROW_CACHE("RowCache"),
+        COUNTER_CACHE("CounterCache");
 
         private final String name;
 
@@ -81,6 +84,7 @@ public class CacheService implements CacheServiceMBean
 
     public final AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache;
     public final AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache;
+    public final AutoSavingCache<CounterCacheKey, ClockAndCount> counterCache;
 
     private CacheService()
     {
@@ -97,6 +101,7 @@ public class CacheService implements CacheServiceMBean
 
         keyCache = initKeyCache();
         rowCache = initRowCache();
+        counterCache = initCounterCache();
     }
 
     /**
@@ -112,7 +117,7 @@ public class CacheService implements CacheServiceMBean
         // where 48 = 40 bytes (average size of the key) + 8 bytes (size of value)
         ICache<KeyCacheKey, RowIndexEntry> kc;
         kc = ConcurrentLinkedHashCache.create(keyCacheInMemoryCapacity);
-        AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = new AutoSavingCache<KeyCacheKey, RowIndexEntry>(kc, CacheType.KEY_CACHE, new KeyCacheSerializer());
+        AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = new AutoSavingCache<>(kc, CacheType.KEY_CACHE, new KeyCacheSerializer());
 
         int keyCacheKeysToSave = DatabaseDescriptor.getKeyCacheKeysToSave();
 
@@ -132,13 +137,35 @@ public class CacheService implements CacheServiceMBean
 
         // cache object
         ICache<RowCacheKey, IRowCacheEntry> rc = new SerializingCacheProvider().create(rowCacheInMemoryCapacity);
-        AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache = new AutoSavingCache<RowCacheKey, IRowCacheEntry>(rc, CacheType.ROW_CACHE, new RowCacheSerializer());
+        AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache = new AutoSavingCache<>(rc, CacheType.ROW_CACHE, new RowCacheSerializer());
 
         int rowCacheKeysToSave = DatabaseDescriptor.getRowCacheKeysToSave();
 
         rowCache.scheduleSaving(DatabaseDescriptor.getRowCacheSavePeriod(), rowCacheKeysToSave);
 
         return rowCache;
+    }
+
+    private AutoSavingCache<CounterCacheKey, ClockAndCount> initCounterCache()
+    {
+        logger.info("Initializing counter cache with capacity of {} MBs", DatabaseDescriptor.getCounterCacheSizeInMB());
+
+        long capacity = DatabaseDescriptor.getCounterCacheSizeInMB() * 1024 * 1024;
+
+        AutoSavingCache<CounterCacheKey, ClockAndCount> cache =
+            new AutoSavingCache<>(ConcurrentLinkedHashCache.<CounterCacheKey, ClockAndCount>create(capacity),
+                                  CacheType.COUNTER_CACHE,
+                                  new CounterCacheSerializer());
+
+        int keysToSave = DatabaseDescriptor.getCounterCacheKeysToSave();
+
+        logger.info("Scheduling counter cache save to every {} seconds (going to save {} keys).",
+                    DatabaseDescriptor.getCounterCacheSavePeriod(),
+                    keysToSave == Integer.MAX_VALUE ? "all" : keysToSave);
+
+        cache.scheduleSaving(DatabaseDescriptor.getCounterCacheSavePeriod(), keysToSave);
+
+        return cache;
     }
 
     public long getKeyCacheHits()
@@ -199,6 +226,20 @@ public class CacheService implements CacheServiceMBean
         keyCache.scheduleSaving(seconds, DatabaseDescriptor.getKeyCacheKeysToSave());
     }
 
+    public int getCounterCacheSavePeriodInSeconds()
+    {
+        return DatabaseDescriptor.getCounterCacheSavePeriod();
+    }
+
+    public void setCounterCacheSavePeriodInSeconds(int seconds)
+    {
+        if (seconds < 0)
+            throw new RuntimeException("CounterCacheSavePeriodInSeconds must be non-negative.");
+
+        DatabaseDescriptor.setCounterCacheSavePeriod(seconds);
+        counterCache.scheduleSaving(seconds, DatabaseDescriptor.getCounterCacheKeysToSave());
+    }
+
     public int getRowCacheKeysToSave()
     {
         return DatabaseDescriptor.getRowCacheKeysToSave();
@@ -225,6 +266,19 @@ public class CacheService implements CacheServiceMBean
         keyCache.scheduleSaving(getKeyCacheSavePeriodInSeconds(), count);
     }
 
+    public int getCounterCacheKeysToSave()
+    {
+        return DatabaseDescriptor.getCounterCacheKeysToSave();
+    }
+
+    public void setCounterCacheKeysToSave(int count)
+    {
+        if (count < 0)
+            throw new RuntimeException("CounterCacheKeysToSave must be non-negative.");
+        DatabaseDescriptor.setCounterCacheKeysToSave(count);
+        counterCache.scheduleSaving(getCounterCacheSavePeriodInSeconds(), count);
+    }
+
     public void invalidateKeyCache()
     {
         keyCache.clear();
@@ -233,6 +287,11 @@ public class CacheService implements CacheServiceMBean
     public void invalidateRowCache()
     {
         rowCache.clear();
+    }
+
+    public void invalidateCounterCache()
+    {
+        counterCache.clear();
     }
 
     public long getRowCacheCapacityInBytes()
@@ -271,6 +330,14 @@ public class CacheService implements CacheServiceMBean
         keyCache.setCapacity(capacity * 1024 * 1024);
     }
 
+    public void setCounterCacheCapacityInMB(long capacity)
+    {
+        if (capacity < 0)
+            throw new RuntimeException("capacity should not be negative.");
+
+        counterCache.setCapacity(capacity * 1024 * 1024);
+    }
+
     public long getRowCacheSize()
     {
         return rowCache.getMetrics().size.value();
@@ -293,14 +360,58 @@ public class CacheService implements CacheServiceMBean
 
     public void saveCaches() throws ExecutionException, InterruptedException
     {
-        List<Future<?>> futures = new ArrayList<Future<?>>(2);
+        List<Future<?>> futures = new ArrayList<>(3);
         logger.debug("submitting cache saves");
 
         futures.add(keyCache.submitWrite(DatabaseDescriptor.getKeyCacheKeysToSave()));
         futures.add(rowCache.submitWrite(DatabaseDescriptor.getRowCacheKeysToSave()));
+        futures.add(counterCache.submitWrite(DatabaseDescriptor.getCounterCacheKeysToSave()));
 
         FBUtilities.waitOnFutures(futures);
         logger.debug("cache saves completed");
+    }
+
+    public class CounterCacheSerializer implements CacheSerializer<CounterCacheKey, ClockAndCount>
+    {
+        public void serialize(CounterCacheKey key, DataOutput out) throws IOException
+        {
+            ByteBufferUtil.writeWithLength(key.partitionKey, out);
+            ByteBufferUtil.writeWithLength(key.cellName, out);
+        }
+
+        public Future<Pair<CounterCacheKey, ClockAndCount>> deserialize(DataInputStream in, final ColumnFamilyStore cfs) throws IOException
+        {
+            final ByteBuffer partitionKey = ByteBufferUtil.readWithLength(in);
+            final CellName cellName = cfs.metadata.comparator.cellFromByteBuffer(ByteBufferUtil.readWithLength(in));
+            return StageManager.getStage(Stage.READ).submit(new Callable<Pair<CounterCacheKey, ClockAndCount>>()
+            {
+                public Pair<CounterCacheKey, ClockAndCount> call() throws Exception
+                {
+                    DecoratedKey key = cfs.partitioner.decorateKey(partitionKey);
+                    Lock lock = cfs.counterLockFor(partitionKey);
+                    lock.lock();
+                    try
+                    {
+                        QueryFilter filter = QueryFilter.getNamesFilter(key,
+                                                                        cfs.metadata.cfName,
+                                                                        FBUtilities.singleton(cellName, cfs.metadata.comparator),
+                                                                        Long.MIN_VALUE);
+                        ColumnFamily cf = cfs.getTopLevelColumns(filter, Integer.MIN_VALUE);
+                        if (cf == null)
+                            return null;
+                        Cell cell = cf.getColumn(cellName);
+                        if (cell == null || cell.isMarkedForDelete(Long.MIN_VALUE))
+                            return null;
+                        ClockAndCount clockAndCount = CounterContext.instance().getLocalClockAndCount(cell.value());
+                        return Pair.create(CounterCacheKey.create(cfs.metadata.cfId, partitionKey, cellName), clockAndCount);
+                    }
+                    finally
+                    {
+                        lock.unlock();
+                    }
+                }
+            });
+        }
     }
 
     public class RowCacheSerializer implements CacheSerializer<RowCacheKey, IRowCacheEntry>

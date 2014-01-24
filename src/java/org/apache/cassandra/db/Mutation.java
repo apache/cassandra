@@ -26,6 +26,7 @@ import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
@@ -217,6 +218,11 @@ public class Mutation implements IMutation
     public MessageOut<Mutation> createMessage(MessagingService.Verb verb)
     {
         return new MessageOut<>(verb, this, serializer);
+    }
+
+    public long getTimeout()
+    {
+        return DatabaseDescriptor.getWriteRpcTimeout();
     }
 
     public String toString()

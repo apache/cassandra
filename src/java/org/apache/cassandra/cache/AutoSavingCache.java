@@ -127,7 +127,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 for (Future<Pair<K, V>> future : futures)
                 {
                     Pair<K, V> entry = future.get();
-                    put(entry.left, entry.right);
+                    if (entry != null)
+                        put(entry.left, entry.right);
                 }
             }
             catch (Exception e)

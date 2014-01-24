@@ -68,7 +68,6 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('gc_grace_seconds', None),
         ('index_interval', None),
         ('read_repair_chance', None),
-        ('replicate_on_write', None),
         ('populate_io_cache_on_flush', None),
         ('default_time_to_live', None),
         ('speculative_retry', None),

@@ -64,7 +64,6 @@ public class DefsTest extends SchemaLoader
 
         cfm.comment("No comment")
            .readRepairChance(0.5)
-           .replicateOnWrite(false)
            .gcGraceSeconds(100000)
            .minCompactionThreshold(500)
            .maxCompactionThreshold(500);

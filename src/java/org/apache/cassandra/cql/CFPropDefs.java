@@ -47,7 +47,6 @@ public class CFPropDefs {
     public static final String KW_DEFAULTVALIDATION = "default_validation";
     public static final String KW_MINCOMPACTIONTHRESHOLD = "min_compaction_threshold";
     public static final String KW_MAXCOMPACTIONTHRESHOLD = "max_compaction_threshold";
-    public static final String KW_REPLICATEONWRITE = "replicate_on_write";
     public static final String KW_COMPACTION_STRATEGY_CLASS = "compaction_strategy_class";
     public static final String KW_CACHING = "caching";
     public static final String KW_DEFAULT_TIME_TO_LIVE = "default_time_to_live";
@@ -90,7 +89,6 @@ public class CFPropDefs {
         keywords.add(KW_DEFAULTVALIDATION);
         keywords.add(KW_MINCOMPACTIONTHRESHOLD);
         keywords.add(KW_MAXCOMPACTIONTHRESHOLD);
-        keywords.add(KW_REPLICATEONWRITE);
         keywords.add(KW_COMPACTION_STRATEGY_CLASS);
         keywords.add(KW_CACHING);
         keywords.add(KW_DEFAULT_TIME_TO_LIVE);
@@ -107,6 +105,7 @@ public class CFPropDefs {
         obsoleteKeywords.add("memtable_operations_in_millions");
         obsoleteKeywords.add("memtable_flush_after_mins");
         obsoleteKeywords.add("row_cache_provider");
+        obsoleteKeywords.add("replicate_on_write");
 
         allowedKeywords.addAll(keywords);
         allowedKeywords.addAll(obsoleteKeywords);

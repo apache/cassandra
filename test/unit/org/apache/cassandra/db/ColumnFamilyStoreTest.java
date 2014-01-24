@@ -106,9 +106,8 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
         cfs.truncateBlocking();
 
-        List<IMutation> rms = new LinkedList<IMutation>();
-        Mutation rm;
-        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("key1"));
+        List<Mutation> rms = new LinkedList<>();
+        Mutation rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("key1"));
         rm.add("Standard1", cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);
         rm.add("Standard1", cellname("Column2"), ByteBufferUtil.bytes("asdf"), 0);
         rms.add(rm);
@@ -850,7 +849,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     private ColumnFamilyStore insertKey1Key2() throws IOException, ExecutionException, InterruptedException
     {
         ColumnFamilyStore cfs = Keyspace.open("Keyspace2").getColumnFamilyStore("Standard1");
-        List<IMutation> rms = new LinkedList<IMutation>();
+        List<Mutation> rms = new LinkedList<>();
         Mutation rm;
         rm = new Mutation("Keyspace2", ByteBufferUtil.bytes("key1"));
         rm.add("Standard1", cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);

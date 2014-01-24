@@ -188,13 +188,13 @@ public class Util
      * @param mutations A group of Mutations for the same keyspace and column family.
      * @return The ColumnFamilyStore that was used.
      */
-    public static ColumnFamilyStore writeColumnFamily(List<IMutation> mutations) throws IOException, ExecutionException, InterruptedException
+    public static ColumnFamilyStore writeColumnFamily(List<Mutation> mutations) throws IOException, ExecutionException, InterruptedException
     {
         IMutation first = mutations.get(0);
         String keyspaceName = first.getKeyspaceName();
         UUID cfid = first.getColumnFamilyIds().iterator().next();
 
-        for (IMutation rm : mutations)
+        for (Mutation rm : mutations)
             rm.apply();
 
         ColumnFamilyStore store = Keyspace.open(keyspaceName).getColumnFamilyStore(cfid);

@@ -25,6 +25,7 @@
  * CF id is changed to be non-deterministic. Data dir/key cache are created
    uniquely for CF id (CASSANDRA-5202)
  * Cassandra won't start by default without jna (CASSANDRA-6575)
+ * New counters implementation (CASSANDRA-6504)
 
 
 2.0.5

@@ -479,7 +479,11 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
             throw new UnsupportedOperationException();
 
         for (IMutation mutation : getMutations(Collections.<ByteBuffer>emptyList(), true, null, queryState.getTimestamp(), false))
-            mutation.apply();
+        {
+            // We don't use counters internally.
+            assert mutation instanceof Mutation;
+            ((Mutation) mutation).apply();
+        }
         return null;
     }
 

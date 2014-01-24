@@ -27,7 +27,6 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.Allocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.HeapAllocator;
 
 public class DeletedCell extends Cell
 {
@@ -95,12 +94,6 @@ public class DeletedCell extends Cell
         if (cell instanceof DeletedCell)
             return super.reconcile(cell, allocator);
         return cell.reconcile(this, allocator);
-    }
-
-    @Override
-    public Cell localCopy(ColumnFamilyStore cfs)
-    {
-        return new DeletedCell(name.copy(HeapAllocator.instance), ByteBufferUtil.clone(value), timestamp);
     }
 
     @Override

@@ -261,7 +261,7 @@ public class CompactionManager implements CompactionManagerMBean
         });
     }
 
-    public void performCleanup(ColumnFamilyStore cfStore, final CounterId.OneShotRenewer renewer) throws InterruptedException, ExecutionException
+    public void performCleanup(ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
     {
         performAllSSTableOperation(cfStore, new AllSSTablesOperation()
         {
@@ -272,7 +272,7 @@ public class CompactionManager implements CompactionManagerMBean
                 List<SSTableReader> sortedSSTables = Lists.newArrayList(sstables);
                 Collections.sort(sortedSSTables, new SSTableReader.SizeComparator());
 
-                doCleanupCompaction(store, sortedSSTables, renewer);
+                doCleanupCompaction(store, sortedSSTables);
             }
         });
     }
@@ -508,7 +508,7 @@ public class CompactionManager implements CompactionManagerMBean
      *
      * @throws IOException
      */
-    private void doCleanupCompaction(final ColumnFamilyStore cfs, Collection<SSTableReader> sstables, CounterId.OneShotRenewer renewer) throws IOException
+    private void doCleanupCompaction(final ColumnFamilyStore cfs, Collection<SSTableReader> sstables) throws IOException
     {
         assert !cfs.isIndex();
         Keyspace keyspace = cfs.keyspace;
@@ -520,7 +520,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
 
         boolean hasIndexes = cfs.indexManager.hasIndexes();
-        CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfs, ranges, renewer);
+        CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfs, ranges);
 
         for (SSTableReader sstable : sstables)
         {
@@ -614,12 +614,11 @@ public class CompactionManager implements CompactionManagerMBean
 
     private static abstract class CleanupStrategy
     {
-        public static CleanupStrategy get(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, CounterId.OneShotRenewer renewer)
+        public static CleanupStrategy get(ColumnFamilyStore cfs, Collection<Range<Token>> ranges)
         {
-            if (cfs.indexManager.hasIndexes() || cfs.metadata.isCounter())
-                return new Full(cfs, ranges, renewer);
-
-            return new Bounded(cfs, ranges);
+            return cfs.indexManager.hasIndexes()
+                 ? new Full(cfs, ranges)
+                 : new Bounded(cfs, ranges);
         }
 
         public abstract ICompactionScanner getScanner(SSTableReader sstable, RateLimiter limiter);
@@ -660,14 +659,12 @@ public class CompactionManager implements CompactionManagerMBean
             private final Collection<Range<Token>> ranges;
             private final ColumnFamilyStore cfs;
             private List<Cell> indexedColumnsInRow;
-            private final CounterId.OneShotRenewer renewer;
 
-            public Full(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, CounterId.OneShotRenewer renewer)
+            public Full(ColumnFamilyStore cfs, Collection<Range<Token>> ranges)
             {
                 this.cfs = cfs;
                 this.ranges = ranges;
                 this.indexedColumnsInRow = null;
-                this.renewer = renewer;
             }
 
             @Override
@@ -690,8 +687,6 @@ public class CompactionManager implements CompactionManagerMBean
                 while (row.hasNext())
                 {
                     OnDiskAtom column = row.next();
-                    if (column instanceof CounterCell)
-                        renewer.maybeRenew((CounterCell) column);
 
                     if (column instanceof Cell && cfs.indexManager.indexes((Cell) column))
                     {

@@ -27,11 +27,17 @@ public interface CacheServiceMBean
     public int getKeyCacheSavePeriodInSeconds();
     public void setKeyCacheSavePeriodInSeconds(int kcspis);
 
+    public int getCounterCacheSavePeriodInSeconds();
+    public void setCounterCacheSavePeriodInSeconds(int ccspis);
+
     public int getRowCacheKeysToSave();
     public void setRowCacheKeysToSave(int rckts);
 
     public int getKeyCacheKeysToSave();
     public void setKeyCacheKeysToSave(int kckts);
+
+    public int getCounterCacheKeysToSave();
+    public void setCounterCacheKeysToSave(int cckts);
 
     /**
      * invalidate the key cache; for use after invalidating row cache
@@ -43,9 +49,13 @@ public interface CacheServiceMBean
      */
     public void invalidateRowCache();
 
+    public void invalidateCounterCache();
+
     public void setRowCacheCapacityInMB(long capacity);
 
     public void setKeyCacheCapacityInMB(long capacity);
+
+    public void setCounterCacheCapacityInMB(long capacity);
 
     /**
      * save row and key caches

@@ -156,7 +156,7 @@ public abstract class AbstractSSTableSimpleWriter
     public void addCounterColumn(ByteBuffer name, long value)
     {
         addColumn(new CounterCell(metadata.comparator.cellFromByteBuffer(name),
-                                  CounterContext.instance().createRemote(counterid, 1L, value, HeapAllocator.instance),
+                                  CounterContext.instance().createGlobal(counterid, 1L, value, HeapAllocator.instance),
                                   System.currentTimeMillis()));
     }
 

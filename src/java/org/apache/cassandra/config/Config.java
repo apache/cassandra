@@ -58,6 +58,8 @@ public class Config
 
     public volatile Long write_request_timeout_in_ms = 2000L;
 
+    public volatile Long counter_write_request_timeout_in_ms = 5000L;
+
     public volatile Long cas_contention_timeout_in_ms = 1000L;
 
     public volatile Long truncate_request_timeout_in_ms = 60000L;
@@ -70,7 +72,10 @@ public class Config
 
     public Integer concurrent_reads = 32;
     public Integer concurrent_writes = 32;
-    public Integer concurrent_replicates = 32;
+    public Integer concurrent_counter_writes = 32;
+
+    @Deprecated
+    public Integer concurrent_replicates = null;
 
     public Integer memtable_flush_writers = null; // will get set to the length of data dirs in DatabaseDescriptor
     public Integer memtable_total_space_in_mb;
@@ -165,7 +170,12 @@ public class Config
 
     public long row_cache_size_in_mb = 0;
     public volatile int row_cache_save_period = 0;
-    public int row_cache_keys_to_save = Integer.MAX_VALUE;
+    public volatile int row_cache_keys_to_save = Integer.MAX_VALUE;
+
+    public Long counter_cache_size_in_mb = null;
+    public volatile int counter_cache_save_period = 7200;
+    public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
+
     public String memory_allocator = NativeAllocator.class.getSimpleName();
     public boolean populate_io_cache_on_flush = false;
 

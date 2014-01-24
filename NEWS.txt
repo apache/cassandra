@@ -38,6 +38,11 @@ Upgrading
      cold_reads_to_omit compaction option; 0.0 omits nothing (the old
      behavior) and 1.0 omits everything.
    - Multithreaded compaction has been removed.
+   - Counters implementation has been changed, replaced by a safer one with
+     less caveats, but different performance characteristics. You might have
+     to change your data model to accomodate the new implementation.
+     (See https://issues.apache.org/jira/browse/CASSANDRA-6504 and the dev
+     blog post at http://www.datastax.com/dev/blog/<PLACEHOLDER> for details).
 
 2.0.5
 =====

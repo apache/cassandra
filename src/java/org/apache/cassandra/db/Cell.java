@@ -234,17 +234,13 @@ public class Cell implements OnDiskAtom
     {
         if (this == o)
             return true;
+
         if (o == null || getClass() != o.getClass())
             return false;
 
         Cell cell = (Cell)o;
 
-        if (timestamp != cell.timestamp)
-            return false;
-        if (!name.equals(cell.name))
-            return false;
-
-        return value.equals(cell.value);
+        return timestamp == cell.timestamp && name.equals(cell.name) && value.equals(cell.value);
     }
 
     @Override
@@ -254,11 +250,6 @@ public class Cell implements OnDiskAtom
         result = 31 * result + (value != null ? value.hashCode() : 0);
         result = 31 * result + (int)(timestamp ^ (timestamp >>> 32));
         return result;
-    }
-
-    public Cell localCopy(ColumnFamilyStore cfs)
-    {
-        return localCopy(cfs, HeapAllocator.instance);
     }
 
     public Cell localCopy(ColumnFamilyStore cfs, Allocator allocator)

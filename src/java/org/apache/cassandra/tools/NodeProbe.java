@@ -276,6 +276,11 @@ public class NodeProbe implements AutoCloseable
         ssProxy.forceKeyspaceRepairRange(beginToken, endToken, keyspaceName, isSequential, isLocal, columnFamilies);
     }
 
+    public void invalidateCounterCache()
+    {
+        cacheService.invalidateCounterCache();
+    }
+
     public void invalidateKeyCache()
     {
         cacheService.invalidateKeyCache();
@@ -540,7 +545,7 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setIncrementalBackupsEnabled(enabled);
     }
 
-    public void setCacheCapacities(int keyCacheCapacity, int rowCacheCapacity)
+    public void setCacheCapacities(int keyCacheCapacity, int rowCacheCapacity, int counterCacheCapacity)
     {
         try
         {
@@ -548,6 +553,7 @@ public class NodeProbe implements AutoCloseable
             CacheServiceMBean cacheMBean = JMX.newMBeanProxy(mbeanServerConn, new ObjectName(keyCachePath), CacheServiceMBean.class);
             cacheMBean.setKeyCacheCapacityInMB(keyCacheCapacity);
             cacheMBean.setRowCacheCapacityInMB(rowCacheCapacity);
+            cacheMBean.setCounterCacheCapacityInMB(counterCacheCapacity);
         }
         catch (MalformedObjectNameException e)
         {
@@ -555,7 +561,7 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
-    public void setCacheKeysToSave(int keyCacheKeysToSave, int rowCacheKeysToSave)
+    public void setCacheKeysToSave(int keyCacheKeysToSave, int rowCacheKeysToSave, int counterCacheKeysToSave)
     {
         try
         {
@@ -563,6 +569,7 @@ public class NodeProbe implements AutoCloseable
             CacheServiceMBean cacheMBean = JMX.newMBeanProxy(mbeanServerConn, new ObjectName(keyCachePath), CacheServiceMBean.class);
             cacheMBean.setKeyCacheKeysToSave(keyCacheKeysToSave);
             cacheMBean.setRowCacheKeysToSave(rowCacheKeysToSave);
+            cacheMBean.setCounterCacheKeysToSave(counterCacheKeysToSave);
         }
         catch (MalformedObjectNameException e)
         {
@@ -910,8 +917,8 @@ public class NodeProbe implements AutoCloseable
 
     // JMX getters for the o.a.c.metrics API below.
     /**
-     * Retrieve cache metrics based on the cache type (KeyCache or RowCache)
-     * @param cacheType KeyCache or RowCache
+     * Retrieve cache metrics based on the cache type (KeyCache, RowCache, or CounterCache)
+     * @param cacheType KeyCach, RowCache, or CounterCache
      * @param metricName Capacity, Entries, HitRate, Size, Requests or Hits.
      */
     public Object getCacheMetric(String cacheType, String metricName)

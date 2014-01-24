@@ -65,15 +65,17 @@ public class CounterCellTest extends SchemaLoader
     public void testCreate() throws UnknownHostException
     {
         long delta = 3L;
-        CounterUpdateCell cuc = new CounterUpdateCell(cellname("x"), delta, 1L);
-        CounterCell cell = cuc.localCopy(Keyspace.open("Keyspace5").getColumnFamilyStore("Counter1"));
+        CounterCell cell = new CounterCell(Util.cellname("x"),
+                                           CounterContext.instance().createLocal(delta, HeapAllocator.instance),
+                                           1L,
+                                           Long.MIN_VALUE);
 
-        assert delta == cell.total();
-        assert 1 == cell.value().getShort(0);
-        assert 0 == cell.value().getShort(2);
-        assert CounterId.wrap(cell.value(), 4).isLocalId();
-        assert 1L == cell.value().getLong(4 + idLength);
-        assert delta == cell.value().getLong(4 + idLength + clockLength);
+        Assert.assertEquals(delta, cell.total());
+        Assert.assertEquals(1, cell.value().getShort(0));
+        Assert.assertEquals(0, cell.value().getShort(2));
+        Assert.assertTrue(CounterId.wrap(cell.value(), 4).isLocalId());
+        Assert.assertEquals(1L, cell.value().getLong(4 + idLength));
+        Assert.assertEquals(delta, cell.value().getLong(4 + idLength + clockLength));
     }
 
     @Test
@@ -96,25 +98,25 @@ public class CounterCellTest extends SchemaLoader
 
         // tombstone > live
         left  = new DeletedCell(cellname("x"), 1, 2L);
-        right = new CounterCell(cellname("x"), 0L, 1L);
+        right = CounterCell.createLocal(cellname("x"), 0L, 1L, Long.MIN_VALUE);
 
         assert left.reconcile(right) == left;
 
         // tombstone < live last delete
         left  = new DeletedCell(cellname("x"), 1, 1L);
-        right = new CounterCell(cellname("x"), 0L, 4L, 2L);
+        right = CounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
 
         assert left.reconcile(right) == right;
 
         // tombstone == live last delete
         left  = new DeletedCell(cellname("x"), 1, 2L);
-        right = new CounterCell(cellname("x"), 0L, 4L, 2L);
+        right = CounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
 
         assert left.reconcile(right) == right;
 
         // tombstone > live last delete
         left  = new DeletedCell(cellname("x"), 1, 4L);
-        right = new CounterCell(cellname("x"), 0L, 9L, 1L);
+        right = CounterCell.createLocal(cellname("x"), 0L, 9L, 1L);
 
         reconciled = left.reconcile(right);
         assert reconciled.name() == right.name();
@@ -123,25 +125,25 @@ public class CounterCellTest extends SchemaLoader
         assert ((CounterCell)reconciled).timestampOfLastDelete() == left.getMarkedForDeleteAt();
 
         // live < tombstone
-        left  = new CounterCell(cellname("x"), 0L, 1L);
+        left  = CounterCell.createLocal(cellname("x"), 0L, 1L, Long.MIN_VALUE);
         right = new DeletedCell(cellname("x"), 1, 2L);
 
         assert left.reconcile(right) == right;
 
         // live last delete > tombstone
-        left  = new CounterCell(cellname("x"), 0L, 4L, 2L);
+        left  = CounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
         right = new DeletedCell(cellname("x"), 1, 1L);
 
         assert left.reconcile(right) == left;
 
         // live last delete == tombstone
-        left  = new CounterCell(cellname("x"), 0L, 4L, 2L);
+        left  = CounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
         right = new DeletedCell(cellname("x"), 1, 2L);
 
         assert left.reconcile(right) == left;
 
         // live last delete < tombstone
-        left  = new CounterCell(cellname("x"), 0L, 9L, 1L);
+        left  = CounterCell.createLocal(cellname("x"), 0L, 9L, 1L);
         right = new DeletedCell(cellname("x"), 1, 4L);
 
         reconciled = left.reconcile(right);
@@ -213,15 +215,15 @@ public class CounterCellTest extends SchemaLoader
         CounterCell rightCell;
 
         // timestamp
-        leftCell = new CounterCell(cellname("x"), 0, 1L);
-        rightCell = new CounterCell(cellname("x"), 0, 2L);
+        leftCell = CounterCell.createLocal(cellname("x"), 0, 1L, Long.MIN_VALUE);
+        rightCell = CounterCell.createLocal(cellname("x"), 0, 2L, Long.MIN_VALUE);
 
         assert rightCell == leftCell.diff(rightCell);
         assert null      == rightCell.diff(leftCell);
 
         // timestampOfLastDelete
-        leftCell = new CounterCell(cellname("x"), 0, 1L, 1L);
-        rightCell = new CounterCell(cellname("x"), 0, 1L, 2L);
+        leftCell = CounterCell.createLocal(cellname("x"), 0, 1L, 1L);
+        rightCell = CounterCell.createLocal(cellname("x"), 0, 1L, 2L);
 
         assert rightCell == leftCell.diff(rightCell);
         assert null      == rightCell.diff(leftCell);

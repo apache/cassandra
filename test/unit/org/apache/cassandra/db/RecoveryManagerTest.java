@@ -84,7 +84,7 @@ public class RecoveryManagerTest extends SchemaLoader
         for (int i = 0; i < 10; ++i)
         {
             cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Counter1");
-            cf.addColumn(new CounterCell(cellname("col"), 1L, 1L));
+            cf.addColumn(CounterCell.createLocal(cellname("col"), 1L, 1L, Long.MIN_VALUE));
             rm = new Mutation("Keyspace1", dk.key, cf);
             rm.apply();
         }

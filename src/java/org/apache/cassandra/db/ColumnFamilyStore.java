@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
 import java.util.regex.Pattern;
 import javax.management.*;
 
@@ -32,13 +33,12 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.Striped;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cache.IRowCacheEntry;
-import org.apache.cassandra.cache.RowCacheKey;
-import org.apache.cassandra.cache.RowCacheSentinel;
+import org.apache.cassandra.cache.*;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.config.CFMetaData.SpeculativeRetry;
@@ -46,6 +46,7 @@ import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.*;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
@@ -104,6 +105,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public final ColumnFamilyMetrics metric;
     public volatile long sampleLatencyNanos;
+
+    private final Striped<Lock> counterLocks = Striped.lazyWeakLock(DatabaseDescriptor.getConcurrentCounterWriters() * 128);
 
     public void reload()
     {
@@ -332,9 +335,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         data.unreferenceSSTables();
         indexManager.invalidate();
 
-        for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
-            if (key.cfId == metadata.cfId)
-                invalidateCachedRow(key);
+        invalidateCaches();
+    }
+
+    /**
+     * Obtain a lock for this CF's part of a counter mutation
+     * @param key the key for the CounterMutation
+     * @return the striped lock instance
+     */
+    public Lock counterLockFor(ByteBuffer key)
+    {
+        assert metadata.isCounter();
+        return counterLocks.get(key);
     }
 
     /**
@@ -562,9 +574,25 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         int cachedRowsRead = CacheService.instance.rowCache.loadSaved(this);
         if (cachedRowsRead > 0)
-            logger.info("completed loading ({} ms; {} keys) row cache for {}.{}",
+            logger.info("Completed loading ({} ms; {} keys) row cache for {}.{}",
                         TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start),
                         cachedRowsRead,
+                        keyspace.getName(),
+                        name);
+    }
+
+    public void initCounterCache()
+    {
+        if (!metadata.isCounter() || CacheService.instance.counterCache.getCapacity() == 0)
+            return;
+
+        long start = System.nanoTime();
+
+        int cachedShardsRead = CacheService.instance.counterCache.loadSaved(this);
+        if (cachedShardsRead > 0)
+            logger.info("Completed loading ({} ms; {} shards) counter cache for {}.{}",
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start),
+                        cachedShardsRead,
                         keyspace.getName(),
                         name);
     }
@@ -1073,9 +1101,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return maxFile;
     }
 
-    public void forceCleanup(CounterId.OneShotRenewer renewer) throws ExecutionException, InterruptedException
+    public void forceCleanup() throws ExecutionException, InterruptedException
     {
-        CompactionManager.instance.performCleanup(ColumnFamilyStore.this, renewer);
+        CompactionManager.instance.performCleanup(ColumnFamilyStore.this);
     }
 
     public void scrub(boolean disableSnapshot) throws ExecutionException, InterruptedException
@@ -1535,6 +1563,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (key.cfId == metadata.cfId && !Range.isInRanges(dk.token, ranges))
                 invalidateCachedRow(dk);
         }
+
+        if (metadata.isCounter())
+        {
+            for (CounterCacheKey key : CacheService.instance.counterCache.getKeySet())
+            {
+                DecoratedKey dk = partitioner.decorateKey(ByteBuffer.wrap(key.partitionKey));
+                if (key.cfId == metadata.cfId && !Range.isInRanges(dk.token, ranges))
+                    CacheService.instance.counterCache.remove(key);
+            }
+        }
     }
 
     public static abstract class AbstractScanIterator extends AbstractIterator<Row> implements CloseableIterator<Row>
@@ -1886,6 +1924,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return cached == null || cached instanceof RowCacheSentinel ? null : (ColumnFamily) cached;
     }
 
+    private void invalidateCaches()
+    {
+        for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
+            if (key.cfId == metadata.cfId)
+                invalidateCachedRow(key);
+
+        if (metadata.isCounter())
+            for (CounterCacheKey key : CacheService.instance.counterCache.getKeySet())
+                if (key.cfId == metadata.cfId)
+                    CacheService.instance.counterCache.remove(key);
+    }
+
     /**
      * @return true if @param key is contained in the row cache
      */
@@ -1906,6 +1956,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return; // secondary index
 
         invalidateCachedRow(new RowCacheKey(cfId, key));
+    }
+
+    public ClockAndCount getCachedCounter(ByteBuffer partitionKey, CellName cellName)
+    {
+        if (CacheService.instance.counterCache.getCapacity() == 0L) // counter cache disabled.
+            return null;
+        return CacheService.instance.counterCache.get(CounterCacheKey.create(metadata.cfId, partitionKey, cellName));
+    }
+
+    public void putCachedCounter(ByteBuffer partitionKey, CellName cellName, ClockAndCount clockAndCount)
+    {
+        if (CacheService.instance.counterCache.getCapacity() == 0L) // counter cache disabled.
+            return;
+        CacheService.instance.counterCache.put(CounterCacheKey.create(metadata.cfId, partitionKey, cellName), clockAndCount);
     }
 
     public void forceMajorCompaction() throws InterruptedException, ExecutionException
@@ -2017,12 +2081,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 SystemKeyspace.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
 
-                logger.debug("cleaning out row cache");
-                for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
-                {
-                    if (key.cfId == metadata.cfId)
-                        invalidateCachedRow(key);
-                }
+                invalidateCaches();
             }
         };
 

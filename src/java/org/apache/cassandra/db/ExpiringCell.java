@@ -27,7 +27,6 @@ import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.Allocator;
-import org.apache.cassandra.utils.HeapAllocator;
 
 /**
  * Alternative to Cell that have an expiring time.
@@ -130,12 +129,6 @@ public class ExpiringCell extends Cell
     public int getLocalDeletionTime()
     {
         return localExpirationTime;
-    }
-
-    @Override
-    public Cell localCopy(ColumnFamilyStore cfs)
-    {
-        return localCopy(cfs, HeapAllocator.instance);
     }
 
     @Override

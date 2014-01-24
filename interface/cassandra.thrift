@@ -459,7 +459,6 @@ struct CfDef {
     16: optional i32 id,
     17: optional i32 min_compaction_threshold,
     18: optional i32 max_compaction_threshold,
-    24: optional bool replicate_on_write,
     26: optional string key_validation_class,
     28: optional binary key_alias,
     29: optional string compaction_strategy,
@@ -491,6 +490,8 @@ struct CfDef {
     22: optional i32 memtable_throughput_in_mb,
     /** @deprecated */
     23: optional double memtable_operations_in_millions,
+    /** @deprecated */
+    24: optional bool replicate_on_write,
     /** @deprecated */
     25: optional double merge_shards_chance,
     /** @deprecated */

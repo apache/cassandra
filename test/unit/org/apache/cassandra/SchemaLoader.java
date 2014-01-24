@@ -102,6 +102,7 @@ public class SchemaLoader
         String ks6 = "Keyspace6";
         String ks_kcs = "KeyCacheSpace";
         String ks_rcs = "RowCacheSpace";
+        String ks_ccs = "CounterCacheSpace";
         String ks_nocommit = "NoCommitlogSpace";
         String ks_prsi = "PerRowSecondaryIndex";
         String ks_cql = "cql_keyspace";
@@ -233,6 +234,13 @@ public class SchemaLoader
                                            opts_rf1,
                                            standardCFMD(ks_rcs, "CFWithoutCache").caching(CFMetaData.Caching.NONE),
                                            standardCFMD(ks_rcs, "CachedCF").caching(CFMetaData.Caching.ALL)));
+
+        // CounterCacheSpace
+        schema.add(KSMetaData.testMetadata(ks_ccs,
+                                           simple,
+                                           opts_rf1,
+                                           standardCFMD(ks_ccs, "Counter1").defaultValidator(CounterColumnType.instance),
+                                           standardCFMD(ks_ccs, "Counter2").defaultValidator(CounterColumnType.instance)));
 
         schema.add(KSMetaData.testMetadataNotDurable(ks_nocommit,
                                                      simple,

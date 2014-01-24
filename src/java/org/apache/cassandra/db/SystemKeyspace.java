@@ -693,27 +693,6 @@ public class SystemKeyspace
         forceBlockingFlush(COUNTER_ID_CF);
     }
 
-    public static List<CounterId.CounterIdRecord> getOldLocalCounterIds()
-    {
-        List<CounterId.CounterIdRecord> l = new ArrayList<CounterId.CounterIdRecord>();
-
-        Keyspace keyspace = Keyspace.open(Keyspace.SYSTEM_KS);
-        QueryFilter filter = QueryFilter.getIdentityFilter(decorate(ALL_LOCAL_NODE_ID_KEY), COUNTER_ID_CF, System.currentTimeMillis());
-        ColumnFamily cf = keyspace.getColumnFamilyStore(COUNTER_ID_CF).getColumnFamily(filter);
-
-        CounterId previous = null;
-        for (Cell c : cf)
-        {
-            if (previous != null)
-                l.add(new CounterId.CounterIdRecord(previous, c.timestamp()));
-
-            // this will ignore the last column on purpose since it is the
-            // current local node id
-            previous = CounterId.wrap(c.name().toByteBuffer());
-        }
-        return l;
-    }
-
     /**
      * @param cfName The name of the ColumnFamily responsible for part of the schema (keyspace, ColumnFamily, columns)
      * @return CFS responsible to hold low-level serialized schema

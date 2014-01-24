@@ -26,7 +26,7 @@ public interface IMutation
     public String getKeyspaceName();
     public Collection<UUID> getColumnFamilyIds();
     public ByteBuffer key();
-    public void apply();
+    public long getTimeout();
     public String toString(boolean shallow);
     public void addAll(IMutation m);
     public Collection<ColumnFamily> getColumnFamilies();

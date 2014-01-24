@@ -33,6 +33,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1076,7 +1077,11 @@ public class CassandraServer implements Cassandra.Iface
         if (mutations.isEmpty())
             return;
 
-        schedule(DatabaseDescriptor.getWriteRpcTimeout());
+        long timeout = Long.MAX_VALUE;
+        for (IMutation m : mutations)
+            timeout = Longs.min(timeout, m.getTimeout());
+
+        schedule(timeout);
         try
         {
             StorageProxy.mutateWithTriggers(mutations, consistencyLevel, mutateAtomically);

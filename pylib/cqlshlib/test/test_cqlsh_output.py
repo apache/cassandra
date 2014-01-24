@@ -661,7 +661,6 @@ class TestCqlshOutput(BaseTestCase):
               gc_grace_seconds=864000 AND
               index_interval=128 AND
               read_repair_chance=0.100000 AND
-              replicate_on_write='true' AND
               populate_io_cache_on_flush='false' AND
               default_time_to_live=0 AND
               speculative_retry='NONE' AND
