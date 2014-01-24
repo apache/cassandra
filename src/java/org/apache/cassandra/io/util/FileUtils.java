@@ -450,7 +450,7 @@ public class FileUtils
 
     /**
      * Get the size of a directory in bytes
-     * @param The directory for which we need size.
+     * @param directory The directory for which we need size.
      * @return The size of the directory
      */
     public static long folderSize(File directory)
