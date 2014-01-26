@@ -1108,7 +1108,7 @@ public class NodeTool
 
             String format = "%-41s%-19s%-29s%-26s%-15s%-15s%s%n";
             List<String> indexNames = tabularData.getTabularType().getIndexNames();
-            System.out.printf(format, toArray(indexNames, String.class));
+            System.out.printf(format, toArray(indexNames, Object.class));
 
             Set<?> values = tabularData.keySet();
             for (Object eachValue : values)
