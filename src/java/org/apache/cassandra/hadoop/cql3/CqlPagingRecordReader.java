@@ -65,7 +65,7 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
     public static final int DEFAULT_CQL_PAGE_LIMIT = 1000; // TODO: find the number large enough but not OOM
 
     private ColumnFamilySplit split;
-    private RowIterator rowIterator;
+    protected RowIterator rowIterator;
 
     private Pair<Map<String, ByteBuffer>, Map<String, ByteBuffer>> currentRow;
     private int totalRowCount; // total number of rows to fetch
@@ -282,7 +282,7 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
     }
 
     /** CQL row iterator */
-    private class RowIterator extends AbstractIterator<Pair<Map<String, ByteBuffer>, Map<String, ByteBuffer>>>
+    protected class RowIterator extends AbstractIterator<Pair<Map<String, ByteBuffer>, Map<String, ByteBuffer>>>
     {
         protected int totalRead = 0;             // total number of cf rows read
         protected Iterator<CqlRow> rows;
