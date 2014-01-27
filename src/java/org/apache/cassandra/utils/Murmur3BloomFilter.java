@@ -36,9 +36,9 @@ public class Murmur3BloomFilter extends BloomFilter
         return serializer.serializedSize(this, TypeSizes.NATIVE);
     }
 
-    protected long[] hash(ByteBuffer b, int position, int remaining, long seed)
+    protected void hash(ByteBuffer b, int position, int remaining, long seed, long[] result)
     {
-        return MurmurHash.hash3_x64_128(b, b.position(), b.remaining(), seed);
+        MurmurHash.hash3_x64_128(b, b.position(), b.remaining(), seed, result);
     }
 
     public static class Murmur3BloomFilterSerializer extends BloomFilterSerializer

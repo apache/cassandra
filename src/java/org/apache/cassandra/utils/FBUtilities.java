@@ -620,6 +620,12 @@ public class FBUtilities
         checksum.update((v >>> 0) & 0xFF);
     }
 
+    public static long abs(long index)
+    {
+        long negbit = index >> 63;
+        return (index ^ negbit) - negbit;
+    }
+
     private static final class WrappedCloseableIterator<T>
         extends AbstractIterator<T> implements CloseableIterator<T>
     {
