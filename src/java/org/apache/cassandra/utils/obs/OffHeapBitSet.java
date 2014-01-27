@@ -67,7 +67,7 @@ public class OffHeapBitSet implements IBitSet
         long i = index >> 3;
         long bit = index & 0x7;
         int bitmask = 0x1 << bit;
-        return ((bytes.getByte(i) & 0xFF) & bitmask) != 0;
+        return (bytes.getByte(i) & bitmask) != 0;
     }
 
     public void set(long index)
