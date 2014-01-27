@@ -48,6 +48,7 @@ Merged from 1.2:
  * skip blocking on streaming during drain (CASSANDRA-6603)
  * Improve error message when schema doesn't match loaded sstable (CASSANDRA-6262)
  * Add properties to adjust FD initial value and max interval (CASSANDRA-4375)
+ * Fix preparing with batch and delete from collection (CASSANDRA-6607)
 
 
 2.0.4
