@@ -139,7 +139,7 @@ public class BatchStatement extends ModificationStatement
 
     public ParsedStatement.Prepared prepare() throws InvalidRequestException
     {
-        CFDefinition.Name[] boundNames = new CFDefinition.Name[getBoundTerms()];
+        ColumnSpecification[] boundNames = new ColumnSpecification[getBoundTerms()];
         return prepare(boundNames);
     }
 
