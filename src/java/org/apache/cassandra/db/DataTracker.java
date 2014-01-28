@@ -446,8 +446,7 @@ public class DataTracker
 
     public void unsubscribe(INotificationConsumer consumer)
     {
-        boolean found = subscribers.remove(consumer);
-        assert found : consumer + " not subscribed";
+        subscribers.remove(consumer);
     }
 
     public static SSTableIntervalTree buildIntervalTree(Iterable<SSTableReader> sstables)
