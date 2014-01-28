@@ -2197,10 +2197,10 @@ public class NodeTool
         }
     }
 
-    @Command(name = "truncatehints", description = "Truncate all hints on the local node, or truncate hints for the endpoint specified.")
+    @Command(name = "truncatehints", description = "Truncate all hints on the local node, or truncate hints for the endpoint(s) specified.")
     public static class TruncateHints extends NodeToolCmd
     {
-        @Arguments(usage = "[endpoint]", description = "Endpoint address to delete hints for, either ip address (\"127.0.0.1\") or hostname")
+        @Arguments(usage = "[endpoint ... ]", description = "Endpoint address(es) to delete hints for, either ip address (\"127.0.0.1\") or hostname")
         private String endpoint = EMPTY;
 
         @Override
