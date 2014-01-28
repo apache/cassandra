@@ -60,11 +60,11 @@ public final class CLibrary
         }
         catch (NoClassDefFoundError e)
         {
-            logger.warn("JNA not found. Native methods will be disabled.");
+            logger.info("JNA not found. Native methods will be disabled.");
         }
         catch (UnsatisfiedLinkError e)
         {
-            logger.warn("JNA link failure, one or more native method will be unavailable.");
+            logger.info("JNA link failure, one or more native method will be unavailable.");
             logger.debug("JNA link failure details: {}", e.getMessage());
         }
         catch (NoSuchMethodError e)
