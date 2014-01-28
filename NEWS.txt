@@ -28,7 +28,7 @@ New features
 
 Upgrading
 ---------
-   - Rolling upgrades from anything pre-2.0 is not supported.
+   - Rolling upgrades from anything pre-2.0.5 is not supported.
    - For leveled compaction users, 2.0 must be atleast started before
      upgrading to 2.1 due to the fact that the old JSON leveled
      manifest is migrated into the sstable metadata files on startup
