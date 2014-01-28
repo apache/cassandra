@@ -186,4 +186,32 @@ public class ArrayBackedSortedColumnsTest
             assert name == value : "Expected " + name + " but got " + value;
         }
     }
+
+    @Test
+    public void testRemove()
+    {
+        testRemoveInternal(false);
+        testRemoveInternal(true);
+    }
+
+    private void testRemoveInternal(boolean reversed)
+    {
+        ISortedColumns map = ArrayBackedSortedColumns.factory.create(BytesType.instance, reversed);
+        int[] values = new int[]{ 1, 2, 2, 3 };
+
+        for (int i = 0; i < values.length; ++i)
+            map.addColumn(new Column(ByteBufferUtil.bytes(values[reversed ? values.length - 1 - i : i])), HeapAllocator.instance);
+
+        Iterator<IColumn> iter = map.getReverseSortedColumns().iterator();
+        assertTrue(iter.hasNext());
+        iter.next();
+        iter.remove();
+        assertTrue(iter.hasNext());
+        iter.next();
+        iter.remove();
+        assertTrue(iter.hasNext());
+        iter.next();
+        iter.remove();
+        assertTrue(!iter.hasNext());
+    }
 }
