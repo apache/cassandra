@@ -40,7 +40,8 @@ public abstract class StreamMessage
         // message type
         buff.put(message.type.type);
         buff.flip();
-        out.write(buff);
+        while (buff.hasRemaining())
+            out.write(buff);
         message.type.serializer.serialize(message, out, version, session);
     }
 

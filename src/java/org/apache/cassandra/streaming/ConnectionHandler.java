@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
@@ -64,6 +65,8 @@ public class ConnectionHandler
     ConnectionHandler(StreamSession session)
     {
         this.session = session;
+        this.incoming = new IncomingMessageHandler(session);
+        this.outgoing = new OutgoingMessageHandler(session);
     }
 
     /**
@@ -77,15 +80,13 @@ public class ConnectionHandler
     {
         logger.debug("[Stream #{}] Sending stream init for incoming stream", session.planId());
         Socket incomingSocket = connect(session.peer);
-        incoming = new IncomingMessageHandler(session, incomingSocket, StreamMessage.CURRENT_VERSION);
-        incoming.sendInitMessage(true);
-        incoming.start();
+        incoming.start(incomingSocket, StreamMessage.CURRENT_VERSION);
+        incoming.sendInitMessage(incomingSocket, true);
 
         logger.debug("[Stream #{}] Sending stream init for outgoing stream", session.planId());
         Socket outgoingSocket = connect(session.peer);
-        outgoing = new OutgoingMessageHandler(session, outgoingSocket, StreamMessage.CURRENT_VERSION);
-        outgoing.sendInitMessage(false);
-        outgoing.start();
+        outgoing.start(outgoingSocket, StreamMessage.CURRENT_VERSION);
+        outgoing.sendInitMessage(outgoingSocket, false);
     }
 
     /**
@@ -98,15 +99,9 @@ public class ConnectionHandler
     public void initiateOnReceivingSide(Socket socket, boolean isForOutgoing, int version) throws IOException
     {
         if (isForOutgoing)
-        {
-            outgoing = new OutgoingMessageHandler(session, socket, version);
-            outgoing.start();
-        }
+            outgoing.start(socket, version);
         else
-        {
-            incoming = new IncomingMessageHandler(session, socket, version);
-            incoming.start();
-        }
+            incoming.start(socket, version);
     }
 
     /**
@@ -189,21 +184,19 @@ public class ConnectionHandler
     {
         protected final StreamSession session;
 
-        protected final Socket socket;
-        protected final int protocolVersion;
+        protected int protocolVersion;
+        protected Socket socket;
 
         private final AtomicReference<SettableFuture<?>> closeFuture = new AtomicReference<>();
 
-        protected MessageHandler(StreamSession session, Socket socket, int protocolVersion)
+        protected MessageHandler(StreamSession session)
         {
             this.session = session;
-            this.socket = socket;
-            this.protocolVersion = protocolVersion;
         }
 
         protected abstract String name();
 
-        protected WritableByteChannel getWriteChannel() throws IOException
+        protected static WritableByteChannel getWriteChannel(Socket socket) throws IOException
         {
             WritableByteChannel out = socket.getChannel();
             // socket channel is null when encrypted(SSL)
@@ -212,7 +205,7 @@ public class ConnectionHandler
                  : out;
         }
 
-        protected ReadableByteChannel getReadChannel() throws IOException
+        protected static ReadableByteChannel getReadChannel(Socket socket) throws IOException
         {
             ReadableByteChannel in = socket.getChannel();
             // socket channel is null when encrypted(SSL)
@@ -221,14 +214,19 @@ public class ConnectionHandler
                  : in;
         }
 
-        public void sendInitMessage(boolean isForOutgoing) throws IOException
+        public void sendInitMessage(Socket socket, boolean isForOutgoing) throws IOException
         {
             StreamInitMessage message = new StreamInitMessage(FBUtilities.getBroadcastAddress(), session.planId(), session.description(), isForOutgoing);
-            getWriteChannel().write(message.createMessage(false, protocolVersion));
+            ByteBuffer messageBuf = message.createMessage(false, protocolVersion);
+            while (messageBuf.hasRemaining())
+                getWriteChannel(socket).write(messageBuf);
         }
 
-        public void start()
+        public void start(Socket socket, int protocolVersion)
         {
+            this.socket = socket;
+            this.protocolVersion = protocolVersion;
+
             new Thread(this, name() + "-" + session.peer).start();
         }
 
@@ -264,12 +262,9 @@ public class ConnectionHandler
      */
     static class IncomingMessageHandler extends MessageHandler
     {
-        private final ReadableByteChannel in;
-
-        IncomingMessageHandler(StreamSession session, Socket socket, int protocolVersion) throws IOException
+        IncomingMessageHandler(StreamSession session)
         {
-            super(session, socket, protocolVersion);
-            this.in = getReadChannel();
+            super(session);
         }
 
         protected String name()
@@ -279,9 +274,10 @@ public class ConnectionHandler
 
         public void run()
         {
-            while (!isClosed())
+            try
             {
-                try
+                ReadableByteChannel in = getReadChannel(socket);
+                while (!isClosed())
                 {
                     // receive message
                     StreamMessage message = StreamMessage.deserialize(in, protocolVersion, session);
@@ -293,17 +289,20 @@ public class ConnectionHandler
                         session.messageReceived(message);
                     }
                 }
-                catch (SocketException e)
-                {
-                    // socket is closed
-                    close();
-                }
-                catch (Throwable e)
-                {
-                    session.onError(e);
-                }
             }
-            signalCloseDone();
+            catch (SocketException e)
+            {
+                // socket is closed
+                close();
+            }
+            catch (Throwable e)
+            {
+                session.onError(e);
+            }
+            finally
+            {
+                signalCloseDone();
+            }
         }
     }
 
@@ -326,12 +325,9 @@ public class ConnectionHandler
             }
         });
 
-        private final WritableByteChannel out;
-
-        OutgoingMessageHandler(StreamSession session, Socket socket, int protocolVersion) throws IOException
+        OutgoingMessageHandler(StreamSession session)
         {
-            super(session, socket, protocolVersion);
-            this.out = getWriteChannel();
+            super(session);
         }
 
         protected String name()
@@ -346,30 +342,33 @@ public class ConnectionHandler
 
         public void run()
         {
-            StreamMessage next;
-            while (!isClosed())
+            try
             {
-                try
+                WritableByteChannel out = getWriteChannel(socket);
+
+                StreamMessage next;
+                while (!isClosed())
                 {
                     if ((next = messageQueue.poll(1, TimeUnit.SECONDS)) != null)
                     {
                         logger.debug("[Stream #{}] Sending {}", session.planId(), next);
-                        sendMessage(next);
+                        sendMessage(out, next);
                         if (next.type == StreamMessage.Type.SESSION_FAILED)
                             close();
                     }
                 }
-                catch (InterruptedException e)
-                {
-                    throw new AssertionError(e);
-                }
-            }
 
-            try
-            {
                 // Sends the last messages on the queue
                 while ((next = messageQueue.poll()) != null)
-                    sendMessage(next);
+                    sendMessage(out, next);
+            }
+            catch (InterruptedException e)
+            {
+                throw new AssertionError(e);
+            }
+            catch (IOException e)
+            {
+                session.onError(e);
             }
             finally
             {
@@ -377,7 +376,7 @@ public class ConnectionHandler
             }
         }
 
-        private void sendMessage(StreamMessage message)
+        private void sendMessage(WritableByteChannel out, StreamMessage message)
         {
             try
             {
