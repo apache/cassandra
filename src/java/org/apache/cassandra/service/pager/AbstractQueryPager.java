@@ -22,6 +22,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Iterator;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
@@ -52,15 +54,26 @@ abstract class AbstractQueryPager implements QueryPager
                                  IDiskAtomFilter columnFilter,
                                  long timestamp)
     {
+        this(consistencyLevel, toFetch, localQuery, Schema.instance.getCFMetaData(keyspace, columnFamily), columnFilter, timestamp);
+    }
+
+    protected AbstractQueryPager(ConsistencyLevel consistencyLevel,
+                                 int toFetch,
+                                 boolean localQuery,
+                                 CFMetaData cfm,
+                                 IDiskAtomFilter columnFilter,
+                                 long timestamp)
+    {
         this.consistencyLevel = consistencyLevel;
         this.localQuery = localQuery;
 
-        this.cfm = Schema.instance.getCFMetaData(keyspace, columnFamily);
+        this.cfm = cfm;
         this.columnFilter = columnFilter;
         this.timestamp = timestamp;
 
         this.remaining = toFetch;
     }
+
 
     public List<Row> fetchPage(int pageSize) throws RequestValidationException, RequestExecutionException
     {
@@ -178,9 +191,10 @@ abstract class AbstractQueryPager implements QueryPager
         return discardFirst(rows, 1);
     }
 
-    private List<Row> discardFirst(List<Row> rows, int toDiscard)
+    @VisibleForTesting
+    List<Row> discardFirst(List<Row> rows, int toDiscard)
     {
-        if (toDiscard == 0)
+        if (toDiscard == 0 || rows.isEmpty())
             return rows;
 
         int i = 0;
@@ -197,12 +211,14 @@ abstract class AbstractQueryPager implements QueryPager
         }
 
         // If there is less live data than to discard, all is discarded
-        if (toDiscard > 0 && i >= rows.size())
+        if (toDiscard > 0)
             return Collections.<Row>emptyList();
 
+        // i is the index of the first row that we are sure to keep. On top of that,
+        // we also keep firstCf is it hasn't been fully emptied by the last iteration above.
         int count = firstCf.getColumnCount();
-        int newSize = rows.size() - i;
-        List<Row> newRows = new ArrayList<Row>(count == 0 ? newSize-1 : newSize);
+        int newSize = rows.size() - (count == 0 ? i : i - 1);
+        List<Row> newRows = new ArrayList<Row>(newSize);
         if (count != 0)
             newRows.add(new Row(firstKey, firstCf));
         newRows.addAll(rows.subList(i, rows.size()));
@@ -215,9 +231,10 @@ abstract class AbstractQueryPager implements QueryPager
         return discardLast(rows, 1);
     }
 
-    private List<Row> discardLast(List<Row> rows, int toDiscard)
+    @VisibleForTesting
+    List<Row> discardLast(List<Row> rows, int toDiscard)
     {
-        if (toDiscard == 0)
+        if (toDiscard == 0 || rows.isEmpty())
             return rows;
 
         int i = rows.size()-1;
@@ -234,13 +251,15 @@ abstract class AbstractQueryPager implements QueryPager
         }
 
         // If there is less live data than to discard, all is discarded
-        if (toDiscard > 0 && i < 0)
+        if (toDiscard > 0)
             return Collections.<Row>emptyList();
 
+        // i is the index of the last row that we are sure to keep. On top of that,
+        // we also keep lastCf is it hasn't been fully emptied by the last iteration above.
         int count = lastCf.getColumnCount();
-        int newSize = i+1;
-        List<Row> newRows = new ArrayList<Row>(count == 0 ? newSize-1 : newSize);
-        newRows.addAll(rows.subList(0, i));
+        int newSize = count == 0 ? i+1 : i+2;
+        List<Row> newRows = new ArrayList<Row>(newSize);
+        newRows.addAll(rows.subList(0, i+1));
         if (count != 0)
             newRows.add(new Row(lastKey, lastCf));
 
