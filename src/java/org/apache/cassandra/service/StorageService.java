@@ -1453,6 +1453,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         tokens = getTokensFor(endpoint, pieces[1]);
 
+        Set<Token> tokensToUpdateInMetadata = new HashSet<Token>();
+        Set<Token> tokensToUpdateInSystemTable = new HashSet<Token>();
+        Set<Token> localTokensToRemove = new HashSet<Token>();
+        Set<InetAddress> endpointsToRemove = new HashSet<InetAddress>();
+
+
         if (logger.isDebugEnabled())
             logger.debug("Node " + endpoint + " state normal, token " + tokens);
 
@@ -1463,16 +1469,38 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (Gossiper.instance.usesHostId(endpoint))
         {
             UUID hostId = Gossiper.instance.getHostId(endpoint);
+            InetAddress existing = tokenMetadata.getEndpointForHostId(hostId);
             if (DatabaseDescriptor.isReplacing() && Gossiper.instance.getEndpointStateForEndpoint(DatabaseDescriptor.getReplaceAddress()) != null && (hostId.equals(Gossiper.instance.getHostId(DatabaseDescriptor.getReplaceAddress()))))
                 logger.warn("Not updating token metadata for {} because I am replacing it", endpoint);
             else
-                tokenMetadata.updateHostId(hostId, endpoint);
-        }
+            {
+                if (existing != null && !existing.equals(endpoint))
+                {
+                    if (existing.equals(FBUtilities.getBroadcastAddress()))
+                    {
+                        logger.warn("Not updating host ID {} for {} because it's mine", hostId, endpoint);
+                        tokenMetadata.removeEndpoint(endpoint);
+                        endpointsToRemove.add(endpoint);
+                    }
+                    else if (Gossiper.instance.compareEndpointStartup(endpoint, existing) > 0)
+                    {
+                        logger.warn("Host ID collision for {} between {} and {}; {} is the new owner", hostId, existing, endpoint, endpoint);
+                        tokenMetadata.removeEndpoint(existing);
+                        endpointsToRemove.add(existing);
+                        tokenMetadata.updateHostId(hostId, endpoint);
+                    }
+                    else
+                    {
+                        logger.warn("Host ID Collision for {} between {} and {}; ignored {}", hostId, existing, endpoint, endpoint);
+                        tokenMetadata.removeEndpoint(endpoint);
+                        endpointsToRemove.add(endpoint);
+                    }
+                }
+                else
+                    tokenMetadata.updateHostId(hostId, endpoint);
+            }
 
-        Set<Token> tokensToUpdateInMetadata = new HashSet<Token>();
-        Set<Token> tokensToUpdateInSystemTable = new HashSet<Token>();
-        Set<Token> localTokensToRemove = new HashSet<Token>();
-        Set<InetAddress> endpointsToRemove = new HashSet<InetAddress>();
+        }
 
         for (final Token token : tokens)
         {
