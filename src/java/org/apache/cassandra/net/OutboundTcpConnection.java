@@ -36,14 +36,13 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.xerial.snappy.SnappyOutputStream;
-
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class OutboundTcpConnection extends Thread
 {
@@ -322,6 +321,8 @@ public class OutboundTcpConnection extends Thread
                 }
                 out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream(), 4096));
 
+                // (MS defaults to assuming everyone else is on the same version as us until proven otherwise, so this
+                // code will run once even for older nodes, which allows us to reset the version to the correct one)
                 if (targetVersion >= MessagingService.VERSION_12)
                 {
                     out.writeInt(MessagingService.PROTOCOL_MAGIC);
@@ -335,8 +336,26 @@ public class OutboundTcpConnection extends Thread
                         // no version is returned, so disconnect an try again: we will either get
                         // a different target version (targetVersion < MessagingService.VERSION_12)
                         // or if the same version the handshake will finally succeed
-                        logger.debug("Target max version is {}; no version information yet, will retry", maxTargetVersion);
-                        disconnect();
+                        //Try to downgrade to the version passed in from the env variable                            
+                        if (System.getProperty("cassandra.default_messaging_version") != null)
+                        {
+                            try 
+                            {
+                                int defaultVersion = Integer.parseInt(System.getProperty("cassandra.default_messaging_version"));
+                                logger.debug("No messaging version received; assuming default of {} ", defaultVersion);
+                                MessagingService.instance().setVersion(poolReference.endPoint(), defaultVersion);
+                            }
+                            catch (NumberFormatException e)
+                            {
+                                logger.debug("Unable to parse the value of cassandra.default_messaging_version");		 
+                            }
+                        }
+                        else 
+                        {
+                        	logger.debug("No messaging version received; will retry", maxTargetVersion);
+                        }
+                
+                        disconnect(); //do we need to disconnect?
                         continue;
                     }
                     if (targetVersion > maxTargetVersion)

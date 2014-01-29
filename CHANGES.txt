@@ -1,4 +1,6 @@
 1.2.14
+ * add cassandra.default_messaging_version property to allow easier
+   upgrading from 1.1 (CASSANDRA-6619)
  * Allow executing CREATE statements multiple times (CASSANDRA-6471)
  * Don't send confusing info with timeouts (CASSANDRA-6491)
  * Don't resubmit counter mutation runnables internally (CASSANDRA-6427)
