@@ -26,6 +26,7 @@ import static org.junit.Assert.*;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.db.filter.ColumnCounter;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -108,8 +109,8 @@ public class AbstractQueryPagerTest
         assertEquals(values.length, row.cf.getColumnCount());
 
         int i = 0;
-        for (Column c : row.cf)
-            assertEquals(values[i++], i(c.name()));
+        for (Cell c : row.cf)
+            assertEquals(values[i++], i(c.name().toByteBuffer()));
     }
 
     private Row createRow(String name, int nbCol)
@@ -121,13 +122,13 @@ public class AbstractQueryPagerTest
     {
         ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(createMetadata());
         for (int i = 0; i < nbCol; i++)
-            cf.addColumn(bb(i), bb(i), 0);
+            cf.addColumn(CellNames.simpleDense(bb(i)), bb(i), 0);
         return cf;
     }
 
     private CFMetaData createMetadata()
     {
-        return new CFMetaData("ks", "cf", ColumnFamilyType.Standard, Int32Type.instance);
+        return new CFMetaData("ks", "cf", ColumnFamilyType.Standard, CellNames.fromAbstractType(Int32Type.instance, false));
     }
 
     private static ByteBuffer bb(int i)
