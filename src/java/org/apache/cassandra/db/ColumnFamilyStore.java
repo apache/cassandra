@@ -144,6 +144,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             compactionStrategy.shutdown();
             compactionStrategy = metadata.createCompactionStrategyInstance(this);
+            compactionStrategy.startup();
         }
     }
 
@@ -262,6 +263,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // compaction strategy should be created after the CFS has been prepared
         this.compactionStrategy = metadata.createCompactionStrategyInstance(this);
+        this.compactionStrategy.startup();
 
         if (maxCompactionThreshold.value() <= 0 || minCompactionThreshold.value() <=0)
         {
