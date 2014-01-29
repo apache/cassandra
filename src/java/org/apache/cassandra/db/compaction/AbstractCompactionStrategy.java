@@ -68,7 +68,7 @@ public abstract class AbstractCompactionStrategy
      *
      * See CASSANDRA-3430
      */
-    protected boolean isActive = true;
+    protected boolean isActive = false;
 
     protected volatile boolean enabled = true;
 
@@ -117,6 +117,14 @@ public abstract class AbstractCompactionStrategy
      * things like truncate or major compaction
      */
     public synchronized void resume()
+    {
+        isActive = true;
+    }
+
+    /**
+     * Performs any extra initialization required
+     */
+    public void startup()
     {
         isActive = true;
     }
