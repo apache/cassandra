@@ -358,6 +358,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
             return new Iterator<Cell>()
             {
                 int idx = size() - 1;
+                boolean shouldCallNext = true;
 
                 public boolean hasNext()
                 {
@@ -366,12 +367,16 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
 
                 public Cell next()
                 {
+                    shouldCallNext = false;
                     return cells.get(idx--);
                 }
 
                 public void remove()
                 {
-                    cells.remove(idx--);
+                    if (shouldCallNext)
+                        throw new IllegalStateException();
+                    cells.remove(idx + 1);
+                    shouldCallNext = true;
                 }
             };
         }
