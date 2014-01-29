@@ -42,6 +42,7 @@
  * Avoid rare duplicate read repair triggering (CASSANDRA-6606)
  * Fix paging discardFirst (CASSANDRA-6555)
  * Fix ArrayIndexOutOfBoundsException in 2ndary index query (CASSANDRA-6470)
+ * Release sstables upon rebuilding 2i (CASSANDRA-6635)
 Merged from 1.2:
  * fsync compression metadata (CASSANDRA-6531)
  * Validate CF existence on execution for prepared statement (CASSANDRA-6535)
