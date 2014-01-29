@@ -185,8 +185,10 @@ public class DataRange
         private ColumnSlice[] slicesForKey(ByteBuffer key)
         {
             // We don't call that until it's necessary, so assume we have to do some hard work
-            Composite newStart = equals(startKey(), key) ? columnStart : null;
-            Composite newFinish = equals(stopKey(), key) ? columnFinish : null;
+            // it doesn't expand on them. As such, we can ignore the case where they are empty and we do
+            // as it screw up with the logic below (see #6592)
+            Composite newStart = equals(startKey(), key) && !columnStart.isEmpty() ? columnStart : null;
+            Composite newFinish = equals(stopKey(), key) && !columnFinish.isEmpty() ? columnFinish : null;
 
             List<ColumnSlice> newSlices = new ArrayList<ColumnSlice>(sliceFilter.slices.length); // in the common case, we'll have the same number of slices
 
