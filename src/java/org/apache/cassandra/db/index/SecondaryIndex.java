@@ -180,14 +180,20 @@ public abstract class SecondaryIndex
                 getIndexName(), StringUtils.join(baseCfs.getSSTables(), ", ")));
 
         Collection<SSTableReader> sstables = baseCfs.markCurrentSSTablesReferenced();
-        SecondaryIndexBuilder builder = new SecondaryIndexBuilder(baseCfs,
-                                                                  Collections.singleton(getIndexName()),
-                                                                  new ReducingKeyIterator(sstables));
-        Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
-        FBUtilities.waitOnFuture(future);
-        forceBlockingFlush();
-
-        setIndexBuilt();
+        try
+        {
+            SecondaryIndexBuilder builder = new SecondaryIndexBuilder(baseCfs,
+                                                                      Collections.singleton(getIndexName()),
+                                                                      new ReducingKeyIterator(sstables));
+            Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
+            FBUtilities.waitOnFuture(future);
+            forceBlockingFlush();
+            setIndexBuilt();
+        }
+        finally
+        {
+            SSTableReader.releaseReferences(sstables);
+        }
         logger.info("Index build of " + getIndexName() + " complete");
     }
 
