@@ -32,7 +32,6 @@ import com.google.common.collect.Maps;
 import org.apache.cassandra.db.composites.*;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.slf4j.Logger;
@@ -851,34 +850,33 @@ public final class CFMetaData
         }
 
         CFMetaData rhs = (CFMetaData) obj;
-        return new EqualsBuilder()
-            .append(ksName, rhs.ksName)
-            .append(cfName, rhs.cfName)
-            .append(cfType, rhs.cfType)
-            .append(comparator, rhs.comparator)
-            .append(comment, rhs.comment)
-            .append(readRepairChance, rhs.readRepairChance)
-            .append(dcLocalReadRepairChance, rhs.dcLocalReadRepairChance)
-            .append(gcGraceSeconds, rhs.gcGraceSeconds)
-            .append(defaultValidator, rhs.defaultValidator)
-            .append(keyValidator, rhs.keyValidator)
-            .append(minCompactionThreshold, rhs.minCompactionThreshold)
-            .append(maxCompactionThreshold, rhs.maxCompactionThreshold)
-            .append(cfId, rhs.cfId)
-            .append(columnMetadata, rhs.columnMetadata)
-            .append(compactionStrategyClass, rhs.compactionStrategyClass)
-            .append(compactionStrategyOptions, rhs.compactionStrategyOptions)
-            .append(compressionParameters, rhs.compressionParameters)
-            .append(bloomFilterFpChance, rhs.bloomFilterFpChance)
-            .append(memtableFlushPeriod, rhs.memtableFlushPeriod)
-            .append(caching, rhs.caching)
-            .append(defaultTimeToLive, rhs.defaultTimeToLive)
-            .append(indexInterval, rhs.indexInterval)
-            .append(speculativeRetry, rhs.speculativeRetry)
-            .append(populateIoCacheOnFlush, rhs.populateIoCacheOnFlush)
-            .append(droppedColumns, rhs.droppedColumns)
-            .append(triggers, rhs.triggers)
-            .isEquals();
+        if (!ksName.equals(rhs.ksName)) return false;
+        if (!cfName.equals(rhs.cfName)) return false;
+        if (!cfType.equals(rhs.cfType)) return false;
+        if (!comparator.equals(rhs.comparator)) return false;
+        if (!Objects.equal(comment, rhs.comment)) return false;
+        if (readRepairChance != rhs.readRepairChance) return false;
+        if (dcLocalReadRepairChance != rhs.dcLocalReadRepairChance) return false;
+        if (gcGraceSeconds != rhs.gcGraceSeconds) return false;
+        if (!Objects.equal(defaultValidator, rhs.defaultValidator)) return false;
+        if (!Objects.equal(keyValidator, rhs.keyValidator)) return false;
+        if (minCompactionThreshold != rhs.minCompactionThreshold) return false;
+        if (maxCompactionThreshold != rhs.maxCompactionThreshold) return false;
+        if (!Objects.equal(cfId, rhs.cfId)) return false;
+        if (!Objects.equal(columnMetadata, rhs.columnMetadata)) return false;
+        if (!Objects.equal(compactionStrategyClass, rhs.compactionStrategyClass)) return false;
+        if (!Objects.equal(compactionStrategyOptions, rhs.compactionStrategyOptions)) return false;
+        if (!Objects.equal(compressionParameters, rhs.compressionParameters)) return false;
+        if (!Objects.equal(bloomFilterFpChance, rhs.bloomFilterFpChance)) return false;
+        if (memtableFlushPeriod != rhs.memtableFlushPeriod) return false;
+        if (!Objects.equal(caching, rhs.caching)) return false;
+        if (defaultTimeToLive != rhs.defaultTimeToLive) return false;
+        if (indexInterval != rhs.indexInterval) return false;
+        if (!Objects.equal(speculativeRetry, rhs.speculativeRetry)) return false;
+        if (populateIoCacheOnFlush != rhs.populateIoCacheOnFlush) return false;
+        if (Objects.equal(droppedColumns, rhs.droppedColumns)) return false;
+        if (Objects.equal(triggers, rhs.triggers)) return false;
+        return true;
     }
 
     public int hashCode()

@@ -136,12 +136,13 @@ public final class KSMetaData
         if (!(obj instanceof KSMetaData))
             return false;
         KSMetaData other = (KSMetaData)obj;
-        return other.name.equals(name)
-                && ObjectUtils.equals(other.strategyClass, strategyClass)
-                && ObjectUtils.equals(other.strategyOptions, strategyOptions)
-                && other.cfMetaData.equals(cfMetaData)
-                && other.durableWrites == durableWrites
-                && ObjectUtils.equals(other.userTypes, userTypes);
+        if (!other.name.equals(name)) return false;
+        if (!ObjectUtils.equals(other.strategyClass, strategyClass)) return false;
+        if (!ObjectUtils.equals(other.strategyOptions, strategyOptions)) return false;
+        if (!other.cfMetaData.equals(cfMetaData)) return false;
+        if (other.durableWrites != durableWrites) return false;
+        if (!ObjectUtils.equals(other.userTypes, userTypes)) return false;
+        return true;
     }
 
     public Map<String, CFMetaData> cfMetaData()

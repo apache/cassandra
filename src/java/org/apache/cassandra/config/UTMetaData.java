@@ -151,4 +151,11 @@ public final class UTMetaData
     {
         userTypes.remove(type.name);
     }
+
+    public boolean equals(Object that)
+    {
+        if (!(that instanceof UTMetaData))
+            return false;
+        return userTypes.equals(((UTMetaData) that).userTypes);
+    }
 }
