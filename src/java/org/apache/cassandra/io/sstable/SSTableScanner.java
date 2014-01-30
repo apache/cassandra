@@ -116,7 +116,13 @@ public class SSTableScanner implements ICompactionScanner
         long indexPosition = sstable.getIndexScanPosition(currentRange.left);
         // -1 means the key is before everything in the sstable. So just start from the beginning.
         if (indexPosition == -1)
+        {
+            // Note: this method shouldn't assume we're at the start of the sstable already (see #6638) and
+            // the seeks are no-op anyway if we are.
+            ifile.seek(0);
+            dfile.seek(0);
             return;
+        }
 
         ifile.seek(indexPosition);
         try
