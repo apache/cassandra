@@ -284,4 +284,34 @@ public class SSTableScannerTest extends SchemaLoader
         scanner = sstable.getScanner(new ArrayList<Range<Token>>(), null);
         assertFalse(scanner.hasNext());
     }
+
+    @Test
+    public void testSingleKeyMultipleRanges()
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(TABLE);
+        store.clearUnsafe();
+
+        // disable compaction while flushing
+        store.disableAutoCompaction();
+
+        insertRowWithKey(205);
+        store.forceBlockingFlush();
+
+        assertEquals(1, store.getSSTables().size());
+        SSTableReader sstable = store.getSSTables().iterator().next();
+
+        // full range scan
+        SSTableScanner fullScanner = sstable.getScanner();
+        assertScanContainsRanges(fullScanner, 205, 205);
+
+        // scan three ranges separately
+        ICompactionScanner scanner = sstable.getScanner(makeRanges(
+                101, 109,
+                201, 209),
+                null);
+
+        // Test for #6638 bug
+        assertScanContainsRanges(scanner, 205, 205);
+    }
 }
