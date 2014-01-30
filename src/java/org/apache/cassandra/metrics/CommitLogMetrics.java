@@ -20,8 +20,11 @@ package org.apache.cassandra.metrics;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Gauge;
 
+import com.yammer.metrics.core.Timer;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogService;
 import org.apache.cassandra.db.commitlog.CommitLogSegmentManager;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * Metrics for commit log
@@ -36,6 +39,10 @@ public class CommitLogMetrics
     public final Gauge<Long> pendingTasks;
     /** Current size used by all the commit log segments */
     public final Gauge<Long> totalCommitLogSize;
+    /** Time spent waiting for a CLS to be allocated - under normal conditions this should be zero */
+    public final Timer waitingOnSegmentAllocation;
+    /** The time spent waiting on CL sync; for Periodic this is only occurs when the sync is lagging its sync interval */
+    public final Timer waitingOnCommit;
 
     public CommitLogMetrics(final AbstractCommitLogService service, final CommitLogSegmentManager allocator)
     {
@@ -60,5 +67,7 @@ public class CommitLogMetrics
                 return allocator.bytesUsed();
             }
         });
+        waitingOnSegmentAllocation = Metrics.newTimer(factory.createMetricName("WaitingOnSegmentAllocation"), TimeUnit.MICROSECONDS, TimeUnit.SECONDS);
+        waitingOnCommit = Metrics.newTimer(factory.createMetricName("WaitingOnCommit"), TimeUnit.MICROSECONDS, TimeUnit.SECONDS);
     }
 }

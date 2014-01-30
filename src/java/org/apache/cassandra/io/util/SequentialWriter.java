@@ -37,9 +37,6 @@ public class SequentialWriter extends OutputStream
     // absolute path to the given file
     private final String filePath;
 
-    // so we can use the write(int) path w/o tons of new byte[] allocations
-    private final byte[] singleByteBuffer = new byte[1];
-
     protected byte[] buffer;
     private final boolean skipIOCache;
     private final int fd;
@@ -112,8 +109,18 @@ public class SequentialWriter extends OutputStream
 
     public void write(int value) throws ClosedChannelException
     {
-        singleByteBuffer[0] = (byte) value;
-        write(singleByteBuffer, 0, 1);
+        if (current >= bufferOffset + buffer.length)
+            reBuffer();
+
+        assert current < bufferOffset + buffer.length
+                : String.format("File (%s) offset %d, buffer offset %d.", getPath(), current, bufferOffset);
+
+        buffer[bufferCursor()] = (byte) value;
+
+        validBufferBytes += 1;
+        current += 1;
+        isDirty = true;
+        syncNeeded = true;
     }
 
     public void write(byte[] buffer) throws ClosedChannelException

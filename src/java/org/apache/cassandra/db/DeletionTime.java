@@ -24,6 +24,7 @@ import java.io.IOException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -31,8 +32,10 @@ import org.apache.cassandra.utils.ObjectSizes;
 /**
  * A top-level (row) tombstone.
  */
-public class DeletionTime implements Comparable<DeletionTime>
+public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 {
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new DeletionTime(0, 0));
+
     /**
      * A special DeletionTime that signifies that there is no top-level (row) tombstone.
      */
@@ -105,10 +108,9 @@ public class DeletionTime implements Comparable<DeletionTime>
         return atom.maxTimestamp() <= markedForDeleteAt;
     }
 
-    public long memorySize()
+    public long unsharedHeapSize()
     {
-        long fields = TypeSizes.NATIVE.sizeof(markedForDeleteAt) + TypeSizes.NATIVE.sizeof(localDeletionTime);
-        return ObjectSizes.getFieldSize(fields);
+        return EMPTY_SIZE;
     }
 
     public static class Serializer implements ISerializer<DeletionTime>

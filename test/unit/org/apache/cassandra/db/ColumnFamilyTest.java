@@ -37,7 +37,7 @@ import static org.apache.cassandra.Util.cellname;
 import static org.junit.Assert.assertEquals;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.HeapAllocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 
 
 public class ColumnFamilyTest extends SchemaLoader

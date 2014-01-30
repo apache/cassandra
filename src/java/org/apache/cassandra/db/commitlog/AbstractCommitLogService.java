@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import org.apache.cassandra.utils.WaitQueue;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
 import org.slf4j.*;
 
 import java.util.concurrent.Semaphore;
@@ -155,9 +155,11 @@ public abstract class AbstractCommitLogService
     /**
      * Sync immediately, but don't block for the sync to cmplete
      */
-    public void requestExtraSync()
+    public WaitQueue.Signal requestExtraSync()
     {
-        haveWork.release();
+        WaitQueue.Signal signal = syncComplete.register();
+        haveWork.release(1);
+        return signal;
     }
 
     public void shutdown()

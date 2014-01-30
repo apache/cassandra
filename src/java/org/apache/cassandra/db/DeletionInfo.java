@@ -25,16 +25,20 @@ import java.util.*;
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterators;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.utils.ObjectSizes;
 
 /**
  * A combination of a top-level (or row) tombstone and range tombstones describing the deletions
  * within a {@link ColumnFamily} (or row).
  */
-public class DeletionInfo
+public class DeletionInfo implements IMeasurableMemory
 {
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new DeletionInfo(0, 0));
+
     /**
      * This represents a deletion of the entire row.  We can't represent this within the RangeTombstoneList, so it's
      * kept separately.  This also slightly optimizes the common case of a full row deletion.
@@ -315,6 +319,12 @@ public class DeletionInfo
     public final int hashCode()
     {
         return Objects.hashCode(topLevel, ranges);
+    }
+
+    @Override
+    public long unsharedHeapSize()
+    {
+        return EMPTY_SIZE + topLevel.unsharedHeapSize() + (ranges == null ? 0 : ranges.unsharedHeapSize());
     }
 
     public static class Serializer implements IVersionedSerializer<DeletionInfo>

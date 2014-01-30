@@ -117,7 +117,7 @@ public class CommitLogTest extends SchemaLoader
         assert CommitLog.instance.activeSegments() == 2 : "Expecting 2 segments, got " + CommitLog.instance.activeSegments();
 
         UUID cfid2 = rm2.getColumnFamilyIds().iterator().next();
-        CommitLog.instance.discardCompletedSegments(cfid2, CommitLog.instance.getContext().get());
+        CommitLog.instance.discardCompletedSegments(cfid2, CommitLog.instance.getContext());
 
         // Assert we still have both our segment
         assert CommitLog.instance.activeSegments() == 2 : "Expecting 2 segments, got " + CommitLog.instance.activeSegments();
@@ -141,7 +141,7 @@ public class CommitLogTest extends SchemaLoader
         // "Flush": this won't delete anything
         UUID cfid1 = rm.getColumnFamilyIds().iterator().next();
         CommitLog.instance.sync(true);
-        CommitLog.instance.discardCompletedSegments(cfid1, CommitLog.instance.getContext().get());
+        CommitLog.instance.discardCompletedSegments(cfid1, CommitLog.instance.getContext());
 
         assert CommitLog.instance.activeSegments() == 1 : "Expecting 1 segment, got " + CommitLog.instance.activeSegments();
 
@@ -160,7 +160,7 @@ public class CommitLogTest extends SchemaLoader
         // didn't write anything on cf1 since last flush (and we flush cf2)
 
         UUID cfid2 = rm2.getColumnFamilyIds().iterator().next();
-        CommitLog.instance.discardCompletedSegments(cfid2, CommitLog.instance.getContext().get());
+        CommitLog.instance.discardCompletedSegments(cfid2, CommitLog.instance.getContext());
 
         // Assert we still have both our segment
         assert CommitLog.instance.activeSegments() == 1 : "Expecting 1 segment, got " + CommitLog.instance.activeSegments();

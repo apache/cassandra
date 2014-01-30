@@ -31,6 +31,7 @@ import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 
 public class OrderPreservingPartitioner extends AbstractPartitioner<StringToken>
@@ -38,6 +39,8 @@ public class OrderPreservingPartitioner extends AbstractPartitioner<StringToken>
     public static final StringToken MINIMUM = new StringToken("");
 
     public static final BigInteger CHAR_MASK = new BigInteger("65535");
+
+    private static final long EMPTY_SIZE = ObjectSizes.measure(MINIMUM);
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
@@ -167,6 +170,11 @@ public class OrderPreservingPartitioner extends AbstractPartitioner<StringToken>
             skey = ByteBufferUtil.bytesToHex(key);
         }
         return new StringToken(skey);
+    }
+
+    public long getHeapSizeOf(StringToken token)
+    {
+        return EMPTY_SIZE + ObjectSizes.sizeOf(token.token);
     }
 
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)

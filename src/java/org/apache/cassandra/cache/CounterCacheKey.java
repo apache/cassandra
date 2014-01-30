@@ -22,11 +22,17 @@ import java.util.Arrays;
 import java.util.UUID;
 
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNames;
+import org.apache.cassandra.db.composites.SimpleSparseCellName;
 import org.apache.cassandra.utils.*;
 
 public class CounterCacheKey implements CacheKey
 {
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new CounterCacheKey(null, ByteBufferUtil.EMPTY_BYTE_BUFFER, CellNames.simpleDense(ByteBuffer.allocate(1))))
+                                           + ObjectSizes.measure(new UUID(0, 0));
+
     public final UUID cfId;
     public final byte[] partitionKey;
     public final byte[] cellName;
@@ -49,11 +55,11 @@ public class CounterCacheKey implements CacheKey
         return new PathInfo(cf.left, cf.right, cfId);
     }
 
-    public long memorySize()
+    public long unsharedHeapSize()
     {
-        return ObjectSizes.getFieldSize(3 * ObjectSizes.getReferenceSize())
-             + ObjectSizes.getArraySize(partitionKey)
-             + ObjectSizes.getArraySize(cellName);
+        return EMPTY_SIZE
+               + ObjectSizes.sizeOfArray(partitionKey)
+               + ObjectSizes.sizeOfArray(cellName);
     }
 
     @Override

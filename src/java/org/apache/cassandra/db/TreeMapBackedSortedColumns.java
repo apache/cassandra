@@ -29,7 +29,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
 {
@@ -80,7 +80,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
      * If we find an old cell that has the same name
      * the ask it to resolve itself else add the new cell
     */
-    public void addColumn(Cell cell, Allocator allocator)
+    public void addColumn(Cell cell, AbstractAllocator allocator)
     {
         CellName name = cell.name();
         // this is a slightly unusual way to structure this; a more natural way is shown in ThreadSafeSortedColumns,
@@ -98,7 +98,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
     /**
      * We need to go through each column in the column container and resolve it before adding
      */
-    public void addAll(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation)
+    public void addAll(ColumnFamily cm, AbstractAllocator allocator, Function<Cell, Cell> transformation)
     {
         delete(cm.deletionInfo());
         for (Cell cell : cm)
@@ -173,4 +173,5 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
     {
         return new ColumnSlice.NavigableMapIterator(map.descendingMap(), slices);
     }
+
 }

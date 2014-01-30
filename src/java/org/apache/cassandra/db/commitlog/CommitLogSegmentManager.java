@@ -36,6 +36,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.*;
+import org.apache.cassandra.service.paxos.Commit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +51,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.WaitQueue;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
@@ -135,7 +137,7 @@ public class CommitLogSegmentManager
                                 if (spaceToReclaim + unused >= 0)
                                     break;
                             }
-                            flushDataFrom(segmentsToRecycle);
+                            flushDataFrom(segmentsToRecycle, false);
                         }
 
                         try
@@ -239,26 +241,29 @@ public class CommitLogSegmentManager
             }
 
             // no more segments, so register to receive a signal when not empty
-            WaitQueue.Signal signal = hasAvailableSegments.register();
+            WaitQueue.Signal signal = hasAvailableSegments.register(CommitLog.instance.metrics.waitingOnSegmentAllocation.time());
 
             // trigger the management thread; this must occur after registering
             // the signal to ensure we are woken by any new segment creation
             wakeManager();
 
             // check if the queue has already been added to before waiting on the signal, to catch modifications
-            // that happened prior to registering the signal
-            if (availableSegments.isEmpty())
+            // that happened prior to registering the signal; *then* check to see if we've been beaten to making the change
+            if (!availableSegments.isEmpty() || allocatingFrom != old)
             {
-                // check to see if we've been beaten to it
+                signal.cancel();
+                // if we've been beaten, just stop immediately
                 if (allocatingFrom != old)
                     return;
-
-                // can only reach here if the queue hasn't been inserted into
-                // before we registered the signal, as we only remove items from the queue
-                // after updating allocatingFrom. Can safely block until we are signalled
-                // by the allocator that new segments have been published
-                signal.awaitUninterruptibly();
+                // otherwise try again, as there should be an available segment
+                continue;
             }
+
+            // can only reach here if the queue hasn't been inserted into
+            // before we registered the signal, as we only remove items from the queue
+            // after updating allocatingFrom. Can safely block until we are signalled
+            // by the allocator that new segments have been published
+            signal.awaitUninterruptibly();
         }
     }
 
@@ -282,13 +287,12 @@ public class CommitLogSegmentManager
      */
     void forceRecycleAll()
     {
-        CommitLogSegment last = allocatingFrom;
-        last.discardUnusedTail();
         List<CommitLogSegment> segmentsToRecycle = new ArrayList<>(activeSegments);
+        CommitLogSegment last = segmentsToRecycle.get(segmentsToRecycle.size() - 1);
         advanceAllocatingFrom(last);
 
         // flush and wait for all CFs that are dirty in segments up-to and including 'last'
-        Future<?> future = flushDataFrom(segmentsToRecycle);
+        Future<?> future = flushDataFrom(segmentsToRecycle, true);
         try
         {
             future.get();
@@ -443,10 +447,14 @@ public class CommitLogSegmentManager
      *
      * @return a Future that will finish when all the flushes are complete.
      */
-    private Future<?> flushDataFrom(Collection<CommitLogSegment> segments)
+    private Future<?> flushDataFrom(List<CommitLogSegment> segments, boolean force)
     {
+        if (segments.isEmpty())
+            return Futures.immediateFuture(null);
+        final ReplayPosition maxReplayPosition = segments.get(segments.size() - 1).getContext();
+
         // a map of CfId -> forceFlush() to ensure we only queue one flush per cf
-        final Map<UUID, Future<?>> flushes = new LinkedHashMap<>();
+        final Map<UUID, ListenableFuture<?>> flushes = new LinkedHashMap<>();
 
         for (CommitLogSegment segment : segments)
         {
@@ -464,29 +472,14 @@ public class CommitLogSegmentManager
                 {
                     String keyspace = pair.left;
                     final ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(dirtyCFId);
-                    // Push the flush out to another thread to avoid potential deadlock: Table.add
-                    // acquires switchlock, and could be blocking for the manager thread.  So if the manager
-                    // thread itself tries to acquire switchlock (via flush -> switchMemtable) we'd have a problem.
-                    Runnable runnable = new Runnable()
-                    {
-                        public void run()
-                        {
-                            cfs.forceFlush();
-                        }
-                    };
-                    flushes.put(dirtyCFId, StorageService.optionalTasks.submit(runnable));
+                    // can safely call forceFlush here as we will only ever block (briefly) for other attempts to flush,
+                    // no deadlock possibility since switchLock removal
+                    flushes.put(dirtyCFId, force ? cfs.forceFlush() : cfs.forceFlush(maxReplayPosition));
                 }
             }
         }
 
-        return new FutureTask<>(new Callable<Object>()
-        {
-            public Object call()
-            {
-                FBUtilities.waitOnFutures(flushes.values());
-                return null;
-            }
-        });
+        return Futures.allAsList(flushes.values());
     }
 
     /**

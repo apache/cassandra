@@ -28,7 +28,7 @@ import java.util.Iterator;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterators;
@@ -63,12 +63,12 @@ public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
         return factory;
     }
 
-    public void addColumn(Cell cell, Allocator allocator)
+    public void addColumn(Cell cell, AbstractAllocator allocator)
     {
         throw new UnsupportedOperationException();
     }
 
-    public void addAll(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation)
+    public void addAll(ColumnFamily cm, AbstractAllocator allocator, Function<Cell, Cell> transformation)
     {
         throw new UnsupportedOperationException();
     }

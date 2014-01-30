@@ -20,7 +20,7 @@ package org.apache.cassandra.db.composites;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
  * A CellName is a Composite, but for which, for the sake of CQL3, we
@@ -70,5 +70,7 @@ public interface CellName extends Composite
     // If cellnames were sharing some prefix components, this will break it, so
     // we might want to try to do better.
     @Override
-    public CellName copy(Allocator allocator);
+    public CellName copy(AbstractAllocator allocator);
+
+    public long excessHeapSizeExcludingData();
 }

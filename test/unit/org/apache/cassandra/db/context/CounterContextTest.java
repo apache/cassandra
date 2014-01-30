@@ -30,6 +30,11 @@ import org.apache.cassandra.db.ClockAndCount;
 import org.apache.cassandra.db.context.CounterContext.Relationship;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
+import org.apache.cassandra.utils.memory.HeapPool;
+import org.apache.cassandra.utils.memory.Pool;
 
 import static org.apache.cassandra.db.context.CounterContext.ContextState;
 
@@ -44,10 +49,12 @@ public class CounterContextTest
     private static final int countLength = 8;
     private static final int stepLength = idLength + clockLength + countLength;
 
+    private static final Pool POOL = new HeapPool(Integer.MAX_VALUE, 1f, null);
+
     /** Allocates 1 byte from a new SlabAllocator and returns it. */
-    private Allocator bumpedSlab()
+    private AbstractAllocator bumpedSlab()
     {
-        SlabAllocator allocator = new SlabAllocator();
+        AbstractAllocator allocator = POOL.newAllocator(new OpOrder());
         allocator.allocate(1);
         return allocator;
     }
@@ -59,7 +66,7 @@ public class CounterContextTest
         runAllocate(bumpedSlab());
     }
 
-    private void runAllocate(Allocator allocator)
+    private void runAllocate(AbstractAllocator allocator)
     {
         ContextState allGlobal = ContextState.allocate(3, 0, 0, allocator);
         assertEquals(headerSizeLength + 3 * headerEltLength + 3 * stepLength, allGlobal.context.remaining());
@@ -81,7 +88,7 @@ public class CounterContextTest
         runDiff(bumpedSlab());
     }
 
-    private void runDiff(Allocator allocator)
+    private void runDiff(AbstractAllocator allocator)
     {
         ContextState left;
         ContextState right;
@@ -262,7 +269,7 @@ public class CounterContextTest
         runMerge(bumpedSlab());
     }
 
-    private void runMerge(Allocator allocator)
+    private void runMerge(AbstractAllocator allocator)
     {
         // note: local counts aggregated; remote counts are reconciled (i.e. take max)
         ContextState left = ContextState.allocate(0, 1, 3, allocator);
@@ -389,7 +396,7 @@ public class CounterContextTest
         runTotal(bumpedSlab());
     }
 
-    private void runTotal(Allocator allocator)
+    private void runTotal(AbstractAllocator allocator)
     {
         ContextState mixed = ContextState.allocate(0, 1, 4, allocator);
         mixed.writeRemote(CounterId.fromInt(1), 1L, 1L);
@@ -412,7 +419,7 @@ public class CounterContextTest
         ContextState state;
         ByteBuffer marked;
         ByteBuffer cleared;
-        Allocator allocator = HeapAllocator.instance;
+        AbstractAllocator allocator = HeapAllocator.instance;
 
         // mark/clear for remote-only contexts is a no-op
         state = ContextState.allocate(0, 0, 1, allocator);

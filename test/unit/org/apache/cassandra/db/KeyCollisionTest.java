@@ -167,6 +167,12 @@ public class KeyCollisionTest extends SchemaLoader
             return new BigIntegerToken(BigInteger.valueOf(key.remaining()));
         }
 
+        @Override
+        public long getHeapSizeOf(BigIntegerToken token)
+        {
+            return 0;
+        }
+
         public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
         {
             // allTokens will contain the count and be returned, sorted_ranges is shorthand for token<->token math.

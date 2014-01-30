@@ -27,6 +27,8 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -87,7 +89,7 @@ public class CounterCellTest extends SchemaLoader
 
         ByteBuffer context;
 
-        Allocator allocator = HeapAllocator.instance;
+        AbstractAllocator allocator = HeapAllocator.instance;
 
         // tombstone + tombstone
         left  = new DeletedCell(cellname("x"), 1, 1L);
@@ -207,7 +209,7 @@ public class CounterCellTest extends SchemaLoader
     @Test
     public void testDiff() throws UnknownHostException
     {
-        Allocator allocator = HeapAllocator.instance;
+        AbstractAllocator allocator = HeapAllocator.instance;
         ContextState left;
         ContextState right;
 
@@ -278,7 +280,7 @@ public class CounterCellTest extends SchemaLoader
     @Test
     public void testSerializeDeserialize() throws IOException
     {
-        Allocator allocator = HeapAllocator.instance;
+        AbstractAllocator allocator = HeapAllocator.instance;
         CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 2, 2, allocator);
         state.writeRemote(CounterId.fromInt(1), 4L, 4L);
         state.writeLocal(CounterId.fromInt(2), 4L, 4L);
@@ -311,7 +313,7 @@ public class CounterCellTest extends SchemaLoader
     @Test
     public void testUpdateDigest() throws Exception
     {
-        Allocator allocator = HeapAllocator.instance;
+        AbstractAllocator allocator = HeapAllocator.instance;
         MessageDigest digest1 = MessageDigest.getInstance("md5");
         MessageDigest digest2 = MessageDigest.getInstance("md5");
 

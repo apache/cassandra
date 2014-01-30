@@ -27,7 +27,7 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
  * A ColumnFamily that allows inserting in any order, even unsorted.
@@ -79,12 +79,12 @@ public class UnsortedColumns extends AbstractThreadUnsafeSortedColumns
         cells.clear();
     }
 
-    public void addColumn(Cell cell, Allocator allocator)
+    public void addColumn(Cell cell, AbstractAllocator allocator)
     {
         cells.add(cell);
     }
 
-    public void addAll(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation)
+    public void addAll(ColumnFamily cm, AbstractAllocator allocator, Function<Cell, Cell> transformation)
     {
         delete(cm.deletionInfo());
         for (Cell cell : cm)
@@ -141,4 +141,5 @@ public class UnsortedColumns extends AbstractThreadUnsafeSortedColumns
     {
         throw new UnsupportedOperationException();
     }
+
 }

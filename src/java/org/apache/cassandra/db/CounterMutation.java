@@ -33,6 +33,9 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
@@ -134,7 +137,7 @@ public class CounterMutation implements IMutation
     // Replaces all the CounterUpdateCell-s with updated regular CounterCell-s
     private ColumnFamily processModifications(ColumnFamily changesCF)
     {
-        Allocator allocator = HeapAllocator.instance;
+        AbstractAllocator allocator = HeapAllocator.instance;
         ColumnFamilyStore cfs = Keyspace.open(getKeyspaceName()).getColumnFamilyStore(changesCF.id());
 
         ColumnFamily resultCF = changesCF.cloneMeShallow();

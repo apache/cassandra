@@ -357,7 +357,7 @@
           </dependency>
           <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
           <dependency groupId="com.github.stephenc.high-scale-lib" artifactId="high-scale-lib" version="1.1.2"/>
-          <dependency groupId="com.github.stephenc" artifactId="jamm" version="0.2.5"/>
+          <dependency groupId="com.github.stephenc" artifactId="jamm" version="0.2.6"/>
           <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.3">
 	      	<exclusion groupId="org.slf4j" artifactId="slf4j-log4j12"/>
           </dependency>
@@ -656,7 +656,7 @@
           <pathelement location="${test.conf}"/>
         </classpath>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
-        <jvmarg value="-javaagent:${basedir}/lib/jamm-0.2.5.jar" />
+        <jvmarg value="-javaagent:${basedir}/lib/jamm-0.2.6.jar" />
         <jvmarg value="-ea"/>
       </java>
     </target>
@@ -1051,7 +1051,7 @@
         <formatter type="brief" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Djava.awt.headless=true"/>
-        <jvmarg value="-javaagent:${basedir}/lib/jamm-0.2.5.jar" />
+        <jvmarg value="-javaagent:${basedir}/lib/jamm-0.2.6.jar" />
         <jvmarg value="-ea"/>
         <jvmarg value="-Xss256k"/>
         <optjvmargs/>

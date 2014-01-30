@@ -59,7 +59,7 @@ public class CommitLog implements CommitLogMBean
 
     public final CommitLogSegmentManager allocator;
     public final CommitLogArchiver archiver = new CommitLogArchiver();
-    private final CommitLogMetrics metrics;
+    final CommitLogMetrics metrics;
     final AbstractCommitLogService executor;
 
     private CommitLog()
@@ -151,9 +151,9 @@ public class CommitLog implements CommitLogMBean
      * @return a Future representing a ReplayPosition such that when it is ready,
      * all Allocations created prior to the getContext call will be written to the log
      */
-    public Future<ReplayPosition> getContext()
+    public ReplayPosition getContext()
     {
-        return Futures.immediateFuture(allocator.allocatingFrom().getContext());
+        return allocator.allocatingFrom().getContext();
     }
 
     /**
@@ -191,18 +191,26 @@ public class CommitLog implements CommitLogMBean
      *
      * @param mutation the Mutation to add to the log
      */
-    public void add(Mutation mutation)
+    public ReplayPosition add(Mutation mutation)
     {
+        Allocation alloc = add(mutation, new Allocation());
+        return alloc.getReplayPosition();
+    }
+
+    private Allocation add(Mutation mutation, Allocation alloc)
+    {
+        assert mutation != null;
+
         long size = Mutation.serializer.serializedSize(mutation, MessagingService.current_version);
 
         long totalSize = size + ENTRY_OVERHEAD_SIZE;
         if (totalSize > MAX_MUTATION_SIZE)
         {
             logger.warn("Skipping commitlog append of extremely large mutation ({} bytes)", totalSize);
-            return;
+            return alloc;
         }
 
-        Allocation alloc = allocator.allocate(mutation, (int) totalSize, new Allocation());
+        allocator.allocate(mutation, (int) totalSize, alloc);
         try
         {
             PureJavaCrc32 checksum = new PureJavaCrc32();
@@ -227,6 +235,7 @@ public class CommitLog implements CommitLogMBean
         }
 
         executor.finishWriteFor(alloc);
+        return alloc;
     }
 
     /**

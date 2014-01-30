@@ -20,6 +20,9 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+
+import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
@@ -385,17 +388,17 @@ public class RangeTombstoneTest extends SchemaLoader
             deletes.clear();
         }
 
-        public void delete(ByteBuffer rowKey, Cell col)
+        public void delete(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup)
         {
             deletes.add(col);
         }
 
-        public void insert(ByteBuffer rowKey, Cell col)
+        public void insert(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup)
         {
             inserts.add(col);
         }
 
-        public void update(ByteBuffer rowKey, Cell col){}
+        public void update(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup){}
 
         public void init(){}
 
@@ -409,7 +412,12 @@ public class RangeTombstoneTest extends SchemaLoader
 
         public void forceBlockingFlush(){}
 
-        public long getLiveSize(){ return 0; }
+        @Override
+        public AbstractAllocator getOnHeapAllocator()
+        {
+            return null;
+        }
+
 
         public ColumnFamilyStore getIndexCfs(){ return null; }
 

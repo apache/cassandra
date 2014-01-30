@@ -31,6 +31,9 @@ import java.util.UUID;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 import org.apache.cassandra.cache.IRowCacheEntry;
@@ -198,7 +201,7 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
      * If a cell with the same name is already present in the map, it will
      * be replaced by the newly added cell.
      */
-    public abstract void addColumn(Cell cell, Allocator allocator);
+    public abstract void addColumn(Cell cell, AbstractAllocator allocator);
 
     /**
      * Adds all the columns of a given column map to this column map.
@@ -209,7 +212,7 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
      *   </code>
      *  but is potentially faster.
      */
-    public abstract void addAll(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation);
+    public abstract void addAll(ColumnFamily cm, AbstractAllocator allocator, Function<Cell, Cell> transformation);
 
     /**
      * Replace oldCell if present by newCell.
@@ -282,7 +285,7 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
         delete(columns.deletionInfo());
     }
 
-    public void addAll(ColumnFamily cf, Allocator allocator)
+    public void addAll(ColumnFamily cf, AbstractAllocator allocator)
     {
         addAll(cf, allocator, Functions.<Cell>identity());
     }
@@ -404,7 +407,7 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
         resolve(cf, HeapAllocator.instance);
     }
 
-    public void resolve(ColumnFamily cf, Allocator allocator)
+    public void resolve(ColumnFamily cf, AbstractAllocator allocator)
     {
         // Row _does_ allow null CF objects :(  seems a necessary evil for efficiency
         if (cf == null)

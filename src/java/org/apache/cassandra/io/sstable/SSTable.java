@@ -37,7 +37,7 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.HeapAllocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -125,7 +125,7 @@ public abstract class SSTable
      */
     public static DecoratedKey getMinimalKey(DecoratedKey key)
     {
-        return key.key.position() > 0 || key.key.hasRemaining()
+        return key.key.position() > 0 || key.key.hasRemaining() || !key.key.hasArray()
                                        ? new DecoratedKey(key.token, HeapAllocator.instance.clone(key.key))
                                        : key;
     }

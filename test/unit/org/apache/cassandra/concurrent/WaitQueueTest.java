@@ -1,6 +1,6 @@
 package org.apache.cassandra.concurrent;
 
-import org.apache.cassandra.utils.WaitQueue;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
 import org.junit.*;
 
 import java.util.concurrent.atomic.AtomicBoolean;

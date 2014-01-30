@@ -20,12 +20,16 @@ package org.apache.cassandra.db.composites;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.PoolAllocator;
 
 public class CompoundSparseCellName extends CompoundComposite implements CellName
 {
     private static final ByteBuffer[] EMPTY_PREFIX = new ByteBuffer[0];
+
+    private static final long HEAP_SIZE = ObjectSizes.measure(new CompoundSparseCellName(null));
 
     protected final ColumnIdentifier columnName;
 
@@ -89,7 +93,7 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         return true;
     }
 
-    public CellName copy(Allocator allocator)
+    public CellName copy(AbstractAllocator allocator)
     {
         if (elements.length == 0)
             return this;
@@ -98,15 +102,10 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         return new CompoundSparseCellName(elementsCopy(allocator), columnName);
     }
 
-    @Override
-    public long memorySize()
-    {
-        return ObjectSizes.getSuperClassFieldSize(super.memorySize())
-             + ObjectSizes.getFieldSize(ObjectSizes.getReferenceSize()) + columnName.memorySize();
-    }
-
     public static class WithCollection extends CompoundSparseCellName
     {
+        private static final long HEAP_SIZE = ObjectSizes.measure(new WithCollection(null, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+
         private final ByteBuffer collectionElement;
 
         WithCollection(ColumnIdentifier columnName, ByteBuffer collectionElement)
@@ -148,17 +147,29 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         }
 
         @Override
-        public CellName copy(Allocator allocator)
+        public CellName copy(AbstractAllocator allocator)
         {
             // We don't copy columnName because it's interned in SparseCellNameType
             return new CompoundSparseCellName.WithCollection(elements.length == 0 ? elements : elementsCopy(allocator), size, columnName, allocator.clone(collectionElement));
         }
 
         @Override
-        public long memorySize()
+        public long unsharedHeapSize()
         {
-            return ObjectSizes.getSuperClassFieldSize(super.memorySize())
-                 + ObjectSizes.getFieldSize(ObjectSizes.getReferenceSize()) + ObjectSizes.getSize(collectionElement);
+            return super.unsharedHeapSize() + ObjectSizes.sizeOnHeapOf(collectionElement);
+        }
+
+        @Override
+        public long excessHeapSizeExcludingData()
+        {
+            return super.excessHeapSizeExcludingData() + ObjectSizes.sizeOnHeapExcludingData(collectionElement);
+        }
+
+        @Override
+        public void free(PoolAllocator<?> allocator)
+        {
+            super.free(allocator);
+            allocator.free(collectionElement);
         }
     }
 }

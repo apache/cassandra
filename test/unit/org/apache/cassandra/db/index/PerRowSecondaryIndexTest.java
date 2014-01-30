@@ -18,11 +18,12 @@
 package org.apache.cassandra.db.index;
 
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Set;
 
+import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -137,7 +138,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         }
 
         @Override
-        public void delete(DecoratedKey key)
+        public void delete(DecoratedKey key, OpOrder.Group opGroup)
         {
         }
 
@@ -174,9 +175,9 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         }
 
         @Override
-        public long getLiveSize()
+        public AbstractAllocator getOnHeapAllocator()
         {
-            return 0;
+            return null;
         }
 
         @Override

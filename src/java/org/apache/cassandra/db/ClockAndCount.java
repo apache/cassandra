@@ -24,6 +24,9 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 public class ClockAndCount implements IMeasurableMemory
 {
+
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new ClockAndCount(0, 0));
+
     public static ClockAndCount BLANK = ClockAndCount.create(0L, 0L);
 
     public final long clock;
@@ -40,10 +43,9 @@ public class ClockAndCount implements IMeasurableMemory
         return new ClockAndCount(clock, count);
     }
 
-    public long memorySize()
+    public long unsharedHeapSize()
     {
-        return ObjectSizes.getFieldSize(TypeSizes.NATIVE.sizeof(clock))
-             + ObjectSizes.getFieldSize(TypeSizes.NATIVE.sizeof(count));
+        return EMPTY_SIZE;
     }
 
     @Override

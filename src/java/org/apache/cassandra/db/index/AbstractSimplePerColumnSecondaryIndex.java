@@ -18,7 +18,10 @@
 package org.apache.cassandra.db.index;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.Future;
 
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
@@ -27,6 +30,7 @@ import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
  * Implements a secondary index for a column family using a second column family
@@ -84,6 +88,21 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
     public void delete(ByteBuffer rowKey, Cell cell)
     {
+        throw new IllegalStateException();
+    }
+
+    public void insert(ByteBuffer rowKey, Cell cell)
+    {
+        throw new IllegalStateException();
+    }
+
+    public void update(ByteBuffer rowKey, Cell cell)
+    {
+        throw new IllegalStateException();
+    }
+
+    public void delete(ByteBuffer rowKey, Cell cell, OpOrder.Group opGroup)
+    {
         if (cell.isMarkedForDelete(System.currentTimeMillis()))
             return;
 
@@ -91,12 +110,12 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
         ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
         cfi.addTombstone(makeIndexColumnName(rowKey, cell), localDeletionTime, cell.timestamp());
-        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater);
+        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
         if (logger.isDebugEnabled())
             logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
     }
 
-    public void insert(ByteBuffer rowKey, Cell cell)
+    public void insert(ByteBuffer rowKey, Cell cell, OpOrder.Group opGroup)
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, cell));
         ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
@@ -113,12 +132,12 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         if (logger.isDebugEnabled())
             logger.debug("applying index row {} in {}", indexCfs.metadata.getKeyValidator().getString(valueKey.key), cfi);
 
-        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater);
+        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
     }
 
-    public void update(ByteBuffer rowKey, Cell col)
+    public void update(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup)
     {
-        insert(rowKey, col);
+        insert(rowKey, col, opGroup);
     }
 
     public void removeIndex(ByteBuffer columnName)
@@ -128,7 +147,13 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
     public void forceBlockingFlush()
     {
-        indexCfs.forceBlockingFlush();
+        Future<?> wait;
+        // we synchronise on the baseCfs to make sure we are ordered correctly with other flushes to the base CFS
+        synchronized (baseCfs.getDataTracker())
+        {
+            wait = indexCfs.forceFlush();
+        }
+        FBUtilities.waitOnFuture(wait);
     }
 
     public void invalidate()
@@ -151,9 +176,9 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         return indexCfs.name;
     }
 
-    public long getLiveSize()
+    public AbstractAllocator getOnHeapAllocator()
     {
-        return indexCfs.getMemtableDataSize();
+        return indexCfs.getDataTracker().getView().getCurrentMemtable().getAllocator();
     }
 
     public void reload()

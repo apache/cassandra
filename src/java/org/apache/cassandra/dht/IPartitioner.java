@@ -56,6 +56,13 @@ public interface IPartitioner<T extends Token>
     public T getToken(ByteBuffer key);
 
     /**
+     *
+     * @param token
+     * @return the on-heap memory used by the provided token
+     */
+    public long getHeapSizeOf(T token);
+
+    /**
      * @return a randomly generated token
      */
     public T getRandomToken();

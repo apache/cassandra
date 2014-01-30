@@ -79,6 +79,7 @@ public class Config
 
     public Integer memtable_flush_writers = null; // will get set to the length of data dirs in DatabaseDescriptor
     public Integer memtable_total_space_in_mb;
+    public float memtable_cleanup_threshold = 0.4f;
 
     public Integer storage_port = 7000;
     public Integer ssl_storage_port = 7001;
@@ -160,7 +161,6 @@ public class Config
     public boolean compaction_preheat_key_cache = true;
 
     public volatile boolean incremental_backups = false;
-    public int memtable_flush_queue_size = 4;
     public boolean trickle_fsync = false;
     public int trickle_fsync_interval_in_kb = 10240;
 
@@ -187,7 +187,7 @@ public class Config
 
     public boolean inter_dc_tcp_nodelay = true;
 
-    public String memtable_allocator = "SlabAllocator";
+    public String memtable_allocator = "HeapSlabPool";
 
     private static boolean outboundBindAny = false;
 

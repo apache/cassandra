@@ -83,7 +83,7 @@ public class SimpleSparseCellNameType extends AbstractSimpleCellNameType
 
     public void addCQL3Column(ColumnIdentifier id)
     {
-        internedNames.put(id.bytes, new SimpleSparseCellName(id));
+        internedNames.put(id.bytes, new SimpleSparseInternedCellName(id));
     }
 
     public void removeCQL3Column(ColumnIdentifier id)

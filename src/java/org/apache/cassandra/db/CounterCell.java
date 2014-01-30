@@ -20,15 +20,15 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.Allocator;
-import org.apache.cassandra.utils.*;
 
 /**
  * A column that represents a partitioned counter.
@@ -142,7 +142,7 @@ public class CounterCell extends Cell
     }
 
     @Override
-    public Cell reconcile(Cell cell, Allocator allocator)
+    public Cell reconcile(Cell cell, AbstractAllocator allocator)
     {
         // live + tombstone: track last tombstone
         if (cell.isMarkedForDelete(Long.MIN_VALUE)) // cannot be an expired cell, so the current time is irrelevant
@@ -190,7 +190,7 @@ public class CounterCell extends Cell
     }
 
     @Override
-    public Cell localCopy(ColumnFamilyStore cfs, Allocator allocator)
+    public Cell localCopy(ColumnFamilyStore cfs, AbstractAllocator allocator)
     {
         return new CounterCell(name.copy(allocator), allocator.clone(value), timestamp, timestampOfLastDelete);
     }

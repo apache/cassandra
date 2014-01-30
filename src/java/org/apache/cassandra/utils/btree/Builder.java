@@ -3,9 +3,6 @@ package org.apache.cassandra.utils.btree;
 import java.util.Collection;
 import java.util.Comparator;
 
-import com.google.common.base.Function;
-
-import static org.apache.cassandra.utils.btree.BTree.EMPTY_BRANCH;
 import static org.apache.cassandra.utils.btree.BTree.EMPTY_LEAF;
 import static org.apache.cassandra.utils.btree.BTree.FAN_SHIFT;
 import static org.apache.cassandra.utils.btree.BTree.POSITIVE_INFINITY;
@@ -40,21 +37,21 @@ final class Builder
      * we assume @param source has been sorted, e.g. by BTree.update, so the update of each key resumes where
      * the previous left off.
      */
-    public <V> Object[] update(Object[] btree, Comparator<V> comparator, Collection<V> source, ReplaceFunction<V> replaceF, Function<?, Boolean> terminateEarly)
+    public <V> Object[] update(Object[] btree, Comparator<V> comparator, Collection<V> source, UpdateFunction<V> updateF)
     {
         NodeBuilder current = rootBuilder;
-        current.reset(btree, POSITIVE_INFINITY);
+        current.reset(btree, POSITIVE_INFINITY, updateF, comparator);
 
         for (V key : source)
         {
             while (true)
             {
-                if (terminateEarly != null && terminateEarly.apply(null) == Boolean.TRUE)
+                if (updateF != null && updateF.abortEarly())
                 {
                     rootBuilder.clear();
                     return null;
                 }
-                NodeBuilder next = current.update(key, comparator, replaceF);
+                NodeBuilder next = current.update(key);
                 if (next == null)
                     break;
                 // we were in a subtree from a previous key that didn't contain this new key;
@@ -66,7 +63,7 @@ final class Builder
         // finish copying any remaining keys from the original btree
         while (true)
         {
-            NodeBuilder next = current.update(POSITIVE_INFINITY, comparator, replaceF);
+            NodeBuilder next = current.update(POSITIVE_INFINITY);
             if (next == null)
                 break;
             current = next;
@@ -88,9 +85,9 @@ final class Builder
         while ((size >>= FAN_SHIFT) > 0)
             current = current.ensureChild();
 
-        current.reset(EMPTY_LEAF, POSITIVE_INFINITY);
+        current.reset(EMPTY_LEAF, POSITIVE_INFINITY, null, null);
         for (V key : source)
-            current.addNewKey(key, null);
+            current.addNewKey(key);
 
         current = current.ascendToRoot();
 

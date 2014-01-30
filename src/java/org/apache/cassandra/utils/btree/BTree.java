@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Comparator;
 
 import com.google.common.base.Function;
+import org.apache.cassandra.utils.ObjectSizes;
 import com.google.common.collect.Collections2;
 
 public class BTree
@@ -73,7 +74,7 @@ public class BTree
      * @param <V>
      * @return
      */
-    public static <V> Object[] build(Collection<V> source, Comparator<V> comparator, boolean sorted)
+    public static <V> Object[] build(Collection<V> source, Comparator<V> comparator, boolean sorted, UpdateFunction<V> updateF)
     {
         int size = source.size();
 
@@ -84,6 +85,12 @@ public class BTree
             // inline sorting since we're already calling toArray
             if (!sorted)
                 Arrays.sort(values, 0, size, comparator);
+            if (updateF != null)
+            {
+                for (int i = 0 ; i < size ; i++)
+                    values[i] = updateF.apply(values[i]);
+                updateF.allocated(ObjectSizes.sizeOfArray(values));
+            }
             return values;
         }
 
@@ -105,7 +112,7 @@ public class BTree
      */
     public static <V> Object[] update(Object[] btree, Comparator<V> comparator, Collection<V> updateWith, boolean updateWithIsSorted)
     {
-        return update(btree, comparator, updateWith, updateWithIsSorted, null, null);
+        return update(btree, comparator, updateWith, updateWithIsSorted, null);
     }
 
     /**
@@ -115,9 +122,7 @@ public class BTree
      * @param comparator         the comparator that defines the ordering over the items in the tree
      * @param updateWith         the items to either insert / update
      * @param updateWithIsSorted if false, updateWith will be copied and sorted to facilitate construction
-     * @param replaceF           a function to apply to a pair we are swapping
-     * @param terminateEarly     a function that returns Boolean.TRUE if we should terminate before finishing our work.
-     *                           the argument to terminateEarly is ignored.
+     * @param updateF            the update function to apply to any pairs we are swapping, and maybe abort early
      * @param <V>
      * @return
      */
@@ -125,15 +130,10 @@ public class BTree
                                       Comparator<V> comparator,
                                       Collection<V> updateWith,
                                       boolean updateWithIsSorted,
-                                      ReplaceFunction<V> replaceF,
-                                      Function<?, Boolean> terminateEarly)
+                                      UpdateFunction<V> updateF)
     {
         if (btree.length == 0)
-        {
-            if (replaceF != null)
-                updateWith = Collections2.transform(updateWith, replaceF);
-            return build(updateWith, comparator, updateWithIsSorted);
-        }
+            return build(updateWith, comparator, updateWithIsSorted, updateF);
 
         if (!updateWithIsSorted)
             updateWith = sorted(updateWith, comparator, updateWith.size());
@@ -167,13 +167,13 @@ public class BTree
                 {
                     // apply replaceF if it matches an existing element
                     btreeOffset++;
-                    if (replaceF != null)
-                        v = replaceF.apply((V) btree[i], v);
+                    if (updateF != null)
+                        v = updateF.apply((V) btree[i], v);
                 }
-                else if (replaceF != null)
+                else if (updateF != null)
                 {
                     // new element but still need to apply replaceF to handle indexing and size-tracking
-                    v = replaceF.apply(v);
+                    v = updateF.apply(v);
                 }
 
                 merged[mergedCount++] = v;
@@ -187,19 +187,15 @@ public class BTree
                 mergedCount += count;
             }
 
-            if (mergedCount > FAN_FACTOR)
-            {
-                // TODO this code will never execute since QUICK_MERGE_LIMIT == FAN_FACTOR
-                int mid = (mergedCount >> 1) & ~1; // divide by two, rounding down to an even number
-                return new Object[] { merged[mid],
-                                      Arrays.copyOfRange(merged, 0, mid),
-                                      Arrays.copyOfRange(merged, 1 + mid, mergedCount + ((mergedCount + 1) & 1)), };
-            }
+            assert mergedCount <= FAN_FACTOR;
 
-            return Arrays.copyOfRange(merged, 0, mergedCount + (mergedCount & 1));
+            Object[] r = Arrays.copyOfRange(merged, 0, mergedCount + (mergedCount & 1));
+            if (updateF != null)
+                updateF.allocated(ObjectSizes.sizeOfArray(r) - (btree.length == 0 ? 0 : ObjectSizes.sizeOfArray(btree)));
+            return r;
         }
 
-        return modifier.get().update(btree, comparator, updateWith, replaceF, terminateEarly);
+        return modifier.get().update(btree, comparator, updateWith, updateF);
     }
 
     /**

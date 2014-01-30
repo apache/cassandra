@@ -20,7 +20,7 @@ public class BTreeSet<V> implements NavigableSet<V>
 
     public BTreeSet<V> update(Collection<V> updateWith, boolean isSorted)
     {
-        return new BTreeSet<>(BTree.update(tree, comparator, updateWith, isSorted, null, null), comparator);
+        return new BTreeSet<>(BTree.update(tree, comparator, updateWith, isSorted, null), comparator);
     }
 
     @Override

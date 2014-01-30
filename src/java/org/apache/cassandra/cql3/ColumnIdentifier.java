@@ -22,18 +22,21 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.cql3.statements.Selectable;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
  * Represents an identifer for a CQL column definition.
+ * TODO : should support light-weight mode without text representation for when not interned
  */
 public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier>, IMeasurableMemory
 {
     public final ByteBuffer bytes;
     private final String text;
+
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new ColumnIdentifier("", true));
 
     public ColumnIdentifier(String rawText, boolean keepCase)
     {
@@ -45,6 +48,12 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
     {
         this.bytes = bytes;
         this.text = type.getString(bytes);
+    }
+
+    private ColumnIdentifier(ByteBuffer bytes, String text)
+    {
+        this.bytes = bytes;
+        this.text = text;
     }
 
     @Override
@@ -73,11 +82,18 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
         return text;
     }
 
-    public long memorySize()
+    public long unsharedHeapSize()
     {
-        return ObjectSizes.getFieldSize(2 * ObjectSizes.getReferenceSize())
-             + ObjectSizes.getSize(bytes)
-             + TypeSizes.NATIVE.sizeof(text);
+        return EMPTY_SIZE
+             + ObjectSizes.sizeOnHeapOf(bytes)
+             + ObjectSizes.sizeOf(text);
+    }
+
+    public long excessHeapSizeExcludingData()
+    {
+        return EMPTY_SIZE
+             + ObjectSizes.sizeOnHeapExcludingData(bytes)
+             + ObjectSizes.sizeOf(text);
     }
 
     public int compareTo(ColumnIdentifier other)
@@ -87,4 +103,10 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
 
         return bytes.compareTo(other.bytes);
     }
+
+    public ColumnIdentifier clone(AbstractAllocator allocator)
+    {
+        return new ColumnIdentifier(allocator.clone(bytes), text);
+    }
+
 }

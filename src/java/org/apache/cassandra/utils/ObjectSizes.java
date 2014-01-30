@@ -21,242 +21,143 @@ package org.apache.cassandra.utils;
  */
 
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryPoolMXBean;
 import java.nio.ByteBuffer;
 
+import org.github.jamm.MemoryLayoutSpecification;
 import org.github.jamm.MemoryMeter;
 
 /**
- * Modified version of the code from.
- * https://github.com/twitter/commons/blob/master
- * /src/java/com/twitter/common/objectsize/ObjectSizeCalculator.java
- *
- * Difference is that we don't use reflection.
+ * A convenience class for wrapping access to MemoryMeter
  */
 public class ObjectSizes
 {
-    public static final MemoryLayoutSpecification SPEC = getEffectiveMemoryLayoutSpecification();
-    private static final MemoryMeter meter = new MemoryMeter().omitSharedBufferOverhead();
+    private static final MemoryMeter meter = new MemoryMeter()
+                                             .omitSharedBufferOverhead()
+                                             .withGuessing(MemoryMeter.Guess.FALLBACK_UNSAFE);
 
-    /**
-     * Describes constant memory overheads for various constructs in a JVM
-     * implementation.
-     */
-    public interface MemoryLayoutSpecification
-    {
-        int getArrayHeaderSize();
-
-        int getObjectHeaderSize();
-
-        int getObjectPadding();
-
-        int getReferenceSize();
-
-        int getSuperclassFieldPadding();
-    }
-
-    /**
-     * Memory a class consumes, including the object header and the size of the fields.
-     * @param fieldsSize Total size of the primitive fields of a class
-     * @return Total in-memory size of the class
-     */
-    public static long getFieldSize(long fieldsSize)
-    {
-        return roundTo(SPEC.getObjectHeaderSize() + fieldsSize, SPEC.getObjectPadding());
-    }
-
-    /**
-     * Memory a super class consumes, given the primitive field sizes
-     * @param fieldsSize Total size of the primitive fields of the super class
-     * @return Total additional in-memory that the super class takes up
-     */
-    public static long getSuperClassFieldSize(long fieldsSize)
-    {
-        return roundTo(fieldsSize, SPEC.getSuperclassFieldPadding());
-    }
-
-    /**
-     * Memory an array will consume
-     * @param length Number of elements in the array
-     * @param elementSize In-memory size of each element's primitive stored
-     * @return In-memory size of the array
-     */
-    public static long getArraySize(int length, long elementSize)
-    {
-        return roundTo(SPEC.getArrayHeaderSize() + length * elementSize, SPEC.getObjectPadding());
-    }
+    private static final long BUFFER_EMPTY_SIZE = measure(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+    private static final long STRING_EMPTY_SIZE = measure("");
 
     /**
      * Memory a byte array consumes
      * @param bytes byte array to get memory size
-     * @return In-memory size of the array
+     * @return heap-size of the array
      */
-    public static long getArraySize(byte[] bytes)
+    public static long sizeOfArray(byte[] bytes)
     {
-        return getArraySize(bytes.length, 1);
+        return sizeOfArray(bytes.length, 1);
+    }
+
+    /**
+     * Memory a long array consumes
+     * @param longs byte array to get memory size
+     * @return heap-size of the array
+     */
+    public static long sizeOfArray(long[] longs)
+    {
+        return sizeOfArray(longs.length, 8);
+    }
+
+    /**
+     * Memory an int array consumes
+     * @param ints byte array to get memory size
+     * @return heap-size of the array
+     */
+    public static long sizeOfArray(int[] ints)
+    {
+        return sizeOfArray(ints.length, 4);
+    }
+
+    /**
+     * Memory a reference array consumes
+     * @param length the length of the reference array
+     * @return heap-size of the array
+     */
+    public static long sizeOfReferenceArray(int length)
+    {
+        return sizeOfArray(length, MemoryLayoutSpecification.SPEC.getReferenceSize());
+    }
+
+    /**
+     * Memory a reference array consumes itself only
+     * @param objects the array to size
+     * @return heap-size of the array (excluding memory retained by referenced objects)
+     */
+    public static long sizeOfArray(Object[] objects)
+    {
+        return sizeOfReferenceArray(objects.length);
+    }
+
+    private static long sizeOfArray(int length, long elementSize)
+    {
+        return MemoryLayoutSpecification.sizeOfArray(length, elementSize);
     }
 
     /**
      * Memory a ByteBuffer array consumes.
      */
-    public static long getArraySize(ByteBuffer[] array)
+    public static long sizeOnHeapOf(ByteBuffer[] array)
     {
         long allElementsSize = 0;
         for (int i = 0; i < array.length; i++)
             if (array[i] != null)
-                allElementsSize += getSize(array[i]);
+                allElementsSize += sizeOnHeapOf(array[i]);
 
-        return allElementsSize + getArraySize(array.length, getReferenceSize());
+        return allElementsSize + sizeOfArray(array);
     }
 
+    public static long sizeOnHeapExcludingData(ByteBuffer[] array)
+    {
+        return BUFFER_EMPTY_SIZE * array.length + sizeOfArray(array);
+    }
     /**
      * Memory a byte buffer consumes
      * @param buffer ByteBuffer to calculate in memory size
      * @return Total in-memory size of the byte buffer
      */
-    public static long getSize(ByteBuffer buffer)
+    public static long sizeOnHeapOf(ByteBuffer buffer)
     {
-        long size = 0;
-        /* BB Class */
-        // final byte[] hb;
-        // final int offset;
-        // boolean isReadOnly;
-        size += ObjectSizes.getFieldSize(1L + 4 + ObjectSizes.getReferenceSize() + ObjectSizes.getArraySize(buffer.capacity(), 1));
-        /* Super Class */
-        // private int mark;
-        // private int position;
-        // private int limit;
-        // private int capacity;
-        size += ObjectSizes.getSuperClassFieldSize(4L + 4 + 4 + 4 + 8);
-        return size;
+        if (buffer.isDirect())
+            return BUFFER_EMPTY_SIZE;
+        // if we're only referencing a sub-portion of the ByteBuffer, don't count the array overhead (assume it's slab
+        // allocated, so amortized over all the allocations the overhead is negligible and better to undercount than over)
+        if (buffer.capacity() > buffer.remaining())
+            return buffer.remaining();
+        return BUFFER_EMPTY_SIZE + sizeOfArray(buffer.capacity(), 1);
     }
 
-    public static long roundTo(long x, int multiple)
+    public static long sizeOnHeapExcludingData(ByteBuffer buffer)
     {
-        return ((x + multiple - 1) / multiple) * multiple;
+        return BUFFER_EMPTY_SIZE;
     }
 
     /**
-     * @return Memory a reference consumes on the current architecture.
+     * Memory a String consumes
+     * @param str String to calculate memory size of
+     * @return Total in-memory size of the String
      */
-    public static int getReferenceSize()
+    public static long sizeOf(String str)
     {
-        return SPEC.getReferenceSize();
+        return STRING_EMPTY_SIZE + sizeOfArray(str.length(), 2);
     }
 
-    private static MemoryLayoutSpecification getEffectiveMemoryLayoutSpecification()
-    {
-        final String dataModel = System.getProperty("sun.arch.data.model");
-        if ("32".equals(dataModel))
-        {
-            // Running with 32-bit data model
-            return new MemoryLayoutSpecification()
-            {
-                public int getArrayHeaderSize()
-                {
-                    return 12;
-                }
-
-                public int getObjectHeaderSize()
-                {
-                    return 8;
-                }
-
-                public int getObjectPadding()
-                {
-                    return 8;
-                }
-
-                public int getReferenceSize()
-                {
-                    return 4;
-                }
-
-                public int getSuperclassFieldPadding()
-                {
-                    return 4;
-                }
-            };
-        }
-
-        final String strVmVersion = System.getProperty("java.vm.version");
-        final int vmVersion = Integer.parseInt(strVmVersion.substring(0, strVmVersion.indexOf('.')));
-        if (vmVersion >= 17)
-        {
-            long maxMemory = 0;
-            for (MemoryPoolMXBean mp : ManagementFactory.getMemoryPoolMXBeans())
-            {
-                maxMemory += mp.getUsage().getMax();
-            }
-            if (maxMemory < 30L * 1024 * 1024 * 1024)
-            {
-                // HotSpot 17.0 and above use compressed OOPs below 30GB of RAM
-                // total for all memory pools (yes, including code cache).
-                return new MemoryLayoutSpecification()
-                {
-                    public int getArrayHeaderSize()
-                    {
-                        return 16;
-                    }
-
-                    public int getObjectHeaderSize()
-                    {
-                        return 12;
-                    }
-
-                    public int getObjectPadding()
-                    {
-                        return 8;
-                    }
-
-                    public int getReferenceSize()
-                    {
-                        return 4;
-                    }
-
-                    public int getSuperclassFieldPadding()
-                    {
-                        return 4;
-                    }
-                };
-            }
-        }
-
-        /* Worst case we over count. */
-
-        // In other cases, it's a 64-bit uncompressed OOPs object model
-        return new MemoryLayoutSpecification()
-        {
-            public int getArrayHeaderSize()
-            {
-                return 24;
-            }
-
-            public int getObjectHeaderSize()
-            {
-                return 16;
-            }
-
-            public int getObjectPadding()
-            {
-                return 8;
-            }
-
-            public int getReferenceSize()
-            {
-                return 8;
-            }
-
-            public int getSuperclassFieldPadding()
-            {
-                return 8;
-            }
-        };
-    }
-
+    /**
+     * @param pojo the object to measure
+     * @return the size on the heap of the instance and all retained heap referenced by it, excluding portions of
+     * ByteBuffer that are not directly referenced by it but including any other referenced that may also be retained
+     * by other objects.
+     */
     public static long measureDeep(Object pojo)
     {
         return meter.measureDeep(pojo);
+    }
+
+    /**
+     * @param pojo the object to measure
+     * @return the size on the heap of the instance only, excluding any referenced objects
+     */
+    public static long measure(Object pojo)
+    {
+        return meter.measure(pojo);
     }
 }

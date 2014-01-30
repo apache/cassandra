@@ -24,6 +24,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.cassandra.utils.concurrent.OpOrder;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +40,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.index.*;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.utils.HeapAllocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 
 public class KeysSearcher extends SecondaryIndexSearcher
 {
@@ -186,7 +188,15 @@ public class KeysSearcher extends SecondaryIndexSearcher
                         {
                             // delete the index entry w/ its own timestamp
                             Cell dummyCell = new Cell(primaryColumn, indexKey.key, cell.timestamp());
-                            ((PerColumnSecondaryIndex)index).delete(dk.key, dummyCell);
+                            OpOrder.Group opGroup = baseCfs.keyspace.writeOrder.start();
+                            try
+                            {
+                                ((PerColumnSecondaryIndex)index).delete(dk.key, dummyCell, opGroup);
+                            }
+                            finally
+                            {
+                                opGroup.finishOne();
+                            }
                             continue;
                         }
                         return new Row(dk, data);

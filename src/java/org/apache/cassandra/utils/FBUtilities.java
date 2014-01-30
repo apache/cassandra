@@ -245,13 +245,6 @@ public class FBUtilities
         return out;
     }
 
-    public static BigInteger hashToBigInteger(ByteBuffer data)
-    {
-        byte[] result = hash(data);
-        BigInteger hash = new BigInteger(result);
-        return hash.abs();
-    }
-
     public static byte[] hash(ByteBuffer... data)
     {
         MessageDigest messageDigest = localMD5Digest.get();
@@ -264,6 +257,11 @@ public class FBUtilities
         }
 
         return messageDigest.digest();
+    }
+
+    public static BigInteger hashToBigInteger(ByteBuffer data)
+    {
+        return new BigInteger(hash(data)).abs();
     }
 
     @Deprecated

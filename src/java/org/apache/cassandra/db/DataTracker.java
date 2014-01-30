@@ -24,6 +24,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
+
+import org.apache.cassandra.utils.concurrent.OpOrder;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,23 +54,22 @@ public class DataTracker
         this.init();
     }
 
-    public Memtable getMemtable()
+    // get the Memtable that the ordered writeOp should be directed to
+    public Memtable getMemtableFor(OpOrder.Group opGroup)
     {
-        return view.get().memtable;
-    }
+        // since any new memtables appended to the list after we fetch it will be for operations started
+        // after us, we can safely assume that we will always find the memtable that 'accepts' us;
+        // if the barrier for any memtable is set whilst we are reading the list, it must accept us.
 
-    public Set<Memtable> getMemtablesPendingFlush()
-    {
-        return view.get().memtablesPendingFlush;
-    }
-
-    /**
-     * @return the active memtable and all the memtables that are pending flush.
-     */
-    public Iterable<Memtable> getAllMemtables()
-    {
-        View snapshot = view.get();
-        return Iterables.concat(snapshot.memtablesPendingFlush, Collections.singleton(snapshot.memtable));
+        // there may be multiple memtables in the list that would 'accept' us, however we only ever choose
+        // the oldest such memtable, as accepts() only prevents us falling behind (i.e. ensures we don't
+        // assign operations to a memtable that was retired/queued before we started)
+        for (Memtable memtable : view.get().liveMemtables)
+        {
+            if (memtable.accepts(opGroup))
+                return memtable;
+        }
+        throw new AssertionError(view.get().liveMemtables.toString());
     }
 
     public Set<SSTableReader> getSSTables()
@@ -98,46 +100,41 @@ public class DataTracker
     }
 
     /**
-     * Switch the current memtable.
-     * This atomically adds the current memtable to the memtables pending
-     * flush and replace it with a fresh memtable.
+     * Switch the current memtable. This atomically appends a new memtable to the end of the list of active memtables,
+     * returning the previously last memtable. It leaves the previous Memtable in the list of live memtables until
+     * discarding(memtable) is called. These two methods must be synchronized/paired, i.e. m = switchMemtable
+     * must be followed by discarding(m), they cannot be interleaved.
      *
-     * @return the previous current memtable (the one added to the pending
-     * flush)
+     * @return the previously active memtable
      */
-    public Memtable switchMemtable()
+    public Memtable switchMemtable(boolean truncating)
     {
-        // atomically change the current memtable
         Memtable newMemtable = new Memtable(cfstore);
         Memtable toFlushMemtable;
         View currentView, newView;
         do
         {
             currentView = view.get();
-            toFlushMemtable = currentView.memtable;
+            toFlushMemtable = currentView.getCurrentMemtable();
             newView = currentView.switchMemtable(newMemtable);
         }
         while (!view.compareAndSet(currentView, newView));
 
+        if (truncating)
+            notifyRenewed(newMemtable);
+
         return toFlushMemtable;
     }
 
-    /**
-     * Renew the current memtable without putting the old one for a flush.
-     * Used when we flush but a memtable is clean (in which case we must
-     * change it because it was frozen).
-     */
-    public void renewMemtable()
+    public void markFlushing(Memtable memtable)
     {
-        Memtable newMemtable = new Memtable(cfstore);
         View currentView, newView;
         do
         {
             currentView = view.get();
-            newView = currentView.renewMemtable(newMemtable);
+            newView = currentView.markFlushing(memtable);
         }
         while (!view.compareAndSet(currentView, newView));
-        notifyRenewed(currentView.memtable);
     }
 
     public void replaceFlushed(Memtable memtable, SSTableReader sstable)
@@ -320,11 +317,12 @@ public class DataTracker
     /** (Re)initializes the tracker, purging all references. */
     void init()
     {
-        view.set(new View(new Memtable(cfstore),
-                          Collections.<Memtable>emptySet(),
-                          Collections.<SSTableReader>emptySet(),
-                          Collections.<SSTableReader>emptySet(),
-                          SSTableIntervalTree.empty()));
+        view.set(new View(
+                ImmutableList.of(new Memtable(cfstore)),
+                ImmutableList.<Memtable>of(),
+                Collections.<SSTableReader>emptySet(),
+                Collections.<SSTableReader>emptySet(),
+                SSTableIntervalTree.empty()));
     }
 
     /**
@@ -533,21 +531,57 @@ public class DataTracker
      * flush, the sstables for a column family, and the sstables that are active
      * in compaction (a subset of the sstables).
      */
-    static class View
+    public static class View
     {
-        public final Memtable memtable;
-        public final Set<Memtable> memtablesPendingFlush;
+        /**
+         * ordinarily a list of size 1, but when preparing to flush will contain both the memtable we will flush
+         * and the new replacement memtable, until all outstanding write operations on the old table complete.
+         * The last item in the list is always the "current" memtable.
+         */
+        private final List<Memtable> liveMemtables;
+        /**
+         * contains all memtables that are no longer referenced for writing and are queued for / in the process of being
+         * flushed. In chronologically ascending order.
+         */
+        private final List<Memtable> flushingMemtables;
         public final Set<SSTableReader> compacting;
         public final Set<SSTableReader> sstables;
         public final SSTableIntervalTree intervalTree;
 
-        View(Memtable memtable, Set<Memtable> pendingFlush, Set<SSTableReader> sstables, Set<SSTableReader> compacting, SSTableIntervalTree intervalTree)
+        View(List<Memtable> liveMemtables, List<Memtable> flushingMemtables, Set<SSTableReader> sstables, Set<SSTableReader> compacting, SSTableIntervalTree intervalTree)
         {
-            this.memtable = memtable;
-            this.memtablesPendingFlush = pendingFlush;
+            this.liveMemtables = liveMemtables;
+            this.flushingMemtables = flushingMemtables;
             this.sstables = sstables;
             this.compacting = compacting;
             this.intervalTree = intervalTree;
+        }
+
+        public Memtable getOldestMemtable()
+        {
+            if (!flushingMemtables.isEmpty())
+                return flushingMemtables.get(0);
+            return liveMemtables.get(0);
+        }
+
+        public Memtable getCurrentMemtable()
+        {
+            return liveMemtables.get(liveMemtables.size() - 1);
+        }
+
+        public Iterable<Memtable> getMemtablesPendingFlush()
+        {
+            if (liveMemtables.size() == 1)
+                return flushingMemtables;
+            return Iterables.concat(liveMemtables.subList(0, 1), flushingMemtables);
+        }
+
+        /**
+         * @return the active memtable and all the memtables that are pending flush.
+         */
+        public Iterable<Memtable> getAllMemtables()
+        {
+            return Iterables.concat(flushingMemtables, liveMemtables);
         }
 
         public Sets.SetView<SSTableReader> nonCompactingSStables()
@@ -555,44 +589,70 @@ public class DataTracker
             return Sets.difference(ImmutableSet.copyOf(sstables), compacting);
         }
 
-        public View switchMemtable(Memtable newMemtable)
+        View switchMemtable(Memtable newMemtable)
         {
-            Set<Memtable> newPending = ImmutableSet.<Memtable>builder().addAll(memtablesPendingFlush).add(memtable).build();
-            return new View(newMemtable, newPending, sstables, compacting, intervalTree);
+            List<Memtable> newLiveMemtables = ImmutableList.<Memtable>builder().addAll(liveMemtables).add(newMemtable).build();
+            return new View(newLiveMemtables, flushingMemtables, sstables, compacting, intervalTree);
         }
 
-        public View renewMemtable(Memtable newMemtable)
+        View markFlushing(Memtable toFlushMemtable)
         {
-            return new View(newMemtable, memtablesPendingFlush, sstables, compacting, intervalTree);
+            List<Memtable> live = liveMemtables, flushing = flushingMemtables;
+
+            // since we can have multiple flushes queued, we may occasionally race and start a flush out of order,
+            // so must locate it in the list to remove, rather than just removing from the beginning
+            int i = live.indexOf(toFlushMemtable);
+            assert i < live.size() - 1;
+            List<Memtable> newLive = ImmutableList.<Memtable>builder()
+                                                  .addAll(live.subList(0, i))
+                                                  .addAll(live.subList(i + 1, live.size()))
+                                                  .build();
+
+            // similarly, if we out-of-order markFlushing once, we may afterwards need to insert a memtable into the
+            // flushing list in a position other than the end, though this will be rare
+            i = flushing.size();
+            while (i > 0 && flushing.get(i - 1).creationTime() > toFlushMemtable.creationTime())
+                i--;
+            List<Memtable> newFlushing = ImmutableList.<Memtable>builder()
+                                                      .addAll(flushing.subList(0, i))
+                                                      .add(toFlushMemtable)
+                                                      .addAll(flushing.subList(i, flushing.size()))
+                                                      .build();
+
+            return new View(newLive, newFlushing, sstables, compacting, intervalTree);
         }
 
-        public View replaceFlushed(Memtable flushedMemtable, SSTableReader newSSTable)
+        View replaceFlushed(Memtable flushedMemtable, SSTableReader newSSTable)
         {
-            Set<Memtable> newPending = ImmutableSet.copyOf(Sets.difference(memtablesPendingFlush, Collections.singleton(flushedMemtable)));
+            int index = flushingMemtables.indexOf(flushedMemtable);
+            List<Memtable> newQueuedMemtables = ImmutableList.<Memtable>builder()
+                                                             .addAll(flushingMemtables.subList(0, index))
+                                                             .addAll(flushingMemtables.subList(index + 1, flushingMemtables.size()))
+                                                             .build();
             Set<SSTableReader> newSSTables = newSSTable == null
-                                           ? sstables
-                                           : newSSTables(newSSTable);
+                                             ? sstables
+                                             : newSSTables(newSSTable);
             SSTableIntervalTree intervalTree = buildIntervalTree(newSSTables);
-            return new View(memtable, newPending, newSSTables, compacting, intervalTree);
+            return new View(liveMemtables, newQueuedMemtables, newSSTables, compacting, intervalTree);
         }
 
-        public View replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
+        View replace(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
         {
             Set<SSTableReader> newSSTables = newSSTables(oldSSTables, replacements);
             SSTableIntervalTree intervalTree = buildIntervalTree(newSSTables);
-            return new View(memtable, memtablesPendingFlush, newSSTables, compacting, intervalTree);
+            return new View(liveMemtables, flushingMemtables, newSSTables, compacting, intervalTree);
         }
 
-        public View markCompacting(Collection<SSTableReader> tomark)
+        View markCompacting(Collection<SSTableReader> tomark)
         {
             Set<SSTableReader> compactingNew = ImmutableSet.<SSTableReader>builder().addAll(compacting).addAll(tomark).build();
-            return new View(memtable, memtablesPendingFlush, sstables, compactingNew, intervalTree);
+            return new View(liveMemtables, flushingMemtables, sstables, compactingNew, intervalTree);
         }
 
-        public View unmarkCompacting(Iterable<SSTableReader> tounmark)
+        View unmarkCompacting(Iterable<SSTableReader> tounmark)
         {
             Set<SSTableReader> compactingNew = ImmutableSet.copyOf(Sets.difference(compacting, ImmutableSet.copyOf(tounmark)));
-            return new View(memtable, memtablesPendingFlush, sstables, compactingNew, intervalTree);
+            return new View(liveMemtables, flushingMemtables, sstables, compactingNew, intervalTree);
         }
 
         private Set<SSTableReader> newSSTables(SSTableReader newSSTable)
@@ -621,7 +681,7 @@ public class DataTracker
         @Override
         public String toString()
         {
-            return String.format("View(pending_count=%d, sstables=%s, compacting=%s)", memtablesPendingFlush.size(), sstables, compacting);
+            return String.format("View(pending_count=%d, sstables=%s, compacting=%s)", liveMemtables.size() + flushingMemtables.size() - 1, sstables, compacting);
         }
     }
 }

@@ -31,6 +31,7 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.utils.StreamingHistogram;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 
 public class MetadataCollector
 {

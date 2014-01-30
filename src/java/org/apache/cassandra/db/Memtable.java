@@ -21,74 +21,49 @@ import java.io.File;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
-import com.google.common.base.Function;
 import com.google.common.base.Throwables;
-import org.cliffc.high_scale_lib.NonBlockingHashSet;
+
+import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
+import org.apache.cassandra.dht.LongToken;
+import org.apache.cassandra.io.util.DiskAwareRunnable;
+
+import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.ContextAllocator;
+import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.Pool;
+import org.apache.cassandra.utils.memory.PoolAllocator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
+import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.io.util.DiskAwareRunnable;
-import org.apache.cassandra.utils.Allocator;
-import org.github.jamm.MemoryMeter;
 
 public class Memtable
 {
     private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
 
-    /*
-     * switchMemtable puts Memtable.getSortedContents on the writer executor.  When the write is complete,
-     * we turn the writer into an SSTableReader and add it to ssTables where it is available for reads.
-     *
-     * There are two other things that switchMemtable does.
-     * First, it puts the Memtable into memtablesPendingFlush, where it stays until the flush is complete
-     * and it's been added as an SSTableReader to ssTables_.  Second, it adds an entry to commitLogUpdater
-     * that waits for the flush to complete, then calls onMemtableFlush.  This allows multiple flushes
-     * to happen simultaneously on multicore systems, while still calling onMF in the correct order,
-     * which is necessary for replay in case of a restart since CommitLog assumes that when onMF is
-     * called, all data up to the given context has been persisted to SSTables.
-     */
-    private static final ExecutorService flushWriter
-            = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
-                                               StageManager.KEEPALIVE,
-                                               TimeUnit.SECONDS,
-                                               new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getFlushQueueSize()),
-                                               new NamedThreadFactory("FlushWriter"),
-                                               "internal");
+    static final Pool memoryPool = DatabaseDescriptor.getMemtableAllocatorPool();
+    private static final int ROW_OVERHEAD_HEAP_SIZE;
 
-    // size in memory can never be less than serialized size
-    private static final double MIN_SANE_LIVE_RATIO = 1.0;
-    // max liveratio seen w/ 1-byte columns on a 64-bit jvm was 19. If it gets higher than 64 something is probably broken.
-    private static final double MAX_SANE_LIVE_RATIO = 64.0;
-
-    // We need to take steps to avoid retaining inactive membtables in memory, because counting is slow (can be
-    // minutes, for a large memtable and a busy server).  A strictly FIFO Memtable queue could keep memtables
-    // alive waiting for metering after they're flushed and would otherwise be GC'd.  Instead, the approach we take
-    // is to enqueue the CFS instead of the memtable, and to meter whatever the active memtable is when the executor
-    // starts to work on it.  We use a Set to make sure we don't enqueue redundant tasks for the same CFS.
-    private static final Set<ColumnFamilyStore> meteringInProgress = new NonBlockingHashSet<ColumnFamilyStore>();
-    private static final ExecutorService meterExecutor = new JMXEnabledThreadPoolExecutor(1,
-                                                                                          Integer.MAX_VALUE,
-                                                                                          TimeUnit.MILLISECONDS,
-                                                                                          new LinkedBlockingQueue<Runnable>(),
-                                                                                          new NamedThreadFactory("MemoryMeter"),
-                                                                                          "internal");
-    private final MemoryMeter meter;
-
-    volatile static ColumnFamilyStore activelyMeasuring;
-
-    private final AtomicLong currentSize = new AtomicLong(0);
+    private final PoolAllocator allocator;
+    private final AtomicLong liveDataSize = new AtomicLong(0);
     private final AtomicLong currentOperations = new AtomicLong(0);
+
+    // the write barrier for directing writes to this memtable during a switch
+    private volatile OpOrder.Barrier writeBarrier;
+    // the last ReplayPosition owned by this Memtable; all ReplayPositions lower are owned by this or an earlier Memtable
+    private final AtomicReference<ReplayPosition> lastReplayPosition = new AtomicReference<>();
+    // the "first" ReplayPosition owned by this Memtable; this is inaccurate, and only used as a convenience to prevent CLSM flushing wantonly
+    private final ReplayPosition minReplayPosition = CommitLog.instance.getContext();
 
     // We index the memtable by RowPosition only for the purpose of being able
     // to select key range using Token.KeyBound. However put() ensures that we
@@ -98,16 +73,6 @@ public class Memtable
     private final long creationTime = System.currentTimeMillis();
     private final long creationNano = System.nanoTime();
 
-    private final Allocator allocator = DatabaseDescriptor.getMemtableAllocator();
-    // We really only need one column by allocator but one by memtable is not a big waste and avoids needing allocators to know about CFS
-    private final Function<Cell, Cell> localCopyFunction = new Function<Cell, Cell>()
-    {
-        public Cell apply(Cell c)
-        {
-            return c.localCopy(cfs, allocator);
-        }
-    };
-
     // Record the comparator of the CFS at the creation of the memtable. This
     // is only used when a user update the CF comparator, to know if the
     // memtable was created with the new or old comparator.
@@ -116,31 +81,19 @@ public class Memtable
     public Memtable(ColumnFamilyStore cfs)
     {
         this.cfs = cfs;
+        this.allocator = memoryPool.newAllocator(cfs.keyspace.writeOrder);
         this.initialComparator = cfs.metadata.comparator;
         this.cfs.scheduleFlush();
-
-        Callable<Set<Object>> provider = new Callable<Set<Object>>()
-        {
-            public Set<Object> call() throws Exception
-            {
-                // avoid counting this once for each row
-                Set<Object> set = Collections.newSetFromMap(new IdentityHashMap<Object, Boolean>());
-                set.add(Memtable.this.cfs.metadata);
-                return set;
-            }
-        };
-        meter = new MemoryMeter().omitSharedBufferOverhead().withTrackerProvider(provider);
     }
 
-    public long getLiveSize()
+    public AbstractAllocator getAllocator()
     {
-        long estimatedSize = (long) (currentSize.get() * cfs.liveRatio);
+        return allocator;
+    }
 
-        // liveRatio is just an estimate; we can get a lower bound directly from the allocator
-        if (estimatedSize < allocator.getMinimumSize())
-            return allocator.getMinimumSize();
-
-        return estimatedSize;
+    public long getLiveDataSize()
+    {
+        return liveDataSize.get();
     }
 
     public long getOperations()
@@ -148,54 +101,109 @@ public class Memtable
         return currentOperations.get();
     }
 
+    void setDiscarding(OpOrder.Barrier writeBarrier, ReplayPosition minLastReplayPosition)
+    {
+        assert this.writeBarrier == null;
+        this.lastReplayPosition.set(minLastReplayPosition);
+        this.writeBarrier = writeBarrier;
+        allocator.setDiscarding();
+    }
+
+    void setDiscarded()
+    {
+        allocator.setDiscarded();
+    }
+
+    public boolean accepts(OpOrder.Group opGroup)
+    {
+        OpOrder.Barrier barrier = this.writeBarrier;
+        return barrier == null || barrier.isAfter(opGroup);
+    }
+
+    public boolean isLive()
+    {
+        return allocator.isLive();
+    }
+
+    public boolean isClean()
+    {
+        return rows.isEmpty();
+    }
+
+    public boolean isCleanAfter(ReplayPosition position)
+    {
+        return isClean() || (position != null && minReplayPosition.compareTo(position) >= 0);
+    }
+
     /**
-     * Should only be called by ColumnFamilyStore.apply.  NOT a public API.
-     * (CFS handles locking to avoid submitting an op
-     *  to a flushing memtable.  Any other way is unsafe.)
-    */
-    void put(DecoratedKey key, ColumnFamily columnFamily, SecondaryIndexManager.Updater indexer)
+     * @return true if this memtable is expired. Expiration time is determined by CF's memtable_flush_period_in_ms.
+     */
+    public boolean isExpired()
     {
-        resolve(key, columnFamily, indexer);
+        int period = cfs.metadata.getMemtableFlushPeriod();
+        return period > 0 && (System.nanoTime() - creationNano >= TimeUnit.MILLISECONDS.toNanos(period));
     }
 
-    public void updateLiveRatio() throws RuntimeException
+    /**
+     * Should only be called by ColumnFamilyStore.apply via Keyspace.apply, which supplies the appropriate
+     * OpOrdering.
+     *
+     * replayPosition should only be null if this is a secondary index, in which case it is *expected* to be null
+     */
+    void put(DecoratedKey key, ColumnFamily cf, SecondaryIndexManager.Updater indexer, OpOrder.Group opGroup, ReplayPosition replayPosition)
     {
-        if (!MemoryMeter.isInitialized())
+        if (replayPosition != null && writeBarrier != null)
         {
-            // hack for openjdk.  we log a warning about this in the startup script too.
-            logger.error("MemoryMeter uninitialized (jamm not specified as java agent); assuming liveRatio of {}.  "
-                         + " Usually this means cassandra-env.sh disabled jamm because you are using a buggy JRE; "
-                         + " upgrade to the Sun JRE instead", cfs.liveRatio);
-            return;
+            // if the writeBarrier is set, we want to maintain lastReplayPosition; this is an optimisation to avoid
+            // casing it for every write, but still ensure it is correct when writeBarrier.await() completes.
+            // we clone the replay position so that the object passed in does not "escape", permitting stack allocation
+            replayPosition = replayPosition.clone();
+            while (true)
+            {
+                ReplayPosition last = lastReplayPosition.get();
+                if (last.compareTo(replayPosition) >= 0)
+                    break;
+                if (lastReplayPosition.compareAndSet(last, replayPosition))
+                    break;
+            }
         }
 
-        if (!meteringInProgress.add(cfs))
-        {
-            logger.debug("Metering already pending or active for {}; skipping liveRatio update", cfs);
-            return;
-        }
-
-        meterExecutor.submit(new MeteringRunnable(cfs));
-    }
-
-    private void resolve(DecoratedKey key, ColumnFamily cf, SecondaryIndexManager.Updater indexer)
-    {
         AtomicBTreeColumns previous = rows.get(key);
 
         if (previous == null)
         {
             AtomicBTreeColumns empty = cf.cloneMeShallow(AtomicBTreeColumns.factory, false);
+            final DecoratedKey cloneKey = new DecoratedKey(key.token, allocator.clone(key.key, opGroup));
             // We'll add the columns later. This avoids wasting works if we get beaten in the putIfAbsent
-            previous = rows.putIfAbsent(new DecoratedKey(key.token, allocator.clone(key.key)), empty);
+            previous = rows.putIfAbsent(cloneKey, empty);
             if (previous == null)
+            {
                 previous = empty;
+                // allocate the row overhead after the fact; this saves over allocating and having to free after, but
+                // means we can overshoot our declared limit.
+                int overhead = (int) (cfs.partitioner.getHeapSizeOf(key.token) + ROW_OVERHEAD_HEAP_SIZE);
+                allocator.allocate(overhead, opGroup);
+            }
+            else
+            {
+                allocator.free(cloneKey.key);
+            }
         }
 
-        long sizeDelta = previous.addAllWithSizeDelta(cf, allocator, localCopyFunction, indexer);
-        currentSize.addAndGet(sizeDelta);
+        ContextAllocator contextAllocator = allocator.wrap(opGroup, cfs);
+        AtomicBTreeColumns.Delta delta = previous.addAllWithSizeDelta(cf, contextAllocator, contextAllocator, indexer, new AtomicBTreeColumns.Delta());
+        liveDataSize.addAndGet(delta.dataSize());
         currentOperations.addAndGet((cf.getColumnCount() == 0)
                                     ? cf.isMarkedForDelete() ? 1 : 0
                                     : cf.getColumnCount());
+
+        // allocate or free the delta in column overhead after the fact
+        for (Cell cell : delta.reclaimed())
+        {
+            cell.name.free(allocator);
+            allocator.free(cell.value);
+        }
+        allocator.allocate((int) delta.excessHeapSize(), opGroup);
     }
 
     // for debugging
@@ -211,15 +219,15 @@ public class Memtable
         return builder.toString();
     }
 
-    public void flushAndSignal(final CountDownLatch latch, final Future<ReplayPosition> context)
+    public FlushRunnable flushRunnable()
     {
-        flushWriter.execute(new FlushRunnable(latch, context));
+        return new FlushRunnable(lastReplayPosition.get());
     }
 
     public String toString()
     {
-        return String.format("Memtable-%s@%s(%s/%s serialized/live bytes, %s ops)",
-                             cfs.name, hashCode(), currentSize, getLiveSize(), currentOperations);
+        return String.format("Memtable-%s@%s(%s serialized bytes, %s ops, %.0f%% of heap limit)",
+                             cfs.name, hashCode(), liveDataSize, currentOperations, 100 * allocator.ownershipRatio());
     }
 
     /**
@@ -254,24 +262,10 @@ public class Memtable
             public void remove()
             {
                 iter.remove();
-                currentSize.addAndGet(-currentEntry.getValue().dataSize());
+                liveDataSize.addAndGet(-currentEntry.getValue().dataSize());
                 currentEntry = null;
             }
         };
-    }
-
-    public boolean isClean()
-    {
-        return rows.isEmpty();
-    }
-
-    /**
-     * @return true if this memtable is expired. Expiration time is determined by CF's memtable_flush_period_in_ms.
-     */
-    public boolean isExpired()
-    {
-        int period = cfs.metadata.getMemtableFlushPeriod();
-        return period > 0 && (System.nanoTime() - creationNano >= TimeUnit.MILLISECONDS.toNanos(period));
     }
 
     public ColumnFamily getColumnFamily(DecoratedKey key)
@@ -284,15 +278,18 @@ public class Memtable
         return creationTime;
     }
 
+    public ReplayPosition getLastReplayPosition()
+    {
+        return lastReplayPosition.get();
+    }
+
     class FlushRunnable extends DiskAwareRunnable
     {
-        private final CountDownLatch latch;
-        private final Future<ReplayPosition> context;
+        private final ReplayPosition context;
         private final long estimatedSize;
 
-        FlushRunnable(CountDownLatch latch, Future<ReplayPosition> context)
+        FlushRunnable(ReplayPosition context)
         {
-            this.latch = latch;
             this.context = context;
 
             long keySize = 0;
@@ -304,7 +301,7 @@ public class Memtable
             }
             estimatedSize = (long) ((keySize // index entries
                                     + keySize // keys in data file
-                                    + currentSize.get()) // data
+                                    + liveDataSize.get()) // data
                                     * 1.2); // bloom filter and row index overhead
         }
 
@@ -319,7 +316,6 @@ public class Memtable
 
             SSTableReader sstable = writeSortedContents(context, sstableDirectory);
             cfs.replaceFlushed(Memtable.this, sstable);
-            latch.countDown();
         }
 
         protected Directories getDirectories()
@@ -327,7 +323,7 @@ public class Memtable
             return cfs.directories;
         }
 
-        private SSTableReader writeSortedContents(Future<ReplayPosition> context, File sstableDirectory)
+        private SSTableReader writeSortedContents(ReplayPosition context, File sstableDirectory)
         throws ExecutionException, InterruptedException
         {
             logger.info("Writing {}", Memtable.this.toString());
@@ -361,15 +357,16 @@ public class Memtable
                 {
                     ssTable = writer.closeAndOpenReader();
                     logger.info(String.format("Completed flushing %s (%d bytes) for commitlog position %s",
-                                              ssTable.getFilename(), new File(ssTable.getFilename()).length(), context.get()));
+                                              ssTable.getFilename(), new File(ssTable.getFilename()).length(), context));
                 }
                 else
                 {
                     writer.abort();
                     ssTable = null;
                     logger.info("Completed flushing; nothing needed to be retained.  Commitlog position was {}",
-                                context.get());
+                                context);
                 }
+
                 return ssTable;
             }
             catch (Throwable e)
@@ -381,7 +378,7 @@ public class Memtable
 
         public SSTableWriter createFlushWriter(String filename) throws ExecutionException, InterruptedException
         {
-            MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.metadata.comparator).replayPosition(context.get());
+            MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.metadata.comparator).replayPosition(context);
             return new SSTableWriter(filename,
                                      rows.size(),
                                      cfs.metadata,
@@ -390,62 +387,19 @@ public class Memtable
         }
     }
 
-    private static class MeteringRunnable implements Runnable
+    static
     {
-        // we might need to wait in the meter queue for a while.  measure whichever memtable is active at that point,
-        // rather than keeping the original memtable referenced (and thus un-freeable) until this runs.
-        private final ColumnFamilyStore cfs;
-
-        public MeteringRunnable(ColumnFamilyStore cfs)
-        {
-            this.cfs = cfs;
-        }
-
-        public void run()
-        {
-            try
-            {
-                activelyMeasuring = cfs;
-                Memtable memtable = cfs.getMemtableThreadSafe();
-
-                long start = System.nanoTime();
-                // ConcurrentSkipListMap has cycles, so measureDeep will have to track a reference to EACH object it visits.
-                // So to reduce the memory overhead of doing a measurement, we break it up to row-at-a-time.
-                long deepSize = memtable.meter.measure(memtable.rows);
-                int objects = 0;
-                for (Map.Entry<RowPosition, AtomicBTreeColumns> entry : memtable.rows.entrySet())
-                {
-                    deepSize += memtable.meter.measureDeep(entry.getKey()) + memtable.meter.measureDeep(entry.getValue());
-                    objects += entry.getValue().getColumnCount();
-                }
-                double newRatio = (double) deepSize / memtable.currentSize.get();
-
-                if (newRatio < MIN_SANE_LIVE_RATIO)
-                {
-                    logger.debug("setting live ratio to minimum of {} instead of {}", MIN_SANE_LIVE_RATIO, newRatio);
-                    newRatio = MIN_SANE_LIVE_RATIO;
-                }
-                if (newRatio > MAX_SANE_LIVE_RATIO)
-                {
-                    logger.warn("setting live ratio to maximum of {} instead of {}", MAX_SANE_LIVE_RATIO, newRatio);
-                    newRatio = MAX_SANE_LIVE_RATIO;
-                }
-
-                // we want to be very conservative about our estimate, since the penalty for guessing low is OOM
-                // death.  thus, higher estimates are believed immediately; lower ones are averaged w/ the old
-                if (newRatio > cfs.liveRatio)
-                    cfs.liveRatio = newRatio;
-                else
-                    cfs.liveRatio = (cfs.liveRatio + newRatio) / 2.0;
-
-                logger.info("{} liveRatio is {} (just-counted was {}).  calculation took {}ms for {} cells",
-                            cfs, cfs.liveRatio, newRatio, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start), objects);
-            }
-            finally
-            {
-                activelyMeasuring = null;
-                meteringInProgress.remove(cfs);
-            }
-        }
+        // calculate row overhead
+        int rowOverhead;
+        ConcurrentNavigableMap<RowPosition, Object> rows = new ConcurrentSkipListMap<>();
+        final int count = 100000;
+        final Object val = new Object();
+        for (int i = 0 ; i < count ; i++)
+            rows.put(new DecoratedKey(new LongToken((long) i), ByteBufferUtil.EMPTY_BYTE_BUFFER), val);
+        double avgSize = ObjectSizes.measureDeep(rows) / (double) count;
+        rowOverhead = (int) ((avgSize - Math.floor(avgSize)) < 0.05 ? Math.floor(avgSize) : Math.ceil(avgSize));
+        rowOverhead -= ObjectSizes.measureDeep(new LongToken((long) 0));
+        rowOverhead += AtomicBTreeColumns.HEAP_SIZE;
+        ROW_OVERHEAD_HEAP_SIZE = rowOverhead;
     }
 }

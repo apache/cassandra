@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -137,14 +138,14 @@ public abstract class SecondaryIndex
     protected abstract SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns);
 
     /**
-     * Forces this indexes in memory data to disk
+     * Forces this indexes' in memory data to disk
      */
     public abstract void forceBlockingFlush();
 
     /**
      * Get current amount of memory this index is consuming (in bytes)
      */
-    public abstract long getLiveSize();
+    public abstract AbstractAllocator getOnHeapAllocator();
 
     /**
      * Allow access to the underlying column family store if there is one

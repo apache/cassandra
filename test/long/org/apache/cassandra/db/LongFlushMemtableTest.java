@@ -34,10 +34,10 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class MeteredFlusherTest extends SchemaLoader
+public class LongFlushMemtableTest extends SchemaLoader
 {
     @Test
-    public void testManyMemtables() throws IOException, ConfigurationException
+    public void testFlushMemtables() throws IOException, ConfigurationException
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
         for (int i = 0; i < 100; i++)

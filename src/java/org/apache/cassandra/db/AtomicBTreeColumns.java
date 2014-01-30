@@ -18,25 +18,28 @@
 package org.apache.cassandra.db;
 
 import java.util.AbstractCollection;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
-import com.google.common.collect.Iterators;
+import com.google.common.collect.*;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
-import org.apache.cassandra.utils.btree.ReplaceFunction;
+import org.apache.cassandra.utils.btree.UpdateFunction;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 import static org.apache.cassandra.db.index.SecondaryIndexManager.Updater;
 
@@ -51,6 +54,9 @@ import static org.apache.cassandra.db.index.SecondaryIndexManager.Updater;
  */
 public class AtomicBTreeColumns extends ColumnFamily
 {
+    static final long HEAP_SIZE = ObjectSizes.measure(new AtomicBTreeColumns(CFMetaData.IndexCf, null))
+            + ObjectSizes.measure(new Holder(null, null));
+
     private static final Function<Cell, CellName> NAME = new Function<Cell, CellName>()
     {
         public CellName apply(Cell column)
@@ -152,51 +158,57 @@ public class AtomicBTreeColumns extends ColumnFamily
         }
     }
 
-    public void addColumn(Cell column, Allocator allocator)
+    public void addAll(ColumnFamily cm, AbstractAllocator allocator, Function<Cell, Cell> transformation)
     {
-        while (true)
-        {
-            Holder current = ref;
-            Holder update = ref.update(this, current.deletionInfo, metadata.comparator.columnComparator(), Arrays.asList(column), null);
-            if (refUpdater.compareAndSet(this, current, update))
-                return;
-        }
-    }
-
-    public void addAll(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation)
-    {
-        addAllWithSizeDelta(cm, allocator, transformation, SecondaryIndexManager.nullUpdater);
+        addAllWithSizeDelta(cm, allocator, transformation, SecondaryIndexManager.nullUpdater, new Delta());
     }
 
     // the function we provide to the btree utilities to perform any column replacements
-    private static final class ColumnUpdater implements ReplaceFunction<Cell>
+    private static final class ColumnUpdater implements UpdateFunction<Cell>
     {
-        final Allocator allocator;
+        final AtomicBTreeColumns updating;
+        final Holder ref;
+        final AbstractAllocator allocator;
         final Function<Cell, Cell> transform;
         final Updater indexer;
-        long delta;
+        final Delta delta;
 
-        private ColumnUpdater(Allocator allocator, Function<Cell, Cell> transform, Updater indexer)
+        private ColumnUpdater(AtomicBTreeColumns updating, Holder ref, AbstractAllocator allocator, Function<Cell, Cell> transform, Updater indexer, Delta delta)
         {
+            this.updating = updating;
+            this.ref = ref;
             this.allocator = allocator;
             this.transform = transform;
             this.indexer = indexer;
+            this.delta = delta;
         }
 
         public Cell apply(Cell inserted)
         {
             indexer.insert(inserted);
-            delta += inserted.dataSize();
+            delta.insert(inserted);
             return transform.apply(inserted);
         }
 
-        public Cell apply(Cell replaced, Cell update)
+        public Cell apply(Cell existing, Cell update)
         {
-            Cell reconciled = update.reconcile(replaced, allocator);
-            indexer.update(replaced, reconciled);
-            delta += reconciled.dataSize() - replaced.dataSize();
-
+            Cell reconciled = update.reconcile(existing, allocator);
+            indexer.update(existing, reconciled);
+            if (existing != reconciled)
+                delta.swap(existing, reconciled);
+            else
+                delta.abort(update);
             return transform.apply(reconciled);
+        }
+
+        public boolean abortEarly()
+        {
+            return updating.ref != ref;
+        }
+
+        public void allocated(long heapSize)
+        {
+            delta.addHeapSize(heapSize);
         }
     }
 
@@ -215,11 +227,11 @@ public class AtomicBTreeColumns extends ColumnFamily
     }
 
     /**
-     * This is only called by Memtable.resolve, so only AtomicSortedColumns needs to implement it.
+     * This is only called by Memtable.resolve, so only AtomicBTreeColumns needs to implement it.
      *
      * @return the difference in size seen after merging the given columns
      */
-    public long addAllWithSizeDelta(final ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation, Updater indexer)
+    public Delta addAllWithSizeDelta(final ColumnFamily cm, AbstractAllocator allocator, Function<Cell, Cell> transformation, Updater indexer, Delta delta)
     {
         boolean transformed = false;
         Collection<Cell> insert;
@@ -248,11 +260,14 @@ public class AtomicBTreeColumns extends ColumnFamily
                     }
                 }
             }
-            deletionInfo = current.deletionInfo.copy().add(deletionInfo);
 
-            ColumnUpdater updater = new ColumnUpdater(allocator, transformation, indexer);
-            Holder h = current.update(this, deletionInfo, metadata.comparator.columnComparator(), insert, updater);
-            if (h != null && refUpdater.compareAndSet(this, current, h))
+            delta.reset();
+            deletionInfo = current.deletionInfo.copy().add(deletionInfo);
+            delta.addHeapSize(deletionInfo.unsharedHeapSize() - current.deletionInfo.unsharedHeapSize());
+            ColumnUpdater updater = new ColumnUpdater(this, current, allocator, transformation, indexer, delta);
+            Object[] tree = BTree.update(current.tree, metadata.comparator.columnComparator(), insert, true, updater);
+
+            if (tree != null && refUpdater.compareAndSet(this, current, new Holder(tree, deletionInfo)))
             {
                 indexer.updateRowLevelIndexes();
                 return updater.delta;
@@ -268,25 +283,20 @@ public class AtomicBTreeColumns extends ColumnFamily
 
     }
 
+    // no particular reason not to implement these next methods, we just haven't needed them yet
+
+    public void addColumn(Cell column, AbstractAllocator allocator)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     public boolean replace(Cell oldColumn, Cell newColumn)
     {
-        if (!oldColumn.name().equals(newColumn.name()))
-            throw new IllegalArgumentException();
-
-        while (true)
-        {
-            Holder current = ref;
-            Holder modified = current.update(this, current.deletionInfo, metadata.comparator.columnComparator(), Arrays.asList(newColumn), null);
-            if (modified == current)
-                return false;
-            if (refUpdater.compareAndSet(this, current, modified))
-                return true;
-        }
+        throw new UnsupportedOperationException();
     }
 
     public void clear()
     {
-        // no particular reason not to implement this, we just haven't needed it yet
         throw new UnsupportedOperationException();
     }
 
@@ -377,35 +387,71 @@ public class AtomicBTreeColumns extends ColumnFamily
         {
             return new Holder(this.tree, info);
         }
-
-        Holder update(AtomicBTreeColumns container, DeletionInfo deletionInfo, Comparator<Cell> cmp, Collection<Cell> update, ReplaceFunction<Cell> replaceF)
-        {
-            Object[] r = BTree.update(tree, cmp, update, true, replaceF, new TerminateEarly(container, this));
-            // result can be null if terminate early kicks in, in which case we need to propagate the early failure so we can retry
-            if (r == null)
-                return null;
-            return new Holder(r, deletionInfo);
-        }
     }
 
-    // a function provided to the btree functions that aborts the modification
-    // if we already know the final cas will fail
-    private static final class TerminateEarly implements Function<Object, Boolean>
-    {
-        final AtomicBTreeColumns columns;
-        final Holder ref;
+    // TODO: create a stack-allocation-friendly list to help optimise garbage for updates to rows with few columns
 
-        private TerminateEarly(AtomicBTreeColumns columns, Holder ref)
+    /**
+     * tracks the size changes made while merging a new group of cells in
+     */
+    public static final class Delta
+    {
+        private long dataSize;
+        private long heapSize;
+
+        // we track the discarded cells (cells that were in the btree, but replaced by new ones)
+        // separately from aborted ones (were part of an update but older than existing cells)
+        // since we need to reset the former when we race on the btree update, but not the latter
+        private List<Cell> discarded = new ArrayList<>();
+        private List<Cell> aborted;
+
+        protected void reset()
         {
-            this.columns = columns;
-            this.ref = ref;
+            this.dataSize = 0;
+            this.heapSize = 0;
+            discarded.clear();
         }
 
-        public Boolean apply(Object o)
+        protected void addHeapSize(long heapSize)
         {
-            if (ref != columns.ref)
-                return Boolean.TRUE;
-            return Boolean.FALSE;
+            this.heapSize += heapSize;
+        }
+
+        protected void swap(Cell old, Cell updated)
+        {
+            dataSize += updated.dataSize() - old.dataSize();
+            heapSize += updated.excessHeapSizeExcludingData() - old.excessHeapSizeExcludingData();
+            discarded.add(old);
+        }
+
+        protected void insert(Cell insert)
+        {
+            this.dataSize += insert.dataSize();
+            this.heapSize += insert.excessHeapSizeExcludingData();
+        }
+
+        private void abort(Cell neverUsed)
+        {
+            if (aborted == null)
+                aborted = new ArrayList<>();
+            aborted.add(neverUsed);
+        }
+
+        public long dataSize()
+        {
+            return dataSize;
+        }
+
+        public long excessHeapSize()
+        {
+            return heapSize;
+        }
+
+        public Iterable<Cell> reclaimed()
+        {
+            if (aborted == null)
+                return discarded;
+            return Iterables.concat(discarded, aborted);
         }
     }
 }

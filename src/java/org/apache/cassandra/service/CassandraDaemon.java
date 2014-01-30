@@ -45,7 +45,6 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.MeteredFlusher;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -257,10 +256,6 @@ public class CassandraDaemon
         {
             logger.warn("Unable to start GCInspector (currently only supported on the Sun JVM)");
         }
-
-        // MeteredFlusher can block if flush queue fills up, so don't put on scheduledTasks
-        // Start it before commit log, so memtables can flush during commit log replay
-        StorageService.optionalTasks.scheduleWithFixedDelay(new MeteredFlusher(), 1000, 1000, TimeUnit.MILLISECONDS);
 
         // replay the log if necessary
         try

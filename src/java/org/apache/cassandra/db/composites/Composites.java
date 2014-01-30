@@ -20,8 +20,9 @@ package org.apache.cassandra.db.composites;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.memory.PoolAllocator;
 
 public abstract class Composites
 {
@@ -92,7 +93,7 @@ public abstract class Composites
             return 0;
         }
 
-        public long memorySize()
+        public long unsharedHeapSize()
         {
             return 0;
         }
@@ -102,9 +103,15 @@ public abstract class Composites
             return true;
         }
 
-        public Composite copy(Allocator allocator)
+        public Composite copy(AbstractAllocator allocator)
         {
             return this;
         }
+
+        @Override
+        public void free(PoolAllocator<?> allocator)
+        {
+        }
+
     }
 }

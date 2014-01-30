@@ -29,7 +29,7 @@ import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
  * A ColumnFamily backed by an ArrayList.
@@ -101,7 +101,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
      * without knowing about (we can revisit that decision later if we have
      * use cases where most insert are in sorted order but a few are not).
      */
-    public void addColumn(Cell cell, Allocator allocator)
+    public void addColumn(Cell cell, AbstractAllocator allocator)
     {
         if (cells.isEmpty())
         {
@@ -131,7 +131,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
             if (pos >= 0)
                 resolveAgainst(pos, cell, allocator);
             else
-                cells.add(-pos-1, cell);
+                cells.add(-pos - 1, cell);
         }
     }
 
@@ -139,7 +139,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
      * Resolve against element at position i.
      * Assume that i is a valid position.
      */
-    private void resolveAgainst(int i, Cell cell, Allocator allocator)
+    private void resolveAgainst(int i, Cell cell, AbstractAllocator allocator)
     {
         Cell oldCell = cells.get(i);
 
@@ -184,7 +184,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
         return -mid - (result < 0 ? 1 : 2);
     }
 
-    public void addAll(ColumnFamily cm, Allocator allocator, Function<Cell, Cell> transformation)
+    public void addAll(ColumnFamily cm, AbstractAllocator allocator, Function<Cell, Cell> transformation)
     {
         delete(cm.deletionInfo());
         if (cm.getColumnCount() == 0)

@@ -50,7 +50,7 @@ public class LongBTreeTest
         TreeSet<Integer> canon = new TreeSet<>();
         for (int i = 0 ; i < 10000000 ; i++)
             canon.add(i);
-        Object[] btree = BTree.build(Arrays.asList(Integer.MIN_VALUE, Integer.MAX_VALUE), ICMP, true);
+        Object[] btree = BTree.build(Arrays.asList(Integer.MIN_VALUE, Integer.MAX_VALUE), ICMP, true, null);
         btree = BTree.update(btree, ICMP, canon, true);
         canon.add(Integer.MIN_VALUE);
         canon.add(Integer.MAX_VALUE);
@@ -171,7 +171,7 @@ public class LongBTreeTest
                     canon.putAll(buffer);
                     ctxt.stop();
                     ctxt = BTREE_TIMER.time();
-                    btree = BTree.update(btree, ICMP, buffer.keySet(), true, null, null);
+                    btree = BTree.update(btree, ICMP, buffer.keySet(), true, null);
                     ctxt.stop();
 
                     if (quickEquality)
@@ -200,7 +200,7 @@ public class LongBTreeTest
             String id = String.format("[0..%d)", canon.size());
             System.out.println("Testing " + id);
             Futures.allAsList(testAllSlices(id, cur, canon)).get();
-            cur = BTree.update(cur, ICMP, Arrays.asList(i), true, null, null);
+            cur = BTree.update(cur, ICMP, Arrays.asList(i), true, null);
             canon.add(i);
         }
     }

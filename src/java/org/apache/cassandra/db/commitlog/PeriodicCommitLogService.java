@@ -18,7 +18,7 @@
 package org.apache.cassandra.db.commitlog;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.WaitQueue;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 class PeriodicCommitLogService extends AbstractCommitLogService
 {
@@ -39,9 +39,11 @@ class PeriodicCommitLogService extends AbstractCommitLogService
             pending.incrementAndGet();
             while (waitForSyncToCatchUp(started))
             {
-                WaitQueue.Signal signal = syncComplete.register();
+                WaitQueue.Signal signal = syncComplete.register(CommitLog.instance.metrics.waitingOnCommit.time());
                 if (waitForSyncToCatchUp(started))
                     signal.awaitUninterruptibly();
+                else
+                    signal.cancel();
             }
             pending.decrementAndGet();
         }

@@ -49,7 +49,7 @@ public class QueryProcessor
     public static final SemanticVersion CQL_VERSION = new SemanticVersion("3.1.4");
 
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
-    private static final MemoryMeter meter = new MemoryMeter();
+    private static final MemoryMeter meter = new MemoryMeter().withGuessing(MemoryMeter.Guess.FALLBACK_BEST);
     private static final long MAX_CACHE_PREPARED_MEMORY = Runtime.getRuntime().maxMemory() / 256;
     private static final int MAX_CACHE_PREPARED_COUNT = 10000;
 
@@ -76,28 +76,14 @@ public class QueryProcessor
 
     static
     {
-        if (MemoryMeter.isInitialized())
-        {
-            preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, CQLStatement>()
-                                 .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
-                                 .weigher(cqlMemoryUsageWeigher)
-                                 .build();
-            thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, CQLStatement>()
-                                       .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
-                                       .weigher(thriftMemoryUsageWeigher)
-                                       .build();
-        }
-        else
-        {
-            logger.error("Unable to initialize MemoryMeter (jamm not specified as javaagent).  This means "
-                         + "Cassandra will be unable to measure object sizes accurately and may consequently OOM.");
-            preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, CQLStatement>()
-                                 .maximumWeightedCapacity(MAX_CACHE_PREPARED_COUNT)
-                                 .build();
-            thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, CQLStatement>()
-                                       .maximumWeightedCapacity(MAX_CACHE_PREPARED_COUNT)
-                                       .build();
-        }
+        preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, CQLStatement>()
+                             .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
+                             .weigher(cqlMemoryUsageWeigher)
+                             .build();
+        thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, CQLStatement>()
+                                   .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
+                                   .weigher(thriftMemoryUsageWeigher)
+                                   .build();
     }
 
     private static final List<PreExecutionHook> preExecutionHooks = new CopyOnWriteArrayList<>();
@@ -449,9 +435,6 @@ public class QueryProcessor
 
     private static long measure(Object key)
     {
-        if (!MemoryMeter.isInitialized())
-            return 1;
-
         return key instanceof MeasurableForPreparedCache
              ? ((MeasurableForPreparedCache)key).measureForPreparedCache(meter)
              : meter.measureDeep(key);

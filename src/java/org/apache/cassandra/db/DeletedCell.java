@@ -25,8 +25,9 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 
 public class DeletedCell extends Cell
 {
@@ -89,7 +90,7 @@ public class DeletedCell extends Cell
     }
 
     @Override
-    public Cell reconcile(Cell cell, Allocator allocator)
+    public Cell reconcile(Cell cell, AbstractAllocator allocator)
     {
         if (cell instanceof DeletedCell)
             return super.reconcile(cell, allocator);
@@ -97,7 +98,7 @@ public class DeletedCell extends Cell
     }
 
     @Override
-    public Cell localCopy(ColumnFamilyStore cfs, Allocator allocator)
+    public Cell localCopy(ColumnFamilyStore cfs, AbstractAllocator allocator)
     {
         return new DeletedCell(name.copy(allocator), allocator.clone(value), timestamp);
     }

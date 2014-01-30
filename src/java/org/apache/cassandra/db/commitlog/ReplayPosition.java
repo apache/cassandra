@@ -117,6 +117,11 @@ public class ReplayPosition implements Comparable<ReplayPosition>
                ')';
     }
 
+    public ReplayPosition clone()
+    {
+        return new ReplayPosition(segment, position);
+    }
+
     public static class ReplayPositionSerializer implements ISerializer<ReplayPosition>
     {
         public void serialize(ReplayPosition rp, DataOutput out) throws IOException

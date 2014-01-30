@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
@@ -130,13 +131,21 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
 
     public void delete(IndexedEntry entry)
     {
-        int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
-        ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
-        cfi.addTombstone(entry.indexEntry, localDeletionTime, entry.timestamp);
-        indexCfs.apply(entry.indexValue, cfi, SecondaryIndexManager.nullUpdater);
-        if (logger.isDebugEnabled())
-            logger.debug("removed index entry for cleaned-up value {}:{}", entry.indexValue, cfi);
-
+        // start a mini-transaction for this delete, to ensure safe memtable updates
+        OpOrder.Group opGroup = baseCfs.keyspace.writeOrder.start();
+        try
+        {
+            int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
+            ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
+            cfi.addTombstone(entry.indexEntry, localDeletionTime, entry.timestamp);
+            indexCfs.apply(entry.indexValue, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
+            if (logger.isDebugEnabled())
+                logger.debug("removed index entry for cleaned-up value {}:{}", entry.indexValue, cfi);
+        }
+        finally
+        {
+            opGroup.finishOne();
+        }
     }
 
     protected AbstractType<?> getExpressionComparator()

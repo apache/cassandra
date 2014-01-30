@@ -20,11 +20,14 @@ package org.apache.cassandra.db.composites;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.PoolAllocator;
 
 public class SimpleSparseCellName extends AbstractComposite implements CellName
 {
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new SimpleSparseCellName(null));
+
     private final ColumnIdentifier columnName;
 
     // Not meant to be used directly, you should use the CellNameType method instead
@@ -84,16 +87,23 @@ public class SimpleSparseCellName extends AbstractComposite implements CellName
         return true;
     }
 
-    @Override
-    public long memorySize()
+    public long excessHeapSizeExcludingData()
     {
-        return ObjectSizes.getFieldSize(ObjectSizes.getReferenceSize()) + columnName.memorySize();
+        return EMPTY_SIZE + columnName.excessHeapSizeExcludingData();
     }
 
-    @Override
-    public CellName copy(Allocator allocator)
+    public long unsharedHeapSize()
     {
-        // We're interning those instance in SparceCellNameType so don't need to copy.
-        return this;
+        return EMPTY_SIZE + columnName.unsharedHeapSize();
+    }
+
+    public CellName copy(AbstractAllocator allocator)
+    {
+        return new SimpleSparseCellName(columnName.clone(allocator));
+    }
+
+    public void free(PoolAllocator<?> allocator)
+    {
+        allocator.free(columnName.bytes);
     }
 }

@@ -65,7 +65,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         super(rows.get(0).getKey());
         this.rows = rows;
         this.controller = controller;
-        indexer = controller.cfs.indexManager.updaterFor(key);
+        indexer = controller.cfs.indexManager.gcUpdaterFor(key);
 
         // Combine top-level tombstones, keeping the one with the highest markedForDeleteAt timestamp.  This may be
         // purged (depending on gcBefore), but we need to remember it to properly delete columns during the merge
@@ -96,7 +96,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         // are shadowed by a row or range tombstone; removeDeletedColumnsOnly(cf, Integer.MIN_VALUE) will accomplish this
         // without purging tombstones.
         int overriddenGCBefore = shouldPurge ? controller.gcBefore : Integer.MIN_VALUE;
-        ColumnFamilyStore.removeDeletedColumnsOnly(cf, overriddenGCBefore, controller.cfs.indexManager.updaterFor(key));
+        ColumnFamilyStore.removeDeletedColumnsOnly(cf, overriddenGCBefore, controller.cfs.indexManager.gcUpdaterFor(key));
     }
 
     public RowIndexEntry write(long currentPosition, DataOutput out) throws IOException

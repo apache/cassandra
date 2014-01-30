@@ -29,6 +29,7 @@ import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -39,6 +40,8 @@ public class RandomPartitioner extends AbstractPartitioner<BigIntegerToken>
     public static final BigInteger ZERO = new BigInteger("0");
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("-1");
     public static final BigInteger MAXIMUM = new BigInteger("2").pow(127);
+
+    private static final int EMPTY_SIZE = (int) ObjectSizes.measureDeep(new BigIntegerToken(FBUtilities.hashToBigInteger(ByteBuffer.allocate(1))));
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
@@ -121,6 +124,11 @@ public class RandomPartitioner extends AbstractPartitioner<BigIntegerToken>
         if (key.remaining() == 0)
             return MINIMUM;
         return new BigIntegerToken(FBUtilities.hashToBigInteger(key));
+    }
+
+    public long getHeapSizeOf(BigIntegerToken token)
+    {
+        return EMPTY_SIZE;
     }
 
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)

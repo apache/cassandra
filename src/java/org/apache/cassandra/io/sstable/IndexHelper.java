@@ -155,6 +155,8 @@ public class IndexHelper
 
     public static class IndexInfo
     {
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new IndexInfo(null, null, 0, 0));
+
         public final long width;
         public final Composite lastName;
         public final Composite firstName;
@@ -202,15 +204,9 @@ public class IndexHelper
             }
         }
 
-        public long memorySize()
+        public long excessHeapSize()
         {
-            return ObjectSizes.getFieldSize(// firstName
-                                            ObjectSizes.getReferenceSize() +
-                                            // lastName
-                                            ObjectSizes.getReferenceSize() +
-                                            TypeSizes.NATIVE.sizeof(offset) +
-                                            TypeSizes.NATIVE.sizeof(width))
-                   + firstName.memorySize() + lastName.memorySize();
+            return EMPTY_SIZE + firstName.unsharedHeapSize() + lastName.unsharedHeapSize();
         }
     }
 }

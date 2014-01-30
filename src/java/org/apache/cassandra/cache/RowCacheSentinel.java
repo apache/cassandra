@@ -57,10 +57,4 @@ public class RowCacheSentinel implements IRowCacheEntry
     {
         return Objects.hashCode(sentinelId);
     }
-
-    public long memorySize()
-    {
-        // Only long reference.
-        return ObjectSizes.getFieldSize(TypeSizes.NATIVE.sizeof(sentinelId));
-    }
 }
