@@ -1,4 +1,5 @@
 1.2.14
+ * Reverted code to limit CQL prepared statement cache by size (CASSANDRA-6592)
  * add cassandra.default_messaging_version property to allow easier
    upgrading from 1.1 (CASSANDRA-6619)
  * Allow executing CREATE statements multiple times (CASSANDRA-6471)
