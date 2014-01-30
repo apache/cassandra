@@ -55,13 +55,12 @@ public class TraceState
         this.coordinator = coordinator;
         this.sessionId = sessionId;
         sessionIdBytes = ByteBufferUtil.bytes(sessionId);
-        watch = new Stopwatch();
-        watch.start();
+        watch = Stopwatch.createStarted();
     }
 
     public int elapsed()
     {
-        long elapsed = watch.elapsedTime(TimeUnit.MICROSECONDS);
+        long elapsed = watch.elapsed(TimeUnit.MICROSECONDS);
         return elapsed < Integer.MAX_VALUE ? (int) elapsed : Integer.MAX_VALUE;
     }
 
