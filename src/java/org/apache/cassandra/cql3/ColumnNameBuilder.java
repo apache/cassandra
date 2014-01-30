@@ -33,15 +33,6 @@ public interface ColumnNameBuilder
     public ColumnNameBuilder add(ByteBuffer bb);
 
     /**
-     * Add a new ByteBuffer as the next component for this name.
-     * @param t the ByteBuffer to add
-     * @param op the relationship this component should respect.
-     * @throws IllegalStateException if the builder if full, i.e. if enough component has been added.
-     * @return this builder
-     */
-    public ColumnNameBuilder add(ByteBuffer t, Relation.Type op);
-
-    /**
      * Returns the number of component already added to this builder.
      * @return the number of component in this Builder
      */
@@ -69,6 +60,8 @@ public interface ColumnNameBuilder
      * @throws IllegalStateException if the builder is empty or full.
      */
     public ByteBuffer buildAsEndOfRange();
+
+    public ByteBuffer buildForRelation(Relation.Type op);
 
     /**
      * Clone this builder.

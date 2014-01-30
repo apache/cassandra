@@ -246,11 +246,6 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
             return this;
         }
 
-        public NonCompositeBuilder add(ByteBuffer bb, Relation.Type op)
-        {
-            return add(bb);
-        }
-
         public int componentCount()
         {
             return columnName == null ? 0 : 1;
@@ -275,6 +270,11 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
         }
 
         public ByteBuffer buildAsEndOfRange()
+        {
+            return build();
+        }
+
+        public ByteBuffer buildForRelation(Relation.Type op)
         {
             return build();
         }

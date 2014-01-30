@@ -667,14 +667,16 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         // to the component comparator but not to the end-of-component itself),
         // it only depends on whether the slice is reversed
         Bound eocBound = isReversed ? Bound.reverse(bound) : bound;
-        for (CFDefinition.Name name : names)
+        for (Iterator<CFDefinition.Name> iter = names.iterator(); iter.hasNext();)
         {
+            CFDefinition.Name name = iter.next();
+
             // In a restriction, we always have Bound.START < Bound.END for the "base" comparator.
             // So if we're doing a reverse slice, we must inverse the bounds when giving them as start and end of the slice filter.
             // But if the actual comparator itself is reversed, we must inversed the bounds too.
             Bound b = isReversed == isReversedType(name) ? bound : Bound.reverse(bound);
             Restriction r = restrictions[name.position];
-            if (r == null || (r.isSlice() && !((Restriction.Slice)r).hasBound(b)))
+            if (isNullRestriction(r, b))
             {
                 // There wasn't any non EQ relation on that key, we select all records having the preceding component as prefix.
                 // For composites, if there was preceding component and we're computing the end, we must change the last component
@@ -686,12 +688,21 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
             if (r.isSlice())
             {
-                Restriction.Slice slice = (Restriction.Slice)r;
-                assert slice.hasBound(b);
-                ByteBuffer val = slice.bound(b, variables);
-                if (val == null)
-                    throw new InvalidRequestException(String.format("Invalid null clustering key part %s", name));
-                return Collections.singletonList(builder.add(val, slice.getRelation(eocBound, b)).build());
+                builder.add(getSliceValue(name, r, b, variables));
+                Relation.Type relType = ((Restriction.Slice)r).getRelation(eocBound, b);
+
+                // We can have more non null restriction if the "scalar" notation was used for the bound (#4851).
+                // In that case, we need to add them all, and end the cell name with the correct end-of-component.
+                while (iter.hasNext())
+                {
+                    name = iter.next();
+                    r = restrictions[name.position];
+                    if (isNullRestriction(r, b))
+                        break;
+
+                    builder.add(getSliceValue(name, r, b, variables));
+                }
+                return Collections.singletonList(builder.buildForRelation(relType));
             }
             else
             {
@@ -727,6 +738,21 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         // case using the eoc would be bad, since for the random partitioner we have no guarantee that
         // builder.buildAsEndOfRange() will sort after builder.build() (see #5240).
         return Collections.singletonList((bound == Bound.END && builder.remainingCount() > 0) ? builder.buildAsEndOfRange() : builder.build());
+    }
+
+    private static boolean isNullRestriction(Restriction r, Bound b)
+    {
+        return r == null || (r.isSlice() && !((Restriction.Slice)r).hasBound(b));
+    }
+
+    private static ByteBuffer getSliceValue(CFDefinition.Name name, Restriction r, Bound b, List<ByteBuffer> variables) throws InvalidRequestException
+    {
+        Restriction.Slice slice = (Restriction.Slice)r;
+        assert slice.hasBound(b);
+        ByteBuffer val = slice.bound(b, variables);
+        if (val == null)
+            throw new InvalidRequestException(String.format("Invalid null clustering key part %s", name));
+        return val;
     }
 
     private List<ByteBuffer> getRequestedBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
@@ -793,7 +819,6 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         }
         return expressions;
     }
-
 
     private Iterable<Column> columnsInOrder(final ColumnFamily cf, final List<ByteBuffer> variables) throws InvalidRequestException
     {
@@ -1139,16 +1164,16 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 switch (name.kind)
                 {
                     case KEY_ALIAS:
-                        stmt.keyRestrictions[name.position] = updateRestriction(name, stmt.keyRestrictions[name.position], rel, names);
+                        stmt.keyRestrictions[name.position] = updateRestriction(cfm, name, stmt.keyRestrictions[name.position], rel, names);
                         break;
                     case COLUMN_ALIAS:
-                        stmt.columnRestrictions[name.position] = updateRestriction(name, stmt.columnRestrictions[name.position], rel, names);
+                        stmt.columnRestrictions[name.position] = updateRestriction(cfm, name, stmt.columnRestrictions[name.position], rel, names);
                         break;
                     case VALUE_ALIAS:
                         throw new InvalidRequestException(String.format("Predicates on the non-primary-key column (%s) of a COMPACT table are not yet supported", name.name));
                     case COLUMN_METADATA:
                         // We only all IN on the row key and last clustering key so far, never on non-PK columns, and this even if there's an index
-                        Restriction r = updateRestriction(name, stmt.metadataRestrictions.get(name), rel, names);
+                        Restriction r = updateRestriction(cfm, name, stmt.metadataRestrictions.get(name), rel, names);
                         if (r.isIN() && !((Restriction.IN)r).canHaveOnlyOneValue())
                             // Note: for backward compatibility reason, we conside a IN of 1 value the same as a EQ, so we let that slide.
                             throw new InvalidRequestException(String.format("IN predicates on non-primary-key columns (%s) is not yet supported", name));
@@ -1229,6 +1254,8 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 {
                     // Non EQ relation is not supported without token(), even if we have a 2ndary index (since even those are ordered by partitioner).
                     // Note: In theory we could allow it for 2ndary index queries with ALLOW FILTERING, but that would probably require some special casing
+                    // Note bis: This is also why we don't bother handling the 'tuple' notation of #4851 for keys. If we lift the limitation for 2ndary
+                    // index with filtering, we'll need to handle it though.
                     throw new InvalidRequestException("Only EQ and IN relation are supported on the partition key (unless you use the token() function)");
                 }
                 previous = cname;
@@ -1244,6 +1271,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             // the column is indexed that is.
             canRestrictFurtherComponents = true;
             previous = null;
+            boolean previousIsSlice = false;
             iter = cfDef.columns.values().iterator();
             for (int i = 0; i < stmt.columnRestrictions.length; i++)
             {
@@ -1253,19 +1281,31 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 if (restriction == null)
                 {
                     canRestrictFurtherComponents = false;
+                    previousIsSlice = false;
                 }
                 else if (!canRestrictFurtherComponents)
                 {
-                    if (hasQueriableIndex)
+                    // We're here if the previous clustering column was either not restricted or was a slice.
+                    // We can't restrict the current column unless:
+                    //   1) we're in the special case of the 'tuple' notation from #4851 which we expand as multiple
+                    //      consecutive slices: in which case we're good with this restriction and we continue
+                    //   2) we have a 2ndary index, in which case we have to use it but can skip more validation
+                    boolean hasTuple = false;
+                    boolean hasRestrictedNotTuple = false;
+                    if (!(previousIsSlice && restriction.isSlice() && ((Restriction.Slice)restriction).isPartOfTuple()))
                     {
-                        stmt.usesSecondaryIndexing = true; // handle gaps and non-keyrange cases.
-                        break;
+                        if (hasQueriableIndex)
+                        {
+                            stmt.usesSecondaryIndexing = true; // handle gaps and non-keyrange cases.
+                            break;
+                        }
+                        throw new InvalidRequestException(String.format("PRIMARY KEY part %s cannot be restricted (preceding part %s is either not restricted or by a non-EQ relation)", cname, previous));
                     }
-                    throw new InvalidRequestException(String.format("PRIMARY KEY part %s cannot be restricted (preceding part %s is either not restricted or by a non-EQ relation)", cname, previous));
                 }
                 else if (restriction.isSlice())
                 {
                     canRestrictFurtherComponents = false;
+                    previousIsSlice = true;
                     Restriction.Slice slice = (Restriction.Slice)restriction;
                     // For non-composite slices, we don't support internally the difference between exclusive and
                     // inclusive bounds, so we deal with it manually.
@@ -1446,7 +1486,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             return new ColumnSpecification(keyspace(), columnFamily(), new ColumnIdentifier("[limit]", true), Int32Type.instance);
         }
 
-        Restriction updateRestriction(CFDefinition.Name name, Restriction restriction, Relation newRel, VariableSpecifications boundNames) throws InvalidRequestException
+        Restriction updateRestriction(CFMetaData cfm, CFDefinition.Name name, Restriction restriction, Relation newRel, VariableSpecifications boundNames) throws InvalidRequestException
         {
             ColumnSpecification receiver = name;
             if (newRel.onToken)
@@ -1459,6 +1499,10 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                                                    new ColumnIdentifier("partition key token", true),
                                                    StorageService.getPartitioner().getTokenValidator());
             }
+
+            // We can only use the tuple notation of #4851 on clustering columns for now
+            if (newRel.previousInTuple != null && name.kind != CFDefinition.Name.Kind.COLUMN_ALIAS)
+                throw new InvalidRequestException(String.format("Tuple notation can only be used on clustering columns but found on %s", name));
 
             switch (newRel.operator())
             {
@@ -1506,7 +1550,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                             throw new InvalidRequestException(String.format("%s cannot be restricted by both an equal and an inequal relation", name));
                         Term t = newRel.getValue().prepare(receiver);
                         t.collectMarkerSpecification(boundNames);
-                        ((Restriction.Slice)restriction).setBound(name.name, newRel.operator(), t);
+                        if (newRel.previousInTuple != null && (name.position == 0 || !cfm.clusteringKeyColumns().get(name.position - 1).name.equals(newRel.previousInTuple.key)))
+                            throw new InvalidRequestException(String.format("Invalid tuple notation, column %s is not before column %s in the clustering order", newRel.previousInTuple, name.name));
+                        ((Restriction.Slice)restriction).setBound(name.name, newRel.operator(), t, newRel.previousInTuple);
                     }
                     break;
             }
