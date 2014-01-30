@@ -24,6 +24,7 @@ import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
+import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 import org.slf4j.Logger;
@@ -47,7 +48,7 @@ public class StreamInSession extends AbstractStreamSession
     private static final ConcurrentMap<UUID, StreamInSession> sessions = new NonBlockingHashMap<UUID, StreamInSession>();
 
     private final Set<PendingFile> files = new NonBlockingHashSet<PendingFile>();
-    private final List<SSTableReader> readers = new ArrayList<SSTableReader>();
+    private final List<SSTableWriter> writers = new ArrayList<SSTableWriter>();
     private PendingFile current;
     private Socket socket;
     private volatile int retries;
@@ -106,13 +107,13 @@ public class StreamInSession extends AbstractStreamSession
         }
     }
 
-    public void finished(PendingFile remoteFile, SSTableReader reader) throws IOException
+    public void finished(PendingFile remoteFile, SSTableWriter writer) throws IOException
     {
         if (logger.isDebugEnabled())
             logger.debug("Finished {} (from {}). Sending ack to {}", new Object[] {remoteFile, getHost(), this});
 
-        assert reader != null;
-        readers.add(reader);
+        assert writer != null;
+        writers.add(writer);
         files.remove(remoteFile);
         if (remoteFile.equals(current))
             current = null;
@@ -163,6 +164,10 @@ public class StreamInSession extends AbstractStreamSession
             HashMap <ColumnFamilyStore, List<SSTableReader>> cfstores = new HashMap<ColumnFamilyStore, List<SSTableReader>>();
             try
             {
+                List<SSTableReader> readers = new ArrayList<SSTableReader>();
+                for(SSTableWriter writer : writers)
+                    readers.add(writer.closeAndOpenReader());
+
                 for (SSTableReader sstable : readers)
                 {
                     assert sstable.getTableName().equals(table);

@@ -21,6 +21,7 @@
  * Fix preparing with batch and delete from collection (CASSANDRA-6607)
  * Fix ABSC reverse iterator's remove() method (CASSANDRA-6629)
  * Handle host ID conflicts properly (CASSANDRA-6615)
+ * sstables from stalled repair sessions can resurrect deleted data (CASSANDRA-6503)
 
 
 1.2.13

@@ -119,8 +119,8 @@ public class IncomingStreamReader
             DataInput dis = new DataInputStream(underliningStream);
             try
             {
-                SSTableReader reader = streamIn(dis, localFile, remoteFile);
-                session.finished(remoteFile, reader);
+                SSTableWriter writer = streamIn(dis, localFile, remoteFile);
+                session.finished(remoteFile, writer);
             }
             catch (IOException ex)
             {
@@ -141,7 +141,7 @@ public class IncomingStreamReader
     /**
      * @throws IOException if reading the remote sstable fails. Will throw an RTE if local write fails.
      */
-    private SSTableReader streamIn(DataInput input, PendingFile localFile, PendingFile remoteFile) throws IOException
+    private SSTableWriter streamIn(DataInput input, PendingFile localFile, PendingFile remoteFile) throws IOException
     {
         ColumnFamilyStore cfs = Table.open(localFile.desc.ksname).getColumnFamilyStore(localFile.desc.cfname);
         DecoratedKey key;
@@ -197,7 +197,7 @@ public class IncomingStreamReader
             }
             StreamingMetrics.totalIncomingBytes.inc(totalBytesRead);
             metrics.incomingBytes.inc(totalBytesRead);
-            return writer.closeAndOpenReader();
+            return writer;
         }
         catch (Throwable e)
         {
