@@ -201,7 +201,18 @@ public class Descriptor
     public static Descriptor fromFilename(String filename)
     {
         File file = new File(filename);
-        return fromFilename(file.getParentFile(), file.getName()).left;
+        return fromFilename(file.getParentFile(), file.getName(), false).left;
+    }
+
+    public static Descriptor fromFilename(String filename, boolean skipComponent)
+    {
+        File file = new File(filename);
+        return fromFilename(file.getParentFile(), file.getName(), skipComponent).left;
+    }
+
+    public static Pair<Descriptor,String> fromFilename(File directory, String name)
+    {
+        return fromFilename(directory, name, false);
     }
 
     /**
@@ -209,10 +220,11 @@ public class Descriptor
      *
      * @param directory The directory of the SSTable files
      * @param name The name of the SSTable file
+     * @param skipComponent true if the name param should not be parsed for a component tag
      *
      * @return A Descriptor for the SSTable, and the Component remainder.
      */
-    public static Pair<Descriptor,String> fromFilename(File directory, String name)
+    public static Pair<Descriptor,String> fromFilename(File directory, String name, boolean skipComponent)
     {
         // tokenize the filename
         StringTokenizer st = new StringTokenizer(name, String.valueOf(separator));
@@ -239,7 +251,9 @@ public class Descriptor
         int generation = Integer.parseInt(nexttok);
 
         // component suffix
-        String component = st.nextToken();
+        String component = null;
+        if (!skipComponent)
+            component = st.nextToken();
         directory = directory != null ? directory : new File(".");
         return Pair.create(new Descriptor(version, directory, ksname, cfname, generation, temporary), component);
     }

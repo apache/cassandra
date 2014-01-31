@@ -310,7 +310,7 @@ public class FileUtils
         return f.delete();
     }
 
-    public static void delete(File[] files)
+    public static void delete(File... files)
     {
         for ( File file : files )
         {
