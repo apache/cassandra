@@ -25,7 +25,7 @@ Merged from 1.2:
  * Add ability to throttle batchlog replay (CASSANDRA-6550)
  * Fix executing LOCAL_QUORUM with SimpleStrategy (CASSANDRA-6545)
  * Avoid StackOverflow when using large IN queries (CASSANDRA-6567)
- * Nodetool upgradesstables includes secondary indexes (CASSANDRA-6589)
+ * Nodetool upgradesstables includes secondary indexes (CASSANDRA-6598)
  * Paginate batchlog replay (CASSANDRA-6569)
  * skip blocking on streaming during drain (CASSANDRA-6603)
  * Improve error message when schema doesn't match loaded sstable (CASSANDRA-6262)
