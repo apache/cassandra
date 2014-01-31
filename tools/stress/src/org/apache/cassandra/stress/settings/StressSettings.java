@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.util.*;
 
 import com.datastax.driver.core.Metadata;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.SimpleThriftClient;
 import org.apache.cassandra.stress.util.SmartThriftClient;
@@ -11,7 +12,6 @@ import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 
 public class StressSettings implements Serializable
@@ -71,13 +71,11 @@ public class StressSettings implements Serializable
 
     public Cassandra.Client getRawThriftClient(String host, boolean setKeyspace)
     {
-        TSocket socket = new TSocket(host, port.thriftPort);
         Cassandra.Client client;
 
         try
         {
-            TTransport transport = this.transport.getFactory().getTransport(socket);
-            transport.open();
+            TTransport transport = this.transport.getFactory().openTransport(host, port.thriftPort);
 
             client = new Cassandra.Client(new TBinaryProtocol(transport));
 
@@ -131,7 +129,8 @@ public class StressSettings implements Serializable
                 if (client != null)
                     return client;
 
-                JavaDriverClient c = new JavaDriverClient(currentNode, port.nativePort);
+                EncryptionOptions.ClientEncryptionOptions encOptions = transport.getEncryptionOptions();
+                JavaDriverClient c = new JavaDriverClient(currentNode, port.nativePort, encOptions);
                 c.connect(mode.compression());
                 c.execute("USE \"Keyspace1\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
                 return client = c;

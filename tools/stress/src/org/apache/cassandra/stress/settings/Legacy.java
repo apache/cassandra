@@ -265,24 +265,23 @@ public class Legacy implements Serializable
             if (cmd.hasOption("tf"))
                 r.add("-transport", "factory=" + cmd.getOptionValue("tf"));
 
-            // THESE DON'T SEEM TO AFFECT PROGRAM BEHAVIOUR
-//            if(cmd.hasOption(SSL_TRUSTSTORE))
-//                encOptions.truststore = cmd.getOptionValue(SSL_TRUSTSTORE);
-//
-//            if(cmd.hasOption(SSL_TRUSTSTORE_PW))
-//                encOptions.truststore_password = cmd.getOptionValue(SSL_TRUSTSTORE_PW);
-//
-//            if(cmd.hasOption(SSL_PROTOCOL))
-//                encOptions.protocol = cmd.getOptionValue(SSL_PROTOCOL);
-//
-//            if(cmd.hasOption(SSL_ALGORITHM))
-//                encOptions.algorithm = cmd.getOptionValue(SSL_ALGORITHM);
-//
-//            if(cmd.hasOption(SSL_STORE_TYPE))
-//                encOptions.store_type = cmd.getOptionValue(SSL_STORE_TYPE);
-//
-//            if(cmd.hasOption(SSL_CIPHER_SUITES))
-//                encOptions.cipher_suites = cmd.getOptionValue(SSL_CIPHER_SUITES).split(",");
+            if(cmd.hasOption(SSL_TRUSTSTORE))
+                r.add("-transport", "truststore=" + cmd.getOptionValue(SSL_TRUSTSTORE));
+
+            if(cmd.hasOption(SSL_TRUSTSTORE_PW))
+                r.add("-transport", "truststore-password=" + cmd.getOptionValue(SSL_TRUSTSTORE_PW));
+
+            if(cmd.hasOption(SSL_PROTOCOL))
+                r.add("-transport", "ssl-protocol=" + cmd.getOptionValue(SSL_PROTOCOL));
+
+            if(cmd.hasOption(SSL_ALGORITHM))
+                r.add("-transport", "ssl-alg=" +  cmd.getOptionValue(SSL_ALGORITHM));
+
+            if(cmd.hasOption(SSL_STORE_TYPE))
+                r.add("-transport", "store-type=" +  cmd.getOptionValue(SSL_STORE_TYPE));
+
+            if(cmd.hasOption(SSL_CIPHER_SUITES))
+                r.add("-transport", "ssl-ciphers=" +  cmd.getOptionValue(SSL_CIPHER_SUITES));
 
         }
         catch (ParseException e)

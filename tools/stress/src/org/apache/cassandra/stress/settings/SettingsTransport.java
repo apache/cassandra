@@ -2,49 +2,68 @@ package org.apache.cassandra.stress.settings;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.thrift.transport.TTransportFactory;
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.thrift.ITransportFactory;
+import org.apache.cassandra.thrift.SSLTransportFactory;
+import org.apache.cassandra.thrift.TFramedTransportFactory;
 
 public class SettingsTransport implements Serializable
 {
 
     private final String fqFactoryClass;
-    private TTransportFactory factory;
+    private final TOptions options;
+    private ITransportFactory factory;
 
     public SettingsTransport(TOptions options)
     {
-        if (options instanceof SSLOptions)
+        this.options = options;
+        this.fqFactoryClass = options.factory.value();
+        try
         {
-            throw new UnsupportedOperationException();
+            Class<?> clazz = Class.forName(fqFactoryClass);
+            if (!ITransportFactory.class.isAssignableFrom(clazz))
+                throw new ClassCastException();
+            // check we can instantiate it
+            clazz.newInstance();
         }
-        else
+        catch (Exception e)
         {
-            this.fqFactoryClass = options.factory.value();
-            try
-            {
-                Class<?> clazz = Class.forName(fqFactoryClass);
-                if (!TTransportFactory.class.isAssignableFrom(clazz))
-                    throw new ClassCastException();
-                // check we can instantiate it
-                clazz.newInstance();
-            }
-            catch (Exception e)
-            {
-                throw new IllegalArgumentException("Invalid transport factory class: " + options.factory.value(), e);
-            }
-
+            throw new IllegalArgumentException("Invalid transport factory class: " + options.factory.value(), e);
         }
     }
 
-    public synchronized TTransportFactory getFactory()
+    private void configureTransportFactory(ITransportFactory transportFactory, TOptions options)
+    {
+        Map<String, String> factoryOptions = new HashMap<>();
+        // If the supplied factory supports the same set of options as our SSL impl, set those
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.TRUSTSTORE))
+            factoryOptions.put(SSLTransportFactory.TRUSTSTORE, options.trustStore.value());
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.TRUSTSTORE_PASSWORD))
+            factoryOptions.put(SSLTransportFactory.TRUSTSTORE_PASSWORD, options.trustStorePw.value());
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.PROTOCOL))
+            factoryOptions.put(SSLTransportFactory.PROTOCOL, options.protocol.value());
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.CIPHER_SUITES))
+            factoryOptions.put(SSLTransportFactory.CIPHER_SUITES, options.ciphers.value());
+        // Now check if any of the factory's supported options are set as system properties
+        for (String optionKey : transportFactory.supportedOptions())
+            if (System.getProperty(optionKey) != null)
+                factoryOptions.put(optionKey, System.getProperty(optionKey));
+
+        transportFactory.setOptions(factoryOptions);
+    }
+
+    public synchronized ITransportFactory getFactory()
     {
         if (factory == null)
         {
             try
             {
-                this.factory = (TTransportFactory) Class.forName(fqFactoryClass).newInstance();
+                this.factory = (ITransportFactory) Class.forName(fqFactoryClass).newInstance();
+                configureTransportFactory(this.factory, this.options);
             }
             catch (Exception e)
             {
@@ -54,27 +73,32 @@ public class SettingsTransport implements Serializable
         return factory;
     }
 
+    public EncryptionOptions.ClientEncryptionOptions getEncryptionOptions()
+    {
+        EncryptionOptions.ClientEncryptionOptions encOptions = new EncryptionOptions.ClientEncryptionOptions();
+        if (options.trustStore.present())
+        {
+            encOptions.enabled = true;
+            encOptions.truststore = options.trustStore.value();
+            encOptions.truststore_password = options.trustStorePw.value();
+            encOptions.algorithm = options.alg.value();
+            encOptions.protocol = options.protocol.value();
+            encOptions.cipher_suites = options.ciphers.value().split(",");
+        }
+        return encOptions;
+    }
+
     // Option Declarations
 
     static class TOptions extends GroupedOptions
     {
-        final OptionSimple factory = new OptionSimple("factory=", ".*", "org.apache.cassandra.cli.transport.FramedTransportFactory", "Fully-qualified TTransportFactory class name for creating a connection. Note: For Thrift over SSL, use org.apache.cassandra.stress.SSLTransportFactory.", false);
-
-        @Override
-        public List<? extends Option> options()
-        {
-            return Arrays.asList(factory);
-        }
-    }
-
-    static final class SSLOptions extends TOptions
-    {
+        final OptionSimple factory = new OptionSimple("factory=", ".*", TFramedTransportFactory.class.getName(), "Fully-qualified ITransportFactory class name for creating a connection. Note: For Thrift over SSL, use org.apache.cassandra.thrift.SSLTransportFactory.", false);
         final OptionSimple trustStore = new OptionSimple("truststore=", ".*", null, "SSL: full path to truststore", false);
-        final OptionSimple trustStorePw = new OptionSimple("truststore-password=", ".*", null, "", false);
-        final OptionSimple protocol = new OptionSimple("ssl-protocol=", ".*", "TLS", "SSL: connections protocol to use", false);
+        final OptionSimple trustStorePw = new OptionSimple("truststore-password=", ".*", null, "SSL: truststore password", false);
+        final OptionSimple protocol = new OptionSimple("ssl-protocol=", ".*", "TLS", "SSL: connection protocol to use", false);
         final OptionSimple alg = new OptionSimple("ssl-alg=", ".*", "SunX509", "SSL: algorithm", false);
-        final OptionSimple storeType = new OptionSimple("store-type=", ".*", "TLS", "SSL: comma delimited list of encryption suites to use", false);
-        final OptionSimple ciphers = new OptionSimple("ssl-ciphers=", ".*", "TLS", "SSL: comma delimited list of encryption suites to use", false);
+        final OptionSimple storeType = new OptionSimple("store-type=", ".*", "JKS", "SSL: keystore format", false);
+        final OptionSimple ciphers = new OptionSimple("ssl-ciphers=", ".*", "TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA", "SSL: comma delimited list of encryption suites to use", false);
 
         @Override
         public List<? extends Option> options()
