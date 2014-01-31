@@ -119,7 +119,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
              + meter.measureDeep(keyRestrictions)
              + meter.measureDeep(columnRestrictions)
              + meter.measureDeep(metadataRestrictions)
-             + meter.measureDeep(restrictedNames)
+             + meter.measureDeep(restrictedColumns)
              + (sliceRestriction == null ? 0 : meter.measureDeep(sliceRestriction))
              + (orderingIndexes == null ? 0 : meter.measureDeep(orderingIndexes));
     }
