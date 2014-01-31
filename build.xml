@@ -1075,17 +1075,20 @@
   </target>
 
   <target name="test" depends="build-test" description="Execute unit tests">
-    <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="60000">
+    <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="${test.timeout}">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
       <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
     </testmacro>
+    <fileset dir="${test.unit.src}">
+        <exclude name="**/pig/*.java" />
+    </fileset>
   </target>
     
   <target name="test-compression" depends="build-test" description="Execute unit tests with sstable compression enabled">
-    <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="60000">
+      <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="${test.timeout}">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
       <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
@@ -1093,30 +1096,33 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
     </testmacro>
+    <fileset dir="${test.unit.src}">
+        <exclude name="**/pig/*.java" />
+    </fileset>
   </target>
 
   <target name="msg-ser-gen-test" depends="build-test" description="Generates message serializations">
     <testmacro suitename="unit" inputdir="${test.unit.src}" 
-               timeout="60000" filter="**/SerializationsTest.java">
+        timeout="${test.timeout}" filter="**/SerializationsTest.java">
       <jvmarg value="-Dcassandra.test-serialization-writes=True"/>
     </testmacro>
   </target>
   
   <target name="msg-ser-test" depends="build-test" description="Tests message serializations">
-    <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="60000"
+      <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="${test.timeout}"
                filter="**/SerializationsTest.java"/>
   </target>
   
   <target name="msg-ser-test-7" depends="build-test" description="Generates message serializations">
     <testmacro suitename="unit" inputdir="${test.unit.src}" 
-               timeout="60000" filter="**/SerializationsTest.java">
+        timeout="${test.timeout}" filter="**/SerializationsTest.java">
       <jvmarg value="-Dcassandra.version=0.7"/>
     </testmacro>
   </target>
 
   <target name="msg-ser-test-10" depends="build-test" description="Tests message serializations on 1.0 messages">
     <testmacro suitename="unit" inputdir="${test.unit.src}" 
-               timeout="60000" filter="**/SerializationsTest.java">
+        timeout="${test.timeout}" filter="**/SerializationsTest.java">
       <jvmarg value="-Dcassandra.version=1.0"/>
     </testmacro>
   </target>
