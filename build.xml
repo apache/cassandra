@@ -1047,6 +1047,7 @@
     <attribute name="forkmode" default="perTest"/>
     <element name="optjvmargs" implicit="true" optional="true" />
     <attribute name="filter" default="**/${test.name}.java"/>
+    <attribute name="exclude" default="" />
     <sequential>
       <echo message="running @{suitename} tests"/>
       <mkdir dir="${build.test.dir}/cassandra"/>
@@ -1072,7 +1073,7 @@
           </fileset>
         </classpath>
         <batchtest todir="${build.test.dir}/output">
-          <fileset dir="@{inputdir}" includes="@{filter}" />
+            <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
         </batchtest>
       </junit>
       <fail message="Some @{suitename} test(s) failed.">
@@ -1109,29 +1110,23 @@
     </junit>
   </target>
 
-  <target name="test" depends="build-test" description="Execute unit tests">
-    <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="${test.timeout}">
+  <target name="test" depends="build-test" description="Execute unit tests" >
+    <testmacro suitename="unit" inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
     </testmacro>
-    <fileset dir="${test.unit.src}">
-        <exclude name="**/pig/*.java" />
-    </fileset>
   </target>
     
   <target name="test-compression" depends="build-test" description="Execute unit tests with sstable compression enabled">
-      <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="${test.timeout}">
+      <testmacro suitename="unit" inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
       <jvmarg value="-Dcassandra.test.compression=true"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
     </testmacro>
-    <fileset dir="${test.unit.src}">
-        <exclude name="**/pig/*.java" />
-    </fileset>
   </target>
 
   <target name="msg-ser-gen-test" depends="build-test" description="Generates message serializations">
