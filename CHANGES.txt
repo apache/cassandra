@@ -18,6 +18,7 @@
  * SSTableScanner may skip rows during cleanup (CASSANDRA-6638)
  * sstables from stalled repair sessions can resurrect deleted data (CASSANDRA-6503)
  * Switch stress to use ITransportFactory (CASSANDRA-6641)
+ * Fix IllegalArgumentException during prepare (CASSANDRA-6592)
 Merged from 1.2:
  * fsync compression metadata (CASSANDRA-6531)
  * Validate CF existence on execution for prepared statement (CASSANDRA-6535)

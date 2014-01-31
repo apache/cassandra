@@ -66,7 +66,11 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
 
     public long measureForPreparedCache(MemoryMeter meter)
     {
-        return meter.measureDeep(this) - meter.measureDeep(cfm);
+        return meter.measure(this)
+             + meter.measureDeep(attrs)
+             + meter.measureDeep(processedKeys)
+             + meter.measureDeep(columnOperations)
+             + (columnConditions == null ? 0 : meter.measureDeep(columnConditions));
     }
 
     public abstract boolean requireFullClusteringKey();

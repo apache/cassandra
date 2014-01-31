@@ -66,7 +66,10 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
 
     public long measureForPreparedCache(MemoryMeter meter)
     {
-        long size = meter.measure(this) + meter.measure(statements) + meter.measureDeep(attrs);
+        long size = meter.measure(this)
+                  + meter.measureDeep(type)
+                  + meter.measure(statements)
+                  + meter.measureDeep(attrs);
         for (ModificationStatement stmt : statements)
             size += stmt.measureForPreparedCache(meter);
         return size;
