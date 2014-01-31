@@ -1481,7 +1481,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     }
                     else
                     {
-                        logger.warn("Host ID Collision for {} between {} and {}; ignored {}", hostId, existing, endpoint, endpoint);
+                        logger.warn("Host ID collision for {} between {} and {}; ignored {}", hostId, existing, endpoint, endpoint);
                         tokenMetadata.removeEndpoint(endpoint);
                         endpointsToRemove.add(endpoint);
                     }
