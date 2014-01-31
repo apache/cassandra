@@ -24,29 +24,25 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.base.Joiner;
+import org.apache.commons.cli.*;
+import org.apache.commons.lang3.StringUtils;
 import com.yammer.metrics.Metrics;
 
 import org.apache.cassandra.auth.IAuthenticator;
-import org.apache.cassandra.cli.transport.FramedTransportFactory;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.db.marshal.*;
-import org.apache.commons.cli.*;
-
-import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.stress.util.CassandraClient;
-import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.thrift.*;
-import org.apache.commons.lang3.StringUtils;
-
+import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportFactory;
 
 public class Session implements Serializable
 {
@@ -175,7 +171,7 @@ public class Session implements Serializable
     public final boolean timeUUIDComparator;
     public double traceProbability = 0.0;
     public EncryptionOptions encOptions = new ClientEncryptionOptions();
-    public TTransportFactory transportFactory = new FramedTransportFactory();
+    public ITransportFactory transportFactory = new TFramedTransportFactory();
 
     public Session(String[] arguments) throws IllegalArgumentException, SyntaxException
     {
@@ -455,7 +451,10 @@ public class Session implements Serializable
                 encOptions.cipher_suites = cmd.getOptionValue(SSL_CIPHER_SUITES).split(",");
 
             if (cmd.hasOption("tf"))
+            {
                 transportFactory = validateAndSetTransportFactory(cmd.getOptionValue("tf"));
+                configureTransportFactory(transportFactory, encOptions);
+            }
 
             if (cmd.hasOption("un"))
                 username = cmd.getOptionValue("un");
@@ -476,22 +475,50 @@ public class Session implements Serializable
         sigma = numDifferentKeys * STDev;
     }
 
-    private TTransportFactory validateAndSetTransportFactory(String transportFactory)
+    private ITransportFactory validateAndSetTransportFactory(String transportFactory)
     {
         try
         {
             Class factory = Class.forName(transportFactory);
 
-            if(!TTransportFactory.class.isAssignableFrom(factory))
+            if(!ITransportFactory.class.isAssignableFrom(factory))
                 throw new IllegalArgumentException(String.format("transport factory '%s' " +
-                        "not derived from TTransportFactory", transportFactory));
+                        "not derived from ITransportFactory", transportFactory));
 
-            return (TTransportFactory) factory.newInstance();
+            return (ITransportFactory) factory.newInstance();
         }
         catch (Exception e)
         {
             throw new IllegalArgumentException(String.format("Cannot create a transport factory '%s'.", transportFactory), e);
         }
+    }
+
+    private void configureTransportFactory(ITransportFactory transportFactory, EncryptionOptions encOptions)
+    {
+        Map<String, String> options = new HashMap<>();
+        // If the supplied factory supports the same set of options as our SSL impl, set those
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.TRUSTSTORE))
+            options.put(SSLTransportFactory.TRUSTSTORE, encOptions.truststore);
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.TRUSTSTORE_PASSWORD))
+            options.put(SSLTransportFactory.TRUSTSTORE_PASSWORD, encOptions.truststore_password);
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.PROTOCOL))
+            options.put(SSLTransportFactory.PROTOCOL, encOptions.protocol);
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.CIPHER_SUITES))
+            options.put(SSLTransportFactory.CIPHER_SUITES, Joiner.on(',').join(encOptions.cipher_suites));
+
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.KEYSTORE)
+                && encOptions.require_client_auth)
+            options.put(SSLTransportFactory.KEYSTORE, encOptions.keystore);
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.KEYSTORE_PASSWORD)
+                && encOptions.require_client_auth)
+            options.put(SSLTransportFactory.KEYSTORE_PASSWORD, encOptions.keystore_password);
+
+        // Now check if any of the factory's supported options are set as system properties
+        for (String optionKey : transportFactory.supportedOptions())
+            if (System.getProperty(optionKey) != null)
+                options.put(optionKey, System.getProperty(optionKey));
+
+        transportFactory.setOptions(options);
     }
 
     public int getCardinality()
@@ -748,12 +775,11 @@ public class Session implements Serializable
         // random node selection for fake load balancing
         String currentNode = nodes[Stress.randomizer.nextInt(nodes.length)];
 
-        TSocket socket = new TSocket(currentNode, port);
-        TTransport transport = transportFactory.getTransport(socket);
-        CassandraClient client = new CassandraClient(new TBinaryProtocol(transport));
-
         try
         {
+            TTransport transport = transportFactory.openTransport(currentNode, port);
+            CassandraClient client = new CassandraClient(new TBinaryProtocol(transport));
+
             if (!transport.isOpen())
                 transport.open();
 
@@ -771,6 +797,7 @@ public class Session implements Serializable
                 AuthenticationRequest authenticationRequest = new AuthenticationRequest(credentials);
                 client.login(authenticationRequest);
             }
+            return client;
         }
         catch (AuthenticationException e)
         {
@@ -788,8 +815,6 @@ public class Session implements Serializable
         {
             throw new RuntimeException(e.getMessage());
         }
-
-        return client;
     }
 
     public SimpleClient getNativeClient()
