@@ -35,7 +35,7 @@ public class StorageServiceClientTest
     {
         SchemaLoader.mkdirs();
         SchemaLoader.cleanup();
-        StorageService.instance.initClient();
+        StorageService.instance.initClient(0);
 
         // verify that no storage directories were created.
         for (String path : DatabaseDescriptor.getAllDataFileLocations())
