@@ -144,6 +144,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
     }
 
     private volatile State state = State.INITIALIZED;
+    private volatile boolean completeSent = false;
 
     /**
      * Create new streaming session with the peer.
@@ -505,11 +506,15 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
     {
         if (state == State.WAIT_COMPLETE)
         {
+            if (!completeSent)
+            {
+                handler.sendMessage(new CompleteMessage());
+                completeSent = true;
+            }
             closeSession(State.COMPLETE);
         }
         else
         {
-            handler.sendMessage(new CompleteMessage());
             state(State.WAIT_COMPLETE);
         }
     }
@@ -594,12 +599,18 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
         {
             if (state == State.WAIT_COMPLETE)
             {
+                if (!completeSent)
+                {
+                    handler.sendMessage(new CompleteMessage());
+                    completeSent = true;
+                }
                 closeSession(State.COMPLETE);
             }
             else
             {
                 // notify peer that this session is completed
                 handler.sendMessage(new CompleteMessage());
+                completeSent = true;
                 state(State.WAIT_COMPLETE);
             }
         }
