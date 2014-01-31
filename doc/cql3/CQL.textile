@@ -277,7 +277,7 @@ CREATE TABLE t (
 
 Moreover, a table must define at least one column that is not part of the PRIMARY KEY as a row exists in Cassandra only if it contains at least one value for one such column.
 
-h4(#createTablepartitionClustering). Partition key and clustering
+h4(#createTablepartitionClustering). Partition key and clustering columns
 
 In CQL, the order in which columns are defined for the @PRIMARY KEY@ matters. The first column of the key is called the __partition key__. It has the property that all the rows sharing the same partition key (even across table in fact) are stored on the same physical node. Also, insertion/update/deletion on rows sharing the same partition key for a given table are performed __atomically__ and in __isolation__. Note that it is possible to have a composite partition key, i.e. a partition key formed of multiple columns, using an extra set of parentheses to define which columns forms the partition key.
 
@@ -287,9 +287,9 @@ h4(#createTableOptions). @<option>@
 
 The @CREATE TABLE@ statement supports a number of options that controls the configuration of a new table. These options can be specified after the @WITH@ keyword.
 
-The first of these option is @COMPACT STORAGE@. This option is meanly targeted towards backward compatibility with some table definition created before CQL3.  But it also provides a slightly more compact layout of data on disk, though at the price of flexibility and extensibility, and for that reason is not recommended unless for the backward compatibility reason. The restriction for table with @COMPACT STORAGE@ is that they support one and only one column outside of the ones part of the @PRIMARY KEY@. It also follows that columns cannot be added nor removed after creation. A table with @COMPACT STORAGE@ must also define at least one "clustering key":createTablepartitionClustering.
+The first of these option is @COMPACT STORAGE@. This option is mainly targeted towards backward compatibility for definitions created before CQL3 (see "www.datastax.com/dev/blog/thrift-to-cql3":http://www.datastax.com/dev/blog/thrift-to-cql3 for more details).  The option also provides a slightly more compact layout of data on disk but at the price of diminished flexibility and extensibility for the table.  Most notably, @COMPACT STORAGE@ tables cannot have collections and a @COMPACT STORAGE@ table with at least one clustering column supports exactly one (as in not 0 nor more than 1) column not part of the @PRIMARY KEY@ definition (which imply in particular that you cannot add nor remove columns after creation). For those reasons, @COMPACT STORAGE@ is not recommended outside of the backward compatibility reason evoked above.
 
-Another option is @CLUSTERING ORDER@. It allows to define the ordering of rows on disk. It takes the list of the clustering key names with, for each of them, the on-disk order (Ascending or descending). Note that this option affects "what @ORDER BY@ are allowed during @SELECT@":#selectOrderBy.
+Another option is @CLUSTERING ORDER@. It allows to define the ordering of rows on disk. It takes the list of the clustering column names with, for each of them, the on-disk order (Ascending or descending). Note that this option affects "what @ORDER BY@ are allowed during @SELECT@":#selectOrderBy.
 
 Table creation supports the following other @<property>@:
 
@@ -668,7 +668,7 @@ Moreover, the @IN@ relation is only allowed on the last column of the partition 
 h4(#selectOrderBy). @<order-by>@
 
 The @ORDER BY@ option allows to select the order of the returned results. It takes as argument a list of column names along with the order for the column (@ASC@ for ascendant and @DESC@ for descendant, omitting the order being equivalent to @ASC@). Currently the possible orderings are limited (which depends on the table "@CLUSTERING ORDER@":#createTableOptions):
-* if the table has been defined without any specific @CLUSTERING ORDER@, then then allowed orderings are the order induced by the clustering key and the reverse of that one.
+* if the table has been defined without any specific @CLUSTERING ORDER@, then then allowed orderings are the order induced by the clustering columns and the reverse of that one.
 * otherwise, the orderings allowed are the order of the @CLUSTERING ORDER@ option and the reversed one.
 
 h4(#selectLimit). @LIMIT@
@@ -942,7 +942,7 @@ CREATE TABLE users (
     ...
 )
 
-then the @token@ function will take a single argument of type @text@ (in that case, the partition key is @userid@ (there is no clustering key so the partition key is the same than the primary key)), and the return type will be @bigint@.
+then the @token@ function will take a single argument of type @text@ (in that case, the partition key is @userid@ (there is no clustering columns so the partition key is the same than the primary key)), and the return type will be @bigint@.
 
 h3(#timeuuidFun). Timeuuid functions
 
