@@ -126,7 +126,7 @@ public class PrecompactedRow extends AbstractCompactedRow
                 // notify the index that the column has been overwritten if the value being reduced has been
                 // superceded by another directly, or indirectly by a range tombstone
                 if ((!column.isMarkedForDelete(System.currentTimeMillis()) && !container.getColumn(column.name()).equals(column))
-                    || returnCF.deletionInfo().isDeleted(column.name(), CompactionManager.NO_GC))
+                    || returnCF.deletionInfo().isDeleted(column))
                 {
                     indexer.remove(column);
                 }
