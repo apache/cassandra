@@ -37,6 +37,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.*;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -300,6 +301,59 @@ public class RangeTombstoneTest extends SchemaLoader
         // verify that the 1 indexed column was removed from the index
         assertEquals(1, index.deletes.size());
         assertEquals(index.deletes.get(0), index.inserts.get(0));
+    }
+
+    @Test
+    public void testOverwritesToDeletedColumns() throws Exception
+    {
+        Keyspace table = Keyspace.open(KSNAME);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);
+        ByteBuffer key = ByteBufferUtil.bytes("k6");
+        ByteBuffer indexedColumnName = ByteBufferUtil.bytes(1);
+
+        cfs.truncateBlocking();
+        cfs.disableAutoCompaction();
+        cfs.setCompactionStrategyClass(SizeTieredCompactionStrategy.class.getCanonicalName());
+        if (cfs.indexManager.getIndexForColumn(indexedColumnName) == null)
+        {
+            ColumnDefinition cd = new ColumnDefinition(cfs.metadata, indexedColumnName, Int32Type.instance, null, ColumnDefinition.Kind.REGULAR);
+            cd.setIndex("test_index", IndexType.CUSTOM, ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, TestIndex.class.getName()));
+            cfs.indexManager.addIndexedColumn(cd);
+        }
+
+        TestIndex index = ((TestIndex)cfs.indexManager.getIndexForColumn(indexedColumnName));
+        index.resetCounts();
+
+        Mutation rm = new Mutation(KSNAME, key);
+        add(rm, 1, 0);
+        rm.apply();
+
+        // add a RT which hides the column we just inserted
+        rm = new Mutation(KSNAME, key);
+        ColumnFamily cf = rm.addOrGet(CFNAME);
+        delete(cf, 0, 1, 1);
+        rm.apply();
+
+        // now re-insert that column
+        rm = new Mutation(KSNAME, key);
+        add(rm, 1, 2);
+        rm.apply();
+
+        cfs.forceBlockingFlush();
+
+        // We should have 2 updates to the indexed "1" column
+        assertEquals(2, index.inserts.size());
+
+        CompactionManager.instance.performMaximal(cfs);
+
+        // verify that the "1" indexed column removed from the index twice:
+        // the first time by processing the RT, the second time by the
+        // re-indexing caused by the second insertion. This second write
+        // deletes from the 2i because the original column was still in the
+        // main cf's memtable (shadowed by the RT). One thing we're checking
+        // for here is that there wasn't an additional, bogus delete issued
+        // to the 2i (CASSANDRA-6517)
+        assertEquals(2, index.deletes.size());
     }
 
     private void runCompactionWithRangeTombstoneAndCheckSecondaryIndex() throws Exception
