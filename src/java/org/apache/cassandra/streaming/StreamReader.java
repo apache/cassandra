@@ -36,7 +36,6 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.messages.FileMessageHeader;
@@ -71,7 +70,7 @@ public class StreamReader
      * @return SSTable transferred
      * @throws IOException if reading the remote sstable fails. Will throw an RTE if local write fails.
      */
-    public SSTableReader read(ReadableByteChannel channel) throws IOException
+    public SSTableWriter read(ReadableByteChannel channel) throws IOException
     {
         long totalSize = totalSize();
 
@@ -89,7 +88,7 @@ public class StreamReader
                 // TODO move this to BytesReadTracker
                 session.progress(desc, ProgressInfo.Direction.IN, in.getBytesRead(), totalSize);
             }
-            return writer.closeAndOpenReader();
+            return writer;
         }
         catch (Throwable e)
         {

@@ -17,9 +17,15 @@
  */
 package org.apache.cassandra.cli;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import com.google.common.base.Joiner;
 import org.apache.commons.cli.*;
 
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.thrift.ITransportFactory;
+import org.apache.cassandra.thrift.SSLTransportFactory;
 
 /**
  *
@@ -112,11 +118,6 @@ public class CliOptions
             else
             {
                 css.hostName = DEFAULT_HOST;
-            }
-
-            if (cmd.hasOption(TRANSPORT_FACTORY))
-            {
-                css.transportFactory = validateAndSetTransportFactory(cmd.getOptionValue(TRANSPORT_FACTORY));
             }
 
             if (cmd.hasOption(DEBUG_OPTION))
@@ -217,6 +218,12 @@ public class CliOptions
                 css.encOptions.cipher_suites = cmd.getOptionValue(SSL_CIPHER_SUITES).split(",");
             }
 
+            if (cmd.hasOption(TRANSPORT_FACTORY))
+            {
+                css.transportFactory = validateAndSetTransportFactory(cmd.getOptionValue(TRANSPORT_FACTORY));
+                configureTransportFactory(css.transportFactory, css.encOptions);
+            }
+
             // Abort if there are any unrecognized arguments left
             if (cmd.getArgs().length > 0)
             {
@@ -280,5 +287,33 @@ public class CliOptions
         {
             throw new IllegalArgumentException(String.format("Cannot create a transport factory '%s'.", transportFactory), e);
         }
+    }
+
+    private static void configureTransportFactory(ITransportFactory transportFactory, EncryptionOptions encOptions)
+    {
+        Map<String, String> options = new HashMap<>();
+        // If the supplied factory supports the same set of options as our SSL impl, set those
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.TRUSTSTORE))
+            options.put(SSLTransportFactory.TRUSTSTORE, encOptions.truststore);
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.TRUSTSTORE_PASSWORD))
+            options.put(SSLTransportFactory.TRUSTSTORE_PASSWORD, encOptions.truststore_password);
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.PROTOCOL))
+            options.put(SSLTransportFactory.PROTOCOL, encOptions.protocol);
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.CIPHER_SUITES))
+            options.put(SSLTransportFactory.CIPHER_SUITES, Joiner.on(',').join(encOptions.cipher_suites));
+
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.KEYSTORE)
+                && encOptions.require_client_auth)
+            options.put(SSLTransportFactory.KEYSTORE, encOptions.keystore);
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.KEYSTORE_PASSWORD)
+                && encOptions.require_client_auth)
+            options.put(SSLTransportFactory.KEYSTORE_PASSWORD, encOptions.keystore_password);
+
+        // Now check if any of the factory's supported options are set as system properties
+        for (String optionKey : transportFactory.supportedOptions())
+            if (System.getProperty(optionKey) != null)
+                options.put(optionKey, System.getProperty(optionKey));
+
+        transportFactory.setOptions(options);
     }
 }

@@ -21,7 +21,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.streaming.messages.FileMessage;
+import org.apache.cassandra.streaming.messages.OutgoingFileMessage;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -31,7 +31,7 @@ public class StreamTransferTask extends StreamTask
 {
     private final AtomicInteger sequenceNumber = new AtomicInteger(0);
 
-    private final Map<Integer, FileMessage> files = new HashMap<>();
+    private final Map<Integer, OutgoingFileMessage> files = new HashMap<>();
 
     private long totalSize;
 
@@ -43,7 +43,7 @@ public class StreamTransferTask extends StreamTask
     public void addTransferFile(SSTableReader sstable, long estimatedKeys, List<Pair<Long, Long>> sections)
     {
         assert sstable != null && cfId.equals(sstable.metadata.cfId);
-        FileMessage message = new FileMessage(sstable, sequenceNumber.getAndIncrement(), estimatedKeys, sections);
+        OutgoingFileMessage message = new OutgoingFileMessage(sstable, sequenceNumber.getAndIncrement(), estimatedKeys, sections);
         files.put(message.header.sequenceNumber, message);
         totalSize += message.header.size();
     }
@@ -71,14 +71,14 @@ public class StreamTransferTask extends StreamTask
         return totalSize;
     }
 
-    public Collection<FileMessage> getFileMessages()
+    public Collection<OutgoingFileMessage> getFileMessages()
     {
         // We may race between queuing all those messages and the completion of the completion of
         // the first ones. So copy the values to avoid a ConcurrentModificationException
         return new ArrayList<>(files.values());
     }
 
-    public FileMessage createMessageForRetry(int sequenceNumber)
+    public OutgoingFileMessage createMessageForRetry(int sequenceNumber)
     {
         return files.get(sequenceNumber);
     }

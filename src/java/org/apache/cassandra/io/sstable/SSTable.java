@@ -170,7 +170,7 @@ public abstract class SSTable
     /**
      * Discovers existing components for the descriptor. Slow: only intended for use outside the critical path.
      */
-    static Set<Component> componentsFor(final Descriptor desc)
+    public static Set<Component> componentsFor(final Descriptor desc)
     {
         try
         {

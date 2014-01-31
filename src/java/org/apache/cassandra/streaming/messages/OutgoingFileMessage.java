@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.streaming.messages;
 
-import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -28,64 +27,44 @@ import java.util.List;
 
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.streaming.StreamReader;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamWriter;
-import org.apache.cassandra.streaming.compress.CompressedStreamReader;
 import org.apache.cassandra.streaming.compress.CompressedStreamWriter;
 import org.apache.cassandra.streaming.compress.CompressionInfo;
 import org.apache.cassandra.utils.Pair;
 
 /**
- * FileMessage is used to transfer/receive the part(or whole) of a SSTable data file.
+ * OutgoingFileMessage is used to transfer the part(or whole) of a SSTable data file.
  */
-public class FileMessage extends StreamMessage
+public class OutgoingFileMessage extends StreamMessage
 {
-    public static Serializer<FileMessage> serializer = new Serializer<FileMessage>()
+    public static Serializer<OutgoingFileMessage> serializer = new Serializer<OutgoingFileMessage>()
     {
-        public FileMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
+        public OutgoingFileMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
         {
-            DataInputStream input = new DataInputStream(Channels.newInputStream(in));
-            FileMessageHeader header = FileMessageHeader.serializer.deserialize(input, version);
-            StreamReader reader = header.compressionInfo == null ? new StreamReader(header, session)
-                                          : new CompressedStreamReader(header, session);
-
-            try
-            {
-                return new FileMessage(reader.read(in), header);
-            }
-            catch (Throwable e)
-            {
-                session.doRetry(header, e);
-                return null;
-            }
+            throw new UnsupportedOperationException("Not allowed to call deserialize on an outgoing file");
         }
 
-        public void serialize(FileMessage message, WritableByteChannel out, int version, StreamSession session) throws IOException
+        public void serialize(OutgoingFileMessage message, WritableByteChannel out, int version, StreamSession session) throws IOException
         {
             DataOutput output = new DataOutputStream(Channels.newOutputStream(out));
             FileMessageHeader.serializer.serialize(message.header, output, version);
+
+            final SSTableReader reader = message.sstable;
             StreamWriter writer = message.header.compressionInfo == null ?
-                                          new StreamWriter(message.sstable, message.header.sections, session) :
-                                          new CompressedStreamWriter(message.sstable,
-                                                                     message.header.sections,
-                                                                     message.header.compressionInfo, session);
+                    new StreamWriter(reader, message.header.sections, session) :
+                    new CompressedStreamWriter(reader,
+                            message.header.sections,
+                            message.header.compressionInfo, session);
             writer.write(out);
             session.fileSent(message.header);
         }
     };
 
-    public final FileMessageHeader header;
-    public final SSTableReader sstable;
+    public FileMessageHeader header;
+    public SSTableReader sstable;
 
-    public FileMessage(SSTableReader sstable, FileMessageHeader header)
-    {
-        super(Type.FILE);
-        this.header = header;
-        this.sstable = sstable;
-    }
-
-    public FileMessage(SSTableReader sstable, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections)
+    public OutgoingFileMessage(SSTableReader sstable, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections)
     {
         super(Type.FILE);
         this.sstable = sstable;
@@ -97,11 +76,11 @@ public class FileMessage extends StreamMessage
             compressionInfo = new CompressionInfo(meta.getChunksForSections(sections), meta.parameters);
         }
         this.header = new FileMessageHeader(sstable.metadata.cfId,
-                                            sequenceNumber,
-                                            sstable.descriptor.version.toString(),
-                                            estimatedKeys,
-                                            sections,
-                                            compressionInfo);
+                sequenceNumber,
+                sstable.descriptor.version.toString(),
+                estimatedKeys,
+                sections,
+                compressionInfo);
     }
 
     @Override
@@ -110,3 +89,4 @@ public class FileMessage extends StreamMessage
         return "File (" + header + ", file: " + sstable.getFilename() + ")";
     }
 }
+

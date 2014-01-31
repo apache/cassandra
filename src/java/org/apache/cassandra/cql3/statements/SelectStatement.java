@@ -112,7 +112,16 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
     public long measureForPreparedCache(MemoryMeter meter)
     {
-        return meter.measureDeep(this) - meter.measureDeep(cfm);
+        return meter.measure(this)
+             + meter.measureDeep(parameters)
+             + meter.measureDeep(selection)
+             + (limit == null ? 0 : meter.measureDeep(limit))
+             + meter.measureDeep(keyRestrictions)
+             + meter.measureDeep(columnRestrictions)
+             + meter.measureDeep(metadataRestrictions)
+             + meter.measureDeep(restrictedNames)
+             + (sliceRestriction == null ? 0 : meter.measureDeep(sliceRestriction))
+             + (orderingIndexes == null ? 0 : meter.measureDeep(orderingIndexes));
     }
 
     public int getBoundTerms()
