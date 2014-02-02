@@ -27,10 +27,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.composites.*;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class IndexHelperTest
 {

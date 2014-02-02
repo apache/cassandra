@@ -307,7 +307,7 @@ public class OpenBitSet implements IBitSet
     long[][] thisArr = this.bits;
     long[][] otherArr = other.bits;
     int thisPageSize = PAGE_SIZE;
-    int otherPageSize = other.PAGE_SIZE;
+    int otherPageSize = OpenBitSet.PAGE_SIZE;
     // testing against zero can be more efficient
     int pos=newLen;
     while(--pos>=0) {
@@ -357,8 +357,8 @@ public class OpenBitSet implements IBitSet
       a=this;
     }
 
-    int aPageSize = this.PAGE_SIZE;
-    int bPageSize = b.PAGE_SIZE;
+    int aPageSize = OpenBitSet.PAGE_SIZE;
+    int bPageSize = OpenBitSet.PAGE_SIZE;
 
     // check for any set bits out of the range of b
     for (int i=a.wlen-1; i>=b.wlen; i--) {

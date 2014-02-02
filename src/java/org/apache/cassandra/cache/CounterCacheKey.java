@@ -22,10 +22,8 @@ import java.util.Arrays;
 import java.util.UUID;
 
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNames;
-import org.apache.cassandra.db.composites.SimpleSparseCellName;
 import org.apache.cassandra.utils.*;
 
 public class CounterCacheKey implements CacheKey

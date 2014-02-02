@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.locks.LockSupport;
 
@@ -264,7 +263,7 @@ public final class WaitQueue
             boolean interrupted = false;
             while (!isSignalled())
             {
-                if (Thread.currentThread().interrupted())
+                if (Thread.interrupted())
                     interrupted = true;
                 LockSupport.park();
             }

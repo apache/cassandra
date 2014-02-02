@@ -21,7 +21,6 @@ import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.Future;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -38,8 +37,6 @@ import org.apache.cassandra.io.util.ChecksummedOutputStream;
 import org.apache.cassandra.metrics.CommitLogMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.PureJavaCrc32;
-
-import com.google.common.util.concurrent.Futures;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.*;
 

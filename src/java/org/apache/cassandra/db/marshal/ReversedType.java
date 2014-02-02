@@ -50,7 +50,7 @@ public class ReversedType<T> extends AbstractType<T>
             type = new ReversedType<T>(baseType);
             instances.put(baseType, type);
         }
-        return (ReversedType<T>) type;
+        return type;
     }
 
     private ReversedType(AbstractType<T> baseType)

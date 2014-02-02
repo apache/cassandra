@@ -23,7 +23,6 @@ import java.util.*;
 import java.util.concurrent.Future;
 
 import com.google.common.collect.Lists;
-import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

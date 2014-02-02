@@ -19,9 +19,6 @@ package org.apache.cassandra.cache;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.utils.ObjectSizes;
-
 import com.google.common.base.Objects;
 
 /**

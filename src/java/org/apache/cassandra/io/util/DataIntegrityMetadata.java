@@ -29,7 +29,6 @@ import java.util.zip.Checksum;
 
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.PureJavaCrc32;
 

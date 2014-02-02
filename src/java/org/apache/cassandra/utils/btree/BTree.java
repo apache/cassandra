@@ -4,9 +4,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 
-import com.google.common.base.Function;
 import org.apache.cassandra.utils.ObjectSizes;
-import com.google.common.collect.Collections2;
 
 public class BTree
 {

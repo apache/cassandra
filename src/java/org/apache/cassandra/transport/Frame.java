@@ -31,7 +31,6 @@ import org.jboss.netty.handler.codec.frame.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.messages.ErrorMessage;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class Frame
 {

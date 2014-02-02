@@ -21,7 +21,6 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.cli.transport.FramedTransportFactory;
 import org.apache.thrift.transport.TSSLTransportFactory;
 import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportException;
 
 import java.util.Map;
 import java.util.Set;

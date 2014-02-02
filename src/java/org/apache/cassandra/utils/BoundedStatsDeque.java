@@ -18,12 +18,8 @@
 package org.apache.cassandra.utils;
 
 import java.util.Iterator;
-import java.util.NoSuchElementException;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-
-import com.google.common.util.concurrent.AtomicDouble;
 
 /**
  * bounded threadsafe deque

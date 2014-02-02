@@ -23,7 +23,6 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
 
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.QueryOptions;

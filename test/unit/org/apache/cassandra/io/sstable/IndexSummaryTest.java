@@ -42,7 +42,6 @@ import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 import static org.apache.cassandra.io.sstable.Downsampling.MIN_SAMPLING_LEVEL;
 
 import static org.junit.Assert.*;
-import static org.junit.Assert.assertEquals;
 
 public class IndexSummaryTest
 {

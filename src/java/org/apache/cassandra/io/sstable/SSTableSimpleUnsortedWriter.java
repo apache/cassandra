@@ -28,7 +28,6 @@ import com.google.common.base.Throwables;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.TreeMapBackedSortedColumns;
 import org.apache.cassandra.db.marshal.AbstractType;

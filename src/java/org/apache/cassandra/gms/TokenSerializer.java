@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.gms;
 
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 

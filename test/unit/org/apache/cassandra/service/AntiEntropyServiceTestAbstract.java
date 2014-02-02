@@ -45,7 +45,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.service.ActiveRepairService.*;
 import static org.junit.Assert.assertEquals;
 
 public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader

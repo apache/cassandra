@@ -31,7 +31,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ClockAndCount;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.*;
 
 /**
