@@ -763,7 +763,7 @@ public class CounterContext implements IContext
             if (currentIsGlobal)
                 other.context.putShort(other.context.position() + other.headerOffset, (short) (other.getElementIndex() + Short.MIN_VALUE));
             else if (currentIsLocal)
-                context.putShort(other.context.position() + other.headerOffset, (short) other.getElementIndex());
+                other.context.putShort(other.context.position() + other.headerOffset, (short) other.getElementIndex());
 
             other.currentIsGlobal = currentIsGlobal;
             other.currentIsLocal = currentIsLocal;
