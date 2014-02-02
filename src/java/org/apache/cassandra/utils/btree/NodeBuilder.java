@@ -88,12 +88,12 @@ final class NodeBuilder
      * a parent if we do not -- we got here from an earlier key -- and we need to ascend back up),
      * or null if we finished the update in this node.
      */
-    <V> NodeBuilder update(Object key)
+    NodeBuilder update(Object key)
     {
         assert copyFrom != null;
         int copyFromKeyEnd = getKeyEnd(copyFrom);
 
-        int i = find(comparator, (V) key, copyFrom, copyFromKeyPosition, copyFromKeyEnd);
+        int i = find(comparator, key, copyFrom, copyFromKeyPosition, copyFromKeyEnd);
         boolean found = i >= 0; // exact key match?
         boolean owns = true; // true iff this node (or a child) should contain the key
         if (!found)
@@ -222,23 +222,23 @@ final class NodeBuilder
     }
 
     // skips the next key in copyf, and puts the provided key in the builder instead
-    private <V> void replaceNextKey(Object with)
+    private void replaceNextKey(Object with)
     {
         // (this first part differs from addNewKey in that we pass the replaced object to replaceF as well)
         ensureRoom(buildKeyPosition + 1);
         if (updateFunction != null)
-            with = updateFunction.apply((V) copyFrom[copyFromKeyPosition], (V) with);
+            with = updateFunction.apply(copyFrom[copyFromKeyPosition], with);
         buildKeys[buildKeyPosition++] = with;
 
         copyFromKeyPosition++;
     }
 
     // puts the provided key in the builder, with no impact on treatment of data from copyf
-    <V> void addNewKey(Object key)
+    void addNewKey(Object key)
     {
         ensureRoom(buildKeyPosition + 1);
         if (updateFunction != null)
-            key = updateFunction.apply((V) key);
+            key = updateFunction.apply(key);
         buildKeys[buildKeyPosition++] = key;
     }
 
