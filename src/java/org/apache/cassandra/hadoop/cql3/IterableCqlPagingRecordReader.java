@@ -23,8 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
 
-import org.apache.commons.lang.NotImplementedException;
-
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -49,7 +47,7 @@ public class IterableCqlPagingRecordReader extends CqlPagingRecordReader
 
             public void remove()
             {
-                throw new NotImplementedException("Cannot remove an element on this iterator!");
+                throw new UnsupportedOperationException("Cannot remove an element on this iterator!");
 
             }
         };
@@ -61,7 +59,7 @@ public class IterableCqlPagingRecordReader extends CqlPagingRecordReader
     @Override
     public boolean nextKeyValue() throws IOException
     {
-        throw new NotImplementedException("Calling method nextKeyValue() does not make sense in this implementation");
+        throw new UnsupportedOperationException("Calling method nextKeyValue() does not make sense in this implementation");
     }
 
     /**
@@ -70,6 +68,6 @@ public class IterableCqlPagingRecordReader extends CqlPagingRecordReader
     @Override
     public boolean next(Map<String, ByteBuffer> keys, Map<String, ByteBuffer> value) throws IOException
     {
-        throw new NotImplementedException("Calling method next() does not make sense in this implementation");
+        throw new UnsupportedOperationException("Calling method next() does not make sense in this implementation");
     }
 }

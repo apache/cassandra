@@ -190,7 +190,7 @@ public class ByteBufferUtil
     }
 
     /**
-     * ByteBuffer adaptation of org.apache.commons.lang.ArrayUtils.lastIndexOf method
+     * ByteBuffer adaptation of org.apache.commons.lang3.ArrayUtils.lastIndexOf method
      *
      * @param buffer the array to traverse for looking for the object, may be <code>null</code>
      * @param valueToFind the value to find
