@@ -49,6 +49,7 @@ public class StandaloneScrubber
     private static final String DEBUG_OPTION  = "debug";
     private static final String HELP_OPTION  = "help";
     private static final String MANIFEST_CHECK_OPTION  = "manifest-check";
+    private static final String SKIP_CORRUPTED_OPTION = "skip-corrupted";
 
     public static void main(String args[])
     {
@@ -119,7 +120,7 @@ public class StandaloneScrubber
                 {
                     try
                     {
-                        Scrubber scrubber = new Scrubber(cfs, sstable, handler, true);
+                        Scrubber scrubber = new Scrubber(cfs, sstable, options.skipCorrupted, handler, true);
                         try
                         {
                             scrubber.scrub();
@@ -184,6 +185,7 @@ public class StandaloneScrubber
         public boolean debug;
         public boolean verbose;
         public boolean manifestCheckOnly;
+        public boolean skipCorrupted;
 
         private Options(String keyspaceName, String cfName)
         {
@@ -222,6 +224,7 @@ public class StandaloneScrubber
                 opts.debug = cmd.hasOption(DEBUG_OPTION);
                 opts.verbose = cmd.hasOption(VERBOSE_OPTION);
                 opts.manifestCheckOnly = cmd.hasOption(MANIFEST_CHECK_OPTION);
+                opts.skipCorrupted = cmd.hasOption(SKIP_CORRUPTED_OPTION);
 
                 return opts;
             }
@@ -246,6 +249,7 @@ public class StandaloneScrubber
             options.addOption("v",  VERBOSE_OPTION,        "verbose output");
             options.addOption("h",  HELP_OPTION,           "display this help message");
             options.addOption("m",  MANIFEST_CHECK_OPTION, "only check and repair the leveled manifest, without actually scrubbing the sstables");
+            options.addOption("s",  SKIP_CORRUPTED_OPTION, "skip corrupt rows in counter tables");
             return options;
         }
 

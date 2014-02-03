@@ -74,6 +74,8 @@ public class NodeCmd
     private static final Pair<String, String> NO_SNAPSHOT = Pair.create("ns", "no-snapshot");
     private static final Pair<String, String> CFSTATS_IGNORE_OPT = Pair.create("i", "ignore");
     private static final Pair<String, String> RESOLVE_IP = Pair.create("r", "resolve-ip");
+    private static final Pair<String, String> SCRUB_SKIP_CORRUPTED_OPT = Pair.create("s", "skip-corrupted");
+
 
     private static final String DEFAULT_HOST = "127.0.0.1";
     private static final int DEFAULT_PORT = 7199;
@@ -101,6 +103,7 @@ public class NodeCmd
         options.addOption(NO_SNAPSHOT, false, "disables snapshot creation for scrub");
         options.addOption(CFSTATS_IGNORE_OPT, false, "ignore the supplied list of keyspace.columnfamiles in statistics");
         options.addOption(RESOLVE_IP, false, "show node domain names instead of IPs");
+        options.addOption(SCRUB_SKIP_CORRUPTED_OPT, false, "when scrubbing counter tables, skip corrupted rows");
     }
 
     public NodeCmd(NodeProbe probe)
@@ -1562,7 +1565,8 @@ public class NodeCmd
                     break;
                 case SCRUB :
                     boolean disableSnapshot = cmd.hasOption(NO_SNAPSHOT.left);
-                    try { probe.scrub(disableSnapshot, keyspace, columnFamilies); }
+                    boolean skipCorrupted = cmd.hasOption(SCRUB_SKIP_CORRUPTED_OPT.left);
+                    try { probe.scrub(disableSnapshot, skipCorrupted, keyspace, columnFamilies); }
                     catch (ExecutionException ee) { err(ee, "Error occurred while scrubbing keyspace " + keyspace); }
                     break;
                 case UPGRADESSTABLES :

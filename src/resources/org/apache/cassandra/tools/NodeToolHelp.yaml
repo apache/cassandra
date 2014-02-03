@@ -163,9 +163,11 @@ commands:
   - name: compact [keyspace] [cfnames]
     help: |
       Force a (major) compaction on one or more column families
-  - name: scrub [keyspace] [cfnames]
+  - name: scrub [keyspace] [cfnames] [-s|--skip-corrupted]
     help: |
-      Scrub (rebuild sstables for) one or more column families
+      Scrub (rebuild sstables for) one or more column families.
+         Use -s/--skip-corrupted to skip corrupted rows even when scrubbing
+         tables that use counters.
   - name: upgradesstables [-a|--include-all-sstables] [keyspace] [cfnames]
     help: |
       Rewrite sstables (for the requested column families) that are not on the current version (thus upgrading them to said current version).
