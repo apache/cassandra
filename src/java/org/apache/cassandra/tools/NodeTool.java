@@ -971,8 +971,15 @@ public class NodeTool
         @Arguments(usage = "[<keyspace> <cfnames>...]", description = "The keyspace followed by one or many column families")
         private List<String> args = new ArrayList<>();
 
-        @Option(title = "disable_snapshot", name = {"-ns", "--no-snapshot"}, description = "Scrubbed CFs will be snapshotted first, if disableSnapshot is false. (default false)")
+        @Option(title = "disable_snapshot",
+                name = {"-ns", "--no-snapshot"},
+                description = "Scrubbed CFs will be snapshotted first, if disableSnapshot is false. (default false)")
         private boolean disableSnapshot = false;
+
+        @Option(title = "skip_corrupted",
+                name = {"-s", "--skip-corrupted"},
+                description = "Skip corrupted partitions even when scrubbing counter tables. (default false)")
+        private boolean skipCorrupted = false;
 
         @Override
         public void execute(NodeProbe probe)
@@ -984,7 +991,7 @@ public class NodeTool
             {
                 try
                 {
-                    probe.scrub(disableSnapshot, keyspace, cfnames);
+                    probe.scrub(disableSnapshot, skipCorrupted, keyspace, cfnames);
                 } catch (Exception e)
                 {
                     throw new RuntimeException("Error occurred during flushing", e);
