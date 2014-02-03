@@ -209,7 +209,7 @@ public class SecondaryIndexCellSizeTest
         }
 
         @Override
-        public void update(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup)
+        public void update(ByteBuffer rowKey, Cell oldCol, Cell col, OpOrder.Group opGroup)
         {
         }
 

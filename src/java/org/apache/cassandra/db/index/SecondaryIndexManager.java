@@ -676,11 +676,10 @@ public class SecondaryIndexManager
             {
                 if (index instanceof PerColumnSecondaryIndex)
                 {
-                    // insert the new value before removing the old one, so we never have a period
-                    // where the row is invisible to both queries (the opposite seems preferable); see CASSANDRA-5540
                     if (!cell.isMarkedForDelete(System.currentTimeMillis()))
-                        ((PerColumnSecondaryIndex) index).insert(key.key, cell, opGroup);
-                    ((PerColumnSecondaryIndex) index).delete(key.key, oldCell, opGroup);
+                        ((PerColumnSecondaryIndex) index).update(key.key, oldCell, cell, opGroup);
+                    else
+                        ((PerColumnSecondaryIndex) index).delete(key.key, oldCell, opGroup);
                 }
             }
         }

@@ -49,9 +49,10 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
      * update a column from the index
      *
      * @param rowKey the underlying row key which is indexed
+     * @param oldCol the previous column info
      * @param col all the column info
      */
-    public abstract void update(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup);
+    public abstract void update(ByteBuffer rowKey, Cell oldCol, Cell col, OpOrder.Group opGroup);
 
     public String getNameForSystemKeyspace(ByteBuffer column)
     {

@@ -135,9 +135,12 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
     }
 
-    public void update(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup)
-    {
+    public void update(ByteBuffer rowKey, Cell oldCol, Cell col, OpOrder.Group opGroup)
+    {        
+        // insert the new value before removing the old one, so we never have a period
+        // where the row is invisible to both queries (the opposite seems preferable); see CASSANDRA-5540                    
         insert(rowKey, col, opGroup);
+        delete(rowKey, oldCol, opGroup);
     }
 
     public void removeIndex(ByteBuffer columnName)
