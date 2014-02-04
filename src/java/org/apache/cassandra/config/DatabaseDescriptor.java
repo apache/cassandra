@@ -172,12 +172,12 @@ public class DatabaseDescriptor
         }
 
         if (conf.commitlog_total_space_in_mb == null)
-            conf.commitlog_total_space_in_mb = System.getProperty("os.arch").contains("64") ? 1024 : 32;
+            conf.commitlog_total_space_in_mb = hasLargeAddressSpace() ? 1024 : 32;
 
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
         if (conf.disk_access_mode == Config.DiskAccessMode.auto)
         {
-            conf.disk_access_mode = System.getProperty("os.arch").contains("64") ? Config.DiskAccessMode.mmap : Config.DiskAccessMode.standard;
+            conf.disk_access_mode = hasLargeAddressSpace() ? Config.DiskAccessMode.mmap : Config.DiskAccessMode.standard;
             indexAccessMode = conf.disk_access_mode;
             logger.info("DiskAccessMode 'auto' determined to be " + conf.disk_access_mode + ", indexAccessMode is " + indexAccessMode );
         }
@@ -1322,5 +1322,21 @@ public class DatabaseDescriptor
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static boolean hasLargeAddressSpace()
+    {
+        // currently we just check if it's a 64bit arch, but any we only really care if the address space is large
+        String datamodel = System.getProperty("sun.arch.data.model");
+        if (datamodel != null)
+        {
+            switch (datamodel)
+            {
+                case "64": return true;
+                case "32": return false;
+            }
+        }
+        String arch = System.getProperty("os.arch");
+        return arch.contains("64") || arch.contains("sparcv9");
     }
 }

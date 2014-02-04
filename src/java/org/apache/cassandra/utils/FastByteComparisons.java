@@ -69,6 +69,11 @@ abstract class FastByteComparisons {
      * implementation if unable to do so.
      */
     static Comparer<byte[]> getBestComparer() {
+      String arch = System.getProperty("os.arch");
+      boolean unaligned = arch.equals("i386") || arch.equals("x86")
+                    || arch.equals("amd64") || arch.equals("x86_64");
+      if (!unaligned)
+        return lexicographicalComparerJavaImpl();
       try {
         Class<?> theClass = Class.forName(UNSAFE_COMPARER_NAME);
 
@@ -229,6 +234,7 @@ abstract class FastByteComparisons {
         }
         return length1 - length2;
       }
+
     }
   }
 }

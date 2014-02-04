@@ -1,4 +1,6 @@
 2.0.6
+ * Fix direct Memory on architectures that do not support unaligned long access
+   (CASSANDRA-6628)
  * Let scrub optionally skip broken counter partitions (CASSANDRA-5930)
 
 
