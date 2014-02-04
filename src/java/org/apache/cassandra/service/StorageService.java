@@ -346,7 +346,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             throw new IllegalStateException("No configured daemon");
         }
-        daemon.nativeServer.stop();
+        if (daemon.nativeServer != null)
+            daemon.nativeServer.stop();
     }
 
     public boolean isNativeTransportRunning()
