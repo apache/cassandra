@@ -59,21 +59,21 @@ import org.apache.thrift.transport.TTransport;
  *
  * @see CqlOutputFormat
  */
-final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String, ByteBuffer>, List<ByteBuffer>>
+class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String, ByteBuffer>, List<ByteBuffer>>
 {
     private static final Logger logger = LoggerFactory.getLogger(CqlRecordWriter.class);
 
     // handles for clients for each range running in the threadpool
-    private final Map<Range, RangeClient> clients;
+    protected final Map<Range, RangeClient> clients;
 
     // host to prepared statement id mappings
-    private ConcurrentHashMap<Cassandra.Client, Integer> preparedStatements = new ConcurrentHashMap<Cassandra.Client, Integer>();
+    protected final ConcurrentHashMap<Cassandra.Client, Integer> preparedStatements = new ConcurrentHashMap<Cassandra.Client, Integer>();
 
-    private final String cql;
+    protected final String cql;
 
-    private AbstractType<?> keyValidator;
-    private String [] partitionKeyColumns;
-    private List<String> clusterColumns;
+    protected AbstractType<?> keyValidator;
+    protected String [] partitionKeyColumns;
+    protected List<String> clusterColumns;
 
     /**
      * Upon construction, obtain the map that this writer will use to collect
