@@ -14,16 +14,6 @@ restore snapshots created with the previous major version using the
 using the provided 'sstableupgrade' tool.
 
 
-2.0.6
-=====
-
-New features
-------------
-    - Scrub can now optionally skip corrupt counter partitions. Please note
-      that this will lead to the loss of all the counter updates in the skipped
-      partition. See the --skip-corrupted option.
-
-
 2.0.5
 =====
 
@@ -31,6 +21,9 @@ New features
 ------------
     - Batchlog replay can be, and is throttled by default now.
       See batchlog_replay_throttle_in_kb setting in cassandra.yaml.
+    - Scrub can now optionally skip corrupt counter partitions. Please note
+      that this will lead to the loss of all the counter updates in the skipped
+      partition. See the --skip-corrupted option.
 
 Upgrading
 ---------
