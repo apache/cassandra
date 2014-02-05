@@ -14,6 +14,16 @@ restore snapshots created with the previous major version using the
 using the provided 'sstableupgrade' tool.
 
 
+1.2.15
+======
+
+Upgrading
+---------
+    - This release mainly fix a regression of 1.2.14, namely
+      https://issues.apache.org/jira/browse/CASSANDRA-6648. Users of 1.2.14 are
+      strongly encouraged to upgrade.
+
+
 1.2.14
 ======
 
