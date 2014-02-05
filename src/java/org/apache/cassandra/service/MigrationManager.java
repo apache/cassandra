@@ -50,7 +50,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-public class MigrationManager implements IEndpointStateChangeSubscriber
+public class MigrationManager
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationManager.class);
 
@@ -63,7 +63,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
     public static final int MIGRATION_DELAY_IN_MS = 60000;
 
     private final List<IMigrationListener> listeners = new CopyOnWriteArrayList<IMigrationListener>();
-
+    
     private MigrationManager() {}
 
     public void register(IMigrationListener listener)
@@ -76,36 +76,13 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
         listeners.remove(listener);
     }
 
-    public void onJoin(InetAddress endpoint, EndpointState epState)
-    {}
-    
-    public void beforeChange(InetAddress endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) 
-    {}
-
-    public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
-    {
-        if (state != ApplicationState.SCHEMA || endpoint.equals(FBUtilities.getBroadcastAddress()))
-            return;
-
-        maybeScheduleSchemaPull(UUID.fromString(value.value), endpoint);
-    }
-
-    public void onAlive(InetAddress endpoint, EndpointState state)
+    public void scheduleSchemaPull(InetAddress endpoint, EndpointState state)
     {
         VersionedValue value = state.getApplicationState(ApplicationState.SCHEMA);
 
-        if (value != null)
+        if (!endpoint.equals(FBUtilities.getBroadcastAddress()) && value != null)
             maybeScheduleSchemaPull(UUID.fromString(value.value), endpoint);
     }
-
-    public void onDead(InetAddress endpoint, EndpointState state)
-    {}
-
-    public void onRestart(InetAddress endpoint, EndpointState state)
-    {}
-
-    public void onRemove(InetAddress endpoint)
-    {}
 
     /**
      * If versions differ this node sends request with local migration list to the endpoint
@@ -166,7 +143,7 @@ public class MigrationManager implements IEndpointStateChangeSubscriber
 
     public static boolean isReadyForBootstrap()
     {
-        return ((ThreadPoolExecutor) StageManager.getStage(Stage.MIGRATION)).getActiveCount() == 0;
+        return Schema.instance.getVersion() != null && !Schema.emptyVersion.equals(Schema.instance.getVersion());
     }
 
     public void notifyCreateKeyspace(KSMetaData ksm)
