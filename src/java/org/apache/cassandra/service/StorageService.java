@@ -176,8 +176,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private static enum Mode { STARTING, NORMAL, CLIENT, JOINING, LEAVING, DECOMMISSIONED, MOVING, DRAINING, DRAINED, RELOCATING }
     private Mode operationMode = Mode.STARTING;
 
-    private final MigrationManager migrationManager = MigrationManager.instance;
-
     /* Used for tracking drain progress */
     private volatile int totalCFs, remainingCFs;
 
@@ -364,7 +362,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void stopClient()
     {
-        Gossiper.instance.unregister(migrationManager);
         Gossiper.instance.unregister(this);
         Gossiper.instance.stop();
         MessagingService.instance().shutdown();
@@ -470,7 +467,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Starting up client gossip");
         setMode(Mode.CLIENT, false);
         Gossiper.instance.register(this);
-        Gossiper.instance.register(migrationManager);
         Gossiper.instance.start((int) (System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
         Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
 
@@ -637,7 +633,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         appStates.put(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
         logger.info("Starting up server gossip");
         Gossiper.instance.register(this);
-        Gossiper.instance.register(migrationManager);
         Gossiper.instance.start(SystemKeyspace.incrementAndGetGeneration(), appStates); // needed for node-ring gathering.
         // gossip snitch infos (local DC and rack)
         gossipSnitchInfo();
@@ -1952,6 +1947,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             onChange(endpoint, entry.getKey(), entry.getValue());
         }
+        MigrationManager.instance.scheduleSchemaPull(endpoint, epState);
     }
 
     public void onAlive(InetAddress endpoint, EndpointState state)
@@ -1970,6 +1966,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
                 subscriber.onJoinCluster(endpoint);
         }
+        MigrationManager.instance.scheduleSchemaPull(endpoint, state);
     }
 
     public void onRemove(InetAddress endpoint)
