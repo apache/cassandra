@@ -268,6 +268,20 @@ public class DeletionInfo implements IMeasurableMemory
         return ranges != null && !ranges.isEmpty();
     }
 
+    public int rangeCount()
+    {
+        return hasRanges() ? ranges.size() : 0;
+    }
+
+    /**
+     * Whether this deletion info may modify the provided one if added to it.
+     */
+    public boolean mayModify(DeletionInfo delInfo)
+    {
+        return topLevel.markedForDeleteAt > delInfo.topLevel.markedForDeleteAt
+            || hasRanges();
+    }
+
     @Override
     public String toString()
     {

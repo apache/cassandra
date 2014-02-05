@@ -193,9 +193,7 @@ public class Memtable
         ContextAllocator contextAllocator = allocator.wrap(opGroup, cfs);
         AtomicBTreeColumns.Delta delta = previous.addAllWithSizeDelta(cf, contextAllocator, contextAllocator, indexer, new AtomicBTreeColumns.Delta());
         liveDataSize.addAndGet(delta.dataSize());
-        currentOperations.addAndGet((cf.getColumnCount() == 0)
-                                    ? cf.isMarkedForDelete() ? 1 : 0
-                                    : cf.getColumnCount());
+        currentOperations.addAndGet(cf.getColumnCount() + (cf.isMarkedForDelete() ? 1 : 0) + cf.deletionInfo().rangeCount());
 
         // allocate or free the delta in column overhead after the fact
         for (Cell cell : delta.reclaimed())

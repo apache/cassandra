@@ -247,23 +247,27 @@ public class AtomicBTreeColumns extends ColumnFamily
         {
             Holder current = ref;
 
+            delta.reset();
             DeletionInfo deletionInfo = cm.deletionInfo();
-            if (deletionInfo.hasRanges())
+            if (deletionInfo.mayModify(current.deletionInfo))
             {
-                for (Iterator<Cell> iter : new Iterator[] { insert.iterator(), BTree.<Cell>slice(current.tree, true) })
+                if (deletionInfo.hasRanges())
                 {
-                    while (iter.hasNext())
+                    for (Iterator<Cell> iter : new Iterator[] { insert.iterator(), BTree.<Cell>slice(current.tree, true) })
                     {
-                        Cell col = iter.next();
-                        if (deletionInfo.isDeleted(col))
-                            indexer.remove(col);
+                        while (iter.hasNext())
+                        {
+                            Cell col = iter.next();
+                            if (deletionInfo.isDeleted(col))
+                                indexer.remove(col);
+                        }
                     }
                 }
+
+                deletionInfo = current.deletionInfo.copy().add(deletionInfo);
+                delta.addHeapSize(deletionInfo.unsharedHeapSize() - current.deletionInfo.unsharedHeapSize());
             }
 
-            delta.reset();
-            deletionInfo = current.deletionInfo.copy().add(deletionInfo);
-            delta.addHeapSize(deletionInfo.unsharedHeapSize() - current.deletionInfo.unsharedHeapSize());
             ColumnUpdater updater = new ColumnUpdater(this, current, allocator, transformation, indexer, delta);
             Object[] tree = BTree.update(current.tree, metadata.comparator.columnComparator(), insert, true, updater);
 
