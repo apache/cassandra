@@ -178,7 +178,12 @@ public class AtomicSortedColumns extends ColumnFamily
         {
             sizeDelta = 0;
             current = ref.get();
-            DeletionInfo newDelInfo = current.deletionInfo.copy().add(cm.deletionInfo());
+            DeletionInfo newDelInfo = current.deletionInfo;
+            if (cm.deletionInfo().mayModify(newDelInfo))
+            {
+                newDelInfo = current.deletionInfo.copy().add(cm.deletionInfo());
+                sizeDelta += newDelInfo.dataSize() - current.deletionInfo.dataSize();
+            }
             modified = new Holder(current.map.clone(), newDelInfo);
 
             if (cm.deletionInfo().hasRanges())
