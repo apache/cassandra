@@ -194,7 +194,12 @@ public class AtomicSortedColumns implements ISortedColumns
         {
             sizeDelta = 0;
             current = ref.get();
-            DeletionInfo newDelInfo = current.deletionInfo.copy().add(cm.getDeletionInfo());
+            DeletionInfo newDelInfo = current.deletionInfo;
+            if (cm.getDeletionInfo().mayModify(newDelInfo))
+            {
+                newDelInfo = current.deletionInfo.copy().add(cm.getDeletionInfo());
+                sizeDelta += newDelInfo.dataSize() - current.deletionInfo.dataSize();
+            }
             modified = new Holder(current.map.clone(), newDelInfo);
 
             for (IColumn column : cm.getSortedColumns())

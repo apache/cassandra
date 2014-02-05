@@ -216,6 +216,20 @@ public class DeletionInfo
         return size + (ranges == null ? 0 : ranges.dataSize());
     }
 
+    public int rangeCount()
+    {
+        return ranges == null ? 0 : ranges.size();
+    }
+
+    /**
+     * Whether this deletion info may modify the provided one if added to it.
+     */
+    public boolean mayModify(DeletionInfo delInfo)
+    {
+        return topLevel.markedForDeleteAt > delInfo.topLevel.markedForDeleteAt
+            || ranges == null;
+    }
+
     @Override
     public String toString()
     {
