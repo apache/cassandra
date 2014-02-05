@@ -1,3 +1,6 @@
+1.2.15
+ * Move handling of migration event source to solve bootstrap race (CASSANDRA-6648)
+
 1.2.14
  * Reverted code to limit CQL prepared statement cache by size (CASSANDRA-6592)
  * add cassandra.default_messaging_version property to allow easier
