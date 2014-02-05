@@ -275,8 +275,6 @@ CREATE TABLE t (
     PRIMARY KEY (k)
 )
 
-Moreover, a table must define at least one column that is not part of the PRIMARY KEY as a row exists in Cassandra only if it contains at least one value for one such column.
-
 h4(#createTablepartitionClustering). Partition key and clustering columns
 
 In CQL, the order in which columns are defined for the @PRIMARY KEY@ matters. The first column of the key is called the __partition key__. It has the property that all the rows sharing the same partition key (even across table in fact) are stored on the same physical node. Also, insertion/update/deletion on rows sharing the same partition key for a given table are performed __atomically__ and in __isolation__. Note that it is possible to have a composite partition key, i.e. a partition key formed of multiple columns, using an extra set of parentheses to define which columns forms the partition key.
@@ -445,7 +443,7 @@ INSERT INTO NerdMovies (movie, director, main_actor, year)
                 VALUES ('Serenity', 'Joss Whedon', 'Nathan Fillion', 2005)
 USING TTL 86400;
 
-The @INSERT@ statement writes one or more columns for a given row in a table. Note that since a row is identified by its @PRIMARY KEY@, the columns that compose it must be specified. Also, since a row only exists when it contains one value for a column not part of the @PRIMARY KEY@, one such value must be specified too.
+The @INSERT@ statement writes one or more columns for a given row in a table. Note that since a row is identified by its @PRIMARY KEY@, at least the columns composing it must be specified.
 
 Note that unlike in SQL, @INSERT@ does not check the prior existence of the row: the row is created if none existed before, and updated otherwise. Furthermore, there is no mean to know which of creation or update happened. In fact, the semantic of @INSERT@ and @UPDATE@ are identical.
 
