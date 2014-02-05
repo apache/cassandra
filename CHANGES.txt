@@ -1,5 +1,6 @@
 1.2.15
  * Move handling of migration event source to solve bootstrap race (CASSANDRA-6648)
+ * Make sure compaction throughput value doesn't overflow with int math (CASSANDRA-6647)
 
 1.2.14
  * Reverted code to limit CQL prepared statement cache by size (CASSANDRA-6592)
