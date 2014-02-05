@@ -44,16 +44,6 @@ Upgrading
      (See https://issues.apache.org/jira/browse/CASSANDRA-6504 and the dev
      blog post at http://www.datastax.com/dev/blog/<PLACEHOLDER> for details).
 
-2.0.6
-=====
-
-New features
-------------
-    - Scrub can now optionally skip corrupt counter partitions. Please note
-      that this will lead to the loss of all the counter updates in the skipped
-      partition. See the --skip-corrupted option.
-
-
 2.0.5
 =====
 
@@ -61,6 +51,9 @@ New features
 ------------
     - Batchlog replay can be, and is throttled by default now.
       See batchlog_replay_throttle_in_kb setting in cassandra.yaml.
+    - Scrub can now optionally skip corrupt counter partitions. Please note
+      that this will lead to the loss of all the counter updates in the skipped
+      partition. See the --skip-corrupted option.
 
 Upgrading
 ---------
