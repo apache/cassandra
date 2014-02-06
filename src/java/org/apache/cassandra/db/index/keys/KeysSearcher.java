@@ -67,6 +67,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
         final IndexExpression primary = highestSelectivityPredicate(filter.getClause());
         final SecondaryIndex index = indexManager.getIndexForColumn(primary.column);
         assert index != null;
+        assert index.getIndexCfs() != null;
         final DecoratedKey indexKey = index.getIndexKeyFor(primary.value);
 
         if (logger.isDebugEnabled())

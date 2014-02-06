@@ -66,8 +66,16 @@ public abstract class SecondaryIndexSearcher
             if (!columns.contains(expression.column))
                 continue;
 
+<<<<<<< HEAD
             SecondaryIndex index = indexManager.getIndexForColumn(expression.column);
             if (index == null || !expression.operator.allowsIndexQuery())
+||||||| merged common ancestors
+            SecondaryIndex index = indexManager.getIndexForColumn(expression.column_name);
+            if (index == null || (expression.op != IndexOperator.EQ))
+=======
+            SecondaryIndex index = indexManager.getIndexForColumn(expression.column_name);
+            if (index == null || index.getIndexCfs() == null || expression.op != IndexOperator.EQ)
+>>>>>>> cassandra-2.0
                 continue;
             int columns = index.getIndexCfs().getMeanColumns();
             candidates.put(index, columns);
