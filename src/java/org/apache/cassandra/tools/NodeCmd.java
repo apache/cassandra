@@ -169,6 +169,7 @@ public class NodeCmd
         STATUSTHRIFT,
         STOP,
         STOPDAEMON,
+        TAKETOKEN,
         TPSTATS,
         TRUNCATEHINTS,
         UPGRADESSTABLES,
@@ -1313,6 +1314,11 @@ public class NodeCmd
                 case SETTRACEPROBABILITY :
                     if (arguments.length != 1) { badUse("Missing value argument."); }
                     probe.setTraceProbability(Double.parseDouble(arguments[0]));
+                    break;
+
+                case TAKETOKEN:
+                    if (arguments.length < 1) { badUse("Must supply at least one token to take"); }
+                    probe.takeTokens(arguments);
                     break;
 
                 case REBUILD :

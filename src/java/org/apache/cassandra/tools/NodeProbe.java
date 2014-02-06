@@ -471,6 +471,11 @@ public class NodeProbe
         ssProxy.move(newToken);
     }
 
+    public void takeTokens(String[] tokens) throws IOException
+    {
+        ssProxy.relocate(Arrays.asList(tokens));
+    }
+
     public void removeNode(String token)
     {
         ssProxy.removeNode(token);
