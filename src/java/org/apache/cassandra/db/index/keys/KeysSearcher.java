@@ -61,7 +61,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                 continue;
 
             SecondaryIndex index = indexManager.getIndexForColumn(expression.column_name);
-            if (index == null || (expression.op != IndexOperator.EQ))
+            if (index == null || index.getIndexCfs() == null || (expression.op != IndexOperator.EQ))
                 continue;
             int columns = index.getIndexCfs().getMeanColumns();
             candidates.put(index, columns);
@@ -102,6 +102,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
         final IndexExpression primary = highestSelectivityPredicate(filter.getClause());
         final SecondaryIndex index = indexManager.getIndexForColumn(primary.column_name);
         assert index != null;
+        assert index.getIndexCfs() != null;
         final DecoratedKey indexKey = index.getIndexKeyFor(primary.value);
 
         if (logger.isDebugEnabled())

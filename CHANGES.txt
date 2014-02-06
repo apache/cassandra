@@ -1,5 +1,7 @@
 1.2.16
+ * Fix upgradesstables NPE for non-CF-based indexes (CASSANDRA-6645)
  * Fix partition and range deletes not triggering flush (CASSANDRA-6655)
+
 
 1.2.15
  * Move handling of migration event source to solve bootstrap race (CASSANDRA-6648)
