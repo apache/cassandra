@@ -30,7 +30,6 @@
 
 2.0.6
  * Fix upgradesstables NPE for non-CF-based indexes (CASSANDRA-6645)
- * Improve nodetool cfhistograms formatting (CASSANDRA-6360)
  * Expose bulk loading progress over JMX (CASSANDRA-4757)
  * Correctly handle null with IF conditions and TTL (CASSANDRA-6623)
  * Account for range/row tombstones in tombstone drop
