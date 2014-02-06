@@ -49,6 +49,7 @@ public class CFPropDefs {
     public static final String KW_MAXCOMPACTIONTHRESHOLD = "max_compaction_threshold";
     public static final String KW_COMPACTION_STRATEGY_CLASS = "compaction_strategy_class";
     public static final String KW_CACHING = "caching";
+    public static final String KW_ROWS_PER_PARTITION_TO_CACHE = "rows_per_partition_to_cache";
     public static final String KW_DEFAULT_TIME_TO_LIVE = "default_time_to_live";
     public static final String KW_SPECULATIVE_RETRY = "speculative_retry";
     public static final String KW_POPULATE_IO_CACHE_ON_FLUSH = "populate_io_cache_on_flush";
@@ -91,6 +92,7 @@ public class CFPropDefs {
         keywords.add(KW_MAXCOMPACTIONTHRESHOLD);
         keywords.add(KW_COMPACTION_STRATEGY_CLASS);
         keywords.add(KW_CACHING);
+        keywords.add(KW_ROWS_PER_PARTITION_TO_CACHE);
         keywords.add(KW_DEFAULT_TIME_TO_LIVE);
         keywords.add(KW_SPECULATIVE_RETRY);
         keywords.add(KW_POPULATE_IO_CACHE_ON_FLUSH);

@@ -19,15 +19,20 @@
 package org.apache.cassandra.db;
 
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import org.junit.AfterClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.CacheService;
@@ -152,6 +157,79 @@ public class RowCacheTest extends SchemaLoader
         CacheService.instance.setRowCacheCapacityInMB(1);
         rowCacheLoad(100, 50, 0);
         CacheService.instance.setRowCacheCapacityInMB(0);
+    }
+    @Test
+    public void testRowCacheRange()
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        String cf = "CachedIntCF";
+        ColumnFamilyStore cachedStore  = keyspace.getColumnFamilyStore(cf);
+        long startRowCacheHits = cachedStore.metric.rowCacheHit.count();
+        long startRowCacheOutOfRange = cachedStore.metric.rowCacheHitOutOfRange.count();
+        // empty the row cache
+        CacheService.instance.invalidateRowCache();
+
+        // set global row cache size to 1 MB
+        CacheService.instance.setRowCacheCapacityInMB(1);
+
+        ByteBuffer key = ByteBufferUtil.bytes("rowcachekey");
+        DecoratedKey dk = cachedStore.partitioner.decorateKey(key);
+        RowCacheKey rck = new RowCacheKey(cachedStore.metadata.cfId, dk);
+        Mutation mutation = new Mutation(KEYSPACE, key);
+        for (int i = 0; i < 200; i++)
+            mutation.add(cf, Util.cellname(i), ByteBufferUtil.bytes("val" + i), System.currentTimeMillis());
+        mutation.applyUnsafe();
+
+        // populate row cache, we should not get a row cache hit;
+        cachedStore.getColumnFamily(QueryFilter.getSliceFilter(dk, cf,
+                                                                Composites.EMPTY,
+                                                                Composites.EMPTY,
+                                                                false, 10, System.currentTimeMillis()));
+        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.count());
+
+        // do another query, limit is 20, which is < 100 that we cache, we should get a hit and it should be in range
+        cachedStore.getColumnFamily(QueryFilter.getSliceFilter(dk, cf,
+                                                                Composites.EMPTY,
+                                                                Composites.EMPTY,
+                                                                false, 20, System.currentTimeMillis()));
+        assertEquals(++startRowCacheHits, cachedStore.metric.rowCacheHit.count());
+        assertEquals(startRowCacheOutOfRange, cachedStore.metric.rowCacheHitOutOfRange.count());
+
+        // get a slice from 95 to 105, 95->99 are in cache, we should not get a hit and then row cache is out of range
+        cachedStore.getColumnFamily(QueryFilter.getSliceFilter(dk, cf,
+                                                               CellNames.simpleDense(ByteBufferUtil.bytes(95)),
+                                                               CellNames.simpleDense(ByteBufferUtil.bytes(105)),
+                                                               false, 10, System.currentTimeMillis()));
+        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.count());
+        assertEquals(++startRowCacheOutOfRange, cachedStore.metric.rowCacheHitOutOfRange.count());
+
+        // get a slice with limit > 100, we should get a hit out of range.
+        cachedStore.getColumnFamily(QueryFilter.getSliceFilter(dk, cf,
+                                                               Composites.EMPTY,
+                                                               Composites.EMPTY,
+                                                               false, 101, System.currentTimeMillis()));
+        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.count());
+        assertEquals(++startRowCacheOutOfRange, cachedStore.metric.rowCacheHitOutOfRange.count());
+
+
+        CacheService.instance.invalidateRowCache();
+
+        // try to populate row cache with a limit > rows to cache, we should still populate row cache;
+        cachedStore.getColumnFamily(QueryFilter.getSliceFilter(dk, cf,
+                                                                Composites.EMPTY,
+                                                                Composites.EMPTY,
+                                                                false, 105, System.currentTimeMillis()));
+        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.count());
+        // validate the stuff in cache;
+        ColumnFamily cachedCf = (ColumnFamily)CacheService.instance.rowCache.get(rck);
+        assertEquals(cachedCf.getColumnCount(), 100);
+        int i = 0;
+        for(Cell c : cachedCf)
+        {
+            assertEquals(c.name, Util.cellname(i++));
+        }
     }
 
     public void rowCacheLoad(int totalKeys, int keysToSave, int offset) throws Exception

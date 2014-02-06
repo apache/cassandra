@@ -23,6 +23,7 @@ import org.apache.cassandra.db.columniterator.IColumnIteratorFactory;
 import org.apache.cassandra.db.columniterator.LazyColumnIterator;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -93,16 +94,18 @@ public class RowIteratorFactory
 
             protected Row getReduced()
             {
-                // First check if this row is in the rowCache. If it is we can skip the rest
+                // First check if this row is in the rowCache. If it is and it covers our filter, we can skip the rest
                 ColumnFamily cached = cfs.getRawCachedRow(key);
-                if (cached == null)
+                IDiskAtomFilter filter = range.columnFilter(key.key);
+
+                if (cached == null || !cfs.isFilterFullyCoveredBy(filter, cached, now))
                 {
                     // not cached: collate
-                    QueryFilter.collateOnDiskAtom(returnCF, colIters, range.columnFilter(key.key), gcBefore, now);
+                    QueryFilter.collateOnDiskAtom(returnCF, colIters, filter, gcBefore, now);
                 }
                 else
                 {
-                    QueryFilter keyFilter = new QueryFilter(key, cfs.name, range.columnFilter(key.key), now);
+                    QueryFilter keyFilter = new QueryFilter(key, cfs.name, filter, now);
                     returnCF = cfs.filterColumnFamily(cached, keyFilter);
                 }
 

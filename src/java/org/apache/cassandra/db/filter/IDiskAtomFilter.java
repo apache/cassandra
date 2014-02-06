@@ -25,6 +25,7 @@ import java.util.Iterator;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -79,7 +80,17 @@ public interface IDiskAtomFilter
     public IDiskAtomFilter cloneShallow();
     public boolean maySelectPrefix(Comparator<Composite> cmp, Composite prefix);
 
-    boolean shouldInclude(SSTableReader sstable);
+    public boolean shouldInclude(SSTableReader sstable);
+
+    public boolean countCQL3Rows(CellNameType comparator);
+
+    public boolean isHeadFilter();
+
+    /**
+     * Whether the provided cf, that is assumed to contain the head of the
+     * partition, contains enough data to cover this filter.
+     */
+    public boolean isFullyCoveredBy(ColumnFamily cf, long now);
 
     public static class Serializer implements IVersionedSerializer<IDiskAtomFilter>
     {

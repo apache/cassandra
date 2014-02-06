@@ -25,6 +25,7 @@ import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.service.CacheService;
 
 public class CFPropDefs extends PropertyDefinitions
 {
@@ -35,6 +36,7 @@ public class CFPropDefs extends PropertyDefinitions
     public static final String KW_MINCOMPACTIONTHRESHOLD = "min_threshold";
     public static final String KW_MAXCOMPACTIONTHRESHOLD = "max_threshold";
     public static final String KW_CACHING = "caching";
+    public static final String KW_ROWS_PER_PARTITION_TO_CACHE = "rows_per_partition_to_cache";
     public static final String KW_DEFAULT_TIME_TO_LIVE = "default_time_to_live";
     public static final String KW_INDEX_INTERVAL = "index_interval";
     public static final String KW_SPECULATIVE_RETRY = "speculative_retry";
@@ -57,6 +59,7 @@ public class CFPropDefs extends PropertyDefinitions
         keywords.add(KW_DCLOCALREADREPAIRCHANCE);
         keywords.add(KW_GCGRACESECONDS);
         keywords.add(KW_CACHING);
+        keywords.add(KW_ROWS_PER_PARTITION_TO_CACHE);
         keywords.add(KW_DEFAULT_TIME_TO_LIVE);
         keywords.add(KW_INDEX_INTERVAL);
         keywords.add(KW_SPECULATIVE_RETRY);
@@ -153,6 +156,11 @@ public class CFPropDefs extends PropertyDefinitions
         cfm.minCompactionThreshold(minCompactionThreshold);
         cfm.maxCompactionThreshold(maxCompactionThreshold);
         cfm.caching(CFMetaData.Caching.fromString(getString(KW_CACHING, cfm.getCaching().toString())));
+        CFMetaData.RowsPerPartitionToCache newRppc = CFMetaData.RowsPerPartitionToCache.fromString(getString(KW_ROWS_PER_PARTITION_TO_CACHE, cfm.getRowsPerPartitionToCache().toString()));
+        // we need to invalidate row cache if the amount of rows cached changes, otherwise we might serve out bad data.
+        if (!cfm.getRowsPerPartitionToCache().equals(newRppc))
+            CacheService.instance.invalidateRowCacheForCf(cfm.cfId);
+        cfm.rowsPerPartitionToCache(newRppc);
         cfm.defaultTimeToLive(getInt(KW_DEFAULT_TIME_TO_LIVE, cfm.getDefaultTimeToLive()));
         cfm.speculativeRetry(CFMetaData.SpeculativeRetry.fromString(getString(KW_SPECULATIVE_RETRY, cfm.getSpeculativeRetry().toString())));
         cfm.memtableFlushPeriod(getInt(KW_MEMTABLE_FLUSH_PERIOD, cfm.getMemtableFlushPeriod()));

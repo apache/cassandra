@@ -233,7 +233,8 @@ public class SchemaLoader
                                            simple,
                                            opts_rf1,
                                            standardCFMD(ks_rcs, "CFWithoutCache").caching(CFMetaData.Caching.NONE),
-                                           standardCFMD(ks_rcs, "CachedCF").caching(CFMetaData.Caching.ALL)));
+                                           standardCFMD(ks_rcs, "CachedCF").caching(CFMetaData.Caching.ALL).rowsPerPartitionToCache(CFMetaData.RowsPerPartitionToCache.fromString("ALL")),
+                                           standardCFMD(ks_rcs, "CachedIntCF").defaultValidator(IntegerType.instance).caching(CFMetaData.Caching.ALL)));
 
         // CounterCacheSpace
         schema.add(KSMetaData.testMetadata(ks_ccs,

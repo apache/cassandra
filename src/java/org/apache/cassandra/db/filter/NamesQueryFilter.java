@@ -145,9 +145,30 @@ public class NamesQueryFilter implements IDiskAtomFilter
         return true;
     }
 
-    public boolean countCQL3Rows()
+    public boolean isFullyCoveredBy(ColumnFamily cf, long now)
+    {
+        // cf will cover all the requested columns if the range it covers include
+        // all said columns
+        CellName first = cf.iterator(ColumnSlice.ALL_COLUMNS_ARRAY).next().name();
+        CellName last = cf.reverseIterator(ColumnSlice.ALL_COLUMNS_ARRAY).next().name();
+
+        return cf.getComparator().compare(first, columns.first()) <= 0
+            && cf.getComparator().compare(columns.last(), last) <= 0;
+    }
+
+    public boolean isHeadFilter()
+    {
+        return false;
+    }
+
+    public boolean countCQL3Rows(CellNameType comparator)
     {
         return countCQL3Rows;
+    }
+
+    public boolean countCQL3Rows()
+    {
+        return countCQL3Rows(null);
     }
 
     public ColumnCounter columnCounter(CellNameType comparator, long now)

@@ -197,6 +197,7 @@ public class CreateColumnFamilyStatement
                    .compactionStrategyOptions(cfProps.compactionStrategyOptions)
                    .compressionParameters(CompressionParameters.create(cfProps.compressionParameters))
                    .caching(CFMetaData.Caching.fromString(getPropertyString(CFPropDefs.KW_CACHING, CFMetaData.DEFAULT_CACHING_STRATEGY.toString())))
+                   .rowsPerPartitionToCache(CFMetaData.RowsPerPartitionToCache.fromString(cfProps.getPropertyString(CFPropDefs.KW_ROWS_PER_PARTITION_TO_CACHE, CFMetaData.DEFAULT_ROWS_PER_PARTITION_TO_CACHE.toString())))
                    .speculativeRetry(CFMetaData.SpeculativeRetry.fromString(getPropertyString(CFPropDefs.KW_SPECULATIVE_RETRY, CFMetaData.DEFAULT_SPECULATIVE_RETRY.toString())))
                    .bloomFilterFpChance(getPropertyDouble(CFPropDefs.KW_BF_FP_CHANCE, null))
                    .memtableFlushPeriod(getPropertyInt(CFPropDefs.KW_MEMTABLE_FLUSH_PERIOD, 0))

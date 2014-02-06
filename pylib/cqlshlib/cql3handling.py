@@ -63,6 +63,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
     columnfamily_layout_options = (
         ('bloom_filter_fp_chance', None),
         ('caching', None),
+        ('rows_per_partition_to_cache', None),
         ('comment', None),
         ('dclocal_read_repair_chance', 'local_read_repair_chance'),
         ('gc_grace_seconds', None),

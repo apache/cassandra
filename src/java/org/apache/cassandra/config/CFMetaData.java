@@ -84,6 +84,7 @@ public final class CFMetaData
     public final static SpeculativeRetry DEFAULT_SPECULATIVE_RETRY = new SpeculativeRetry(SpeculativeRetry.RetryType.PERCENTILE, 0.99);
     public final static int DEFAULT_INDEX_INTERVAL = 128;
     public final static boolean DEFAULT_POPULATE_IO_CACHE_ON_FLUSH = false;
+    public final static RowsPerPartitionToCache DEFAULT_ROWS_PER_PARTITION_TO_CACHE = new RowsPerPartitionToCache(100, RowsPerPartitionToCache.Type.HEAD);
 
     // Note that this is the default only for user created tables
     public final static String DEFAULT_COMPRESSOR = LZ4Compressor.class.getCanonicalName();
@@ -145,6 +146,7 @@ public final class CFMetaData
                                                                     + "populate_io_cache_on_flush boolean,"
                                                                     + "index_interval int,"
                                                                     + "dropped_columns map<text, bigint>,"
+                                                                    + "rows_per_partition_to_cache text,"
                                                                     + "PRIMARY KEY (keyspace_name, columnfamily_name)"
                                                                     + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=8640");
 
@@ -311,6 +313,49 @@ public final class CFMetaData
         }
     }
 
+    public static class RowsPerPartitionToCache
+    {
+        public enum Type
+        {
+            ALL, HEAD
+        }
+        public final int rowsToCache;
+        public final Type type;
+
+        private RowsPerPartitionToCache(int rowsToCache, Type type)
+        {
+            this.rowsToCache = rowsToCache;
+            this.type = type;
+        }
+
+        public static RowsPerPartitionToCache fromString(String rpptc)
+        {
+            if (rpptc.equalsIgnoreCase("all"))
+                return new RowsPerPartitionToCache(Integer.MAX_VALUE, Type.ALL);
+            return new RowsPerPartitionToCache(Integer.parseInt(rpptc), Type.HEAD);
+        }
+
+        public boolean cacheFullPartitions()
+        {
+            return type == Type.ALL;
+        }
+
+        public String toString()
+        {
+            if (rowsToCache == Integer.MAX_VALUE)
+                return "ALL";
+            return String.valueOf(rowsToCache);
+        }
+
+        public boolean equals(Object rhs)
+        {
+            if (!(rhs instanceof RowsPerPartitionToCache))
+                return false;
+            RowsPerPartitionToCache rppc = (RowsPerPartitionToCache)rhs;
+            return rowsToCache == rppc.rowsToCache && type == rppc.type;
+        }
+    }
+
     public static class SpeculativeRetry
     {
         public enum RetryType
@@ -407,7 +452,7 @@ public final class CFMetaData
     private volatile Map<ColumnIdentifier, Long> droppedColumns = new HashMap<>();
     private volatile Map<String, TriggerDefinition> triggers = new HashMap<>();
     private volatile boolean isPurged = false;
-
+    private volatile RowsPerPartitionToCache rowsPerPartitionToCache = DEFAULT_ROWS_PER_PARTITION_TO_CACHE;
     /*
      * All CQL3 columns definition are stored in the columnMetadata map.
      * On top of that, we keep separated collection of each kind of definition, to
@@ -450,6 +495,7 @@ public final class CFMetaData
     public CFMetaData populateIoCacheOnFlush(boolean prop) {populateIoCacheOnFlush = prop; return this;}
     public CFMetaData droppedColumns(Map<ColumnIdentifier, Long> cols) {droppedColumns = cols; return this;}
     public CFMetaData triggers(Map<String, TriggerDefinition> prop) {triggers = prop; return this;}
+    public CFMetaData rowsPerPartitionToCache(RowsPerPartitionToCache prop) { rowsPerPartitionToCache = prop; return this; }
 
     /**
      * Create new ColumnFamily metadata with generated random ID.
@@ -636,6 +682,7 @@ public final class CFMetaData
                       .populateIoCacheOnFlush(oldCFMD.populateIoCacheOnFlush)
                       .droppedColumns(new HashMap<>(oldCFMD.droppedColumns))
                       .triggers(new HashMap<>(oldCFMD.triggers))
+                      .rowsPerPartitionToCache(oldCFMD.rowsPerPartitionToCache)
                       .rebuild();
     }
 
@@ -813,6 +860,11 @@ public final class CFMetaData
         return caching;
     }
 
+    public RowsPerPartitionToCache getRowsPerPartitionToCache()
+    {
+        return rowsPerPartitionToCache;
+    }
+
     public int getIndexInterval()
     {
         return indexInterval;
@@ -876,6 +928,7 @@ public final class CFMetaData
         if (populateIoCacheOnFlush != rhs.populateIoCacheOnFlush) return false;
         if (Objects.equal(droppedColumns, rhs.droppedColumns)) return false;
         if (Objects.equal(triggers, rhs.triggers)) return false;
+        if (!Objects.equal(rowsPerPartitionToCache, rhs.rowsPerPartitionToCache)) return false;
         return true;
     }
 
@@ -908,6 +961,7 @@ public final class CFMetaData
             .append(populateIoCacheOnFlush)
             .append(droppedColumns)
             .append(triggers)
+            .append(rowsPerPartitionToCache)
             .toHashCode();
     }
 
@@ -964,6 +1018,8 @@ public final class CFMetaData
             cf_def.setDefault_time_to_live(CFMetaData.DEFAULT_DEFAULT_TIME_TO_LIVE);
         if (!cf_def.isSetDclocal_read_repair_chance())
             cf_def.setDclocal_read_repair_chance(CFMetaData.DEFAULT_DCLOCAL_READ_REPAIR_CHANCE);
+        if (!cf_def.isSetCells_per_row_to_cache())
+            cf_def.setCells_per_row_to_cache(CFMetaData.DEFAULT_ROWS_PER_PARTITION_TO_CACHE.toString());
     }
 
     public static CFMetaData fromThrift(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException, ConfigurationException
@@ -1022,6 +1078,8 @@ public final class CFMetaData
                 newCFMD.populateIoCacheOnFlush(cf_def.populate_io_cache_on_flush);
             if (cf_def.isSetTriggers())
                 newCFMD.triggers(TriggerDefinition.fromThrift(cf_def.triggers));
+            if (cf_def.isSetCells_per_row_to_cache())
+                newCFMD.rowsPerPartitionToCache(RowsPerPartitionToCache.fromString(cf_def.cells_per_row_to_cache));
 
             CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
 
@@ -1117,6 +1175,7 @@ public final class CFMetaData
         bloomFilterFpChance = cfm.bloomFilterFpChance;
         memtableFlushPeriod = cfm.memtableFlushPeriod;
         caching = cfm.caching;
+        rowsPerPartitionToCache = cfm.rowsPerPartitionToCache;
         defaultTimeToLive = cfm.defaultTimeToLive;
         speculativeRetry = cfm.speculativeRetry;
         populateIoCacheOnFlush = cfm.populateIoCacheOnFlush;
@@ -1265,6 +1324,7 @@ public final class CFMetaData
         def.setIndex_interval(indexInterval);
         def.setMemtable_flush_period_in_ms(memtableFlushPeriod);
         def.setCaching(caching.toString());
+        def.setCells_per_row_to_cache(rowsPerPartitionToCache.toString());
         def.setDefault_time_to_live(defaultTimeToLive);
         def.setSpeculative_retry(speculativeRetry.toString());
         def.setTriggers(TriggerDefinition.toThrift(triggers));
@@ -1619,6 +1679,7 @@ public final class CFMetaData
 
         adder.add("memtable_flush_period_in_ms", memtableFlushPeriod);
         adder.add("caching", caching.toString());
+        adder.add("rows_per_partition_to_cache", rowsPerPartitionToCache.toString());
         adder.add("default_time_to_live", defaultTimeToLive);
         adder.add("compaction_strategy_class", compactionStrategyClass.getName());
         adder.add("compression_parameters", json(compressionParameters.asThriftOptions()));
@@ -1684,6 +1745,8 @@ public final class CFMetaData
             if (result.has("memtable_flush_period_in_ms"))
                 cfm.memtableFlushPeriod(result.getInt("memtable_flush_period_in_ms"));
             cfm.caching(Caching.valueOf(result.getString("caching")));
+            if (result.has("rows_per_partition_to_cache"))
+                 cfm.rowsPerPartitionToCache(RowsPerPartitionToCache.fromString(result.getString("rows_per_partition_to_cache")));
             if (result.has("default_time_to_live"))
                 cfm.defaultTimeToLive(result.getInt("default_time_to_live"));
             if (result.has("speculative_retry"))
@@ -2163,6 +2226,7 @@ public final class CFMetaData
             .append("bloomFilterFpChance", bloomFilterFpChance)
             .append("memtable_flush_period_in_ms", memtableFlushPeriod)
             .append("caching", caching)
+            .append("rowsPerPartitionToCache", rowsPerPartitionToCache)
             .append("defaultTimeToLive", defaultTimeToLive)
             .append("speculative_retry", speculativeRetry)
             .append("indexInterval", indexInterval)

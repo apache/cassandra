@@ -794,7 +794,11 @@ commands:
             - KEYS_ONLY
             - ROWS_ONLY
             - NONE;
+        - cells_per_row_to_cache: State the number of cells per row to cache.
 
+          Defaults to 100. Set to "ALL" if you want the old cache behaviour.
+
+          Will not be used if row caching is not enabled.
         - speculative_retry: Speculative retry is used to speculate a read failure.
 
           Speculative retry will execute additional read on a different nodes when
