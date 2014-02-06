@@ -41,11 +41,8 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql3.ColumnNameBuilder;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.filter.NamesQueryFilter;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
@@ -157,7 +154,7 @@ public class StorageProxy implements StorageProxyMBean
 
     /**
      * Apply @param updates if and only if the current values in the row for @param key
-     * match the ones given by @param expected.  The algorithm is "raw" Paxos: that is, Paxos
+     * match the provided @param conditions.  The algorithm is "raw" Paxos: that is, Paxos
      * minus leader election -- any node in the cluster may propose changes for any row,
      * which (that is, the row) is the unit of values being proposed, not single columns.
      *
@@ -189,23 +186,18 @@ public class StorageProxy implements StorageProxyMBean
      * @param keyspaceName the keyspace for the CAS
      * @param cfName the column family for the CAS
      * @param key the row key for the row to CAS
-     * @param prefix a column name prefix that selects the CQL3 row to check if {@code expected} is null. If {@code expected}
-     * is not null, this is ignored. If {@code expected} is null and this is null, the full row existing is checked (by querying
-     * the first live column of the row).
-     * @param expected the expected column values. This can be null to check for existence (see {@code prefix}).
-     * @param updates the value to insert if {@code expected matches the current values}.
+     * @param conditions the conditions for the CAS to apply.
+     * @param updates the value to insert if {@code condtions} matches the current values.
      * @param consistencyForPaxos the consistency for the paxos prepare and propose round. This can only be either SERIAL or LOCAL_SERIAL.
      * @param consistencyForCommit the consistency for write done during the commit phase. This can be anything, except SERIAL or LOCAL_SERIAL.
      *
-     * @return null if the operation succeeds in updating the row, or the current values for the columns contained in
-     * expected (since, if the CAS doesn't succeed, it means the current value do not match the one in expected). If
-     * expected == null and the CAS is unsuccessfull, the first live column of the CF is returned.
+     * @return null if the operation succeeds in updating the row, or the current values corresponding to conditions.
+     * (since, if the CAS doesn't succeed, it means the current value do not match the conditions).
      */
     public static ColumnFamily cas(String keyspaceName,
                                    String cfName,
                                    ByteBuffer key,
-                                   ColumnNameBuilder prefix,
-                                   ColumnFamily expected,
+                                   CASConditions conditions,
                                    ColumnFamily updates,
                                    ConsistencyLevel consistencyForPaxos,
                                    ConsistencyLevel consistencyForCommit)
@@ -227,27 +219,15 @@ public class StorageProxy implements StorageProxyMBean
 
             UUID ballot = beginAndRepairPaxos(start, key, metadata, liveEndpoints, requiredParticipants, consistencyForPaxos);
 
-            // read the current value and compare with expected
+            // read the current values and check they validate the conditions
             Tracing.trace("Reading existing values for CAS precondition");
             long timestamp = System.currentTimeMillis();
-            ReadCommand readCommand;
-            if (expected == null || expected.isEmpty())
-            {
-                SliceQueryFilter filter = prefix == null
-                                        ? new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1)
-                                        : new SliceQueryFilter(prefix.build(), prefix.buildAsEndOfRange(), false, 1, prefix.componentCount());
-                readCommand = new SliceFromReadCommand(keyspaceName, key, cfName, timestamp, filter);
-            }
-            else
-            {
-                assert !expected.isEmpty();
-                readCommand = new SliceByNamesReadCommand(keyspaceName, key, cfName, timestamp, new NamesQueryFilter(ImmutableSortedSet.copyOf(metadata.comparator, expected.getColumnNames())));
-            }
+            ReadCommand readCommand = ReadCommand.create(keyspaceName, key, cfName, timestamp, conditions.readFilter());
             List<Row> rows = read(Arrays.asList(readCommand), consistencyForPaxos == ConsistencyLevel.LOCAL_SERIAL? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM);
             ColumnFamily current = rows.get(0).cf;
-            if (!casApplies(expected, current))
+            if (!conditions.appliesTo(current))
             {
-                Tracing.trace("CAS precondition {} does not match current values {}", expected, current);
+                Tracing.trace("CAS precondition {} does not match current values {}", conditions, current);
                 // We should not return null as this means success
                 return current == null ? EmptyColumns.factory.create(metadata) : current;
             }
@@ -272,41 +252,6 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(Keyspace.open(keyspaceName)));
-    }
-
-    private static boolean hasLiveColumns(ColumnFamily cf, long now)
-    {
-        return cf != null && !cf.hasOnlyTombstones(now);
-    }
-
-    private static boolean casApplies(ColumnFamily expected, ColumnFamily current)
-    {
-        long now = System.currentTimeMillis();
-
-        if (!hasLiveColumns(expected, now))
-            return !hasLiveColumns(current, now);
-        else if (!hasLiveColumns(current, now))
-            return false;
-
-        // current has been built from expected, so we know that it can't have columns
-        // that excepted don't have. So we just check that for each columns in expected:
-        //   - if it is a tombstone, whether current has no column or a tombstone;
-        //   - otherwise, that current has a live column with the same value.
-        for (Column e : expected)
-        {
-            Column c = current.getColumn(e.name());
-            if (e.isLive(now))
-            {
-                if (!(c != null && c.isLive(now) && c.value().equals(e.value())))
-                    return false;
-            }
-            else
-            {
-                if (c != null && c.isLive(now))
-                    return false;
-            }
-        }
-        return true;
     }
 
     private static Predicate<InetAddress> sameDCPredicateFor(final String dc)

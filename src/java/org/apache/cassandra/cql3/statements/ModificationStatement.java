@@ -27,19 +27,20 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.service.CASConditions;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /*
  * Abstract parent class of individual modifications, i.e. INSERT, UPDATE and DELETE.
@@ -415,16 +416,17 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         UpdateParameters updParams = new UpdateParameters(cfm, variables, queryState.getTimestamp(), getTimeToLive(variables), null);
         ColumnFamily updates = updateForKey(key, clusteringPrefix, updParams);
 
-        // When building the conditions, we should not use the TTL. It's not useful, and if a very low ttl (1 seconds) is used, it's possible
-        // for it to expire before actually build the conditions which would break since we would then test for the presence of tombstones.
-        UpdateParameters condParams = new UpdateParameters(cfm, variables, queryState.getTimestamp(), 0, null);
-        ColumnFamily expected = buildConditions(key, clusteringPrefix, condParams);
+        // It's cleaner to use the query timestamp below, but it's in seconds while the conditions expects microseconds, so just
+        // put it back in millis (we don't really lose precision because the ultimate consumer, Column.isLive, re-divide it).
+        long now = queryState.getTimestamp() * 1000;
+        CASConditions conditions = ifNotExists
+                                 ? new NotExistCondition(clusteringPrefix, now)
+                                 : new ColumnsConditions(clusteringPrefix, cfm, key, columnConditions, variables, now);
 
         ColumnFamily result = StorageProxy.cas(keyspace(),
                                                columnFamily(),
                                                key,
-                                               clusteringPrefix,
-                                               expected,
+                                               conditions,
                                                updates,
                                                options.getSerialConsistency(),
                                                options.getConsistency());
@@ -542,28 +544,91 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         return isCounter() ? new CounterMutation(rm, cl) : rm;
     }
 
-    private ColumnFamily buildConditions(ByteBuffer key, ColumnNameBuilder clusteringPrefix, UpdateParameters params)
-    throws InvalidRequestException
+    private static abstract class CQL3CasConditions implements CASConditions
     {
-        if (ifNotExists)
-            return null;
+        protected final ColumnNameBuilder rowPrefix;
+        protected final long now;
 
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfm);
-
-        // CQL row marker
-        CFDefinition cfDef = cfm.getCfDef();
-        if (cfDef.isComposite && !cfDef.isCompact && !cfm.isSuper())
+        protected CQL3CasConditions(ColumnNameBuilder rowPrefix, long now)
         {
-            ByteBuffer name = clusteringPrefix.copy().add(ByteBufferUtil.EMPTY_BYTE_BUFFER).build();
-            cf.addColumn(params.makeColumn(name, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+            this.rowPrefix = rowPrefix;
+            this.now = now;
         }
 
-        // Conditions
-        for (Operation condition : columnConditions)
-            condition.execute(key, cf, clusteringPrefix.copy(), params);
+        public IDiskAtomFilter readFilter()
+        {
+            // We always read the row entirely as on CAS failure we want to be able to distinguish between "row exists
+            // but all values on why there were conditions are null" and "row doesn't exists", and we can't rely on the
+            // row marker for that (see #6623)
+            return new SliceQueryFilter(rowPrefix.build(), rowPrefix.buildAsEndOfRange(), false, 1, rowPrefix.componentCount());
+        }
+    }
 
-        assert !cf.isEmpty();
-        return cf;
+    private static class NotExistCondition extends CQL3CasConditions
+    {
+        private NotExistCondition(ColumnNameBuilder rowPrefix, long now)
+        {
+            super(rowPrefix, now);
+        }
+
+        public boolean appliesTo(ColumnFamily current)
+        {
+            return current == null || current.hasOnlyTombstones(now);
+        }
+    }
+
+    private static class ColumnsConditions extends CQL3CasConditions
+    {
+        private final ColumnFamily expected;
+
+        private ColumnsConditions(ColumnNameBuilder rowPrefix,
+                                  CFMetaData cfm,
+                                  ByteBuffer key,
+                                  Collection<Operation> conditions,
+                                  List<ByteBuffer> variables,
+                                  long now) throws InvalidRequestException
+        {
+            super(rowPrefix, now);
+            this.expected = TreeMapBackedSortedColumns.factory.create(cfm);
+
+            // When building the conditions, we should not use a TTL. It's not useful, and if a very low ttl (1 seconds) is used, it's possible
+            // for it to expire before the actual build of the conditions which would break since we would then testing for the presence of tombstones.
+            UpdateParameters params = new UpdateParameters(cfm, variables, now, 0, null);
+
+            // Conditions
+            for (Operation condition : conditions)
+                condition.execute(key, expected, rowPrefix.copy(), params);
+        }
+
+        public boolean appliesTo(ColumnFamily current)
+        {
+            if (current == null)
+                return false;
+
+            for (Column e : expected)
+            {
+                Column c = current.getColumn(e.name());
+                if (e.isLive(now))
+                {
+                    if (c == null || !c.isLive(now) || !c.value().equals(e.value()))
+                        return false;
+                }
+                else
+                {
+                    // If we have a tombstone in expected, it means the condition tests that the column is
+                    // null, so check that we have no value
+                    if (c != null && c.isLive(now))
+                        return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public String toString()
+        {
+            return expected.toString();
+        }
     }
 
     public static abstract class Parsed extends CFStatement
