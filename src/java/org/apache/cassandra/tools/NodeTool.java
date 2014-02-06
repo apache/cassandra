@@ -138,7 +138,8 @@ public class NodeTool
                 DisableHandoff.class,
                 Drain.class,
                 TruncateHints.class,
-                TpStats.class
+                TpStats.class,
+                TakeToken.class
         );
 
         Cli<Runnable> parser = Cli.<Runnable>builder("nodetool")
@@ -1360,6 +1361,26 @@ public class NodeTool
         }
     }
 
+    @Command(name = "taketoken", description = "Move the token(s) from the existing owner(s) to this node.  For vnodes only.  Use \\\\ to escape negative tokens.")
+    public static class TakeToken extends NodeToolCmd
+    {
+        @Arguments(usage = "<token, ...>", description = "Token(s) to take", required = true)
+        private List<String> tokens = new ArrayList<String>();
+
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            try
+            {
+                probe.takeTokens(tokens);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException("Error taking tokens", e);
+            }
+        }
+    }
+
     @Command(name = "join", description = "Join the ring")
     public static class Join extends NodeToolCmd
     {
@@ -1396,6 +1417,8 @@ public class NodeTool
             }
         }
     }
+
+
 
     @Command(name = "pausehandoff", description = "Pause hints delivery process")
     public static class PauseHandoff extends NodeToolCmd

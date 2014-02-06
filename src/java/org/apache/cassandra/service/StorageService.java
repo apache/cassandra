@@ -3129,6 +3129,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             for (String srcT : srcTokens)
             {
                 getPartitioner().getTokenFactory().validate(srcT);
+                Token token = getPartitioner().getTokenFactory().fromString(srcT);
+                if (tokenMetadata.getTokens(tokenMetadata.getEndpoint(token)).size() < 2)
+                    throw new IOException("Cannot relocate " + srcT + "; source node would have no tokens left");
                 tokens.add(getPartitioner().getTokenFactory().fromString(srcT));
             }
         }
