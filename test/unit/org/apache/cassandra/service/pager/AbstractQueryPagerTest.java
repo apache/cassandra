@@ -34,7 +34,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class AbstractQueryPagerTest
 {
     @Test
-    public void DiscardFirstTest()
+    public void discardFirstTest()
     {
         TestPager pager = new TestPager();
         List<Row> rows = Arrays.asList(createRow("r1", 1),
@@ -69,7 +69,7 @@ public class AbstractQueryPagerTest
     }
 
     @Test
-    public void DiscardLastTest()
+    public void discardLastTest()
     {
         TestPager pager = new TestPager();
         List<Row> rows = Arrays.asList(createRow("r1", 2),
