@@ -63,7 +63,7 @@ public abstract class SecondaryIndexSearcher
                 continue;
 
             SecondaryIndex index = indexManager.getIndexForColumn(expression.column_name);
-            if (index == null || (expression.op != IndexOperator.EQ))
+            if (index == null || index.getIndexCfs() == null || expression.op != IndexOperator.EQ)
                 continue;
             int columns = index.getIndexCfs().getMeanColumns();
             candidates.put(index, columns);

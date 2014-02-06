@@ -80,6 +80,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
         final IndexExpression primary = highestSelectivityPredicate(filter.getClause());
         final CompositesIndex index = (CompositesIndex)indexManager.getIndexForColumn(primary.column_name);
         assert index != null;
+        assert index.getIndexCfs() != null;
         final DecoratedKey indexKey = index.getIndexKeyFor(primary.value);
 
         if (logger.isDebugEnabled())

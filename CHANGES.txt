@@ -3,6 +3,7 @@
  * Expose bulk loading progress over JMX (CASSANDRA-4757)
  * Correctly handle null with IF conditions and TTL (CASSANDRA-6623)
 Merged from 1.2:
+ * Fix upgradesstables NPE for non-CF-based indexes (CASSANDRA-6645)
  * Fix partition and range deletes not triggering flush (CASSANDRA-6655)
 
 
