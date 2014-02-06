@@ -310,7 +310,7 @@ public class Mutation implements IMutation
 
         private ColumnFamily deserializeOneCf(DataInput in, int version, ColumnSerializer.Flag flag) throws IOException
         {
-            ColumnFamily cf = ColumnFamily.serializer.deserialize(in, UnsortedColumns.factory, flag, version);
+            ColumnFamily cf = ColumnFamily.serializer.deserialize(in, ArrayBackedSortedColumns.factory, flag, version);
             // We don't allow Mutation with null column family, so we should never get null back.
             assert cf != null;
             return cf;

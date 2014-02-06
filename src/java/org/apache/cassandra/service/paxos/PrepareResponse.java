@@ -26,9 +26,9 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.ArrayBackedSortedColumns;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnSerializer;
-import org.apache.cassandra.db.UnsortedColumns;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDSerializer;
@@ -82,10 +82,14 @@ public class PrepareResponse
             return new PrepareResponse(success,
                                        new Commit(key,
                                                   UUIDSerializer.serializer.deserialize(in, version),
-                                                  ColumnFamily.serializer.deserialize(in, UnsortedColumns.factory, ColumnSerializer.Flag.LOCAL, version)),
+                                                  ColumnFamily.serializer.deserialize(in,
+                                                                                      ArrayBackedSortedColumns.factory,
+                                                                                      ColumnSerializer.Flag.LOCAL, version)),
                                        new Commit(key,
                                                   UUIDSerializer.serializer.deserialize(in, version),
-                                                  ColumnFamily.serializer.deserialize(in, UnsortedColumns.factory, ColumnSerializer.Flag.LOCAL, version)));
+                                                  ColumnFamily.serializer.deserialize(in,
+                                                                                      ArrayBackedSortedColumns.factory,
+                                                                                      ColumnSerializer.Flag.LOCAL, version)));
         }
 
         public long serializedSize(PrepareResponse response, int version)

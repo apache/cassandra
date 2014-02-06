@@ -91,16 +91,6 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
         return pos >= 0 ? cells.get(pos) : null;
     }
 
-    /**
-     * AddColumn throws an exception if the cell added does not sort after
-     * the last cell in the map.
-     * The reasoning is that this implementation can get slower if too much
-     * insertions are done in unsorted order and right now we only use it when
-     * *all* insertion (with this method) are done in sorted order. The
-     * assertion throwing is thus a protection against performance regression
-     * without knowing about (we can revisit that decision later if we have
-     * use cases where most insert are in sorted order but a few are not).
-     */
     public void addColumn(Cell cell, AbstractAllocator allocator)
     {
         if (cells.isEmpty())
@@ -109,11 +99,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
             return;
         }
 
-        // Fast path if inserting at the tail
         int c = internalComparator().compare(cells.get(getColumnCount() - 1).name(), cell.name());
-        // note that we want an assertion here (see addColumn javadoc), but we also want that if
-        // assertion are disabled, addColumn works correctly with unsorted input
-        assert c <= 0 : "Added cell does not sort as the " + (reversed ? "first" : "last") + " cell";
 
         if (c < 0)
         {

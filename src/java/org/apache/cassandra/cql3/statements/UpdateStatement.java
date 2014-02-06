@@ -99,7 +99,7 @@ public class UpdateStatement extends ModificationStatement
     public ColumnFamily updateForKey(ByteBuffer key, Composite prefix, UpdateParameters params)
     throws InvalidRequestException
     {
-        ColumnFamily cf = UnsortedColumns.factory.create(cfm);
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfm);
         addUpdateForKey(cf, key, prefix, params);
         return cf;
     }

@@ -139,7 +139,10 @@ public class Commit
         {
             return new Commit(ByteBufferUtil.readWithShortLength(in),
                               UUIDSerializer.serializer.deserialize(in, version),
-                              ColumnFamily.serializer.deserialize(in, UnsortedColumns.factory, ColumnSerializer.Flag.LOCAL, version));
+                              ColumnFamily.serializer.deserialize(in,
+                                                                  ArrayBackedSortedColumns.factory,
+                                                                  ColumnSerializer.Flag.LOCAL,
+                                                                  version));
         }
 
         public long serializedSize(Commit commit, int version)

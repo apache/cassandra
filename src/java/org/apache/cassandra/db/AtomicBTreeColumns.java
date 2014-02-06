@@ -234,14 +234,7 @@ public class AtomicBTreeColumns extends ColumnFamily
     public Delta addAllWithSizeDelta(final ColumnFamily cm, AbstractAllocator allocator, Function<Cell, Cell> transformation, Updater indexer, Delta delta)
     {
         boolean transformed = false;
-        Collection<Cell> insert;
-        if (cm instanceof UnsortedColumns)
-        {
-            insert = transform(metadata.comparator.columnComparator(), cm, transformation, true);
-            transformed = true;
-        }
-        else
-            insert = cm.getSortedColumns();
+        Collection<Cell> insert = cm.getSortedColumns();
 
         while (true)
         {

@@ -754,7 +754,7 @@ public class CassandraServer implements Cassandra.Iface
                 ThriftValidation.validateColumnData(metadata, null, column);
 
             CFMetaData cfm = Schema.instance.getCFMetaData(cState.getKeyspace(), column_family);
-            UnsortedColumns cfUpdates = UnsortedColumns.factory.create(cfm);
+            ColumnFamily cfUpdates = ArrayBackedSortedColumns.factory.create(cfm);
             for (Column column : updates)
                 cfUpdates.addColumn(cfm.comparator.cellFromByteBuffer(column.name), column.value, column.timestamp);
 
@@ -765,7 +765,7 @@ public class CassandraServer implements Cassandra.Iface
             }
             else
             {
-                cfExpected = TreeMapBackedSortedColumns.factory.create(cfm);
+                cfExpected = ArrayBackedSortedColumns.factory.create(cfm);
                 for (Column column : expected)
                     cfExpected.addColumn(cfm.comparator.cellFromByteBuffer(column.name), column.value, column.timestamp);
             }
