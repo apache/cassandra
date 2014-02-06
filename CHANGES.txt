@@ -29,6 +29,7 @@
  * Add option to use row cache with a given amount of rows (CASSANDRA-5357)
 
 2.0.6
+ * Failure detector correctly converts initial value to nanos (CASSANDRA-6658)
  * Add nodetool taketoken to relocate vnodes (CASSANDRA-4445)
  * Fix upgradesstables NPE for non-CF-based indexes (CASSANDRA-6645)
  * Expose bulk loading progress over JMX (CASSANDRA-4757)
