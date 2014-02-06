@@ -306,12 +306,10 @@ public class SSTableScannerTest extends SchemaLoader
         assertScanContainsRanges(fullScanner, 205, 205);
 
         // scan three ranges separately
-        ICompactionScanner scanner = sstable.getScanner(makeRanges(
-                101, 109,
-                201, 209),
-                null);
+        ICompactionScanner scanner = sstable.getScanner(makeRanges(101, 109,
+                                                                   201, 209), null);
 
-        // Test for #6638 bug
+        // this will currently fail
         assertScanContainsRanges(scanner, 205, 205);
     }
 }
