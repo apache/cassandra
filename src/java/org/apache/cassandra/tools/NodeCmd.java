@@ -75,7 +75,7 @@ public class NodeCmd
     private static final Pair<String, String> CFSTATS_IGNORE_OPT = Pair.create("i", "ignore");
     private static final Pair<String, String> RESOLVE_IP = Pair.create("r", "resolve-ip");
     private static final Pair<String, String> SCRUB_SKIP_CORRUPTED_OPT = Pair.create("s", "skip-corrupted");
-
+    private static final Pair<String, String> COMPACT_OPT = Pair.create("c", "compact");
 
     private static final String DEFAULT_HOST = "127.0.0.1";
     private static final int DEFAULT_PORT = 7199;
@@ -104,6 +104,7 @@ public class NodeCmd
         options.addOption(CFSTATS_IGNORE_OPT, false, "ignore the supplied list of keyspace.columnfamiles in statistics");
         options.addOption(RESOLVE_IP, false, "show node domain names instead of IPs");
         options.addOption(SCRUB_SKIP_CORRUPTED_OPT, false, "when scrubbing counter tables, skip corrupted rows");
+        options.addOption(COMPACT_OPT, false, "print histograms in a more compact format");
     }
 
     public NodeCmd(NodeProbe probe)
@@ -956,7 +957,47 @@ public class NodeCmd
         outs.println("RemovalStatus: " + probe.getRemovalStatus());
     }
 
-    private void printCfHistograms(String keySpace, String columnFamily, PrintStream output)
+    /**
+     * Returns a pair of the min and max indexes we actually have histogram data for.
+     * If there's no data, -1 will be returned for the min and max.
+     */
+    private Pair<Integer, Integer> getDataBounds(long[] data)
+    {
+        int lowestIndex = -1;
+        int highestIndex = -1;
+        for (int i = 0; i < data.length; i++)
+        {
+            if (data[i] > 0)
+            {
+                highestIndex = i;
+                if (lowestIndex == -1)
+                    lowestIndex = i;
+            }
+        }
+        return Pair.create(lowestIndex, highestIndex);
+    }
+
+    private void printHistogram(long[] data, long[] offsets, String unit, PrintStream output)
+    {
+        Pair<Integer, Integer> bounds = getDataBounds(data);
+        if (bounds.left == -1)
+        {
+            output.println("No Data");
+        }
+        else
+        {
+            long maxValue = -1;
+            for (int i = bounds.left; i <= bounds.right; i++)
+                maxValue = Math.max(maxValue, offsets[i]);
+
+            String format = "%" + new Long(maxValue).toString().length() + "d %s: %d";
+            for (int i = bounds.left; i <= bounds.right; i++)
+                output.println(String.format(format, offsets[i], unit, data[i]));
+        }
+        output.println("");
+    }
+
+    private void printCfHistograms(String keySpace, String columnFamily, PrintStream output, boolean compactFormat)
     {
         ColumnFamilyStoreMBean store = this.probe.getCfsProxy(keySpace, columnFamily);
 
@@ -970,25 +1011,46 @@ public class NodeCmd
         long[] ecch = store.getEstimatedColumnCountHistogram();
 
         output.println(String.format("%s/%s histograms", keySpace, columnFamily));
+        output.println("");
 
-        output.println(String.format("%-10s%10s%18s%18s%18s%18s",
-                                     "Offset", "SSTables", "Write Latency", "Read Latency", "Partition Size", "Cell Count"));
-        output.println(String.format("%-10s%10s%18s%18s%18s%18s",
-                                     "", "", "(micros)", "(micros)", "(bytes)", ""));
-
-        for (int i = 0; i < offsets.length; i++)
+        if (compactFormat)
         {
-            output.println(String.format("%-10d%10s%18s%18s%18s%18s",
-                                         offsets[i],
-                                         (i < sprh.length ? sprh[i] : "0"),
-                                         (i < rwlh.length ? rwlh[i] : "0"),
-                                         (i < rrlh.length ? rrlh[i] : "0"),
-                                         (i < ersh.length ? ersh[i] : "0"),
-                                         (i < ecch.length ? ecch[i] : "0")));
+            output.println(String.format("%-10s%10s%18s%18s%18s%18s",
+                    "Offset", "SSTables", "Write Latency", "Read Latency", "Partition Size", "Cell Count"));
+            output.println(String.format("%-10s%10s%18s%18s%18s%18s",
+                    "", "", "(micros)", "(micros)", "(bytes)", ""));
+
+            for (int i = 0; i < offsets.length; i++)
+            {
+                output.println(String.format("%-10d%10s%18s%18s%18s%18s",
+                        offsets[i],
+                        (i < sprh.length ? sprh[i] : "0"),
+                        (i < rwlh.length ? rwlh[i] : "0"),
+                        (i < rrlh.length ? rrlh[i] : "0"),
+                        (i < ersh.length ? ersh[i] : "0"),
+                        (i < ecch.length ? ecch[i] : "0")));
+            }
+        }
+        else
+        {
+            output.println("SSTables per Read");
+            printHistogram(sprh, offsets, "sstables", output);
+
+            output.println("Write Latency (microseconds)");
+            printHistogram(rwlh, offsets, "us", output);
+
+            output.println("Read Latency (microseconds)");
+            printHistogram(rrlh, offsets, "us", output);
+
+            output.println("Partition Size (bytes)");
+            printHistogram(ersh, offsets, "bytes", output);
+
+            output.println("Cell Count per Partition");
+            printHistogram(ecch, offsets, "cells", output);
         }
     }
 
-    private void printProxyHistograms(PrintStream output)
+    private void printProxyHistograms(PrintStream output, boolean compactFormat)
     {
         StorageProxyMBean sp = this.probe.getSpProxy();
         long[] offsets = new EstimatedHistogram().getBucketOffsets();
@@ -997,15 +1059,31 @@ public class NodeCmd
         long[] rrnglh = sp.getRecentRangeLatencyHistogramMicros();
 
         output.println("proxy histograms");
-        output.println(String.format("%-10s%18s%18s%18s",
-                                    "Offset", "Read Latency", "Write Latency", "Range Latency"));
-        for (int i = 0; i < offsets.length; i++)
+        output.println("");
+
+        if (compactFormat)
         {
-            output.println(String.format("%-10d%18s%18s%18s",
-                                        offsets[i],
-                                        (i < rrlh.length ? rrlh[i] : "0"),
-                                        (i < rwlh.length ? rwlh[i] : "0"),
-                                        (i < rrnglh.length ? rrnglh[i] : "0")));
+            output.println(String.format("%-10s%18s%18s%18s",
+                    "Offset", "Read Latency", "Write Latency", "Range Latency"));
+            for (int i = 0; i < offsets.length; i++)
+            {
+                output.println(String.format("%-10d%18s%18s%18s",
+                        offsets[i],
+                        (i < rrlh.length ? rrlh[i] : "0"),
+                        (i < rwlh.length ? rwlh[i] : "0"),
+                        (i < rrnglh.length ? rrnglh[i] : "0")));
+            }
+        }
+        else
+        {
+            output.println("Read Latency (microseconds)");
+            printHistogram(rrlh, offsets, "us", output);
+
+            output.println("Write Latency (microseconds)");
+            printHistogram(rwlh, offsets, "us", output);
+
+            output.println("Range Latency (microseconds)");
+            printHistogram(rrnglh, offsets, "us", output);
         }
     }
 
@@ -1280,7 +1358,7 @@ public class NodeCmd
 
                 case CFHISTOGRAMS :
                     if (arguments.length != 2) { badUse("cfhistograms requires ks and cf args"); }
-                    nodeCmd.printCfHistograms(arguments[0], arguments[1], System.out);
+                    nodeCmd.printCfHistograms(arguments[0], arguments[1], System.out, cmd.hasOption(COMPACT_OPT.left));
                     break;
 
                 case SETCACHECAPACITY :
@@ -1309,7 +1387,7 @@ public class NodeCmd
 
                 case PROXYHISTOGRAMS :
                     if (arguments.length != 0) { badUse("proxyhistograms does not take arguments"); }
-                    nodeCmd.printProxyHistograms(System.out);
+                    nodeCmd.printProxyHistograms(System.out, cmd.hasOption(COMPACT_OPT.left));
                     break;
 
                 case GETSSTABLES:
