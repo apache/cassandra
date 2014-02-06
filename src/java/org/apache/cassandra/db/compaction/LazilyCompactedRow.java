@@ -261,6 +261,17 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                     container.clear();
                     return null;
                 }
+
+                int localDeletionTime = container.deletionInfo().getTopLevelDeletion().localDeletionTime;
+                if (localDeletionTime < Integer.MAX_VALUE)
+                    tombstones.update(localDeletionTime);
+                Iterator<RangeTombstone> rangeTombstoneIterator = container.deletionInfo().rangeIterator();
+                while (rangeTombstoneIterator.hasNext())
+                {
+                    RangeTombstone rangeTombstone = rangeTombstoneIterator.next();
+                    tombstones.update(rangeTombstone.getLocalDeletionTime());
+                }
+
                 Cell reduced = iter.next();
                 container.clear();
 

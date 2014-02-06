@@ -240,6 +240,16 @@ public class SSTableWriter extends SSTable
         if (version.hasRowSizeAndColumnCount)
             columnCount = in.readInt();
 
+        if (cf.deletionInfo().getTopLevelDeletion().localDeletionTime < Integer.MAX_VALUE)
+            tombstones.update(cf.deletionInfo().getTopLevelDeletion().localDeletionTime);
+
+        Iterator<RangeTombstone> rangeTombstoneIterator = cf.deletionInfo().rangeIterator();
+        while (rangeTombstoneIterator.hasNext())
+        {
+            RangeTombstone rangeTombstone = rangeTombstoneIterator.next();
+            tombstones.update(rangeTombstone.getLocalDeletionTime());
+        }
+
         Iterator<OnDiskAtom> iter = metadata.getOnDiskIterator(in, columnCount, ColumnSerializer.Flag.PRESERVE_SIZE, Integer.MIN_VALUE, version);
         try
         {

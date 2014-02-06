@@ -425,6 +425,14 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
         List<ByteBuffer> maxColumnNamesSeen = Collections.emptyList();
         for (Cell cell : this)
         {
+            if (deletionInfo().getTopLevelDeletion().localDeletionTime < Integer.MAX_VALUE)
+                tombstones.update(deletionInfo().getTopLevelDeletion().localDeletionTime);
+            Iterator<RangeTombstone> it = deletionInfo().rangeIterator();
+            while (it.hasNext())
+            {
+                RangeTombstone rangeTombstone = it.next();
+                tombstones.update(rangeTombstone.getLocalDeletionTime());
+            }
             minTimestampSeen = Math.min(minTimestampSeen, cell.minTimestamp());
             maxTimestampSeen = Math.max(maxTimestampSeen, cell.maxTimestamp());
             maxLocalDeletionTime = Math.max(maxLocalDeletionTime, cell.getLocalDeletionTime());

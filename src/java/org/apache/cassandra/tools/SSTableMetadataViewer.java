@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.tools;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.EnumSet;
@@ -44,32 +45,45 @@ public class SSTableMetadataViewer
 
         for (String fname : args)
         {
-            Descriptor descriptor = Descriptor.fromFilename(fname);
-            Map<MetadataType, MetadataComponent> metadata = descriptor.getMetadataSerializer().deserialize(descriptor, EnumSet.allOf(MetadataType.class));
-            ValidationMetadata validation = (ValidationMetadata) metadata.get(MetadataType.VALIDATION);
-            StatsMetadata stats = (StatsMetadata) metadata.get(MetadataType.STATS);
-            CompactionMetadata compaction = (CompactionMetadata) metadata.get(MetadataType.COMPACTION);
+            if (new File(fname).exists())
+            {
+                Descriptor descriptor = Descriptor.fromFilename(fname);
+                Map<MetadataType, MetadataComponent> metadata = descriptor.getMetadataSerializer().deserialize(descriptor, EnumSet.allOf(MetadataType.class));
+                ValidationMetadata validation = (ValidationMetadata) metadata.get(MetadataType.VALIDATION);
+                StatsMetadata stats = (StatsMetadata) metadata.get(MetadataType.STATS);
+                CompactionMetadata compaction = (CompactionMetadata) metadata.get(MetadataType.COMPACTION);
 
-            out.printf("SSTable: %s%n", descriptor);
-            if (validation != null)
-            {
-                out.printf("Partitioner: %s%n", validation.partitioner);
-                out.printf("Bloom Filter FP chance: %f%n", validation.bloomFilterFPChance);
+                out.printf("SSTable: %s%n", descriptor);
+                if (validation != null)
+                {
+                    out.printf("Partitioner: %s%n", validation.partitioner);
+                    out.printf("Bloom Filter FP chance: %f%n", validation.bloomFilterFPChance);
+                }
+                if (stats != null)
+                {
+                    out.printf("Maximum timestamp: %s%n", stats.maxTimestamp);
+                    out.printf("SSTable max local deletion time: %s%n", stats.maxLocalDeletionTime);
+                    out.printf("Compression ratio: %s%n", stats.compressionRatio);
+                    out.printf("Estimated droppable tombstones: %s%n", stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000)));
+                    out.printf("SSTable Level: %d%n", stats.sstableLevel);
+                    out.println(stats.replayPosition);
+                    out.println("Estimated tombstone drop times:%n");
+                    for (Map.Entry<Double, Long> entry : stats.estimatedTombstoneDropTime.getAsMap().entrySet())
+                    {
+                        out.printf("%-10s:%10s%n",entry.getKey().intValue(), entry.getValue());
+                    }
+                    printHistograms(stats, out);
+                }
+                if (compaction != null)
+                {
+                    out.printf("Ancestors: %s%n", compaction.ancestors.toString());
+                    out.printf("Estimated cardinality: %s%n", compaction.cardinalityEstimator.cardinality());
+
+                }
             }
-            if (stats != null)
+            else
             {
-                out.printf("Maximum timestamp: %s%n", stats.maxTimestamp);
-                out.printf("SSTable max local deletion time: %s%n", stats.maxLocalDeletionTime);
-                out.printf("Compression ratio: %s%n", stats.compressionRatio);
-                out.printf("Estimated droppable tombstones: %s%n", stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000)));
-                out.printf("SSTable Level: %d%n", stats.sstableLevel);
-                out.println(stats.replayPosition);
-                printHistograms(stats, out);
-            }
-            if (compaction != null)
-            {
-                out.printf("Ancestors: %s%n", compaction.ancestors.toString());
-                out.printf("Estimated cardinality: %s%n", compaction.cardinalityEstimator.cardinality());
+                out.println("No such file: " + fname);
             }
         }
     }
