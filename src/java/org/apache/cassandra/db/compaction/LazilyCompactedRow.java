@@ -275,7 +275,15 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
                     indexer.remove(reduced);
                     return null;
                 }
-
+                int localDeletionTime = purged.deletionInfo().getTopLevelDeletion().localDeletionTime;
+                if (localDeletionTime < Integer.MAX_VALUE)
+                    tombstones.update(localDeletionTime);
+                Iterator<RangeTombstone> rangeTombstoneIterator = purged.deletionInfo().rangeIterator();
+                while (rangeTombstoneIterator.hasNext())
+                {
+                    RangeTombstone rangeTombstone = rangeTombstoneIterator.next();
+                    tombstones.update(rangeTombstone.getLocalDeletionTime());
+                }
                 columns++;
                 minTimestampSeen = Math.min(minTimestampSeen, reduced.minTimestamp());
                 maxTimestampSeen = Math.max(maxTimestampSeen, reduced.maxTimestamp());

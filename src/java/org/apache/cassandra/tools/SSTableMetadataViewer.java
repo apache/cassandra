@@ -17,8 +17,10 @@
  */
 package org.apache.cassandra.tools;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.Map;
 
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
@@ -42,18 +44,30 @@ public class SSTableMetadataViewer
 
         for (String fname : args)
         {
-            Descriptor descriptor = Descriptor.fromFilename(fname);
-            SSTableMetadata metadata = SSTableMetadata.serializer.deserialize(descriptor).left;
+            if (new File(fname).exists())
+            {
+                Descriptor descriptor = Descriptor.fromFilename(fname);
+                SSTableMetadata metadata = SSTableMetadata.serializer.deserialize(descriptor).left;
 
-            out.printf("SSTable: %s%n", descriptor);
-            out.printf("Partitioner: %s%n", metadata.partitioner);
-            out.printf("Maximum timestamp: %s%n", metadata.maxTimestamp);
-            out.printf("SSTable max local deletion time: %s%n", metadata.maxLocalDeletionTime);
-            out.printf("Compression ratio: %s%n", metadata.compressionRatio);
-            out.printf("Estimated droppable tombstones: %s%n", metadata.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000)));
-            out.printf("SSTable Level: %d%n", metadata.sstableLevel);
-            out.println(metadata.replayPosition);
-            printHistograms(metadata, out);
+                out.printf("SSTable: %s%n", descriptor);
+                out.printf("Partitioner: %s%n", metadata.partitioner);
+                out.printf("Maximum timestamp: %s%n", metadata.maxTimestamp);
+                out.printf("SSTable max local deletion time: %s%n", metadata.maxLocalDeletionTime);
+                out.printf("Compression ratio: %s%n", metadata.compressionRatio);
+                out.printf("Estimated droppable tombstones: %s%n", metadata.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000)));
+                out.printf("SSTable Level: %d%n", metadata.sstableLevel);
+                out.println(metadata.replayPosition);
+                printHistograms(metadata, out);
+                out.println("Estimated tombstone drop times:");
+                for (Map.Entry<Double, Long> entry : metadata.estimatedTombstoneDropTime.getAsMap().entrySet())
+                {
+                    out.printf("%-10s:%10s%n",entry.getKey().intValue(), entry.getValue());
+                }
+            }
+            else
+            {
+                out.println("No such file: " + fname);
+            }
         }
     }
 

@@ -418,6 +418,16 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         int maxLocalDeletionTime = Integer.MIN_VALUE;
         List<ByteBuffer> minColumnNamesSeen = Collections.emptyList();
         List<ByteBuffer> maxColumnNamesSeen = Collections.emptyList();
+
+        if (deletionInfo().getTopLevelDeletion().localDeletionTime < Integer.MAX_VALUE)
+            tombstones.update(deletionInfo().getTopLevelDeletion().localDeletionTime);
+        Iterator<RangeTombstone> it = deletionInfo().rangeIterator();
+        while (it.hasNext())
+        {
+            RangeTombstone rangeTombstone = it.next();
+            tombstones.update(rangeTombstone.getLocalDeletionTime());
+        }
+
         for (Column column : this)
         {
             minTimestampSeen = Math.min(minTimestampSeen, column.minTimestamp());
