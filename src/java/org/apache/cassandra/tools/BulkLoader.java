@@ -91,7 +91,11 @@ public class BulkLoader
                 System.err.println("Run with --debug to get full stack trace or --help to get help.");
             System.exit(1);
         }
-        future.addEventListener(new ProgressIndicator());
+
+        handler.output(String.format("Streaming session ID: %s", future.planId));
+        if (!options.noProgress)
+            future.addEventListener(new ProgressIndicator());
+
         try
         {
             future.get();
