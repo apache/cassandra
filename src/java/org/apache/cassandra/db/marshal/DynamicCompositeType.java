@@ -22,6 +22,9 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -49,6 +52,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public class DynamicCompositeType extends AbstractCompositeType
 {
+    private static final Logger logger = LoggerFactory.getLogger(DynamicCompositeType.class);
+
     private final Map<Byte, AbstractType<?>> aliases;
 
     // interning instances
@@ -185,13 +190,25 @@ public class DynamicCompositeType extends AbstractCompositeType
                 throw new MarshalException("Not enough bytes to read comparator name of component " + i);
 
             ByteBuffer value = getBytes(bb, header);
+            String valueStr = null;
             try
             {
-                comparator = TypeParser.parse(ByteBufferUtil.string(value));
+                valueStr = ByteBufferUtil.string(value);
+                comparator = TypeParser.parse(valueStr);
+            }
+            catch (CharacterCodingException ce) 
+            {
+                // ByteBufferUtil.string failed. 
+                // Log it here and we'll further throw an exception below since comparator == null
+                logger.error("Failed with [{}] when decoding the byte buffer in ByteBufferUtil.string()", 
+                   ce.toString());
             }
             catch (Exception e)
             {
-                // we'll deal with this below since comparator == null
+                // parse failed. 
+                // Log it here and we'll further throw an exception below since comparator == null
+                logger.error("Failed to parse value string \"{}\" with exception: [{}]", 
+                   valueStr, e.toString());
             }
         }
         else
