@@ -359,6 +359,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                            / (StorageService.instance.getTokenMetadata().getAllEndpoints().size() - 1);
         RateLimiter rateLimiter = RateLimiter.create(throttleInKB == 0 ? Double.MAX_VALUE : throttleInKB * 1024);
 
+        boolean finished = false;
         delivery:
         while (true)
         {
@@ -374,13 +375,17 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             ColumnFamily hintsPage = ColumnFamilyStore.removeDeleted(hintStore.getColumnFamily(filter), (int) (now / 1000));
 
             if (pagingFinished(hintsPage, startColumn))
+            {
+                logger.info("Finished hinted handoff of {} rows to endpoint {}", rowsReplayed, endpoint);
+                finished = true;
                 break;
+            }
 
             // check if node is still alive and we should continue delivery process
             if (!FailureDetector.instance.isAlive(endpoint))
             {
                 logger.info("Endpoint {} died during hint delivery; aborting ({} delivered)", endpoint, rowsReplayed);
-                return;
+                break;
             }
 
             List<WriteResponseHandler> responseHandlers = Lists.newArrayList();
@@ -470,20 +475,21 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 catch (WriteTimeoutException e)
                 {
                     logger.info("Timed out replaying hints to {}; aborting ({} delivered)", endpoint, rowsReplayed);
-                    return;
+                    break delivery;
                 }
             }
         }
 
-        logger.info("Finished hinted handoff of {} rows to endpoint {}", rowsReplayed, endpoint);
-
-        try
+        if (finished || rowsReplayed.get() >= DatabaseDescriptor.getTombstoneWarnThreshold())
         {
-            compact().get();
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
+            try
+            {
+                compact().get();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
         }
     }
 
