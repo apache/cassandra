@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryPoolMXBean;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
@@ -136,6 +137,8 @@ public class CassandraDaemon
         }
      */
         logger.info("Heap size: {}/{}", Runtime.getRuntime().totalMemory(), Runtime.getRuntime().maxMemory());
+        for(MemoryPoolMXBean pool: ManagementFactory.getMemoryPoolMXBeans())
+            logger.info("{} {}: {}", pool.getName(), pool.getType(), pool.getPeakUsage());
         logger.info("Classpath: {}", System.getProperty("java.class.path"));
         CLibrary.tryMlockall();
 
