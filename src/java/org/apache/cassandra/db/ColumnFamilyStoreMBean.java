@@ -194,7 +194,7 @@ public interface ColumnFamilyStoreMBean
 
     /**
      * @see org.apache.cassandra.metrics.ColumnFamilyMetrics#meanRowSize
-     * @return the size of the smallest compacted row
+     * @return the average row size across all the sstables
      */
     @Deprecated
     public long getMeanRowSize();
