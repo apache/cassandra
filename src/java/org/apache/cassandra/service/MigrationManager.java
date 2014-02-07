@@ -138,9 +138,10 @@ public class MigrationManager
          * Don't request schema from nodes with a higher major (may have incompatible schema)
          * Don't request schema from fat clients
          */
-        return MessagingService.instance().getVersion(endpoint) >= MessagingService.VERSION_117
-            && MessagingService.instance().getVersion(endpoint) <= MessagingService.current_version
-            && !Gossiper.instance.isFatClient(endpoint);
+        return MessagingService.instance().knowsVersion(endpoint)
+                && MessagingService.instance().getVersion(endpoint) >= MessagingService.VERSION_117
+                && MessagingService.instance().getVersion(endpoint) <= MessagingService.current_version
+                && !Gossiper.instance.isFatClient(endpoint);
     }
 
     public static boolean isReadyForBootstrap()
