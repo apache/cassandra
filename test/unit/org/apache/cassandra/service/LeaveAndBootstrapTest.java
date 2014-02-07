@@ -108,6 +108,7 @@ public class LeaveAndBootstrapTest
                 valueFactory.leaving(Collections.singleton(endpointTokens.get(LEAVING_NODE))));
         assertTrue(tmd.isLeaving(hosts.get(LEAVING_NODE)));
 
+        Thread.sleep(100); // because there is a tight race between submit and blockUntilFinished
         PendingRangeCalculatorService.instance.blockUntilFinished();
 
         AbstractReplicationStrategy strategy;
