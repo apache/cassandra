@@ -111,7 +111,8 @@ public final class WaitQueue
      */
     public void signalAll()
     {
-        if (!hasWaiters())
+        RegisteredSignal last = queue.peekLast();
+        if (last == null)
             return;
         List<Thread> woke = null;
         if (logger.isTraceEnabled())
@@ -119,7 +120,6 @@ public final class WaitQueue
         long start = System.nanoTime();
         // we wake up only a snapshot of the queue, to avoid a race where the condition is not met and the woken thread
         // immediately waits on the queue again
-        RegisteredSignal last = queue.getLast();
         Iterator<RegisteredSignal> iter = queue.iterator();
         while (iter.hasNext())
         {
