@@ -440,9 +440,8 @@ public class DataTracker
         long count = 0;
         for (SSTableReader sstable : getSSTables())
         {
-            long n = sstable.getEstimatedColumnCount().count();
-            sum += sstable.getEstimatedColumnCount().mean() * n;
-            count += n;
+            sum += sstable.getEstimatedColumnCount().mean();
+            count++;
         }
         return count > 0 ? (int) (sum / count) : 0;
     }
