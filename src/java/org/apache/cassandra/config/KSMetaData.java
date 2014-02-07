@@ -19,9 +19,8 @@ package org.apache.cassandra.config;
 
 import java.util.*;
 
+import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
-import org.apache.commons.lang3.ObjectUtils;
-import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -60,7 +59,7 @@ public final class KSMetaData
         this.name = name;
         this.strategyClass = strategyClass == null ? NetworkTopologyStrategy.class : strategyClass;
         this.strategyOptions = strategyOptions;
-        Map<String, CFMetaData> cfmap = new HashMap<String, CFMetaData>();
+        Map<String, CFMetaData> cfmap = new HashMap<>();
         for (CFMetaData cfm : cfDefs)
             cfmap.put(cfm.cfName, cfm);
         this.cfMetaData = Collections.unmodifiableMap(cfmap);
@@ -126,23 +125,29 @@ public final class KSMetaData
         return new KSMetaData(name, strategyClass, strategyOptions, false, Arrays.asList(cfDefs));
     }
 
+    @Override
     public int hashCode()
     {
-        return name.hashCode();
+        return Objects.hashCode(name, strategyClass, strategyOptions, cfMetaData, durableWrites, userTypes);
     }
 
-    public boolean equals(Object obj)
+    @Override
+    public boolean equals(Object o)
     {
-        if (!(obj instanceof KSMetaData))
+        if (this == o)
+            return true;
+
+        if (!(o instanceof KSMetaData))
             return false;
-        KSMetaData other = (KSMetaData)obj;
-        if (!other.name.equals(name)) return false;
-        if (!ObjectUtils.equals(other.strategyClass, strategyClass)) return false;
-        if (!ObjectUtils.equals(other.strategyOptions, strategyOptions)) return false;
-        if (!other.cfMetaData.equals(cfMetaData)) return false;
-        if (other.durableWrites != durableWrites) return false;
-        if (!ObjectUtils.equals(other.userTypes, userTypes)) return false;
-        return true;
+
+        KSMetaData other = (KSMetaData) o;
+
+        return Objects.equal(name, other.name)
+            && Objects.equal(strategyClass, other.strategyClass)
+            && Objects.equal(strategyOptions, other.strategyOptions)
+            && Objects.equal(cfMetaData, other.cfMetaData)
+            && Objects.equal(durableWrites, other.durableWrites)
+            && Objects.equal(userTypes, other.userTypes);
     }
 
     public Map<String, CFMetaData> cfMetaData()
@@ -153,31 +158,19 @@ public final class KSMetaData
     @Override
     public String toString()
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append(name)
-          .append(", rep strategy:")
-          .append(strategyClass.getSimpleName())
-          .append("{")
-          .append(StringUtils.join(cfMetaData.values(), ", "))
-          .append("}")
-          .append(", strategy_options: ")
-          .append(strategyOptions.toString())
-          .append(", durable_writes: ")
-          .append(durableWrites);
-        return sb.toString();
-    }
-
-    public static String convertOldStrategyName(String name)
-    {
-        return name.replace("RackUnawareStrategy", "SimpleStrategy")
-                   .replace("RackAwareStrategy", "OldNetworkTopologyStrategy");
+        return Objects.toStringHelper(this)
+                      .add("name", name)
+                      .add("strategyClass", strategyClass.getSimpleName())
+                      .add("strategyOptions", strategyOptions)
+                      .add("cfMetaData", cfMetaData)
+                      .add("durableWrites", durableWrites)
+                      .add("userTypes", userTypes)
+                      .toString();
     }
 
     public static Map<String,String> optsWithRF(final Integer rf)
     {
-        Map<String, String> ret = new HashMap<String,String>();
-        ret.put("replication_factor", rf.toString());
-        return ret;
+        return Collections.singletonMap("replication_factor", rf.toString());
     }
 
     public static KSMetaData fromThrift(KsDef ksd, CFMetaData... cfDefs) throws ConfigurationException
@@ -195,7 +188,7 @@ public final class KSMetaData
 
     public KsDef toThrift()
     {
-        List<CfDef> cfDefs = new ArrayList<CfDef>(cfMetaData.size());
+        List<CfDef> cfDefs = new ArrayList<>(cfMetaData.size());
         for (CFMetaData cfm : cfMetaData().values())
         {
             // Don't expose CF that cannot be correctly handle by thrift; see CASSANDRA-4377 for further details
@@ -313,7 +306,6 @@ public final class KSMetaData
     /**
      * Deserialize ColumnFamilies from low-level schema representation, all of them belong to the same keyspace
      *
-     * @param row
      * @return map containing name of the ColumnFamily and it's metadata for faster lookup
      */
     public static Map<String, CFMetaData> deserializeColumnFamilies(Row row)
@@ -321,7 +313,7 @@ public final class KSMetaData
         if (row.cf == null)
             return Collections.emptyMap();
 
-        Map<String, CFMetaData> cfms = new HashMap<String, CFMetaData>();
+        Map<String, CFMetaData> cfms = new HashMap<>();
         UntypedResultSet results = QueryProcessor.resultify("SELECT * FROM system.schema_columnfamilies", row);
         for (UntypedResultSet.Row result : results)
         {
