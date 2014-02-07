@@ -213,8 +213,9 @@ public class ColumnFamilyMetrics
                 long count = 0;
                 for (SSTableReader sstable : cfs.getSSTables())
                 {
-                    sum += sstable.getEstimatedRowSize().mean();
-                    count++;
+                    long n = sstable.getEstimatedRowSize().count();
+                    sum += sstable.getEstimatedRowSize().mean() * n;
+                    count += n;
                 }
                 return count > 0 ? sum / count : 0;
             }
