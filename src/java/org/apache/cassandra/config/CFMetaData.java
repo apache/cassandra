@@ -890,51 +890,51 @@ public final class CFMetaData
         return droppedColumns;
     }
 
-    public boolean equals(Object obj)
+    @Override
+    public boolean equals(Object o)
     {
-        if (obj == this)
-        {
+        if (this == o)
             return true;
-        }
-        else if (obj == null || obj.getClass() != getClass())
-        {
-            return false;
-        }
 
-        CFMetaData rhs = (CFMetaData) obj;
-        if (!ksName.equals(rhs.ksName)) return false;
-        if (!cfName.equals(rhs.cfName)) return false;
-        if (!cfType.equals(rhs.cfType)) return false;
-        if (!comparator.equals(rhs.comparator)) return false;
-        if (!Objects.equal(comment, rhs.comment)) return false;
-        if (readRepairChance != rhs.readRepairChance) return false;
-        if (dcLocalReadRepairChance != rhs.dcLocalReadRepairChance) return false;
-        if (gcGraceSeconds != rhs.gcGraceSeconds) return false;
-        if (!Objects.equal(defaultValidator, rhs.defaultValidator)) return false;
-        if (!Objects.equal(keyValidator, rhs.keyValidator)) return false;
-        if (minCompactionThreshold != rhs.minCompactionThreshold) return false;
-        if (maxCompactionThreshold != rhs.maxCompactionThreshold) return false;
-        if (!Objects.equal(cfId, rhs.cfId)) return false;
-        if (!Objects.equal(columnMetadata, rhs.columnMetadata)) return false;
-        if (!Objects.equal(compactionStrategyClass, rhs.compactionStrategyClass)) return false;
-        if (!Objects.equal(compactionStrategyOptions, rhs.compactionStrategyOptions)) return false;
-        if (!Objects.equal(compressionParameters, rhs.compressionParameters)) return false;
-        if (!Objects.equal(bloomFilterFpChance, rhs.bloomFilterFpChance)) return false;
-        if (memtableFlushPeriod != rhs.memtableFlushPeriod) return false;
-        if (!Objects.equal(caching, rhs.caching)) return false;
-        if (defaultTimeToLive != rhs.defaultTimeToLive) return false;
-        if (indexInterval != rhs.indexInterval) return false;
-        if (!Objects.equal(speculativeRetry, rhs.speculativeRetry)) return false;
-        if (populateIoCacheOnFlush != rhs.populateIoCacheOnFlush) return false;
-        if (!Objects.equal(droppedColumns, rhs.droppedColumns)) return false;
-        if (!Objects.equal(triggers, rhs.triggers)) return false;
-        if (!Objects.equal(rowsPerPartitionToCache, rhs.rowsPerPartitionToCache)) return false;
-        return true;
+        if (!(o instanceof CFMetaData))
+            return false;
+
+        CFMetaData other = (CFMetaData) o;
+
+        return Objects.equal(cfId, other.cfId)
+            && Objects.equal(ksName, other.ksName)
+            && Objects.equal(cfName, other.cfName)
+            && Objects.equal(cfType, other.cfType)
+            && Objects.equal(comparator, other.comparator)
+            && Objects.equal(comment, other.comment)
+            && Objects.equal(readRepairChance, other.readRepairChance)
+            && Objects.equal(dcLocalReadRepairChance, other.dcLocalReadRepairChance)
+            && Objects.equal(gcGraceSeconds, other.gcGraceSeconds)
+            && Objects.equal(defaultValidator, other.defaultValidator)
+            && Objects.equal(keyValidator, other.keyValidator)
+            && Objects.equal(minCompactionThreshold, other.minCompactionThreshold)
+            && Objects.equal(maxCompactionThreshold, other.maxCompactionThreshold)
+            && Objects.equal(columnMetadata, other.columnMetadata)
+            && Objects.equal(compactionStrategyClass, other.compactionStrategyClass)
+            && Objects.equal(compactionStrategyOptions, other.compactionStrategyOptions)
+            && Objects.equal(compressionParameters, other.compressionParameters)
+            && Objects.equal(bloomFilterFpChance, other.bloomFilterFpChance)
+            && Objects.equal(memtableFlushPeriod, other.memtableFlushPeriod)
+            && Objects.equal(caching, other.caching)
+            && Objects.equal(defaultTimeToLive, other.defaultTimeToLive)
+            && Objects.equal(indexInterval, other.indexInterval)
+            && Objects.equal(speculativeRetry, other.speculativeRetry)
+            && Objects.equal(populateIoCacheOnFlush, other.populateIoCacheOnFlush)
+            && Objects.equal(droppedColumns, other.droppedColumns)
+            && Objects.equal(triggers, other.triggers)
+            && Objects.equal(rowsPerPartitionToCache, other.rowsPerPartitionToCache);
     }
 
+    @Override
     public int hashCode()
     {
         return new HashCodeBuilder(29, 1597)
+            .append(cfId)
             .append(ksName)
             .append(cfName)
             .append(cfType)
@@ -947,7 +947,6 @@ public final class CFMetaData
             .append(keyValidator)
             .append(minCompactionThreshold)
             .append(maxCompactionThreshold)
-            .append(cfId)
             .append(columnMetadata)
             .append(compactionStrategyClass)
             .append(compactionStrategyOptions)
@@ -2222,17 +2221,17 @@ public final class CFMetaData
             .append("columnMetadata", columnMetadata)
             .append("compactionStrategyClass", compactionStrategyClass)
             .append("compactionStrategyOptions", compactionStrategyOptions)
-            .append("compressionOptions", compressionParameters.asThriftOptions())
+            .append("compressionParameters", compressionParameters.asThriftOptions())
             .append("bloomFilterFpChance", bloomFilterFpChance)
-            .append("memtable_flush_period_in_ms", memtableFlushPeriod)
+            .append("memtableFlushPeriod", memtableFlushPeriod)
             .append("caching", caching)
-            .append("rowsPerPartitionToCache", rowsPerPartitionToCache)
             .append("defaultTimeToLive", defaultTimeToLive)
-            .append("speculative_retry", speculativeRetry)
             .append("indexInterval", indexInterval)
+            .append("speculativeRetry", speculativeRetry)
             .append("populateIoCacheOnFlush", populateIoCacheOnFlush)
             .append("droppedColumns", droppedColumns)
             .append("triggers", triggers)
+            .append("rowsPerPartitionToCache", rowsPerPartitionToCache)
             .toString();
     }
 }
