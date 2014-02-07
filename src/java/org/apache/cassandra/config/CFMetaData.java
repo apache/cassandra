@@ -926,8 +926,8 @@ public final class CFMetaData
         if (indexInterval != rhs.indexInterval) return false;
         if (!Objects.equal(speculativeRetry, rhs.speculativeRetry)) return false;
         if (populateIoCacheOnFlush != rhs.populateIoCacheOnFlush) return false;
-        if (Objects.equal(droppedColumns, rhs.droppedColumns)) return false;
-        if (Objects.equal(triggers, rhs.triggers)) return false;
+        if (!Objects.equal(droppedColumns, rhs.droppedColumns)) return false;
+        if (!Objects.equal(triggers, rhs.triggers)) return false;
         if (!Objects.equal(rowsPerPartitionToCache, rhs.rowsPerPartitionToCache)) return false;
         return true;
     }
