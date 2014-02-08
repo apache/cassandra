@@ -42,7 +42,9 @@ public abstract class RepairMessage
         VALIDATION_REQUEST(0, ValidationRequest.serializer),
         VALIDATION_COMPLETE(1, ValidationComplete.serializer),
         SYNC_REQUEST(2, SyncRequest.serializer),
-        SYNC_COMPLETE(3, SyncComplete.serializer);
+        SYNC_COMPLETE(3, SyncComplete.serializer),
+        ANTICOMPACTION_REQUEST(4, AnticompactionRequest.serializer),
+        PREPARE_MESSAGE(5, PrepareMessage.serializer);
 
         private final byte type;
         private final MessageSerializer<RepairMessage> serializer;

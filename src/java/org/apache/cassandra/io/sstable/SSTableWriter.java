@@ -58,11 +58,13 @@ public class SSTableWriter extends SSTable
     private DecoratedKey lastWrittenKey;
     private FileMark dataMark;
     private final MetadataCollector sstableMetadataCollector;
+    private final long repairedAt;
 
-    public SSTableWriter(String filename, long keyCount)
+    public SSTableWriter(String filename, long keyCount, long repairedAt)
     {
         this(filename,
              keyCount,
+             repairedAt,
              Schema.instance.getCFMetaData(Descriptor.fromFilename(filename)),
              StorageService.getPartitioner(),
              new MetadataCollector(Schema.instance.getCFMetaData(Descriptor.fromFilename(filename)).comparator));
@@ -95,6 +97,7 @@ public class SSTableWriter extends SSTable
 
     public SSTableWriter(String filename,
                          long keyCount,
+                         long repairedAt,
                          CFMetaData metadata,
                          IPartitioner<?> partitioner,
                          MetadataCollector sstableMetadataCollector)
@@ -103,6 +106,7 @@ public class SSTableWriter extends SSTable
               components(metadata),
               metadata,
               partitioner);
+        this.repairedAt = repairedAt;
         iwriter = new IndexWriter(keyCount);
 
         if (compression)
@@ -362,7 +366,8 @@ public class SSTableWriter extends SSTable
         // write sstable statistics
         Map<MetadataType, MetadataComponent> metadataComponents = sstableMetadataCollector.finalizeMetadata(
                                                                                     partitioner.getClass().getCanonicalName(),
-                                                                                    metadata.getBloomFilterFpChance());
+                                                                                    metadata.getBloomFilterFpChance(),
+                                                                                    repairedAt);
         writeMetadata(descriptor, metadataComponents);
 
         // save the table of components

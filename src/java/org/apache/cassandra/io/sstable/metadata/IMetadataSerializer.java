@@ -64,4 +64,9 @@ public interface IMetadataSerializer
      * @throws IOException
      */
     void mutateLevel(Descriptor descriptor, int newLevel) throws IOException;
+
+    /**
+     * Mutate repairedAt time
+     */
+    void mutateRepairedAt(Descriptor descriptor, long newRepairedAt) throws IOException;
 }

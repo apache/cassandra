@@ -29,7 +29,8 @@ public enum OperationType
     INDEX_BUILD("Secondary index build"),
     /** Compaction for tombstone removal */
     TOMBSTONE_COMPACTION("Tombstone Compaction"),
-    UNKNOWN("Unknown compaction type");
+    UNKNOWN("Unknown compaction type"),
+    ANTICOMPACTION("Anticompaction after repair");
 
     private final String type;
 

@@ -30,6 +30,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.memory.HeapAllocator;
@@ -55,6 +56,7 @@ public abstract class AbstractSSTableSimpleWriter
         return new SSTableWriter(
             makeFilename(directory, metadata.ksName, metadata.cfName),
             0, // We don't care about the bloom filter
+            ActiveRepairService.UNREPAIRED_SSTABLE,
             metadata,
             DatabaseDescriptor.getPartitioner(),
             new MetadataCollector(metadata.comparator));

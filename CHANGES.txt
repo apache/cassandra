@@ -27,6 +27,7 @@
  * New counters implementation (CASSANDRA-6504)
  * Replace UnsortedColumns usage with ArrayBackedSortedColumns (CASSANDRA-6630)
  * Add option to use row cache with a given amount of rows (CASSANDRA-5357)
+ * Avoid repairing already repaired data (CASSANDRA-5351)
 
 2.0.6
  * Failure detector correctly converts initial value to nanos (CASSANDRA-6658)

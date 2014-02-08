@@ -129,6 +129,21 @@ public class MetadataSerializer implements IMetadataSerializer
         StatsMetadata stats = (StatsMetadata) currentComponents.remove(MetadataType.STATS);
         // mutate level
         currentComponents.put(MetadataType.STATS, stats.mutateLevel(newLevel));
+        rewriteSSTableMetadata(descriptor, currentComponents);
+    }
+
+    public void mutateRepairedAt(Descriptor descriptor, long newRepairedAt) throws IOException
+    {
+        logger.debug("Mutating {} to repairedAt time {}", descriptor.filenameFor(Component.STATS), newRepairedAt);
+        Map<MetadataType, MetadataComponent> currentComponents = deserialize(descriptor, EnumSet.allOf(MetadataType.class));
+        StatsMetadata stats = (StatsMetadata) currentComponents.remove(MetadataType.STATS);
+        // mutate level
+        currentComponents.put(MetadataType.STATS, stats.mutateRepairedAt(newRepairedAt));
+        rewriteSSTableMetadata(descriptor, currentComponents);
+    }
+
+    private void rewriteSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> currentComponents) throws IOException
+    {
         Descriptor tmpDescriptor = descriptor.asTemporary(true);
 
         try (DataOutputStream out = new DataOutputStream(new FileOutputStream(tmpDescriptor.filenameFor(Component.STATS))))
@@ -140,5 +155,6 @@ public class MetadataSerializer implements IMetadataSerializer
         if (!FBUtilities.isUnix())
             FileUtils.delete(descriptor.filenameFor(Component.STATS));
         FileUtils.renameWithConfirm(tmpDescriptor.filenameFor(Component.STATS), descriptor.filenameFor(Component.STATS));
+
     }
 }

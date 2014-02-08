@@ -213,7 +213,7 @@ public class StreamingTransferTest extends SchemaLoader
         {
             details.add(new StreamSession.SSTableStreamingSections(sstable,
                                                                    sstable.getPositionsForRanges(ranges),
-                                                                   sstable.estimatedKeysForRanges(ranges)));
+                                                                   sstable.estimatedKeysForRanges(ranges), sstable.getSSTableMetadata().repairedAt));
         }
         return details;
     }

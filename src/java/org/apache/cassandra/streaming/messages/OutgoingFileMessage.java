@@ -64,7 +64,7 @@ public class OutgoingFileMessage extends StreamMessage
     public FileMessageHeader header;
     public SSTableReader sstable;
 
-    public OutgoingFileMessage(SSTableReader sstable, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections)
+    public OutgoingFileMessage(SSTableReader sstable, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, long repairedAt)
     {
         super(Type.FILE);
         this.sstable = sstable;
@@ -76,11 +76,12 @@ public class OutgoingFileMessage extends StreamMessage
             compressionInfo = new CompressionInfo(meta.getChunksForSections(sections), meta.parameters);
         }
         this.header = new FileMessageHeader(sstable.metadata.cfId,
-                sequenceNumber,
-                sstable.descriptor.version.toString(),
-                estimatedKeys,
-                sections,
-                compressionInfo);
+                                            sequenceNumber,
+                                            sstable.descriptor.version.toString(),
+                                            estimatedKeys,
+                                            sections,
+                                            compressionInfo,
+                                            repairedAt);
     }
 
     @Override

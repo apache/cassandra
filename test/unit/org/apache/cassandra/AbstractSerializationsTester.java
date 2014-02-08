@@ -36,18 +36,19 @@ import java.util.Map;
 
 public class AbstractSerializationsTester extends SchemaLoader
 {
-    protected static final String CUR_VER = System.getProperty("cassandra.version", "2.0");
+    protected static final String CUR_VER = System.getProperty("cassandra.version", "2.1");
     protected static final Map<String, Integer> VERSION_MAP = new HashMap<String, Integer> ()
     {{
         put("0.7", 1);
         put("1.0", 3);
         put("1.2", MessagingService.VERSION_12);
         put("2.0", MessagingService.VERSION_20);
+        put("2.1", MessagingService.VERSION_21);
     }};
 
     protected static final boolean EXECUTE_WRITES = Boolean.getBoolean("cassandra.test-serialization-writes");
 
-    protected final int getVersion()
+    protected static int getVersion()
     {
         return VERSION_MAP.get(CUR_VER);
     }

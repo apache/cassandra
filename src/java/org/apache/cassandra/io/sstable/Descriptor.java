@@ -77,6 +77,7 @@ public class Descriptor
         public final boolean hasPostCompressionAdlerChecksums;
         public final boolean hasSamplingLevel;
         public final boolean newStatsFile;
+        public final boolean hasRepairedAt;
 
         public Version(String version)
         {
@@ -91,6 +92,7 @@ public class Descriptor
             hasPostCompressionAdlerChecksums = version.compareTo("jb") >= 0;
             hasSamplingLevel = version.compareTo("ka") >= 0;
             newStatsFile = version.compareTo("ka") >= 0;
+            hasRepairedAt = version.compareTo("ka") >= 0;
         }
 
         /**

@@ -53,6 +53,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.repair.Validator;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 
@@ -280,6 +281,80 @@ public class CompactionManager implements CompactionManagerMBean
         });
     }
 
+    public Future<?> submitAntiCompaction(final ColumnFamilyStore cfs,
+                                          final Collection<Range<Token>> ranges,
+                                          final Collection<SSTableReader> validatedForRepair,
+                                          final long repairedAt)
+    {
+        Runnable runnable = new WrappedRunnable() {
+
+            @Override
+            public void runMayThrow() throws Exception
+            {
+                performAnticompaction(cfs, ranges, validatedForRepair, repairedAt);
+            }
+        };
+        return executor.submit(runnable);
+    }
+
+    /**
+     * Make sure the {validatedForRepair} are marked for compaction before calling this.
+     *
+     * @param cfs
+     * @param ranges Ranges that the repair was carried out on
+     * @param validatedForRepair SSTables containing the repaired ranges
+     * @throws InterruptedException, ExecutionException, IOException
+     */
+    public void performAnticompaction(ColumnFamilyStore cfs,
+                                      Collection<Range<Token>> ranges,
+                                      Collection<SSTableReader> validatedForRepair,
+                                      long repairedAt) throws InterruptedException, ExecutionException, IOException
+    {
+        logger.info("Starting anticompaction for ranges {}", ranges);
+        Set<SSTableReader> sstables = new HashSet<>(validatedForRepair);
+        Set<SSTableReader> mutatedRepairStatuses = new HashSet<>();
+        Set<SSTableReader> nonAnticompacting = new HashSet<>();
+        Iterator<SSTableReader> sstableIterator = sstables.iterator();
+        while (sstableIterator.hasNext())
+        {
+            SSTableReader sstable = sstableIterator.next();
+            for (Range<Token> r : Range.normalize(ranges))
+            {
+                Range<Token> sstableRange = new Range<>(sstable.first.token, sstable.last.token, sstable.partitioner);
+                if (r.contains(sstableRange))
+                {
+                    logger.info("SSTable {} fully contained in range {}, mutating repairedAt instead of anticompacting", sstable, r);
+                    sstable.descriptor.getMetadataSerializer().mutateRepairedAt(sstable.descriptor, repairedAt);
+                    sstable.reloadSSTableMetadata();
+                    mutatedRepairStatuses.add(sstable);
+                    sstableIterator.remove();
+                    break;
+                }
+                else if (!sstableRange.intersects(r))
+                {
+                    logger.info("SSTable {} ({}) does not intersect repaired range {}, not touching repairedAt.", sstable, sstableRange, r);
+                    nonAnticompacting.add(sstable);
+                    sstableIterator.remove();
+                }
+                else
+                {
+                    logger.info("SSTable {} ({}) will be anticompacted on range {}", sstable, sstableRange, r);
+                }
+            }
+        }
+        cfs.getDataTracker().notifySSTableRepairedStatusChanged(mutatedRepairStatuses);
+        cfs.getDataTracker().unmarkCompacting(Sets.union(nonAnticompacting, mutatedRepairStatuses));
+        Collection<SSTableReader> antiCompactedSSTables = null;
+        if (!sstables.isEmpty())
+            antiCompactedSSTables = doAntiCompaction(cfs, ranges, sstables, repairedAt);
+        // verify that there are tables to be swapped, otherwise CFS#replaceCompactedSSTables will hang.
+        if (antiCompactedSSTables != null && antiCompactedSSTables.size() > 0)
+            cfs.replaceCompactedSSTables(sstables, antiCompactedSSTables, OperationType.ANTICOMPACTION);
+        SSTableReader.releaseReferences(sstables);
+        cfs.getDataTracker().unmarkCompacting(sstables);
+        logger.info(String.format("Completed anticompaction successfully"));
+    }
+
     public void performMaximal(final ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
     {
         submitMaximal(cfStore, getDefaultGcBefore(cfStore)).get();
@@ -290,14 +365,15 @@ public class CompactionManager implements CompactionManagerMBean
         // here we compute the task off the compaction executor, so having that present doesn't
         // confuse runWithCompactionsDisabled -- i.e., we don't want to deadlock ourselves, waiting
         // for ourselves to finish/acknowledge cancellation before continuing.
-        final AbstractCompactionTask task = cfStore.getCompactionStrategy().getMaximalTask(gcBefore);
+        final Collection<AbstractCompactionTask> tasks = cfStore.getCompactionStrategy().getMaximalTask(gcBefore);
         Runnable runnable = new WrappedRunnable()
         {
             protected void runMayThrow() throws IOException
             {
-                if (task == null)
+                if (tasks == null)
                     return;
-                task.execute(metrics);
+                for (AbstractCompactionTask task : tasks)
+                    task.execute(metrics);
             }
         };
         return executor.submit(runnable);
@@ -561,6 +637,7 @@ public class CompactionManager implements CompactionManagerMBean
             SSTableWriter writer = createWriter(cfs,
                                                 compactionFileLocation,
                                                 expectedBloomFilterSize,
+                                                sstable.getSSTableMetadata().repairedAt,
                                                 sstable);
             SSTableReader newSstable = null;
             try
@@ -721,11 +798,13 @@ public class CompactionManager implements CompactionManagerMBean
     public static SSTableWriter createWriter(ColumnFamilyStore cfs,
                                              File compactionFileLocation,
                                              int expectedBloomFilterSize,
+                                             long repairedAt,
                                              SSTableReader sstable)
     {
         FileUtils.createDirectory(compactionFileLocation);
         return new SSTableWriter(cfs.getTempSSTablePath(compactionFileLocation),
                                  expectedBloomFilterSize,
+                                 repairedAt,
                                  cfs.metadata,
                                  cfs.partitioner,
                                  new MetadataCollector(Collections.singleton(sstable), cfs.metadata.comparator, sstable.getSSTableLevel()));
@@ -764,10 +843,13 @@ public class CompactionManager implements CompactionManagerMBean
         {
             // flush first so everyone is validating data that is as similar as possible
             StorageService.instance.forceKeyspaceFlush(cfs.keyspace.getName(), cfs.name);
-
             // we don't mark validating sstables as compacting in DataTracker, so we have to mark them referenced
             // instead so they won't be cleaned up if they do get compacted during the validation
-            sstables = cfs.markCurrentSSTablesReferenced();
+            if (validator.desc.parentSessionId == null || ActiveRepairService.instance.getParentRepairSession(validator.desc.parentSessionId) == null)
+                sstables = cfs.markCurrentSSTablesReferenced();
+            else
+                sstables = ActiveRepairService.instance.getParentRepairSession(validator.desc.parentSessionId).getAndReferenceSSTables(cfs.metadata.cfId);
+
             if (validator.gcBefore > 0)
                 gcBefore = validator.gcBefore;
             else
@@ -806,6 +888,90 @@ public class CompactionManager implements CompactionManagerMBean
 
             metrics.finishCompaction(ci);
         }
+    }
+
+    /**
+     * Splits up an sstable into two new sstables. The first of the new tables will store repaired ranges, the second
+     * will store the non-repaired ranges. Once anticompation is completed, the original sstable is marked as compacted
+     * and subsequently deleted.
+     * @param cfs
+     * @param repairedSSTables
+     * @param ranges Repaired ranges to be placed into one of the new sstables. The repaired table will be tracked via
+     * the {@link org.apache.cassandra.io.sstable.metadata.StatsMetadata#repairedAt} field.
+     */
+    private Collection<SSTableReader> doAntiCompaction(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, Collection<SSTableReader> repairedSSTables, long repairedAt)
+    {
+        List<SSTableReader> anticompactedSSTables = new ArrayList<>();
+        int repairedKeyCount = 0;
+        int unrepairedKeyCount = 0;
+        // TODO(5351): we can do better here:
+        int expectedBloomFilterSize = Math.max(cfs.metadata.getIndexInterval(), (int)(SSTableReader.getApproximateKeyCount(repairedSSTables)));
+        logger.info("Performing anticompaction on {} sstables", repairedSSTables.size());
+        // iterate over sstables to check if the repaired / unrepaired ranges intersect them.
+        for (SSTableReader sstable : repairedSSTables)
+        {
+            // check that compaction hasn't stolen any sstables used in previous repair sessions
+            // if we need to skip the anticompaction, it will be carried out by the next repair
+            if (!new File(sstable.getFilename()).exists())
+            {
+                logger.info("Skipping anticompaction for {}, required sstable was compacted and is no longer available.", sstable);
+                continue;
+            }
+
+            logger.info("Anticompacting {}", sstable);
+            File destination = cfs.directories.getDirectoryForNewSSTables();
+            SSTableWriter repairedSSTableWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, repairedAt, sstable);
+            SSTableWriter unRepairedSSTableWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, ActiveRepairService.UNREPAIRED_SSTABLE, sstable);
+
+            try (CompactionController controller = new CompactionController(cfs, new HashSet<>(Collections.singleton(sstable)), CFMetaData.DEFAULT_GC_GRACE_SECONDS))
+            {
+                AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
+                List<ICompactionScanner> scanners = strategy.getScanners(Arrays.asList(sstable));
+                CompactionIterable ci = new CompactionIterable(OperationType.ANTICOMPACTION, scanners, controller);
+
+                try (CloseableIterator<AbstractCompactedRow> iter = ci.iterator())
+                {
+                    while(iter.hasNext())
+                    {
+                        AbstractCompactedRow row = iter.next();
+                        // if current range from sstable is repaired, save it into the new repaired sstable
+                        if (Range.isInRanges(row.key.token, ranges))
+                        {
+                            repairedSSTableWriter.append(row);
+                            repairedKeyCount++;
+                        }
+                        // otherwise save into the new 'non-repaired' table
+                        else
+                        {
+                            unRepairedSSTableWriter.append(row);
+                            unrepairedKeyCount++;
+                        }
+                    }
+                }
+                // add repaired table with a non-null timestamp field to be saved in SSTableMetadata#repairedAt
+                if (repairedKeyCount > 0)
+                    anticompactedSSTables.add(repairedSSTableWriter.closeAndOpenReader(sstable.maxDataAge));
+                else
+                    repairedSSTableWriter.abort();
+                // supply null as we keep SSTableMetadata#repairedAt empty if the table isn't repaired
+                if (unrepairedKeyCount > 0)
+                    anticompactedSSTables.add(unRepairedSSTableWriter.closeAndOpenReader(sstable.maxDataAge));
+                else
+                    unRepairedSSTableWriter.abort();
+            }
+            catch (Throwable e)
+            {
+                logger.error("Error anticompacting " + sstable, e);
+                repairedSSTableWriter.abort();
+                unRepairedSSTableWriter.abort();
+            }
+        }
+        String format = "Repaired {} keys of {} for {}/{}";
+        logger.debug(format, repairedKeyCount, (repairedKeyCount + unrepairedKeyCount), cfs.keyspace, cfs.getColumnFamilyName());
+        String format2 = "Anticompaction completed successfully, anticompacted from {} to {} sstable(s).";
+        logger.info(format2, repairedSSTables.size(), anticompactedSSTables.size());
+
+        return anticompactedSSTables;
     }
 
     /**

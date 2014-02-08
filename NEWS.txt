@@ -25,6 +25,11 @@ New features
      Note that existing directories are used as is, so only newly created
      directories after upgrade have new directory name format.
    - Saved key cache files also have ColumnFamily ID in their file name.
+   - It is now possible to do incremental repairs, sstables that have been
+     repaired are marked with a timestamp and not included in the next
+     repair session. Use nodetool repair -par -inc to use this feature.
+     A tool to manually mark/unmark sstables as repaired is available in
+     tools/bin/sstablerepairedset.
 
 Upgrading
 ---------

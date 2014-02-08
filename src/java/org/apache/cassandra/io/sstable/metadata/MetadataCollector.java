@@ -28,6 +28,7 @@ import com.google.common.collect.Maps;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.utils.StreamingHistogram;
@@ -65,7 +66,8 @@ public class MetadataCollector
                                  defaultTombstoneDropTimeHistogram(),
                                  0,
                                  Collections.<ByteBuffer>emptyList(),
-                                 Collections.<ByteBuffer>emptyList());
+                                 Collections.<ByteBuffer>emptyList(),
+                                 ActiveRepairService.UNREPAIRED_SSTABLE);
     }
 
     protected EstimatedHistogram estimatedRowSize = defaultRowSizeHistogram();
@@ -214,7 +216,7 @@ public class MetadataCollector
         return this;
     }
 
-    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance)
+    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt)
     {
         Map<MetadataType, MetadataComponent> components = Maps.newHashMap();
         components.put(MetadataType.VALIDATION, new ValidationMetadata(partitioner, bloomFilterFPChance));
@@ -228,7 +230,8 @@ public class MetadataCollector
                                                              estimatedTombstoneDropTime,
                                                              sstableLevel,
                                                              minColumnNames,
-                                                             maxColumnNames));
+                                                             maxColumnNames,
+                                                             repairedAt));
         components.put(MetadataType.COMPACTION, new CompactionMetadata(ancestors, cardinality));
         return components;
     }

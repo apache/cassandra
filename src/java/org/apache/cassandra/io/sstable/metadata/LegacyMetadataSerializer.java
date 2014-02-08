@@ -26,6 +26,7 @@ import com.google.common.collect.Maps;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.StreamingHistogram;
@@ -145,7 +146,8 @@ public class LegacyMetadataSerializer extends MetadataSerializer
                                                      tombstoneHistogram,
                                                      sstableLevel,
                                                      minColumnNames,
-                                                     maxColumnNames));
+                                                     maxColumnNames,
+                                                     ActiveRepairService.UNREPAIRED_SSTABLE));
                 if (types.contains(MetadataType.COMPACTION))
                     components.put(MetadataType.COMPACTION,
                                    new CompactionMetadata(ancestors, null));

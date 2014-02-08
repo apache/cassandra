@@ -36,7 +36,7 @@ import org.apache.cassandra.utils.AlwaysPresentFilter;
 /**
  * Manage compaction options.
  */
-public class CompactionController
+public class CompactionController implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(CompactionController.class);
 

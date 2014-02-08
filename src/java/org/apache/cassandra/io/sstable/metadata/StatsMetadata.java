@@ -53,6 +53,7 @@ public class StatsMetadata extends MetadataComponent
     public final int sstableLevel;
     public final List<ByteBuffer> maxColumnNames;
     public final List<ByteBuffer> minColumnNames;
+    public final long repairedAt;
 
     public StatsMetadata(EstimatedHistogram estimatedRowSize,
                          EstimatedHistogram estimatedColumnCount,
@@ -64,7 +65,8 @@ public class StatsMetadata extends MetadataComponent
                          StreamingHistogram estimatedTombstoneDropTime,
                          int sstableLevel,
                          List<ByteBuffer> minColumnNames,
-                         List<ByteBuffer> maxColumnNames)
+                         List<ByteBuffer> maxColumnNames,
+                         long repairedAt)
     {
         this.estimatedRowSize = estimatedRowSize;
         this.estimatedColumnCount = estimatedColumnCount;
@@ -77,6 +79,7 @@ public class StatsMetadata extends MetadataComponent
         this.sstableLevel = sstableLevel;
         this.minColumnNames = minColumnNames;
         this.maxColumnNames = maxColumnNames;
+        this.repairedAt = repairedAt;
     }
 
     public MetadataType getType()
@@ -120,7 +123,24 @@ public class StatsMetadata extends MetadataComponent
                                  estimatedTombstoneDropTime,
                                  newLevel,
                                  maxColumnNames,
-                                 minColumnNames);
+                                 minColumnNames,
+                                 repairedAt);
+    }
+
+    public StatsMetadata mutateRepairedAt(long newRepairedAt)
+    {
+        return new StatsMetadata(estimatedRowSize,
+                                 estimatedColumnCount,
+                                 replayPosition,
+                                 minTimestamp,
+                                 maxTimestamp,
+                                 maxLocalDeletionTime,
+                                 compressionRatio,
+                                 estimatedTombstoneDropTime,
+                                 sstableLevel,
+                                 maxColumnNames,
+                                 minColumnNames,
+                                 newRepairedAt);
     }
 
     @Override
@@ -140,6 +160,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(compressionRatio, that.compressionRatio)
                        .append(estimatedTombstoneDropTime, that.estimatedTombstoneDropTime)
                        .append(sstableLevel, that.sstableLevel)
+                       .append(repairedAt, that.repairedAt)
                        .append(maxColumnNames, that.maxColumnNames)
                        .append(minColumnNames, that.minColumnNames)
                        .build();
@@ -158,6 +179,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(compressionRatio)
                        .append(estimatedTombstoneDropTime)
                        .append(sstableLevel)
+                       .append(repairedAt)
                        .append(maxColumnNames)
                        .append(minColumnNames)
                        .build();
@@ -171,7 +193,7 @@ public class StatsMetadata extends MetadataComponent
             size += EstimatedHistogram.serializer.serializedSize(component.estimatedRowSize, TypeSizes.NATIVE);
             size += EstimatedHistogram.serializer.serializedSize(component.estimatedColumnCount, TypeSizes.NATIVE);
             size += ReplayPosition.serializer.serializedSize(component.replayPosition, TypeSizes.NATIVE);
-            size += 8 + 8 + 4 + 8; // mix/max timestamp(long), maxLocalDeletionTime(int), compressionRatio(double)
+            size += 8 + 8 + 4 + 8 + 8; // mix/max timestamp(long), maxLocalDeletionTime(int), compressionRatio(double), repairedAt (long)
             size += StreamingHistogram.serializer.serializedSize(component.estimatedTombstoneDropTime, TypeSizes.NATIVE);
             size += TypeSizes.NATIVE.sizeof(component.sstableLevel);
             // min column names
@@ -196,6 +218,7 @@ public class StatsMetadata extends MetadataComponent
             out.writeDouble(component.compressionRatio);
             StreamingHistogram.serializer.serialize(component.estimatedTombstoneDropTime, out);
             out.writeInt(component.sstableLevel);
+            out.writeLong(component.repairedAt);
             out.writeInt(component.minColumnNames.size());
             for (ByteBuffer columnName : component.minColumnNames)
                 ByteBufferUtil.writeWithShortLength(columnName, out);
@@ -215,6 +238,9 @@ public class StatsMetadata extends MetadataComponent
             double compressionRatio = in.readDouble();
             StreamingHistogram tombstoneHistogram = StreamingHistogram.serializer.deserialize(in);
             int sstableLevel = in.readInt();
+            long repairedAt = 0;
+            if (version.hasRepairedAt)
+                repairedAt = in.readLong();
             List<ByteBuffer> minColumnNames;
             List<ByteBuffer> maxColumnNames;
             if (version.tracksMaxMinColumnNames)
@@ -247,7 +273,8 @@ public class StatsMetadata extends MetadataComponent
                                      tombstoneHistogram,
                                      sstableLevel,
                                      minColumnNames,
-                                     maxColumnNames);
+                                     maxColumnNames,
+                                     repairedAt);
         }
     }
 }

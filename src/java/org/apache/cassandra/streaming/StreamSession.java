@@ -39,6 +39,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.metrics.StreamingMetrics;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -215,19 +216,34 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
      * @param ranges Ranges to retrieve data
      * @param columnFamilies ColumnFamily names. Can be empty if requesting all CF under the keyspace.
      */
-    public void addStreamRequest(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies)
+    public void addStreamRequest(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies, long repairedAt)
     {
-        requests.add(new StreamRequest(keyspace, ranges, columnFamilies));
+        requests.add(new StreamRequest(keyspace, ranges, columnFamilies, repairedAt));
     }
 
     /**
      * Set up transfer for specific keyspace/ranges/CFs
      *
+     * Used in repair - a streamed sstable in repair will be marked with the given repairedAt time
+     *
      * @param keyspace Transfer keyspace
      * @param ranges Transfer ranges
      * @param columnFamilies Transfer ColumnFamilies
+     * @param flushTables flush tables?
+     * @param repairedAt the time the repair started.
      */
-    public void addTransferRanges(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies, boolean flushTables)
+    public void addTransferRanges(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies, boolean flushTables, long repairedAt)
+    {
+        Collection<ColumnFamilyStore> stores = getColumnFamilyStores(keyspace, columnFamilies);
+        if (flushTables)
+            flushSSTables(stores);
+
+        List<Range<Token>> normalizedRanges = Range.normalize(ranges);
+        List<SSTableReader> sstables = getSSTablesForRanges(normalizedRanges, stores);
+        addTransferFiles(normalizedRanges, sstables, repairedAt);
+    }
+
+    private Collection<ColumnFamilyStore> getColumnFamilyStores(String keyspace, Collection<String> columnFamilies)
     {
         Collection<ColumnFamilyStore> stores = new HashSet<>();
         // if columnfamilies are not specified, we add all cf under the keyspace
@@ -240,11 +256,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
             for (String cf : columnFamilies)
                 stores.add(Keyspace.open(keyspace).getColumnFamilyStore(cf));
         }
+        return stores;
+    }
 
-        if (flushTables)
-            flushSSTables(stores);
-
-        List<Range<Token>> normalizedRanges = Range.normalize(ranges);
+    private List<SSTableReader> getSSTablesForRanges(Collection<Range<Token>> normalizedRanges, Collection<ColumnFamilyStore> stores)
+    {
         List<SSTableReader> sstables = Lists.newLinkedList();
         for (ColumnFamilyStore cfStore : stores)
         {
@@ -254,7 +270,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
             ColumnFamilyStore.ViewFragment view = cfStore.markReferenced(rowBoundsList);
             sstables.addAll(view.sstables);
         }
-        addTransferFiles(normalizedRanges, sstables);
+        return sstables;
     }
 
     /**
@@ -263,12 +279,21 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
      *
      * @param ranges Transfer ranges
      * @param sstables Transfer files
+     * @param overriddenRepairedAt use this repairedAt time, for use in repair.
      */
-    public void addTransferFiles(Collection<Range<Token>> ranges, Collection<SSTableReader> sstables)
+    public void addTransferFiles(Collection<Range<Token>> ranges, Collection<SSTableReader> sstables, long overriddenRepairedAt)
     {
         List<SSTableStreamingSections> sstableDetails = new ArrayList<>(sstables.size());
         for (SSTableReader sstable : sstables)
-            sstableDetails.add(new SSTableStreamingSections(sstable, sstable.getPositionsForRanges(ranges), sstable.estimatedKeysForRanges(ranges)));
+        {
+            long repairedAt = overriddenRepairedAt;
+            if (overriddenRepairedAt == ActiveRepairService.UNREPAIRED_SSTABLE)
+                repairedAt = sstable.getSSTableMetadata().repairedAt;
+            sstableDetails.add(new SSTableStreamingSections(sstable,
+                                                            sstable.getPositionsForRanges(ranges),
+                                                            sstable.estimatedKeysForRanges(ranges),
+                                                            repairedAt));
+        }
 
         addTransferFiles(sstableDetails);
     }
@@ -291,7 +316,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
                 task = new StreamTransferTask(this, cfId);
                 transfers.put(cfId, task);
             }
-            task.addTransferFile(details.sstable, details.estimatedKeys, details.sections);
+            task.addTransferFile(details.sstable, details.estimatedKeys, details.sections, details.repairedAt);
         }
     }
 
@@ -300,12 +325,14 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
         public final SSTableReader sstable;
         public final List<Pair<Long, Long>> sections;
         public final long estimatedKeys;
+        public final long repairedAt;
 
-        public SSTableStreamingSections(SSTableReader sstable, List<Pair<Long, Long>> sections, long estimatedKeys)
+        public SSTableStreamingSections(SSTableReader sstable, List<Pair<Long, Long>> sections, long estimatedKeys, long repairedAt)
         {
             this.sstable = sstable;
             this.sections = sections;
             this.estimatedKeys = estimatedKeys;
+            this.repairedAt = repairedAt;
         }
     }
 
@@ -407,7 +434,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
             startStreamingFiles();
     }
 
-    /**
+    /**l
      * Call back for handling exception during streaming.
      *
      * @param e thrown exception
@@ -430,7 +457,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
         // prepare tasks
         state(State.PREPARING);
         for (StreamRequest request : requests)
-            addTransferRanges(request.keyspace, request.ranges, request.columnFamilies, true); // always flush on stream request
+            addTransferRanges(request.keyspace, request.ranges, request.columnFamilies, true, request.repairedAt); // always flush on stream request
         for (StreamSummary summary : summaries)
             prepareReceiving(summary);
 

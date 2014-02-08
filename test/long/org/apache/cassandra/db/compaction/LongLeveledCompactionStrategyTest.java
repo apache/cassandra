@@ -72,7 +72,7 @@ public class LongLeveledCompactionStrategyTest extends SchemaLoader
         {
             while (true)
             {
-                final AbstractCompactionTask t = lcs.getMaximalTask(Integer.MIN_VALUE);
+                final AbstractCompactionTask t = lcs.getMaximalTask(Integer.MIN_VALUE).iterator().next();
                 if (t == null)
                     break;
                 tasks.add(new Runnable()

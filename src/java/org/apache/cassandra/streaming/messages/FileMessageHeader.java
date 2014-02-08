@@ -46,13 +46,15 @@ public class FileMessageHeader
     public final long estimatedKeys;
     public final List<Pair<Long, Long>> sections;
     public final CompressionInfo compressionInfo;
+    public final long repairedAt;
 
     public FileMessageHeader(UUID cfId,
                              int sequenceNumber,
                              String version,
                              long estimatedKeys,
                              List<Pair<Long, Long>> sections,
-                             CompressionInfo compressionInfo)
+                             CompressionInfo compressionInfo,
+                             long repairedAt)
     {
         this.cfId = cfId;
         this.sequenceNumber = sequenceNumber;
@@ -60,6 +62,7 @@ public class FileMessageHeader
         this.estimatedKeys = estimatedKeys;
         this.sections = sections;
         this.compressionInfo = compressionInfo;
+        this.repairedAt = repairedAt;
     }
 
     /**
@@ -92,6 +95,7 @@ public class FileMessageHeader
         sb.append(", estimated keys: ").append(estimatedKeys);
         sb.append(", transfer size: ").append(size());
         sb.append(", compressed?: ").append(compressionInfo != null);
+        sb.append(", repairedAt: ").append(repairedAt);
         sb.append(')');
         return sb.toString();
     }
@@ -129,6 +133,7 @@ public class FileMessageHeader
                 out.writeLong(section.right);
             }
             CompressionInfo.serializer.serialize(header.compressionInfo, out, version);
+            out.writeLong(header.repairedAt);
         }
 
         public FileMessageHeader deserialize(DataInput in, int version) throws IOException
@@ -142,7 +147,8 @@ public class FileMessageHeader
             for (int k = 0; k < count; k++)
                 sections.add(Pair.create(in.readLong(), in.readLong()));
             CompressionInfo compressionInfo = CompressionInfo.serializer.deserialize(in, MessagingService.current_version);
-            return new FileMessageHeader(cfId, sequenceNumber, sstableVersion, estimatedKeys, sections, compressionInfo);
+            long repairedAt = in.readLong();
+            return new FileMessageHeader(cfId, sequenceNumber, sstableVersion, estimatedKeys, sections, compressionInfo, repairedAt);
         }
 
         public long serializedSize(FileMessageHeader header, int version)
