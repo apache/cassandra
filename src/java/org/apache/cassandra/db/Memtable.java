@@ -192,7 +192,6 @@ public class Memtable
     {
         ColumnFamily previous = columnFamilies.get(key);
 
-        long sizeDelta = 0;
         if (previous == null)
         {
             // AtomicSortedColumns doesn't work for super columns (see #3821)
@@ -200,13 +199,10 @@ public class Memtable
             // We'll add the columns later. This avoids wasting works if we get beaten in the putIfAbsent
             previous = columnFamilies.putIfAbsent(new DecoratedKey(key.token, allocator.clone(key.key)), empty);
             if (previous == null)
-            {
                 previous = empty;
-                sizeDelta += empty.deletionInfo().dataSize();
-            }
         }
 
-        sizeDelta = previous.addAllWithSizeDelta(cf, allocator, localCopyFunction, indexer);
+        long sizeDelta = previous.addAllWithSizeDelta(cf, allocator, localCopyFunction, indexer);
         currentSize.addAndGet(sizeDelta);
         currentOperations.addAndGet(cf.getColumnCount() + (cf.isMarkedForDelete() ? 1 : 0) + cf.deletionInfo().rangeCount());
     }
