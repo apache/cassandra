@@ -60,13 +60,6 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
 
             out.writeBoolean(true);
             serializeCfId(cf.id(), out, version);
-
-            if (cf.metadata().isSuper() && version < MessagingService.VERSION_20)
-            {
-                SuperColumns.serializeSuperColumnFamily(cf, out, version);
-                return;
-            }
-
             cf.getComparator().deletionInfoSerializer().serialize(cf.deletionInfo(), out, version);
             ColumnSerializer columnSerializer = cf.getComparator().columnSerializer();
             int count = cf.getColumnCount();
@@ -120,20 +113,11 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
 
     public long contentSerializedSize(ColumnFamily cf, TypeSizes typeSizes, int version)
     {
-        long size = 0L;
-
-        if (cf.metadata().isSuper() && version < MessagingService.VERSION_20)
-        {
-            size += SuperColumns.serializedSize(cf, typeSizes, version);
-        }
-        else
-        {
-            size += cf.getComparator().deletionInfoSerializer().serializedSize(cf.deletionInfo(), typeSizes, version);
-            size += typeSizes.sizeof(cf.getColumnCount());
-            ColumnSerializer columnSerializer = cf.getComparator().columnSerializer();
-            for (Cell cell : cf)
-                size += columnSerializer.serializedSize(cell, typeSizes);
-        }
+        long size = cf.getComparator().deletionInfoSerializer().serializedSize(cf.deletionInfo(), typeSizes, version);
+        size += typeSizes.sizeof(cf.getColumnCount());
+        ColumnSerializer columnSerializer = cf.getComparator().columnSerializer();
+        for (Cell cell : cf)
+            size += columnSerializer.serializedSize(cell, typeSizes);
         return size;
     }
 
