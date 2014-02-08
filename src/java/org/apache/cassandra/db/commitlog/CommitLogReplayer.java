@@ -147,7 +147,7 @@ public class CommitLogReplayer
         return end;
     }
 
-    private int getStartOffset(long segmentId, int version, File file)
+    private int getStartOffset(long segmentId, int version)
     {
         if (globalPosition.segment < segmentId)
         {
@@ -236,7 +236,7 @@ public class CommitLogReplayer
         try
         {
             assert reader.length() <= Integer.MAX_VALUE;
-            int offset = getStartOffset(segmentId, version, file);
+            int offset = getStartOffset(segmentId, version);
             if (offset < 0)
             {
                 logger.debug("skipping replay of fully-flushed {}", file);

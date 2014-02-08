@@ -563,7 +563,7 @@ public class StorageProxy implements StorageProxyMBean
             syncWriteToBatchlog(mutations, batchlogEndpoints, batchUUID);
 
             // now actually perform the writes and wait for them to complete
-            syncWriteBatchedMutations(wrappers, localDataCenter, consistency_level);
+            syncWriteBatchedMutations(wrappers, localDataCenter);
 
             // remove the batchlog entries asynchronously
             asyncRemoveFromBatchlog(batchlogEndpoints, batchUUID);
@@ -630,8 +630,7 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     private static void syncWriteBatchedMutations(List<WriteResponseHandlerWrapper> wrappers,
-                                                  String localDataCenter,
-                                                  ConsistencyLevel consistencyLevel)
+                                                  String localDataCenter)
     throws WriteTimeoutException, OverloadedException
     {
         for (WriteResponseHandlerWrapper wrapper : wrappers)
