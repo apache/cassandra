@@ -687,7 +687,7 @@ public class NodeProbe implements AutoCloseable
 
         for (Map.Entry<String, String> pair : tokenToEndpoint.entrySet())
         {
-            if (pair.getKey().toString().equals(stringToken))
+            if (pair.getKey().equals(stringToken))
             {
                 return pair.getValue();
             }

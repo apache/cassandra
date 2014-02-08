@@ -129,7 +129,7 @@ public class SettingsCommand implements Serializable
 
     static void printHelp(String type)
     {
-        GroupedOptions.printOptions(System.out, type.toString().toLowerCase(), new Uncertainty(), new Count());
+        GroupedOptions.printOptions(System.out, type.toLowerCase(), new Uncertainty(), new Count());
     }
 
     static Runnable helpPrinter(final String type)
