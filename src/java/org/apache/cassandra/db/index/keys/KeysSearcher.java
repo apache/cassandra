@@ -24,8 +24,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.cassandra.utils.concurrent.OpOrder;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +38,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.index.*;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.utils.memory.HeapAllocator;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class KeysSearcher extends SecondaryIndexSearcher
 {
@@ -182,7 +180,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                         {
                             ColumnFamily cf = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, extraFilter, filter.timestamp));
                             if (cf != null)
-                                data.addAll(cf, HeapAllocator.instance);
+                                data.addAll(cf);
                         }
 
                         if (((KeysIndex)index).isIndexEntryStale(indexKey.key, data, filter.timestamp))

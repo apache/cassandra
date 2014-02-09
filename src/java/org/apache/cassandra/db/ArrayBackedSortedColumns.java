@@ -29,7 +29,6 @@ import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
  * A ColumnFamily backed by an ArrayList.
@@ -55,14 +54,14 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
     {
         super(metadata);
         this.reversed = reversed;
-        this.cells = new ArrayList<Cell>();
+        this.cells = new ArrayList<>();
     }
 
     private ArrayBackedSortedColumns(Collection<Cell> cells, CFMetaData metadata, boolean reversed)
     {
         super(metadata);
         this.reversed = reversed;
-        this.cells = new ArrayList<Cell>(cells);
+        this.cells = new ArrayList<>(cells);
     }
 
     public ColumnFamily.Factory getFactory()
@@ -91,7 +90,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
         return pos >= 0 ? cells.get(pos) : null;
     }
 
-    public void addColumn(Cell cell, AbstractAllocator allocator)
+    public void addColumn(Cell cell)
     {
         if (cells.isEmpty())
         {
@@ -109,13 +108,13 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
         else if (c == 0)
         {
             // Resolve against last
-            resolveAgainst(getColumnCount() - 1, cell, allocator);
+            resolveAgainst(getColumnCount() - 1, cell);
         }
         else
         {
             int pos = binarySearch(cell.name());
             if (pos >= 0)
-                resolveAgainst(pos, cell, allocator);
+                resolveAgainst(pos, cell);
             else
                 cells.add(-pos - 1, cell);
         }
@@ -125,13 +124,9 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
      * Resolve against element at position i.
      * Assume that i is a valid position.
      */
-    private void resolveAgainst(int i, Cell cell, AbstractAllocator allocator)
+    private void resolveAgainst(int i, Cell cell)
     {
-        Cell oldCell = cells.get(i);
-
-        // calculate reconciled col from old (existing) col and new col
-        Cell reconciledCell = cell.reconcile(oldCell, allocator);
-        cells.set(i, reconciledCell);
+        cells.set(i, cell.reconcile(cells.get(i)));
     }
 
     private int binarySearch(CellName name)
@@ -155,22 +150,16 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
         {
             mid = (low + high) >> 1;
             if ((result = comparator.compare(name, cells.get(mid).name())) > 0)
-            {
                 low = mid + 1;
-            }
             else if (result == 0)
-            {
                 return mid;
-            }
             else
-            {
                 high = mid - 1;
-            }
         }
         return -mid - (result < 0 ? 1 : 2);
     }
 
-    public void addAll(ColumnFamily cm, AbstractAllocator allocator, Function<Cell, Cell> transformation)
+    public void addAll(ColumnFamily cm)
     {
         delete(cm.deletionInfo());
         if (cm.getColumnCount() == 0)
@@ -193,40 +182,26 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
             }
             else if (c > 0)
             {
-                cells.add(transformation.apply(otherCell));
+                cells.add(otherCell);
                 otherCell = other.hasNext() ? other.next() : null;
             }
             else // c == 0
             {
                 cells.add(copy[idx]);
-                resolveAgainst(getColumnCount() - 1, transformation.apply(otherCell), allocator);
+                resolveAgainst(getColumnCount() - 1, otherCell);
                 idx++;
                 otherCell = other.hasNext() ? other.next() : null;
             }
         }
+
         while (idx < copy.length)
-        {
             cells.add(copy[idx++]);
-        }
+
         while (otherCell != null)
         {
-            cells.add(transformation.apply(otherCell));
+            cells.add(otherCell);
             otherCell = other.hasNext() ? other.next() : null;
         }
-    }
-
-    public boolean replace(Cell oldCell, Cell newCell)
-    {
-        if (!oldCell.name().equals(newCell.name()))
-            throw new IllegalArgumentException();
-
-        int pos = binarySearch(oldCell.name());
-        if (pos >= 0)
-        {
-            cells.set(pos, newCell);
-        }
-
-        return pos >= 0;
     }
 
     public Collection<Cell> getSortedColumns()
@@ -262,11 +237,6 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
                 return cell.name;
             }
         });
-    }
-
-    public Iterator<Cell> iterator()
-    {
-        return reversed ? Lists.reverse(cells).iterator() : cells.iterator();
     }
 
     public Iterator<Cell> iterator(ColumnSlice[] slices)

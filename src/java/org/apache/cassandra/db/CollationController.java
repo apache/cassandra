@@ -30,7 +30,6 @@ import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.memory.HeapAllocator;
 
 public class CollationController
 {
@@ -87,7 +86,7 @@ public class CollationController
                         temp.addAtom(iter.next());
                 }
 
-                container.addAll(temp, HeapAllocator.instance);
+                container.addAll(temp);
                 temp.clear();
             }
 
@@ -129,7 +128,7 @@ public class CollationController
                         temp.addAtom(iter.next());
                 }
 
-                container.addAll(temp, HeapAllocator.instance);
+                container.addAll(temp);
                 temp.clear();
             }
 

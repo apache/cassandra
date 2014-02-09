@@ -34,7 +34,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
@@ -91,11 +90,6 @@ public class AtomicBTreeColumns extends ColumnFamily
     {
         super(metadata);
         this.ref = holder;
-    }
-
-    public CellNameType getComparator()
-    {
-        return metadata.comparator;
     }
 
     public Factory getFactory()
@@ -156,11 +150,6 @@ public class AtomicBTreeColumns extends ColumnFamily
             if (refUpdater.compareAndSet(this, current, current.with(purgedInfo)))
                 break;
         }
-    }
-
-    public void addAll(ColumnFamily cm, AbstractAllocator allocator, Function<Cell, Cell> transformation)
-    {
-        addAllWithSizeDelta(cm, allocator, transformation, SecondaryIndexManager.nullUpdater, new Delta());
     }
 
     // the function we provide to the btree utilities to perform any column replacements
@@ -282,12 +271,12 @@ public class AtomicBTreeColumns extends ColumnFamily
 
     // no particular reason not to implement these next methods, we just haven't needed them yet
 
-    public void addColumn(Cell column, AbstractAllocator allocator)
+    public void addColumn(Cell column)
     {
         throw new UnsupportedOperationException();
     }
 
-    public boolean replace(Cell oldColumn, Cell newColumn)
+    public void addAll(ColumnFamily cf)
     {
         throw new UnsupportedOperationException();
     }

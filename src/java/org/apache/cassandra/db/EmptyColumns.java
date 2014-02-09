@@ -1,4 +1,3 @@
-package org.apache.cassandra.db;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,19 +18,17 @@ package org.apache.cassandra.db;
  * under the License.
  * 
  */
-
+package org.apache.cassandra.db;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 
+import com.google.common.collect.Iterators;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
-
-import com.google.common.base.Function;
-import com.google.common.collect.Iterators;
 
 public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
 {
@@ -63,17 +60,12 @@ public class EmptyColumns extends AbstractThreadUnsafeSortedColumns
         return factory;
     }
 
-    public void addColumn(Cell cell, AbstractAllocator allocator)
+    public void addColumn(Cell cell)
     {
         throw new UnsupportedOperationException();
     }
 
-    public void addAll(ColumnFamily cm, AbstractAllocator allocator, Function<Cell, Cell> transformation)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    public boolean replace(Cell oldCell, Cell newCell)
+    public void addAll(ColumnFamily cm)
     {
         throw new UnsupportedOperationException();
     }

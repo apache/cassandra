@@ -23,13 +23,10 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 
-import com.google.common.base.Function;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 
 public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
 {
@@ -43,11 +40,6 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
             return new TreeMapBackedSortedColumns(metadata);
         }
     };
-
-    public CellNameType getComparator()
-    {
-        return (CellNameType)map.comparator();
-    }
 
     private TreeMapBackedSortedColumns(CFMetaData metadata)
     {
@@ -80,7 +72,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
      * If we find an old cell that has the same name
      * the ask it to resolve itself else add the new cell
     */
-    public void addColumn(Cell cell, AbstractAllocator allocator)
+    public void addColumn(Cell cell)
     {
         CellName name = cell.name();
         // this is a slightly unusual way to structure this; a more natural way is shown in ThreadSafeSortedColumns,
@@ -92,40 +84,17 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
             return;
 
         // calculate reconciled col from old (existing) col and new col
-        map.put(name, cell.reconcile(oldCell, allocator));
+        map.put(name, cell.reconcile(oldCell, HeapAllocator.instance));
     }
 
     /**
      * We need to go through each column in the column container and resolve it before adding
      */
-    public void addAll(ColumnFamily cm, AbstractAllocator allocator, Function<Cell, Cell> transformation)
+    public void addAll(ColumnFamily cm)
     {
         delete(cm.deletionInfo());
         for (Cell cell : cm)
-            addColumn(transformation.apply(cell), allocator);
-    }
-
-    public boolean replace(Cell oldCell, Cell newCell)
-    {
-        if (!oldCell.name().equals(newCell.name()))
-            throw new IllegalArgumentException();
-
-        // We are not supposed to put the newCell is either there was not
-        // column or the column was not equal to oldCell (to be coherent
-        // with other implementation). We optimize for the common case where
-        // oldCell do is present though.
-        Cell previous = map.put(oldCell.name(), newCell);
-        if (previous == null)
-        {
-            map.remove(oldCell.name());
-            return false;
-        }
-        if (!previous.equals(oldCell))
-        {
-            map.put(oldCell.name(), previous);
-            return false;
-        }
-        return true;
+            addColumn(cell);
     }
 
     public Cell getColumn(CellName name)
@@ -159,11 +128,6 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         return map.navigableKeySet();
     }
 
-    public Iterator<Cell> iterator()
-    {
-        return map.values().iterator();
-    }
-
     public Iterator<Cell> iterator(ColumnSlice[] slices)
     {
         return new ColumnSlice.NavigableMapIterator(map, slices);
@@ -173,5 +137,4 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
     {
         return new ColumnSlice.NavigableMapIterator(map.descendingMap(), slices);
     }
-
 }
