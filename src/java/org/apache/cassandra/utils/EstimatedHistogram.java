@@ -44,7 +44,7 @@ public class EstimatedHistogram
      *
      * Each bucket represents values from (previous bucket offset, current offset].
      */
-    private long[] bucketOffsets;
+    private final long[] bucketOffsets;
 
     // buckets is one element longer than bucketOffsets -- the last element is values greater than the last offset
     final AtomicLongArray buckets;
@@ -56,7 +56,7 @@ public class EstimatedHistogram
 
     public EstimatedHistogram(int bucketCount)
     {
-        makeOffsets(bucketCount);
+        bucketOffsets = newOffsets(bucketCount);
         buckets = new AtomicLongArray(bucketOffsets.length + 1);
     }
 
@@ -67,19 +67,21 @@ public class EstimatedHistogram
         buckets = new AtomicLongArray(bucketData);
     }
 
-    private void makeOffsets(int size)
+    private static long[] newOffsets(int size)
     {
-        bucketOffsets = new long[size];
+        long[] result = new long[size];
         long last = 1;
-        bucketOffsets[0] = last;
+        result[0] = last;
         for (int i = 1; i < size; i++)
         {
             long next = Math.round(last * 1.2);
             if (next == last)
                 next++;
-            bucketOffsets[i] = next;
+            result[i] = next;
             last = next;
         }
+
+        return result;
     }
 
     /**
@@ -120,13 +122,15 @@ public class EstimatedHistogram
      */
     public long[] getBuckets(boolean reset)
     {
-        long[] rv = new long[buckets.length()];
-        for (int i = 0; i < buckets.length(); i++)
-            rv[i] = buckets.get(i);
+        final int len = buckets.length();
+        long[] rv = new long[len];
 
         if (reset)
-            for (int i = 0; i < buckets.length(); i++)
-                buckets.set(i, 0L);
+            for (int i = 0; i < len; i++)
+                rv[i] = buckets.getAndSet(i, 0L);
+        else
+            for (int i = 0; i < len; i++)
+                rv[i] = buckets.get(i);
 
         return rv;
     }
@@ -201,8 +205,9 @@ public class EstimatedHistogram
         long sum = 0;
         for (int i = 0; i < lastBucket; i++)
         {
-            elements += buckets.get(i);
-            sum += buckets.get(i) * bucketOffsets[i];
+            long bCount = buckets.get(i);
+            elements += bCount;
+            sum += bCount * bucketOffsets[i];
         }
 
         return (long) Math.ceil((double) sum / elements);
