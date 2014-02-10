@@ -38,7 +38,7 @@ public class LongKeyspaceTest extends SchemaLoader
         for (int i = 1; i < 5000; i += 100)
         {
             Mutation rm = new Mutation("Keyspace1", Util.dk("key" + i).key);
-            ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
+            ColumnFamily cf = ArrayBackedSortedColumns.factory.create("Keyspace1", "Standard1");
             for (int j = 0; j < i; j++)
                 cf.addColumn(column("c" + j, "v" + j, 1L));
             rm.add(cf);

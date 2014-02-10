@@ -585,7 +585,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                                   long now) throws InvalidRequestException
         {
             super(rowPrefix, now);
-            this.expected = TreeMapBackedSortedColumns.factory.create(cfm);
+            this.expected = ArrayBackedSortedColumns.factory.create(cfm);
 
             // When building the conditions, we should not use a TTL. It's not useful, and if a very low ttl (1 seconds) is used, it's possible
             // for it to expire before the actual build of the conditions which would break since we would then testing for the presence of tombstones.

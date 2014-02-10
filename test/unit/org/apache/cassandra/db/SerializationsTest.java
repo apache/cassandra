@@ -367,8 +367,8 @@ public class SerializationsTest extends AbstractSerializationsTester
 
         private final long readTs = 1369935512292L;
 
-        private final ColumnFamily StandardCf = TreeMapBackedSortedColumns.factory.create(KS, StandardCF);
-        private final ColumnFamily SuperCf = TreeMapBackedSortedColumns.factory.create(KS, SuperCF);
+        private final ColumnFamily StandardCf = ArrayBackedSortedColumns.factory.create(KS, StandardCF);
+        private final ColumnFamily SuperCf = ArrayBackedSortedColumns.factory.create(KS, SuperCF);
 
         private final Row StandardRow = new Row(Util.dk("key0"), StandardCf);
         private final Row SuperRow = new Row(Util.dk("key1"), SuperCf);

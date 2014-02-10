@@ -87,6 +87,6 @@ public class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
 
     protected ColumnFamily getColumnFamily()
     {
-        return TreeMapBackedSortedColumns.factory.create(metadata);
+        return ArrayBackedSortedColumns.factory.create(metadata);
     }
 }

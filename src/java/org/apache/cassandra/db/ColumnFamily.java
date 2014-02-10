@@ -284,7 +284,7 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
     public ColumnFamily diff(ColumnFamily cfComposite)
     {
         assert cfComposite.id().equals(id());
-        ColumnFamily cfDiff = TreeMapBackedSortedColumns.factory.create(metadata);
+        ColumnFamily cfDiff = ArrayBackedSortedColumns.factory.create(metadata);
         cfDiff.delete(cfComposite.deletionInfo());
 
         // (don't need to worry about cfNew containing Columns that are shadowed by

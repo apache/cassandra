@@ -27,9 +27,9 @@ import java.util.concurrent.SynchronousQueue;
 import com.google.common.base.Throwables;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.ArrayBackedSortedColumns;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.TreeMapBackedSortedColumns;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.compress.CompressionParameters;
@@ -111,7 +111,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         // If the CF already exist in memory, we'll just continue adding to it
         if (previous == null)
         {
-            previous = TreeMapBackedSortedColumns.factory.create(metadata);
+            previous = ArrayBackedSortedColumns.factory.create(metadata);
             buffer.put(currentKey, previous);
         }
         else

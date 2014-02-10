@@ -46,7 +46,7 @@ public class DeleteStatement extends ModificationStatement
     public ColumnFamily updateForKey(ByteBuffer key, Composite prefix, UpdateParameters params)
     throws InvalidRequestException
     {
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfm);
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfm);
         List<Operation> deletions = getOperations();
 
         if (prefix.size() < cfm.clusteringColumns().size() && !deletions.isEmpty())

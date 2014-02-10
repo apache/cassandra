@@ -82,7 +82,7 @@ public class RowIteratorFactory
             @Override
             protected void onKeyChange()
             {
-                this.returnCF = TreeMapBackedSortedColumns.factory.create(cfs.metadata);
+                this.returnCF = ArrayBackedSortedColumns.factory.create(cfs.metadata);
             }
 
             public void reduce(OnDiskAtomIterator current)

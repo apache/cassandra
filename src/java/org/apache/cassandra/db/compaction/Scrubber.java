@@ -300,7 +300,7 @@ public class Scrubber implements Closeable
         outputHandler.warn(String.format("Out of order row detected (%s found after %s)", key, prevKey));
         // adding atoms in sorted order is worst-case for TMBSC, but we shouldn't need to do this very often
         // and there's no sense in failing on mis-sorted cells when a TreeMap could safe us
-        ColumnFamily cf = atoms.getColumnFamily().cloneMeShallow(TreeMapBackedSortedColumns.factory, false);
+        ColumnFamily cf = atoms.getColumnFamily().cloneMeShallow(ArrayBackedSortedColumns.factory, false);
         while (atoms.hasNext())
         {
             OnDiskAtom atom = atoms.next();

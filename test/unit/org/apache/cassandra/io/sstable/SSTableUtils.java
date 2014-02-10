@@ -39,7 +39,7 @@ public class SSTableUtils
 
     public static ColumnFamily createCF(long mfda, int ldt, Cell... cols)
     {
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(KEYSPACENAME, CFNAME);
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(KEYSPACENAME, CFNAME);
         cf.delete(new DeletionInfo(mfda, ldt));
         for (Cell col : cols)
             cf.addColumn(col);
@@ -163,7 +163,7 @@ public class SSTableUtils
             Map<String, ColumnFamily> map = new HashMap<String, ColumnFamily>();
             for (String key : keys)
             {
-                ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(ksname, cfname);
+                ColumnFamily cf = ArrayBackedSortedColumns.factory.create(ksname, cfname);
                 cf.addColumn(new Cell(Util.cellname(key), ByteBufferUtil.bytes(key), 0));
                 map.put(key, cf);
             }

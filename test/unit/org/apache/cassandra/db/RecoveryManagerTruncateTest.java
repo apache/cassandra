@@ -46,7 +46,7 @@ public class RecoveryManagerTruncateTest extends SchemaLoader
 		ColumnFamily cf;
 
 		// add a single cell
-        cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
+        cf = ArrayBackedSortedColumns.factory.create("Keyspace1", "Standard1");
 		cf.addColumn(column("col1", "val1", 1L));
         rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("keymulti"), cf);
 		rm.apply();

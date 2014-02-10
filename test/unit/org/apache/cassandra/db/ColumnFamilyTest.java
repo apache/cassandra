@@ -48,7 +48,7 @@ public class ColumnFamilyTest extends SchemaLoader
     {
         ColumnFamily cf;
 
-        cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
+        cf = ArrayBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         cf.addColumn(column("C", "v", 1));
         DataOutputBuffer bufOut = new DataOutputBuffer();
         ColumnFamily.serializer.serialize(cf, bufOut, version);
@@ -72,7 +72,7 @@ public class ColumnFamilyTest extends SchemaLoader
         }
 
         // write
-        cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
+        cf = ArrayBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         DataOutputBuffer bufOut = new DataOutputBuffer();
         for (String cName : map.navigableKeySet())
         {
@@ -94,7 +94,7 @@ public class ColumnFamilyTest extends SchemaLoader
     @Test
     public void testGetColumnCount()
     {
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create("Keyspace1", "Standard1");
 
         cf.addColumn(column("col1", "", 1));
         cf.addColumn(column("col2", "", 2));
@@ -107,7 +107,7 @@ public class ColumnFamilyTest extends SchemaLoader
     @Test
     public void testTimestamp()
     {
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create("Keyspace1", "Standard1");
 
         cf.addColumn(column("col1", "val1", 2));
         cf.addColumn(column("col1", "val2", 2)); // same timestamp, new value
@@ -119,9 +119,9 @@ public class ColumnFamilyTest extends SchemaLoader
     @Test
     public void testMergeAndAdd()
     {
-        ColumnFamily cf_new = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
-        ColumnFamily cf_old = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
-        ColumnFamily cf_result = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
+        ColumnFamily cf_new = ArrayBackedSortedColumns.factory.create("Keyspace1", "Standard1");
+        ColumnFamily cf_old = ArrayBackedSortedColumns.factory.create("Keyspace1", "Standard1");
+        ColumnFamily cf_result = ArrayBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         ByteBuffer val = ByteBufferUtil.bytes("sample value");
         ByteBuffer val2 = ByteBufferUtil.bytes("x value ");
 
@@ -157,7 +157,7 @@ public class ColumnFamilyTest extends SchemaLoader
         long timestamp = System.currentTimeMillis();
         int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
 
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create("Keyspace1", "Standard1");
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         cf.delete(new DeletionInfo(timestamp, localDeletionTime));
         ColumnStats stats = cf.getColumnStats();
         assertEquals(timestamp, stats.maxTimestamp);

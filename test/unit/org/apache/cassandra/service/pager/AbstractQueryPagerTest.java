@@ -120,7 +120,7 @@ public class AbstractQueryPagerTest
 
     private ColumnFamily createCF(int nbCol)
     {
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(createMetadata());
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(createMetadata());
         for (int i = 0; i < nbCol; i++)
             cf.addColumn(CellNames.simpleDense(bb(i)), bb(i), 0);
         return cf;

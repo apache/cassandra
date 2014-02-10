@@ -273,7 +273,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                             continue;
 
                         if (data == null)
-                            data = TreeMapBackedSortedColumns.factory.create(baseCfs.metadata);
+                            data = ArrayBackedSortedColumns.factory.create(baseCfs.metadata);
                         data.resolve(newData);
                         columnsCount += dataFilter.lastCounted();
                     }

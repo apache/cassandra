@@ -203,7 +203,7 @@ public class Tracing
             public void run()
             {
                 CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
-                ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfMeta);
+                ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfMeta);
                 addColumn(cf, buildName(cfMeta, "coordinator"), FBUtilities.getBroadcastAddress());
                 addParameterColumns(cf, parameters);
                 addColumn(cf, buildName(cfMeta, "request"), request);

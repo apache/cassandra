@@ -132,7 +132,7 @@ public class Mutation implements IMutation
         ColumnFamily cf = modifications.get(cfm.cfId);
         if (cf == null)
         {
-            cf = TreeMapBackedSortedColumns.factory.create(cfm);
+            cf = ArrayBackedSortedColumns.factory.create(cfm);
             modifications.put(cfm.cfId, cf);
         }
         return cf;
