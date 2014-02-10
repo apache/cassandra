@@ -142,7 +142,7 @@ public class MigrationManager
 
     public static boolean isReadyForBootstrap()
     {
-        return Schema.instance.getVersion() != null && !Schema.emptyVersion.equals(Schema.instance.getVersion());
+        return ((ThreadPoolExecutor) StageManager.getStage(Stage.MIGRATION)).getActiveCount() == 0;
     }
 
     public void notifyCreateKeyspace(KSMetaData ksm)
