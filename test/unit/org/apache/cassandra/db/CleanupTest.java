@@ -64,7 +64,7 @@ public class CleanupTest extends SchemaLoader
     @Test
     public void testCleanup() throws IOException, ExecutionException, InterruptedException, ConfigurationException
     {
-        StorageService.instance.initServer(0);
+        StorageService.instance.getTokenMetadata().clearUnsafe();
 
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF2);
