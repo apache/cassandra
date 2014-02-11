@@ -62,15 +62,9 @@ public class CollationController
     private ColumnFamily collectTimeOrderedData()
     {
         final ColumnFamily container = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());
-        List<OnDiskAtomIterator> iterators = new ArrayList<OnDiskAtomIterator>();
+        List<OnDiskAtomIterator> iterators = new ArrayList<>();
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
-
-        // We use a temporary CF object per memtable or sstable source so we can accomodate this.factory being ABSC,
-        // which requires addAtom to happen in sorted order.  Then we use addAll to merge into the final collection,
-        // which allows a (sorted) set of columns to be merged even if they are not uniformly sorted after the existing
-        // ones.
-        ColumnFamily temp = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());
 
         try
         {
@@ -81,13 +75,10 @@ public class CollationController
                 if (iter != null)
                 {
                     iterators.add(iter);
-                    temp.delete(iter.getColumnFamily());
+                    container.delete(iter.getColumnFamily());
                     while (iter.hasNext())
-                        temp.addAtom(iter.next());
+                        container.addAtom(iter.next());
                 }
-
-                container.addAll(temp);
-                temp.clear();
             }
 
             // avoid changing the filter columns of the original filter
@@ -122,14 +113,11 @@ public class CollationController
                     ColumnFamily cf = iter.getColumnFamily();
                     if (cf.isMarkedForDelete())
                         mostRecentRowTombstone = cf.deletionInfo().getTopLevelDeletion().markedForDeleteAt;
-                    temp.delete(cf);
+                    container.delete(cf);
                     sstablesIterated++;
                     while (iter.hasNext())
-                        temp.addAtom(iter.next());
+                        container.addAtom(iter.next());
                 }
-
-                container.addAll(temp);
-                temp.clear();
             }
 
             // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
@@ -189,7 +177,7 @@ public class CollationController
     {
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
-        List<OnDiskAtomIterator> iterators = new ArrayList<OnDiskAtomIterator>(Iterables.size(view.memtables) + view.sstables.size());
+        List<OnDiskAtomIterator> iterators = new ArrayList<>(Iterables.size(view.memtables) + view.sstables.size());
         ColumnFamily returnCF = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());
 
         try
@@ -238,7 +226,7 @@ public class CollationController
                     if (sstable.getSSTableMetadata().maxLocalDeletionTime != Integer.MAX_VALUE)
                     {
                         if (skippedSSTables == null)
-                            skippedSSTables = new ArrayList<SSTableReader>();
+                            skippedSSTables = new ArrayList<>();
                         skippedSSTables.add(sstable);
                     }
                     continue;

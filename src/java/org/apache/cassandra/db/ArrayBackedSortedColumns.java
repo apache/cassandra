@@ -186,8 +186,11 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
         }
         else
         {
-            // Append to the end, making cells unsorted from now on
-            internalAdd(cell);
+            int pos = binarySearch(cell.name());
+            if (pos >= 0) // Reconcile with an existing cell
+                reconcileWith(pos, cell);
+            else
+                internalAdd(cell); // Append to the end, making cells unsorted from now on
         }
     }
 
