@@ -21,6 +21,8 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.github.jamm.MemoryMeter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
@@ -48,6 +50,11 @@ import org.apache.cassandra.utils.Pair;
 public abstract class ModificationStatement implements CQLStatement, MeasurableForPreparedCache
 {
     private static final ColumnIdentifier CAS_RESULT_COLUMN = new ColumnIdentifier("[applied]", false);
+
+    private static final Logger logger = LoggerFactory.getLogger(ModificationStatement.class);
+
+    private static boolean loggedCounterTTL = false;
+    private static boolean loggedCounterTimestamp = false;
 
     public final CFMetaData cfm;
     public final Attributes attrs;
@@ -125,6 +132,25 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
     {
         if (hasConditions() && attrs.isTimestampSet())
             throw new InvalidRequestException("Custom timestamps are not allowed when conditions are used");
+
+        if (isCounter())
+        {
+            if (attrs.isTimestampSet() && !loggedCounterTimestamp)
+            {
+                logger.warn("Detected use of 'USING TIMESTAMP' in a counter UPDATE. This is invalid " +
+                            "because counters do not use timestamps, and the timestamp has been ignored. " +
+                            "Such queries will be rejected in Cassandra 2.1+ - please fix your queries before then.");
+                loggedCounterTimestamp = true;
+            }
+
+            if (attrs.isTimeToLiveSet() && !loggedCounterTTL)
+            {
+                logger.warn("Detected use of 'USING TTL' in a counter UPDATE. This is invalid " +
+                            "because counter tables do not support TTL, and the TTL value has been ignored. " +
+                            "Such queries will be rejected in Cassandra 2.1+ - please fix your queries before then.");
+                loggedCounterTTL = true;
+            }
+        }
     }
 
     public void addOperation(Operation op)
@@ -666,7 +692,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
 
             ModificationStatement stmt = prepareInternal(cfDef, boundNames, preparedAttributes);
 
-            if (ifNotExists || (conditions != null && !conditions.isEmpty()))
+            if (ifNotExists || !conditions.isEmpty())
             {
                 if (stmt.isCounter())
                     throw new InvalidRequestException("Conditional updates are not supported on counter tables");
