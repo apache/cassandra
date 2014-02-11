@@ -22,17 +22,21 @@ package org.apache.cassandra.db;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogDescriptor;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -225,4 +229,32 @@ public class CommitLogTest extends SchemaLoader
         String newCLName = "CommitLog-" + CommitLogDescriptor.current_version + "-1340512736956320000.log";
         Assert.assertEquals(MessagingService.current_version, CommitLogDescriptor.fromFileName(newCLName).getMessagingVersion());
     }
+
+    @Test
+    public void testCommitFailurePolicy_stop()
+    {
+        File commitDir = new File(DatabaseDescriptor.getCommitLogLocation());
+
+        try
+        {
+
+            DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.stop);
+            commitDir.setWritable(false);
+            RowMutation rm = new RowMutation("Keyspace1", bytes("k"));
+            rm.add("Standard1", bytes("c1"), ByteBuffer.allocate(100), 0);
+
+            // Adding it twice (won't change segment)
+            CommitLog.instance.add(rm);
+            Uninterruptibles.sleepUninterruptibly((int) DatabaseDescriptor.getCommitLogSyncBatchWindow(), TimeUnit.MILLISECONDS);
+            Assert.assertFalse(StorageService.instance.isRPCServerRunning());
+            Assert.assertFalse(StorageService.instance.isNativeTransportRunning());
+            Assert.assertFalse(StorageService.instance.isInitialized());
+
+        }
+        finally
+        {
+            commitDir.setWritable(true);
+        }
+    }
+
 }

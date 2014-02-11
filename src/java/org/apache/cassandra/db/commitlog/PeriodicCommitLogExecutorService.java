@@ -25,9 +25,12 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class PeriodicCommitLogExecutorService implements ICommitLogExecutorService
 {
+
     private final BlockingQueue<Runnable> queue;
     protected volatile long completedTaskCount = 0;
     private final Thread appendingThread;
@@ -69,8 +72,27 @@ class PeriodicCommitLogExecutorService implements ICommitLogExecutorService
             {
                 while (run)
                 {
-                    FBUtilities.waitOnFuture(submit(syncer));
-                    Uninterruptibles.sleepUninterruptibly(DatabaseDescriptor.getCommitLogSyncPeriod(), TimeUnit.MILLISECONDS);
+                    try
+                    {
+                        FBUtilities.waitOnFuture(submit(syncer));
+                        Uninterruptibles.sleepUninterruptibly(DatabaseDescriptor.getCommitLogSyncPeriod(), TimeUnit.MILLISECONDS);
+                    }
+                    catch (Throwable t)
+                    {
+                        if (!CommitLog.handleCommitError("Failed to persist commits to disk", t))
+                        {
+                            PeriodicCommitLogExecutorService.this.run = false;
+                            try
+                            {
+                                appendingThread.join();
+                            }
+                            catch (InterruptedException e)
+                            {
+                                throw new IllegalStateException();
+                            }
+                            return;
+                        }
+                    }
                 }
             }
         }, "PERIODIC-COMMIT-LOG-SYNCER").start();

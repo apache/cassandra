@@ -31,6 +31,7 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BlacklistedDirectories;
 import org.apache.cassandra.db.Keyspace;
@@ -412,23 +413,7 @@ public class FileUtils
         switch (DatabaseDescriptor.getDiskFailurePolicy())
         {
             case stop:
-                if (StorageService.instance.isInitialized())
-                {
-                    logger.error("Stopping gossiper");
-                    StorageService.instance.stopGossiping();
-                }
-
-                if (StorageService.instance.isRPCServerRunning())
-                {
-                    logger.error("Stopping RPC server");
-                    StorageService.instance.stopRPCServer();
-                }
-
-                if (StorageService.instance.isNativeTransportRunning())
-                {
-                    logger.error("Stopping native transport");
-                    StorageService.instance.stopNativeTransport();
-                }
+                StorageService.instance.stopTransports();
                 break;
             case best_effort:
                 // for both read and write errors mark the path as unwritable.
@@ -447,4 +432,5 @@ public class FileUtils
                 throw new IllegalStateException();
         }
     }
+
 }

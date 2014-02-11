@@ -194,6 +194,7 @@ public class DatabaseDescriptor
         }
 
         logger.info("disk_failure_policy is " + conf.disk_failure_policy);
+        logger.info("commit_failure_policy is " + conf.commit_failure_policy);
 
         /* Authentication and authorization backend, implementing IAuthenticator and IAuthorizer */
         if (conf.authenticator != null)
@@ -1080,6 +1081,16 @@ public class DatabaseDescriptor
     public static Config.DiskFailurePolicy getDiskFailurePolicy()
     {
         return conf.disk_failure_policy;
+    }
+
+    public static void setCommitFailurePolicy(Config.CommitFailurePolicy policy)
+    {
+        conf.commit_failure_policy = policy;
+    }
+
+    public static Config.CommitFailurePolicy getCommitFailurePolicy()
+    {
+        return conf.commit_failure_policy;
     }
 
     public static boolean isSnapshotBeforeCompaction()

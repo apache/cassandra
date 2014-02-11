@@ -20,12 +20,17 @@ package org.apache.cassandra.db.commitlog;
 import java.util.ArrayList;
 import java.util.concurrent.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService
 {
+
     private final BlockingQueue<CheaterFutureTask> queue;
     private final Thread appendingThread;
     private volatile boolean run = true;
@@ -44,8 +49,16 @@ class BatchCommitLogExecutorService extends AbstractCommitLogExecutorService
             {
                 while (run)
                 {
-                    if (processWithSyncBatch())
-                        completedTaskCount++;
+                    try
+                    {
+                        if (processWithSyncBatch())
+                            completedTaskCount++;
+                    }
+                    catch (Throwable t)
+                    {
+                        if (!CommitLog.handleCommitError("Failed to persist commits to disk", t))
+                            return;
+                    }
                 }
             }
         };

@@ -36,6 +36,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
@@ -88,22 +89,32 @@ public class CommitLogAllocator
             {
                 while (run)
                 {
-                    Runnable r = queue.poll(TICK_CYCLE_TIME, TimeUnit.MILLISECONDS);
+                    try
+                    {
 
-                    if (r != null)
-                    {
-                        r.run();
-                    }
-                    else
-                    {
-                        // no job, so we're clear to check to see if we're out of segments
-                        // and ready a new one if needed. has the effect of ensuring there's
-                        // almost always a segment available when it's needed.
-                        if (availableSegments.isEmpty() && (activeSegments.isEmpty() || createReserveSegments))
+                        Runnable r = queue.poll(TICK_CYCLE_TIME, TimeUnit.MILLISECONDS);
+
+                        if (r != null)
                         {
-                            logger.debug("No segments in reserve; creating a fresh one");
-                            createFreshSegment();
+                            r.run();
                         }
+                        else
+                        {
+                            // no job, so we're clear to check to see if we're out of segments
+                            // and ready a new one if needed. has the effect of ensuring there's
+                            // almost always a segment available when it's needed.
+                            if (availableSegments.isEmpty() && (activeSegments.isEmpty() || createReserveSegments))
+                            {
+                                logger.debug("No segments in reserve; creating a fresh one");
+                                createFreshSegment();
+                            }
+                        }
+
+                    }
+                    catch (Throwable t)
+                    {
+                        if (!CommitLog.handleCommitError("Failed to allocate new commit log segments", t))
+                            return;
                     }
                 }
             }

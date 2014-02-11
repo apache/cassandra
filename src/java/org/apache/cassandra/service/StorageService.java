@@ -357,6 +357,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return daemon.nativeServer.isRunning();
     }
 
+    public void stopTransports()
+    {
+        if (isInitialized())
+        {
+            logger.error("Stopping gossiper");
+            stopGossiping();
+        }
+        if (isRPCServerRunning())
+        {
+            logger.error("Stopping RPC server");
+            stopRPCServer();
+        }
+        if (isNativeTransportRunning())
+        {
+            logger.error("Stopping native transport");
+            stopNativeTransport();
+        }
+    }
+
     private void shutdownClientServers()
     {
         stopRPCServer();
