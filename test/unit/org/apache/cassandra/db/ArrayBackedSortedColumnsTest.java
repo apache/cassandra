@@ -63,6 +63,75 @@ public class ArrayBackedSortedColumnsTest extends SchemaLoader
     }
 
     @Test
+    public void testOutOfOrder()
+    {
+        testAddOutOfOrder(false);
+        testAddOutOfOrder(false);
+    }
+
+    private void testAddOutOfOrder(boolean reversed)
+    {
+        CellNameType type = new SimpleDenseCellNameType(Int32Type.instance);
+        ColumnFamily cells = ArrayBackedSortedColumns.factory.create(metadata(), reversed);
+
+        int[] values = new int[]{ 1, 2, 1, 3, 4, 4, 5, 5, 1, 2, 6, 6, 6, 1, 2, 3 };
+        for (int i = 0; i < values.length; ++i)
+            cells.addColumn(new Cell(type.makeCellName(values[reversed ? values.length - 1 - i : i])));
+
+        assertEquals(6, cells.getColumnCount());
+
+        Iterator<Cell> iter = cells.iterator();
+        assertEquals(1, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(2, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(3, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(4, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(5, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(6, iter.next().name().toByteBuffer().getInt(0));
+
+        // Add more values
+        values = new int[]{ 11, 15, 12, 12, 12, 16, 10, 8, 8, 7, 4, 4, 5 };
+        for (int i = 0; i < values.length; ++i)
+            cells.addColumn(new Cell(type.makeCellName(values[reversed ? values.length - 1 - i : i])));
+
+        assertEquals(13, cells.getColumnCount());
+
+        iter = cells.reverseIterator();
+        assertEquals(16, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(15, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(12, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(11, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(10, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(8,  iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(7, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(6, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(5, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(4, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(3, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(2, iter.next().name().toByteBuffer().getInt(0));
+        assertEquals(1, iter.next().name().toByteBuffer().getInt(0));
+    }
+
+    @Test
+    public void testGetColumn()
+    {
+        testGetColumnInternal(true);
+        testGetColumnInternal(false);
+    }
+
+    private void testGetColumnInternal(boolean reversed)
+    {
+        CellNameType type = new SimpleDenseCellNameType(Int32Type.instance);
+        ColumnFamily cells = ArrayBackedSortedColumns.factory.create(metadata(), reversed);
+
+        int[] values = new int[]{ -1, 20, 44, 55, 27, 27, 17, 1, 9, 89, 33, 44, 0, 9 };
+        for (int i = 0; i < values.length; ++i)
+            cells.addColumn(new Cell(type.makeCellName(values[reversed ? values.length - 1 - i : i])));
+
+        for (int i : values)
+            assertEquals(i, cells.getColumn(type.makeCellName(i)).name().toByteBuffer().getInt(0));
+    }
+
+    @Test
     public void testAddAll()
     {
         testAddAllInternal(false);
