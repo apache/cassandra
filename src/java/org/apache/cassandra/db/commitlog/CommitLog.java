@@ -56,7 +56,7 @@ public class CommitLog implements CommitLogMBean
     public static final int END_OF_SEGMENT_MARKER = 0;          // this is written out at the end of a segment
     public static final int END_OF_SEGMENT_MARKER_SIZE = 4;     // number of bytes of ^^^
 
-    public CommitLogSegment activeSegment;
+    public volatile CommitLogSegment activeSegment;
 
     private final CommitLogMetrics metrics;
 

@@ -19,8 +19,10 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Collection;
@@ -130,8 +132,8 @@ public class CommitLogSegment
             bufferStream = new DataOutputStream(new ChecksummedOutputStream(new ByteBufferOutputStream(buffer), checksum));
             buffer.putInt(CommitLog.END_OF_SEGMENT_MARKER);
             buffer.position(0);
-
             needsSync = true;
+            sync();
         }
         catch (IOException e)
         {
@@ -146,8 +148,54 @@ public class CommitLogSegment
     {
         // TODO shouldn't we close the file when we're done writing to it, which comes (potentially) much earlier than it's eligible for recyling?
         close();
+        // it's safe to simply try (and maybe fail) to delete the log file because we should only ever close()/discard() once
+        // the global ReplayPosition is past the current log file position, so we will never replay it; however to be on the
+        // safe side we attempt to rename/zero it if delete fails
         if (deleteFile)
-            FileUtils.deleteWithConfirm(logFile);
+        {
+            try
+            {
+                FileUtils.deleteWithConfirm(logFile);
+            }
+            catch (FSWriteError e)
+            {
+                // attempt to rename the file and zero its start, if possible, before throwing the error
+                File file = logFile;
+                try
+                {
+                    File newFile = new File(file.getPath() + ".discarded");
+                    FileUtils.renameWithConfirm(file, newFile);
+                    file = newFile;
+                }
+                catch (Throwable t)
+                {
+                }
+
+                try
+                {
+                    RandomAccessFile raf = new RandomAccessFile(file, "rw");
+                    ByteBuffer write = ByteBuffer.allocate(8);
+                    write.putInt(CommitLog.END_OF_SEGMENT_MARKER);
+                    write.position(0);
+                    raf.getChannel().write(write);
+                    raf.close();
+                    logger.error("{} {}, as we failed to delete it.", file == logFile ? "Zeroed" : "Renamed and zeroed", file);
+                }
+                catch (Throwable t)
+                {
+                    if (logFile == file)
+                    {
+                        logger.error("Could not rename or zero {}, which we also failed to delete. In the face of other issues this could result in unnecessary log replay.", t, file);
+                    }
+                    else
+                    {
+                        logger.error("Renamed {} to {}, as we failed to delete it, however we failed to zero its header.", t, logFile, file);
+                    }
+                }
+                throw e;
+            }
+
+        }
     }
 
     /**
@@ -157,23 +205,7 @@ public class CommitLogSegment
      */
     public CommitLogSegment recycle()
     {
-        // writes an end-of-segment marker at the very beginning of the file and closes it
-        buffer.position(0);
-        buffer.putInt(CommitLog.END_OF_SEGMENT_MARKER);
-        buffer.position(0);
-
-        try
-        {
-            sync();
-        }
-        catch (FSWriteError e)
-        {
-            logger.error("I/O error flushing " + this + " " + e);
-            throw e;
-        }
-
         close();
-
         return new CommitLogSegment(getPath());
     }
 
@@ -243,7 +275,7 @@ public class CommitLogSegment
     /**
      * Forces a disk flush for this segment file.
      */
-    public void sync()
+    public synchronized void sync()
     {
         if (needsSync)
         {
@@ -286,11 +318,12 @@ public class CommitLogSegment
     /**
      * Close the segment file.
      */
-    public void close()
+    public synchronized void close()
     {
         if (closed)
             return;
 
+        needsSync = false;
         try
         {
             FileUtils.clean(buffer);
@@ -381,7 +414,6 @@ public class CommitLogSegment
     {
         return buffer.position();
     }
-
 
     public static class CommitLogSegmentFileComparator implements Comparator<File>
     {
