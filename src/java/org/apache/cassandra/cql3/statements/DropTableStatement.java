@@ -38,7 +38,15 @@ public class DropTableStatement extends SchemaAlteringStatement
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
-        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.DROP);
+        try
+        {
+            state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.DROP);
+        }
+        catch (InvalidRequestException e)
+        {
+            if (!ifExists)
+                throw e;
+        }
     }
 
     public void validate(ClientState state)
