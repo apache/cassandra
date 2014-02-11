@@ -1,4 +1,5 @@
 1.2.16
+ * Fix broken streams when replacing with same IP (CASSANDRA-6622)
  * Fix upgradesstables NPE for non-CF-based indexes (CASSANDRA-6645)
  * Fix partition and range deletes not triggering flush (CASSANDRA-6655)
  * Fix mean cells and mean row size per sstable calculations (CASSANDRA-6667)

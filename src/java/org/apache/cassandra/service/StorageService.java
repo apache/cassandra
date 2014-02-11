@@ -735,6 +735,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         }
                     }
                 }
+                else
+                {
+                    try
+                    {
+                        Thread.sleep(RING_DELAY);
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new AssertionError(e);
+                    }
+
+                }
                 setMode(Mode.JOINING, "Replacing a node with token(s): " + tokens, true);
             }
 
