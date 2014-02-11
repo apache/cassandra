@@ -29,6 +29,8 @@
    ArrayBackedSortedColumns (CASSANDRA-6630, CASSANDRA-6662)
  * Add option to use row cache with a given amount of rows (CASSANDRA-5357)
  * Avoid repairing already repaired data (CASSANDRA-5351)
+ * Reject counter updates with USING TTL/TIMESTAMP (CASSANDRA-6649)
+
 
 2.0.6
  * Add compatibility for Hadoop 0.2.x (CASSANDRA-5201)
@@ -45,6 +47,7 @@ Merged from 1.2:
  * Fix partition and range deletes not triggering flush (CASSANDRA-6655)
  * Fix mean cells and mean row size per sstable calculations (CASSANDRA-6667)
  * Compact hints after partial replay to clean out tombstones (CASSANDRA-6666)
+ * Log USING TTL/TIMESTAMP in a counter update warning (CASSANDRA-6649)
 
 
 2.0.5

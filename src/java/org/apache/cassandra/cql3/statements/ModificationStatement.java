@@ -126,7 +126,13 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
     public void validate(ClientState state) throws InvalidRequestException
     {
         if (hasConditions() && attrs.isTimestampSet())
-            throw new InvalidRequestException("Custom timestamps are not allowed when conditions are used");
+            throw new InvalidRequestException("Cannot provide custom timestamp for conditional updates");
+
+        if (isCounter() && attrs.isTimestampSet())
+            throw new InvalidRequestException("Cannot provide custom timestamp for counter updates");
+
+        if (isCounter() && attrs.isTimeToLiveSet())
+            throw new InvalidRequestException("Cannot provide custom TTL for counter updates");
     }
 
     public void addOperation(Operation op)
@@ -657,13 +663,13 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
 
             ModificationStatement stmt = prepareInternal(metadata, boundNames, preparedAttributes);
 
-            if (ifNotExists || (conditions != null && !conditions.isEmpty()))
+            if (ifNotExists || !conditions.isEmpty())
             {
                 if (stmt.isCounter())
                     throw new InvalidRequestException("Conditional updates are not supported on counter tables");
 
                 if (attrs.timestamp != null)
-                    throw new InvalidRequestException("Cannot provide custom timestamp for conditional update");
+                    throw new InvalidRequestException("Cannot provide custom timestamp for conditional updates");
 
                 if (ifNotExists)
                 {
