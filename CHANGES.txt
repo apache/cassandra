@@ -1,4 +1,5 @@
 2.0.6
+ * Add compatibility for Hadoop 0.2.x (CASSANDRA-5201)
  * Fix EstimatedHistogram races (CASSANDRA-6682)
  * Failure detector correctly converts initial value to nanos (CASSANDRA-6658)
  * Add nodetool taketoken to relocate vnodes (CASSANDRA-4445)

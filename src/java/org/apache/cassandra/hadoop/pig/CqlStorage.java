@@ -23,6 +23,7 @@ import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 
+import com.twitter.elephantbird.util.HadoopCompat;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Column;
@@ -197,7 +198,7 @@ public class CqlStorage extends AbstractCassandraStorage
     /** set read configuration settings */
     public void setLocation(String location, Job job) throws IOException
     {
-        conf = job.getConfiguration();
+        conf = HadoopCompat.getConfiguration(job);
         setLocationFromUri(location);
 
         if (username != null && password != null)
@@ -256,7 +257,7 @@ public class CqlStorage extends AbstractCassandraStorage
     /** set store configuration settings */
     public void setStoreLocation(String location, Job job) throws IOException
     {
-        conf = job.getConfiguration();
+        conf = HadoopCompat.getConfiguration(job);
         setLocationFromUri(location);
 
         if (username != null && password != null)

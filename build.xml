@@ -367,6 +367,7 @@
           </dependency>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3"/>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" version="1.0.3"/>
+          <dependency groupId="com.twitter.elephantbird" artifactId="elephant-bird-hadoop-compat" version="4.3"/>
           <dependency groupId="org.apache.pig" artifactId="pig" version="0.10.0"/>
           <dependency groupId="net.java.dev.jna" artifactId="jna" version="3.2.7"/>
 
@@ -408,6 +409,7 @@
         <dependency groupId="org.apache.rat" artifactId="apache-rat"/>
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core"/>
       	<dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster"/>
+        <dependency groupId="com.twitter.elephantbird" artifactId="elephant-bird-hadoop-compat"/>
         <dependency groupId="org.apache.pig" artifactId="pig"/>
 
         <dependency groupId="net.java.dev.jna" artifactId="jna"/>
@@ -470,6 +472,7 @@
         <!-- don't need hadoop classes to run, but if you use the hadoop stuff -->
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" optional="true"/>
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" optional="true"/>
+        <dependency groupId="com.twitter.elephantbird" artifactId="elephant-bird-hadoop-compat" optional="true"/>
         <dependency groupId="org.apache.pig" artifactId="pig" optional="true"/>
 
         <!-- don't need jna to run, but nice to have -->

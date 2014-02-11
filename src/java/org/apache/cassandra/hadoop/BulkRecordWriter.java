@@ -28,6 +28,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import com.twitter.elephantbird.util.HadoopCompat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,7 +86,7 @@ implements org.apache.hadoop.mapred.RecordWriter<ByteBuffer,List<Mutation>>
 
     BulkRecordWriter(TaskAttemptContext context)
     {
-        this(context.getConfiguration());
+        this(HadoopCompat.getConfiguration(context));
         this.progress = new Progressable(context);
     }
 
