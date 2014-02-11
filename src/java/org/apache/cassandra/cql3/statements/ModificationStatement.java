@@ -20,6 +20,9 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
@@ -44,6 +47,11 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
     {
         LOGGED, UNLOGGED, COUNTER
     }
+
+    private static final Logger logger = LoggerFactory.getLogger(ModificationStatement.class);
+
+    private static boolean loggedCounterTTL = false;
+    private static boolean loggedCounterTimestamp = false;
 
     protected Type type;
 
@@ -74,6 +82,25 @@ public abstract class ModificationStatement extends CFStatement implements CQLSt
 
         if (timeToLive > ExpiringColumn.MAX_TTL)
             throw new InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", timeToLive, ExpiringColumn.MAX_TTL));
+
+        if (type == Type.COUNTER)
+        {
+            if (timestamp != null && !loggedCounterTimestamp)
+            {
+                logger.warn("Detected use of 'USING TIMESTAMP' in a counter UPDATE. This is invalid " +
+                            "because counters do not use timestamps, and the timestamp has been ignored. " +
+                            "Such queries will be rejected in Cassandra 2.1+ - please fix your queries before then.");
+                loggedCounterTimestamp = true;
+            }
+
+            if (timeToLive != 0 && !loggedCounterTTL)
+            {
+                logger.warn("Detected use of 'USING TTL' in a counter UPDATE. This is invalid " +
+                            "because counter tables do not support TTL, and the TTL value has been ignored. " +
+                            "Such queries will be rejected in Cassandra 2.1+ - please fix your queries before then.");
+                loggedCounterTTL = true;
+            }
+        }
     }
 
     protected abstract void validateConsistency(ConsistencyLevel cl) throws InvalidRequestException;
