@@ -70,6 +70,7 @@ public class AntiCompactionTest extends SchemaLoader
         Range<Token> range = new Range<Token>(new BytesToken("0".getBytes()), new BytesToken("4".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
 
+        SSTableReader.acquireReferences(sstables);
         long repairedAt = 1000;
         CompactionManager.instance.performAnticompaction(store, ranges, sstables, repairedAt);
 

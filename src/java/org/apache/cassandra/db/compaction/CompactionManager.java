@@ -302,7 +302,7 @@ public class CompactionManager implements CompactionManagerMBean
      *
      * @param cfs
      * @param ranges Ranges that the repair was carried out on
-     * @param validatedForRepair SSTables containing the repaired ranges
+     * @param validatedForRepair SSTables containing the repaired ranges. Should be referenced before passing them.
      * @throws InterruptedException, ExecutionException, IOException
      */
     public void performAnticompaction(ColumnFamilyStore cfs,
