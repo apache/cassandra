@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.twitter.elephantbird.util.HadoopCompat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,7 +85,7 @@ class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String, ByteB
      */
     CqlRecordWriter(TaskAttemptContext context) throws IOException
     {
-        this(context.getConfiguration());
+        this(HadoopCompat.getConfiguration(context));
         this.progressable = new Progressable(context);
     }
 

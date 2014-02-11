@@ -23,6 +23,7 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.twitter.elephantbird.util.HadoopCompat;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.thrift.*;
@@ -60,7 +61,7 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
      */
     ColumnFamilyRecordWriter(TaskAttemptContext context)
     {
-        this(context.getConfiguration());
+        this(HadoopCompat.getConfiguration(context));
         this.progressable = new Progressable(context);
     }
 

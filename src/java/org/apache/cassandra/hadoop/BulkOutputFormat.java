@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import com.twitter.elephantbird.util.HadoopCompat;
 import org.apache.cassandra.thrift.Mutation;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.*;
@@ -32,7 +33,7 @@ public class BulkOutputFormat extends OutputFormat<ByteBuffer,List<Mutation>>
     @Override
     public void checkOutputSpecs(JobContext context)
     {
-        checkOutputSpecs(context.getConfiguration());
+        checkOutputSpecs(HadoopCompat.getConfiguration(context));
     }
 
     private void checkOutputSpecs(Configuration conf)

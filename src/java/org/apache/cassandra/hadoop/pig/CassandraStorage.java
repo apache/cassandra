@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
+import com.twitter.elephantbird.util.HadoopCompat;
 import org.apache.cassandra.db.Cell;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -282,7 +283,7 @@ public class CassandraStorage extends AbstractCassandraStorage
     /** set read configuration settings */
     public void setLocation(String location, Job job) throws IOException
     {
-        conf = job.getConfiguration();
+        conf = HadoopCompat.getConfiguration(job);
         setLocationFromUri(location);
 
         if (ConfigHelper.getInputSlicePredicate(conf) == null)
@@ -339,7 +340,7 @@ public class CassandraStorage extends AbstractCassandraStorage
     /** set store configuration settings */
     public void setStoreLocation(String location, Job job) throws IOException
     {
-        conf = job.getConfiguration();
+        conf = HadoopCompat.getConfiguration(job);
         
         // don't combine mappers to a single mapper per node
         conf.setBoolean("pig.noSplitCombination", true);

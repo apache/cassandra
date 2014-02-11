@@ -21,7 +21,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
+import com.twitter.elephantbird.util.HadoopCompat;
 import org.apache.cassandra.hadoop.AbstractColumnFamilyInputFormat;
+import org.apache.cassandra.hadoop.ReporterWrapper;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
@@ -58,14 +60,14 @@ public class CqlPagingInputFormat extends AbstractColumnFamilyInputFormat<Map<St
     public RecordReader<Map<String, ByteBuffer>, Map<String, ByteBuffer>> getRecordReader(InputSplit split, JobConf jobConf, final Reporter reporter)
             throws IOException
     {
-        TaskAttemptContext tac = new TaskAttemptContext(jobConf, TaskAttemptID.forName(jobConf.get(MAPRED_TASK_ID)))
-        {
-            @Override
-            public void progress()
-            {
-                reporter.progress();
-            }
-        };
+        TaskAttemptContext tac = HadoopCompat.newMapContext(
+                jobConf,
+                TaskAttemptID.forName(jobConf.get(MAPRED_TASK_ID)),
+                null,
+                null,
+                null,
+                new ReporterWrapper(reporter),
+                null);
 
         CqlPagingRecordReader recordReader = new CqlPagingRecordReader();
         recordReader.initialize((org.apache.hadoop.mapreduce.InputSplit)split, tac);
