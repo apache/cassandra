@@ -16,10 +16,10 @@ public abstract class RowGen
         this.dataGen = dataGenerator;
     }
 
-    public List<ByteBuffer> generate(long operationIndex)
+    public List<ByteBuffer> generate(long operationIndex, ByteBuffer key)
     {
         List<ByteBuffer> fill = getColumns(operationIndex);
-        dataGen.generate(fill, operationIndex);
+        dataGen.generate(fill, operationIndex, key);
         return fill;
     }
 

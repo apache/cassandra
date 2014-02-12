@@ -21,10 +21,25 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
 
 import org.apache.cassandra.stress.generatedata.KeyGen;
 import org.apache.cassandra.stress.generatedata.RowGen;
+import org.apache.cassandra.stress.operations.CqlCounterAdder;
+import org.apache.cassandra.stress.operations.CqlCounterGetter;
+import org.apache.cassandra.stress.operations.CqlIndexedRangeSlicer;
+import org.apache.cassandra.stress.operations.CqlInserter;
+import org.apache.cassandra.stress.operations.CqlMultiGetter;
+import org.apache.cassandra.stress.operations.CqlRangeSlicer;
+import org.apache.cassandra.stress.operations.CqlReader;
+import org.apache.cassandra.stress.operations.ThriftCounterAdder;
+import org.apache.cassandra.stress.operations.ThriftCounterGetter;
+import org.apache.cassandra.stress.operations.ThriftIndexedRangeSlicer;
+import org.apache.cassandra.stress.operations.ThriftInserter;
+import org.apache.cassandra.stress.operations.ThriftMultiGetter;
+import org.apache.cassandra.stress.operations.ThriftRangeSlicer;
+import org.apache.cassandra.stress.operations.ThriftReader;
 import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.CqlVersion;
 import org.apache.cassandra.stress.settings.SettingsCommandMixed;
@@ -66,7 +81,8 @@ public abstract class Operation
         public final RowGen rowGen;
         public final List<ColumnParent> columnParents;
         public final StressMetrics metrics;
-        public final SettingsCommandMixed.CommandSelector readWriteSelector;
+        public final SettingsCommandMixed.CommandSelector commandSelector;
+        private final EnumMap<Command, State> substates;
         private Object cqlCache;
 
         public State(Command type, StressSettings settings, StressMetrics metrics)
@@ -74,9 +90,15 @@ public abstract class Operation
             this.type = type;
             this.timer = metrics.getTiming().newTimer();
             if (type == Command.MIXED)
-                readWriteSelector = ((SettingsCommandMixed) settings.command).selector();
+            {
+                commandSelector = ((SettingsCommandMixed) settings.command).selector();
+                substates = new EnumMap<>(Command.class);
+            }
             else
-                readWriteSelector = null;
+            {
+                commandSelector = null;
+                substates = null;
+            }
             this.settings = settings;
             this.keyGen = settings.keys.newKeyGen();
             this.rowGen = settings.columns.newRowGen();
@@ -91,6 +113,20 @@ public abstract class Operation
                 columnParents = Arrays.asList(cp);
             }
         }
+
+        private State(Command type, State copy)
+        {
+            this.type = type;
+            this.timer = copy.timer;
+            this.rowGen = copy.rowGen;
+            this.keyGen = copy.keyGen;
+            this.columnParents = copy.columnParents;
+            this.metrics = copy.metrics;
+            this.settings = copy.settings;
+            this.substates = null;
+            this.commandSelector = null;
+        }
+
         public boolean isCql3()
         {
             return settings.mode.cqlVersion == CqlVersion.CQL3;
@@ -107,6 +143,18 @@ public abstract class Operation
         {
             cqlCache = val;
         }
+
+        public State substate(Command command)
+        {
+            assert type == Command.MIXED;
+            State substate = substates.get(command);
+            if (substate == null)
+            {
+                substates.put(command, substate = new State(command, this));
+            }
+            return substate;
+        }
+
     }
 
     protected ByteBuffer getKey()
@@ -119,9 +167,9 @@ public abstract class Operation
         return state.keyGen.getKeys(count, index);
     }
 
-    protected List<ByteBuffer> generateColumnValues()
+    protected List<ByteBuffer> generateColumnValues(ByteBuffer key)
     {
-        return state.rowGen.generate(index);
+        return state.rowGen.generate(index, key);
     }
 
     /**
@@ -146,20 +194,18 @@ public abstract class Operation
         boolean success = false;
         String exceptionMessage = null;
 
-        for (int t = 0; t < state.settings.command.tries; t++)
+        int tries = 0;
+        for (; tries < state.settings.command.tries; tries++)
         {
-            if (success)
-                break;
-
             try
             {
                 success = run.run();
+                break;
             }
             catch (Exception e)
             {
                 System.err.println(e);
                 exceptionMessage = getExceptionMessage(e);
-                success = false;
             }
         }
 
@@ -167,11 +213,13 @@ public abstract class Operation
 
         if (!success)
         {
-            error(String.format("Operation [%d] retried %d times - error executing for key %s %s%n",
+            error(String.format("Operation [%d] x%d key %s %s%n",
                     index,
-                    state.settings.command.tries,
+                    tries,
                     run.key(),
-                    (exceptionMessage == null) ? "" : "(" + exceptionMessage + ")"));
+                    (exceptionMessage == null)
+                        ? "Data returned was not validated"
+                        : "Error executing: " + exceptionMessage));
         }
 
     }

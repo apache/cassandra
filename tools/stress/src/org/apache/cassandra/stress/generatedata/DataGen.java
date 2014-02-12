@@ -6,13 +6,13 @@ import java.util.List;
 public abstract class DataGen
 {
 
-    public abstract void generate(ByteBuffer fill, long offset);
+    public abstract void generate(ByteBuffer fill, long index, ByteBuffer seed);
     public abstract boolean isDeterministic();
 
-    public void generate(List<ByteBuffer> fills, long offset)
+    public void generate(List<ByteBuffer> fills, long index, ByteBuffer seed)
     {
         for (ByteBuffer fill : fills)
-            generate(fill, offset++);
+            generate(fill, index++, seed);
     }
 
 }

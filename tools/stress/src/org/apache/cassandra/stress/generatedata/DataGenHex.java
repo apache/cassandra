@@ -8,7 +8,7 @@ public abstract class DataGenHex extends DataGen
     abstract long next(long operationIndex);
 
     @Override
-    public final void generate(ByteBuffer fill, long operationIndex)
+    public final void generate(ByteBuffer fill, long operationIndex, ByteBuffer seed)
     {
         fill.clear();
         fillKeyStringBytes(next(operationIndex), fill.array());

@@ -49,7 +49,7 @@ public class ThriftIndexedRangeSlicer extends Operation
                 .setSlice_range(new SliceRange(ByteBufferUtil.EMPTY_BYTE_BUFFER,
                         ByteBufferUtil.EMPTY_BYTE_BUFFER,
                         false, state.settings.columns.maxColumnsPerKey));
-        final List<ByteBuffer> columns = generateColumnValues();
+        final List<ByteBuffer> columns = generateColumnValues(getKey());
         final ColumnParent parent = state.columnParents.get(0);
 
         final ByteBuffer columnName = getColumnNameBytes(1);

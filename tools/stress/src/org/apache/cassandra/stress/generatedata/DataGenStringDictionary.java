@@ -25,13 +25,13 @@ public class DataGenStringDictionary extends DataGen
     }
 
     @Override
-    public void generate(ByteBuffer fill, long index)
+    public void generate(ByteBuffer fill, long index, ByteBuffer seed)
     {
         fill(fill, 0);
     }
 
     @Override
-    public void generate(List<ByteBuffer> fills, long index)
+    public void generate(List<ByteBuffer> fills, long index, ByteBuffer seed)
     {
         for (int i = 0 ; i < fills.size() ; i++)
             fill(fills.get(0), i);
@@ -55,7 +55,7 @@ public class DataGenStringDictionary extends DataGen
     @Override
     public boolean isDeterministic()
     {
-        return true;
+        return false;
     }
 
     public static DataGenFactory getFactory(File file) throws IOException

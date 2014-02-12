@@ -73,9 +73,10 @@ public class SettingsKey implements Serializable
 
     public KeyGen newKeyGen()
     {
-        if (range != null)
-            return new KeyGen(new DataGenHexFromOpIndex(range[0], range[1]), keySize);
-        return new KeyGen(new DataGenHexFromDistribution(distribution.get()), keySize);
+        return new KeyGen(range == null
+                            ? new DataGenHexFromDistribution(distribution.get())
+                            : new DataGenHexFromOpIndex(range[0], range[1]),
+                          keySize);
     }
 
     // CLI Utility Methods

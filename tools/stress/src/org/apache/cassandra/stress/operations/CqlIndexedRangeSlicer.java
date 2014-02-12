@@ -70,7 +70,7 @@ public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
     protected void run(CqlOperation.ClientWrapper client) throws IOException
     {
         acceptNoResults = false;
-        final List<ByteBuffer> columns = generateColumnValues();
+        final List<ByteBuffer> columns = generateColumnValues(getKey());
         final ByteBuffer value = columns.get(1); // only C1 column is indexed
         byte[] minKey = new byte[0];
         int rowCount;

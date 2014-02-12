@@ -25,32 +25,32 @@ public class DataGenStringRepeats extends DataGen
     }
 
     @Override
-    public void generate(ByteBuffer fill, long index)
+    public void generate(ByteBuffer fill, long index, ByteBuffer seed)
     {
-        fill(fill, index, 0);
+        fill(fill, index, 0, seed);
     }
 
     @Override
-    public void generate(List<ByteBuffer> fills, long index)
+    public void generate(List<ByteBuffer> fills, long index, ByteBuffer seed)
     {
         for (int i = 0 ; i < fills.size() ; i++)
         {
-            fill(fills.get(i), index, i);
+            fill(fills.get(i), index, i, seed);
         }
     }
 
-    private void fill(ByteBuffer fill, long index, int column)
+    private void fill(ByteBuffer fill, long index, int column, ByteBuffer seed)
     {
         fill.clear();
         byte[] trg = fill.array();
-        byte[] src = getData(index, column);
+        byte[] src = getData(index, column, seed);
         for (int j = 0 ; j < trg.length ; j += src.length)
             System.arraycopy(src, 0, trg, j, Math.min(src.length, trg.length - j));
     }
 
-    private byte[] getData(long index, int column)
+    private byte[] getData(long index, int column, ByteBuffer seed)
     {
-        final long key = (column * repeatFrequency) + (index % repeatFrequency);
+        final long key = (column * repeatFrequency) + ((seed == null ? index : Math.abs(seed.hashCode())) % repeatFrequency);
         byte[] r = cache.get(key);
         if (r != null)
             return r;
