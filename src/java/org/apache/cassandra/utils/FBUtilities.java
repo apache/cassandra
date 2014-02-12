@@ -693,4 +693,16 @@ public class FBUtilities
     {
         return OPERATING_SYSTEM.contains("nix") || OPERATING_SYSTEM.contains("nux") || OPERATING_SYSTEM.contains("aix");
     }
+
+    public static InetAddress getLoopback()
+    {
+        try
+        {
+            return InetAddress.getByName(null);
+        }
+        catch (UnknownHostException e)
+        {
+            throw new AssertionError(e);
+        }
+    }
 }
