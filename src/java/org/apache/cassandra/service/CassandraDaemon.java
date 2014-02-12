@@ -542,7 +542,7 @@ public class CassandraDaemon
         if (totalPolls > GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED)
             logger.info("Gossip settled after {} extra polls; proceeding", totalPolls - GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED);
         else
-            logger.debug("Gossip settled after {} extra polls; proceeding", totalPolls - GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED);
+            logger.info("No gossip backlog; proceeding");
     }
 
     public static void stop(String[] args)
