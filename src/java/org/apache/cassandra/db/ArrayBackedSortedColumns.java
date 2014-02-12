@@ -37,13 +37,13 @@ import org.apache.cassandra.db.filter.ColumnSlice;
  * main operations performed are iterating over the cells and adding cells
  * (especially if insertion is in sorted order).
  */
-public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
+public class ArrayBackedSortedColumns extends ColumnFamily
 {
-    private static final int INITIAL_CAPACITY = 10;
-
     private static final Cell[] EMPTY_ARRAY = new Cell[0];
+    private static final int MINIMAL_CAPACITY = 10;
 
     private final boolean reversed;
+    private DeletionInfo deletionInfo;
 
     private Cell[] cells;
     private int size;
@@ -61,7 +61,8 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
     {
         super(metadata);
         this.reversed = reversed;
-        this.cells = new Cell[INITIAL_CAPACITY];
+        this.deletionInfo = DeletionInfo.live();
+        this.cells = EMPTY_ARRAY;
         this.size = 0;
         this.sortedSize = 0;
     }
@@ -70,6 +71,7 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
     {
         super(original.metadata);
         this.reversed = original.reversed;
+        this.deletionInfo = DeletionInfo.live(); // this is INTENTIONALLY not set to original.deletionInfo.
         this.cells = Arrays.copyOf(original.cells, original.size);
         this.size = original.size;
         this.sortedSize = original.sortedSize;
@@ -211,9 +213,11 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
      */
     private void internalAdd(Cell cell)
     {
-        // Resize the backing array if we hit the capacity
-        if (cells.length == size)
+        if (cells == EMPTY_ARRAY)
+            cells = new Cell[MINIMAL_CAPACITY];
+        else if (cells.length == size)
             cells = Arrays.copyOf(cells, size * 3 / 2 + 1);
+
         cells[size++] = cell;
     }
 
@@ -316,6 +320,40 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
         for (int i = 0; i < size; i++)
             cells[i] = null;
         size = sortedSize = 0;
+    }
+
+    public DeletionInfo deletionInfo()
+    {
+        return deletionInfo;
+    }
+
+    public void delete(DeletionTime delTime)
+    {
+        deletionInfo.add(delTime);
+    }
+
+    public void delete(DeletionInfo newInfo)
+    {
+        deletionInfo.add(newInfo);
+    }
+
+    protected void delete(RangeTombstone tombstone)
+    {
+        deletionInfo.add(tombstone, getComparator());
+    }
+
+    public void setDeletionInfo(DeletionInfo newInfo)
+    {
+        deletionInfo = newInfo;
+    }
+
+    /**
+     * Purges any tombstones with a local deletion time before gcBefore.
+     * @param gcBefore a timestamp (in seconds) before which tombstones should be purged
+     */
+    public void purgeTombstones(int gcBefore)
+    {
+        deletionInfo.purge(gcBefore);
     }
 
     public Iterable<CellName> getColumnNames()

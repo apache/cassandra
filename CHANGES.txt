@@ -25,8 +25,8 @@
  * CF id is changed to be non-deterministic. Data dir/key cache are created
    uniquely for CF id (CASSANDRA-5202)
  * New counters implementation (CASSANDRA-6504)
- * Replace UnsortedColumns and TreeMapBackedSortedColumns with rewritten
-   ArrayBackedSortedColumns (CASSANDRA-6630, CASSANDRA-6662)
+ * Replace UnsortedColumns, EmptyColumns, TreeMapBackedSortedColumns with new
+   ArrayBackedSortedColumns (CASSANDRA-6630, CASSANDRA-6662, CASSANDRA-6690)
  * Add option to use row cache with a given amount of rows (CASSANDRA-5357)
  * Avoid repairing already repaired data (CASSANDRA-5351)
  * Reject counter updates with USING TTL/TIMESTAMP (CASSANDRA-6649)

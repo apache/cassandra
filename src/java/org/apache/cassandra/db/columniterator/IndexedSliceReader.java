@@ -77,7 +77,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         try
         {
             this.indexes = indexEntry.columnsIndex();
-            emptyColumnFamily = EmptyColumns.factory.create(sstable.metadata);
+            emptyColumnFamily = ArrayBackedSortedColumns.factory.create(sstable.metadata);
             if (indexes.isEmpty())
             {
                 setToRowStart(indexEntry, input);
