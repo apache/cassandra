@@ -5,6 +5,7 @@
  * Fix mean cells and mean row size per sstable calculations (CASSANDRA-6667)
  * Compact hints after partial replay to clean out tombstones (CASSANDRA-6666)
  * Log USING TTL/TIMESTAMP in a counter update warning (CASSANDRA-6649)
+ * Don't exchange schema between nodes with different versions (CASSANDRA-6695)
 
 
 1.2.15

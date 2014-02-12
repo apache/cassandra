@@ -134,13 +134,11 @@ public class MigrationManager
     private static boolean shouldPullSchemaFrom(InetAddress endpoint)
     {
         /*
-         * Don't request schema from nodes with versions younger than 1.1.7 (timestamps in versions prior to 1.1.7 are broken)
-         * Don't request schema from nodes with a higher major (may have incompatible schema)
+         * Don't request schema from nodes with a differnt or unknonw major version (may have incompatible schema)
          * Don't request schema from fat clients
          */
         return MessagingService.instance().knowsVersion(endpoint)
-                && MessagingService.instance().getVersion(endpoint) >= MessagingService.VERSION_117
-                && MessagingService.instance().getVersion(endpoint) <= MessagingService.current_version
+                && MessagingService.instance().getVersion(endpoint) == MessagingService.current_version
                 && !Gossiper.instance.isFatClient(endpoint);
     }
 
@@ -291,15 +289,13 @@ public class MigrationManager
 
         for (InetAddress endpoint : Gossiper.instance.getLiveMembers())
         {
-            if (endpoint.equals(FBUtilities.getBroadcastAddress()))
-                continue; // we've dealt with localhost already
-
-            // don't send schema to the nodes with the versions older than current major
-            if (MessagingService.instance().getVersion(endpoint) < MessagingService.current_version)
-                continue;
-
-            pushSchemaMutation(endpoint, schema);
+            // only push schema to nodes with known and equal versions
+            if (!endpoint.equals(FBUtilities.getBroadcastAddress()) &&
+                    MessagingService.instance().knowsVersion(endpoint) &&
+                    MessagingService.instance().getVersion(endpoint) == MessagingService.current_version)
+                pushSchemaMutation(endpoint, schema);
         }
+
         return f;
     }
 
