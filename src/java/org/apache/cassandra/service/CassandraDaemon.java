@@ -60,6 +60,7 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.thrift.ThriftServer;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CLibrary;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Mx4jTool;
 import org.apache.cassandra.utils.Pair;
 
@@ -372,7 +373,8 @@ public class CassandraDaemon
             }
         }
 
-        waitForGossipToSettle();
+        if (!FBUtilities.getBroadcastAddress().equals(FBUtilities.getLoopback()))
+            waitForGossipToSettle();
 
         // Thift
         InetAddress rpcAddr = DatabaseDescriptor.getRpcAddress();
@@ -497,7 +499,6 @@ public class CassandraDaemon
         stop();
         destroy();
     }
-
 
     private void waitForGossipToSettle()
     {
