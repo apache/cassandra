@@ -332,7 +332,7 @@ public class CassandraDaemon
             }
         }
 
-        if (!FBUtilities.getBroadcastAddress().equals(FBUtilities.getLoopback()))
+        if (!FBUtilities.getBroadcastAddress().equals(InetAddress.getLoopbackAddress()))
             waitForGossipToSettle();
 
         // Thift
