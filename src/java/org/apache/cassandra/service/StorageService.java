@@ -843,7 +843,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (!current.isEmpty())
                 for (InetAddress existing : current)
                     Gossiper.instance.replacedEndpoint(existing);
-            logger.info("Startup completed! Now serving reads.");
             assert tokenMetadata.sortedTokens().size() > 0;
 
             Auth.setup();
