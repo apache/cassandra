@@ -62,7 +62,9 @@ public class JavaDriverClient
     public void connect(ProtocolOptions.Compression compression) throws Exception
     {
         Cluster.Builder clusterBuilder = Cluster.builder()
-                .addContactPoint(host).withPort(port);
+                                                .addContactPoint(host)
+                                                .withPort(port)
+                                                .withoutMetrics(); // The driver uses metrics 3 with conflict with our version
         clusterBuilder.withCompression(compression);
         if (encryptionOptions.enabled)
         {
@@ -142,7 +144,6 @@ public class JavaDriverClient
 
     public void disconnect()
     {
-        FBUtilities.waitOnFuture(cluster.shutdown());
+        cluster.close();
     }
-
 }
