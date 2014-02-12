@@ -21,7 +21,7 @@ public class KeyGen
     {
         while (keyBuffers.size() < n)
             keyBuffers.add(ByteBuffer.wrap(new byte[keySize]));
-        dataGen.generate(keyBuffers, index);
+        dataGen.generate(keyBuffers, index, null);
         return keyBuffers;
     }
 

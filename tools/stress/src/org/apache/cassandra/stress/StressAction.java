@@ -93,6 +93,10 @@ public class StressAction implements Runnable
             default:
                 throw new IllegalStateException();
         }
+
+        // we need to warm up all the nodes in the cluster ideally, but we may not be the only stress instance;
+        // so warm up all the nodes we're speaking to only.
+        iterations *= settings.node.nodes.size();
         output.println(String.format("Warming up %s with %d iterations...", type, iterations));
         run(type, 20, iterations, warmupOutput);
     }
@@ -533,7 +537,8 @@ public class StressAction implements Runnable
                 }
 
             case MIXED:
-                return createOperation(state.readWriteSelector.next(), state, index);
+                Command subcommand = state.commandSelector.next();
+                return createOperation(subcommand, state.substate(subcommand), index);
 
         }
 

@@ -42,7 +42,7 @@ public final class ThriftInserter extends Operation
     public void run(final ThriftClient client) throws IOException
     {
         final ByteBuffer key = getKey();
-        final List<Column> columns = generateColumns();
+        final List<Column> columns = generateColumns(key);
 
         Map<String, List<Mutation>> row;
         if (!state.settings.columns.useSuperColumns)
@@ -92,9 +92,9 @@ public final class ThriftInserter extends Operation
         });
     }
 
-    protected List<Column> generateColumns()
+    protected List<Column> generateColumns(ByteBuffer key)
     {
-        final List<ByteBuffer> values = generateColumnValues();
+        final List<ByteBuffer> values = generateColumnValues(key);
         final List<Column> columns = new ArrayList<>(values.size());
 
         if (state.settings.columns.useTimeUUIDComparator)

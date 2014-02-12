@@ -20,6 +20,7 @@ package org.apache.cassandra.stress.operations;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 
 import com.datastax.driver.core.PreparedStatement;
@@ -33,6 +34,7 @@ import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.thrift.Compression;
 import org.apache.cassandra.thrift.CqlResult;
+import org.apache.cassandra.thrift.CqlRow;
 import org.apache.cassandra.thrift.ThriftConversion;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -165,6 +167,35 @@ public abstract class CqlOperation<V> extends Operation
             return result.length;
         }
 
+    }
+
+    protected final class CqlRunOpMatchResults extends CqlRunOp<ByteBuffer[][]>
+    {
+
+        final List<List<ByteBuffer>> expect;
+
+        // a null value for an item in expect means we just check the row is present
+        protected CqlRunOpMatchResults(ClientWrapper client, String query, Object queryId, List<ByteBuffer> params, String id, ByteBuffer key, List<List<ByteBuffer>> expect)
+        {
+            super(client, query, queryId, RowsHandler.INSTANCE, params, id, key);
+            this.expect = expect;
+        }
+
+        @Override
+        public int keyCount()
+        {
+            return result == null ? 0 : result.length;
+        }
+
+        public boolean validate(ByteBuffer[][] result)
+        {
+            if (result.length != expect.size())
+                return false;
+            for (int i = 0 ; i < result.length ; i++)
+                if (!expect.get(i).equals(Arrays.asList(result[i])))
+                    return false;
+            return true;
+        }
     }
 
     // Cql
@@ -450,6 +481,87 @@ public abstract class CqlOperation<V> extends Operation
 
     }
 
+    // Processes results from each client into an array of all key bytes returned
+    protected static final class RowsHandler implements ResultHandler<ByteBuffer[][]>
+    {
+        static final RowsHandler INSTANCE = new RowsHandler();
+
+        @Override
+        public Function<ResultSet, ByteBuffer[][]> javaDriverHandler()
+        {
+            return new Function<ResultSet, ByteBuffer[][]>()
+            {
+
+                @Override
+                public ByteBuffer[][] apply(ResultSet result)
+                {
+                    if (result == null)
+                        return new ByteBuffer[0][];
+                    List<Row> rows = result.all();
+
+                    ByteBuffer[][] r = new ByteBuffer[rows.size()][];
+                    for (int i = 0 ; i < r.length ; i++)
+                    {
+                        Row row = rows.get(i);
+                        r[i] = new ByteBuffer[row.getColumnDefinitions().size() - 1];
+                        for (int j = 1 ; j < row.getColumnDefinitions().size() ; j++)
+                            r[i][j - 1] = row.getBytes(j);
+                    }
+                    return r;
+                }
+            };
+        }
+
+        @Override
+        public Function<ResultMessage, ByteBuffer[][]> thriftHandler()
+        {
+            return new Function<ResultMessage, ByteBuffer[][]>()
+            {
+
+                @Override
+                public ByteBuffer[][] apply(ResultMessage result)
+                {
+                    if (result instanceof ResultMessage.Rows)
+                    {
+                        ResultMessage.Rows rows = ((ResultMessage.Rows) result);
+                        ByteBuffer[][] r = new ByteBuffer[rows.result.size()][];
+                        for (int i = 0 ; i < r.length ; i++)
+                        {
+                            List<ByteBuffer> row = rows.result.rows.get(i);
+                            r[i] = new ByteBuffer[row.size()];
+                            for (int j = 0 ; j < row.size() ; j++)
+                                r[i][j] = row.get(j);
+                        }
+                        return r;
+                    }
+                    return new ByteBuffer[0][];
+                }
+            };
+        }
+
+        @Override
+        public Function<CqlResult, ByteBuffer[][]> simpleNativeHandler()
+        {
+            return new Function<CqlResult, ByteBuffer[][]>()
+            {
+
+                @Override
+                public ByteBuffer[][] apply(CqlResult result)
+                {
+                    ByteBuffer[][] r = new ByteBuffer[result.getRows().size()][];
+                    for (int i = 0 ; i < r.length ; i++)
+                    {
+                        CqlRow row = result.getRows().get(i);
+                        r[i] = new ByteBuffer[row.getColumns().size()];
+                        for (int j = 0 ; j < r[i].length ; j++)
+                            r[i][j] = ByteBuffer.wrap(row.getColumns().get(j).getValue());
+                    }
+                    return r;
+                }
+            };
+        }
+
+    }
     // Processes results from each client into an array of all key bytes returned
     protected static final class KeysHandler implements ResultHandler<byte[][]>
     {

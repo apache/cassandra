@@ -39,7 +39,7 @@ public class ThriftCounterAdder extends Operation
 
     public void run(final ThriftClient client) throws IOException
     {
-        List<CounterColumn> columns = new ArrayList<CounterColumn>();
+        List<CounterColumn> columns = new ArrayList<>();
         for (int i = 0; i < state.settings.columns.maxColumnsPerKey; i++)
             columns.add(new CounterColumn(getColumnNameBytes(i), 1L));
 

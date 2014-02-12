@@ -19,12 +19,16 @@ package org.apache.cassandra.stress.operations;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.util.ThriftClient;
+import org.apache.cassandra.thrift.ColumnOrSuperColumn;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
+import org.apache.cassandra.thrift.SuperColumn;
 
 public final class ThriftReader extends Operation
 {
@@ -48,6 +52,7 @@ public final class ThriftReader extends Operation
             predicate.setColumn_names(state.settings.columns.names);
 
         final ByteBuffer key = getKey();
+        final List<ByteBuffer> expect = state.rowGen.isDeterministic() ? generateColumnValues(key) : null;
         for (final ColumnParent parent : state.columnParents)
         {
             timeWithRetry(new RunOp()
@@ -55,7 +60,30 @@ public final class ThriftReader extends Operation
                 @Override
                 public boolean run() throws Exception
                 {
-                    return client.get_slice(key, parent, predicate, state.settings.command.consistencyLevel).size() != 0;
+                    List<ColumnOrSuperColumn> row = client.get_slice(key, parent, predicate, state.settings.command.consistencyLevel);
+                    if (expect == null)
+                        return !row.isEmpty();
+                    if (!state.settings.columns.useSuperColumns)
+                    {
+                        if (row.size() != expect.size())
+                            return false;
+                        for (int i = 0 ; i < row.size() ; i++)
+                            if (!row.get(i).getColumn().bufferForValue().equals(expect.get(i)))
+                                return false;
+                    }
+                    else
+                    {
+                        for (ColumnOrSuperColumn col : row)
+                        {
+                            SuperColumn superColumn = col.getSuper_column();
+                            if (superColumn.getColumns().size() != expect.size())
+                                return false;
+                            for (int i = 0 ; i < expect.size() ; i++)
+                                if (!superColumn.getColumns().get(i).bufferForValue().equals(expect.get(i)))
+                                    return false;
+                        }
+                    }
+                    return true;
                 }
 
                 @Override

@@ -72,7 +72,7 @@ public class CqlInserter extends CqlOperation<Integer>
     protected List<ByteBuffer> getQueryParameters(byte[] key)
     {
         final ArrayList<ByteBuffer> queryParams = new ArrayList<>();
-        final List<ByteBuffer> values = generateColumnValues();
+        final List<ByteBuffer> values = generateColumnValues(ByteBuffer.wrap(key));
         queryParams.addAll(values);
         queryParams.add(ByteBuffer.wrap(key));
         return queryParams;
