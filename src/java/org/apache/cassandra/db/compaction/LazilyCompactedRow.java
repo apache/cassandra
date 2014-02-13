@@ -81,7 +81,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         // containing `key` outside of the set of sstables involved in this compaction.
         maxPurgeableTimestamp = controller.maxPurgeableTimestamp(key);
 
-        emptyColumnFamily = EmptyColumns.factory.create(controller.cfs.metadata);
+        emptyColumnFamily = ArrayBackedSortedColumns.factory.create(controller.cfs.metadata);
         emptyColumnFamily.delete(maxRowTombstone);
         if (maxRowTombstone.markedForDeleteAt < maxPurgeableTimestamp)
             emptyColumnFamily.purgeTombstones(controller.gcBefore);

@@ -173,23 +173,6 @@ public class LeveledManifest
         }
     }
 
-    /**
-     * if the number of SSTables in the current compacted set *by itself* exceeds the target level's
-     * (regardless of the level's current contents), find an empty level instead
-     */
-    private int skipLevels(int newLevel, Iterable<SSTableReader> added)
-    {
-        // Note that we now check if the sstables included in the compaction, *before* the compaction, fit in the next level.
-        // This is needed since we need to decide before the actual compaction what level they will be in.
-        // This should be safe, we might skip levels where the compacted data could have fit but that should be ok.
-        while (maxBytesForLevel(newLevel) < SSTableReader.getTotalBytes(added)
-               && getLevel(newLevel + 1).isEmpty())
-        {
-            newLevel++;
-        }
-        return newLevel;
-    }
-
     public synchronized void replace(Collection<SSTableReader> removed, Collection<SSTableReader> added)
     {
         assert !removed.isEmpty(); // use add() instead of promote when adding new sstables
@@ -560,7 +543,10 @@ public class LeveledManifest
 
                 for (SSTableReader newCandidate : overlappedL0)
                 {
-                    candidates.add(newCandidate);
+                    // overlappedL0 could contain sstables that are not in compactingL0, but do overlap
+                    // other sstables that are
+                    if (overlapping(newCandidate, compactingL0).isEmpty())
+                        candidates.add(newCandidate);
                     remaining.remove(newCandidate);
                 }
 
@@ -683,7 +669,6 @@ public class LeveledManifest
         else
         {
             newLevel = minimumLevel == maximumLevel ? maximumLevel + 1 : maximumLevel;
-            newLevel = skipLevels(newLevel, sstables);
             assert newLevel > 0;
         }
         return newLevel;

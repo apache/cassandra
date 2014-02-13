@@ -59,7 +59,7 @@ public class RowTest extends SchemaLoader
         cf2.addColumn(column("one", "B", 1));
         cf2.addColumn(column("two", "C", 1));
 
-        cf1.resolve(cf2);
+        cf1.addAll(cf2);
         assert Arrays.equals(cf1.getColumn(CellNames.simpleDense(ByteBufferUtil.bytes("one"))).value().array(), "B".getBytes());
         assert Arrays.equals(cf1.getColumn(CellNames.simpleDense(ByteBufferUtil.bytes("two"))).value().array(), "C".getBytes());
     }

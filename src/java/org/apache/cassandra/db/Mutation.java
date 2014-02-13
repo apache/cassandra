@@ -191,7 +191,7 @@ public class Mutation implements IMutation
             // not in the case where it wasn't there indeed.
             ColumnFamily cf = modifications.put(entry.getKey(), entry.getValue());
             if (cf != null)
-                entry.getValue().resolve(cf);
+                entry.getValue().addAll(cf);
         }
     }
 

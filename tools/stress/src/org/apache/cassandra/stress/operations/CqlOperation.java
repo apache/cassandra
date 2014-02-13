@@ -192,8 +192,12 @@ public abstract class CqlOperation<V> extends Operation
             if (result.length != expect.size())
                 return false;
             for (int i = 0 ; i < result.length ; i++)
-                if (!expect.get(i).equals(Arrays.asList(result[i])))
+            {
+                List<ByteBuffer> resultRow = Arrays.asList(result[i]);
+                resultRow = resultRow.subList(1, resultRow.size());
+                if (expect.get(i) != null && !expect.get(i).equals(resultRow))
                     return false;
+            }
             return true;
         }
     }
@@ -521,20 +525,19 @@ public abstract class CqlOperation<V> extends Operation
                 @Override
                 public ByteBuffer[][] apply(ResultMessage result)
                 {
-                    if (result instanceof ResultMessage.Rows)
+                    if (!(result instanceof ResultMessage.Rows))
+                        return new ByteBuffer[0][];
+
+                    ResultMessage.Rows rows = ((ResultMessage.Rows) result);
+                    ByteBuffer[][] r = new ByteBuffer[rows.result.size()][];
+                    for (int i = 0 ; i < r.length ; i++)
                     {
-                        ResultMessage.Rows rows = ((ResultMessage.Rows) result);
-                        ByteBuffer[][] r = new ByteBuffer[rows.result.size()][];
-                        for (int i = 0 ; i < r.length ; i++)
-                        {
-                            List<ByteBuffer> row = rows.result.rows.get(i);
-                            r[i] = new ByteBuffer[row.size()];
-                            for (int j = 0 ; j < row.size() ; j++)
-                                r[i][j] = row.get(j);
-                        }
-                        return r;
+                        List<ByteBuffer> row = rows.result.rows.get(i);
+                        r[i] = new ByteBuffer[row.size()];
+                        for (int j = 0 ; j < row.size() ; j++)
+                            r[i][j] = row.get(j);
                     }
-                    return new ByteBuffer[0][];
+                    return r;
                 }
             };
         }

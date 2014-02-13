@@ -57,7 +57,7 @@ public class Commit
 
     public static Commit newPrepare(ByteBuffer key, CFMetaData metadata, UUID ballot)
     {
-        return new Commit(key, ballot, EmptyColumns.factory.create(metadata));
+        return new Commit(key, ballot, ArrayBackedSortedColumns.factory.create(metadata));
     }
 
     public static Commit newProposal(ByteBuffer key, UUID ballot, ColumnFamily update)
@@ -67,7 +67,7 @@ public class Commit
 
     public static Commit emptyCommit(ByteBuffer key, CFMetaData metadata)
     {
-        return new Commit(key, UUIDGen.minTimeUUID(0), EmptyColumns.factory.create(metadata));
+        return new Commit(key, UUIDGen.minTimeUUID(0), ArrayBackedSortedColumns.factory.create(metadata));
     }
 
     public boolean isAfter(Commit other)

@@ -155,9 +155,7 @@ public class StressAction implements Runnable
 
     private boolean hasAverageImprovement(List<StressMetrics> results, int count, double minImprovement)
     {
-        if (results.size() < count + 1)
-            return true;
-        return averageImprovement(results, count) >= minImprovement;
+        return results.size() < count + 1 || averageImprovement(results, count) >= minImprovement;
     }
 
     private double averageImprovement(List<StressMetrics> results, int count)
@@ -389,7 +387,7 @@ public class StressAction implements Runnable
             int batchSize = (int) (operations / (1 << 19));
             if (batchSize < 20)
                 batchSize = 20;
-            ArrayBlockingQueue<Work> work = new ArrayBlockingQueue<Work>(
+            ArrayBlockingQueue<Work> work = new ArrayBlockingQueue<>(
                     (int) ((operations / batchSize)
                   + (operations % batchSize == 0 ? 0 : 1))
             );

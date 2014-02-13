@@ -27,17 +27,17 @@ public class DataGenStringDictionary extends DataGen
     @Override
     public void generate(ByteBuffer fill, long index, ByteBuffer seed)
     {
-        fill(fill, 0);
+        fill(fill);
     }
 
     @Override
     public void generate(List<ByteBuffer> fills, long index, ByteBuffer seed)
     {
         for (int i = 0 ; i < fills.size() ; i++)
-            fill(fills.get(0), i);
+            fill(fills.get(0));
     }
 
-    private void fill(ByteBuffer fill, int column)
+    private void fill(ByteBuffer fill)
     {
         fill.clear();
         byte[] trg = fill.array();

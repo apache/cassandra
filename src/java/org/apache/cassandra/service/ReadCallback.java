@@ -98,10 +98,8 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         if (!await(command.getTimeout(), TimeUnit.MILLISECONDS))
         {
             // Same as for writes, see AbstractWriteResponseHandler
-            int acks = received;
-            if (resolver.isDataPresent() && acks >= blockfor)
-                acks = blockfor - 1;
             ReadTimeoutException ex = new ReadTimeoutException(consistencyLevel, received, blockfor, resolver.isDataPresent());
+
             if (logger.isDebugEnabled())
                 logger.debug("Read timeout: {}", ex.toString());
             throw ex;

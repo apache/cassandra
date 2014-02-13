@@ -389,14 +389,6 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
         return cf1.diff(cf2);
     }
 
-    public void resolve(ColumnFamily cf)
-    {
-        // Row _does_ allow null CF objects :(  seems a necessary evil for efficiency
-        if (cf == null)
-            return;
-        addAll(cf);
-    }
-
     public ColumnStats getColumnStats()
     {
         long minTimestampSeen = deletionInfo().isLive() ? Long.MAX_VALUE : deletionInfo().minTimestamp();
