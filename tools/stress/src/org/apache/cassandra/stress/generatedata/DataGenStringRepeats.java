@@ -50,7 +50,7 @@ public class DataGenStringRepeats extends DataGen
 
     private byte[] getData(long index, int column, ByteBuffer seed)
     {
-        final long key = (column * repeatFrequency) + ((seed == null ? index : Math.abs(seed.hashCode())) % repeatFrequency);
+        final long key = ((long)column * repeatFrequency) + ((seed == null ? index : Math.abs(seed.hashCode())) % repeatFrequency);
         byte[] r = cache.get(key);
         if (r != null)
             return r;
