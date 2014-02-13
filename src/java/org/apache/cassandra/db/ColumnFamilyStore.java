@@ -2293,6 +2293,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return Iterables.concat(samples);
     }
 
+    public long estimatedKeysForRange(Range<Token> range)
+    {
+        long count = 0;
+        for (SSTableReader sstable : getSSTables())
+            count += sstable.estimatedKeysForRanges(Collections.singleton(range));
+        return count;
+    }
+
     /**
      * For testing.  No effort is made to clear historical or even the current memtables, nor for
      * thread safety.  All we do is wipe the sstable containers clean, while leaving the actual

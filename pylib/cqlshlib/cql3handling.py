@@ -67,7 +67,8 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('comment', None),
         ('dclocal_read_repair_chance', 'local_read_repair_chance'),
         ('gc_grace_seconds', None),
-        ('index_interval', None),
+        ('min_index_interval', None),
+        ('max_index_interval', None),
         ('read_repair_chance', None),
         ('populate_io_cache_on_flush', None),
         ('default_time_to_live', None),
@@ -439,7 +440,7 @@ def cf_prop_val_completer(ctxt, cass):
     if this_opt in ('replicate_on_write', 'populate_io_cache_on_flush'):
         return ["'yes'", "'no'"]
     if this_opt in ('min_compaction_threshold', 'max_compaction_threshold',
-                    'gc_grace_seconds', 'index_interval'):
+                    'gc_grace_seconds', 'min_index_interval', 'max_index_interval'):
         return [Hint('<integer>')]
     return [Hint('<option_value>')]
 

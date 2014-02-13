@@ -111,6 +111,8 @@ public class SystemKeyspace
     {
         setupVersion();
 
+        migrateIndexInterval();
+
         // add entries to system schema columnfamilies for the hardcoded system definitions
         for (String ksname : Schema.systemKeyspaceNames)
         {
@@ -141,6 +143,36 @@ public class SystemKeyspace
                                          snitch.getDatacenter(FBUtilities.getBroadcastAddress()),
                                          snitch.getRack(FBUtilities.getBroadcastAddress()),
                                          DatabaseDescriptor.getPartitioner().getClass().getName()));
+    }
+
+    // TODO: In 3.0, remove this and the index_interval column from system.schema_columnfamilies
+    /** Migrates index_interval values to min_index_interval and sets index_interval to null */
+    private static void migrateIndexInterval()
+    {
+        for (UntypedResultSet.Row row : processInternal(String.format("SELECT * FROM system.%s", SCHEMA_COLUMNFAMILIES_CF)))
+        {
+            if (!row.has("index_interval"))
+                continue;
+
+            logger.debug("Migrating index_interval to min_index_interval");
+
+            CFMetaData table = CFMetaData.fromSchema(row);
+            String query = String.format("SELECT writetime(type) "
+                    + "FROM system.%s "
+                    + "WHERE keyspace_name = '%s' AND columnfamily_name = '%s'",
+                    SCHEMA_COLUMNFAMILIES_CF,
+                    table.ksName,
+                    table.cfName);
+            long timestamp = processInternal(query).one().getLong("writetime(type)");
+            try
+            {
+                table.toSchema(timestamp).apply();
+            }
+            catch (ConfigurationException e)
+            {
+                // shouldn't happen
+            }
+        }
     }
 
     /**

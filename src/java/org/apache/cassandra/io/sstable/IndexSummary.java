@@ -51,24 +51,31 @@ public class IndexSummary implements Closeable
     private static final Logger logger = LoggerFactory.getLogger(IndexSummary.class);
 
     public static final IndexSummarySerializer serializer = new IndexSummarySerializer();
-    private final int indexInterval;
+
+    /**
+     * A lower bound for the average number of partitions in between each index summary entry. A lower value means
+     * that more partitions will have an entry in the index summary when at the full sampling level.
+     */
+    private final int minIndexInterval;
+
     private final IPartitioner partitioner;
     private final int summarySize;
     private final int sizeAtFullSampling;
     private final Memory bytes;
 
     /**
-     * A value between MIN_SAMPLING_LEVEL and BASE_SAMPLING_LEVEL that represents how many of the original
+     * A value between 1 and BASE_SAMPLING_LEVEL that represents how many of the original
      * index summary entries ((1 / indexInterval) * numKeys) have been retained.
      *
      * Thus, this summary contains (samplingLevel / BASE_SAMPLING_LEVEL) * ((1 / indexInterval) * numKeys)) entries.
      */
     private final int samplingLevel;
 
-    public IndexSummary(IPartitioner partitioner, Memory memory, int summarySize, int sizeAtFullSampling, int indexInterval, int samplingLevel)
+    public IndexSummary(IPartitioner partitioner, Memory memory, int summarySize, int sizeAtFullSampling,
+                        int minIndexInterval, int samplingLevel)
     {
         this.partitioner = partitioner;
-        this.indexInterval = indexInterval;
+        this.minIndexInterval = minIndexInterval;
         this.summarySize = summarySize;
         this.sizeAtFullSampling = sizeAtFullSampling;
         this.bytes = memory;
@@ -140,9 +147,22 @@ public class IndexSummary implements Closeable
         return index == (summarySize - 1) ? bytes.size() : getPositionInSummary(index + 1);
     }
 
-    public int getIndexInterval()
+    public int getMinIndexInterval()
     {
-        return indexInterval;
+        return minIndexInterval;
+    }
+
+    public double getEffectiveIndexInterval()
+    {
+        return (BASE_SAMPLING_LEVEL / (double) samplingLevel) * minIndexInterval;
+    }
+
+    /**
+     * Returns an estimate of the total number of keys in the SSTable.
+     */
+    public long getEstimatedKeyCount()
+    {
+        return ((long) getMaxNumberOfEntries() + 1) * minIndexInterval;
     }
 
     public int size()
@@ -157,7 +177,7 @@ public class IndexSummary implements Closeable
 
     /**
      * Returns the number of entries this summary would have if it were at the full sampling level, which is equal
-     * to the number of entries in the primary on-disk index divided by the index interval.
+     * to the number of entries in the primary on-disk index divided by the min index interval.
      */
     public int getMaxNumberOfEntries()
     {
@@ -184,14 +204,14 @@ public class IndexSummary implements Closeable
      */
     public int getEffectiveIndexIntervalAfterIndex(int index)
     {
-        return Downsampling.getEffectiveIndexIntervalAfterIndex(index, samplingLevel, indexInterval);
+        return Downsampling.getEffectiveIndexIntervalAfterIndex(index, samplingLevel, minIndexInterval);
     }
 
     public static class IndexSummarySerializer
     {
         public void serialize(IndexSummary t, DataOutputStream out, boolean withSamplingLevel) throws IOException
         {
-            out.writeInt(t.indexInterval);
+            out.writeInt(t.minIndexInterval);
             out.writeInt(t.summarySize);
             out.writeLong(t.bytes.size());
             if (withSamplingLevel)
@@ -202,14 +222,15 @@ public class IndexSummary implements Closeable
             FBUtilities.copy(new MemoryInputStream(t.bytes), out, t.bytes.size());
         }
 
-        public IndexSummary deserialize(DataInputStream in, IPartitioner partitioner, boolean haveSamplingLevel, int expectedIndexInterval) throws IOException
+        public IndexSummary deserialize(DataInputStream in, IPartitioner partitioner, boolean haveSamplingLevel, int expectedMinIndexInterval, int maxIndexInterval) throws IOException
         {
-            int indexInterval = in.readInt();
-            if (indexInterval != expectedIndexInterval)
+            int minIndexInterval = in.readInt();
+            if (minIndexInterval != expectedMinIndexInterval)
             {
-                throw new IOException(String.format("Cannot read index summary because Index Interval changed from %d to %d.",
-                                                           indexInterval, expectedIndexInterval));
+                throw new IOException(String.format("Cannot read index summary because min_index_interval changed from %d to %d.",
+                                                    minIndexInterval, expectedMinIndexInterval));
             }
+
             int summarySize = in.readInt();
             long offheapSize = in.readLong();
             int samplingLevel, fullSamplingSummarySize;
@@ -223,9 +244,17 @@ public class IndexSummary implements Closeable
                 samplingLevel = BASE_SAMPLING_LEVEL;
                 fullSamplingSummarySize = summarySize;
             }
+
+            int effectiveIndexInterval = (int) Math.ceil((BASE_SAMPLING_LEVEL / (double) samplingLevel) * minIndexInterval);
+            if (effectiveIndexInterval > maxIndexInterval)
+            {
+                throw new IOException(String.format("Rebuilding index summary because the effective index interval (%d) is higher than" +
+                                                    " the current max index interval (%d)", effectiveIndexInterval, maxIndexInterval));
+            }
+
             Memory memory = Memory.allocate(offheapSize);
             FBUtilities.copy(in, new MemoryOutputStream(memory), offheapSize);
-            return new IndexSummary(partitioner, memory, summarySize, fullSamplingSummarySize, indexInterval, samplingLevel);
+            return new IndexSummary(partitioner, memory, summarySize, fullSamplingSummarySize, minIndexInterval, samplingLevel);
         }
     }
 

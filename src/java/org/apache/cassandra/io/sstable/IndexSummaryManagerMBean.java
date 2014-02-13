@@ -32,14 +32,11 @@ public interface IndexSummaryManagerMBean
     public double getMemoryPoolSizeInMB();
 
     /**
-     * Returns a map of SSTable filenames to their current sampling ratio, where 1.0 indicates that all of the
-     * original index summary entries have been retained and 0.5 indicates that half of the original entries have
-     * been discarded.
-     * @return A map of SSTable filenames to their sampling ratios.
+     * Returns a map of SSTable filenames to their current effective index interval.
      */
-    public Map<String, Double> getSamplingRatios();
+    public Map<String, Integer> getIndexIntervals();
 
-    public double getAverageSamplingRatio();
+    public double getAverageIndexInterval();
 
     public void redistributeSummaries() throws IOException;
 

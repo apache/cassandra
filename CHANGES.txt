@@ -31,6 +31,7 @@
  * Add option to use row cache with a given amount of rows (CASSANDRA-5357)
  * Avoid repairing already repaired data (CASSANDRA-5351)
  * Reject counter updates with USING TTL/TIMESTAMP (CASSANDRA-6649)
+ * Replace index_interval with min/max_index_interval (CASSANDRA-6379)
 
 
 2.0.6

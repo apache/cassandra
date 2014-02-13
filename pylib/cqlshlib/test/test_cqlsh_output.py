@@ -659,7 +659,8 @@ class TestCqlshOutput(BaseTestCase):
               comment='' AND
               dclocal_read_repair_chance=0.000000 AND
               gc_grace_seconds=864000 AND
-              index_interval=128 AND
+              min_index_interval=128 AND
+              max_index_interval=2048 AND
               read_repair_chance=0.100000 AND
               populate_io_cache_on_flush='false' AND
               default_time_to_live=0 AND

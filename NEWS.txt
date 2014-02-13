@@ -33,7 +33,7 @@ New features
 
 Upgrading
 ---------
-   - Rolling upgrades from anything pre-2.0.5 is not supported.
+   - Rolling upgrades from anything pre-2.0.6 is not supported.
    - For leveled compaction users, 2.0 must be atleast started before
      upgrading to 2.1 due to the fact that the old JSON leveled
      manifest is migrated into the sstable metadata files on startup
@@ -48,6 +48,10 @@ Upgrading
      to change your data model to accomodate the new implementation.
      (See https://issues.apache.org/jira/browse/CASSANDRA-6504 and the dev
      blog post at http://www.datastax.com/dev/blog/<PLACEHOLDER> for details).
+    - (per-table) index_interval parameter has been replaced with
+     min_index_interval and max_index_interval paratemeters. index_interval
+     has been deprecated.
+
 
 2.0.5
 =====

@@ -55,7 +55,7 @@ namespace rb CassandraThrift
 # An effort should be made not to break forward-client-compatibility either
 # (e.g. one should avoid removing obsolete fields from the IDL), but no
 # guarantees in this respect are made by the Cassandra project.
-const string VERSION = "19.38.1"
+const string VERSION = "19.39.0"
 
 
 #
@@ -470,10 +470,11 @@ struct CfDef {
     38: optional bool populate_io_cache_on_flush,
     39: optional i32 memtable_flush_period_in_ms,
     40: optional i32 default_time_to_live,
-    41: optional i32 index_interval,
     42: optional string speculative_retry="NONE",
     43: optional list<TriggerDef> triggers,
     44: optional string cells_per_row_to_cache = "100",
+    45: optional i32 min_index_interval,
+    46: optional i32 max_index_interval,
 
     /* All of the following are now ignored and unsupplied. */
 
@@ -499,6 +500,8 @@ struct CfDef {
     27: optional string row_cache_provider,
     /** @deprecated */
     31: optional i32 row_cache_keys_to_save,
+    /** @deprecated */
+    41: optional i32 index_interval,
 }
 
 /* describes a keyspace. */

@@ -82,7 +82,8 @@ public final class CFMetaData
     public final static Caching DEFAULT_CACHING_STRATEGY = Caching.KEYS_ONLY;
     public final static int DEFAULT_DEFAULT_TIME_TO_LIVE = 0;
     public final static SpeculativeRetry DEFAULT_SPECULATIVE_RETRY = new SpeculativeRetry(SpeculativeRetry.RetryType.PERCENTILE, 0.99);
-    public final static int DEFAULT_INDEX_INTERVAL = 128;
+    public final static int DEFAULT_MIN_INDEX_INTERVAL = 128;
+    public final static int DEFAULT_MAX_INDEX_INTERVAL = 2048;
     public final static boolean DEFAULT_POPULATE_IO_CACHE_ON_FLUSH = false;
     public final static RowsPerPartitionToCache DEFAULT_ROWS_PER_PARTITION_TO_CACHE = new RowsPerPartitionToCache(100, RowsPerPartitionToCache.Type.HEAD);
 
@@ -145,6 +146,8 @@ public final class CFMetaData
                                                                     + "speculative_retry text,"
                                                                     + "populate_io_cache_on_flush boolean,"
                                                                     + "index_interval int,"
+                                                                    + "min_index_interval int,"
+                                                                    + "max_index_interval int,"
                                                                     + "dropped_columns map<text, bigint>,"
                                                                     + "rows_per_partition_to_cache text,"
                                                                     + "PRIMARY KEY (keyspace_name, columnfamily_name)"
@@ -444,7 +447,8 @@ public final class CFMetaData
     private volatile int maxCompactionThreshold = DEFAULT_MAX_COMPACTION_THRESHOLD;
     private volatile Double bloomFilterFpChance = null;
     private volatile Caching caching = DEFAULT_CACHING_STRATEGY;
-    private volatile int indexInterval = DEFAULT_INDEX_INTERVAL;
+    private volatile int minIndexInterval = DEFAULT_MIN_INDEX_INTERVAL;
+    private volatile int maxIndexInterval = DEFAULT_MAX_INDEX_INTERVAL;
     private int memtableFlushPeriod = 0;
     private volatile int defaultTimeToLive = DEFAULT_DEFAULT_TIME_TO_LIVE;
     private volatile SpeculativeRetry speculativeRetry = DEFAULT_SPECULATIVE_RETRY;
@@ -475,6 +479,7 @@ public final class CFMetaData
 
     public volatile CompressionParameters compressionParameters = new CompressionParameters(null);
 
+    // attribute setters that return the modified CFMetaData instance
     public CFMetaData comment(String prop) { comment = enforceCommentNotNull(prop); return this;}
     public CFMetaData readRepairChance(double prop) {readRepairChance = prop; return this;}
     public CFMetaData dcLocalReadRepairChance(double prop) {dcLocalReadRepairChance = prop; return this;}
@@ -488,7 +493,8 @@ public final class CFMetaData
     public CFMetaData compressionParameters(CompressionParameters prop) {compressionParameters = prop; return this;}
     public CFMetaData bloomFilterFpChance(Double prop) {bloomFilterFpChance = prop; return this;}
     public CFMetaData caching(Caching prop) {caching = prop; return this;}
-    public CFMetaData indexInterval(int prop) {indexInterval = prop; return this;}
+    public CFMetaData minIndexInterval(int prop) {minIndexInterval = prop; return this;}
+    public CFMetaData maxIndexInterval(int prop) {maxIndexInterval = prop; return this;}
     public CFMetaData memtableFlushPeriod(int prop) {memtableFlushPeriod = prop; return this;}
     public CFMetaData defaultTimeToLive(int prop) {defaultTimeToLive = prop; return this;}
     public CFMetaData speculativeRetry(SpeculativeRetry prop) {speculativeRetry = prop; return this;}
@@ -676,7 +682,8 @@ public final class CFMetaData
                       .bloomFilterFpChance(oldCFMD.bloomFilterFpChance)
                       .caching(oldCFMD.caching)
                       .defaultTimeToLive(oldCFMD.defaultTimeToLive)
-                      .indexInterval(oldCFMD.indexInterval)
+                      .minIndexInterval(oldCFMD.minIndexInterval)
+                      .maxIndexInterval(oldCFMD.maxIndexInterval)
                       .speculativeRetry(oldCFMD.speculativeRetry)
                       .memtableFlushPeriod(oldCFMD.memtableFlushPeriod)
                       .populateIoCacheOnFlush(oldCFMD.populateIoCacheOnFlush)
@@ -860,14 +867,19 @@ public final class CFMetaData
         return caching;
     }
 
+    public int getMinIndexInterval()
+    {
+        return minIndexInterval;
+    }
+
+    public int getMaxIndexInterval()
+    {
+        return maxIndexInterval;
+    }
+
     public RowsPerPartitionToCache getRowsPerPartitionToCache()
     {
         return rowsPerPartitionToCache;
-    }
-
-    public int getIndexInterval()
-    {
-        return indexInterval;
     }
 
     public SpeculativeRetry getSpeculativeRetry()
@@ -922,7 +934,8 @@ public final class CFMetaData
             && Objects.equal(memtableFlushPeriod, other.memtableFlushPeriod)
             && Objects.equal(caching, other.caching)
             && Objects.equal(defaultTimeToLive, other.defaultTimeToLive)
-            && Objects.equal(indexInterval, other.indexInterval)
+            && Objects.equal(minIndexInterval, other.minIndexInterval)
+            && Objects.equal(maxIndexInterval, other.maxIndexInterval)
             && Objects.equal(speculativeRetry, other.speculativeRetry)
             && Objects.equal(populateIoCacheOnFlush, other.populateIoCacheOnFlush)
             && Objects.equal(droppedColumns, other.droppedColumns)
@@ -955,7 +968,8 @@ public final class CFMetaData
             .append(memtableFlushPeriod)
             .append(caching)
             .append(defaultTimeToLive)
-            .append(indexInterval)
+            .append(minIndexInterval)
+            .append(maxIndexInterval)
             .append(speculativeRetry)
             .append(populateIoCacheOnFlush)
             .append(droppedColumns)
@@ -1017,6 +1031,21 @@ public final class CFMetaData
             cf_def.setDefault_time_to_live(CFMetaData.DEFAULT_DEFAULT_TIME_TO_LIVE);
         if (!cf_def.isSetDclocal_read_repair_chance())
             cf_def.setDclocal_read_repair_chance(CFMetaData.DEFAULT_DCLOCAL_READ_REPAIR_CHANCE);
+
+        // if index_interval was set, use that for the min_index_interval default
+        if (!cf_def.isSetMin_index_interval())
+        {
+            if (cf_def.isSetIndex_interval())
+                cf_def.setMin_index_interval(cf_def.getIndex_interval());
+            else
+                cf_def.setMin_index_interval(CFMetaData.DEFAULT_MIN_INDEX_INTERVAL);
+        }
+        if (!cf_def.isSetMax_index_interval())
+        {
+            // ensure the max is at least as large as the min
+            cf_def.setMax_index_interval(Math.max(cf_def.min_index_interval, CFMetaData.DEFAULT_MAX_INDEX_INTERVAL));
+        }
+
         if (!cf_def.isSetCells_per_row_to_cache())
             cf_def.setCells_per_row_to_cache(CFMetaData.DEFAULT_ROWS_PER_PARTITION_TO_CACHE.toString());
     }
@@ -1069,8 +1098,10 @@ public final class CFMetaData
                 newCFMD.defaultTimeToLive(cf_def.default_time_to_live);
             if (cf_def.isSetDclocal_read_repair_chance())
                 newCFMD.dcLocalReadRepairChance(cf_def.dclocal_read_repair_chance);
-            if (cf_def.isSetIndex_interval())
-                newCFMD.indexInterval(cf_def.index_interval);
+            if (cf_def.isSetMin_index_interval())
+                newCFMD.minIndexInterval(cf_def.min_index_interval);
+            if (cf_def.isSetMax_index_interval())
+                newCFMD.maxIndexInterval(cf_def.max_index_interval);
             if (cf_def.isSetSpeculative_retry())
                 newCFMD.speculativeRetry(SpeculativeRetry.fromString(cf_def.speculative_retry));
             if (cf_def.isSetPopulate_io_cache_on_flush())
@@ -1172,8 +1203,10 @@ public final class CFMetaData
         maxCompactionThreshold = cfm.maxCompactionThreshold;
 
         bloomFilterFpChance = cfm.bloomFilterFpChance;
-        memtableFlushPeriod = cfm.memtableFlushPeriod;
         caching = cfm.caching;
+        minIndexInterval = cfm.minIndexInterval;
+        maxIndexInterval = cfm.maxIndexInterval;
+        memtableFlushPeriod = cfm.memtableFlushPeriod;
         rowsPerPartitionToCache = cfm.rowsPerPartitionToCache;
         defaultTimeToLive = cfm.defaultTimeToLive;
         speculativeRetry = cfm.speculativeRetry;
@@ -1320,7 +1353,8 @@ public final class CFMetaData
         def.setCompression_options(compressionParameters.asThriftOptions());
         if (bloomFilterFpChance != null)
             def.setBloom_filter_fp_chance(bloomFilterFpChance);
-        def.setIndex_interval(indexInterval);
+        def.setMin_index_interval(minIndexInterval);
+        def.setMax_index_interval(maxIndexInterval);
         def.setMemtable_flush_period_in_ms(memtableFlushPeriod);
         def.setCaching(caching.toString());
         def.setCells_per_row_to_cache(rowsPerPartitionToCache.toString());
@@ -1514,6 +1548,8 @@ public final class CFMetaData
         if (bloomFilterFpChance != null && bloomFilterFpChance == 0)
             throw new ConfigurationException("Zero false positives is impossible; bloom filter false positive chance bffpc must be 0 < bffpc <= 1");
 
+        validateIndexIntervalThresholds();
+
         return this;
     }
 
@@ -1544,6 +1580,15 @@ public final class CFMetaData
         if (minCompactionThreshold > maxCompactionThreshold)
             throw new ConfigurationException(String.format("Min compaction threshold (got %d) cannot be greater than max compaction threshold (got %d)",
                                                             minCompactionThreshold, maxCompactionThreshold));
+    }
+
+    private void validateIndexIntervalThresholds() throws ConfigurationException
+    {
+        if (minIndexInterval <= 0)
+            throw new ConfigurationException(String.format("Min index interval must be greater than 0 (got %d).", minIndexInterval));
+        if (maxIndexInterval < minIndexInterval)
+            throw new ConfigurationException(String.format("Max index interval (%d) must be greater than the min index " +
+                                                           "interval (%d).", maxIndexInterval, minIndexInterval));
     }
 
     /**
@@ -1683,7 +1728,9 @@ public final class CFMetaData
         adder.add("compaction_strategy_class", compactionStrategyClass.getName());
         adder.add("compression_parameters", json(compressionParameters.asThriftOptions()));
         adder.add("compaction_strategy_options", json(compactionStrategyOptions));
-        adder.add("index_interval", indexInterval);
+        adder.add("min_index_interval", minIndexInterval);
+        adder.add("max_index_interval", maxIndexInterval);
+        adder.add("index_interval", null);
         adder.add("speculative_retry", speculativeRetry.toString());
 
         for (Map.Entry<ColumnIdentifier, Long> entry : droppedColumns.entrySet())
@@ -1753,18 +1800,16 @@ public final class CFMetaData
             cfm.compactionStrategyClass(createCompactionStrategy(result.getString("compaction_strategy_class")));
             cfm.compressionParameters(CompressionParameters.create(fromJsonMap(result.getString("compression_parameters"))));
             cfm.compactionStrategyOptions(fromJsonMap(result.getString("compaction_strategy_options")));
-            if (result.has("index_interval"))
-            {
-                cfm.indexInterval(result.getInt("index_interval"));
-            }
-            else
-            {
-                if (DatabaseDescriptor.getIndexInterval() != null)
-                {
-                    // use index_interval set in cassandra.yaml as default value (in memory only)
-                    cfm.indexInterval(DatabaseDescriptor.getIndexInterval());
-                }
-            }
+
+            // migrate old index_interval values to min_index_interval, if present
+            if (result.has("min_index_interval"))
+                cfm.minIndexInterval(result.getInt("min_index_interval"));
+            else if (result.has("index_interval"))
+                cfm.minIndexInterval(result.getInt("index_interval"));
+
+            if (result.has("max_index_interval"))
+                cfm.maxIndexInterval(result.getInt("max_index_interval"));
+
             if (result.has("populate_io_cache_on_flush"))
                 cfm.populateIoCacheOnFlush(result.getBoolean("populate_io_cache_on_flush"));
 
@@ -2226,7 +2271,8 @@ public final class CFMetaData
             .append("memtableFlushPeriod", memtableFlushPeriod)
             .append("caching", caching)
             .append("defaultTimeToLive", defaultTimeToLive)
-            .append("indexInterval", indexInterval)
+            .append("minIndexInterval", minIndexInterval)
+            .append("maxIndexInterval", maxIndexInterval)
             .append("speculativeRetry", speculativeRetry)
             .append("populateIoCacheOnFlush", populateIoCacheOnFlush)
             .append("droppedColumns", droppedColumns)
