@@ -1,4 +1,5 @@
 2.1
+ * Require JNA by default (CASSANDRA-6575)
  * add listsnapshots command to nodetool (CASSANDRA-5742)
  * Introduce AtomicBTreeColumns (CASSANDRA-6271)
  * Multithreaded commitlog (CASSANDRA-3578)
@@ -30,6 +31,7 @@
  * Add option to use row cache with a given amount of rows (CASSANDRA-5357)
  * Avoid repairing already repaired data (CASSANDRA-5351)
  * Reject counter updates with USING TTL/TIMESTAMP (CASSANDRA-6649)
+
 
 2.0.6
  * Add compatibility for Hadoop 0.2.x (CASSANDRA-5201)

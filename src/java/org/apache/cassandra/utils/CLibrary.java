@@ -47,8 +47,8 @@ public final class CLibrary
     private static final int POSIX_FADV_WILLNEED   = 3; /* fadvise.h */
     private static final int POSIX_FADV_DONTNEED   = 4; /* fadvise.h */
     private static final int POSIX_FADV_NOREUSE    = 5; /* fadvise.h */
-    
-    static boolean jnaAvailable = false;
+
+    static boolean jnaAvailable = true;
     static boolean jnaLockable = false;
 
     static
@@ -56,35 +56,31 @@ public final class CLibrary
         try
         {
             Native.register("c");
-            jnaAvailable = true;
         }
         catch (NoClassDefFoundError e)
         {
-            logger.info("JNA not found. Native methods will be disabled.");
+            logger.warn("JNA not found. Native methods will be disabled.");
+            jnaAvailable = false;
         }
         catch (UnsatisfiedLinkError e)
         {
-            logger.info("JNA link failure, one or more native method will be unavailable.");
+            logger.warn("JNA link failure, one or more native method will be unavailable.");
             logger.debug("JNA link failure details: {}", e.getMessage());
         }
         catch (NoSuchMethodError e)
         {
             logger.warn("Obsolete version of JNA present; unable to register C library. Upgrade to JNA 3.2.7 or later");
+            jnaAvailable = false;
         }
     }
 
     private static native int mlockall(int flags) throws LastErrorException;
     private static native int munlockall() throws LastErrorException;
-
-    // fcntl - manipulate file descriptor, `man 2 fcntl`
-    public static native int fcntl(int fd, int command, long flags) throws LastErrorException;
-
-    // fadvice
-    public static native int posix_fadvise(int fd, long offset, int len, int flag) throws LastErrorException;
-
-    public static native int open(String path, int flags) throws LastErrorException;
-    public static native int fsync(int fd) throws LastErrorException;
-    public static native int close(int fd) throws LastErrorException;
+    private static native int fcntl(int fd, int command, long flags) throws LastErrorException;
+    private static native int posix_fadvise(int fd, long offset, int len, int flag) throws LastErrorException;
+    private static native int open(String path, int flags) throws LastErrorException;
+    private static native int fsync(int fd) throws LastErrorException;
+    private static native int close(int fd) throws LastErrorException;
 
     private static int errno(RuntimeException e)
     {
@@ -101,12 +97,12 @@ public final class CLibrary
     }
 
     private CLibrary() {}
-    
+
     public static boolean jnaAvailable()
     {
         return jnaAvailable;
     }
-    
+
     public static boolean jnaMemoryLockable()
     {
         return jnaLockable;
@@ -128,11 +124,12 @@ public final class CLibrary
         {
             if (!(e instanceof LastErrorException))
                 throw e;
+
             if (errno(e) == ENOMEM && System.getProperty("os.name").toLowerCase().contains("linux"))
             {
                 logger.warn("Unable to lock JVM memory (ENOMEM)."
-                             + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled."
-                             + " Increase RLIMIT_MEMLOCK or run Cassandra as root.");
+                        + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled."
+                        + " Increase RLIMIT_MEMLOCK or run Cassandra as root.");
             }
             else if (!System.getProperty("os.name").toLowerCase().contains("mac"))
             {
@@ -159,6 +156,13 @@ public final class CLibrary
             // if JNA is unavailable just skipping Direct I/O
             // instance of this class will act like normal RandomAccessFile
         }
+        catch (RuntimeException e)
+        {
+            if (!(e instanceof LastErrorException))
+                throw e;
+
+            logger.warn(String.format("posix_fadvise(%d, %d) failed, errno (%d).", fd, offset, errno(e)));
+        }
     }
 
     public static int tryFcntl(int fd, int command, int flags)
@@ -168,15 +172,18 @@ public final class CLibrary
 
         try
         {
-            result = CLibrary.fcntl(fd, command, flags);
+            result = fcntl(fd, command, flags);
+        }
+        catch (UnsatisfiedLinkError e)
+        {
+            // if JNA is unavailable just skipping
         }
         catch (RuntimeException e)
         {
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn(String.format("fcntl(%d, %d, %d) failed, errno (%d).",
-                                      fd, command, flags, CLibrary.errno(e)));
+            logger.warn(String.format("fcntl(%d, %d, %d) failed, errno (%d).", fd, command, flags, errno(e)));
         }
 
         return result;
@@ -199,7 +206,7 @@ public final class CLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn(String.format("open(%s, O_RDONLY) failed, errno (%d).", path, CLibrary.errno(e)));
+            logger.warn(String.format("open(%s, O_RDONLY) failed, errno (%d).", path, errno(e)));
         }
 
         return fd;
@@ -223,7 +230,7 @@ public final class CLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn(String.format("fsync(%d) failed, errno (%d).", fd, CLibrary.errno(e)));
+            logger.warn(String.format("fsync(%d) failed, errno (%d).", fd, errno(e)));
         }
     }
 
@@ -245,7 +252,7 @@ public final class CLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn(String.format("close(%d) failed, errno (%d).", fd, CLibrary.errno(e)));
+            logger.warn(String.format("close(%d) failed, errno (%d).", fd, errno(e)));
         }
     }
 
@@ -290,7 +297,16 @@ public final class CLibrary
         }
         catch (UnsatisfiedLinkError e)
         {
-            return -1;
+            // JNA is unavailable just skipping
         }
+        catch (RuntimeException e)
+        {
+            if (!(e instanceof LastErrorException))
+                throw e;
+
+            logger.warn(String.format("posix_fadvise(%d, %d) failed, errno (%d).", fd, position, errno(e)));
+        }
+
+        return -1;
     }
 }
