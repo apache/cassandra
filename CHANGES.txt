@@ -31,7 +31,6 @@
  * Avoid repairing already repaired data (CASSANDRA-5351)
  * Reject counter updates with USING TTL/TIMESTAMP (CASSANDRA-6649)
 
-
 2.0.6
  * Add compatibility for Hadoop 0.2.x (CASSANDRA-5201)
  * Fix EstimatedHistogram races (CASSANDRA-6682)
@@ -42,6 +41,9 @@
  * Correctly handle null with IF conditions and TTL (CASSANDRA-6623)
  * Account for range/row tombstones in tombstone drop
    time histogram (CASSANDRA-6522)
+ * Stop CommitLogSegment.close() from calling sync() (CASSANDRA-6652)
+ * Make commitlog failure handling configurable (CASSANDRA-6364)
+ * Avoid overlaps in LCS (CASSANDRA-6688)
 Merged from 1.2:
  * Fix broken streams when replacing with same IP (CASSANDRA-6622)
  * Fix upgradesstables NPE for non-CF-based indexes (CASSANDRA-6645)
