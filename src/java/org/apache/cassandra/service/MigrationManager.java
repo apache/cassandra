@@ -136,7 +136,7 @@ public class MigrationManager
          * Don't request schema from fat clients
          */
         return MessagingService.instance().knowsVersion(endpoint)
-                && MessagingService.instance().getVersion(endpoint) == MessagingService.current_version
+                && MessagingService.instance().getRawVersion(endpoint) == MessagingService.current_version
                 && !Gossiper.instance.isFatClient(endpoint);
     }
 
@@ -305,7 +305,7 @@ public class MigrationManager
             // only push schema to nodes with known and equal versions
             if (!endpoint.equals(FBUtilities.getBroadcastAddress()) &&
                     MessagingService.instance().knowsVersion(endpoint) &&
-                    MessagingService.instance().getVersion(endpoint) == MessagingService.current_version)
+                    MessagingService.instance().getRawVersion(endpoint) == MessagingService.current_version)
                 pushSchemaMutation(endpoint, schema);
         }
 

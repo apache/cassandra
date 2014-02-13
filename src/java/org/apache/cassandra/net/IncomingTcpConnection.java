@@ -137,8 +137,8 @@ public class IncomingTcpConnection extends Thread
             logger.info("Received messages from newer protocol version {}. Ignoring", version);
             return;
         }
-        MessagingService.instance().setVersion(from, Math.min(MessagingService.current_version, maxVersion));
-        logger.debug("set version for {} to {}", from, Math.min(MessagingService.current_version, maxVersion));
+        MessagingService.instance().setVersion(from, maxVersion);
+        logger.debug("Set version for {} to {} (will use {})", from, maxVersion, Math.min(MessagingService.current_version, maxVersion));
         // outbound side will reconnect if necessary to upgrade version
 
         while (true)

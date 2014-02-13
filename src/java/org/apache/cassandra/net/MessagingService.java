@@ -740,10 +740,10 @@ public final class MessagingService implements MessagingServiceMBean
     /**
      * @return the last version associated with address, or @param version if this is the first such version
      */
-    public int setVersion(InetAddress address, int version)
+    public int setVersion(InetAddress endpoint, int version)
     {
-        logger.debug("Setting version {} for {}", version, address);
-        Integer v = versions.put(address, version);
+        logger.debug("Setting version {} for {}", version, endpoint);
+        Integer v = versions.put(endpoint, version);
         return v == null ? version : v;
     }
 
@@ -753,27 +753,35 @@ public final class MessagingService implements MessagingServiceMBean
         versions.remove(endpoint);
     }
 
-    public Integer getVersion(InetAddress address)
+    public int getVersion(InetAddress endpoint)
     {
-        Integer v = versions.get(address);
+        Integer v = versions.get(endpoint);
         if (v == null)
         {
             // we don't know the version. assume current. we'll know soon enough if that was incorrect.
-            logger.trace("Assuming current protocol version for {}", address);
+            logger.trace("Assuming current protocol version for {}", endpoint);
             return MessagingService.current_version;
         }
         else
-            return v;
+            return Math.min(v, MessagingService.current_version);
     }
 
-    public int getVersion(String address) throws UnknownHostException
+    public int getVersion(String endpoint) throws UnknownHostException
     {
-        return getVersion(InetAddress.getByName(address));
+        return getVersion(InetAddress.getByName(endpoint));
+    }
+
+    public int getRawVersion(InetAddress endpoint)
+    {
+        Integer v = versions.get(endpoint);
+        if (v == null)
+            throw new IllegalStateException("getRawVersion() was called without checking knowsVersion() result first");
+        return v;
     }
 
     public boolean knowsVersion(InetAddress endpoint)
     {
-        return versions.get(endpoint) != null;
+        return versions.containsKey(endpoint);
     }
 
     public void incrementDroppedMessages(Verb verb)
