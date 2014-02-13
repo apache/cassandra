@@ -196,12 +196,6 @@ public class RangeTombstoneListTest
     @Test
     public void addAllTest()
     {
-        //addAllTest(false);
-        addAllTest(true);
-    }
-
-    private void addAllTest(boolean doMerge)
-    {
         RangeTombstoneList l1 = new RangeTombstoneList(cmp, 0);
         l1.add(rt(0, 4, 5));
         l1.add(rt(6, 10, 2));
