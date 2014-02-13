@@ -21,6 +21,8 @@ public class RowGenDistributedSize extends RowGen
     final ByteBuffer[] ret;
     final int[] sizes;
 
+    final boolean isDeterministic;
+
     public RowGenDistributedSize(DataGen dataGenerator, Distribution countDistribution, Distribution sizeDistribution)
     {
         super(dataGenerator);
@@ -28,6 +30,8 @@ public class RowGenDistributedSize extends RowGen
         this.sizeDistribution = sizeDistribution;
         ret = new ByteBuffer[(int) countDistribution.maxValue()];
         sizes = new int[ret.length];
+        this.isDeterministic = dataGen.isDeterministic() && countDistribution.maxValue() == countDistribution.minValue()
+            && sizeDistribution.minValue() == sizeDistribution.maxValue();
     }
 
     ByteBuffer getBuffer(int size)
@@ -78,7 +82,7 @@ public class RowGenDistributedSize extends RowGen
     @Override
     public boolean isDeterministic()
     {
-        return false;
+        return isDeterministic;
     }
 
 }

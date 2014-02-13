@@ -192,8 +192,12 @@ public abstract class CqlOperation<V> extends Operation
             if (result.length != expect.size())
                 return false;
             for (int i = 0 ; i < result.length ; i++)
-                if (!expect.get(i).equals(Arrays.asList(result[i])))
+            {
+                List<ByteBuffer> resultRow = Arrays.asList(result[i]);
+                resultRow = resultRow.subList(1, resultRow.size());
+                if (expect.get(i) != null && !expect.get(i).equals(resultRow))
                     return false;
+            }
             return true;
         }
     }
