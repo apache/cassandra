@@ -138,55 +138,6 @@ public class ColumnSlice
         }
     }
 
-    public static class NavigableMapIterator extends AbstractIterator<Cell>
-    {
-        private final NavigableMap<CellName, Cell> map;
-        private final ColumnSlice[] slices;
-
-        private int idx = 0;
-        private Iterator<Cell> currentSlice;
-
-        public NavigableMapIterator(NavigableMap<CellName, Cell> map, ColumnSlice[] slices)
-        {
-            this.map = map;
-            this.slices = slices;
-        }
-
-        protected Cell computeNext()
-        {
-            if (currentSlice == null)
-            {
-                if (idx >= slices.length)
-                    return endOfData();
-
-                ColumnSlice slice = slices[idx++];
-                // Note: we specialize the case of start == "" and finish = "" because it is slightly more efficient, but also they have a specific
-                // meaning (namely, they always extend to the beginning/end of the range).
-                if (slice.start.isEmpty())
-                {
-                    if (slice.finish.isEmpty())
-                        currentSlice = map.values().iterator();
-                    else
-                        currentSlice = map.headMap(new FakeCellName(slice.finish), true).values().iterator();
-                }
-                else if (slice.finish.isEmpty())
-                {
-                    currentSlice = map.tailMap(new FakeCellName(slice.start), true).values().iterator();
-                }
-                else
-                {
-                    currentSlice = map.subMap(new FakeCellName(slice.start), true, new FakeCellName(slice.finish), true).values().iterator();
-                }
-            }
-
-            if (currentSlice.hasNext())
-                return currentSlice.next();
-
-            currentSlice = null;
-            return computeNext();
-        }
-    }
-
     public static class NavigableSetIterator extends AbstractIterator<Cell>
     {
         private final NavigableSet<Cell> set;
