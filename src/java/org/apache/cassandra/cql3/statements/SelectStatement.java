@@ -697,7 +697,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                             throw new InvalidRequestException(String.format("Invalid null clustering key part %s", def.name));
                         Composite prefix = builder.buildWith(val);
                         // See below for why this
-                        s.add((bound == Bound.END && builder.remainingCount() > 0) ? prefix.end() : prefix);
+                        s.add((b == Bound.END && builder.remainingCount() > 0) ? prefix.end() : prefix);
                     }
                     return new ArrayList<Composite>(s);
                 }
@@ -956,7 +956,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             List<ColumnDefinition> cc = cfm.clusteringColumns();
             idToSort.add(orderingIndexes.get(cc.get(cc.size() - 1).name));
             Restriction last = columnRestrictions[columnRestrictions.length - 1];
-            sorters.add(makeComparatorFor(last.values(variables)));
+            sorters.add(makeComparatorFor(last.values(variables), isReversed));
         }
 
         // Then add the order by
@@ -975,12 +975,14 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
     // Comparator used when the last clustering key is an IN, to sort result
     // rows in the order of the values provided for the IN.
-    private Comparator<ByteBuffer> makeComparatorFor(final List<ByteBuffer> values)
+    private Comparator<ByteBuffer> makeComparatorFor(final List<ByteBuffer> vals, final boolean isReversed)
     {
         // This may not always be the most efficient, but it probably is if
         // values is small, which is likely to be the most common case.
         return new Comparator<ByteBuffer>()
         {
+            private final List<ByteBuffer> values = isReversed ? com.google.common.collect.Lists.reverse(vals) : vals;
+
             public int compare(ByteBuffer b1, ByteBuffer b2)
             {
                 int idx1 = -1;

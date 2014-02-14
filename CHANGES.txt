@@ -56,6 +56,7 @@ Merged from 1.2:
  * Log USING TTL/TIMESTAMP in a counter update warning (CASSANDRA-6649)
  * Don't exchange schema between nodes with different versions (CASSANDRA-6695)
  * Use real node messaging versions for schema exchange decisions (CASSANDRA-6700)
+ * IN on the last clustering columns + ORDER BY DESC yield no results (CASSANDRA-6701)
 
 
 2.0.5
