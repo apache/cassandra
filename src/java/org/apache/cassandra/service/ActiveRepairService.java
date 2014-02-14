@@ -100,7 +100,6 @@ public class ActiveRepairService
 
     private final ConcurrentMap<UUID, ParentRepairSession> parentRepairSessions;
 
-    private CountDownLatch prepareLatch = null;
     /**
      * Protected constructor. Use ActiveRepairService.instance.
      */
@@ -217,13 +216,13 @@ public class ActiveRepairService
     {
         UUID parentRepairSession = UUIDGen.getTimeUUID();
         registerParentRepairSession(parentRepairSession, columnFamilyStores, ranges);
-        prepareLatch = new CountDownLatch(endpoints.size());
+        final CountDownLatch prepareLatch = new CountDownLatch(endpoints.size());
         IAsyncCallback callback = new IAsyncCallback()
         {
             @Override
             public void response(MessageIn msg)
             {
-                ActiveRepairService.this.prepareLatch.countDown();
+                prepareLatch.countDown();
             }
 
             @Override
