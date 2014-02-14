@@ -438,7 +438,8 @@ public class SecondaryIndexManager
 
         for (Column column : indexedColumnsInRow)
         {
-            SecondaryIndex index = indexesByColumn.get(column.name());
+            ColumnDefinition cDef = baseCfs.metadata.getColumnDefinitionFromColumnName(column.name());
+            SecondaryIndex index = indexesByColumn.get(cDef.name);
             if (index == null)
                 continue;
 
