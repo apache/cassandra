@@ -22,6 +22,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.github.jamm.MemoryMeter;
@@ -625,7 +626,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                             throw new InvalidRequestException(String.format("Invalid null clustering key part %s", name));
                         ColumnNameBuilder copy = builder.copy().add(val);
                         // See below for why this
-                        s.add((bound == Bound.END && copy.remainingCount() > 0) ? copy.buildAsEndOfRange() : copy.build());
+                        s.add((b == Bound.END && copy.remainingCount() > 0) ? copy.buildAsEndOfRange() : copy.build());
                     }
                     return new ArrayList<ByteBuffer>(s);
                 }
@@ -727,7 +728,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             {
                 return new AbstractIterator<IColumn>()
                 {
-                    Iterator<ByteBuffer> iter = requested.iterator();
+                    // If the query is reversed, we'll reverse everything in the end, so return the
+                    // requested in reversed order so we do return values in requested order in the end
+                    Iterator<ByteBuffer> iter = (isReversed ? Lists.reverse(requested) : requested).iterator();
                     public IColumn computeNext()
                     {
                         while (iter.hasNext())
