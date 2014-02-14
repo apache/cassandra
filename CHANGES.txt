@@ -8,6 +8,7 @@
  * Don't exchange schema between nodes with different versions (CASSANDRA-6695)
  * Use real node messaging versions for schema exchange decisions (CASSANDRA-6700)
  * IN on the last clustering columns + ORDER BY DESC yield no results (CASSANDRA-6701)
+ * Fix SecondaryIndexManager#deleteFromIndexes() (CASSANDRA-6711)
 
 
 1.2.15
