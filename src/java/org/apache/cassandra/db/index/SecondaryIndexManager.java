@@ -443,8 +443,8 @@ public class SecondaryIndexManager
         for (Cell cell : indexedColumnsInRow)
         {
             // TODO: this is probably incorrect, we should pull all indexes
-            baseCfs.metadata.getColumnDefinition(cell.name());
-            SecondaryIndex index = indexesByColumn.get(cDef.name);
+            ColumnDefinition cDef = baseCfs.metadata.getColumnDefinition(cell.name());
+            SecondaryIndex index = indexesByColumn.get(cDef.name.bytes);
             if (index == null)
                 continue;
 
