@@ -59,7 +59,7 @@ public class StreamManager implements StreamManagerMBean
      */
     public static RateLimiter getRateLimiter()
     {
-        double currentThroughput = ((double) DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec()) * 1024 * 1024;
+        double currentThroughput = ((double) DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec()) * 1024 * 1024 * 8;
         // if throughput is set to 0, throttling is disabled
         if (currentThroughput == 0)
             currentThroughput = Double.MAX_VALUE;
