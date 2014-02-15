@@ -1220,10 +1220,17 @@ public class NodeTool
     @Command(name = "enablehandoff", description = "Reenable the future hints storing on the current node")
     public static class EnableHandoff extends NodeToolCmd
     {
+        @Arguments(usage = "<dc-name>,<dc-name>", description = "Enable hinted handoff only for these DCs")
+        private List<String> args = new ArrayList<>();
+
         @Override
         public void execute(NodeProbe probe)
         {
-            probe.enableHintedHandoff();
+            checkArgument(args.size() <= 1, "enablehandoff does not accept two args");
+            if(args.size() == 1)
+                probe.enableHintedHandoff(args.get(0));
+            else
+                probe.enableHintedHandoff();
         }
     }
 

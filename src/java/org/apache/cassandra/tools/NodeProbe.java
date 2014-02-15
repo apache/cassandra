@@ -745,6 +745,11 @@ public class NodeProbe implements AutoCloseable
         spProxy.setHintedHandoffEnabled(true);
     }
 
+    public void enableHintedHandoff(String dcNames)
+    {
+        spProxy.setHintedHandoffEnabledByDCList(dcNames);
+    }
+
     public void pauseHintsDelivery()
     {
         hhProxy.pauseHintsDelivery(true);
