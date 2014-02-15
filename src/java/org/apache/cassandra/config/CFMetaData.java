@@ -405,15 +405,6 @@ public final class CFMetaData
         }
 
         @Override
-        public boolean equals(Object obj)
-        {
-            if (! (obj instanceof SpeculativeRetry))
-                return false;
-            SpeculativeRetry rhs = (SpeculativeRetry) obj;
-            return Objects.equal(type, rhs.type) && Objects.equal(value, rhs.value);
-        }
-
-        @Override
         public String toString()
         {
             switch (type)
