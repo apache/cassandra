@@ -52,7 +52,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     @BeforeClass
     public static void loadSchema() throws ConfigurationException
     {
-        loadSchema(true);
+        loadSchema();
     }
 
     private ByteBuffer startCol = ByteBufferUtil.bytes("Start");
