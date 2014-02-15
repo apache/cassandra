@@ -99,7 +99,6 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             constructor.setPropertyUtils(propertiesChecker);
             Yaml yaml = new Yaml(constructor);
             Config result = yaml.loadAs(new ByteArrayInputStream(configBytes), Config.class);
-            result.configHintedHandoff();
             propertiesChecker.check();
             return result;
         }
