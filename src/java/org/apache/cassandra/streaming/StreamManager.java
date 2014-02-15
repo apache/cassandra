@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.streaming;
 
+import java.net.InetAddress;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -32,8 +33,8 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.RateLimiter;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.streaming.management.StreamEventJMXNotifier;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
@@ -47,25 +48,53 @@ public class StreamManager implements StreamManagerMBean
 {
     public static final StreamManager instance = new StreamManager();
 
-    private static final RateLimiter limiter = RateLimiter.create(Double.MAX_VALUE);
-
     /**
      * Gets streaming rate limiter.
      * When stream_throughput_outbound_megabits_per_sec is 0, this returns rate limiter
      * with the rate of Double.MAX_VALUE bytes per second.
      * Rate unit is bytes per sec.
      *
-     * @return RateLimiter with rate limit set
+     * @return StreamRateLimiter with rate limit set based on peer location.
      */
-    public static RateLimiter getRateLimiter()
+    public static StreamRateLimiter getRateLimiter(InetAddress peer)
     {
-        double currentThroughput = (((double) DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec()) * 1024 * 1024 ) / 8;
-        // if throughput is set to 0, throttling is disabled
-        if (currentThroughput == 0)
-            currentThroughput = Double.MAX_VALUE;
-        if (limiter.getRate() != currentThroughput)
-            limiter.setRate(currentThroughput);
-        return limiter;
+        return new StreamRateLimiter(peer);
+    }
+
+    public static class StreamRateLimiter
+    {
+        private static final double ONE_MEGA_BIT = 1024 * 1024 * 8;
+        private static final RateLimiter limiter = RateLimiter.create(Double.MAX_VALUE);
+        private static final RateLimiter interDCLimiter = RateLimiter.create(Double.MAX_VALUE);
+        private final boolean isLocalDC;
+
+        public StreamRateLimiter(InetAddress peer)
+        {
+            double throughput = ((double) DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec()) * ONE_MEGA_BIT;
+            mayUpdateThroughput(throughput, limiter);
+
+            double interDCThroughput = ((double) DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec()) * ONE_MEGA_BIT;
+            mayUpdateThroughput(interDCThroughput, interDCLimiter);
+
+            isLocalDC = DatabaseDescriptor.getLocalDataCenter().equals(
+                        DatabaseDescriptor.getEndpointSnitch().getDatacenter(peer));
+        }
+
+        private void mayUpdateThroughput(double limit, RateLimiter rateLimiter)
+        {
+            // if throughput is set to 0, throttling is disabled
+            if (limit == 0)
+                limit = Double.MAX_VALUE;
+            if (rateLimiter.getRate() != limit)
+                rateLimiter.setRate(limit);
+        }
+
+        public void acquire(int toTransfer)
+        {
+            limiter.acquire(toTransfer);
+            if (!isLocalDC)
+                interDCLimiter.acquire(toTransfer);
+        }
     }
 
     private final StreamEventJMXNotifier notifier = new StreamEventJMXNotifier();
