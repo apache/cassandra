@@ -77,7 +77,10 @@ public class Config
     @Deprecated
     public Integer concurrent_replicates = null;
 
-    public Integer memtable_flush_writers = null; // will get set to the length of data dirs in DatabaseDescriptor
+    // we don't want a lot of contention, but we also don't want to starve all other tables
+    // if a big one flushes. OS buffering should be able to minimize contention with 2 threads.
+    public int memtable_flush_writers = 2;
+
     public Integer memtable_total_space_in_mb;
     public float memtable_cleanup_threshold = 0.4f;
 
@@ -123,6 +126,7 @@ public class Config
     public volatile Integer stream_throughput_outbound_megabits_per_sec = 200;
 
     public String[] data_file_directories;
+    public String flush_directory;
 
     public String saved_caches_directory;
 

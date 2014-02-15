@@ -78,7 +78,7 @@ public class Scrubber implements Closeable
         this.skipCorrupted = skipCorrupted;
 
         // Calculate the expected compacted filesize
-        this.destination = cfs.directories.getDirectoryForNewSSTables();
+        this.destination = cfs.directories.getDirectoryForCompactedSSTables();
         if (destination == null)
             throw new IOException("disk full");
 

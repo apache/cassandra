@@ -1,4 +1,5 @@
 2.1
+ * Add flush directory distinct from compaction directories (CASSANDRA-6357)
  * Require JNA by default (CASSANDRA-6575)
  * add listsnapshots command to nodetool (CASSANDRA-5742)
  * Introduce AtomicBTreeColumns (CASSANDRA-6271)

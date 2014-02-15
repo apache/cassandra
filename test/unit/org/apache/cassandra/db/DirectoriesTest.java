@@ -116,7 +116,7 @@ public class DirectoriesTest
         for (CFMetaData cfm : CFM)
         {
             Directories directories = new Directories(cfm);
-            assertEquals(cfDir(cfm), directories.getDirectoryForNewSSTables());
+            assertEquals(cfDir(cfm), directories.getDirectoryForCompactedSSTables());
 
             Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.cfName, 1, false);
             File snapshotDir = new File(cfDir(cfm),  File.separator + Directories.SNAPSHOT_SUBDIR + File.separator + "42");
@@ -183,7 +183,7 @@ public class DirectoriesTest
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.best_effort);
             
-            for (DataDirectory dd : Directories.dataFileLocations)
+            for (DataDirectory dd : Directories.dataDirectories)
             {
                 dd.location.setExecutable(false);
                 dd.location.setWritable(false);
@@ -199,7 +199,7 @@ public class DirectoriesTest
         } 
         finally 
         {
-            for (DataDirectory dd : Directories.dataFileLocations)
+            for (DataDirectory dd : Directories.dataDirectories)
             {
                 dd.location.setExecutable(true);
                 dd.location.setWritable(true);
@@ -215,7 +215,7 @@ public class DirectoriesTest
         for (final CFMetaData cfm : CFM)
         {
             final Directories directories = new Directories(cfm);
-            assertEquals(cfDir(cfm), directories.getDirectoryForNewSSTables());
+            assertEquals(cfDir(cfm), directories.getDirectoryForCompactedSSTables());
             final String n = Long.toString(System.nanoTime());
             Callable<File> directoryGetter = new Callable<File>() {
                 public File call() throws Exception {

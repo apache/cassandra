@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import static com.google.common.collect.Sets.newHashSet;
-
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOError;
@@ -33,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -40,19 +39,25 @@ import com.google.common.collect.ImmutableSet.Builder;
 import com.google.common.collect.Iterables;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.Uninterruptibles;
-
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
+
+import static com.google.common.collect.Sets.newHashSet;
 
 /**
  * Encapsulate handling of paths to the data files.
@@ -86,13 +91,15 @@ public class Directories
     public static final String SNAPSHOT_SUBDIR = "snapshots";
     public static final String SECONDARY_INDEX_NAME_SEPARATOR = ".";
 
-    public static final DataDirectory[] dataFileLocations;
+    public static final DataDirectory[] dataDirectories;
+    public static final DataDirectory flushDirectory;
     static
     {
         String[] locations = DatabaseDescriptor.getAllDataFileLocations();
-        dataFileLocations = new DataDirectory[locations.length];
+        dataDirectories = new DataDirectory[locations.length];
         for (int i = 0; i < locations.length; ++i)
-            dataFileLocations[i] = new DataDirectory(new File(locations[i]));
+            dataDirectories[i] = new DataDirectory(new File(locations[i]));
+        flushDirectory = new DataDirectory(new File(DatabaseDescriptor.getFlushLocation()));
     }
 
 
@@ -170,7 +177,8 @@ public class Directories
     }
 
     private final CFMetaData metadata;
-    private final File[] sstableDirectories;
+    private final File[] dataPaths;
+    private final File flushPath;
 
     /**
      * Create Directories of given ColumnFamily.
@@ -181,54 +189,74 @@ public class Directories
     public Directories(CFMetaData metadata)
     {
         this.metadata = metadata;
-        this.sstableDirectories = new File[dataFileLocations.length];
+        if (StorageService.instance.isClientMode())
+        {
+            dataPaths = null;
+            flushPath = null;
+            return;
+        }
 
-        // Determine SSTable directories
-        // If upgraded from version less than 2.1, use directories already exist.
-        for (int i = 0; i < dataFileLocations.length; ++i)
+        String cfId = ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(metadata.cfId));
+        int idx = metadata.cfName.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
+        // secondary indicies go in the same directory as the base cf
+        String directoryName = idx > 0 ? metadata.cfName.substring(0, idx) + "-" + cfId : metadata.cfName + "-" + cfId;
+
+        this.dataPaths = new File[dataDirectories.length];
+        // If upgraded from version less than 2.1, use existing directories
+        for (int i = 0; i < dataDirectories.length; ++i)
         {
             // check if old SSTable directory exists
-            sstableDirectories[i] = new File(dataFileLocations[i].location, join(metadata.ksName, metadata.cfName));
+            dataPaths[i] = new File(dataDirectories[i].location, join(metadata.ksName, this.metadata.cfName));
         }
-        boolean olderDirectoryExists = Iterables.any(Arrays.asList(sstableDirectories), new Predicate<File>()
+        boolean olderDirectoryExists = Iterables.any(Arrays.asList(dataPaths), new Predicate<File>()
         {
             public boolean apply(File file)
             {
                 return file.exists();
             }
         });
-        if (olderDirectoryExists)
-            return;
-
-        // create directory name
-        String directoryName;
-        String cfId = ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(metadata.cfId));
-        int idx = metadata.cfName.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
-        if (idx > 0)
-            // secondary index, goes in the same directory than the base cf
-            directoryName = metadata.cfName.substring(0, idx) + "-" + cfId;
-        else
-            directoryName = metadata.cfName + "-" + cfId;
-
-        for (int i = 0; i < dataFileLocations.length; ++i)
-            sstableDirectories[i] = new File(dataFileLocations[i].location, join(metadata.ksName, directoryName));
-
-        if (!StorageService.instance.isClientMode())
+        if (!olderDirectoryExists)
         {
-            for (File dir : sstableDirectories)
+            // use 2.1-style path names
+            for (int i = 0; i < dataDirectories.length; ++i)
+                dataPaths[i] = new File(dataDirectories[i].location, join(metadata.ksName, directoryName));
+        }
+
+        flushPath = new File(flushDirectory.location, join(metadata.ksName, directoryName));
+
+        for (File dir : allSSTablePaths())
+        {
+            try
             {
-                try
-                {
-                    FileUtils.createDirectory(dir);
-                }
-                catch (FSError e)
-                {
-                    // don't just let the default exception handler do this, we need the create loop to continue
-                    logger.error("Failed to create {} directory", dir);
-                    FileUtils.handleFSError(e);
-                }
+                FileUtils.createDirectory(dir);
+            }
+            catch (FSError e)
+            {
+                // don't just let the default exception handler do this, we need the create loop to continue
+                logger.error("Failed to create {} directory", dir);
+                FileUtils.handleFSError(e);
             }
         }
+    }
+
+    /**
+     * @return an iterable of all possible sstable paths, including flush and post-compaction locations.
+     * Guaranteed to only return one copy of each path, even if there is no dedicated flush location and
+     * it shares with the others.
+     */
+    private Iterable<File> allSSTablePaths()
+    {
+        return ImmutableSet.<File>builder().add(dataPaths).add(flushPath).build();
+    }
+
+    /**
+     * @return an iterable of all possible sstable directories, including flush and post-compaction locations.
+     * Guaranteed to only return one copy of each directories, even if there is no dedicated flush location and
+     * it shares with the others.
+     */
+    private static Iterable<DataDirectory> allSSTableDirectories()
+    {
+        return ImmutableSet.<DataDirectory>builder().add(dataDirectories).add(flushDirectory).build();
     }
 
     /**
@@ -239,7 +267,7 @@ public class Directories
      */
     public File getLocationForDisk(DataDirectory dataDirectory)
     {
-        for (File dir : sstableDirectories)
+        for (File dir : allSSTablePaths())
         {
             if (dir.getAbsolutePath().startsWith(dataDirectory.location.getAbsolutePath()))
                 return dir;
@@ -249,7 +277,7 @@ public class Directories
 
     public Descriptor find(String filename)
     {
-        for (File dir : sstableDirectories)
+        for (File dir : allSSTablePaths())
         {
             if (new File(dir, filename).exists())
                 return Descriptor.fromFilename(dir, filename).left;
@@ -257,9 +285,9 @@ public class Directories
         return null;
     }
 
-    public File getDirectoryForNewSSTables()
+    public File getDirectoryForCompactedSSTables()
     {
-        File path = getWriteableLocationAsFile();
+        File path = getCompactionLocationAsFile();
 
         // Requesting GC has a chance to free space only if we're using mmap and a non SUN jvm
         if (path == null
@@ -272,15 +300,15 @@ public class Directories
             // Note: GCInspector will do this already, but only sun JVM supports GCInspector so far
             SSTableDeletingTask.rescheduleFailedTasks();
             Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
-            path = getWriteableLocationAsFile();
+            path = getCompactionLocationAsFile();
         }
 
         return path;
     }
 
-    public File getWriteableLocationAsFile()
+    public File getCompactionLocationAsFile()
     {
-        return getLocationForDisk(getWriteableLocation());
+        return getLocationForDisk(getCompactionLocation());
     }
 
     /**
@@ -288,12 +316,12 @@ public class Directories
      *
      * @throws IOError if all directories are blacklisted.
      */
-    public DataDirectory getWriteableLocation()
+    public DataDirectory getCompactionLocation()
     {
         List<DataDirectory> candidates = new ArrayList<>();
 
         // pick directories with enough space and so that resulting sstable dirs aren't blacklisted for writes.
-        for (DataDirectory dataDir : dataFileLocations)
+        for (DataDirectory dataDir : dataDirectories)
         {
             if (BlacklistedDirectories.isUnwritable(getLocationForDisk(dataDir)))
                 continue;
@@ -318,6 +346,12 @@ public class Directories
         return candidates.get(0);
     }
 
+    public DataDirectory getFlushLocation()
+    {
+        return BlacklistedDirectories.isUnwritable(flushPath)
+               ? getCompactionLocation()
+               : flushDirectory;
+    }
 
     public static File getSnapshotDirectory(Descriptor desc, String snapshotName)
     {
@@ -430,7 +464,7 @@ public class Directories
             if (filtered)
                 return;
 
-            for (File location : sstableDirectories)
+            for (File location : allSSTablePaths())
             {
                 if (BlacklistedDirectories.isUnreadable(location))
                     continue;
@@ -492,7 +526,7 @@ public class Directories
     public Map<String, Pair<Long, Long>> getSnapshotDetails()
     {
         final Map<String, Pair<Long, Long>> snapshotSpaceMap = new HashMap<>();
-        for (final File dir : sstableDirectories)
+        for (final File dir : allSSTablePaths())
         {
             final File snapshotDir = new File(dir,SNAPSHOT_SUBDIR);
             if (snapshotDir.exists() && snapshotDir.isDirectory())
@@ -522,7 +556,7 @@ public class Directories
     }
     public boolean snapshotExists(String snapshotName)
     {
-        for (File dir : sstableDirectories)
+        for (File dir : allSSTablePaths())
         {
             File snapshotDir = new File(dir, join(SNAPSHOT_SUBDIR, snapshotName));
             if (snapshotDir.exists())
@@ -550,7 +584,7 @@ public class Directories
     // The snapshot must exist
     public long snapshotCreationTime(String snapshotName)
     {
-        for (File dir : sstableDirectories)
+        for (File dir : allSSTablePaths())
         {
             File snapshotDir = new File(dir, join(SNAPSHOT_SUBDIR, snapshotName));
             if (snapshotDir.exists())
@@ -562,7 +596,7 @@ public class Directories
     public long trueSnapshotsSize()
     {
         long result = 0L;
-        for (File dir : sstableDirectories)
+        for (File dir : allSSTablePaths())
             result += getTrueAllocatedSizeIn(new File(dir, join(SNAPSHOT_SUBDIR)));
         return result;
     }
@@ -594,7 +628,7 @@ public class Directories
     public static List<File> getKSChildDirectories(String ksName)
     {
         List<File> result = new ArrayList<>();
-        for (DataDirectory dataDirectory : dataFileLocations)
+        for (DataDirectory dataDirectory : allSSTableDirectories())
         {
             File ksDir = new File(dataDirectory.location, ksName);
             File[] cfDirs = ksDir.listFiles();
@@ -612,7 +646,7 @@ public class Directories
     public List<File> getCFDirectories()
     {
         List<File> result = new ArrayList<>();
-        for (File dataDirectory : sstableDirectories)
+        for (File dataDirectory : allSSTablePaths())
         {
             if (dataDirectory.isDirectory())
                 result.add(dataDirectory);
@@ -640,19 +674,19 @@ public class Directories
         return StringUtils.join(s, File.separator);
     }
 
-    // Hack for tests, don't use otherwise
+    @VisibleForTesting
     static void overrideDataDirectoriesForTest(String loc)
     {
-        for (int i = 0; i < dataFileLocations.length; ++i)
-            dataFileLocations[i] = new DataDirectory(new File(loc));
+        for (int i = 0; i < dataDirectories.length; ++i)
+            dataDirectories[i] = new DataDirectory(new File(loc));
     }
 
-    // Hack for tests, don't use otherwise
+    @VisibleForTesting
     static void resetDataDirectoriesAfterTest()
     {
         String[] locations = DatabaseDescriptor.getAllDataFileLocations();
         for (int i = 0; i < locations.length; ++i)
-            dataFileLocations[i] = new DataDirectory(new File(locations[i]));
+            dataDirectories[i] = new DataDirectory(new File(locations[i]));
     }
     
     private class TrueFilesSizeVisitor extends SimpleFileVisitor<Path>

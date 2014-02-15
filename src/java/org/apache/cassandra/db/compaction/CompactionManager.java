@@ -626,7 +626,7 @@ public class CompactionManager implements CompactionManagerMBean
 
             logger.info("Cleaning up {}", sstable);
 
-            File compactionFileLocation = cfs.directories.getDirectoryForNewSSTables();
+            File compactionFileLocation = cfs.directories.getDirectoryForCompactedSSTables();
             if (compactionFileLocation == null)
                 throw new IOException("disk full");
 
@@ -919,7 +919,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
 
             logger.info("Anticompacting {}", sstable);
-            File destination = cfs.directories.getDirectoryForNewSSTables();
+            File destination = cfs.directories.getDirectoryForCompactedSSTables();
             SSTableWriter repairedSSTableWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, repairedAt, sstable);
             SSTableWriter unRepairedSSTableWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, ActiveRepairService.UNREPAIRED_SSTABLE, sstable);
 

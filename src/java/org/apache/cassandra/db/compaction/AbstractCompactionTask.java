@@ -49,6 +49,11 @@ public abstract class AbstractCompactionTask extends DiskAwareRunnable
             assert compacting.contains(sstable) : sstable.getFilename() + " is not correctly marked compacting";
     }
 
+    protected Directories.DataDirectory getWriteableLocation()
+    {
+        return cfs.directories.getCompactionLocation();
+    }
+
     /**
      * executes the task and unmarks sstables compacting
      */
