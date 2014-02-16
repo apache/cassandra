@@ -49,12 +49,6 @@ public class SerializationsTest extends AbstractSerializationsTester
 {
     Statics statics = new Statics();
 
-    @BeforeClass
-    public static void loadSchema() throws ConfigurationException
-    {
-        loadSchema();
-    }
-
     private ByteBuffer startCol = ByteBufferUtil.bytes("Start");
     private ByteBuffer stopCol = ByteBufferUtil.bytes("Stop");
     private Composite emptyCol = Composites.EMPTY;
