@@ -849,7 +849,7 @@ public class AntiEntropyService
                 allEndpoints.add(FBUtilities.getBroadcastAddress());
 
                 if (isSequential)
-                    makeSnapshots(endpoints);
+                    makeSnapshots(allEndpoints);
 
                 for (InetAddress endpoint : allEndpoints)
                     treeRequests.add(new TreeRequest(getName(), endpoint, range, new CFPair(tablename, cfname)));
