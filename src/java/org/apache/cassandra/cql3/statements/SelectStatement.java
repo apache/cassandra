@@ -411,7 +411,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             SortedSet<CellName> cellNames = getRequestedColumns(variables);
             if (cellNames == null) // in case of IN () for the last column of the key
                 return null;
-            QueryProcessor.validateCellNames(cellNames);
+            QueryProcessor.validateCellNames(cellNames, cfm.comparator);
             return new NamesQueryFilter(cellNames, true);
         }
     }

@@ -54,27 +54,27 @@ public class UpdateParameters
 
     public Cell makeColumn(CellName name, ByteBuffer value) throws InvalidRequestException
     {
-        QueryProcessor.validateCellName(name);
+        QueryProcessor.validateCellName(name, metadata.comparator);
         return Cell.create(name, value, timestamp, ttl, metadata);
     }
 
     public Cell makeTombstone(CellName name) throws InvalidRequestException
     {
-        QueryProcessor.validateCellName(name);
+        QueryProcessor.validateCellName(name, metadata.comparator);
         return new DeletedCell(name, localDeletionTime, timestamp);
     }
 
     public RangeTombstone makeRangeTombstone(ColumnSlice slice) throws InvalidRequestException
     {
-        QueryProcessor.validateComposite(slice.start);
-        QueryProcessor.validateComposite(slice.finish);
+        QueryProcessor.validateComposite(slice.start, metadata.comparator);
+        QueryProcessor.validateComposite(slice.finish, metadata.comparator);
         return new RangeTombstone(slice.start, slice.finish, timestamp, localDeletionTime);
     }
 
     public RangeTombstone makeTombstoneForOverwrite(ColumnSlice slice) throws InvalidRequestException
     {
-        QueryProcessor.validateComposite(slice.start);
-        QueryProcessor.validateComposite(slice.finish);
+        QueryProcessor.validateComposite(slice.start, metadata.comparator);
+        QueryProcessor.validateComposite(slice.finish, metadata.comparator);
         return new RangeTombstone(slice.start, slice.finish, timestamp - 1, localDeletionTime);
     }
 

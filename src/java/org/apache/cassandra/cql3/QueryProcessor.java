@@ -34,8 +34,7 @@ import org.apache.cassandra.cql3.hooks.*;
 import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -145,24 +144,25 @@ public class QueryProcessor
         }
     }
 
-    public static void validateCellNames(Iterable<CellName> cellNames) throws InvalidRequestException
+    public static void validateCellNames(Iterable<CellName> cellNames, CellNameType type) throws InvalidRequestException
     {
         for (CellName name : cellNames)
-            validateCellName(name);
+            validateCellName(name, type);
     }
 
-    public static void validateCellName(CellName name) throws InvalidRequestException
+    public static void validateCellName(CellName name, CellNameType type) throws InvalidRequestException
     {
-        validateComposite(name);
+        validateComposite(name, type);
         if (name.isEmpty())
             throw new InvalidRequestException("Invalid empty value for clustering column of COMPACT TABLE");
     }
 
-    public static void validateComposite(Composite name) throws InvalidRequestException
+    public static void validateComposite(Composite name, CType type) throws InvalidRequestException
     {
-        if (name.dataSize() > Cell.MAX_NAME_LENGTH)
+        long serializedSize = type.serializer().serializedSize(name, TypeSizes.NATIVE);
+        if (serializedSize > Cell.MAX_NAME_LENGTH)
             throw new InvalidRequestException(String.format("The sum of all clustering columns is too long (%s > %s)",
-                                                            name.dataSize(),
+                                                            serializedSize,
                                                             Cell.MAX_NAME_LENGTH));
     }
 
