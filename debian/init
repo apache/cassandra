@@ -19,7 +19,6 @@ NAME=cassandra
 PIDFILE=/var/run/$NAME/$NAME.pid
 SCRIPTNAME=/etc/init.d/$NAME
 CONFDIR=/etc/cassandra
-JSVC=/usr/bin/jsvc
 WAIT_FOR_START=10
 CASSANDRA_HOME=/usr/share/cassandra
 FD_LIMIT=100000
