@@ -52,3 +52,11 @@ Written by Pavel Yaskevich.
 LMAX Disruptor
 (http://lmax-exchange.github.io/disruptor/)
 Copyright 2011 LMAX Ltd.
+
+Airline
+(https://github.com/airlift/airline)
+Copyright 2011, Dain Sundstrom dain@iq80.com
+Copyright 2010, Cedric Beust cedric@beust.com
+
+HLL++ support provided by stream-lib
+(https://github.com/addthis/stream-lib)
