@@ -1,6 +1,4 @@
-package org.apache.cassandra.utils;
 /*
- * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,28 +6,19 @@ package org.apache.cassandra.utils;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
  */
+package org.apache.cassandra.utils;
 
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NavigableSet;
-import java.util.Random;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -46,7 +35,6 @@ import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Timer;
 import com.yammer.metrics.core.TimerContext;
 import com.yammer.metrics.stats.Snapshot;
-import edu.stanford.ppl.concurrent.SnapTreeMap;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
@@ -161,12 +149,11 @@ public class LongBTreeTest
     {
         ListenableFutureTask<List<ListenableFuture<?>>> f = ListenableFutureTask.create(new Callable<List<ListenableFuture<?>>>()
         {
-
             @Override
             public List<ListenableFuture<?>> call()
             {
                 final List<ListenableFuture<?>> r = new ArrayList<>();
-                SnapTreeMap<Integer, Integer> canon = new SnapTreeMap<>();
+                NavigableMap<Integer, Integer> canon = new TreeMap<>();
                 Object[] btree = BTree.empty();
                 final TreeMap<Integer, Integer> buffer = new TreeMap<>();
                 final Random rnd = new Random();
@@ -188,7 +175,6 @@ public class LongBTreeTest
                     }
                     TimerContext ctxt;
                     ctxt = TREE_TIMER.time();
-                    canon = canon.clone();
                     canon.putAll(buffer);
                     ctxt.stop();
                     ctxt = BTREE_TIMER.time();
@@ -198,7 +184,7 @@ public class LongBTreeTest
                     if (quickEquality)
                         testEqual("", BTree.<Integer>slice(btree, true), canon.keySet().iterator());
                     else
-                        r.addAll(testAllSlices("RND", btree, canon.keySet()));
+                        r.addAll(testAllSlices("RND", btree, canon.navigableKeySet()));
 
                     if (!BTree.isWellFormed(btree))
                         System.out.println("ERROR: Not well formed");

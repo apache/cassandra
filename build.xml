@@ -384,7 +384,6 @@
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift" version="${version}" />
           <dependency groupId="com.yammer.metrics" artifactId="metrics-core" version="2.2.0" />
           <dependency groupId="com.addthis.metrics" artifactId="reporter-config" version="2.1.0" />
-          <dependency groupId="edu.stanford.ppl" artifactId="snaptree" version="0.1" />
           <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.3m" />
           <dependency groupId="io.airlift" artifactId="airline" version="0.6" />
           <dependency groupId="io.netty" artifactId="netty" version="3.6.6.Final" />
