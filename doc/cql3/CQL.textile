@@ -1,6 +1,6 @@
 <link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
-h1. Cassandra Query Language (CQL) v3.1.4
+h1. Cassandra Query Language (CQL) v3.1.5
 
 
  <span id="tableOfContents">
@@ -618,10 +618,12 @@ bc(syntax)..
 
 <where-clause> ::= <relation> ( AND <relation> )*
 
-<relation> ::= <identifier> ('=' | '<' | '>' | '<=' | '>=') <term>
+<relation> ::= <identifier> <op> <term>
+             | '(' <identifier> (',' <identifier>)* ')' <op> '(' <term> (',' <term>)* ')'
              | <identifier> IN '(' ( <term> ( ',' <term>)* )? ')'
-             | TOKEN '(' <identifier> ( ',' <identifer>)* ')' ('=' | '<' | '>' | '<=' | '>=') <term>
+             | TOKEN '(' <identifier> ( ',' <identifer>)* ')' <op> <term>
 
+<op> ::= '=' | '<' | '>' | '<=' | '>='
 <order-by> ::= <ordering> ( ',' <odering> )*
 <ordering> ::= <identifer> ( ASC | DESC )?
 p. 
@@ -675,7 +677,7 @@ CREATE TABLE posts (
 The following query is allowed:
 
 bc(sample). 
-SELECT entry_title, content FROM posts WHERE userid='john doe' AND blog_title='John's Blog' AND posted_at >= '2012-01-01' AND posted_at < '2012-01-31'
+SELECT entry_title, content FROM posts WHERE userid='john doe' AND blog_title='John''s Blog' AND posted_at >= '2012-01-01' AND posted_at < '2012-01-31'
 
 But the following one is not, as it does not select a contiguous set of rows (and we suppose no secondary indexes are set):
 
@@ -689,6 +691,16 @@ bc(sample).
 SELECT * FROM posts WHERE token(userid) > token('tom') AND token(userid) < token('bob')
 
 Moreover, the @IN@ relation is only allowed on the last column of the partition key and on the last column of the full primary key.
+
+It is also possible to "group" @CLUSTERING COLUMNS@ together in a relation, for instance:
+
+bc(sample). 
+SELECT * FROM posts WHERE userid='john doe' AND (blog_title, posted_at) > ('John''s Blog', '2012-01-01')
+
+will request all rows that sorts after the one having "John's Blog" as @blog_tile@ and '2012-01-01' for @posted_at@ in the clustering order. In particular, rows having a @post_at <= '2012-01-01'@ will be returned as long as their @blog_title > 'John''s Blog'@, which wouldn't be the case for:
+
+bc(sample). 
+SELECT * FROM posts WHERE userid='john doe' AND blog_title > 'John''s Blog' AND posted_at > '2012-01-01'
 
 h4(#selectOrderBy). @<order-by>@
 
@@ -1099,6 +1111,10 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 h2(#changes). Changes
 
 The following describes the addition/changes brought for each version of CQL.
+
+h3. 3.1.5
+
+* It is now possible to group clustering columns in a relatiion, see "SELECT Where clauses":#selectWhere.
 
 h3. 3.1.4
 

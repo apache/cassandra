@@ -329,42 +329,13 @@ public class CompositeType extends AbstractCompositeType
             this.serializedSize = b.serializedSize;
         }
 
-        public Builder add(ByteBuffer buffer, Relation.Type op)
+        public Builder add(ByteBuffer bb)
         {
             if (components.size() >= composite.types.size())
                 throw new IllegalStateException("Composite column is already fully constructed");
 
-            int current = components.size();
-            components.add(buffer);
-
-            /*
-             * Given the rules for eoc (end-of-component, see AbstractCompositeType.compare()),
-             * We can select:
-             *   - = 'a' by using <'a'><0>
-             *   - < 'a' by using <'a'><-1>
-             *   - <= 'a' by using <'a'><1>
-             *   - > 'a' by using <'a'><1>
-             *   - >= 'a' by using <'a'><0>
-             */
-            switch (op)
-            {
-                case LT:
-                    endOfComponents[current] = (byte) -1;
-                    break;
-                case GT:
-                case LTE:
-                    endOfComponents[current] = (byte) 1;
-                    break;
-                default:
-                    endOfComponents[current] = (byte) 0;
-                    break;
-            }
+            components.add(bb);
             return this;
-        }
-
-        public Builder add(ByteBuffer bb)
-        {
-            return add(bb, Relation.Type.EQ);
         }
 
         public Builder add(ColumnIdentifier name)
@@ -413,6 +384,34 @@ public class CompositeType extends AbstractCompositeType
             ByteBuffer bb = build();
             bb.put(bb.remaining() - 1, (byte)1);
             return bb;
+        }
+
+        public ByteBuffer buildForRelation(Relation.Type op)
+        {
+            /*
+             * Given the rules for eoc (end-of-component, see AbstractCompositeType.compare()),
+             * We can select:
+             *   - = 'a' by using <'a'><0>
+             *   - < 'a' by using <'a'><-1>
+             *   - <= 'a' by using <'a'><1>
+             *   - > 'a' by using <'a'><1>
+             *   - >= 'a' by using <'a'><0>
+             */
+            int current = components.size() - 1;
+            switch (op)
+            {
+                case LT:
+                    endOfComponents[current] = (byte) -1;
+                    break;
+                case GT:
+                case LTE:
+                    endOfComponents[current] = (byte) 1;
+                    break;
+                default:
+                    endOfComponents[current] = (byte) 0;
+                    break;
+            }
+            return build();
         }
 
         public Builder copy()

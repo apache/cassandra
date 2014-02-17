@@ -966,6 +966,22 @@ relation[List<Relation> clauses]
        '(' ( f1=term { rel.addInValue(f1); } (',' fN=term { rel.addInValue(fN); } )* )? ')' { $clauses.add(rel); }
     | name=cident K_CONTAINS { Relation.Type rt = Relation.Type.CONTAINS; } (K_KEY { rt = Relation.Type.CONTAINS_KEY; })?
         t=term { $clauses.add(new Relation(name, rt, t)); }
+    | {
+         List<ColumnIdentifier> ids = new ArrayList<ColumnIdentifier>();
+         List<Term.Raw> terms = new ArrayList<Term.Raw>();
+      }
+        '(' n1=cident { ids.add(n1); } (',' ni=cident { ids.add(ni); })* ')'
+        type=relationType
+        '(' t1=term { terms.add(t1); } (',' ti=term { terms.add(ti); })* ')'
+      {
+          if (type == Relation.Type.IN)
+              addRecognitionError("Cannot use IN relation with tuple notation");
+          if (ids.size() != terms.size())
+              addRecognitionError(String.format("Number of values (" + terms.size() + ") in tuple notation doesn't match the number of column names (" + ids.size() + ")"));
+          else
+              for (int i = 0; i < ids.size(); i++)
+                  $clauses.add(new Relation(ids.get(i), type, terms.get(i), i == 0 ? null : ids.get(i-1)));
+      }
     | '(' relation[$clauses] ')'
     ;
 

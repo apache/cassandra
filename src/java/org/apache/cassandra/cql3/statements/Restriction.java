@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.google.common.base.Objects;
+
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.db.IndexExpression;
 import org.apache.cassandra.cql3.*;
@@ -199,10 +201,16 @@ public interface Restriction
         private final boolean[] boundInclusive;
         private final boolean onToken;
 
+        // The name of the column that was preceding this one if the tuple notation of #4851 was used
+        // (note: if it is set for both bound, we'll validate both have the same previous value, but we
+        // still need to distinguish if it's set or not for both bound)
+        private final ColumnIdentifier[] previous;
+
         public Slice(boolean onToken)
         {
             this.bounds = new Term[2];
             this.boundInclusive = new boolean[2];
+            this.previous = new ColumnIdentifier[2];
             this.onToken = onToken;
         }
 
@@ -275,7 +283,7 @@ public interface Restriction
             throw new AssertionError();
         }
 
-        public void setBound(ColumnIdentifier name, Relation.Type type, Term t) throws InvalidRequestException
+        public void setBound(ColumnIdentifier name, Relation.Type type, Term t, ColumnIdentifier previousName) throws InvalidRequestException
         {
             Bound b;
             boolean inclusive;
@@ -306,6 +314,20 @@ public interface Restriction
 
             bounds[b.idx] = t;
             boundInclusive[b.idx] = inclusive;
+
+            // If a bound is part of a tuple notation (#4851), the other bound must either also be or must not be set at all,
+            // and this even if there is a 2ndary index (it's not supported by the 2ndary code). And it's easier to validate
+            // this here so we do.
+            Bound reverse = Bound.reverse(b);
+            if (hasBound(reverse) && !(Objects.equal(previousName, previous[reverse.idx])))
+                throw new InvalidRequestException(String.format("Clustering column %s cannot be restricted both inside a tuple notation and outside it", name));
+
+            previous[b.idx] = previousName;
+        }
+
+        public boolean isPartOfTuple()
+        {
+            return previous[Bound.START.idx] != null || previous[Bound.END.idx] != null;
         }
 
         @Override
