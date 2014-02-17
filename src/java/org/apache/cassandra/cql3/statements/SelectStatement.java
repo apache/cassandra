@@ -37,6 +37,7 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
@@ -165,7 +166,8 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         int pageSize = options.getPageSize();
         // A count query will never be paged for the user, but we always page it internally to avoid OOM.
         // If we user provided a pageSize we'll use that to page internally (because why not), otherwise we use our default
-        if (parameters.isCount && pageSize <= 0)
+        // Note that if there are some nodes in the cluster with a version less than 2.0, we can't use paging (CASSANDRA-6707).
+        if (parameters.isCount && pageSize <= 0 && MessagingService.instance().allNodesAtLeast20)
             pageSize = DEFAULT_COUNT_PAGE_SIZE;
 
         if (pageSize <= 0 || command == null || !QueryPagers.mayNeedPaging(command, pageSize))
