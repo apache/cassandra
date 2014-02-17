@@ -106,7 +106,7 @@ public class RepairJob
         allEndpoints.add(FBUtilities.getBroadcastAddress());
 
         if (isSequential)
-            makeSnapshots(endpoints);
+            makeSnapshots(allEndpoints);
 
         this.gcBefore = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).gcBefore(System.currentTimeMillis());
 
