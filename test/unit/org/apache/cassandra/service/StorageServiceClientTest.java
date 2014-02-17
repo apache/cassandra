@@ -26,12 +26,11 @@ import org.junit.Test;
 import static org.junit.Assert.assertFalse;
 
 import java.io.File;
-import java.io.IOException;
 
 public class StorageServiceClientTest
 {
     @Test
-    public void testClientOnlyMode() throws IOException, ConfigurationException
+    public void testClientOnlyMode() throws ConfigurationException
     {
         SchemaLoader.mkdirs();
         SchemaLoader.cleanup();

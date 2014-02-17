@@ -32,7 +32,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import org.apache.cassandra.db.*;
@@ -167,12 +166,12 @@ public class Util
         return bb;
     }
 
-    public static List<Row> getRangeSlice(ColumnFamilyStore cfs) throws IOException, ExecutionException, InterruptedException
+    public static List<Row> getRangeSlice(ColumnFamilyStore cfs)
     {
         return getRangeSlice(cfs, null);
     }
 
-    public static List<Row> getRangeSlice(ColumnFamilyStore cfs, ByteBuffer superColumn) throws IOException, ExecutionException, InterruptedException
+    public static List<Row> getRangeSlice(ColumnFamilyStore cfs, ByteBuffer superColumn)
     {
         IDiskAtomFilter filter = superColumn == null
                                ? new IdentityQueryFilter()
@@ -188,7 +187,7 @@ public class Util
      * @param mutations A group of Mutations for the same keyspace and column family.
      * @return The ColumnFamilyStore that was used.
      */
-    public static ColumnFamilyStore writeColumnFamily(List<Mutation> mutations) throws IOException, ExecutionException, InterruptedException
+    public static ColumnFamilyStore writeColumnFamily(List<Mutation> mutations)
     {
         IMutation first = mutations.get(0);
         String keyspaceName = first.getKeyspaceName();
@@ -202,7 +201,7 @@ public class Util
         return store;
     }
 
-    public static ColumnFamily getColumnFamily(Keyspace keyspace, DecoratedKey key, String cfName) throws IOException
+    public static ColumnFamily getColumnFamily(Keyspace keyspace, DecoratedKey key, String cfName)
     {
         ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore(cfName);
         assert cfStore != null : "Column family " + cfName + " has not been defined";

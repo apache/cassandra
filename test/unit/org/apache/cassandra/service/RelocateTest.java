@@ -34,7 +34,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.dht.BigIntegerToken;
@@ -113,8 +112,8 @@ public class RelocateTest
         return tokenMap;
     }
 
-    // Copy-pasta from MoveTest.java
-    private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd) throws ConfigurationException
+    // Copy-paste from MoveTest.java
+    private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd)
     {
         KSMetaData ksmd = Schema.instance.getKSMetaData(keyspaceName);
         return AbstractReplicationStrategy.createReplicationStrategy(

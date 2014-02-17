@@ -119,7 +119,7 @@ public class CompactionsTest extends SchemaLoader
     }
 
     @Test
-    public void testSuperColumnTombstones() throws IOException, ExecutionException, InterruptedException
+    public void testSuperColumnTombstones() throws ExecutionException, InterruptedException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Super1");
@@ -164,7 +164,7 @@ public class CompactionsTest extends SchemaLoader
     }
 
     @Test
-    public void testEchoedRow() throws IOException, ExecutionException, InterruptedException
+    public void testEchoedRow()
     {
         // This test check that EchoedRow doesn't skipp rows: see CASSANDRA-2653
 
@@ -218,7 +218,7 @@ public class CompactionsTest extends SchemaLoader
     }
 
     @Test
-    public void testDontPurgeAccidentaly() throws IOException, ExecutionException, InterruptedException
+    public void testDontPurgeAccidentaly() throws InterruptedException
     {
         testDontPurgeAccidentaly("test1", "Super5");
 
@@ -295,7 +295,7 @@ public class CompactionsTest extends SchemaLoader
         assert !compactionLogs.containsKey(Pair.create(KEYSPACE1, cf));
     }
 
-    private void testDontPurgeAccidentaly(String k, String cfname) throws IOException, ExecutionException, InterruptedException
+    private void testDontPurgeAccidentaly(String k, String cfname) throws InterruptedException
     {
         // This test catches the regression of CASSANDRA-2786
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
@@ -367,7 +367,7 @@ public class CompactionsTest extends SchemaLoader
     }
 
     @Test
-    public void testNeedsCleanup() throws IOException
+    public void testNeedsCleanup()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");

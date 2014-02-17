@@ -18,7 +18,6 @@
  */
 package org.apache.cassandra;
 
-import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -44,7 +43,7 @@ public class EmbeddedServer extends SchemaLoader
     static ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @BeforeClass
-    public static void startCassandra() throws IOException
+    public static void startCassandra()
 
     {
         executor.execute(new Runnable()

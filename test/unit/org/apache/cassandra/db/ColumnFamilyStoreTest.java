@@ -101,7 +101,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     }
 
     @Test
-    public void testGetColumnWithWrongBF() throws IOException, ExecutionException, InterruptedException
+    public void testGetColumnWithWrongBF()
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
@@ -152,11 +152,11 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     }
 
     @Test
-    public void testSkipStartKey() throws IOException, ExecutionException, InterruptedException
+    public void testSkipStartKey()
     {
         ColumnFamilyStore cfs = insertKey1Key2();
 
-        IPartitioner p = StorageService.getPartitioner();
+        IPartitioner<?> p = StorageService.getPartitioner();
         List<Row> result = cfs.getRangeSlice(Util.range(p, "key1", "key2"),
                                              null,
                                              Util.namesFilter(cfs, "asdf"),
@@ -678,7 +678,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     }
 
     @Test
-    public void testInclusiveBounds() throws IOException, ExecutionException, InterruptedException
+    public void testInclusiveBounds()
     {
         ColumnFamilyStore cfs = insertKey1Key2();
 
@@ -847,7 +847,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     }
 
 
-    private ColumnFamilyStore insertKey1Key2() throws IOException, ExecutionException, InterruptedException
+    private ColumnFamilyStore insertKey1Key2()
     {
         ColumnFamilyStore cfs = Keyspace.open("Keyspace2").getColumnFamilyStore("Standard1");
         List<Mutation> rms = new LinkedList<>();
@@ -1718,8 +1718,6 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
     private void testMultiRangeSlicesBehavior(ColumnFamilyStore cfs)
     {
-        CellNameType type = cfs.getComparator();
-
         // in order not to change thrift interfaces at this stage we build SliceQueryFilter
         // directly instead of using QueryFilter to build it for us
         ColumnSlice[] startMiddleAndEndRanges = new ColumnSlice[] {

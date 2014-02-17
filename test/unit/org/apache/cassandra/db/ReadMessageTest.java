@@ -79,7 +79,7 @@ public class ReadMessageTest extends SchemaLoader
     }
 
     @Test
-    public void testGetColumn() throws IOException, ColumnFamilyNotDefinedException
+    public void testGetColumn()
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
         CellNameType type = keyspace.getColumnFamilyStore("Standard1").getComparator();

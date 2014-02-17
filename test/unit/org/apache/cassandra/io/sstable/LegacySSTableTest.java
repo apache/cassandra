@@ -20,7 +20,6 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -68,7 +67,7 @@ public class LegacySSTableTest extends SchemaLoader
     /**
      * Get a descriptor for the legacy sstable at the given version.
      */
-    protected Descriptor getDescriptor(String ver) throws IOException
+    protected Descriptor getDescriptor(String ver)
     {
         File directory = new File(LEGACY_SSTABLE_ROOT + File.separator + ver + File.separator + KSNAME);
         return new Descriptor(ver, directory, KSNAME, CFNAME, 0, false);

@@ -59,7 +59,7 @@ public class StorageServiceServerTest
     }
 
     @Test
-    public void testRegularMode() throws IOException, InterruptedException, ConfigurationException
+    public void testRegularMode() throws ConfigurationException
     {
         SchemaLoader.mkdirs();
         SchemaLoader.cleanup();

@@ -175,7 +175,7 @@ public class DirectoriesTest
 
 
     @Test
-    public void testDiskFailurePolicy_best_effort() throws IOException
+    public void testDiskFailurePolicy_best_effort()
     {
         DiskFailurePolicy origPolicy = DatabaseDescriptor.getDiskFailurePolicy();
         

@@ -154,7 +154,7 @@ public class OldNetworkTopologyStrategyTest extends SchemaLoader
         tmd.updateNormalToken(endpointToken, ep);
     }
 
-    private void testGetEndpoints(AbstractReplicationStrategy strategy, Token[] keyTokens) throws UnknownHostException
+    private void testGetEndpoints(AbstractReplicationStrategy strategy, Token[] keyTokens)
     {
         for (Token keyToken : keyTokens)
         {

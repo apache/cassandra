@@ -67,7 +67,7 @@ public class SSTableUtils
         return datafile;
     }
 
-    public static void assertContentEquals(SSTableReader lhs, SSTableReader rhs) throws IOException
+    public static void assertContentEquals(SSTableReader lhs, SSTableReader rhs)
     {
         SSTableScanner slhs = lhs.getScanner();
         SSTableScanner srhs = rhs.getScanner();
@@ -81,7 +81,7 @@ public class SSTableUtils
         assert !srhs.hasNext() : "RHS contained more rows than LHS";
     }
 
-    public static void assertContentEquals(OnDiskAtomIterator lhs, OnDiskAtomIterator rhs) throws IOException
+    public static void assertContentEquals(OnDiskAtomIterator lhs, OnDiskAtomIterator rhs)
     {
         assertEquals(lhs.getKey(), rhs.getKey());
         // check metadata

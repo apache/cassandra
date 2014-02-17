@@ -19,7 +19,6 @@
 
 package org.apache.cassandra.service;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -57,7 +56,7 @@ public class MoveTest
      * So instead of extending SchemaLoader, we call it's method below.
      */
     @BeforeClass
-    public static void setup() throws IOException, ConfigurationException
+    public static void setup() throws ConfigurationException
     {
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
         SchemaLoader.loadSchema();
@@ -149,7 +148,7 @@ public class MoveTest
      * Test ranges and write endpoints when multiple nodes are on the move simultaneously
      */
     @Test
-    public void testSimultaneousMove() throws UnknownHostException, ConfigurationException
+    public void testSimultaneousMove() throws UnknownHostException
     {
         StorageService ss = StorageService.instance;
         final int RING_SIZE = 10;
@@ -540,7 +539,7 @@ public class MoveTest
         return addrs;
     }
 
-    private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd) throws ConfigurationException
+    private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd)
     {
         KSMetaData ksmd = Schema.instance.getKSMetaData(keyspaceName);
         return AbstractReplicationStrategy.createReplicationStrategy(

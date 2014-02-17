@@ -23,7 +23,6 @@ import java.security.MessageDigest;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
@@ -64,7 +63,7 @@ public class CounterCellTest extends SchemaLoader
     }
 
     @Test
-    public void testCreate() throws UnknownHostException
+    public void testCreate()
     {
         long delta = 3L;
         CounterCell cell = new CounterCell(Util.cellname("x"),
@@ -81,7 +80,7 @@ public class CounterCellTest extends SchemaLoader
     }
 
     @Test
-    public void testReconcile() throws UnknownHostException
+    public void testReconcile()
     {
         Cell left;
         Cell right;
@@ -207,7 +206,7 @@ public class CounterCellTest extends SchemaLoader
     }
 
     @Test
-    public void testDiff() throws UnknownHostException
+    public void testDiff()
     {
         AbstractAllocator allocator = HeapAllocator.instance;
         ContextState left;

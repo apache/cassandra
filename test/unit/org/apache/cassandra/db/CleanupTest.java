@@ -31,12 +31,10 @@ import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.dht.BytesToken;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -59,7 +57,7 @@ public class CleanupTest extends SchemaLoader
     }
 
     @Test
-    public void testCleanup() throws IOException, ExecutionException, InterruptedException, ConfigurationException
+    public void testCleanup() throws ExecutionException, InterruptedException
     {
         StorageService.instance.getTokenMetadata().clearUnsafe();
 
@@ -110,7 +108,6 @@ public class CleanupTest extends SchemaLoader
         IndexExpression expr = new IndexExpression(COLUMN, IndexExpression.Operator.EQ, VALUE);
         List<IndexExpression> clause = Arrays.asList(expr);
         IDiskAtomFilter filter = new IdentityQueryFilter();
-        IPartitioner p = StorageService.getPartitioner();
         Range<RowPosition> range = Util.range("", "");
         rows = keyspace.getColumnFamilyStore(CF1).search(range, clause, filter, Integer.MAX_VALUE);
         assertEquals(LOOPS, rows.size());
@@ -138,7 +135,7 @@ public class CleanupTest extends SchemaLoader
         assertEquals(0, rows.size());
     }
 
-    protected void fillCF(ColumnFamilyStore cfs, int rowsPerSSTable) throws ExecutionException, InterruptedException, IOException
+    protected void fillCF(ColumnFamilyStore cfs, int rowsPerSSTable)
     {
         CompactionManager.instance.disableAutoCompaction();
 

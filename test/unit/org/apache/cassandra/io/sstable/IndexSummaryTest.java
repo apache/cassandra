@@ -227,7 +227,7 @@ public class IndexSummaryTest
         assertEquals(full.subList(0, full.size() - 1), Downsampling.getOriginalIndexes(BASE_SAMPLING_LEVEL - 1));
 
         // spot check a few values (these depend on BASE_SAMPLING_LEVEL being 128)
-        assert BASE_SAMPLING_LEVEL == 128;
+        assertEquals(128, BASE_SAMPLING_LEVEL);
         assertEquals(Arrays.asList(0, 32, 64, 96), Downsampling.getOriginalIndexes(4));
         assertEquals(Arrays.asList(0, 64), Downsampling.getOriginalIndexes(2));
         assertEquals(Arrays.asList(), Downsampling.getOriginalIndexes(0));
@@ -247,7 +247,7 @@ public class IndexSummaryTest
         assertEquals(indexInterval * 2, Downsampling.getEffectiveIndexIntervalAfterIndex(BASE_SAMPLING_LEVEL - 2, BASE_SAMPLING_LEVEL - 1, indexInterval));
 
         // at samplingLevel=2, the retained summary points are [0, 64] (assumes BASE_SAMPLING_LEVEL is 128)
-        assert BASE_SAMPLING_LEVEL == 128;
+        assertEquals(128, BASE_SAMPLING_LEVEL);
         assertEquals(64 * indexInterval, Downsampling.getEffectiveIndexIntervalAfterIndex(0, 2, indexInterval));
         assertEquals(64 * indexInterval, Downsampling.getEffectiveIndexIntervalAfterIndex(1, 2, indexInterval));
     }

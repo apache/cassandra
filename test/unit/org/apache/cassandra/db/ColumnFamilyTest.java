@@ -152,7 +152,7 @@ public class ColumnFamilyTest extends SchemaLoader
     }
 
     @Test
-    public void testColumnStatsRecordsRowDeletesCorrectly() throws IOException
+    public void testColumnStatsRecordsRowDeletesCorrectly()
     {
         long timestamp = System.currentTimeMillis();
         int localDeletionTime = (int) (System.currentTimeMillis() / 1000);

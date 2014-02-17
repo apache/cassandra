@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.WrappedRunnable;
 public class DebuggableThreadPoolExecutorTest
 {
     @Test
-    public void testSerialization() throws InterruptedException
+    public void testSerialization()
     {
         LinkedBlockingQueue<Runnable> q = new LinkedBlockingQueue<Runnable>(1);
         DebuggableThreadPoolExecutor executor = new DebuggableThreadPoolExecutor(1,

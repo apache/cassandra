@@ -23,7 +23,6 @@ package org.apache.cassandra.db;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.concurrent.ExecutionException;
 
 import org.junit.Test;
 
@@ -39,7 +38,7 @@ import static org.apache.cassandra.db.KeyspaceTest.assertColumns;
 public class RecoveryManager3Test extends SchemaLoader
 {
     @Test
-    public void testMissingHeader() throws IOException, ExecutionException, InterruptedException
+    public void testMissingHeader() throws IOException
     {
         Keyspace keyspace1 = Keyspace.open("Keyspace1");
         Keyspace keyspace2 = Keyspace.open("Keyspace2");

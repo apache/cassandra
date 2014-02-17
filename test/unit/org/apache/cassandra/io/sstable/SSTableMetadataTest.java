@@ -40,7 +40,7 @@ import static org.junit.Assert.assertTrue;
 public class SSTableMetadataTest extends SchemaLoader
 {
     @Test
-    public void testTrackMaxDeletionTime() throws ExecutionException, InterruptedException
+    public void testTrackMaxDeletionTime()
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");

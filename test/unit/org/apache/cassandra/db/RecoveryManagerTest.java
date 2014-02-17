@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.Date;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.Util;
@@ -43,7 +42,7 @@ public class RecoveryManagerTest extends SchemaLoader
     }
 
     @Test
-    public void testOne() throws IOException, ExecutionException, InterruptedException
+    public void testOne() throws IOException
     {
         Keyspace keyspace1 = Keyspace.open("Keyspace1");
         Keyspace keyspace2 = Keyspace.open("Keyspace2");
@@ -73,7 +72,7 @@ public class RecoveryManagerTest extends SchemaLoader
     }
 
     @Test
-    public void testRecoverCounter() throws IOException, ExecutionException, InterruptedException
+    public void testRecoverCounter() throws IOException
     {
         Keyspace keyspace1 = Keyspace.open("Keyspace1");
 

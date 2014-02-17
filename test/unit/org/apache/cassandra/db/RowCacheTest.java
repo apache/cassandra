@@ -21,8 +21,6 @@ package org.apache.cassandra.db;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Collection;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 import org.junit.AfterClass;
 import org.junit.Test;

@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.IOException;
-
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -30,7 +28,7 @@ import static org.junit.Assert.assertTrue;
 public class CounterIdTest extends SchemaLoader
 {
     @Test
-    public void testGetCurrentIdFromSystemKeyspace() throws IOException
+    public void testGetCurrentIdFromSystemKeyspace()
     {
         // Renewing a bunch of times and checking we get the same thing from
         // the system keyspace that what is in memory

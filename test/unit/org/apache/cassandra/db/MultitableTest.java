@@ -20,10 +20,6 @@ package org.apache.cassandra.db;
  *
  */
 
-
-import java.io.IOException;
-import java.util.concurrent.ExecutionException;
-
 import org.apache.cassandra.Util;
 import org.junit.Test;
 
@@ -34,7 +30,7 @@ import static org.apache.cassandra.Util.column;
 public class MultitableTest extends SchemaLoader
 {
     @Test
-    public void testSameCFs() throws IOException, ExecutionException, InterruptedException
+    public void testSameCFs()
     {
         Keyspace keyspace1 = Keyspace.open("Keyspace1");
         Keyspace keyspace2 = Keyspace.open("Keyspace2");

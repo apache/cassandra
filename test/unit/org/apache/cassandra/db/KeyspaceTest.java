@@ -38,7 +38,6 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.expiringColumn;
-import static org.apache.cassandra.Util.getBytes;
 import static org.apache.cassandra.Util.cellname;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.io.sstable.SSTableReader;

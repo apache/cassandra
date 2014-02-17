@@ -18,10 +18,8 @@
 */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.concurrent.ExecutionException;
 import java.util.Set;
 import java.util.HashSet;
 
@@ -42,7 +40,7 @@ public class RowIterationTest extends SchemaLoader
     public static final InetAddress LOCAL = FBUtilities.getBroadcastAddress();
 
     @Test
-    public void testRowIteration() throws IOException, ExecutionException, InterruptedException
+    public void testRowIteration()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Super3");
@@ -61,7 +59,7 @@ public class RowIterationTest extends SchemaLoader
     }
 
     @Test
-    public void testRowIterationDeletionTime() throws IOException, ExecutionException, InterruptedException
+    public void testRowIterationDeletionTime()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         String CF_NAME = "Standard3";
@@ -72,7 +70,6 @@ public class RowIterationTest extends SchemaLoader
         Mutation rm = new Mutation(KEYSPACE1, key.key);
         rm.delete(CF_NAME, 0);
         rm.add(CF_NAME, Util.cellname("c"), ByteBufferUtil.bytes("values"), 0L);
-        DeletionInfo delInfo1 = rm.getColumnFamilies().iterator().next().deletionInfo();
         rm.apply();
         store.forceBlockingFlush();
 
@@ -90,7 +87,7 @@ public class RowIterationTest extends SchemaLoader
     }
 
     @Test
-    public void testRowIterationDeletion() throws IOException, ExecutionException, InterruptedException
+    public void testRowIterationDeletion()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         String CF_NAME = "Standard3";

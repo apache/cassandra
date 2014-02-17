@@ -18,7 +18,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -80,13 +79,13 @@ public class KeyCollisionTest extends SchemaLoader
         assert rows.get(3).key.key.equals(ByteBufferUtil.bytes("key2"));
     }
 
-    private void insert(String... keys) throws IOException
+    private void insert(String... keys)
     {
         for (String key : keys)
             insert(key);
     }
 
-    private void insert(String key) throws IOException
+    private void insert(String key)
     {
         Mutation rm;
         rm = new Mutation(KEYSPACE, ByteBufferUtil.bytes(key));

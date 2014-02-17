@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.db.marshal;
 
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Random;
@@ -35,7 +34,7 @@ public class TimeUUIDTypeTest
     TimeUUIDType timeUUIDType = new TimeUUIDType();
 
     @Test
-    public void testEquality() throws UnknownHostException
+    public void testEquality()
     {
         UUID a = UUIDGen.getTimeUUID();
         UUID b = new UUID(a.getMostSignificantBits(), a.getLeastSignificantBits());
@@ -46,7 +45,7 @@ public class TimeUUIDTypeTest
     }
 
     @Test
-    public void testSmaller() throws UnknownHostException
+    public void testSmaller()
     {
         UUID a = UUIDGen.getTimeUUID();
         UUID b = UUIDGen.getTimeUUID();
@@ -62,7 +61,7 @@ public class TimeUUIDTypeTest
     }
 
     @Test
-    public void testBigger() throws UnknownHostException
+    public void testBigger()
     {
         UUID a = UUIDGen.getTimeUUID();
         UUID b = UUIDGen.getTimeUUID();

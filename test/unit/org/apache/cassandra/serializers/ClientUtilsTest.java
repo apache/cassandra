@@ -23,7 +23,6 @@ package org.apache.cassandra.serializers;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.sql.Date;
 import java.util.UUID;
@@ -35,7 +34,7 @@ public class ClientUtilsTest
 {
     /** Exercises the classes in the clientutil jar to expose missing dependencies. */
     @Test
-    public void test() throws UnknownHostException
+    public void test()
     {
         AsciiSerializer.instance.deserialize(AsciiSerializer.instance.serialize("string"));
         BooleanSerializer.instance.deserialize(BooleanSerializer.instance.serialize(true));

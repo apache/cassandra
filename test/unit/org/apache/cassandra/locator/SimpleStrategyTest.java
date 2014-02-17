@@ -31,11 +31,9 @@ import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -50,7 +48,7 @@ public class SimpleStrategyTest extends SchemaLoader
     }
 
     @Test
-    public void testBigIntegerEndpoints() throws UnknownHostException, ConfigurationException
+    public void testBigIntegerEndpoints() throws UnknownHostException
     {
         List<Token> endpointTokens = new ArrayList<Token>();
         List<Token> keyTokens = new ArrayList<Token>();
@@ -62,7 +60,7 @@ public class SimpleStrategyTest extends SchemaLoader
     }
 
     @Test
-    public void testStringEndpoints() throws UnknownHostException, ConfigurationException
+    public void testStringEndpoints() throws UnknownHostException
     {
         IPartitioner partitioner = new OrderPreservingPartitioner();
 
@@ -77,7 +75,7 @@ public class SimpleStrategyTest extends SchemaLoader
 
     // given a list of endpoint tokens, and a set of key tokens falling between the endpoint tokens,
     // make sure that the Strategy picks the right endpoints for the keys.
-    private void verifyGetNaturalEndpoints(Token[] endpointTokens, Token[] keyTokens) throws UnknownHostException, ConfigurationException
+    private void verifyGetNaturalEndpoints(Token[] endpointTokens, Token[] keyTokens) throws UnknownHostException
     {
         TokenMetadata tmd;
         AbstractReplicationStrategy strategy;
@@ -106,7 +104,7 @@ public class SimpleStrategyTest extends SchemaLoader
     }
 
     @Test
-    public void testGetEndpointsDuringBootstrap() throws UnknownHostException, ConfigurationException
+    public void testGetEndpointsDuringBootstrap() throws UnknownHostException
     {
         // the token difference will be RING_SIZE * 2.
         final int RING_SIZE = 10;
@@ -166,7 +164,7 @@ public class SimpleStrategyTest extends SchemaLoader
         StorageServiceAccessor.setTokenMetadata(oldTmd);
     }
 
-    private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd) throws ConfigurationException
+    private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd)
     {
         KSMetaData ksmd = Schema.instance.getKSMetaData(keyspaceName);
         return AbstractReplicationStrategy.createReplicationStrategy(

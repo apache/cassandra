@@ -20,9 +20,6 @@ package org.apache.cassandra.db;
 
 import static org.junit.Assert.assertEquals;
 
-import java.io.IOException;
-import java.util.concurrent.ExecutionException;
-
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.composites.CellName;
@@ -35,7 +32,6 @@ public class CollationControllerTest extends SchemaLoader
 {
     @Test
     public void getTopLevelColumnsSkipsSSTablesModifiedBeforeRowDelete() 
-    throws IOException, ExecutionException, InterruptedException
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
@@ -85,7 +81,6 @@ public class CollationControllerTest extends SchemaLoader
 
     @Test
     public void ensureTombstonesAppliedAfterGCGS()
-    throws IOException, ExecutionException, InterruptedException
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("StandardGCGS0");

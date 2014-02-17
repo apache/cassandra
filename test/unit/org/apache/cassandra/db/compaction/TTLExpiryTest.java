@@ -20,9 +20,6 @@ package org.apache.cassandra.db.compaction;
  * 
  */
 
-
-
-import java.util.concurrent.ExecutionException;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -41,7 +38,7 @@ import static org.junit.Assert.assertTrue;
 public class TTLExpiryTest extends SchemaLoader
 {
     @Test
-    public void testSimpleExpire() throws ExecutionException, InterruptedException
+    public void testSimpleExpire() throws InterruptedException
     {
         ColumnFamilyStore cfs = Keyspace.open("Keyspace1").getColumnFamilyStore("Standard1");
         cfs.disableAutoCompaction();
@@ -89,7 +86,7 @@ public class TTLExpiryTest extends SchemaLoader
     }
 
     @Test
-    public void testNoExpire() throws ExecutionException, InterruptedException
+    public void testNoExpire() throws InterruptedException
     {
         ColumnFamilyStore cfs = Keyspace.open("Keyspace1").getColumnFamilyStore("Standard1");
         cfs.disableAutoCompaction();

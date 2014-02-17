@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.UUID;
 
 import org.junit.After;
@@ -111,7 +110,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
     /**
      * wait for leveled compaction to quiesce on the given columnfamily
      */
-    private void waitForLeveling(ColumnFamilyStore cfs) throws InterruptedException, ExecutionException
+    private void waitForLeveling(ColumnFamilyStore cfs) throws InterruptedException
     {
         LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) cfs.getCompactionStrategy();
         // L0 is the lowest priority, so when that's done, we know everything is done

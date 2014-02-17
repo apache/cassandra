@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.db.compaction;
 
-import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.Set;
 import java.util.HashSet;
@@ -37,7 +36,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class OneCompactionTest extends SchemaLoader
 {
-    private void testCompaction(String columnFamilyName, int insertsPerTable) throws IOException, ExecutionException, InterruptedException
+    private void testCompaction(String columnFamilyName, int insertsPerTable) throws ExecutionException, InterruptedException
     {
         CompactionManager.instance.disableAutoCompaction();
 
@@ -59,13 +58,13 @@ public class OneCompactionTest extends SchemaLoader
     }
 
     @Test
-    public void testCompaction1() throws IOException, ExecutionException, InterruptedException
+    public void testCompaction1() throws ExecutionException, InterruptedException
     {
         testCompaction("Standard1", 1);
     }
 
     @Test
-    public void testCompaction2() throws IOException, ExecutionException, InterruptedException
+    public void testCompaction2() throws ExecutionException, InterruptedException
     {
         testCompaction("Standard2", 2);
     }
