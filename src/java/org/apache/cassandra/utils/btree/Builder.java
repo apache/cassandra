@@ -57,6 +57,8 @@ final class Builder
      */
     public <V> Object[] update(Object[] btree, Comparator<V> comparator, Collection<V> source, UpdateFunction<V> updateF)
     {
+        assert updateF != null;
+
         NodeBuilder current = rootBuilder;
         current.reset(btree, POSITIVE_INFINITY, updateF, comparator);
 
@@ -64,7 +66,7 @@ final class Builder
         {
             while (true)
             {
-                if (updateF != null && updateF.abortEarly())
+                if (updateF.abortEarly())
                 {
                     rootBuilder.clear();
                     return null;
@@ -103,7 +105,7 @@ final class Builder
         while ((size >>= FAN_SHIFT) > 0)
             current = current.ensureChild();
 
-        current.reset(EMPTY_LEAF, POSITIVE_INFINITY, null, null);
+        current.reset(EMPTY_LEAF, POSITIVE_INFINITY, UpdateFunction.NoOp.instance(), null);
         for (V key : source)
             current.addNewKey(key);
 

@@ -45,4 +45,33 @@ public interface UpdateFunction<V> extends Function<V, V>
      */
     void allocated(long heapSize);
 
+    public static final class NoOp<V> implements UpdateFunction<V>
+    {
+
+        private static final NoOp INSTANCE = new NoOp();
+        public static <V> NoOp<V> instance()
+        {
+            return INSTANCE;
+        }
+
+        public V apply(V replacing, V update)
+        {
+            return update;
+        }
+
+        public V apply(V update)
+        {
+            return update;
+        }
+
+        public boolean abortEarly()
+        {
+            return false;
+        }
+
+        public void allocated(long heapSize)
+        {
+        }
+    }
+
 }

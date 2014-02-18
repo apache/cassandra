@@ -2,7 +2,7 @@
  * Add flush directory distinct from compaction directories (CASSANDRA-6357)
  * Require JNA by default (CASSANDRA-6575)
  * add listsnapshots command to nodetool (CASSANDRA-5742)
- * Introduce AtomicBTreeColumns (CASSANDRA-6271)
+ * Introduce AtomicBTreeColumns (CASSANDRA-6271, 6692)
  * Multithreaded commitlog (CASSANDRA-3578)
  * allocate fixed index summary memory pool and resample cold index summaries 
    to use less memory (CASSANDRA-5519)

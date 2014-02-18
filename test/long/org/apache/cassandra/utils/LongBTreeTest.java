@@ -70,13 +70,13 @@ public class LongBTreeTest
     @Test
     public void testIndividualInsertsSmallOverlappingRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(100000000, 50, 1, 1, true);
+        testInsertions(10000000, 50, 1, 1, true);
     }
 
     @Test
     public void testBatchesSmallOverlappingRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(100000000, 50, 1, 5, true);
+        testInsertions(10000000, 50, 1, 5, true);
     }
 
     @Test
@@ -277,19 +277,30 @@ public class LongBTreeTest
         }
     }
 
-    private static <V> void testEqual(String id, Iterator<V> btree, Iterator<V> canon)
+    private static <V> boolean testEqual(String id, Iterator<V> btree, Iterator<V> canon)
     {
+        boolean equal = true;
         while (btree.hasNext() && canon.hasNext())
         {
             Object i = btree.next();
             Object j = canon.next();
             if (!i.equals(j))
+            {
                 System.out.println(String.format("%s: Expected %d, Got %d", id, j, i));
+                equal = false;
+            }
         }
         while (btree.hasNext())
+        {
             System.out.println(String.format("%s: Expected <Nil>, Got %d", id, btree.next()));
+            equal = false;
+        }
         while (canon.hasNext())
+        {
             System.out.println(String.format("%s: Expected %d, Got Nil", id, canon.next()));
+            equal = false;
+        }
+        return equal;
     }
 
     // should only be called on sets that range from 0->N or N->0
