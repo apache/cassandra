@@ -71,7 +71,6 @@ public class CommitLogDescriptor
 
     public int getMessagingVersion()
     {
-        assert MessagingService.current_version == MessagingService.VERSION_21;
         switch (version)
         {
             case VERSION_12:
@@ -83,6 +82,11 @@ public class CommitLogDescriptor
             default:
                 throw new IllegalStateException("Unknown commitlog version " + version);
         }
+    }
+
+    public int getVersion()
+    {
+        return version;
     }
 
     public String fileName()
