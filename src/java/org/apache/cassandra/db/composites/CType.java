@@ -97,19 +97,19 @@ public interface CType extends Comparator<Composite>
     /**
      * Deserialize a Composite from a ByteBuffer.
      *
-     * This is meant for thrift/cql2 to convert the fully serialized buffer we
+     * This is meant for thrift to convert the fully serialized buffer we
      * get from the clients to composites.
      */
     public Composite fromByteBuffer(ByteBuffer bb);
 
     /**
-     * Returns a AbstractType corresponding to this CType for thrift/cql2 sake.
+     * Returns a AbstractType corresponding to this CType for thrift sake.
      *
      * If the CType is a "simple" one, this just return the wrapped type, otherwise
      * it returns the corresponding org.apache.cassandra.db.marshal.CompositeType.
      *
      * This is only meant to be use for backward compatibility (particularly for
-     * thrift/cql2) but it's not meant to be used internally.
+     * thrift) but it's not meant to be used internally.
      */
     public AbstractType<?> asAbstractType();
 

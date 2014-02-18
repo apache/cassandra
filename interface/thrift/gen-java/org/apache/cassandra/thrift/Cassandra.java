@@ -379,7 +379,7 @@ public class Cassandra {
     public String system_update_column_family(CfDef cf_def) throws InvalidRequestException, SchemaDisagreementException, org.apache.thrift.TException;
 
     /**
-     * @deprecated Will become a no-op in 2.2. Please use the CQL3 version instead.
+     * @deprecated Throws InvalidRequestException since 3.0. Please use the CQL3 version instead.
      * 
      * @param query
      * @param compression
@@ -397,7 +397,7 @@ public class Cassandra {
     public CqlResult execute_cql3_query(ByteBuffer query, Compression compression, ConsistencyLevel consistency) throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, org.apache.thrift.TException;
 
     /**
-     * @deprecated Will become a no-op in 2.2. Please use the CQL3 version instead.
+     * @deprecated Throws InvalidRequestException since 3.0. Please use the CQL3 version instead.
      * 
      * @param query
      * @param compression
@@ -416,7 +416,7 @@ public class Cassandra {
     public CqlPreparedResult prepare_cql3_query(ByteBuffer query, Compression compression) throws InvalidRequestException, org.apache.thrift.TException;
 
     /**
-     * @deprecated Will become a no-op in 2.2. Please use the CQL3 version instead.
+     * @deprecated Throws InvalidRequestException since 3.0. Please use the CQL3 version instead.
      * 
      * @param itemId
      * @param values

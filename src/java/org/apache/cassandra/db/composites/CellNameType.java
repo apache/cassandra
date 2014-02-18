@@ -144,7 +144,7 @@ public interface CellNameType extends CType
      * Deserialize a Composite from a ByteBuffer.
      *
      * This is equilvalent to CType#fromByteBuffer but assumes the buffer is a full cell
-     * name. This is meant for thrift/cql2 to convert the fully serialized buffer we
+     * name. This is meant for thrift to convert the fully serialized buffer we
      * get from the clients.
      */
     public CellName cellFromByteBuffer(ByteBuffer bb);

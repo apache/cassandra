@@ -202,28 +202,12 @@
     <!--
        This generates the CQL grammar files from Cql.g
     -->
-    <target name="check-gen-cql2-grammar">
-        <uptodate property="cql2current"
-                srcfile="${build.src.java}/org/apache/cassandra/cql/Cql.g"
-                targetfile="${build.src.gen-java}/org/apache/cassandra/cql/Cql.tokens"/>
-    </target>
     <target name="check-gen-cql3-grammar">
         <uptodate property="cql3current"
                 srcfile="${build.src.java}/org/apache/cassandra/cql3/Cql.g"
                 targetfile="${build.src.gen-java}/org/apache/cassandra/cql3/Cql.tokens"/>
     </target>
  
-    <target name="gen-cql2-grammar" depends="check-gen-cql2-grammar" unless="cql2current">
-      <echo>Building Grammar ${build.src.java}/org/apache/cassandra/cql/Cql.g  ...</echo>
-      <java classname="org.antlr.Tool"
-            classpath="${build.lib}/antlr-3.2.jar"
-            fork="true"
-            failonerror="true">
-         <arg value="${build.src.java}/org/apache/cassandra/cql/Cql.g" />
-         <arg value="-fo" />
-         <arg value="${build.src.gen-java}/org/apache/cassandra/cql/" />
-      </java>
-    </target>
     <target name="gen-cql3-grammar" depends="check-gen-cql3-grammar" unless="cql3current">
       <echo>Building Grammar ${build.src.java}/org/apache/cassandra/cql3/Cql.g  ...</echo>
       <java classname="org.antlr.Tool"
@@ -243,9 +227,6 @@
         </artifact:dependencies>
         <taskdef classpathref="wikitext.classpath" resource="wikitexttasks.properties" />
         <wikitext-to-html markupLanguage="Textile">
-            <fileset dir="${basedir}">
-                <include name="doc/cql/*.textile"/>
-            </fileset>
             <fileset dir="${basedir}">
                 <include name="doc/cql3/*.textile"/>
             </fileset>
@@ -672,7 +653,7 @@
         depends="maven-ant-tasks-retrieve-build,build-project" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report" description="Create code coverage report"/>
 
-    <target depends="init,gen-cli-grammar,gen-cql2-grammar,gen-cql3-grammar"
+    <target depends="init,gen-cli-grammar,gen-cql3-grammar"
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->

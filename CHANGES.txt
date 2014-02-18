@@ -1,3 +1,7 @@
+3.0
+ * Remove CQL2 (CASSANDRA-5918)
+
+
 2.1.0-beta2
  * Fix ABTC NPE (CASSANDRA-6692)
  * Allow nodetool to use a file or prompt for password (CASSANDRA-6660)

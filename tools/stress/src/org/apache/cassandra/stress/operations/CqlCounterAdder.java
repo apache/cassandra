@@ -35,12 +35,9 @@ public class CqlCounterAdder extends CqlOperation<Integer>
     @Override
     protected String buildQuery()
     {
-        String counterCF = state.isCql2() ? "Counter1" : "Counter3";
+        String counterCF = "Counter3";
 
-        StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotesIfRequired(counterCF));
-
-        if (state.isCql2())
-            query.append(" USING CONSISTENCY ").append(state.settings.command.consistencyLevel);
+        StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotes(counterCF));
 
         query.append(" SET ");
 

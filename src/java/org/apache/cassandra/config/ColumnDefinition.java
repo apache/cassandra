@@ -55,7 +55,7 @@ public class ColumnDefinition extends ColumnSpecification
      * column, whose name is not stored in the data contrarily to the column of
      * type REGULAR. Hence the COMPACT_VALUE type to distinguish it below.
      *
-     * Note that thrift/CQL2 only know about definitions of type REGULAR (and
+     * Note that thrift only knows about definitions of type REGULAR (and
      * the ones whose componentIndex == null).
      */
     public enum Kind

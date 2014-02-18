@@ -44,8 +44,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql.CQLStatement;
-import org.apache.cassandra.cql.QueryProcessor;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.*;
@@ -71,7 +69,6 @@ import org.apache.cassandra.service.pager.QueryPagers;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.SemanticVersion;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.thrift.TException;
 
@@ -82,8 +79,6 @@ public class CassandraServer implements Cassandra.Iface
     private final static int COUNT_PAGE_SIZE = 1024;
 
     private final static List<ColumnOrSuperColumn> EMPTY_COLUMNS = Collections.emptyList();
-
-    private volatile boolean loggedCQL2Warning = false;
 
     /*
      * RequestScheduler to perform the scheduling of incoming requests
@@ -1895,67 +1890,13 @@ public class CassandraServer implements Cassandra.Iface
         return queryString;
     }
 
-    private void validateCQLVersion(int major) throws InvalidRequestException
+    public CqlResult execute_cql_query(ByteBuffer query, Compression compression) throws TException
     {
-        /*
-         * The rules are:
-         *   - If no version are set, we don't validate anything. The reason is
-         *     that 1) old CQL2 client might not have called set_cql_version
-         *     and 2) some client may have removed the set_cql_version for CQL3
-         *     when updating to 1.2.0. A CQL3 client upgrading from pre-1.2
-         *     shouldn't be in that case however since set_cql_version uses to
-         *     be mandatory (for CQL3).
-         *   - Otherwise, checks the major matches whatever was set.
-         */
-        SemanticVersion versionSet = state().getCQLVersion();
-        if (versionSet == null)
-            return;
-
-        if (versionSet.major != major)
-            throw new InvalidRequestException(
-                "Cannot execute/prepare CQL" + major + " statement since the CQL has been set to CQL" + versionSet.major
-              + "(This might mean your client hasn't been upgraded correctly to use the new CQL3 methods introduced in Cassandra 1.2+).");
+        throw new InvalidRequestException("CQL2 has been removed in Cassandra 3.0. Please use CQL3 instead");
     }
 
-    public CqlResult execute_cql_query(ByteBuffer query, Compression compression)
-    throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
+    public CqlResult execute_cql3_query(ByteBuffer query, Compression compression, ConsistencyLevel cLevel) throws TException
     {
-        validateCQLVersion(2);
-        maybeLogCQL2Warning();
-
-        try
-        {
-            String queryString = uncompress(query, compression);
-            if (startSessionIfRequested())
-            {
-                Tracing.instance.begin("execute_cql_query",
-                                       ImmutableMap.of("query", queryString));
-            }
-            else
-            {
-                logger.debug("execute_cql_query");
-            }
-
-            return QueryProcessor.process(queryString, state());
-        }
-        catch (RequestExecutionException e)
-        {
-            throw ThriftConversion.rethrow(e);
-        }
-        catch (RequestValidationException e)
-        {
-            throw ThriftConversion.toThrift(e);
-        }
-        finally
-        {
-            Tracing.instance.stopSession();
-        }
-    }
-
-    public CqlResult execute_cql3_query(ByteBuffer query, Compression compression, ConsistencyLevel cLevel)
-    throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
-    {
-        validateCQLVersion(3);
         try
         {
             String queryString = uncompress(query, compression);
@@ -1986,36 +1927,14 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public CqlPreparedResult prepare_cql_query(ByteBuffer query, Compression compression)
-    throws InvalidRequestException, TException
+    public CqlPreparedResult prepare_cql_query(ByteBuffer query, Compression compression) throws TException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("prepare_cql_query");
-
-        validateCQLVersion(2);
-        maybeLogCQL2Warning();
-
-        String queryString = uncompress(query, compression);
-        ThriftClientState cState = state();
-
-        try
-        {
-            cState.validateLogin();
-            return QueryProcessor.prepare(queryString, cState);
-        }
-        catch (RequestValidationException e)
-        {
-            throw ThriftConversion.toThrift(e);
-        }
+        throw new InvalidRequestException("CQL2 has been removed in Cassandra 3.0. Please use CQL3 instead");
     }
 
-    public CqlPreparedResult prepare_cql3_query(ByteBuffer query, Compression compression)
-    throws InvalidRequestException, TException
+    public CqlPreparedResult prepare_cql3_query(ByteBuffer query, Compression compression) throws TException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("prepare_cql3_query");
-
-        validateCQLVersion(3);
+        logger.debug("prepare_cql3_query");
 
         String queryString = uncompress(query, compression);
         ThriftClientState cState = state();
@@ -2031,52 +1950,13 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    public CqlResult execute_prepared_cql_query(int itemId, List<ByteBuffer> bindVariables)
-    throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
+    public CqlResult execute_prepared_cql_query(int itemId, List<ByteBuffer> bindVariables) throws TException
     {
-        validateCQLVersion(2);
-        maybeLogCQL2Warning();
-
-        if (startSessionIfRequested())
-        {
-            // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
-            Tracing.instance.begin("execute_prepared_cql_query", Collections.<String, String>emptyMap());
-        }
-        else
-        {
-            logger.debug("execute_prepared_cql_query");
-        }
-
-        try
-        {
-            ThriftClientState cState = state();
-            CQLStatement statement = cState.getPrepared().get(itemId);
-
-            if (statement == null)
-                throw new InvalidRequestException(String.format("Prepared query with ID %d not found", itemId));
-            logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId, statement.boundTerms);
-
-            return QueryProcessor.processPrepared(statement, cState, bindVariables);
-        }
-        catch (RequestExecutionException e)
-        {
-            throw ThriftConversion.rethrow(e);
-        }
-        catch (RequestValidationException e)
-        {
-            throw ThriftConversion.toThrift(e);
-        }
-        finally
-        {
-            Tracing.instance.stopSession();
-        }
+        throw new InvalidRequestException("CQL2 has been removed in Cassandra 3.0. Please use CQL3 instead");
     }
 
-    public CqlResult execute_prepared_cql3_query(int itemId, List<ByteBuffer> bindVariables, ConsistencyLevel cLevel)
-    throws InvalidRequestException, UnavailableException, TimedOutException, SchemaDisagreementException, TException
+    public CqlResult execute_prepared_cql3_query(int itemId, List<ByteBuffer> bindVariables, ConsistencyLevel cLevel) throws TException
     {
-        validateCQLVersion(3);
-
         if (startSessionIfRequested())
         {
             // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
@@ -2118,31 +1998,10 @@ public class CassandraServer implements Cassandra.Iface
     }
 
     /*
-     * Deprecated, but if a client sets CQL2, it is a no-op for compatibility sake.
-     * If it sets CQL3 however, we throw an IRE because this mean the client
-     * hasn't been updated for Cassandra 1.2 and should start using the new
-     * execute_cql3_query, etc... and there is no point no warning it early.
+     * No-op since 3.0.
      */
-    public void set_cql_version(String version) throws InvalidRequestException
+    public void set_cql_version(String version)
     {
-        try
-        {
-            state().setCQLVersion(version);
-        }
-        catch (org.apache.cassandra.exceptions.InvalidRequestException e)
-        {
-            throw new InvalidRequestException(e.getMessage());
-        }
-    }
-
-    private void maybeLogCQL2Warning()
-    {
-        if (!loggedCQL2Warning)
-        {
-            logger.warn("CQL2 has been deprecated since Cassandra 2.0, and will be removed entirely in version 2.2."
-                        + " Please switch to CQL3 before then.");
-            loggedCQL2Warning = true;
-        }
     }
 
     public ByteBuffer trace_next_query() throws TException

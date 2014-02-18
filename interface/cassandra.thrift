@@ -55,7 +55,7 @@ namespace rb CassandraThrift
 # An effort should be made not to break forward-client-compatibility either
 # (e.g. one should avoid removing obsolete fields from the IDL), but no
 # guarantees in this respect are made by the Cassandra project.
-const string VERSION = "19.39.0"
+const string VERSION = "20.0.0"
 
 
 #
@@ -843,7 +843,7 @@ service Cassandra {
 
 
   /**
-   * @deprecated Will become a no-op in 2.2. Please use the CQL3 version instead.
+   * @deprecated Throws InvalidRequestException since 3.0. Please use the CQL3 version instead.
    */
   CqlResult execute_cql_query(1:required binary query, 2:required Compression compression)
     throws (1:InvalidRequestException ire,
@@ -863,7 +863,7 @@ service Cassandra {
 
 
   /**
-   * @deprecated Will become a no-op in 2.2. Please use the CQL3 version instead.
+   * @deprecated Throws InvalidRequestException since 3.0. Please use the CQL3 version instead.
    */
   CqlPreparedResult prepare_cql_query(1:required binary query, 2:required Compression compression)
     throws (1:InvalidRequestException ire)
@@ -879,7 +879,7 @@ service Cassandra {
 
 
   /**
-   * @deprecated Will become a no-op in 2.2. Please use the CQL3 version instead.
+   * @deprecated Throws InvalidRequestException since 3.0. Please use the CQL3 version instead.
    */
   CqlResult execute_prepared_cql_query(1:required i32 itemId, 2:required list<binary> values)
     throws (1:InvalidRequestException ire,

@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.db.marshal;
 
-
 import java.nio.ByteBuffer;
-import java.text.ParseException;
 import java.util.UUID;
 
 import org.apache.cassandra.cql3.CQL3Type;
@@ -28,9 +26,6 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.UUIDSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
-import org.apache.commons.lang3.time.DateUtils;
-
-import static org.apache.cassandra.serializers.TimestampSerializer.iso8601Patterns;
 
 /**
  * Compares UUIDs using the following criteria:<br>
@@ -165,52 +160,20 @@ public class UUIDType extends AbstractType<UUID>
         if (source.isEmpty())
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
-        ByteBuffer idBytes = null;
-
         // ffffffff-ffff-ffff-ffff-ffffffffff
         if (TimeUUIDType.regexPattern.matcher(source).matches())
         {
-            UUID uuid;
             try
             {
-                uuid = UUID.fromString(source);
-                idBytes = ByteBuffer.wrap(UUIDGen.decompose(uuid));
+                return ByteBuffer.wrap(UUIDGen.decompose(UUID.fromString(source)));
             }
             catch (IllegalArgumentException e)
             {
                 throw new MarshalException(String.format("unable to make UUID from '%s'", source), e);
             }
-        } else if (source.toLowerCase().equals("now"))
-        {
-            idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
-        }
-        // Milliseconds since epoch?
-        else if (source.matches("^\\d+$"))
-        {
-            try
-            {
-                idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(Long.parseLong(source)));
-            }
-            catch (NumberFormatException e)
-            {
-                throw new MarshalException(String.format("unable to make version 1 UUID from '%s'", source), e);
-            }
-        }
-        // Last chance, attempt to parse as date-time string
-        else
-        {
-            try
-            {
-                long timestamp = DateUtils.parseDate(source, iso8601Patterns).getTime();
-                idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timestamp));
-            }
-            catch (ParseException e1)
-            {
-                throw new MarshalException(String.format("unable to coerce '%s' to version 1 UUID", source), e1);
-            }
         }
 
-        return idBytes;
+        throw new MarshalException(String.format("unable to coerce '%s' to version 1 UUID", source));
     }
 
     public CQL3Type asCQL3Type()

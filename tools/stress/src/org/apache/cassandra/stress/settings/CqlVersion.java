@@ -25,7 +25,6 @@ public enum CqlVersion
 {
 
     NOCQL(null),
-    CQL2("2.0.0"),
     CQL3("3.0.0");
 
     public final String connectVersion;
@@ -41,8 +40,6 @@ public enum CqlVersion
             return NOCQL;
         switch(version.charAt(0))
         {
-            case '2':
-                return CQL2;
             case '3':
                 return CQL3;
             default:
@@ -53,11 +50,6 @@ public enum CqlVersion
     public boolean isCql()
     {
         return this != NOCQL;
-    }
-
-    public boolean isCql2()
-    {
-        return this == CQL2;
     }
 
     public boolean isCql3()

@@ -205,8 +205,7 @@ class CQLHelpTopics(object):
         terminates.
 
         As always, when a keyspace name does not work as a normal identifier or
-        number, it can be quoted using single quotes (CQL 2) or double quotes
-        (CQL 3).
+        number, it can be quoted using double quotes.
         """
 
     def help_create_table(self):

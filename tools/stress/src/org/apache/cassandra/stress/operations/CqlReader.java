@@ -42,10 +42,7 @@ public class CqlReader extends CqlOperation<ByteBuffer[][]>
 
         if (state.settings.columns.names == null)
         {
-            if (state.isCql2())
-                query.append("FIRST ").append(state.settings.columns.maxColumnsPerKey).append(" ''..''");
-            else
-                query.append("*");
+            query.append("*");
         }
         else
         {
@@ -57,10 +54,8 @@ public class CqlReader extends CqlOperation<ByteBuffer[][]>
             }
         }
 
-        query.append(" FROM ").append(wrapInQuotesIfRequired(state.settings.schema.columnFamily));
+        query.append(" FROM ").append(wrapInQuotes(state.settings.schema.columnFamily));
 
-        if (state.isCql2())
-            query.append(" USING CONSISTENCY ").append(state.settings.command.consistencyLevel);
         query.append(" WHERE KEY=?");
         return query.toString();
     }

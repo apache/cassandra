@@ -165,27 +165,6 @@ public class UUIDGen
     }
 
     /**
-     * Converts a milliseconds-since-epoch timestamp into the 16 byte representation
-     * of a type 1 UUID (a time-based UUID).
-     *
-     * <p><i><b>Deprecated:</b> This method goes again the principle of a time
-     * UUID and should not be used. For queries based on timestamp, minTimeUUID() and
-     * maxTimeUUID() can be used but this method has questionable usefulness. This is
-     * only kept because CQL2 uses it (see TimeUUID.fromStringCQL2) and we
-     * don't want to break compatibility.</i></p>
-     *
-     * <p><i><b>Warning:</b> This method is not guaranteed to return unique UUIDs; Multiple
-     * invocations using identical timestamps will result in identical UUIDs.</i></p>
-     *
-     * @param timeMillis
-     * @return a type 1 UUID represented as a byte[]
-     */
-    public static byte[] getTimeUUIDBytes(long timeMillis)
-    {
-        return createTimeUUIDBytes(instance.createTimeUnsafe(timeMillis));
-    }
-
-    /**
      * Converts a 100-nanoseconds precision timestamp into the 16 byte representation
      * of a type 1 UUID (a time-based UUID).
      *

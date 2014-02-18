@@ -54,14 +54,6 @@ public class SettingsMode implements Serializable
             style = opts.usePrepared.setByUser() ? ConnectionStyle.CQL_PREPARED : ConnectionStyle.CQL;
             compression = ProtocolOptions.Compression.NONE.name();
         }
-        else if (options instanceof Cql2Options)
-        {
-            cqlVersion = CqlVersion.CQL2;
-            api = ConnectionAPI.THRIFT;
-            Cql2Options opts = (Cql2Options) options;
-            style = opts.usePrepared.setByUser() ? ConnectionStyle.CQL_PREPARED : ConnectionStyle.CQL;
-            compression = ProtocolOptions.Compression.NONE.name();
-        }
         else if (options instanceof ThriftOptions)
         {
             ThriftOptions opts = (ThriftOptions) options;
@@ -110,18 +102,6 @@ public class SettingsMode implements Serializable
         }
     }
 
-    private static final class Cql2Options extends GroupedOptions
-    {
-        final OptionSimple api = new OptionSimple("cql2", "", null, "", true);
-        final OptionSimple usePrepared = new OptionSimple("prepared", "", null, "", false);
-
-        @Override
-        public List<? extends Option> options()
-        {
-            return Arrays.asList(usePrepared, api);
-        }
-    }
-
     private static final class ThriftOptions extends GroupedOptions
     {
         final OptionSimple api = new OptionSimple("thrift", "", null, "", true);
@@ -146,7 +126,7 @@ public class SettingsMode implements Serializable
             return new SettingsMode(opts);
         }
 
-        GroupedOptions options = GroupedOptions.select(params, new ThriftOptions(), new Cql2Options(), new Cql3Options(), new Cql3SimpleNativeOptions());
+        GroupedOptions options = GroupedOptions.select(params, new ThriftOptions(), new Cql3Options(), new Cql3SimpleNativeOptions());
         if (options == null)
         {
             printHelp();
@@ -158,7 +138,7 @@ public class SettingsMode implements Serializable
 
     public static void printHelp()
     {
-        GroupedOptions.printOptions(System.out, "-mode", new ThriftOptions(), new Cql2Options(), new Cql3Options(), new Cql3SimpleNativeOptions());
+        GroupedOptions.printOptions(System.out, "-mode", new ThriftOptions(), new Cql3Options(), new Cql3SimpleNativeOptions());
     }
 
     public static Runnable helpPrinter()

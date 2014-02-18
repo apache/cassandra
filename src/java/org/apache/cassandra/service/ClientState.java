@@ -31,6 +31,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.AuthenticationException;
@@ -72,8 +73,6 @@ public class ClientState
     // Current user for the session
     private volatile AuthenticatedUser user;
     private volatile String keyspace;
-
-    private SemanticVersion cqlVersion;
 
     // isInternal is used to mark ClientState as used by some internal component
     // that should have an ability to modify system keyspace.
@@ -241,54 +240,14 @@ public class ClientState
             throw new InvalidRequestException("You have not set a keyspace for this session");
     }
 
-    public void setCQLVersion(String str) throws InvalidRequestException
-    {
-        SemanticVersion version;
-        try
-        {
-            version = new SemanticVersion(str);
-        }
-        catch (IllegalArgumentException e)
-        {
-            throw new InvalidRequestException(e.getMessage());
-        }
-
-        SemanticVersion cql = org.apache.cassandra.cql.QueryProcessor.CQL_VERSION;
-        SemanticVersion cql3 = org.apache.cassandra.cql3.QueryProcessor.CQL_VERSION;
-
-        // We've made some backward incompatible changes between CQL3 beta1 and the final.
-        // It's ok because it was a beta, but it still mean we don't support 3.0.0-beta1 so reject it.
-        SemanticVersion cql3Beta = new SemanticVersion("3.0.0-beta1");
-        if (version.equals(cql3Beta))
-            throw new InvalidRequestException(String.format("There has been a few syntax breaking changes between 3.0.0-beta1 and 3.0.0 "
-                                                           + "(mainly the syntax for options of CREATE KEYSPACE and CREATE TABLE). 3.0.0-beta1 "
-                                                           + " is not supported; please upgrade to 3.0.0"));
-        if (version.isSupportedBy(cql))
-            cqlVersion = cql;
-        else if (version.isSupportedBy(cql3))
-            cqlVersion = cql3;
-        else
-            throw new InvalidRequestException(String.format("Provided version %s is not supported by this server (supported: %s)",
-                                                            version,
-                                                            StringUtils.join(getCQLSupportedVersion(), ", ")));
-    }
-
     public AuthenticatedUser getUser()
     {
         return user;
     }
 
-    public SemanticVersion getCQLVersion()
-    {
-        return cqlVersion;
-    }
-
     public static SemanticVersion[] getCQLSupportedVersion()
     {
-        SemanticVersion cql = org.apache.cassandra.cql.QueryProcessor.CQL_VERSION;
-        SemanticVersion cql3 = org.apache.cassandra.cql3.QueryProcessor.CQL_VERSION;
-
-        return new SemanticVersion[]{ cql, cql3 };
+        return new SemanticVersion[]{ QueryProcessor.CQL_VERSION };
     }
 
     private static LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> initPermissionsCache()

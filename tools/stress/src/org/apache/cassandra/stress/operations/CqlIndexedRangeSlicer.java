@@ -48,21 +48,10 @@ public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
     @Override
     protected String buildQuery()
     {
-        StringBuilder query = new StringBuilder("SELECT ");
-
-        if (state.isCql2())
-            query.append(state.settings.columns.maxColumnsPerKey).append(" ''..''");
-        else
-            query.append("*");
-
-        query.append(" FROM Standard1");
-
-        if (state.isCql2())
-            query.append(" USING CONSISTENCY ").append(state.settings.command.consistencyLevel);
-
+        StringBuilder query = new StringBuilder("SELECT * FROM \"Standard1\"");
         final String columnName = getColumnName(1);
         query.append(" WHERE ").append(columnName).append("=?")
-                .append(" AND KEY > ? LIMIT ").append(((SettingsCommandMulti)state.settings.command).keysAtOnce);
+             .append(" AND KEY > ? LIMIT ").append(((SettingsCommandMulti)state.settings.command).keysAtOnce);
         return query.toString();
     }
 

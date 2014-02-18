@@ -23,8 +23,6 @@ import java.util.Map;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.utils.SemanticVersion;
@@ -66,22 +64,19 @@ public class StartupMessage extends Message.Request
 
     public Message.Response execute(QueryState state)
     {
-        ClientState cState = state.getClientState();
         String cqlVersion = options.get(CQL_VERSION);
         if (cqlVersion == null)
             throw new ProtocolException("Missing value CQL_VERSION in STARTUP message");
 
         try 
         {
-            cState.setCQLVersion(cqlVersion);
+            if (new SemanticVersion(cqlVersion).compareTo(new SemanticVersion("2.99.0")) < 0)
+                throw new ProtocolException(String.format("CQL version %s is not supported by the binary protocol (supported version are >= 3.0.0)", cqlVersion));
         }
-        catch (InvalidRequestException e)
+        catch (IllegalArgumentException e)
         {
             throw new ProtocolException(e.getMessage());
         }
-
-        if (cState.getCQLVersion().compareTo(new SemanticVersion("2.99.0")) < 0)
-            throw new ProtocolException(String.format("CQL version %s is not supported by the binary protocol (supported version are >= 3.0.0)", cqlVersion));
 
         if (options.containsKey(COMPRESSION))
         {
