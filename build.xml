@@ -381,6 +381,7 @@
           <dependency groupId="edu.stanford.ppl" artifactId="snaptree" version="0.1" />
           <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.3m" />
           <dependency groupId="io.netty" artifactId="netty" version="3.6.6.Final" />
+          <dependency groupId="net.sf.supercsv" artifactId="super-csv" version="2.1.0" />
         </dependencyManagement>
         <developer id="alakshman" name="Avinash Lakshman"/>
         <developer id="antelder" name="Anthony Elder"/>
@@ -461,6 +462,7 @@
         <dependency groupId="com.yammer.metrics" artifactId="metrics-core"/>
         <dependency groupId="com.addthis.metrics" artifactId="reporter-config"/>
         <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.3"/>
+        <dependency groupId="net.sf.supercsv" artifactId="super-csv" version="2.1.0" />
 
         <dependency groupId="log4j" artifactId="log4j"/>
         <!-- cassandra has a hard dependency on log4j, so force slf4j's log4j provider at runtime -->

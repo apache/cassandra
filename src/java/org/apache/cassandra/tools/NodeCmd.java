@@ -1229,7 +1229,10 @@ public class NodeCmd
                 case DISABLEGOSSIP   : probe.stopGossiping(); break;
                 case ENABLEGOSSIP    : probe.startGossiping(); break;
                 case DISABLEHANDOFF  : probe.disableHintedHandoff(); break;
-                case ENABLEHANDOFF   : probe.enableHintedHandoff(); break;
+                case ENABLEHANDOFF   :
+                    if (arguments.length > 0) { probe.enableHintedHandoff(arguments[0]); }
+                    else                      { probe.enableHintedHandoff(); }
+                    break;
                 case PAUSEHANDOFF    : probe.pauseHintsDelivery(); break;
                 case RESUMEHANDOFF   : probe.resumeHintsDelivery(); break;
                 case DISABLETHRIFT   : probe.stopThriftServer(); break;

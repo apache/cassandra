@@ -1758,9 +1758,19 @@ public class StorageProxy implements StorageProxyMBean
         return DatabaseDescriptor.hintedHandoffEnabled();
     }
 
+    public Set<String> getHintedHandoffEnabledByDC()
+    {
+        return DatabaseDescriptor.hintedHandoffEnabledByDC();
+    }
+
     public void setHintedHandoffEnabled(boolean b)
     {
         DatabaseDescriptor.setHintedHandoffEnabled(b);
+    }
+
+    public void setHintedHandoffEnabledByDCList(String dcNames)
+    {
+        DatabaseDescriptor.setHintedHandoffEnabled(dcNames);
     }
 
     public int getMaxHintWindow()
@@ -1775,7 +1785,17 @@ public class StorageProxy implements StorageProxyMBean
 
     public static boolean shouldHint(InetAddress ep)
     {
-        if (!DatabaseDescriptor.hintedHandoffEnabled())
+        if (DatabaseDescriptor.shouldHintByDC())
+        {
+            final String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(ep);
+            // Disable DC specific hints
+            if(!DatabaseDescriptor.hintedHandoffEnabled(dc))
+            {
+                HintedHandOffManager.instance.metrics.incrPastWindow(ep);
+                return false;
+            }
+        }
+        else if (!DatabaseDescriptor.hintedHandoffEnabled())
         {
             HintedHandOffManager.instance.metrics.incrPastWindow(ep);
             return false;

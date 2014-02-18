@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public interface StorageProxyMBean
 {
@@ -72,7 +73,9 @@ public interface StorageProxyMBean
 
     public long getTotalHints();
     public boolean getHintedHandoffEnabled();
+    public Set<String> getHintedHandoffEnabledByDC();
     public void setHintedHandoffEnabled(boolean b);
+    public void setHintedHandoffEnabledByDCList(String dcs);
     public int getMaxHintWindow();
     public void setMaxHintWindow(int ms);
     public int getMaxHintsInProgress();
