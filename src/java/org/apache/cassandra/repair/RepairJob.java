@@ -18,24 +18,18 @@
 package org.apache.cassandra.repair;
 
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
+import java.util.*;
+import java.util.concurrent.Executors;
 import java.util.concurrent.locks.Condition;
 
+import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.db.SnapshotCommand;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.net.IAsyncCallback;
-import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.utils.FBUtilities;
@@ -57,9 +51,9 @@ public class RepairJob
     private final List<TreeResponse> trees = new ArrayList<>();
     // once all responses are received, each tree is compared with each other, and differencer tasks
     // are submitted. the job is done when all differencers are complete.
-    private final RequestCoordinator<Differencer> differencers;
+    private final Set<Differencer> differencers = new HashSet<>();
+    private final ListeningExecutorService taskExecutor;
     private final Condition requestsSent = new SimpleCondition();
-    private CountDownLatch snapshotLatch = null;
     private int gcBefore = -1;
 
     private volatile boolean failed = false;
@@ -67,23 +61,17 @@ public class RepairJob
     /**
      * Create repair job to run on specific columnfamily
      */
-    public RepairJob(UUID parentSessionId, UUID sessionId, String keyspace, String columnFamily, Range<Token> range, boolean isSequential)
+    public RepairJob(UUID parentSessionId, UUID sessionId, String keyspace, String columnFamily, Range<Token> range, boolean isSequential, ListeningExecutorService taskExecutor)
     {
         this.desc = new RepairJobDesc(parentSessionId, sessionId, keyspace, columnFamily, range);
         this.isSequential = isSequential;
+        this.taskExecutor = taskExecutor;
         this.treeRequests = new RequestCoordinator<InetAddress>(isSequential)
         {
             public void send(InetAddress endpoint)
             {
                 ValidationRequest request = new ValidationRequest(desc, gcBefore);
                 MessagingService.instance().sendOneWay(request.createMessage(), endpoint);
-            }
-        };
-        this.differencers = new RequestCoordinator<Differencer>(isSequential)
-        {
-            public void send(Differencer d)
-            {
-                StageManager.getStage(Stage.ANTI_ENTROPY).execute(d);
             }
         };
     }
@@ -106,44 +94,46 @@ public class RepairJob
         allEndpoints.add(FBUtilities.getBroadcastAddress());
 
         if (isSequential)
-            makeSnapshots(allEndpoints);
+        {
+            List<ListenableFuture<InetAddress>> snapshotTasks = new ArrayList<>(allEndpoints.size());
+            for (InetAddress endpoint : allEndpoints)
+            {
+                SnapshotTask snapshotTask = new SnapshotTask(desc, endpoint);
+                snapshotTasks.add(snapshotTask);
+                taskExecutor.execute(snapshotTask);
+            }
+            ListenableFuture<List<InetAddress>> allSnapshotTasks = Futures.allAsList(snapshotTasks);
+            // Execute send tree request after all snapshot complete
+            Futures.addCallback(allSnapshotTasks, new FutureCallback<List<InetAddress>>()
+            {
+                public void onSuccess(List<InetAddress> endpoints)
+                {
+                    sendTreeRequestsInternal(endpoints);
+                }
 
-        this.gcBefore = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).gcBefore(System.currentTimeMillis());
-
-        for (InetAddress endpoint : allEndpoints)
-            treeRequests.add(endpoint);
-
-        logger.info(String.format("[repair #%s] requesting merkle trees for %s (to %s)", desc.sessionId, desc.columnFamily, allEndpoints));
-        treeRequests.start();
-        requestsSent.signalAll();
+                public void onFailure(Throwable throwable)
+                {
+                    // TODO need to propagate error to RepairSession
+                    logger.error("Error while snapshot", throwable);
+                    failed = true;
+                }
+            }, taskExecutor);
+        }
+        else
+        {
+            sendTreeRequestsInternal(allEndpoints);
+        }
     }
 
-    public void makeSnapshots(Collection<InetAddress> endpoints)
+    private void sendTreeRequestsInternal(Collection<InetAddress> endpoints)
     {
-        try
-        {
-            snapshotLatch = new CountDownLatch(endpoints.size());
-            IAsyncCallback callback = new IAsyncCallback()
-            {
-                public boolean isLatencyForSnitch()
-                {
-                    return false;
-                }
+        this.gcBefore = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).gcBefore(System.currentTimeMillis());
+        for (InetAddress endpoint : endpoints)
+            treeRequests.add(endpoint);
 
-                public void response(MessageIn msg)
-                {
-                    RepairJob.this.snapshotLatch.countDown();
-                }
-            };
-            for (InetAddress endpoint : endpoints)
-                MessagingService.instance().sendRR(new SnapshotCommand(desc.keyspace, desc.columnFamily, desc.sessionId.toString(), false).createMessage(), endpoint, callback);
-            snapshotLatch.await();
-            snapshotLatch = null;
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
+        logger.info(String.format("[repair #%s] requesting merkle trees for %s (to %s)", desc.sessionId, desc.columnFamily, endpoints));
+        treeRequests.start();
+        requestsSent.signalAll();
     }
 
     /**
@@ -191,11 +181,11 @@ public class RepairJob
             {
                 TreeResponse r2 = trees.get(j);
                 Differencer differencer = new Differencer(desc, r1, r2);
-                logger.debug("Queueing comparison {}", differencer);
                 differencers.add(differencer);
+                logger.debug("Queueing comparison {}", differencer);
+                taskExecutor.submit(differencer);
             }
         }
-        differencers.start();
         trees.clear(); // allows gc to do its thing
     }
 
@@ -207,18 +197,7 @@ public class RepairJob
         if (!success)
             failed = true;
         Differencer completed = new Differencer(desc, new TreeResponse(nodes.endpoint1, null), new TreeResponse(nodes.endpoint2, null));
-        return differencers.completed(completed) == 0;
-    }
-
-    /**
-     * terminate this job.
-     */
-    public void terminate()
-    {
-        if (snapshotLatch != null)
-        {
-            while (snapshotLatch.getCount() > 0)
-                snapshotLatch.countDown();
-        }
+        differencers.remove(completed);
+        return differencers.size() == 0;
     }
 }

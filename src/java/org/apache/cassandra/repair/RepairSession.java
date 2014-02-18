@@ -22,12 +22,16 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -90,6 +94,9 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
     // and after receiving all validation, the job is moved to
     // this map, keyed by CF name.
     final Map<String, RepairJob> syncingJobs = new ConcurrentHashMap<>();
+
+    // Tasks(snapshot, validate request, differencing, ...) are run on taskExecutor
+    private final ListeningExecutorService taskExecutor = MoreExecutors.listeningDecorator(Executors.newCachedThreadPool(new NamedThreadFactory("RepairJobTask")));
 
     private final SimpleCondition completed = new SimpleCondition();
     public final Condition differencingDone = new SimpleCondition();
@@ -217,6 +224,7 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
 
             if (jobs.isEmpty() && syncingJobs.isEmpty())
             {
+                taskExecutor.shutdown();
                 // this repair session is completed
                 completed.signalAll();
             }
@@ -262,7 +270,7 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
             // Create and queue a RepairJob for each column family
             for (String cfname : cfnames)
             {
-                RepairJob job = new RepairJob(parentRepairSession, id, keyspace, cfname, range, isSequential);
+                RepairJob job = new RepairJob(parentRepairSession, id, keyspace, cfname, range, isSequential, taskExecutor);
                 jobs.offer(job);
             }
             logger.debug("Sending tree requests to endpoints {}", endpoints);
@@ -297,8 +305,6 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
     public void terminate()
     {
         terminated = true;
-        for (RepairJob job : jobs)
-            job.terminate();
         jobs.clear();
         syncingJobs.clear();
     }
@@ -308,6 +314,7 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
      */
     public void forceShutdown()
     {
+        taskExecutor.shutdownNow();
         differencingDone.signalAll();
         completed.signalAll();
     }
