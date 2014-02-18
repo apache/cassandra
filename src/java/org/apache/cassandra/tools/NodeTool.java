@@ -1554,6 +1554,9 @@ public class NodeTool
         @Option(title = "specific_dc", name = {"-dc", "--in-dc"}, description = "Use -dc to repair specific datacenters")
         private List<String> specificDataCenters = new ArrayList<>();
 
+        @Option(title = "specific_host", name = {"-hosts", "--in-hosts"}, description = "Use -hosts to repair specific hosts")
+        private List<String> specificHosts = new ArrayList<>();
+
         @Option(title = "start_token", name = {"-st", "--start-token"}, description = "Use -st to specify a token at which the repair range starts")
         private String startToken = EMPTY;
 
@@ -1577,14 +1580,17 @@ public class NodeTool
                 try
                 {
                     Collection<String> dataCenters = null;
+                    Collection<String> hosts = null;
                     if (!specificDataCenters.isEmpty())
                         dataCenters = newArrayList(specificDataCenters);
                     else if (localDC)
                         dataCenters = newArrayList(probe.getDataCenter());
+                    else if(!specificHosts.isEmpty())
+                        hosts = newArrayList(specificHosts);
                     if (!startToken.isEmpty() || !endToken.isEmpty())
-                        probe.forceRepairRangeAsync(System.out, keyspace, !parallel, dataCenters, startToken, endToken, !incrementalRepair);
+                        probe.forceRepairRangeAsync(System.out, keyspace, !parallel, dataCenters,hosts, startToken, endToken, !incrementalRepair);
                     else
-                        probe.forceRepairAsync(System.out, keyspace, !parallel, dataCenters, primaryRange, !incrementalRepair, cfnames);
+                        probe.forceRepairAsync(System.out, keyspace, !parallel, dataCenters, hosts, primaryRange, !incrementalRepair, cfnames);
                 } catch (Exception e)
                 {
                     throw new RuntimeException("Error occurred during repair", e);
