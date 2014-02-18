@@ -19,6 +19,7 @@ package org.apache.cassandra.config;
 
 import java.io.File;
 import java.io.FileFilter;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -1139,12 +1140,47 @@ public class DatabaseDescriptor
 
     public static void setHintedHandoffEnabled(boolean hintedHandoffEnabled)
     {
-        conf.hinted_handoff_enabled = hintedHandoffEnabled;
+        conf.hinted_handoff_enabled_global = hintedHandoffEnabled;
+        conf.hinted_handoff_enabled_by_dc.clear();
+    }
+
+    public static void setHintedHandoffEnabled(final String dcNames)
+    {
+        List<String> dcNameList;
+        try
+        {
+            dcNameList = Config.parseHintedHandoffEnabledDCs(dcNames);
+        }
+        catch (IOException e)
+        {
+            throw new IllegalArgumentException("Could not read csv of dcs for hinted handoff enable. " + dcNames, e);
+        }
+
+        if (dcNameList.isEmpty())
+            throw new IllegalArgumentException("Empty list of Dcs for hinted handoff enable");
+
+        conf.hinted_handoff_enabled_by_dc.clear();
+        conf.hinted_handoff_enabled_by_dc.addAll(dcNameList);
     }
 
     public static boolean hintedHandoffEnabled()
     {
-        return conf.hinted_handoff_enabled;
+        return conf.hinted_handoff_enabled_global;
+    }
+
+    public static Set<String> hintedHandoffEnabledByDC()
+    {
+        return Collections.unmodifiableSet(conf.hinted_handoff_enabled_by_dc);
+    }
+
+    public static boolean shouldHintByDC()
+    {
+        return !conf.hinted_handoff_enabled_by_dc.isEmpty();
+    }
+
+    public static boolean hintedHandoffEnabled(final String dcName)
+    {
+        return conf.hinted_handoff_enabled_by_dc.contains(dcName);
     }
 
     public static void setMaxHintWindow(int ms)

@@ -37,6 +37,7 @@
 
 
 2.0.6
+ * Allow per-dc enabling of hints (CASSANDRA-6157)
  * Add compatibility for Hadoop 0.2.x (CASSANDRA-5201)
  * Fix EstimatedHistogram races (CASSANDRA-6682)
  * Failure detector correctly converts initial value to nanos (CASSANDRA-6658)
