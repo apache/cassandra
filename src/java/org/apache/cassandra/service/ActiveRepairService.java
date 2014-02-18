@@ -18,6 +18,7 @@
 package org.apache.cassandra.service;
 
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -91,9 +92,9 @@ public class ActiveRepairService
      *
      * @return Future for asynchronous call or null if there is no need to repair
      */
-    public RepairFuture submitRepairSession(Range<Token> range, String keyspace, boolean isSequential, Collection<String> dataCenters, String... cfnames)
+    public RepairFuture submitRepairSession(Range<Token> range, String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, String... cfnames)
     {
-        RepairSession session = new RepairSession(range, keyspace, isSequential, dataCenters, cfnames);
+        RepairSession session = new RepairSession(range, keyspace, isSequential, dataCenters, hosts, cfnames);
         if (session.endpoints.isEmpty())
             return null;
         RepairFuture futureTask = new RepairFuture(session);
@@ -127,7 +128,7 @@ public class ActiveRepairService
     // add it to the sessions (avoid NPE in tests)
     RepairFuture submitArtificialRepairSession(RepairJobDesc desc)
     {
-        RepairSession session = new RepairSession(desc.sessionId, desc.range, desc.keyspace, false, null, new String[]{desc.columnFamily});
+        RepairSession session = new RepairSession(desc.sessionId, desc.range, desc.keyspace, false, null, null, new String[]{desc.columnFamily});
         sessions.put(session.getId(), session);
         RepairFuture futureTask = new RepairFuture(session);
         executor.execute(futureTask);
@@ -143,7 +144,7 @@ public class ActiveRepairService
      *
      * @return neighbors with whom we share the provided range
      */
-    public static Set<InetAddress> getNeighbors(String keyspaceName, Range<Token> toRepair, Collection<String> dataCenters)
+    public static Set<InetAddress> getNeighbors(String keyspaceName, Range<Token> toRepair, Collection<String> dataCenters, Collection<String> hosts)
     {
         if (dataCenters != null && !dataCenters.contains(DatabaseDescriptor.getLocalDataCenter()))
             throw new IllegalArgumentException("The local data center must be part of the repair");
@@ -181,6 +182,37 @@ public class ActiveRepairService
                    dcEndpoints.addAll(c);
             }
             return Sets.intersection(neighbors, dcEndpoints);
+        }
+        else if (hosts != null)
+        {
+            Set<InetAddress> specifiedHost = new HashSet<>();
+            for (final String host : hosts)
+            {
+                try
+                {
+                    final InetAddress endpoint = InetAddress.getByName(host.trim());
+                    if (endpoint.equals(FBUtilities.getBroadcastAddress()) || neighbors.contains(endpoint))
+                        specifiedHost.add(endpoint);
+                }
+                catch (UnknownHostException e)
+                {
+                    throw new IllegalArgumentException("Unknown host specified " + host, e);
+                }
+            }
+
+            if (!specifiedHost.contains(FBUtilities.getBroadcastAddress()))
+                throw new IllegalArgumentException("The current host must be part of the repair");
+
+            if (specifiedHost.size() <= 1)
+            {
+                String msg = "Repair requires at least two endpoints that are neighbours before it can continue, the endpoint used for this repair is %s, " +
+                             "other available neighbours are %s but these neighbours were not part of the supplied list of hosts to use during the repair (%s).";
+                throw new IllegalArgumentException(String.format(msg, specifiedHost, neighbors, hosts));
+            }
+
+            specifiedHost.remove(FBUtilities.getBroadcastAddress());
+            return specifiedHost;
+
         }
 
         return neighbors;
