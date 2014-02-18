@@ -179,11 +179,12 @@ public class CommitLogReplayer
     public void recover(File file) throws IOException
     {
         final ReplayFilter replayFilter = ReplayFilter.create();
-
-        logger.info("Replaying " + file.getPath());
         CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
         final long segment = desc.id;
-        int version = desc.getMessagingVersion();
+        logger.info("Replaying {} (CL version {}, messaging version {})",
+                    file.getPath(),
+                    desc.getVersion(),
+                    desc.getMessagingVersion());
         RandomAccessReader reader = RandomAccessReader.open(new File(file.getAbsolutePath()));
         try
         {
@@ -234,7 +235,7 @@ public class CommitLogReplayer
 
                     long claimedSizeChecksum = reader.readLong();
                     checksum.reset();
-                    if (version < CommitLogDescriptor.VERSION_20)
+                    if (desc.getVersion() < CommitLogDescriptor.VERSION_20)
                         checksum.update(serializedSize);
                     else
                         FBUtilities.updateChecksumInt(checksum, serializedSize);
@@ -266,9 +267,9 @@ public class CommitLogReplayer
                 final RowMutation rm;
                 try
                 {
-                    // assuming version here. We've gone to lengths to make sure what gets written to the CL is in
-                    // the current version. so do make sure the CL is drained prior to upgrading a node.
-                    rm = RowMutation.serializer.deserialize(new DataInputStream(bufIn), version, ColumnSerializer.Flag.LOCAL);
+                    rm = RowMutation.serializer.deserialize(new DataInputStream(bufIn),
+                                                            desc.getMessagingVersion(),
+                                                            ColumnSerializer.Flag.LOCAL);
                     // doublecheck that what we read is [still] valid for the current schema
                     for (ColumnFamily cf : rm.getColumnFamilies())
                         for (Column cell : cf)

@@ -17,6 +17,7 @@
  * Improve support for paginating over composites (CASSANDRA-4851)
  * Fix count(*) queries in a mixed cluster (CASSANDRA-6707)
  * Improve repair tasks(snapshot, differencing) concurrency (CASSANDRA-6566)
+ * Fix replaying pre-2.0 commit logs (CASSANDRA-6714)
 Merged from 1.2:
  * Fix broken streams when replacing with same IP (CASSANDRA-6622)
  * Fix upgradesstables NPE for non-CF-based indexes (CASSANDRA-6645)
