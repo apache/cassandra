@@ -49,7 +49,6 @@ final class NodeBuilder
     // we null out the contents of buildKeys/buildChildren when clear()ing them for re-use; this is where
     // we track how much we actually have to null out
     private int maxBuildKeyPosition;
-    private int maxBuildChildPosition;
 
     // current node of the btree we're modifying/copying from
     private Object[] copyFrom;
@@ -76,8 +75,8 @@ final class NodeBuilder
             {
                 current.reset(null, null, null, null);
                 Arrays.fill(current.buildKeys, 0, current.maxBuildKeyPosition, null);
-                Arrays.fill(current.buildChildren, 0, current.maxBuildChildPosition, null);
-                current.maxBuildChildPosition = current.maxBuildKeyPosition = 0;
+                Arrays.fill(current.buildChildren, 0, current.maxBuildKeyPosition + 1, null);
+                current.maxBuildKeyPosition = 0;
             }
             current = current.child;
         }
@@ -91,7 +90,6 @@ final class NodeBuilder
         this.updateFunction = updateFunction;
         this.comparator = comparator;
         maxBuildKeyPosition = Math.max(maxBuildKeyPosition, buildKeyPosition);
-        maxBuildChildPosition = Math.max(maxBuildChildPosition, buildChildPosition);
         buildKeyPosition = 0;
         buildChildPosition = 0;
         copyFromKeyPosition = 0;
@@ -114,7 +112,16 @@ final class NodeBuilder
         int i = find(comparator, key, copyFrom, copyFromKeyPosition, copyFromKeyEnd);
         boolean found = i >= 0; // exact key match?
         boolean owns = true; // true iff this node (or a child) should contain the key
-        if (!found)
+        if (found)
+        {
+            Object prev = copyFrom[i];
+            Object next = updateFunction.apply(prev, key);
+            // we aren't actually replacing anything, so leave our state intact and continue
+            if (prev == next)
+                return null;
+            key = next;
+        }
+        else
         {
             i = -i - 1;
             if (i == copyFromKeyEnd && compare(comparator, upperBound, key) <= 0)
@@ -123,18 +130,34 @@ final class NodeBuilder
 
         if (isLeaf(copyFrom))
         {
-            // copy keys from the original node up to prior to the found index
-            copyKeys(i);
 
             if (owns)
             {
+                // copy keys from the original node up to prior to the found index
+                copyKeys(i);
+
                 if (found)
+                {
+                    // if found, we've applied updateFunction already
                     replaceNextKey(key);
+                }
                 else
+                {
+                    // if not found, we need to apply updateFunction still
+                    key = updateFunction.apply(key);
                     addNewKey(key); // handles splitting parent if necessary via ensureRoom
+                }
 
                 // done, so return null
                 return null;
+            }
+            else
+            {
+                // we don't want to copy anything if we're ascending and haven't copied anything previously,
+                // as in this case we can return the original node. Leaving buildKeyPosition as 0 indicates
+                // to buildFromRange that it should return the original instead of building a new node
+                if (buildKeyPosition > 0)
+                    copyKeys(i);
             }
 
             // if we don't own it, all we need to do is ensure we've copied everything in this node
@@ -163,9 +186,10 @@ final class NodeBuilder
                 ensureChild().reset(descendInto, newUpperBound, updateFunction, comparator);
                 return child;
             }
-            else
+            else if (buildKeyPosition > 0 || buildChildPosition > 0)
             {
-                // ensure we've copied all keys and children
+                // ensure we've copied all keys and children, but only if we've already copied something.
+                // otherwise we want to return the original node
                 copyKeys(copyFromKeyEnd);
                 copyChildren(copyFromKeyEnd + 1); // since we know that there are exactly 1 more child nodes, than keys
             }
@@ -201,7 +225,7 @@ final class NodeBuilder
     // builds a new root BTree node - must be called on root of operation
     Object[] toNode()
     {
-        assert buildKeyPosition <= FAN_FACTOR && buildKeyPosition > 0 : buildKeyPosition;
+        assert buildKeyPosition <= FAN_FACTOR && (buildKeyPosition > 0 || copyFrom.length > 0) : buildKeyPosition;
         return buildFromRange(0, buildKeyPosition, isLeaf(copyFrom), false);
     }
 
@@ -234,9 +258,12 @@ final class NodeBuilder
         assert len <= FAN_FACTOR : upToKeyPosition + "," + copyFromKeyPosition;
 
         ensureRoom(buildKeyPosition + len);
-        System.arraycopy(copyFrom, copyFromKeyPosition, buildKeys, buildKeyPosition, len);
-        copyFromKeyPosition = upToKeyPosition;
-        buildKeyPosition += len;
+        if (len > 0)
+        {
+            System.arraycopy(copyFrom, copyFromKeyPosition, buildKeys, buildKeyPosition, len);
+            copyFromKeyPosition = upToKeyPosition;
+            buildKeyPosition += len;
+        }
     }
 
     // skips the next key in copyf, and puts the provided key in the builder instead
@@ -244,8 +271,6 @@ final class NodeBuilder
     {
         // (this first part differs from addNewKey in that we pass the replaced object to replaceF as well)
         ensureRoom(buildKeyPosition + 1);
-        if (updateFunction != null)
-            with = updateFunction.apply(copyFrom[copyFromKeyPosition], with);
         buildKeys[buildKeyPosition++] = with;
 
         copyFromKeyPosition++;
@@ -255,8 +280,6 @@ final class NodeBuilder
     void addNewKey(Object key)
     {
         ensureRoom(buildKeyPosition + 1);
-        if (updateFunction != null)
-            key = updateFunction.apply(key);
         buildKeys[buildKeyPosition++] = key;
     }
 
@@ -267,9 +290,12 @@ final class NodeBuilder
         if (copyFromChildPosition >= upToChildPosition)
             return;
         int len = upToChildPosition - copyFromChildPosition;
-        System.arraycopy(copyFrom, getKeyEnd(copyFrom) + copyFromChildPosition, buildChildren, buildChildPosition, len);
-        copyFromChildPosition = upToChildPosition;
-        buildChildPosition += len;
+        if (len > 0)
+        {
+            System.arraycopy(copyFrom, getKeyEnd(copyFrom) + copyFromChildPosition, buildChildren, buildChildPosition, len);
+            copyFromChildPosition = upToChildPosition;
+            buildChildPosition += len;
+        }
     }
 
     // adds a new and unexpected child to the builder - called by children that overflow
@@ -305,13 +331,17 @@ final class NodeBuilder
         {
             System.arraycopy(buildChildren, size, buildChildren, 0, buildChildPosition - size);
             buildChildPosition -= size;
-            maxBuildChildPosition = buildChildren.length;
         }
     }
 
     // builds and returns a node from the buffered objects in the given range
     private Object[] buildFromRange(int offset, int keyLength, boolean isLeaf, boolean isExtra)
     {
+        // if keyLength is 0, we didn't copy anything from the original, which means we didn't
+        // modify any of the range owned by it, so can simply return it as is
+        if (keyLength == 0)
+            return copyFrom;
+
         Object[] a;
         if (isLeaf)
         {
@@ -324,14 +354,11 @@ final class NodeBuilder
             System.arraycopy(buildKeys, offset, a, 0, keyLength);
             System.arraycopy(buildChildren, offset, a, keyLength, keyLength + 1);
         }
-        if (updateFunction != null)
-        {
-            if (isExtra)
-                updateFunction.allocated(ObjectSizes.sizeOfArray(a));
-            else if (a.length != copyFrom.length)
-                updateFunction.allocated(ObjectSizes.sizeOfArray(a) -
-                        (copyFrom.length == 0 ? 0 : ObjectSizes.sizeOfArray(copyFrom)));
-        }
+        if (isExtra)
+            updateFunction.allocated(ObjectSizes.sizeOfArray(a));
+        else if (a.length != copyFrom.length)
+            updateFunction.allocated(ObjectSizes.sizeOfArray(a) -
+                                     (copyFrom.length == 0 ? 0 : ObjectSizes.sizeOfArray(copyFrom)));
         return a;
     }
 

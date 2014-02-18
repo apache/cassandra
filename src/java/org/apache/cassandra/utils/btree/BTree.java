@@ -128,7 +128,7 @@ public class BTree
      */
     public static <V> Object[] update(Object[] btree, Comparator<V> comparator, Collection<V> updateWith, boolean updateWithIsSorted)
     {
-        return update(btree, comparator, updateWith, updateWithIsSorted, null);
+        return update(btree, comparator, updateWith, updateWithIsSorted, UpdateFunction.NoOp.<V>instance());
     }
 
     /**
@@ -153,63 +153,6 @@ public class BTree
 
         if (!updateWithIsSorted)
             updateWith = sorted(updateWith, comparator, updateWith.size());
-
-        // if the b-tree is just a single root node, we can try a quick in-place merge
-        if (isLeaf(btree) && btree.length + updateWith.size() < QUICK_MERGE_LIMIT)
-        {
-            // since updateWith is sorted, we can skip elements from earlier iterations tracked by this offset
-            int btreeOffset = 0;
-            int keyEnd = getLeafKeyEnd(btree);
-            Object[] merged = new Object[QUICK_MERGE_LIMIT];
-            int mergedCount = 0;
-            for (V v : updateWith)
-            {
-                // find the index i where v would belong in the original btree
-                int i = find(comparator, v, btree, btreeOffset, keyEnd);
-                boolean found = i >= 0;
-                if (!found)
-                    i = -i - 1;
-
-                // copy original elements up to i into the merged array
-                int count = i - btreeOffset;
-                if (count > 0)
-                {
-                    System.arraycopy(btree, btreeOffset, merged, mergedCount, count);
-                    mergedCount += count;
-                    btreeOffset = i;
-                }
-
-                if (found)
-                {
-                    // apply replaceF if it matches an existing element
-                    btreeOffset++;
-                    if (updateF != null)
-                        v = updateF.apply((V) btree[i], v);
-                }
-                else if (updateF != null)
-                {
-                    // new element but still need to apply replaceF to handle indexing and size-tracking
-                    v = updateF.apply(v);
-                }
-
-                merged[mergedCount++] = v;
-            }
-
-            // copy any remaining original elements
-            if (btreeOffset < keyEnd)
-            {
-                int count = keyEnd - btreeOffset;
-                System.arraycopy(btree, btreeOffset, merged, mergedCount, count);
-                mergedCount += count;
-            }
-
-            assert mergedCount <= FAN_FACTOR;
-
-            Object[] r = Arrays.copyOfRange(merged, 0, mergedCount + (mergedCount & 1));
-            if (updateF != null)
-                updateF.allocated(ObjectSizes.sizeOfArray(r) - (btree.length == 0 ? 0 : ObjectSizes.sizeOfArray(btree)));
-            return r;
-        }
 
         return modifier.get().update(btree, comparator, updateWith, updateF);
     }
