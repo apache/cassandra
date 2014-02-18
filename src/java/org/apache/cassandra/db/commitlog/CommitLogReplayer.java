@@ -230,13 +230,16 @@ public class CommitLogReplayer
         logger.info("Replaying {}", file.getPath());
         CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
         final long segmentId = desc.id;
-        int version = desc.getMessagingVersion();
+        logger.info("Replaying {} (CL version {}, messaging version {})",
+                    file.getPath(),
+                    desc.getVersion(),
+                    desc.getMessagingVersion());
         RandomAccessReader reader = RandomAccessReader.open(new File(file.getAbsolutePath()));
 
         try
         {
             assert reader.length() <= Integer.MAX_VALUE;
-            int offset = getStartOffset(segmentId, version);
+            int offset = getStartOffset(segmentId, desc.getMessagingVersion());
             if (offset < 0)
             {
                 logger.debug("skipping replay of fully-flushed {}", file);
@@ -248,7 +251,7 @@ public class CommitLogReplayer
             {
 
                 int end = prevEnd;
-                if (version < CommitLogDescriptor.VERSION_21)
+                if (desc.getVersion() < CommitLogDescriptor.VERSION_21)
                     end = Integer.MAX_VALUE;
                 else
                 {
@@ -291,7 +294,7 @@ public class CommitLogReplayer
 
                         long claimedSizeChecksum = reader.readLong();
                         checksum.reset();
-                        if (version < CommitLogDescriptor.VERSION_20)
+                        if (desc.getVersion() < CommitLogDescriptor.VERSION_20)
                             checksum.update(serializedSize);
                         else
                             FBUtilities.updateChecksumInt(checksum, serializedSize);
@@ -323,9 +326,9 @@ public class CommitLogReplayer
                     final Mutation mutation;
                     try
                     {
-                        // assuming version here. We've gone to lengths to make sure what gets written to the CL is in
-                        // the current version. so do make sure the CL is drained prior to upgrading a node.
-                        mutation = Mutation.serializer.deserialize(new DataInputStream(bufIn), version, ColumnSerializer.Flag.LOCAL);
+                        mutation = Mutation.serializer.deserialize(new DataInputStream(bufIn),
+                                                                   desc.getMessagingVersion(),
+                                                                   ColumnSerializer.Flag.LOCAL);
                         // doublecheck that what we read is [still] valid for the current schema
                         for (ColumnFamily cf : mutation.getColumnFamilies())
                             for (Cell cell : cf)
@@ -417,7 +420,7 @@ public class CommitLogReplayer
                     }
                 }
 
-                if (version < CommitLogDescriptor.VERSION_21)
+                if (desc.getVersion() < CommitLogDescriptor.VERSION_21)
                     break;
 
                 offset = end + CommitLogSegment.SYNC_MARKER_SIZE;
