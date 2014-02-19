@@ -210,7 +210,7 @@ public class MigrationManager
             throw new AlreadyExistsException(cfm.ksName, cfm.cfName);
 
         logger.info(String.format("Create new ColumnFamily: %s", cfm));
-        announce(cfm.toSchema(FBUtilities.timestampMicros()));
+        announce(addSerializedKeyspace(cfm.toSchema(FBUtilities.timestampMicros()), cfm.ksName));
     }
 
     public static void announceKeyspaceUpdate(KSMetaData ksm) throws ConfigurationException
@@ -236,7 +236,7 @@ public class MigrationManager
         oldCfm.validateCompatility(cfm);
 
         logger.info(String.format("Update ColumnFamily '%s/%s' From %s To %s", cfm.ksName, cfm.cfName, oldCfm, cfm));
-        announce(oldCfm.toSchemaUpdate(cfm, FBUtilities.timestampMicros()));
+        announce(addSerializedKeyspace(oldCfm.toSchemaUpdate(cfm, FBUtilities.timestampMicros()), cfm.ksName));
     }
 
     public static void announceKeyspaceDrop(String ksName) throws ConfigurationException
@@ -256,7 +256,14 @@ public class MigrationManager
             throw new ConfigurationException(String.format("Cannot drop non existing column family '%s' in keyspace '%s'.", cfName, ksName));
 
         logger.info(String.format("Drop ColumnFamily '%s/%s'", oldCfm.ksName, oldCfm.cfName));
-        announce(oldCfm.dropFromSchema(FBUtilities.timestampMicros()));
+        announce(addSerializedKeyspace(oldCfm.dropFromSchema(FBUtilities.timestampMicros()), ksName));
+    }
+
+    // Include the serialized keyspace for when a target node missed the CREATE KEYSPACE migration (see #5631).
+    private static RowMutation addSerializedKeyspace(RowMutation migration, String ksName)
+    {
+        migration.add(SystemTable.readSchemaRow(ksName).cf);
+        return migration;
     }
 
     /**
