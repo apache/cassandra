@@ -47,7 +47,7 @@ public class ArrayBackedSortedColumns extends ColumnFamily
 
     private Cell[] cells;
     private int size;
-    private int sortedSize;
+    private volatile int sortedSize;
 
     public static final ColumnFamily.Factory<ArrayBackedSortedColumns> factory = new Factory<ArrayBackedSortedColumns>()
     {
@@ -103,8 +103,14 @@ public class ArrayBackedSortedColumns extends ColumnFamily
             sortCells();
     }
 
-    private void sortCells()
+    /**
+     * synchronized so that concurrent (read-only) accessors don't mess the internal state.
+     */
+    private synchronized void sortCells()
     {
+        if (size == sortedSize)
+            return; // Just sorted by a previous call.
+
         Comparator<Cell> comparator = reversed
                                     ? getComparator().columnReverseComparator()
                                     : getComparator().columnComparator();
@@ -126,8 +132,8 @@ public class ArrayBackedSortedColumns extends ColumnFamily
         int rightStart = sortedSize;
         int rightEnd = size;
 
-        // 'Trim' the size to what's left without the leftCopy
-        size = sortedSize = pos;
+        sortedSize = -1; // Set to -1 to avoid the pos == sortedSize edge case
+        size = pos;      // 'Trim' the size to what's left without the leftCopy
 
         // Merge the cells from both segments. When adding from the left segment we can rely on it not having any
         // duplicate cells, and thus omit the comparison with the previously entered cell - we'll never need to reconcile.
@@ -146,6 +152,9 @@ public class ArrayBackedSortedColumns extends ColumnFamily
             internalAppend(leftCopy[l++]);
         while (r < rightEnd)
             internalAppendOrReconcile(cells[r++]);
+
+        // Fully sorted at this point
+        sortedSize = size;
 
         // Nullify the remainder of the array (in case we had duplicate cells that got reconciled)
         for (int i = size; i < rightEnd; i++)
@@ -242,7 +251,6 @@ public class ArrayBackedSortedColumns extends ColumnFamily
     {
         cells[size] = cell;
         size++;
-        sortedSize++;
     }
 
     /**
