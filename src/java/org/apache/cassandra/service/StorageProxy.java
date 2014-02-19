@@ -614,7 +614,7 @@ public class StorageProxy implements StorageProxyMBean
         InetAddress target = iter.next();
 
         // direct writes to local DC or old Cassandra versions
-        if (localDC || MessagingService.instance().getVersion(target) < MessagingService.VERSION_11)
+        if (localDC || MessagingService.instance().getVersion(target) < MessagingService.VERSION_12)
         {
             // yes, the loop and non-loop code here are the same; this is clunky but we want to avoid
             // creating a second iterator since we already have a perfectly good one

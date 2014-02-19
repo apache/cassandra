@@ -1,4 +1,6 @@
 1.2.16
+ * Don't attempt cross-dc forwarding in mixed-version cluster with 1.1 
+   (CASSANDRA-6732)
  * Fix broken streams when replacing with same IP (CASSANDRA-6622)
  * Fix upgradesstables NPE for non-CF-based indexes (CASSANDRA-6645)
  * Fix partition and range deletes not triggering flush (CASSANDRA-6655)
@@ -6,8 +8,10 @@
  * Compact hints after partial replay to clean out tombstones (CASSANDRA-6666)
  * Log USING TTL/TIMESTAMP in a counter update warning (CASSANDRA-6649)
  * Don't exchange schema between nodes with different versions (CASSANDRA-6695)
- * Use real node messaging versions for schema exchange decisions (CASSANDRA-6700)
- * IN on the last clustering columns + ORDER BY DESC yield no results (CASSANDRA-6701)
+ * Use real node messaging versions for schema exchange decisions 
+   (CASSANDRA-6700)
+ * IN on the last clustering columns + ORDER BY DESC yield no results 
+   (CASSANDRA-6701)
  * Fix SecondaryIndexManager#deleteFromIndexes() (CASSANDRA-6711)
  * Fix snapshot repair not snapshotting coordinator itself (CASSANDRA-6713)
  * Support negative timestamps for CQL3 dates in query string (CASSANDRA-6718)
