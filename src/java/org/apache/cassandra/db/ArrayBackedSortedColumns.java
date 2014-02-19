@@ -46,7 +46,8 @@ public class ArrayBackedSortedColumns extends ColumnFamily
     private DeletionInfo deletionInfo;
 
     private Cell[] cells;
-    private int size;
+
+    private volatile int size;
     private volatile int sortedSize;
 
     public static final ColumnFamily.Factory<ArrayBackedSortedColumns> factory = new Factory<ArrayBackedSortedColumns>()
@@ -249,8 +250,7 @@ public class ArrayBackedSortedColumns extends ColumnFamily
      */
     private void internalAppend(Cell cell)
     {
-        cells[size] = cell;
-        size++;
+        cells[size++] = cell;
     }
 
     /**
