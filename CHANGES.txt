@@ -71,6 +71,7 @@ Merged from 1.2:
  * Fix SecondaryIndexManager#deleteFromIndexes() (CASSANDRA-6711)
  * Fix snapshot repair not snapshotting coordinator itself (CASSANDRA-6713)
  * Support negative timestamps for CQL3 dates in query string (CASSANDRA-6718)
+ * Avoid NPEs when receiving table changes for an unknown keyspace (CASSANDRA-5631)
 
 
 2.0.5
