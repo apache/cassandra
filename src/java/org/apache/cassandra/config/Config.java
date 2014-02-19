@@ -241,11 +241,11 @@ public class Config
     {
         if (hinted_handoff_enabled != null && !hinted_handoff_enabled.isEmpty())
         {
-            if (hinted_handoff_enabled.toLowerCase().equalsIgnoreCase("true"))
+            if (hinted_handoff_enabled.equalsIgnoreCase("true"))
             {
                 hinted_handoff_enabled_global = true;
             }
-            else if (hinted_handoff_enabled.toLowerCase().equalsIgnoreCase("false"))
+            else if (hinted_handoff_enabled.equalsIgnoreCase("false"))
             {
                 hinted_handoff_enabled_global = false;
             }
