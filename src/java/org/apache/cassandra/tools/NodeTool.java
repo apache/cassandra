@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.lang.management.MemoryUsage;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -60,8 +58,7 @@ import static com.google.common.collect.Lists.newArrayList;
 import static java.lang.Integer.parseInt;
 import static java.lang.String.format;
 import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
-import static org.apache.commons.lang3.StringUtils.EMPTY;
-import static org.apache.commons.lang3.StringUtils.join;
+import static org.apache.commons.lang3.StringUtils.*;
 
 public class NodeTool
 {
@@ -223,9 +220,20 @@ public class NodeTool
         @Option(type = OptionType.GLOBAL, name = {"-pw", "--password"}, description = "Remote jmx agent password")
         private String password = EMPTY;
 
+        @Option(type = OptionType.GLOBAL, name = {"-pwf", "--password-file"}, description = "Path to the JMX password file")
+        private String passwordFilePath = EMPTY;
+
         @Override
         public void run()
         {
+            if (isNotEmpty(username)) {
+                if (isNotEmpty(passwordFilePath))
+                    password = readUserPasswordFromFile(username, passwordFilePath);
+
+                if (isEmpty(password))
+                    password = promptAndReadPassword();
+            }
+
             try (NodeProbe probe = connect())
             {
                 execute(probe);
@@ -234,6 +242,44 @@ public class NodeTool
                 throw new RuntimeException("Error while closing JMX connection", e);
             }
 
+        }
+
+        private String readUserPasswordFromFile(String username, String passwordFilePath) {
+            String password = EMPTY;
+
+            File passwordFile = new File(passwordFilePath);
+            try (Scanner scanner = new Scanner(passwordFile).useDelimiter("\\s+"))
+            {
+                while (scanner.hasNextLine())
+                {
+                    if (scanner.hasNext())
+                    {
+                        String jmxRole = scanner.next();
+                        if (jmxRole.equals(username) && scanner.hasNext())
+                        {
+                            password = scanner.next();
+                            break;
+                        }
+                    }
+                    scanner.nextLine();
+                }
+            } catch (FileNotFoundException e)
+            {
+                throw new RuntimeException(e);
+            }
+
+            return password;
+        }
+
+        private String promptAndReadPassword()
+        {
+            String password = EMPTY;
+
+            Console console = System.console();
+            if (console != null)
+                password = String.valueOf(console.readPassword("Password:"));
+
+            return password;
         }
 
         protected abstract void execute(NodeProbe probe);
