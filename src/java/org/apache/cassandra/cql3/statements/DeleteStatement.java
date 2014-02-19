@@ -41,14 +41,6 @@ public class DeleteStatement extends ModificationStatement
         return false;
     }
 
-    public ColumnFamily updateForKey(ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params)
-    throws InvalidRequestException
-    {
-        ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfm);
-        addUpdateForKey(cf, key, builder, params);
-        return cf;
-    }
-
     public void addUpdateForKey(ColumnFamily cf, ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params)
     throws InvalidRequestException
     {

@@ -125,10 +125,15 @@ public class RowMutation implements IMutation
 
     public ColumnFamily addOrGet(CFMetaData cfm)
     {
+        return addOrGet(cfm, TreeMapBackedSortedColumns.factory);
+    }
+
+    public ColumnFamily addOrGet(CFMetaData cfm, ColumnFamily.Factory factory)
+    {
         ColumnFamily cf = modifications.get(cfm.cfId);
         if (cf == null)
         {
-            cf = TreeMapBackedSortedColumns.factory.create(cfm);
+            cf = factory.create(cfm);
             modifications.put(cfm.cfId, cf);
         }
         return cf;

@@ -98,14 +98,6 @@ public class UpdateStatement extends ModificationStatement
         }
     }
 
-    public ColumnFamily updateForKey(ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params)
-    throws InvalidRequestException
-    {
-        ColumnFamily cf = UnsortedColumns.factory.create(cfm);
-        addUpdateForKey(cf, key, builder, params);
-        return cf;
-    }
-
     public static class ParsedInsert extends ModificationStatement.Parsed
     {
         private final List<ColumnIdentifier> columnNames;
