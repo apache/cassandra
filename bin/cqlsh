@@ -722,7 +722,7 @@ class Shell(cmd.Cmd):
         self.cursor.execute(ut_q, consistency_level='ONE')
         data = self.fetchdict_all()
         if not data:
-            return None
+            return cql3handling.UserTypesMeta({})
 
         return cql3handling.UserTypesMeta.from_layout(data)
 
