@@ -71,7 +71,7 @@ public class DateType extends AbstractType<Date>
           millis = System.currentTimeMillis();
       }
       // Milliseconds since epoch?
-      else if (source.matches("^\\d+$"))
+      else if (source.matches("^-?\\d+$"))
       {
           try
           {
