@@ -1734,17 +1734,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return repairedSSTables;
     }
 
-    abstract class AbstractViewSSTableFinder
-    {
-        abstract List<SSTableReader> findSSTables(DataTracker.View view);
-        protected List<SSTableReader> sstablesForRowBounds(AbstractBounds<RowPosition> rowBounds, DataTracker.View view)
-        {
-            RowPosition stopInTree = rowBounds.right.isMinimum() ? view.intervalTree.max() : rowBounds.right;
-            return view.intervalTree.search(Interval.<RowPosition, SSTableReader>create(rowBounds.left, stopInTree));
-        }
-    }
-
-    private ViewFragment markReferenced(AbstractViewSSTableFinder finder)
+    private ViewFragment markReferenced(Function<DataTracker.View, List<SSTableReader>> filter)
     {
         List<SSTableReader> sstables;
         DataTracker.View view;
@@ -1759,7 +1749,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 break;
             }
 
-            sstables = finder.findSSTables(view);
+            sstables = filter.apply(view);
             if (SSTableReader.acquireReferences(sstables))
                 break;
             // retry w/ new view
@@ -1775,9 +1765,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public ViewFragment markReferenced(final DecoratedKey key)
     {
         assert !key.isMinimum();
-        return markReferenced(new AbstractViewSSTableFinder()
+        return markReferenced(new Function<DataTracker.View, List<SSTableReader>>()
         {
-            List<SSTableReader> findSSTables(DataTracker.View view)
+            public List<SSTableReader> apply(DataTracker.View view)
             {
                 return compactionStrategy.filterSSTablesForReads(view.intervalTree.search(key));
             }
@@ -1790,11 +1780,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public ViewFragment markReferenced(final AbstractBounds<RowPosition> rowBounds)
     {
-        return markReferenced(new AbstractViewSSTableFinder()
+        return markReferenced(new Function<DataTracker.View, List<SSTableReader>>()
         {
-            List<SSTableReader> findSSTables(DataTracker.View view)
+            public List<SSTableReader> apply(DataTracker.View view)
             {
-                return compactionStrategy.filterSSTablesForReads(sstablesForRowBounds(rowBounds, view));
+                return compactionStrategy.filterSSTablesForReads(view.sstablesInBounds(rowBounds));
             }
         });
     }
@@ -1805,13 +1795,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public ViewFragment markReferenced(final Collection<AbstractBounds<RowPosition>> rowBoundsCollection)
     {
-        return markReferenced(new AbstractViewSSTableFinder()
+        return markReferenced(new Function<DataTracker.View, List<SSTableReader>>()
         {
-            List<SSTableReader> findSSTables(DataTracker.View view)
+            public List<SSTableReader> apply(DataTracker.View view)
             {
                 Set<SSTableReader> sstables = Sets.newHashSet();
                 for (AbstractBounds<RowPosition> rowBounds : rowBoundsCollection)
-                    sstables.addAll(sstablesForRowBounds(rowBounds, view));
+                    sstables.addAll(view.sstablesInBounds(rowBounds));
 
                 return ImmutableList.copyOf(sstables);
             }
