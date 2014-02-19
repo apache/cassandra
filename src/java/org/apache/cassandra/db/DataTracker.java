@@ -24,20 +24,19 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
-
-import org.apache.cassandra.utils.concurrent.OpOrder;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.notifications.*;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class DataTracker
 {
@@ -318,11 +317,11 @@ public class DataTracker
     void init()
     {
         view.set(new View(
-                ImmutableList.of(new Memtable(cfstore)),
-                ImmutableList.<Memtable>of(),
-                Collections.<SSTableReader>emptySet(),
-                Collections.<SSTableReader>emptySet(),
-                SSTableIntervalTree.empty()));
+                         ImmutableList.of(new Memtable(cfstore)),
+                         ImmutableList.<Memtable>of(),
+                         Collections.<SSTableReader>emptySet(),
+                         Collections.<SSTableReader>emptySet(),
+                         SSTableIntervalTree.empty()));
     }
 
     /**
@@ -691,6 +690,12 @@ public class DataTracker
         public String toString()
         {
             return String.format("View(pending_count=%d, sstables=%s, compacting=%s)", liveMemtables.size() + flushingMemtables.size() - 1, sstables, compacting);
+        }
+
+        public List<SSTableReader> sstablesInBounds(AbstractBounds<RowPosition> rowBounds)
+        {
+            RowPosition stopInTree = rowBounds.right.isMinimum(liveMemtables.get(0).cfs.partitioner) ? intervalTree.max() : rowBounds.right;
+            return intervalTree.search(Interval.<RowPosition, SSTableReader>create(rowBounds.left, stopInTree));
         }
     }
 }
