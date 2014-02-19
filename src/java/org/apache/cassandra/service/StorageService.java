@@ -573,7 +573,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                             flushes.add(cfs.forceFlush());
                     }
                 }
-                FBUtilities.waitOnFutures(flushes);
+                try
+                {
+                    FBUtilities.waitOnFutures(flushes);
+                }
+                catch (Throwable e)
+                {
+                    // don't let this stop us from shutting down the commitlog and other thread pools
+                    logger.warn("Caught exception while waiting for memtable flushes during shutdown hook", e);
+                }
 
                 CommitLog.instance.shutdownBlocking();
 
