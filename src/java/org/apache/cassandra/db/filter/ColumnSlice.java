@@ -215,6 +215,11 @@ public class ColumnSlice
             return prefix.size();
         }
 
+        public boolean isStatic()
+        {
+            return prefix.isStatic();
+        }
+
         public ByteBuffer get(int i)
         {
             return prefix.get(i);
