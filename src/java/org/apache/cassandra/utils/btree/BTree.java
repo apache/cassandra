@@ -18,9 +18,11 @@
  */
 package org.apache.cassandra.utils.btree;
 
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Queue;
 
 import org.apache.cassandra.utils.ObjectSizes;
 
@@ -113,7 +115,13 @@ public class BTree
         if (!sorted)
             source = sorted(source, comparator, size);
 
-        return modifier.get().build(source, size);
+        Queue<Builder> queue = modifier.get();
+        Builder builder = queue.poll();
+        if (builder == null)
+            builder = new Builder();
+        Object[] btree = builder.build(source, size);
+        queue.add(builder);
+        return btree;
     }
 
     /**
@@ -154,7 +162,13 @@ public class BTree
         if (!updateWithIsSorted)
             updateWith = sorted(updateWith, comparator, updateWith.size());
 
-        return modifier.get().update(btree, comparator, updateWith, updateF);
+        Queue<Builder> queue = modifier.get();
+        Builder builder = queue.poll();
+        if (builder == null)
+            builder = new Builder();
+        btree = builder.update(btree, comparator, updateWith, updateF);
+        queue.add(builder);
+        return btree;
     }
 
     /**
@@ -319,12 +333,12 @@ public class BTree
         }
     };
 
-    private static final ThreadLocal<Builder> modifier = new ThreadLocal<Builder>()
+    private static final ThreadLocal<Queue<Builder>> modifier = new ThreadLocal<Queue<Builder>>()
     {
         @Override
-        protected Builder initialValue()
+        protected Queue<Builder> initialValue()
         {
-            return new Builder();
+            return new ArrayDeque<>();
         }
     };
 
