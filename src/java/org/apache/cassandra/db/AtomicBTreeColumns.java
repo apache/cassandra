@@ -66,7 +66,7 @@ public class AtomicBTreeColumns extends ColumnFamily
 
     public static final Factory<AtomicBTreeColumns> factory = new Factory<AtomicBTreeColumns>()
     {
-        public AtomicBTreeColumns create(CFMetaData metadata, boolean insertReversed)
+        public AtomicBTreeColumns create(CFMetaData metadata, boolean insertReversed, int initialCapacity)
         {
             if (insertReversed)
                 throw new IllegalArgumentException();
@@ -230,24 +230,28 @@ public class AtomicBTreeColumns extends ColumnFamily
             Holder current = ref;
 
             delta.reset();
-            DeletionInfo deletionInfo = cm.deletionInfo();
-            if (deletionInfo.mayModify(current.deletionInfo))
+            DeletionInfo deletionInfo;
+            if (cm.deletionInfo().mayModify(current.deletionInfo))
             {
-                if (deletionInfo.hasRanges())
+                if (cm.deletionInfo().hasRanges())
                 {
                     for (Iterator<Cell> iter : new Iterator[] { insert.iterator(), BTree.<Cell>slice(current.tree, true) })
                     {
                         while (iter.hasNext())
                         {
                             Cell col = iter.next();
-                            if (deletionInfo.isDeleted(col))
+                            if (cm.deletionInfo().isDeleted(col))
                                 indexer.remove(col);
                         }
                     }
                 }
 
-                deletionInfo = current.deletionInfo.copy().add(deletionInfo);
+                deletionInfo = current.deletionInfo.copy().add(cm.deletionInfo());
                 delta.addHeapSize(deletionInfo.unsharedHeapSize() - current.deletionInfo.unsharedHeapSize());
+            }
+            else
+            {
+                deletionInfo = current.deletionInfo;
             }
 
             ColumnUpdater updater = new ColumnUpdater(this, current, allocator, transformation, indexer, delta);
