@@ -66,7 +66,7 @@ public class AtomicBTreeColumns extends ColumnFamily
 
     public static final Factory<AtomicBTreeColumns> factory = new Factory<AtomicBTreeColumns>()
     {
-        public AtomicBTreeColumns create(CFMetaData metadata, boolean insertReversed)
+        public AtomicBTreeColumns create(CFMetaData metadata, boolean insertReversed, int initialCapacity)
         {
             if (insertReversed)
                 throw new IllegalArgumentException();

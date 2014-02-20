@@ -493,7 +493,12 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
          * allow optimizing for both forward and reversed slices. This does not matter for ThreadSafeSortedColumns.
          * Note that this is only an hint on how we expect to do insertion, this does not change the map sorting.
          */
-        public abstract T create(CFMetaData metadata, boolean insertReversed);
+        public abstract T create(CFMetaData metadata, boolean insertReversed, int initialCapacity);
+
+        public T create(CFMetaData metadata, boolean insertReversed)
+        {
+            return create(metadata, insertReversed, 0);
+        }
 
         public T create(CFMetaData metadata)
         {

@@ -43,29 +43,30 @@ public class ArrayBackedSortedColumns extends ColumnFamily
     private static final int MINIMAL_CAPACITY = 10;
 
     private final boolean reversed;
+
     private DeletionInfo deletionInfo;
-
     private Cell[] cells;
-
-    private volatile int size;
-    private volatile int sortedSize;
+    private int size;
+    private int sortedSize;
+    private volatile boolean isSorted;
 
     public static final ColumnFamily.Factory<ArrayBackedSortedColumns> factory = new Factory<ArrayBackedSortedColumns>()
     {
-        public ArrayBackedSortedColumns create(CFMetaData metadata, boolean insertReversed)
+        public ArrayBackedSortedColumns create(CFMetaData metadata, boolean insertReversed, int initialCapacity)
         {
-            return new ArrayBackedSortedColumns(metadata, insertReversed);
+            return new ArrayBackedSortedColumns(metadata, insertReversed, initialCapacity);
         }
     };
 
-    private ArrayBackedSortedColumns(CFMetaData metadata, boolean reversed)
+    private ArrayBackedSortedColumns(CFMetaData metadata, boolean reversed, int initialCapacity)
     {
         super(metadata);
         this.reversed = reversed;
         this.deletionInfo = DeletionInfo.live();
-        this.cells = EMPTY_ARRAY;
+        this.cells = initialCapacity == 0 ? EMPTY_ARRAY : new Cell[initialCapacity];
         this.size = 0;
         this.sortedSize = 0;
+        this.isSorted = true;
     }
 
     private ArrayBackedSortedColumns(ArrayBackedSortedColumns original)
@@ -76,6 +77,7 @@ public class ArrayBackedSortedColumns extends ColumnFamily
         this.cells = Arrays.copyOf(original.cells, original.size);
         this.size = original.size;
         this.sortedSize = original.sortedSize;
+        this.isSorted = original.isSorted;
     }
 
     public ColumnFamily.Factory getFactory()
@@ -100,7 +102,7 @@ public class ArrayBackedSortedColumns extends ColumnFamily
 
     private void maybeSortCells()
     {
-        if (size != sortedSize)
+        if (!isSorted)
             sortCells();
     }
 
@@ -109,8 +111,8 @@ public class ArrayBackedSortedColumns extends ColumnFamily
      */
     private synchronized void sortCells()
     {
-        if (size == sortedSize)
-            return; // Just sorted by a previous call.
+        if (isSorted)
+            return; // Just sorted by a previous call
 
         Comparator<Cell> comparator = reversed
                                     ? getComparator().columnReverseComparator()
@@ -133,8 +135,8 @@ public class ArrayBackedSortedColumns extends ColumnFamily
         int rightStart = sortedSize;
         int rightEnd = size;
 
-        sortedSize = -1; // Set to -1 to avoid the pos == sortedSize edge case
-        size = pos;      // 'Trim' the size to what's left without the leftCopy
+        // 'Trim' the sizes to what's left without the leftCopy
+        size = sortedSize = pos;
 
         // Merge the cells from both segments. When adding from the left segment we can rely on it not having any
         // duplicate cells, and thus omit the comparison with the previously entered cell - we'll never need to reconcile.
@@ -143,23 +145,38 @@ public class ArrayBackedSortedColumns extends ColumnFamily
         {
             int cmp = comparator.compare(leftCopy[l], cells[r]);
             if (cmp < 0)
-                internalAppend(leftCopy[l++]);
+                append(leftCopy[l++]);
             else if (cmp == 0)
-                internalAppend(leftCopy[l++].reconcile(cells[r++]));
+                append(leftCopy[l++].reconcile(cells[r++]));
             else
-                internalAppendOrReconcile(cells[r++]);
+                appendOrReconcile(cells[r++]);
         }
         while (l < leftCopy.length)
-            internalAppend(leftCopy[l++]);
+            append(leftCopy[l++]);
         while (r < rightEnd)
-            internalAppendOrReconcile(cells[r++]);
-
-        // Fully sorted at this point
-        sortedSize = size;
+            appendOrReconcile(cells[r++]);
 
         // Nullify the remainder of the array (in case we had duplicate cells that got reconciled)
         for (int i = size; i < rightEnd; i++)
             cells[i] = null;
+
+        // Fully sorted at this point
+        isSorted = true;
+    }
+
+    private void appendOrReconcile(Cell cell)
+    {
+        if (size > 0 && cells[size - 1].name().equals(cell.name()))
+            reconcileWith(size - 1, cell);
+        else
+            append(cell);
+    }
+
+    private void append(Cell cell)
+    {
+        cells[size] = cell;
+        size++;
+        sortedSize++;
     }
 
     public Cell getColumn(CellName name)
@@ -200,9 +217,14 @@ public class ArrayBackedSortedColumns extends ColumnFamily
         {
             int pos = binarySearch(cell.name());
             if (pos >= 0) // Reconcile with an existing cell
+            {
                 reconcileWith(pos, cell);
+            }
             else
+            {
                 internalAdd(cell); // Append to the end, making cells unsorted from now on
+                isSorted = false;
+            }
         }
     }
 
@@ -213,9 +235,39 @@ public class ArrayBackedSortedColumns extends ColumnFamily
         if (other.getColumnCount() == 0)
             return;
 
-        Iterator<Cell> iterator = reversed ? other.reverseIterator() : other.iterator();
-        while (iterator.hasNext())
-            addColumn(iterator.next());
+        // In reality, with ABSC being the only remaining container (aside from ABTC), other will aways be ABSC.
+        if (size == 0 && other instanceof ArrayBackedSortedColumns)
+        {
+            fastAddAll((ArrayBackedSortedColumns) other);
+        }
+        else
+        {
+            Iterator<Cell> iterator = reversed ? other.reverseIterator() : other.iterator();
+            while (iterator.hasNext())
+                addColumn(iterator.next());
+        }
+    }
+
+    // Fast path, when this ABSC is empty.
+    private void fastAddAll(ArrayBackedSortedColumns other)
+    {
+        if (other.isInsertReversed() == isInsertReversed())
+        {
+            cells = Arrays.copyOf(other.cells, other.cells.length);
+            size = other.size;
+            sortedSize = other.sortedSize;
+            isSorted = other.isSorted;
+        }
+        else
+        {
+            if (cells.length < other.getColumnCount())
+                cells = new Cell[Math.max(MINIMAL_CAPACITY, other.getColumnCount())];
+            Iterator<Cell> iterator = reversed ? other.reverseIterator() : other.iterator();
+            while (iterator.hasNext())
+                cells[size++] = iterator.next();
+            sortedSize = size;
+            isSorted = true;
+        }
     }
 
     /**
@@ -223,33 +275,8 @@ public class ArrayBackedSortedColumns extends ColumnFamily
      */
     private void internalAdd(Cell cell)
     {
-        if (cells == EMPTY_ARRAY)
-            cells = new Cell[MINIMAL_CAPACITY];
-        else if (cells.length == size)
-            cells = Arrays.copyOf(cells, size * 3 / 2 + 1);
-
-        cells[size++] = cell;
-    }
-
-    /**
-     * Appends a cell to the array, with the knowledge that array has enough capacity for the new cell, and that
-     * the cell is being added in the sorted order, but may or may not need to be reconciled with the previously
-     * appended one.
-     */
-    private void internalAppendOrReconcile(Cell cell)
-    {
-        if (size > 0 && cells[size - 1].name().equals(cell.name()))
-            reconcileWith(size - 1, cell);
-        else
-            internalAppend(cell);
-    }
-
-    /**
-     * Appends a cell to the array, with the knowledge that array has enough capacity for the new cell, and that
-     * the cell is being added in the sorted order, and the added cell is not a duplicate of a previously inserted one.
-     */
-    private void internalAppend(Cell cell)
-    {
+        if (cells.length == size)
+            cells = Arrays.copyOf(cells, Math.max(MINIMAL_CAPACITY, size * 3 / 2 + 1));
         cells[size++] = cell;
     }
 
@@ -328,6 +355,7 @@ public class ArrayBackedSortedColumns extends ColumnFamily
         for (int i = 0; i < size; i++)
             cells[i] = null;
         size = sortedSize = 0;
+        isSorted = true;
     }
 
     public DeletionInfo deletionInfo()

@@ -86,21 +86,6 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
                              baseCfs.metadata.getColumnDefinition(expr.column).type.getString(expr.value));
     }
 
-    public void delete(ByteBuffer rowKey, Cell cell)
-    {
-        throw new IllegalStateException();
-    }
-
-    public void insert(ByteBuffer rowKey, Cell cell)
-    {
-        throw new IllegalStateException();
-    }
-
-    public void update(ByteBuffer rowKey, Cell cell)
-    {
-        throw new IllegalStateException();
-    }
-
     public void delete(ByteBuffer rowKey, Cell cell, OpOrder.Group opGroup)
     {
         if (cell.isMarkedForDelete(System.currentTimeMillis()))
@@ -108,7 +93,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, cell));
         int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
-        ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
+        ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata, false, 1);
         cfi.addTombstone(makeIndexColumnName(rowKey, cell), localDeletionTime, cell.timestamp());
         indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
         if (logger.isDebugEnabled())
@@ -118,7 +103,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
     public void insert(ByteBuffer rowKey, Cell cell, OpOrder.Group opGroup)
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, cell));
-        ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
+        ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata, false, 1);
         CellName name = makeIndexColumnName(rowKey, cell);
         if (cell instanceof ExpiringCell)
         {
