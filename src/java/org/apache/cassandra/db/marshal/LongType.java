@@ -47,7 +47,7 @@ public class LongType extends AbstractType<Long>
             return 1;
         }
 
-        int diff = o1.get(o1.position() + o1.arrayOffset()) - o2.get(o2.position() + o2.arrayOffset());
+        int diff = o1.get(o1.position()) - o2.get(o2.position());
         if (diff != 0)
             return diff;
 
