@@ -90,6 +90,8 @@ public abstract class AbstractCType implements CType
     {
         if (c1 == null || c1.isEmpty())
             return c2 == null || c2.isEmpty() ? 0 : -1;
+        if (c2 == null || c2.isEmpty())
+            return 1;
 
         if (c1.isStatic() != c2.isStatic())
             return c1.isStatic() ? -1 : 1;
