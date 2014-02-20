@@ -76,6 +76,8 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     {
         if (o1 == null || !o1.hasRemaining())
             return o2 == null || !o2.hasRemaining() ? 0 : -1;
+        if (o2 == null || !o2.hasRemaining())
+            return 1;
 
         ByteBuffer bb1 = o1.duplicate();
         ByteBuffer bb2 = o2.duplicate();
