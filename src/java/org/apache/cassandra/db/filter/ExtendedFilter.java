@@ -331,18 +331,18 @@ public abstract class ExtendedFilter
             {
                 case LIST:
                     assert collectionElement != null;
-                    return type.valueComparator().compare(data.getColumn(data.getComparator().create(prefix, def.name, collectionElement)).value(), expr.value) == 0;
+                    return type.valueComparator().compare(data.getColumn(data.getComparator().create(prefix, def, collectionElement)).value(), expr.value) == 0;
                 case SET:
-                    return data.getColumn(data.getComparator().create(prefix, def.name, expr.value)) != null;
+                    return data.getColumn(data.getComparator().create(prefix, def, expr.value)) != null;
                 case MAP:
                     if (expr.operator == IndexExpression.Operator.CONTAINS_KEY)
                     {
-                        return data.getColumn(data.getComparator().create(prefix, def.name, expr.value)) != null;
+                        return data.getColumn(data.getComparator().create(prefix, def, expr.value)) != null;
                     }
                     else
                     {
                         assert collectionElement != null;
-                        return type.valueComparator().compare(data.getColumn(data.getComparator().create(prefix, def.name, collectionElement)).value(), expr.value) == 0;
+                        return type.valueComparator().compare(data.getColumn(data.getComparator().create(prefix, def, collectionElement)).value(), expr.value) == 0;
                     }
             }
             throw new AssertionError();
@@ -361,7 +361,7 @@ public abstract class ExtendedFilter
                 case REGULAR:
                     CellName cname = prefix == null
                                    ? data.getComparator().cellFromByteBuffer(def.name.bytes)
-                                   : data.getComparator().create(prefix, def.name);
+                                   : data.getComparator().create(prefix, def);
 
                     Cell cell = data.getColumn(cname);
                     return cell == null ? null : cell.value();

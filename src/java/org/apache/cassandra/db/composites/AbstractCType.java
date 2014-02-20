@@ -88,8 +88,11 @@ public abstract class AbstractCType implements CType
 
     public int compare(Composite c1, Composite c2)
     {
-        if (c1 == null)
-            return c2 == null ? 0 : -1;
+        if (c1 == null || c1.isEmpty())
+            return c2 == null || c2.isEmpty() ? 0 : -1;
+
+        if (c1.isStatic() != c2.isStatic())
+            return c1.isStatic() ? -1 : 1;
 
         ByteBuffer previous = null;
         int i;

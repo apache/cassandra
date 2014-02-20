@@ -68,6 +68,8 @@ public interface Composite extends IMeasurableMemory
     public Composite end();
     public ColumnSlice slice();
 
+    public boolean isStatic();
+
     public boolean isPrefixOf(Composite other);
 
     public ByteBuffer toByteBuffer();

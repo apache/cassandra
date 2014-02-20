@@ -29,24 +29,24 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
 {
     private static final ByteBuffer[] EMPTY_PREFIX = new ByteBuffer[0];
 
-    private static final long HEAP_SIZE = ObjectSizes.measure(new CompoundSparseCellName(null));
+    private static final long HEAP_SIZE = ObjectSizes.measure(new CompoundSparseCellName(null, false));
 
     protected final ColumnIdentifier columnName;
 
     // Not meant to be used directly, you should use the CellNameType method instead
-    CompoundSparseCellName(ColumnIdentifier columnName)
+    CompoundSparseCellName(ColumnIdentifier columnName, boolean isStatic)
     {
-        this(EMPTY_PREFIX, columnName);
+        this(EMPTY_PREFIX, columnName, isStatic);
     }
 
-    CompoundSparseCellName(ByteBuffer[] elements, ColumnIdentifier columnName)
+    CompoundSparseCellName(ByteBuffer[] elements, ColumnIdentifier columnName, boolean isStatic)
     {
-        this(elements, elements.length, columnName);
+        this(elements, elements.length, columnName, isStatic);
     }
 
-    CompoundSparseCellName(ByteBuffer[] elements, int size, ColumnIdentifier columnName)
+    CompoundSparseCellName(ByteBuffer[] elements, int size, ColumnIdentifier columnName, boolean isStatic)
     {
-        super(elements, size);
+        super(elements, size, isStatic);
         this.columnName = columnName;
     }
 
@@ -82,7 +82,7 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
 
     public boolean isSameCQL3RowAs(CellName other)
     {
-        if (clusteringSize() != other.clusteringSize())
+        if (clusteringSize() != other.clusteringSize() || other.isStatic() != isStatic())
             return false;
 
         for (int i = 0; i < clusteringSize(); i++)
@@ -99,28 +99,28 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
             return this;
 
         // We don't copy columnName because it's interned in SparseCellNameType
-        return new CompoundSparseCellName(elementsCopy(allocator), columnName);
+        return new CompoundSparseCellName(elementsCopy(allocator), columnName, isStatic());
     }
 
     public static class WithCollection extends CompoundSparseCellName
     {
-        private static final long HEAP_SIZE = ObjectSizes.measure(new WithCollection(null, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        private static final long HEAP_SIZE = ObjectSizes.measure(new WithCollection(null, ByteBufferUtil.EMPTY_BYTE_BUFFER, false));
 
         private final ByteBuffer collectionElement;
 
-        WithCollection(ColumnIdentifier columnName, ByteBuffer collectionElement)
+        WithCollection(ColumnIdentifier columnName, ByteBuffer collectionElement, boolean isStatic)
         {
-            this(EMPTY_PREFIX, columnName, collectionElement);
+            this(EMPTY_PREFIX, columnName, collectionElement, isStatic);
         }
 
-        WithCollection(ByteBuffer[] elements, ColumnIdentifier columnName, ByteBuffer collectionElement)
+        WithCollection(ByteBuffer[] elements, ColumnIdentifier columnName, ByteBuffer collectionElement, boolean isStatic)
         {
-            this(elements, elements.length, columnName, collectionElement);
+            this(elements, elements.length, columnName, collectionElement, isStatic);
         }
 
-        WithCollection(ByteBuffer[] elements, int size, ColumnIdentifier columnName, ByteBuffer collectionElement)
+        WithCollection(ByteBuffer[] elements, int size, ColumnIdentifier columnName, ByteBuffer collectionElement, boolean isStatic)
         {
-            super(elements, size, columnName);
+            super(elements, size, columnName, isStatic);
             this.collectionElement = collectionElement;
         }
 
@@ -150,7 +150,7 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         public CellName copy(AbstractAllocator allocator)
         {
             // We don't copy columnName because it's interned in SparseCellNameType
-            return new CompoundSparseCellName.WithCollection(elements.length == 0 ? elements : elementsCopy(allocator), size, columnName, allocator.clone(collectionElement));
+            return new CompoundSparseCellName.WithCollection(elements.length == 0 ? elements : elementsCopy(allocator), size, columnName, allocator.clone(collectionElement), isStatic());
         }
 
         @Override

@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQL3Row;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
@@ -167,12 +168,17 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
         return (CellName)fromByteBuffer(bytes);
     }
 
-    public CellName create(Composite prefix, ColumnIdentifier columnName, ByteBuffer collectionElement)
+    public CellName create(Composite prefix, ColumnDefinition column, ByteBuffer collectionElement)
     {
         throw new UnsupportedOperationException();
     }
 
     public CellName rowMarker(Composite prefix)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    public Composite staticPrefix()
     {
         throw new UnsupportedOperationException();
     }
@@ -234,86 +240,138 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
     {
         return new CQL3Row.Builder()
         {
-            public Iterator<CQL3Row> group(final Iterator<Cell> cells)
+            public CQL3Row.RowIterator group(Iterator<Cell> cells)
             {
-                return new AbstractIterator<CQL3Row>()
+                return new DenseRowIterator(cells, now);
+            }
+        };
+    }
+
+    private static class DenseRowIterator extends AbstractIterator<CQL3Row> implements CQL3Row.RowIterator
+    {
+        private final Iterator<Cell> cells;
+        private final long now;
+
+        public DenseRowIterator(Iterator<Cell> cells, long now)
+        {
+            this.cells = cells;
+            this.now = now;
+        }
+
+        public CQL3Row getStaticRow()
+        {
+            // There can't be static columns in dense tables
+            return null;
+        }
+
+        protected CQL3Row computeNext()
+        {
+            while (cells.hasNext())
+            {
+                final Cell cell = cells.next();
+                if (cell.isMarkedForDelete(now))
+                    continue;
+
+                return new CQL3Row()
                 {
-                    protected CQL3Row computeNext()
+                    public ByteBuffer getClusteringColumn(int i)
                     {
-                        while (cells.hasNext())
-                        {
-                            final Cell cell = cells.next();
-                            if (cell.isMarkedForDelete(now))
-                                continue;
+                        return cell.name().get(i);
+                    }
 
-                            return new CQL3Row()
-                            {
-                                public ByteBuffer getClusteringColumn(int i)
-                                {
-                                    return cell.name().get(i);
-                                }
+                    public Cell getColumn(ColumnIdentifier name)
+                    {
+                        return cell;
+                    }
 
-                                public Cell getColumn(ColumnIdentifier name)
-                                {
-                                    return cell;
-                                }
-
-                                public List<Cell> getCollection(ColumnIdentifier name)
-                                {
-                                    return null;
-                                }
-                            };
-                        }
-                        return endOfData();
+                    public List<Cell> getCollection(ColumnIdentifier name)
+                    {
+                        return null;
                     }
                 };
             }
-        };
+            return endOfData();
+        }
     }
 
     protected static CQL3Row.Builder makeSparseCQL3RowBuilder(final long now)
     {
         return new CQL3Row.Builder()
         {
-            public Iterator<CQL3Row> group(final Iterator<Cell> cells)
+            public CQL3Row.RowIterator group(Iterator<Cell> cells)
             {
-                return new AbstractIterator<CQL3Row>()
-                {
-                    private CellName previous;
-                    private CQL3RowOfSparse currentRow;
-
-                    protected CQL3Row computeNext()
-                    {
-                        while (cells.hasNext())
-                        {
-                            final Cell cell = cells.next();
-                            if (cell.isMarkedForDelete(now))
-                                continue;
-
-                            CQL3Row toReturn = null;
-                            CellName current = cell.name();
-                            if (currentRow == null || !current.isSameCQL3RowAs(previous))
-                            {
-                                toReturn = currentRow;
-                                currentRow = new CQL3RowOfSparse(current);
-                            }
-                            currentRow.add(cell);
-                            previous = current;
-
-                            if (toReturn != null)
-                                return toReturn;
-                        }
-                        if (currentRow != null)
-                        {
-                            CQL3Row toReturn = currentRow;
-                            currentRow = null;
-                            return toReturn;
-                        }
-                        return endOfData();
-                    }
-                };
+                return new SparseRowIterator(cells, now);
             }
         };
+    }
+
+    private static class SparseRowIterator extends AbstractIterator<CQL3Row> implements CQL3Row.RowIterator
+    {
+        private final Iterator<Cell> cells;
+        private final long now;
+        private final CQL3Row staticRow;
+
+        private Cell nextCell;
+        private CellName previous;
+        private CQL3RowOfSparse currentRow;
+
+        public SparseRowIterator(Iterator<Cell> cells, long now)
+        {
+            this.cells = cells;
+            this.now = now;
+            this.staticRow = hasNextCell() && nextCell.name().isStatic()
+                           ? computeNext()
+                           : null;
+        }
+
+        public CQL3Row getStaticRow()
+        {
+            return staticRow;
+        }
+
+        private boolean hasNextCell()
+        {
+            if (nextCell != null)
+                return true;
+
+            while (cells.hasNext())
+            {
+                Cell cell = cells.next();
+                if (cell.isMarkedForDelete(now))
+                    continue;
+
+                nextCell = cell;
+                return true;
+            }
+            return false;
+        }
+
+        protected CQL3Row computeNext()
+        {
+            while (hasNextCell())
+            {
+                CQL3Row toReturn = null;
+                CellName current = nextCell.name();
+                if (currentRow == null || !current.isSameCQL3RowAs(previous))
+                {
+                    toReturn = currentRow;
+                    currentRow = new CQL3RowOfSparse(current);
+                }
+                currentRow.add(nextCell);
+                nextCell = null;
+                previous = current;
+
+                if (toReturn != null)
+                    return toReturn;
+            }
+            if (currentRow != null)
+            {
+                CQL3Row toReturn = currentRow;
+                currentRow = null;
+                return toReturn;
+            }
+            return endOfData();
+        }
     }
 
     private static class CQL3RowOfSparse implements CQL3Row

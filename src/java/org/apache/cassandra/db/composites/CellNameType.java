@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQL3Row;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Cell;
@@ -74,6 +75,15 @@ public interface CellNameType extends CType
     public CBuilder prefixBuilder();
 
     /**
+     * The prefix to use for static columns.
+     *
+     * Note that create() methods below for creating CellName automatically handle static columns already
+     * for convenience, and so there is not need to pass this prefix for them. There is few other cases
+     * where we need the prefix directly however.
+     */
+    public Composite staticPrefix();
+
+    /**
      * Whether or not there is some collections defined in this type.
      */
     public boolean hasCollections();
@@ -110,16 +120,17 @@ public interface CellNameType extends CType
     public CellName rowMarker(Composite prefix);
 
     /**
-     * Creates a new CellName given a clustering prefix and a CQL3 columnName.
+     * Creates a new CellName given a clustering prefix and a CQL3 column.
      *
-     * Note that for dense types, the columnName can be null.
+     * Note that for dense types, the column can be null as a shortcut for designing the only
+     * COMPACT_VALUE column of the table.
      */
-    public CellName create(Composite prefix, ColumnIdentifier columnName);
+    public CellName create(Composite prefix, ColumnDefinition column);
 
     /**
-     * Creates a new collection CellName given a clustering prefix, a CQL3 columnName and the collection element.
+     * Creates a new collection CellName given a clustering prefix, a CQL3 column and the collection element.
      */
-    public CellName create(Composite prefix, ColumnIdentifier columnName, ByteBuffer collectionElement);
+    public CellName create(Composite prefix, ColumnDefinition column, ByteBuffer collectionElement);
 
     /**
      * Convenience method to create cell names given its components.

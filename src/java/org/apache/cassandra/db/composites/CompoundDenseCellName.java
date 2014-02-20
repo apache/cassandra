@@ -31,7 +31,7 @@ public class CompoundDenseCellName extends CompoundComposite implements CellName
     // Not meant to be used directly, you should use the CellNameType method instead
     CompoundDenseCellName(ByteBuffer[] elements)
     {
-        super(elements, elements.length);
+        super(elements, elements.length, false);
     }
 
     public int clusteringSize()

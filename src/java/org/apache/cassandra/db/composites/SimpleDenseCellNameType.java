@@ -19,6 +19,7 @@ package org.apache.cassandra.db.composites;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQL3Row;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -53,10 +54,10 @@ public class SimpleDenseCellNameType extends AbstractSimpleCellNameType
         return true;
     }
 
-    public CellName create(Composite prefix, ColumnIdentifier columnName)
+    public CellName create(Composite prefix, ColumnDefinition column)
     {
         assert prefix.size() == 1;
-        // We ignore the columnName because it's just the COMPACT_VALUE name which is not store in the cell name
+        // We ignore the column because it's just the COMPACT_VALUE name which is not store in the cell name
         return new SimpleDenseCellName(prefix.get(0));
     }
 

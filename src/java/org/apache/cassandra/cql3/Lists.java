@@ -268,9 +268,9 @@ public abstract class Lists
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
             // delete + append
-            CellName name = cf.getComparator().create(prefix, column.name);
+            CellName name = cf.getComparator().create(prefix, column);
             cf.addAtom(params.makeTombstoneForOverwrite(name.slice()));
-            Appender.doAppend(t, cf, prefix, column.name, params);
+            Appender.doAppend(t, cf, prefix, column, params);
         }
     }
 
@@ -337,10 +337,10 @@ public abstract class Lists
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            doAppend(t, cf, prefix, column.name, params);
+            doAppend(t, cf, prefix, column, params);
         }
 
-        static void doAppend(Term t, ColumnFamily cf, Composite prefix, ColumnIdentifier columnName, UpdateParameters params) throws InvalidRequestException
+        static void doAppend(Term t, ColumnFamily cf, Composite prefix, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.variables);
             // If we append null, do nothing. Note that for Setter, we've
@@ -353,7 +353,7 @@ public abstract class Lists
             for (int i = 0; i < toAdd.size(); i++)
             {
                 ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
-                cf.addColumn(params.makeColumn(cf.getComparator().create(prefix, columnName, uuid), toAdd.get(i)));
+                cf.addColumn(params.makeColumn(cf.getComparator().create(prefix, column, uuid), toAdd.get(i)));
             }
         }
     }
@@ -379,7 +379,7 @@ public abstract class Lists
             {
                 PrecisionTime pt = PrecisionTime.getNext(time);
                 ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(pt.millis, pt.nanos));
-                cf.addColumn(params.makeColumn(cf.getComparator().create(prefix, column.name, uuid), toAdd.get(i)));
+                cf.addColumn(params.makeColumn(cf.getComparator().create(prefix, column, uuid), toAdd.get(i)));
             }
         }
     }

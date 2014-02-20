@@ -82,8 +82,19 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
     private Map<ColumnIdentifier, Integer> orderingIndexes;
 
+    private boolean selectsStaticColumns;
+    private boolean selectsOnlyStaticColumns;
+
     // Used by forSelection below
     private static final Parameters defaultParameters = new Parameters(Collections.<ColumnIdentifier, Boolean>emptyMap(), false, false, null, false);
+
+    private static final Predicate<ColumnDefinition> isStaticFilter = new Predicate<ColumnDefinition>()
+    {
+        public boolean apply(ColumnDefinition def)
+        {
+            return def.isStatic();
+        }
+    };
 
     public SelectStatement(CFMetaData cfm, int boundTerms, Parameters parameters, Selection selection, Term limit)
     {
@@ -94,6 +105,34 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         this.columnRestrictions = new Restriction[cfm.clusteringColumns().size()];
         this.parameters = parameters;
         this.limit = limit;
+
+        // Now gather a few info on whether we should bother with static columns or not for this statement
+        initStaticColumnsInfo();
+    }
+
+    private void initStaticColumnsInfo()
+    {
+        if (!cfm.hasStaticColumns())
+            return;
+
+        // If it's a wildcard, we do select static but not only them
+        if (selection.isWildcard())
+        {
+            selectsStaticColumns = true;
+            return;
+        }
+
+        // Otherwise, check the selected columns
+        selectsStaticColumns = !Iterables.isEmpty(Iterables.filter(selection.getColumnsList(), isStaticFilter));
+        selectsOnlyStaticColumns = true;
+        for (ColumnDefinition def : selection.getColumnsList())
+        {
+            if (def.kind != ColumnDefinition.Kind.PARTITION_KEY && def.kind != ColumnDefinition.Kind.STATIC)
+            {
+                selectsOnlyStaticColumns = false;
+                break;
+            }
+        }
     }
 
     // Creates a simple select based on the given selection.
@@ -383,30 +422,84 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             List<Composite> endBounds = getRequestedBound(Bound.END, variables);
             assert startBounds.size() == endBounds.size();
 
+            // Handles fetching static columns. Note that for 2i, the filter is just used to restrict
+            // the part of the index to query so adding the static slice would be useless and confusing.
+            // For 2i, static columns are retrieve in CompositesSearcher with each index hit.
+            ColumnSlice staticSlice = null;
+            if (selectsStaticColumns && !usesSecondaryIndexing)
+            {
+                // Note: we could use staticPrefix.start() for the start bound, but EMPTY gives us the
+                // same effect while saving a few CPU cycles.
+                staticSlice = isReversed
+                            ? new ColumnSlice(cfm.comparator.staticPrefix().end(), Composites.EMPTY)
+                            : new ColumnSlice(Composites.EMPTY, cfm.comparator.staticPrefix().end());
+
+                // In the case where we only select static columns, we want to really only check the static columns.
+                // So we return early as the rest of that method would actually make us query everything
+                if (selectsOnlyStaticColumns)
+                    return sliceFilter(staticSlice, limit, toGroup);
+            }
+
             // The case where startBounds == 1 is common enough that it's worth optimizing
-            ColumnSlice[] slices;
             if (startBounds.size() == 1)
             {
                 ColumnSlice slice = new ColumnSlice(startBounds.get(0), endBounds.get(0));
                 if (slice.isAlwaysEmpty(cfm.comparator, isReversed))
-                    return null;
-                slices = new ColumnSlice[]{slice};
+                    return staticSlice == null ? null : sliceFilter(staticSlice, limit, toGroup);
+
+                return staticSlice == null
+                     ? sliceFilter(slice, limit, toGroup)
+                     : (slice.includes(cfm.comparator, staticSlice.finish) ? sliceFilter(new ColumnSlice(staticSlice.start, slice.finish), limit, toGroup)
+                                                                           : sliceFilter(new ColumnSlice[]{ staticSlice, slice }, limit, toGroup));
+            }
+
+            List<ColumnSlice> l = new ArrayList<ColumnSlice>(startBounds.size());
+            for (int i = 0; i < startBounds.size(); i++)
+            {
+                ColumnSlice slice = new ColumnSlice(startBounds.get(i), endBounds.get(i));
+                if (!slice.isAlwaysEmpty(cfm.comparator, isReversed))
+                    l.add(slice);
+            }
+
+            if (l.isEmpty())
+                return staticSlice == null ? null : sliceFilter(staticSlice, limit, toGroup);
+            if (staticSlice == null)
+                return sliceFilter(l.toArray(new ColumnSlice[l.size()]), limit, toGroup);
+
+            // The slices should not overlap. We know the slices built from startBounds/endBounds don't, but if there is
+            // a static slice, it could overlap with the 2nd slice. Check for it and correct if that's the case
+            ColumnSlice[] slices;
+            if (isReversed)
+            {
+                if (l.get(l.size() - 1).includes(cfm.comparator, staticSlice.start))
+                {
+                    slices = l.toArray(new ColumnSlice[l.size()]);
+                    slices[slices.length-1] = new ColumnSlice(slices[slices.length-1].start, Composites.EMPTY);
+                }
+                else
+                {
+                    slices = l.toArray(new ColumnSlice[l.size()+1]);
+                    slices[slices.length-1] = staticSlice;
+                }
             }
             else
             {
-                List<ColumnSlice> l = new ArrayList<ColumnSlice>(startBounds.size());
-                for (int i = 0; i < startBounds.size(); i++)
+                if (l.get(0).includes(cfm.comparator, staticSlice.finish))
                 {
-                    ColumnSlice slice = new ColumnSlice(startBounds.get(i), endBounds.get(i));
-                    if (!slice.isAlwaysEmpty(cfm.comparator, isReversed))
-                        l.add(slice);
+                    slices = new ColumnSlice[l.size()];
+                    slices[0] = new ColumnSlice(Composites.EMPTY, l.get(0).finish);
+                    for (int i = 1; i < l.size(); i++)
+                        slices[i] = l.get(i);
                 }
-                if (l.isEmpty())
-                    return null;
-                slices = l.toArray(new ColumnSlice[l.size()]);
+                else
+                {
+                    slices = new ColumnSlice[l.size()+1];
+                    slices[0] = staticSlice;
+                    for (int i = 0; i < l.size(); i++)
+                        slices[i] = l.get(i);
+                }
             }
-
-            return new SliceQueryFilter(slices, isReversed, limit, toGroup);
+            return sliceFilter(slices, limit, toGroup);
         }
         else
         {
@@ -416,6 +509,16 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             QueryProcessor.validateCellNames(cellNames, cfm.comparator);
             return new NamesQueryFilter(cellNames, true);
         }
+    }
+
+    private SliceQueryFilter sliceFilter(ColumnSlice slice, int limit, int toGroup)
+    {
+        return sliceFilter(new ColumnSlice[]{ slice }, limit, toGroup);
+    }
+
+    private SliceQueryFilter sliceFilter(ColumnSlice[] slices, int limit, int toGroup)
+    {
+        return new SliceQueryFilter(slices, isReversed, limit, toGroup);
     }
 
     private int getLimit(List<ByteBuffer> variables) throws InvalidRequestException
@@ -551,6 +654,8 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
     private SortedSet<CellName> getRequestedColumns(List<ByteBuffer> variables) throws InvalidRequestException
     {
+        // Note: getRequestedColumns don't handle static columns, but due to CASSANDRA-5762
+        // we always do a slice for CQL3 tables, so it's ok to ignore them here
         assert !isColumnRange();
 
         CBuilder builder = cfm.comparator.prefixBuilder();
@@ -618,13 +723,14 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
                 // selected columns
                 for (ColumnDefinition def : selection.getColumnsList())
-                    if (def.kind == ColumnDefinition.Kind.REGULAR)
-                        columns.add(cfm.comparator.create(prefix, def.name));
+                    if (def.kind == ColumnDefinition.Kind.REGULAR || def.kind == ColumnDefinition.Kind.STATIC)
+                        columns.add(cfm.comparator.create(prefix, def));
             }
             else
             {
+                // We now that we're not composite so we can ignore static columns
                 for (ColumnDefinition def : cfm.regularColumns())
-                    columns.add(cfm.comparator.create(prefix, def.name));
+                    columns.add(cfm.comparator.create(prefix, def));
             }
             return columns;
         }
@@ -789,6 +895,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     restriction = columnRestrictions[def.position()];
                     break;
                 case REGULAR:
+                case STATIC:
                     restriction = metadataRestrictions.get(def.name);
                     break;
                 default:
@@ -918,7 +1025,33 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         if (sliceRestriction != null)
             cells = applySliceRestriction(cells, variables);
 
-        for (Iterator<CQL3Row> iter = cfm.comparator.CQL3RowBuilder(now).group(cells); iter.hasNext();)
+        CQL3Row.RowIterator iter = cfm.comparator.CQL3RowBuilder(now).group(cells);
+
+        // If there is static columns but there is no non-static row, then provided the select was a full
+        // partition selection (i.e. not a 2ndary index search and there was no condition on clustering columns)
+        // then we want to include the static columns in the result set (and we're done).
+        CQL3Row staticRow = iter.getStaticRow();
+        if (staticRow != null && !iter.hasNext() && !usesSecondaryIndexing && hasNoClusteringColumnsRestriction())
+        {
+            result.newRow();
+            for (ColumnDefinition def : selection.getColumnsList())
+            {
+                switch (def.kind)
+                {
+                    case PARTITION_KEY:
+                        result.add(keyComponents[def.position()]);
+                        break;
+                    case STATIC:
+                        addValue(result, def, staticRow);
+                        break;
+                    default:
+                        result.add((ByteBuffer)null);
+                }
+            }
+            return;
+        }
+
+        while (iter.hasNext())
         {
             CQL3Row cql3Row = iter.next();
 
@@ -939,22 +1072,43 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                         result.add(cql3Row.getColumn(null));
                         break;
                     case REGULAR:
-                        if (def.type.isCollection())
-                        {
-                            List<Cell> collection = cql3Row.getCollection(def.name);
-                            ByteBuffer value = collection == null
-                                             ? null
-                                             : ((CollectionType)def.type).serialize(collection);
-                            result.add(value);
-                        }
-                        else
-                        {
-                            result.add(cql3Row.getColumn(def.name));
-                        }
+                        addValue(result, def, cql3Row);
                         break;
-                    }
+                    case STATIC:
+                        addValue(result, def, staticRow);
+                        break;
                 }
+            }
         }
+    }
+
+    private static void addValue(Selection.ResultSetBuilder result, ColumnDefinition def, CQL3Row row)
+    {
+        if (row == null)
+        {
+            result.add((ByteBuffer)null);
+            return;
+        }
+
+        if (def.type.isCollection())
+        {
+            List<Cell> collection = row.getCollection(def.name);
+            ByteBuffer value = collection == null
+                             ? null
+                             : ((CollectionType)def.type).serialize(collection);
+            result.add(value);
+            return;
+        }
+
+        result.add(row.getColumn(def.name));
+    }
+
+    private boolean hasNoClusteringColumnsRestriction()
+    {
+        for (int i = 0; i < columnRestrictions.length; i++)
+            if (columnRestrictions[i] != null)
+                return false;
+        return true;
     }
 
     /**
@@ -1048,6 +1202,14 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return true;
     }
 
+    private boolean hasClusteringColumnsRestriction()
+    {
+        for (int i = 0; i < columnRestrictions.length; i++)
+            if (columnRestrictions[i] != null)
+                return true;
+        return false;
+    }
+
     public static class RawStatement extends CFStatement
     {
         private final Parameters parameters;
@@ -1130,6 +1292,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     case COMPACT_VALUE:
                         throw new InvalidRequestException(String.format("Predicates on the non-primary-key column (%s) of a COMPACT table are not yet supported", def.name));
                     case REGULAR:
+                    case STATIC:
                         // We only all IN on the row key and last clustering key so far, never on non-PK columns, and this even if there's an index
                         Restriction r = updateRestriction(cfm, def, stmt.metadataRestrictions.get(def.name), rel, names);
                         if (r.isIN() && !((Restriction.IN)r).canHaveOnlyOneValue())
@@ -1224,6 +1387,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             if (!stmt.usesSecondaryIndexing)
                 stmt.restrictedColumns.removeAll(cfm.partitionKeyColumns());
 
+            if (stmt.selectsOnlyStaticColumns && stmt.hasClusteringColumnsRestriction())
+                throw new InvalidRequestException("Cannot restrict clustering columns when selecting only static columns");
+
             // If a clustering key column is restricted by a non-EQ relation, all preceding
             // columns must have a EQ, and all following must have no restriction. Unless
             // the column is indexed that is.
@@ -1309,8 +1475,16 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 stmt.usesSecondaryIndexing = true;
             }
 
-            if (stmt.usesSecondaryIndexing && stmt.keyIsInRelation)
-                throw new InvalidRequestException("Select on indexed columns and with IN clause for the PRIMARY KEY are not supported");
+            if (stmt.usesSecondaryIndexing)
+            {
+                if (stmt.keyIsInRelation)
+                    throw new InvalidRequestException("Select on indexed columns and with IN clause for the PRIMARY KEY are not supported");
+                // When the user only select static columns, the intent is that we don't query the whole partition but just
+                // the static parts. But 1) we don't have an easy way to do that with 2i and 2) since we don't support index on static columns
+                // so far, 2i means that you've restricted a non static column, so the query is somewhat non-sensical.
+                if (stmt.selectsOnlyStaticColumns)
+                    throw new InvalidRequestException("Queries using 2ndary indexes don't support selecting only static columns");
+            }
 
             if (!stmt.parameters.orderings.isEmpty())
             {

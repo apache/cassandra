@@ -51,6 +51,11 @@ public class BoundedComposite extends AbstractComposite
         return wrapped.size();
     }
 
+    public boolean isStatic()
+    {
+        return wrapped.isStatic();
+    }
+
     public ByteBuffer get(int i)
     {
         return wrapped.get(i);

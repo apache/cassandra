@@ -27,6 +27,7 @@ import java.util.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
 import org.apache.cassandra.db.composites.*;
@@ -478,6 +479,7 @@ public final class CFMetaData
     private volatile List<ColumnDefinition> partitionKeyColumns;  // Always of size keyValidator.componentsCount, null padded if necessary
     private volatile List<ColumnDefinition> clusteringColumns;    // Of size comparator.componentsCount or comparator.componentsCount -1, null padded if necessary
     private volatile SortedSet<ColumnDefinition> regularColumns;  // We use a sorted set so iteration is of predictable order (for SELECT for instance)
+    private volatile SortedSet<ColumnDefinition> staticColumns;   // Same as above
     private volatile ColumnDefinition compactValueColumn;
 
     public volatile Class<? extends AbstractCompactionStrategy> compactionStrategyClass = DEFAULT_COMPACTION_STRATEGY_CLASS;
@@ -804,6 +806,7 @@ public final class CFMetaData
             private final Iterator<ColumnDefinition> partitionKeyIter = partitionKeyColumns.iterator();
             private final Iterator<ColumnDefinition> clusteringIter = clusteringColumns.iterator();
             private boolean valueDone;
+            private final Iterator<ColumnDefinition> staticIter = staticColumns.iterator();
             private final Iterator<ColumnDefinition> regularIter = regularColumns.iterator();
 
             protected ColumnDefinition computeNext()
@@ -813,6 +816,9 @@ public final class CFMetaData
 
                 if (clusteringIter.hasNext())
                     return clusteringIter.next();
+
+                if (staticIter.hasNext())
+                    return staticIter.next();
 
                 if (compactValueColumn != null && !valueDone)
                 {
@@ -844,6 +850,16 @@ public final class CFMetaData
     public Set<ColumnDefinition> regularColumns()
     {
         return regularColumns;
+    }
+
+    public Set<ColumnDefinition> staticColumns()
+    {
+        return staticColumns;
+    }
+
+    public Iterable<ColumnDefinition> regularAndStaticColumns()
+    {
+        return Iterables.concat(staticColumns, regularColumns);
     }
 
     public ColumnDefinition compactValueColumn()
@@ -1507,7 +1523,7 @@ public final class CFMetaData
         // Mixing counter with non counter columns is not supported (#2614)
         if (defaultValidator instanceof CounterColumnType)
         {
-            for (ColumnDefinition def : regularColumns)
+            for (ColumnDefinition def : regularAndStaticColumns())
                 if (!(def.type instanceof CounterColumnType))
                     throw new ConfigurationException("Cannot add a non counter column (" + def.name + ") in a counter column family");
         }
@@ -2026,7 +2042,7 @@ public final class CFMetaData
         if (getColumnDefinition(to) != null)
             throw new InvalidRequestException(String.format("Cannot rename column %s to %s in keyspace %s; another column of that name already exist", from, to, cfName));
 
-        if (def.kind == ColumnDefinition.Kind.REGULAR)
+        if (def.kind == ColumnDefinition.Kind.REGULAR || def.kind == ColumnDefinition.Kind.STATIC)
         {
             throw new InvalidRequestException(String.format("Cannot rename non PRIMARY KEY part %s", from));
         }
@@ -2048,6 +2064,7 @@ public final class CFMetaData
         List<ColumnDefinition> ckCols = nullInitializedList(comparator.clusteringPrefixSize());
         // We keep things sorted to get consistent/predicatable order in select queries
         SortedSet<ColumnDefinition> regCols = new TreeSet<>(regularColumnComparator);
+        SortedSet<ColumnDefinition> statCols = new TreeSet<>(regularColumnComparator);
         ColumnDefinition compactCol = null;
 
         for (ColumnDefinition def : allColumns())
@@ -2065,6 +2082,9 @@ public final class CFMetaData
                 case REGULAR:
                     regCols.add(def);
                     break;
+                case STATIC:
+                    statCols.add(def);
+                    break;
                 case COMPACT_VALUE:
                     assert compactCol == null : "There shouldn't be more than one compact value defined: got " + compactCol + " and " + def;
                     compactCol = def;
@@ -2076,6 +2096,7 @@ public final class CFMetaData
         partitionKeyColumns = addDefaultKeyAliases(pkCols);
         clusteringColumns = addDefaultColumnAliases(ckCols);
         regularColumns = regCols;
+        staticColumns = statCols;
         compactValueColumn = addDefaultValueAlias(compactCol, comparator.isDense());
         return this;
     }
@@ -2244,6 +2265,11 @@ public final class CFMetaData
     public boolean isCounter()
     {
         return defaultValidator.isCounter();
+    }
+
+    public boolean hasStaticColumns()
+    {
+        return !staticColumns.isEmpty();
     }
 
     public void validateColumns(Iterable<Cell> columns)

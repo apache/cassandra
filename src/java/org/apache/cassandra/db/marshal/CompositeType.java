@@ -40,8 +40,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  *   <component><component><component> ...
  * where <component> is:
  *   <length of value><value><'end-of-component' byte>
- * where <length of value> is a 2 bytes unsigned short the and the
- * 'end-of-component' byte should always be 0 for actual column name.
+ * where <length of value> is a 2 bytes unsigned short (but 0xFFFF is invalid, see
+ * below) and the 'end-of-component' byte should always be 0 for actual column name.
  * However, it can set to 1 for query bounds. This allows to query for the
  * equivalent of 'give me the full super-column'. That is, if during a slice
  * query uses:
@@ -54,9 +54,16 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  *   start = <3><"foo".getBytes()><-1>
  * allows to query everything that is greater than <3><"foo".getBytes()>, but
  * not <3><"foo".getBytes()> itself.
+ *
+ * On top of that, CQL3 uses a specific prefix (0xFFFF) to encode "static columns"
+ * (CASSANDRA-6561). This does mean the maximum size of the first component of a
+ * composite is 65534, not 65535 (or we wouldn't be able to detect if the first 2
+ * bytes is the static prefix or not).
  */
 public class CompositeType extends AbstractCompositeType
 {
+    public static final int STATIC_MARKER = 0xFFFF;
+
     public final List<AbstractType<?>> types;
 
     // interning instances
@@ -70,6 +77,24 @@ public class CompositeType extends AbstractCompositeType
     public static CompositeType getInstance(AbstractType... types)
     {
         return getInstance(Arrays.<AbstractType<?>>asList(types));
+    }
+
+    protected boolean readIsStatic(ByteBuffer bb)
+    {
+        return readStatic(bb);
+    }
+
+    private static boolean readStatic(ByteBuffer bb)
+    {
+        if (bb.remaining() < 2)
+            return false;
+
+        int header = getShortLength(bb, bb.position());
+        if ((header & 0xFFFF) != STATIC_MARKER)
+            return false;
+
+        getShortLength(bb); // Skip header
+        return true;
     }
 
     public static synchronized CompositeType getInstance(List<AbstractType<?>> types)
@@ -164,6 +189,7 @@ public class CompositeType extends AbstractCompositeType
     public static ByteBuffer extractComponent(ByteBuffer bb, int idx)
     {
         bb = bb.duplicate();
+        readStatic(bb);
         int i = 0;
         while (bb.remaining() > 0)
         {
@@ -182,6 +208,11 @@ public class CompositeType extends AbstractCompositeType
     {
         int idx = types.get(types.size() - 1) instanceof ColumnToCollectionType ? types.size() - 2 : types.size() - 1;
         return extractComponent(bb, idx);
+    }
+
+    public static boolean isStaticName(ByteBuffer bb)
+    {
+        return bb.remaining() >= 2 && (getShortLength(bb, bb.position()) & 0xFFFF) == STATIC_MARKER;
     }
 
     @Override
@@ -308,24 +339,33 @@ public class CompositeType extends AbstractCompositeType
         private final List<ByteBuffer> components;
         private final byte[] endOfComponents;
         private int serializedSize;
+        private final boolean isStatic;
 
         public Builder(CompositeType composite)
         {
-            this(composite, new ArrayList<ByteBuffer>(composite.types.size()), new byte[composite.types.size()]);
+            this(composite, new ArrayList<ByteBuffer>(composite.types.size()), new byte[composite.types.size()], false);
         }
 
-        public Builder(CompositeType composite, List<ByteBuffer> components, byte[] endOfComponents)
+        public static Builder staticBuilder(CompositeType composite)
+        {
+            return new Builder(composite, new ArrayList<ByteBuffer>(composite.types.size()), new byte[composite.types.size()], true);
+        }
+
+        private Builder(CompositeType composite, List<ByteBuffer> components, byte[] endOfComponents, boolean isStatic)
         {
             assert endOfComponents.length == composite.types.size();
 
             this.composite = composite;
             this.components = components;
             this.endOfComponents = endOfComponents;
+            this.isStatic = isStatic;
+            if (isStatic)
+                serializedSize = 2;
         }
 
         private Builder(Builder b)
         {
-            this(b.composite, new ArrayList<ByteBuffer>(b.components), Arrays.copyOf(b.endOfComponents, b.endOfComponents.length));
+            this(b.composite, new ArrayList<ByteBuffer>(b.components), Arrays.copyOf(b.endOfComponents, b.endOfComponents.length), b.isStatic);
             this.serializedSize = b.serializedSize;
         }
 
@@ -335,6 +375,7 @@ public class CompositeType extends AbstractCompositeType
                 throw new IllegalStateException("Composite column is already fully constructed");
 
             components.add(bb);
+            serializedSize += 3 + bb.remaining(); // 2 bytes lenght + 1 byte eoc
             return this;
         }
 
@@ -360,20 +401,23 @@ public class CompositeType extends AbstractCompositeType
 
         public ByteBuffer build()
         {
-            DataOutputBuffer out = new DataOutputBuffer(serializedSize);
-            for (int i = 0; i < components.size(); i++)
+            try
             {
-                try
+                DataOutputBuffer out = new DataOutputBuffer(serializedSize);
+                if (isStatic)
+                    out.writeShort(STATIC_MARKER);
+
+                for (int i = 0; i < components.size(); i++)
                 {
                     ByteBufferUtil.writeWithShortLength(components.get(i), out);
+                    out.write(endOfComponents[i]);
                 }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-                out.write(endOfComponents[i]);
+                return ByteBuffer.wrap(out.getData(), 0, out.getLength());
             }
-            return ByteBuffer.wrap(out.getData(), 0, out.getLength());
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
         public ByteBuffer buildAsEndOfRange()

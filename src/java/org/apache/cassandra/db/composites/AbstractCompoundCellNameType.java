@@ -80,6 +80,14 @@ public abstract class AbstractCompoundCellNameType extends AbstractCellNameType
         ByteBuffer[] elements = new ByteBuffer[fullSize];
         int idx = bytes.position(), i = 0;
         byte eoc = 0;
+
+        boolean isStatic = false;
+        if (CompositeType.isStaticName(bytes))
+        {
+            isStatic = true;
+            idx += 2;
+        }
+
         while (idx < bytes.limit())
         {
             checkRemaining(bytes, idx, 2);
@@ -92,7 +100,7 @@ public abstract class AbstractCompoundCellNameType extends AbstractCellNameType
             eoc = bytes.get(idx++);
         }
 
-        return makeWith(elements, i, Composite.EOC.from(eoc));
+        return makeWith(elements, i, Composite.EOC.from(eoc), isStatic);
     }
 
     public AbstractType<?> asAbstractType()
@@ -107,11 +115,11 @@ public abstract class AbstractCompoundCellNameType extends AbstractCellNameType
 
     protected CellName makeCellName(ByteBuffer[] components)
     {
-        return (CellName)makeWith(components, components.length, Composite.EOC.NONE);
+        return (CellName)makeWith(components, components.length, Composite.EOC.NONE, false);
     }
 
-    protected abstract Composite makeWith(ByteBuffer[] components, int size, Composite.EOC eoc);
-    protected abstract Composite copyAndMakeWith(ByteBuffer[] components, int size, Composite.EOC eoc);
+    protected abstract Composite makeWith(ByteBuffer[] components, int size, Composite.EOC eoc, boolean isStatic);
+    protected abstract Composite copyAndMakeWith(ByteBuffer[] components, int size, Composite.EOC eoc, boolean isStatic);
 
     private static class CompositeDeserializer implements CellNameType.Deserializer
     {
@@ -126,6 +134,7 @@ public abstract class AbstractCompoundCellNameType extends AbstractCellNameType
         private final ByteBuffer[] nextComponents;
         private int nextSize;
         private Composite.EOC nextEOC;
+        private boolean nextIsStatic;
 
         public CompositeDeserializer(AbstractCompoundCellNameType type, DataInput in)
         {
@@ -155,6 +164,9 @@ public abstract class AbstractCompoundCellNameType extends AbstractCellNameType
 
             if (nextFull == EMPTY)
                 return -1;
+
+            if (nextIsStatic != composite.isStatic())
+                return nextIsStatic ? -1 : 1;
 
             ByteBuffer previous = null;
             for (int i = 0; i < composite.size(); i++)
@@ -199,12 +211,25 @@ public abstract class AbstractCompoundCellNameType extends AbstractCellNameType
             return i < nextSize;
         }
 
+        private int readShort()
+        {
+            return ((nextFull[nextIdx++] & 0xFF) << 8) | (nextFull[nextIdx++] & 0xFF);
+        }
+
         private boolean deserializeOne()
         {
             if (allComponentsDeserialized())
                 return false;
 
-            int length = ((nextFull[nextIdx++] & 0xFF) << 8) | (nextFull[nextIdx++] & 0xFF);
+            nextIsStatic = false;
+
+            int length = readShort();
+            if (length == CompositeType.STATIC_MARKER)
+            {
+                nextIsStatic = true;
+                length = readShort();
+            }
+
             ByteBuffer component = ByteBuffer.wrap(nextFull, nextIdx, length);
             nextIdx += length;
             nextComponents[nextSize++] = component;
@@ -250,7 +275,7 @@ public abstract class AbstractCompoundCellNameType extends AbstractCellNameType
                 return Composites.EMPTY;
 
             deserializeAll();
-            Composite c = type.copyAndMakeWith(nextComponents, nextSize, nextEOC);
+            Composite c = type.copyAndMakeWith(nextComponents, nextSize, nextEOC, nextIsStatic);
             nextFull = null;
             return c;
         }

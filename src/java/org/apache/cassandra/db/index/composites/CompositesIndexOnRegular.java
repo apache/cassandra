@@ -89,7 +89,7 @@ public class CompositesIndexOnRegular extends CompositesIndex
 
     public boolean isStale(IndexedEntry entry, ColumnFamily data, long now)
     {
-        CellName name = data.getComparator().create(entry.indexedEntryPrefix, columnDef.name);
+        CellName name = data.getComparator().create(entry.indexedEntryPrefix, columnDef);
         Cell liveCell = data.getColumn(name);
         if (liveCell == null || liveCell.isMarkedForDelete(now))
             return true;

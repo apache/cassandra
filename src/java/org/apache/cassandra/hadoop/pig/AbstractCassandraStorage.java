@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -676,7 +677,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
 
             // otherwise for CqlStorage, check metadata for classic thrift tables
             CFMetaData cfm = getCFMetaData(keyspace, column_family, client);
-            for (ColumnDefinition def : cfm.regularColumns())
+            for (ColumnDefinition def : cfm.regularAndStaticColumns())
             {
                 ColumnDef cDef = new ColumnDef();
                 String columnName = def.name.toString();

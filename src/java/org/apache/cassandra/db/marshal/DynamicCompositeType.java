@@ -80,6 +80,12 @@ public class DynamicCompositeType extends AbstractCompositeType
         this.aliases = aliases;
     }
 
+    protected boolean readIsStatic(ByteBuffer bb)
+    {
+        // We don't have the static nothing for DCT
+        return false;
+    }
+
     private AbstractType<?> getComparator(ByteBuffer bb)
     {
         try
