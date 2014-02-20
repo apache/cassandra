@@ -52,18 +52,18 @@ public class ArrayBackedSortedColumns extends ColumnFamily
 
     public static final ColumnFamily.Factory<ArrayBackedSortedColumns> factory = new Factory<ArrayBackedSortedColumns>()
     {
-        public ArrayBackedSortedColumns create(CFMetaData metadata, boolean insertReversed)
+        public ArrayBackedSortedColumns create(CFMetaData metadata, boolean insertReversed, int initialCapacity)
         {
-            return new ArrayBackedSortedColumns(metadata, insertReversed);
+            return new ArrayBackedSortedColumns(metadata, insertReversed, initialCapacity);
         }
     };
 
-    private ArrayBackedSortedColumns(CFMetaData metadata, boolean reversed)
+    private ArrayBackedSortedColumns(CFMetaData metadata, boolean reversed, int initialCapacity)
     {
         super(metadata);
         this.reversed = reversed;
         this.deletionInfo = DeletionInfo.live();
-        this.cells = EMPTY_ARRAY;
+        this.cells = initialCapacity == 0 ? EMPTY_ARRAY : new Cell[initialCapacity];
         this.size = 0;
         this.sortedSize = 0;
         this.isSorted = true;
@@ -235,9 +235,39 @@ public class ArrayBackedSortedColumns extends ColumnFamily
         if (other.getColumnCount() == 0)
             return;
 
-        Iterator<Cell> iterator = reversed ? other.reverseIterator() : other.iterator();
-        while (iterator.hasNext())
-            addColumn(iterator.next());
+        // In reality, with ABSC being the only remaining container (aside from ABTC), other will aways be ABSC.
+        if (size == 0 && other instanceof ArrayBackedSortedColumns)
+        {
+            fastAddAll((ArrayBackedSortedColumns) other);
+        }
+        else
+        {
+            Iterator<Cell> iterator = reversed ? other.reverseIterator() : other.iterator();
+            while (iterator.hasNext())
+                addColumn(iterator.next());
+        }
+    }
+
+    // Fast path, when this ABSC is empty.
+    private void fastAddAll(ArrayBackedSortedColumns other)
+    {
+        if (other.isInsertReversed() == isInsertReversed())
+        {
+            cells = Arrays.copyOf(other.cells, other.cells.length);
+            size = other.size;
+            sortedSize = other.sortedSize;
+            isSorted = other.isSorted;
+        }
+        else
+        {
+            if (cells.length < other.getColumnCount())
+                cells = new Cell[Math.max(MINIMAL_CAPACITY, other.getColumnCount())];
+            Iterator<Cell> iterator = reversed ? other.reverseIterator() : other.iterator();
+            while (iterator.hasNext())
+                cells[size++] = iterator.next();
+            sortedSize = size;
+            isSorted = true;
+        }
     }
 
     /**
