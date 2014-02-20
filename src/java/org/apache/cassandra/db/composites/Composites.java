@@ -88,6 +88,11 @@ public abstract class Composites
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
         }
 
+        public boolean isStatic()
+        {
+            return false;
+        }
+
         public int dataSize()
         {
             return 0;

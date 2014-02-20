@@ -247,9 +247,9 @@ public abstract class Maps
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
             // delete + put
-            CellName name = cf.getComparator().create(prefix, column.name);
+            CellName name = cf.getComparator().create(prefix, column);
             cf.addAtom(params.makeTombstoneForOverwrite(name.slice()));
-            Putter.doPut(t, cf, prefix, column.name, params);
+            Putter.doPut(t, cf, prefix, column, params);
         }
     }
 
@@ -277,7 +277,7 @@ public abstract class Maps
             if (key == null)
                 throw new InvalidRequestException("Invalid null map key");
 
-            CellName cellName = cf.getComparator().create(prefix, column.name, key);
+            CellName cellName = cf.getComparator().create(prefix, column, key);
 
             if (value == null)
             {
@@ -305,10 +305,10 @@ public abstract class Maps
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            doPut(t, cf, prefix, column.name, params);
+            doPut(t, cf, prefix, column, params);
         }
 
-        static void doPut(Term t, ColumnFamily cf, Composite prefix, ColumnIdentifier columnName, UpdateParameters params) throws InvalidRequestException
+        static void doPut(Term t, ColumnFamily cf, Composite prefix, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.variables);
             if (value == null)
@@ -318,7 +318,7 @@ public abstract class Maps
             Map<ByteBuffer, ByteBuffer> toAdd = ((Maps.Value)value).map;
             for (Map.Entry<ByteBuffer, ByteBuffer> entry : toAdd.entrySet())
             {
-                CellName cellName = cf.getComparator().create(prefix, columnName, entry.getKey());
+                CellName cellName = cf.getComparator().create(prefix, column, entry.getKey());
                 cf.addColumn(params.makeColumn(cellName, entry.getValue()));
             }
         }
@@ -338,7 +338,7 @@ public abstract class Maps
                 throw new InvalidRequestException("Invalid null map key");
             assert key instanceof Constants.Value;
 
-            CellName cellName = cf.getComparator().create(prefix, column.name, ((Constants.Value)key).bytes);
+            CellName cellName = cf.getComparator().create(prefix, column, ((Constants.Value)key).bytes);
             cf.addColumn(params.makeTombstone(cellName));
         }
     }

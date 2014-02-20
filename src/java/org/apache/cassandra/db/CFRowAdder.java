@@ -51,21 +51,21 @@ public class CFRowAdder
         this.ldt = (int) (System.currentTimeMillis() / 1000);
 
         // If a CQL3 table, add the row marker
-        if (cf.metadata().isCQL3Table())
+        if (cf.metadata().isCQL3Table() && !prefix.isStatic())
             cf.addColumn(new Cell(cf.getComparator().rowMarker(prefix), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp));
     }
 
     public CFRowAdder add(String cql3ColumnName, Object value)
     {
         ColumnDefinition def = getDefinition(cql3ColumnName);
-        return add(cf.getComparator().create(prefix, def.name), def, value);
+        return add(cf.getComparator().create(prefix, def), def, value);
     }
 
     public CFRowAdder resetCollection(String cql3ColumnName)
     {
         ColumnDefinition def = getDefinition(cql3ColumnName);
         assert def.type.isCollection();
-        Composite name = cf.getComparator().create(prefix, def.name);
+        Composite name = cf.getComparator().create(prefix, def);
         cf.addAtom(new RangeTombstone(name.start(), name.end(), timestamp - 1, ldt));
         return this;
     }
@@ -75,7 +75,7 @@ public class CFRowAdder
         ColumnDefinition def = getDefinition(cql3ColumnName);
         assert def.type instanceof MapType;
         MapType mt = (MapType)def.type;
-        CellName name = cf.getComparator().create(prefix, def.name, mt.keys.decompose(key));
+        CellName name = cf.getComparator().create(prefix, def, mt.keys.decompose(key));
         return add(name, def, value);
     }
 
@@ -83,7 +83,7 @@ public class CFRowAdder
     {
         ColumnDefinition def = getDefinition(cql3ColumnName);
         assert def.type instanceof ListType;
-        CellName name = cf.getComparator().create(prefix, def.name, ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes()));
+        CellName name = cf.getComparator().create(prefix, def, ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes()));
         return add(name, def, value);
     }
 

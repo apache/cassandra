@@ -19,8 +19,8 @@ package org.apache.cassandra.db.composites;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.memory.PoolAllocator;
 
 /**
@@ -28,17 +28,19 @@ import org.apache.cassandra.utils.memory.PoolAllocator;
  */
 public class CompoundComposite extends AbstractComposite
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new CompoundComposite(null, 0));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new CompoundComposite(null, 0, false));
 
     // We could use a List, but we'll create such object *a lot* and using a array+size is not
     // all that harder, so we save the List object allocation.
     final ByteBuffer[] elements;
     final int size;
+    final boolean isStatic;
 
-    CompoundComposite(ByteBuffer[] elements, int size)
+    CompoundComposite(ByteBuffer[] elements, int size, boolean isStatic)
     {
         this.elements = elements;
         this.size = size;
+        this.isStatic = isStatic;
     }
 
     public int size()
@@ -49,6 +51,12 @@ public class CompoundComposite extends AbstractComposite
     public ByteBuffer get(int i)
     {
         return elements[i];
+    }
+
+    @Override
+    public boolean isStatic()
+    {
+        return isStatic;
     }
 
     protected ByteBuffer[] elementsCopy(AbstractAllocator allocator)
@@ -71,7 +79,7 @@ public class CompoundComposite extends AbstractComposite
 
     public Composite copy(AbstractAllocator allocator)
     {
-        return new CompoundComposite(elementsCopy(allocator), size);
+        return new CompoundComposite(elementsCopy(allocator), size, isStatic);
     }
 
     @Override

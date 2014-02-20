@@ -63,6 +63,7 @@ public class ColumnDefinition extends ColumnSpecification
         PARTITION_KEY,
         CLUSTERING_COLUMN,
         REGULAR,
+        STATIC,
         COMPACT_VALUE;
 
         public String serialize()
@@ -105,6 +106,11 @@ public class ColumnDefinition extends ColumnSpecification
     public static ColumnDefinition regularDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex)
     {
         return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.REGULAR);
+    }
+
+    public static ColumnDefinition staticDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex)
+    {
+        return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.STATIC);
     }
 
     public static ColumnDefinition compactValueDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator)
@@ -164,6 +170,11 @@ public class ColumnDefinition extends ColumnSpecification
         return componentIndex == null;
     }
 
+    public boolean isStatic()
+    {
+        return kind == Kind.STATIC;
+    }
+
     // The componentIndex. This never return null however for convenience sake:
     // if componentIndex == null, this return 0. So caller should first check
     // isOnAllComponents() to distinguish if that's a possibility.
@@ -216,6 +227,11 @@ public class ColumnDefinition extends ColumnSpecification
     public boolean isThriftCompatible()
     {
         return kind == ColumnDefinition.Kind.REGULAR && componentIndex == null;
+    }
+
+    public boolean isPrimaryKeyColumn()
+    {
+        return kind == Kind.PARTITION_KEY || kind == Kind.CLUSTERING_COLUMN;
     }
 
     public static List<ColumnDef> toThrift(Map<ByteBuffer, ColumnDefinition> columns)

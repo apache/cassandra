@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQL3Row;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -49,9 +50,9 @@ public class CompoundDenseCellNameType extends AbstractCompoundCellNameType
         return true;
     }
 
-    public CellName create(Composite prefix, ColumnIdentifier columnName)
+    public CellName create(Composite prefix, ColumnDefinition column)
     {
-        // We ignore the columnName because it's just the COMPACT_VALUE name which is not store in the cell name
+        // We ignore the column because it's just the COMPACT_VALUE name which is not store in the cell name (and it can be null anyway)
         assert prefix.size() == fullSize;
         if (prefix instanceof CellName)
             return (CellName)prefix;
@@ -62,18 +63,19 @@ public class CompoundDenseCellNameType extends AbstractCompoundCellNameType
         return new CompoundDenseCellName(lc.elements);
     }
 
-    protected Composite makeWith(ByteBuffer[] components, int size, Composite.EOC eoc)
+    protected Composite makeWith(ByteBuffer[] components, int size, Composite.EOC eoc, boolean isStatic)
     {
+        assert !isStatic;
         if (size < fullSize || eoc != Composite.EOC.NONE)
-            return new CompoundComposite(components, size).withEOC(eoc);
+            return new CompoundComposite(components, size, false).withEOC(eoc);
 
         assert components.length == size;
         return new CompoundDenseCellName(components);
     }
 
-    protected Composite copyAndMakeWith(ByteBuffer[] components, int size, Composite.EOC eoc)
+    protected Composite copyAndMakeWith(ByteBuffer[] components, int size, Composite.EOC eoc, boolean isStatic)
     {
-        return makeWith(Arrays.copyOfRange(components, 0, size), size, eoc);
+        return makeWith(Arrays.copyOfRange(components, 0, size), size, eoc, isStatic);
     }
 
     public void addCQL3Column(ColumnIdentifier id) {}

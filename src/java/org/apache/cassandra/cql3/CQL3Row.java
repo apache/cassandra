@@ -31,6 +31,11 @@ public interface CQL3Row
 
     public interface Builder
     {
-        Iterator<CQL3Row> group(Iterator<Cell> cells);
+        public RowIterator group(Iterator<Cell> cells);
+    }
+
+    public interface RowIterator extends Iterator<CQL3Row>
+    {
+        public CQL3Row getStaticRow();
     }
 }

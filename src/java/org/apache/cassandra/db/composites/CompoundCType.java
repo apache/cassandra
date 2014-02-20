@@ -61,6 +61,14 @@ public class CompoundCType extends AbstractCType
         ByteBuffer[] elements = new ByteBuffer[size()];
         int idx = bytes.position(), i = 0;
         byte eoc = 0;
+
+        boolean isStatic = false;
+        if (CompositeType.isStaticName(bytes))
+        {
+            isStatic = true;
+            idx += 2;
+        }
+
         while (idx < bytes.limit())
         {
             checkRemaining(bytes, idx, 2);
@@ -72,7 +80,7 @@ public class CompoundCType extends AbstractCType
             idx += length;
             eoc = bytes.get(idx++);
         }
-        return new CompoundComposite(elements, i).withEOC(Composite.EOC.from(eoc));
+        return new CompoundComposite(elements, i, isStatic).withEOC(Composite.EOC.from(eoc));
     }
 
     public CBuilder builder()
@@ -141,7 +149,7 @@ public class CompoundCType extends AbstractCType
             // directly allocate the CellName object as it's complete.
             if (size == values.length && type instanceof CellNameType && ((CellNameType)type).isDense())
                 return new CompoundDenseCellName(values);
-            return new CompoundComposite(values, size);
+            return new CompoundComposite(values, size, false);
         }
 
         public Composite buildWith(ByteBuffer value)
@@ -152,7 +160,7 @@ public class CompoundCType extends AbstractCType
             if (size+1 == newValues.length && type instanceof CellNameType && ((CellNameType)type).isDense())
                 return new CompoundDenseCellName(newValues);
 
-            return new CompoundComposite(newValues, size+1);
+            return new CompoundComposite(newValues, size+1, false);
         }
     }
 }

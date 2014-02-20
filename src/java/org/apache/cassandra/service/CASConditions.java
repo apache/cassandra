@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
  * Abstract the conditions to be fulfilled by a CAS operation.
@@ -34,5 +35,5 @@ public interface CASConditions
      * Returns whether the provided CF, that represents the values fetched using the
      * readFilter(), match the CAS conditions this object stands for.
      */
-    public boolean appliesTo(ColumnFamily current);
+    public boolean appliesTo(ColumnFamily current) throws InvalidRequestException;
 }
