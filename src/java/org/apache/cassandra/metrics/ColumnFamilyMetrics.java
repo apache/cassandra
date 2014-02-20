@@ -382,7 +382,7 @@ public class ColumnFamilyMetrics
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("EstimatedRowSizeHistogram"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("EstimatedColumnCountHistogram"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("SSTablesPerReadHistogram"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("PendingTasks"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("PendingFlushes"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("LiveSSTableCount"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("LiveDiskSpaceUsed"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("TotalDiskSpaceUsed"));

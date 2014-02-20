@@ -991,9 +991,8 @@ public class NodeProbe implements AutoCloseable
                 case "MaxRowSize":
                 case "MeanRowSize":
                 case "MemtableColumnsCount":
-                case "MemtableDataSize":
+                case "MemtableLiveDataSize":
                 case "MinRowSize":
-                case "PendingTasks":
                 case "RecentBloomFilterFalsePositives":
                 case "RecentBloomFilterFalseRatio":
                 case "SnapshotsSize":
@@ -1004,6 +1003,7 @@ public class NodeProbe implements AutoCloseable
                 case "TotalDiskSpaceUsed":
                 case "WriteTotalLatency":
                 case "ReadTotalLatency":
+                case "PendingFlushes":
                     return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.CounterMBean.class).getCount();
                 case "ReadLatency":
                 case "CoordinatorReadLatency":
