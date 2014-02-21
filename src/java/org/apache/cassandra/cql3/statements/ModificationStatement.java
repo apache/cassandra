@@ -380,7 +380,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         return null;
     }
 
-    protected Map<ByteBuffer, CQL3Row> readRequiredRows(List<ByteBuffer> partitionKeys, Composite clusteringPrefix, boolean local, ConsistencyLevel cl)
+    protected Map<ByteBuffer, CQL3Row> readRequiredRows(Collection<ByteBuffer> partitionKeys, Composite clusteringPrefix, boolean local, ConsistencyLevel cl)
     throws RequestExecutionException, RequestValidationException
     {
         // Lists SET operation incurs a read.
@@ -397,7 +397,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         return requiresRead ? readRows(partitionKeys, clusteringPrefix, cfm, local, cl) : null;
     }
 
-    protected Map<ByteBuffer, CQL3Row> readRows(List<ByteBuffer> partitionKeys, Composite rowPrefix, CFMetaData cfm, boolean local, ConsistencyLevel cl)
+    protected Map<ByteBuffer, CQL3Row> readRows(Collection<ByteBuffer> partitionKeys, Composite rowPrefix, CFMetaData cfm, boolean local, ConsistencyLevel cl)
     throws RequestExecutionException, RequestValidationException
     {
         try
@@ -470,7 +470,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         else
             cl.validateForWrite(cfm.ksName);
 
-        Collection<? extends IMutation> mutations = getMutations(options.getValues(), false, cl, queryState.getTimestamp(), false);
+        Collection<? extends IMutation> mutations = getMutations(options.getValues(), false, cl, queryState.getTimestamp());
         if (!mutations.isEmpty())
             StorageProxy.mutateWithTriggers(mutations, cl, false);
 
@@ -604,7 +604,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         if (hasConditions())
             throw new UnsupportedOperationException();
 
-        for (IMutation mutation : getMutations(Collections.<ByteBuffer>emptyList(), true, null, queryState.getTimestamp(), false))
+        for (IMutation mutation : getMutations(Collections.<ByteBuffer>emptyList(), true, null, queryState.getTimestamp()))
         {
             // We don't use counters internally.
             assert mutation instanceof Mutation;
@@ -624,15 +624,13 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
      * @return list of the mutations
      * @throws InvalidRequestException on invalid requests
      */
-    public Collection<? extends IMutation> getMutations(List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now, boolean isBatch)
+    private Collection<? extends IMutation> getMutations(List<ByteBuffer> variables, boolean local, ConsistencyLevel cl, long now)
     throws RequestExecutionException, RequestValidationException
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(variables);
         Composite clusteringPrefix = createClusteringPrefix(variables);
 
-        // Some lists operation requires reading
-        Map<ByteBuffer, CQL3Row> rows = readRequiredRows(keys, clusteringPrefix, local, cl);
-        UpdateParameters params = new UpdateParameters(cfm, variables, getTimestamp(now, variables), getTimeToLive(variables), rows);
+        UpdateParameters params = makeUpdateParameters(keys, clusteringPrefix, variables, local, cl, now);
 
         Collection<IMutation> mutations = new ArrayList<IMutation>();
         for (ByteBuffer key: keys)
@@ -640,25 +638,23 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
             ThriftValidation.validateKey(cfm, key);
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfm);
             addUpdateForKey(cf, key, clusteringPrefix, params);
-            mutations.add(makeMutation(key, cf, cl, isBatch));
+            Mutation mut = new Mutation(cfm.ksName, key, cf);
+            mutations.add(isCounter() ? new CounterMutation(mut, cl) : mut);
         }
         return mutations;
     }
 
-    private IMutation makeMutation(ByteBuffer key, ColumnFamily cf, ConsistencyLevel cl, boolean isBatch)
+    public UpdateParameters makeUpdateParameters(Collection<ByteBuffer> keys,
+                                                 Composite prefix,
+                                                 List<ByteBuffer> variables,
+                                                 boolean local,
+                                                 ConsistencyLevel cl,
+                                                 long now)
+    throws RequestExecutionException, RequestValidationException
     {
-        Mutation mutation;
-        if (isBatch)
-        {
-            // we might group other mutations together with this one later, so make it mutable
-            mutation = new Mutation(cfm.ksName, key);
-            mutation.add(cf);
-        }
-        else
-        {
-            mutation = new Mutation(cfm.ksName, key, cf);
-        }
-        return isCounter() ? new CounterMutation(mutation, cl) : mutation;
+        // Some lists operation requires reading
+        Map<ByteBuffer, CQL3Row> rows = readRequiredRows(keys, prefix, local, cl);
+        return new UpdateParameters(cfm, variables, getTimestamp(now, variables), getTimeToLive(variables), rows);
     }
 
     public static abstract class Parsed extends CFStatement

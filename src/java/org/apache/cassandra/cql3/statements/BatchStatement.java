@@ -32,7 +32,6 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
@@ -115,14 +114,26 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
     private Collection<? extends IMutation> getMutations(BatchVariables variables, boolean local, ConsistencyLevel cl, long now)
     throws RequestExecutionException, RequestValidationException
     {
-        Map<Pair<String, ByteBuffer>, IMutation> mutations = new HashMap<Pair<String, ByteBuffer>, IMutation>();
+        Map<String, Map<ByteBuffer, IMutation>> mutations = new HashMap<>();
         for (int i = 0; i < statements.size(); i++)
         {
             ModificationStatement statement = statements.get(i);
             List<ByteBuffer> statementVariables = variables.getVariablesForStatement(i);
             addStatementMutations(statement, statementVariables, local, cl, now, mutations);
         }
-        return mutations.values();
+        return unzipMutations(mutations);
+    }
+
+    private Collection<? extends IMutation> unzipMutations(Map<String, Map<ByteBuffer, IMutation>> mutations)
+    {
+        // The case where all statement where on the same keyspace is pretty common
+        if (mutations.size() == 1)
+            return mutations.values().iterator().next().values();
+
+        List<IMutation> ms = new ArrayList<>();
+        for (Map<ByteBuffer, IMutation> ksMap : mutations.values())
+            ms.addAll(ksMap.values());
+        return ms;
     }
 
     private void addStatementMutations(ModificationStatement statement,
@@ -130,23 +141,40 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
                                        boolean local,
                                        ConsistencyLevel cl,
                                        long now,
-                                       Map<Pair<String, ByteBuffer>, IMutation> mutations)
+                                       Map<String, Map<ByteBuffer, IMutation>> mutations)
     throws RequestExecutionException, RequestValidationException
     {
-        // Group mutation together, otherwise they won't get applied atomically
-        for (IMutation m : statement.getMutations(variables, local, cl, attrs.getTimestamp(now, variables), true))
+        String ksName = statement.keyspace();
+        Map<ByteBuffer, IMutation> ksMap = mutations.get(ksName);
+        if (ksMap == null)
         {
-            Pair<String, ByteBuffer> key = Pair.create(m.getKeyspaceName(), m.key());
-            IMutation existing = mutations.get(key);
+            ksMap = new HashMap<>();
+            mutations.put(ksName, ksMap);
+        }
 
-            if (existing == null)
+        // The following does the same than statement.getMutations(), but we inline it here because
+        // we don't want to recreate mutations every time as this is particularly inefficient when applying
+        // multiple batch to the same partition (see #6737).
+        List<ByteBuffer> keys = statement.buildPartitionKeyNames(variables);
+        Composite clusteringPrefix = statement.createClusteringPrefix(variables);
+        UpdateParameters params = statement.makeUpdateParameters(keys, clusteringPrefix, variables, local, cl, now);
+
+        for (ByteBuffer key : keys)
+        {
+            IMutation mutation = ksMap.get(key);
+            Mutation mut;
+            if (mutation == null)
             {
-                mutations.put(key, m);
+                mut = new Mutation(ksName, key);
+                mutation = type == Type.COUNTER ? new CounterMutation(mut, cl) : mut;
+                ksMap.put(key, mutation);
             }
             else
             {
-                existing.addAll(m);
+                mut = type == Type.COUNTER ? ((CounterMutation)mutation).getMutation() : (Mutation)mutation;
             }
+
+            statement.addUpdateForKey(mut.addOrGet(statement.cfm), key, clusteringPrefix, params);
         }
     }
 
@@ -215,9 +243,9 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
                 throw new InvalidRequestException("Batch with conditions cannot span multiple partitions");
             }
 
+            Composite clusteringPrefix = statement.createClusteringPrefix(statementVariables);
             if (statement.hasConditions())
             {
-                Composite clusteringPrefix = statement.createClusteringPrefix(statementVariables);
                 statement.addUpdatesAndConditions(key, clusteringPrefix, updates, conditions, statementVariables, timestamp);
                 // As soon as we have a ifNotExists, we set columnsWithConditions to null so that everything is in the resultSet
                 if (statement.hasIfNotExistCondition())
@@ -227,9 +255,8 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
             }
             else
             {
-                // getPartitionKey will already have thrown if there is more than one key involved
-                IMutation mut = statement.getMutations(statementVariables, false, cl, timestamp, true).iterator().next();
-                updates.addAll(mut.getColumnFamilies().iterator().next());
+                UpdateParameters params = statement.makeUpdateParameters(Collections.singleton(key), clusteringPrefix, statementVariables, false, cl, now);
+                statement.addUpdateForKey(updates, key, clusteringPrefix, params);
             }
         }
 
