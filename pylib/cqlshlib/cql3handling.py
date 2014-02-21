@@ -760,7 +760,7 @@ def update_countername_completer(ctxt, cass):
     cqltype = layout.get_column(curcol).cqltype
     coltype = cqltype.typename
     if coltype == 'counter':
-        return maybe_escape_name(curcol)
+        return [maybe_escape_name(curcol)]
     if coltype in ('map', 'set'):
         return ["{"]
     if coltype == 'list':
@@ -778,7 +778,7 @@ def update_counter_inc_completer(ctxt, cass):
     layout = get_cf_layout(ctxt, cass)
     curcol = dequote_name(ctxt.get_binding('updatecol', ''))
     if layout.is_counter_col(curcol):
-        return Hint('<wholenumber>')
+        return [Hint('<wholenumber>')]
     return []
 
 @completer_for('assignment', 'listadder')
@@ -786,6 +786,7 @@ def update_listadder_completer(ctxt, cass):
     rhs = ctxt.get_binding('update_rhs')
     if rhs.startswith('['):
         return ['+']
+    return []
 
 @completer_for('assignment', 'listcol')
 def update_listcol_completer(ctxt, cass):
