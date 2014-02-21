@@ -68,6 +68,11 @@ public class CounterMutation implements IMutation
         return mutation.getColumnFamilies();
     }
 
+    public Mutation getMutation()
+    {
+        return mutation;
+    }
+
     public ByteBuffer key()
     {
         return mutation.key();

@@ -96,14 +96,6 @@ public class UpdateStatement extends ModificationStatement
         }
     }
 
-    public ColumnFamily updateForKey(ByteBuffer key, Composite prefix, UpdateParameters params)
-    throws InvalidRequestException
-    {
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfm);
-        addUpdateForKey(cf, key, prefix, params);
-        return cf;
-    }
-
     public static class ParsedInsert extends ModificationStatement.Parsed
     {
         private final List<ColumnIdentifier> columnNames;
