@@ -63,6 +63,7 @@
  * Fix replaying pre-2.0 commit logs (CASSANDRA-6714)
  * Add static columns to CQL3 (CASSANDRA-6561)
  * Optimize single partition batch statements (CASSANDRA-6737)
+ * Disallow post-query re-ordering when paging (CASSANDRA-6722)
 Merged from 1.2:
  * Catch memtable flush exceptions during shutdown (CASSANDRA-6735)
  * Fix broken streams when replacing with same IP (CASSANDRA-6622)
