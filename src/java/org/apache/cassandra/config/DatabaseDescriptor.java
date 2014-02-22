@@ -265,6 +265,13 @@ public class DatabaseDescriptor
             throw new ConfigurationException("memtable_heap_space_in_mb must be positive");
         logger.info("Global memtable heap threshold is enabled at {}MB", conf.memtable_total_space_in_mb);
 
+        if (conf.memtable_cleanup_threshold < 0.01f)
+            throw new ConfigurationException("memtable_cleanup_threshold must be >= 0.01");
+        if (conf.memtable_cleanup_threshold > 0.99f)
+            throw new ConfigurationException("memtable_cleanup_threshold must be <= 0.99");
+        if (conf.memtable_cleanup_threshold < 0.1f)
+            logger.warn("memtable_cleanup_threshold is set very low, which may cause performance degradation");
+
         if (conf.memtable_flush_writers < 1)
             throw new ConfigurationException("memtable_flush_writers must be at least 1");
 
@@ -1420,7 +1427,7 @@ public class DatabaseDescriptor
         {
             return memtablePool
                    .getConstructor(long.class, float.class, Runnable.class)
-                   .newInstance(conf.memtable_total_space_in_mb << 20, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
+                   .newInstance(((long) conf.memtable_total_space_in_mb) << 20, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
         }
         catch (Exception e)
         {
