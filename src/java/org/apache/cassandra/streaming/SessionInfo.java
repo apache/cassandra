@@ -20,8 +20,8 @@ package org.apache.cassandra.streaming;
 import java.io.Serializable;
 import java.net.InetAddress;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
@@ -51,8 +51,8 @@ public final class SessionInfo implements Serializable
         this.peer = peer;
         this.receivingSummaries = ImmutableSet.copyOf(receivingSummaries);
         this.sendingSummaries = ImmutableSet.copyOf(sendingSummaries);
-        this.receivingFiles = new HashMap<>();
-        this.sendingFiles = new HashMap<>();
+        this.receivingFiles = new ConcurrentHashMap<>();
+        this.sendingFiles = new ConcurrentHashMap<>();
         this.state = state;
     }
 
@@ -66,7 +66,7 @@ public final class SessionInfo implements Serializable
      *
      * @param newProgress new progress info
      */
-    public synchronized void updateProgress(ProgressInfo newProgress)
+    public void updateProgress(ProgressInfo newProgress)
     {
         assert peer.equals(newProgress.peer);
 
