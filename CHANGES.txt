@@ -7,6 +7,7 @@
  * Fix ABTC NPE (CASSANDRA-6692)
  * Allow nodetool to use a file or prompt for password (CASSANDRA-6660)
  * Fix AIOOBE when concurrently accessing ABSC (CASSANDRA-6742)
+ * Fix assertion error in ALTER TYPE RENAME (CASSANDRA-6705)
 
 
 2.1.0-beta1

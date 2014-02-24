@@ -121,7 +121,8 @@ public class ColumnToCollectionType extends AbstractType<ByteBuffer>
         // We are compatible if we have all the definitions previous have (but we can have more).
         for (Map.Entry<ByteBuffer, CollectionType> entry : prev.defined.entrySet())
         {
-            if (!entry.getValue().isCompatibleWith(defined.get(entry.getKey())))
+            CollectionType newType = defined.get(entry.getKey());
+            if (newType == null || !newType.isCompatibleWith(entry.getValue()))
                 return false;
         }
         return true;

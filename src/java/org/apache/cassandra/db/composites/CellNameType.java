@@ -99,10 +99,10 @@ public interface CellNameType extends CType
     public ColumnToCollectionType collectionType();
 
     /**
-     * Return the new type obtained by adding the new collection type for the provided column name
+     * Return the new type obtained by adding/updating to the new collection type for the provided column name
      * to this type.
      */
-    public CellNameType addCollection(ColumnIdentifier columnName, CollectionType newCollection);
+    public CellNameType addOrUpdateCollection(ColumnIdentifier columnName, CollectionType newCollection);
 
     /**
      * Returns a new CellNameType that is equivalent to this one but with one
