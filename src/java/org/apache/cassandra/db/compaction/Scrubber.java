@@ -114,7 +114,7 @@ public class Scrubber implements Closeable
             }
 
             // TODO errors when creating the writer may leave empty temp files.
-            writer = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, ActiveRepairService.UNREPAIRED_SSTABLE, sstable);
+            writer = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, sstable.getSSTableMetadata().repairedAt, sstable);
 
             DecoratedKey prevKey = null;
 
@@ -257,7 +257,10 @@ public class Scrubber implements Closeable
             }
 
             if (writer.getFilePointer() > 0)
-                newSstable = writer.closeAndOpenReader(sstable.maxDataAge);
+            {
+                long repairedAt = badRows > 0 ? ActiveRepairService.UNREPAIRED_SSTABLE : sstable.getSSTableMetadata().repairedAt;
+                newSstable = writer.closeAndOpenReader(sstable.maxDataAge, repairedAt);
+            }
         }
         catch (Throwable t)
         {
@@ -272,7 +275,9 @@ public class Scrubber implements Closeable
 
         if (!outOfOrderRows.isEmpty())
         {
-            SSTableWriter inOrderWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, ActiveRepairService.UNREPAIRED_SSTABLE, sstable);
+            // out of order rows, but no bad rows found - we can keep our repairedAt time
+            long repairedAt = badRows > 0 ? ActiveRepairService.UNREPAIRED_SSTABLE : sstable.getSSTableMetadata().repairedAt;
+            SSTableWriter inOrderWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, repairedAt, sstable);
             for (Row row : outOfOrderRows)
                 inOrderWriter.append(row.key, row.cf);
             newInOrderSstable = inOrderWriter.closeAndOpenReader(sstable.maxDataAge);
