@@ -330,7 +330,12 @@ public class SSTableWriter extends SSTable
 
     public SSTableReader closeAndOpenReader(long maxDataAge)
     {
-        Pair<Descriptor, StatsMetadata> p = close();
+        return closeAndOpenReader(maxDataAge, this.repairedAt);
+    }
+
+    public SSTableReader closeAndOpenReader(long maxDataAge, long repairedAt)
+    {
+        Pair<Descriptor, StatsMetadata> p = close(repairedAt);
         Descriptor newdesc = p.left;
         StatsMetadata sstableMetadata = p.right;
 
@@ -359,6 +364,11 @@ public class SSTableWriter extends SSTable
     // Close the writer and return the descriptor to the new sstable and it's metadata
     public Pair<Descriptor, StatsMetadata> close()
     {
+        return close(this.repairedAt);
+    }
+
+    private Pair<Descriptor, StatsMetadata> close(long repairedAt)
+    {
         // index and filter
         iwriter.close();
         // main data, close will truncate if necessary
@@ -375,7 +385,9 @@ public class SSTableWriter extends SSTable
 
         // remove the 'tmp' marker from all components
         return Pair.create(rename(descriptor, components), (StatsMetadata) metadataComponents.get(MetadataType.STATS));
+
     }
+
 
     private static void writeMetadata(Descriptor desc, Map<MetadataType, MetadataComponent> components)
     {
