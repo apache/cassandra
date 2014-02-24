@@ -167,6 +167,10 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
             case CLUSTERING_COLUMN:
                 cfm.comparator = CellNames.fromAbstractType(updateWith(cfm.comparator.asAbstractType(), keyspace, toReplace, updated), cfm.comparator.isDense());
                 break;
+            default:
+                // If it's a collection, we still want to modify the comparator because the collection is aliased in it
+                if (def.type instanceof CollectionType)
+                    cfm.comparator = CellNames.fromAbstractType(updateWith(cfm.comparator.asAbstractType(), keyspace, toReplace, updated), cfm.comparator.isDense());
         }
         return true;
     }

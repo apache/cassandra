@@ -198,7 +198,7 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
         throw new UnsupportedOperationException();
     }
 
-    public CellNameType addCollection(ColumnIdentifier columnName, CollectionType newCollection)
+    public CellNameType addOrUpdateCollection(ColumnIdentifier columnName, CollectionType newCollection)
     {
         throw new UnsupportedOperationException();
     }

@@ -94,6 +94,22 @@ public abstract class CollectionType<T> extends AbstractType<T>
         valueComparator().validate(bytes);
     }
 
+    @Override
+    public boolean isCompatibleWith(AbstractType<?> previous)
+    {
+        if (this == previous)
+            return true;
+
+        if (!getClass().equals(previous.getClass()))
+            return false;
+
+        CollectionType tprev = (CollectionType) previous;
+        // The name is part of the Cell name, so we need sorting compatibility, i.e. isCompatibleWith().
+        // But value is the Cell value, so isValueCompatibleWith() is enough
+        return this.nameComparator().isCompatibleWith(tprev.nameComparator())
+            && this.valueComparator().isValueCompatibleWith(tprev.valueComparator());
+    }
+
     public boolean isCollection()
     {
         return true;

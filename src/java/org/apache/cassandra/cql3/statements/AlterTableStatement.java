@@ -109,7 +109,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     if (cfm.isSuper())
                         throw new InvalidRequestException("Cannot use collection types with Super column family");
 
-                    cfm.comparator = cfm.comparator.addCollection(columnName, (CollectionType)type);
+                    cfm.comparator = cfm.comparator.addOrUpdateCollection(columnName, (CollectionType)type);
                 }
 
                 Integer componentIndex = cfm.comparator.isCompound() ? cfm.comparator.clusteringPrefixSize() : null;
@@ -185,6 +185,13 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                                                            columnName,
                                                                            def.type.asCQL3Type(),
                                                                            validator));
+
+                        // For collections, if we alter the type, we need to update the comparator too since it includes
+                        // the type too (note that isValueCompatibleWith above has validated that the need type don't really
+                        // change the underlying sorting order, but we still don't want to have a discrepancy between the type
+                        // in the comparator and the one in the ColumnDefinition as that would be dodgy).
+                        if (validator.getType() instanceof CollectionType)
+                            cfm.comparator = cfm.comparator.addOrUpdateCollection(def.name, (CollectionType)validator.getType());
 
                         break;
                 }
