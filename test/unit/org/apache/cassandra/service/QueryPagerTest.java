@@ -169,7 +169,7 @@ public class QueryPagerTest extends SchemaLoader
                 continue;
 
             ByteBuffer expected = names[i++];
-            assertEquals("column " + i + " doesn't match: " + toString(r.cf), expected, c.name());
+            assertEquals("column " + i + " doesn't match: " + toString(r.cf), expected, c.name().toByteBuffer());
         }
     }
 
@@ -337,7 +337,7 @@ public class QueryPagerTest extends SchemaLoader
         String keyspace = "cql_keyspace";
         String table = "table2";
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
-        CompositeType ct = (CompositeType)cfs.metadata.comparator;
+        CompositeType ct = (CompositeType)cfs.metadata.comparator.asAbstractType();
 
         // Insert rows but with a tombstone as last cell
         for (int i = 0; i < 5; i++)
