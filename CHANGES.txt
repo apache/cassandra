@@ -1,4 +1,5 @@
 2.0.6
+ * Compare scores of full replica ordering in DES (CASSANDRA-6883)
  * fix CME in SessionInfo updateProgress affecting netstats (CASSANDRA-6577)
  * Allow repairing between specific replicas (CASSANDRA-6440)
  * Allow per-dc enabling of hints (CASSANDRA-6157)
