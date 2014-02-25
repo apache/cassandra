@@ -46,7 +46,9 @@ install: build
 		usr/share/cassandra
 
 	# Copy stress jars
-	dh_install build/tools/lib/*.jar \
+	dh_install build/tools/lib/stress.jar \
+		usr/share/cassandra
+	dh_install tools/lib/*.jar \
 		usr/share/cassandra
 
 	dh_link usr/share/cassandra/apache-cassandra-$(VERSION).jar \
