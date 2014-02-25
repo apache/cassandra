@@ -1764,7 +1764,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public ViewFragment markReferenced(final DecoratedKey key)
     {
-        assert !key.isMinimum();
+        assert !key.isMinimum(partitioner);
         return markReferenced(new Function<DataTracker.View, List<SSTableReader>>()
         {
             public List<SSTableReader> apply(DataTracker.View view)
@@ -1875,7 +1875,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     private AbstractScanIterator getSequentialIterator(final DataRange range, long now)
     {
-        assert !(range.keyRange() instanceof Range) || !((Range)range.keyRange()).isWrapAround() || range.keyRange().right.isMinimum() : range.keyRange();
+        assert !(range.keyRange() instanceof Range) || !((Range)range.keyRange()).isWrapAround() || range.keyRange().right.isMinimum(partitioner) : range.keyRange();
 
         final ViewFragment view = markReferenced(range.keyRange());
         Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), range.keyRange().getString(metadata.getKeyValidator()));
@@ -1896,7 +1896,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     Row current = iterator.next();
                     DecoratedKey key = current.key;
 
-                    if (!range.stopKey().isMinimum() && range.stopKey().compareTo(key) < 0)
+                    if (!range.stopKey().isMinimum(partitioner) && range.stopKey().compareTo(key) < 0)
                         return endOfData();
 
                     // skipping outside of assigned range
