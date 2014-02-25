@@ -926,6 +926,9 @@
         <fileset dir="${build.dir}/tools/lib/">
             <include name="*.jar" />
         </fileset>
+        <fileset dir="${build.tools.lib}">
+            <include name="*.jar" />
+        </fileset>
       </copy>
       <artifact:writepom pomRefId="dist-pom" 
             file="${build.dir}/${final.name}-dist.pom"/>
