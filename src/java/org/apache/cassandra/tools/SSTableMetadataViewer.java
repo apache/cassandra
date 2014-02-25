@@ -61,6 +61,7 @@ public class SSTableMetadataViewer
                 }
                 if (stats != null)
                 {
+                    out.printf("Minimum timestamp: %s%n", stats.minTimestamp);
                     out.printf("Maximum timestamp: %s%n", stats.maxTimestamp);
                     out.printf("SSTable max local deletion time: %s%n", stats.maxLocalDeletionTime);
                     out.printf("Compression ratio: %s%n", stats.compressionRatio);
