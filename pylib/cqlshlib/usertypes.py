@@ -57,7 +57,7 @@ class UserType(CompositeType):
             result.append((str(col_name), col_type.from_binary(item)))
             p += 1
 
-        return result
+        return tuple(result)
 
 
 
