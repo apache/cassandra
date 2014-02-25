@@ -260,7 +260,14 @@ public class SchemaLoader
                                                               + "k int PRIMARY KEY,"
                                                               + "v1 text,"
                                                               + "v2 int"
-                                                              + ")", ks_cql)));
+                                                              + ")", ks_cql),
+
+                                           CFMetaData.compile("CREATE TABLE table2 ("
+                                                              + "k text,"
+                                                              + "c text,"
+                                                              + "v text,"
+                                                              + "PRIMARY KEY (k, c))", ks_cql)
+                                           ));
 
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))

@@ -90,15 +90,20 @@ public class RangeSliceQueryPager extends AbstractQueryPager
 
     protected boolean containsPreviousLast(Row first)
     {
-        return lastReturnedKey != null
-            && lastReturnedKey.equals(first.key)
-            && lastReturnedName.equals(isReversed() ? lastName(first.cf) : firstName(first.cf));
+        if (lastReturnedKey == null || !lastReturnedKey.equals(first.key))
+            return false;
+
+        // Same as SliceQueryPager, we ignore a deleted column
+        Cell firstCell = isReversed() ? lastCell(first.cf) : firstCell(first.cf);
+        return !first.cf.deletionInfo().isDeleted(firstCell)
+            && firstCell.isLive(timestamp())
+            && lastReturnedName.equals(firstCell.name());
     }
 
     protected boolean recordLast(Row last)
     {
         lastReturnedKey = last.key;
-        lastReturnedName = isReversed() ? firstName(last.cf) : lastName(last.cf);
+        lastReturnedName = (isReversed() ? firstCell(last.cf) : lastCell(last.cf)).name();
         return true;
     }
 
