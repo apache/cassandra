@@ -31,11 +31,13 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.pager.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.*;
+import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
 import static org.apache.cassandra.Util.range;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -143,14 +145,25 @@ public class QueryPagerTest extends SchemaLoader
 
     private static void assertRow(Row r, String key, String... names)
     {
+        ByteBuffer[] bbs = new ByteBuffer[names.length];
+        for (int i = 0; i < names.length; i++)
+            bbs[i] = bytes(names[i]);
+        assertRow(r, key, bbs);
+    }
+
+    private static void assertRow(Row r, String key, ByteBuffer... names)
+    {
         assertEquals(key, string(r.key.key));
         assertNotNull(r.cf);
-        assertEquals(toString(r.cf), names.length, r.cf.getColumnCount());
         int i = 0;
         for (Column c : r.cf)
         {
-            String expected = names[i++];
-            assertEquals("column " + i + " doesn't match: " + toString(r.cf), expected, string(c.name()));
+            // Ignore deleted cells if we have them
+            if (!c.isLive(0))
+                continue;
+
+            ByteBuffer expected = names[i++];
+            assertEquals("column " + i + " doesn't match: " + toString(r.cf), expected, c.name());
         }
     }
 
@@ -309,5 +322,30 @@ public class QueryPagerTest extends SchemaLoader
         assertRow(page.get(0), "k5", "c5", "c6", "c7");
 
         assertTrue(pager.isExhausted());
+    }
+
+    @Test
+    public void SliceQueryWithTombstoneTest() throws Exception
+    {
+        // Testing for the bug of #6748
+        String keyspace = "cql_keyspace";
+        String table = "table2";
+        ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+        CompositeType ct = (CompositeType)cfs.metadata.comparator;
+
+        // Insert rows but with a tombstone as last cell
+        for (int i = 0; i < 5; i++)
+            processInternal(String.format("INSERT INTO %s.%s (k, c, v) VALUES ('k%d', 'c%d', null)", keyspace, table, 0, i));
+
+        SliceQueryFilter filter = new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, false, 100);
+        QueryPager pager = QueryPagers.localPager(new SliceFromReadCommand(keyspace, bytes("k0"), table, 0, filter));
+
+        for (int i = 0; i < 5; i++)
+        {
+            List<Row> page = pager.fetchPage(1);
+            assertEquals(toString(page), 1, page.size());
+            // The only live cell we should have each time is the row marker
+            assertRow(page.get(0), "k0", ct.decompose("c" + i, ""));
+        }
     }
 }

@@ -332,13 +332,13 @@ abstract class AbstractQueryPager implements QueryPager
         return Math.min(liveCount, toDiscard);
     }
 
-    protected static ByteBuffer firstName(ColumnFamily cf)
+    protected static Column firstColumn(ColumnFamily cf)
     {
-        return cf.iterator().next().name();
+        return cf.iterator().next();
     }
 
-    protected static ByteBuffer lastName(ColumnFamily cf)
+    protected static Column lastColumn(ColumnFamily cf)
     {
-        return cf.getReverseSortedColumns().iterator().next().name();
+        return cf.getReverseSortedColumns().iterator().next();
     }
 }

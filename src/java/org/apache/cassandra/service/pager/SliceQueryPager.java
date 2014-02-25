@@ -81,12 +81,21 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
 
     protected boolean containsPreviousLast(Row first)
     {
-        return lastReturned != null && lastReturned.equals(isReversed() ? lastName(first.cf) : firstName(first.cf));
+        if (lastReturned == null)
+            return false;
+
+        Column firstColumn = isReversed() ? lastColumn(first.cf) : firstColumn(first.cf);
+        // Note: we only return true if the column is the lastReturned *and* it is live. If it is deleted, it is ignored by the
+        // rest of the paging code (it hasn't been counted as live in particular) and we want to act as if it wasn't there.
+        return !first.cf.deletionInfo().isDeleted(firstColumn)
+            && firstColumn.isLive(timestamp())
+            && lastReturned.equals(firstColumn.name());
     }
 
     protected boolean recordLast(Row last)
     {
-        lastReturned = isReversed() ? firstName(last.cf) : lastName(last.cf);
+        Column lastColumn = isReversed() ? firstColumn(last.cf) : lastColumn(last.cf);
+        lastReturned = lastColumn.name();
         return true;
     }
 
