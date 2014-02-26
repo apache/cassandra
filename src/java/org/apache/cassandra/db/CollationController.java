@@ -75,7 +75,7 @@ public class CollationController
                 if (iter != null)
                 {
                     iterators.add(iter);
-                    container.delete(iter.getColumnFamily());
+                    filter.delete(container.deletionInfo(), iter.getColumnFamily());
                     while (iter.hasNext())
                         container.addAtom(iter.next());
                 }
@@ -179,7 +179,7 @@ public class CollationController
         ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
         List<OnDiskAtomIterator> iterators = new ArrayList<>(Iterables.size(view.memtables) + view.sstables.size());
         ColumnFamily returnCF = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());
-
+        DeletionInfo returnDeletionInfo = returnCF.deletionInfo();
         try
         {
             Tracing.trace("Merging memtable tombstones");
@@ -188,7 +188,7 @@ public class CollationController
                 OnDiskAtomIterator iter = filter.getMemtableColumnIterator(memtable);
                 if (iter != null)
                 {
-                    returnCF.delete(iter.getColumnFamily());
+                    filter.delete(returnDeletionInfo, iter.getColumnFamily());
                     iterators.add(iter);
                 }
             }

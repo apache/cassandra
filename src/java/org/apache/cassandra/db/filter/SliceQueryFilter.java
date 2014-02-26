@@ -23,6 +23,8 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.*;
 
+import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Iterators;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -425,5 +427,44 @@ public class SliceQueryFilter implements IDiskAtomFilter
             size += sizes.sizeof(f.compositesToGroup);
             return size;
         }
+    }
+
+    public Iterator<RangeTombstone> getRangeTombstoneIterator(final ColumnFamily source)
+    {
+        final DeletionInfo delInfo = source.deletionInfo();
+        if (!delInfo.hasRanges() || slices.length == 0)
+            return Iterators.<RangeTombstone>emptyIterator();
+
+        return new AbstractIterator<RangeTombstone>()
+        {
+            private int sliceIdx = 0;
+            private Iterator<RangeTombstone> sliceIter = currentRangeIter();
+
+            protected RangeTombstone computeNext()
+            {
+                while (true)
+                {
+                    if (sliceIter.hasNext())
+                        return sliceIter.next();
+
+                    if (!nextSlice())
+                        return endOfData();
+
+                    sliceIter = currentRangeIter();
+                }
+            }
+
+            private Iterator<RangeTombstone> currentRangeIter()
+            {
+                ColumnSlice slice = slices[reversed ? (slices.length - 1 - sliceIdx) : sliceIdx];
+                return reversed ? delInfo.rangeIterator(slice.finish, slice.start)
+                                : delInfo.rangeIterator(slice.start, slice.finish);
+            }
+
+            private boolean nextSlice()
+            {
+                return ++sliceIdx < slices.length;
+            }
+        };
     }
 }

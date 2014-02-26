@@ -139,4 +139,6 @@ public interface IDiskAtomFilter
             return size;
         }
     }
+
+    public Iterator<RangeTombstone> getRangeTombstoneIterator(ColumnFamily source);
 }

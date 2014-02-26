@@ -252,7 +252,17 @@ public class DeletionInfo implements IMeasurableMemory
         return ranges == null ? Iterators.<RangeTombstone>emptyIterator() : ranges.iterator();
     }
 
-    public DeletionTime rangeCovering(Composite name)
+    public Iterator<RangeTombstone> rangeIterator(Composite start, Composite finish)
+    {
+        return ranges == null ? Iterators.<RangeTombstone>emptyIterator() : ranges.iterator(start, finish);
+    }
+
+    public DeletionTime deletionTimeFor(Composite name)
+    {
+        return ranges == null ? null : ranges.searchDeletionTime(name);
+    }
+
+    public RangeTombstone rangeCovering(Composite name)
     {
         return ranges == null ? null : ranges.search(name);
     }
@@ -278,8 +288,7 @@ public class DeletionInfo implements IMeasurableMemory
      */
     public boolean mayModify(DeletionInfo delInfo)
     {
-        return topLevel.markedForDeleteAt > delInfo.topLevel.markedForDeleteAt
-            || hasRanges();
+        return topLevel.compareTo(delInfo.topLevel) > 0 || hasRanges();
     }
 
     @Override
