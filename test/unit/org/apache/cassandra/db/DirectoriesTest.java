@@ -22,6 +22,10 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -178,12 +182,13 @@ public class DirectoriesTest
     public void testDiskFailurePolicy_best_effort()
     {
         DiskFailurePolicy origPolicy = DatabaseDescriptor.getDiskFailurePolicy();
-        
-        try 
+
+        List<DataDirectory> directories = Lists.asList(Directories.flushDirectory, Directories.dataDirectories);
+        try
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.best_effort);
-            
-            for (DataDirectory dd : Directories.dataDirectories)
+
+            for (DataDirectory dd : directories)
             {
                 dd.location.setExecutable(false);
                 dd.location.setWritable(false);
@@ -199,7 +204,7 @@ public class DirectoriesTest
         } 
         finally 
         {
-            for (DataDirectory dd : Directories.dataDirectories)
+            for (DataDirectory dd : directories)
             {
                 dd.location.setExecutable(true);
                 dd.location.setWritable(true);
