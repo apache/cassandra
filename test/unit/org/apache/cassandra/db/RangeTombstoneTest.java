@@ -121,20 +121,20 @@ public class RangeTombstoneTest extends SchemaLoader
 
         // Inserting data
         String key = "k111";
-        RowMutation rm;
+        Mutation rm;
         ColumnFamily cf;
 
-        rm = new RowMutation(KSNAME, ByteBufferUtil.bytes(key));
+        rm = new Mutation(KSNAME, ByteBufferUtil.bytes(key));
         for (int i = 0; i < 40; i += 2)
             add(rm, i, 0);
         rm.apply();
 
-        rm = new RowMutation(KSNAME, ByteBufferUtil.bytes(key));
+        rm = new Mutation(KSNAME, ByteBufferUtil.bytes(key));
         cf = rm.addOrGet(CFNAME);
         delete(cf, 5, 10, 1);
         rm.apply();
 
-        rm = new RowMutation(KSNAME, ByteBufferUtil.bytes(key));
+        rm = new Mutation(KSNAME, ByteBufferUtil.bytes(key));
         cf = rm.addOrGet(CFNAME);
         delete(cf, 15, 20, 2);
         rm.apply();
