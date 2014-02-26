@@ -5,6 +5,7 @@
  * Fix AIOOBE when concurrently accessing ABSC (CASSANDRA-6742)
  * Fix assertion error in ALTER TYPE RENAME (CASSANDRA-6705)
  * Scrub should not always clear out repaired status (CASSANDRA-5351)
+ * Improve handling of range tombstone for wide partitions (CASSANDRA-6446)
 
 2.1.0-beta1
  * Add flush directory distinct from compaction directories (CASSANDRA-6357)
