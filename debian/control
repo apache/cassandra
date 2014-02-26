@@ -3,7 +3,7 @@ Section: misc
 Priority: extra
 Maintainer: Eric Evans <eevans@apache.org>
 Uploaders: Sylvain Lebresne <slebresne@apache.org>
-Build-Depends: debhelper (>= 5), openjdk-7-jdk | java7-sdk, ant (>= 1.7), ant-optional (>= 1.7), python-support
+Build-Depends: debhelper (>= 5), openjdk-7-jdk | java7-jdk, ant (>= 1.7), ant-optional (>= 1.7), python-support
 Homepage: http://cassandra.apache.org
 Vcs-Git: http://git-wip-us.apache.org/repos/asf/cassandra.git
 Vcs-Browser: https://git-wip-us.apache.org/repos/asf?p=cassandra.git
