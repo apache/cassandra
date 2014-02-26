@@ -20,3 +20,11 @@ for jar in /usr/share/cassandra/*.jar; do
 done
 
 CLASSPATH="$CLASSPATH:$EXTRA_CLASSPATH"
+
+
+# set JVM javaagent opts to avoid warnings/errors
+if [ "$JVM_VENDOR" != "OpenJDK" -o "$JVM_VERSION" \> "1.6.0" ] \
+      || [ "$JVM_VERSION" = "1.6.0" -a "$JVM_PATCH_VERSION" -ge 23 ]
+then
+    JAVA_AGENT="$JAVA_AGENT -javaagent:$CASSANDRA_HOME/lib/jamm-0.2.5.jar"
+fi
