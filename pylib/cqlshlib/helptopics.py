@@ -811,7 +811,7 @@ class CQL3HelpTopics(CQLHelpTopics):
         PERMISSIONS
 
         Cassandra has 6 permissions:
-          ALTER: required for ALTER KEYSPCE, ALTER TABLE, CREATE INDEX, DROP INDEX
+          ALTER: required for ALTER KEYSPACE, ALTER TABLE, CREATE INDEX, DROP INDEX
           AUTHORIZE: required for GRANT, REVOKE
           CREATE: required for CREATE KEYSPACE, CREATE TABLE
           DROP: required for DROP KEYSPACE, DROP TABLE
