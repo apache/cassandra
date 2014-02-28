@@ -168,6 +168,9 @@ then
     JVM_OPTS="$JVM_OPTS -javaagent:$CASSANDRA_HOME/lib/jamm-0.2.6.jar"
 fi
 
+# some JVMs will fill up their heap when accessed via JMX, see CASSANDRA-6541
+JVM_OPTS="$JVM_OPTS -XX:+CMSClassUnloadingEnabled"
+
 # enable thread priorities, primarily so we can give periodic tasks
 # a lower priority to avoid interfering with client workload
 JVM_OPTS="$JVM_OPTS -XX:+UseThreadPriorities"
