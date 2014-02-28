@@ -65,7 +65,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
     private static final Logger logger = LoggerFactory.getLogger(CqlRecordWriter.class);
 
     // handles for clients for each range running in the threadpool
-    private final Map<Range, RangeClient> clients;
+    private final Map<InetAddress, RangeClient> clients;
 
     // host to prepared statement id mappings
     private ConcurrentHashMap<Cassandra.Client, Integer> preparedStatements = new ConcurrentHashMap<Cassandra.Client, Integer>();
@@ -98,7 +98,7 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
     CqlRecordWriter(Configuration conf)
     {
         super(conf);
-        this.clients = new HashMap<Range, RangeClient>();
+        this.clients = new HashMap<>();
 
         try
         {
@@ -163,13 +163,14 @@ final class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String,
         Range<Token> range = ringCache.getRange(getPartitionKey(keyColumns));
 
         // get the client for the given range, or create a new one
-        RangeClient client = clients.get(range);
+	final InetAddress address = ringCache.getEndpoint(range).get(0);
+        RangeClient client = clients.get(address);
         if (client == null)
         {
             // haven't seen keys for this range: create new client
             client = new RangeClient(ringCache.getEndpoint(range));
             client.start();
-            clients.put(range, client);
+            clients.put(address, client);
         }
 
         // add primary key columns to the bind variables
