@@ -180,7 +180,7 @@ public class Config
     public volatile int row_cache_save_period = 0;
     public int row_cache_keys_to_save = Integer.MAX_VALUE;
     public String memory_allocator = NativeAllocator.class.getSimpleName();
-    public boolean populate_io_cache_on_flush = false;
+    public boolean populate_io_cache_on_flush = false; // ignored! see CASSANDRA-4694
 
     private static boolean isClientMode = false;
 
@@ -257,7 +257,6 @@ public class Config
         periodic,
         batch
     }
-
     public static enum InternodeCompression
     {
         all, none, dc
