@@ -387,12 +387,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getMeanColumns();
     }
 
-    public static ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace, String columnFamily, boolean loadSSTables)
+    public static ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace, String columnFamily, boolean loadSSTables) throws ConfigurationException
     {
         return createColumnFamilyStore(keyspace, columnFamily, StorageService.getPartitioner(), Schema.instance.getCFMetaData(keyspace.getName(), columnFamily), loadSSTables);
     }
 
-    public static ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace, String columnFamily, IPartitioner partitioner, CFMetaData metadata)
+    public static ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace, String columnFamily, IPartitioner partitioner, CFMetaData metadata) throws ConfigurationException
     {
         return createColumnFamilyStore(keyspace, columnFamily, partitioner, metadata, true);
     }
@@ -401,7 +401,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                          String columnFamily,
                                                                          IPartitioner partitioner,
                                                                          CFMetaData metadata,
-                                                                         boolean loadSSTables)
+                                                                         boolean loadSSTables) throws ConfigurationException
     {
         // get the max generation number, to prevent generation conflicts
         Directories directories = Directories.create(keyspace.getName(), columnFamily);
@@ -412,7 +412,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             Descriptor desc = entry.getKey();
             generations.add(desc.generation);
             if (!desc.isCompatible())
-                logger.warn(String.format("Old SSTable found: Current version %s, found file: %s.  Please run upgradesstables.", Descriptor.Version.CURRENT, desc));
+                throw new ConfigurationException(String.format("Incompatible SSTable found.  Current version %s is unable to read file: %s.  Please run upgradesstables.",
+                                                               Descriptor.Version.CURRENT, desc));
         }
         Collections.sort(generations);
         int value = (generations.size() > 0) ? (generations.get(generations.size() - 1)) : 0;
