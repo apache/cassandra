@@ -28,6 +28,7 @@
  * Disallow post-query re-ordering when paging (CASSANDRA-6722)
  * Fix potential paging bug with deleted columns (CASSANDRA-6748)
 Merged from 1.2:
+ * Add CMSClassUnloadingEnabled JVM option (CASSANDRA-6541)
  * Catch memtable flush exceptions during shutdown (CASSANDRA-6735)
  * Fix broken streams when replacing with same IP (CASSANDRA-6622)
  * Fix upgradesstables NPE for non-CF-based indexes (CASSANDRA-6645)
