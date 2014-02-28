@@ -1,4 +1,5 @@
 1.2.16
+ * Add CMSClassUnloadingEnabled JVM option (CASSANDRA-6541)
  * Catch memtable flush exceptions during shutdown (CASSANDRA-6735)
  * Don't attempt cross-dc forwarding in mixed-version cluster with 1.1 
    (CASSANDRA-6732)
