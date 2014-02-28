@@ -69,8 +69,7 @@ public class CompoundDenseCellNameType extends AbstractCompoundCellNameType
         if (size < fullSize || eoc != Composite.EOC.NONE)
             return new CompoundComposite(components, size, false).withEOC(eoc);
 
-        assert components.length == size;
-        return new CompoundDenseCellName(components);
+        return new CompoundDenseCellName(components, size);
     }
 
     protected Composite copyAndMakeWith(ByteBuffer[] components, int size, Composite.EOC eoc, boolean isStatic)

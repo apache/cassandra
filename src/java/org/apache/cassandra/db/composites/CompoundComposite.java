@@ -50,7 +50,11 @@ public class CompoundComposite extends AbstractComposite
 
     public ByteBuffer get(int i)
     {
-        return elements[i];
+        // Note: most consumer should validate that i is within bounds. However, for backward compatibility
+        // reasons, composite dense tables can have names that don't have all their component of the clustering
+        // columns, which may end up here with i > size(). For those calls, it's actually simpler to return null
+        // than to force the caller to special case.
+        return i >= size() ? null : elements[i];
     }
 
     @Override
