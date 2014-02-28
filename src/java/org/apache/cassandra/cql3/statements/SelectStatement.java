@@ -508,7 +508,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     slices = new ColumnSlice[l.size()+1];
                     slices[0] = staticSlice;
                     for (int i = 0; i < l.size(); i++)
-                        slices[i] = l.get(i);
+                        slices[i+1] = l.get(i);
                 }
             }
             return sliceFilter(slices, limit, toGroup);
