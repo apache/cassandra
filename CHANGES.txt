@@ -10,6 +10,7 @@
 Merged from 2.0:
  * Pool CqlRecordWriter clients by inetaddress rather than Range 
    (CASSANDRA-6665)
+ * Fix compaction_history timestamps (CASSANDRA-6784)
 
 
 2.1.0-beta1
