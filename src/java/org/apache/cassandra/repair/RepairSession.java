@@ -213,7 +213,7 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
 
         logger.debug(String.format("[repair #%s] Repair completed between %s and %s on %s", getId(), nodes.endpoint1, nodes.endpoint2, desc.columnFamily));
 
-        if (job.completedSynchronization(nodes, success))
+        if (job.completedSynchronization())
         {
             RepairJob completedJob = syncingJobs.remove(job.desc.columnFamily);
             String remaining = syncingJobs.size() == 0 ? "" : String.format(" (%d remaining column family to sync for this session)", syncingJobs.size());
