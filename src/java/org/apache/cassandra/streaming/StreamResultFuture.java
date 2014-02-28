@@ -75,9 +75,14 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
             set(getCurrentState());
     }
 
-    static StreamResultFuture init(UUID planId, String description, Collection<StreamSession> sessions)
+    static StreamResultFuture init(UUID planId, String description, Collection<StreamSession> sessions, Collection<StreamEventHandler> listeners)
     {
         StreamResultFuture future = createAndRegister(planId, description, sessions);
+        if (listeners != null)
+        {
+            for (StreamEventHandler listener : listeners)
+                future.addEventListener(listener);
+        }
 
         logger.info("[Stream #{}] Executing streaming plan for {}", planId,  description);
         // start sessions

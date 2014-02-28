@@ -145,7 +145,7 @@ public class SSTableLoader implements StreamEventHandler
         return stream(Collections.<InetAddress>emptySet());
     }
 
-    public StreamResultFuture stream(Set<InetAddress> toIgnore)
+    public StreamResultFuture stream(Set<InetAddress> toIgnore, StreamEventHandler... listeners)
     {
         client.init(keyspace);
         outputHandler.output("Established connection to initial hosts");
@@ -176,9 +176,8 @@ public class SSTableLoader implements StreamEventHandler
 
             plan.transferFiles(remote, streamingDetails.get(remote));
         }
-        StreamResultFuture bulkResult = plan.execute();
-        bulkResult.addEventListener(this);
-        return bulkResult;
+        plan.listeners(this, listeners);
+        return plan.execute();
     }
 
     public void onSuccess(StreamState finalState) {}
