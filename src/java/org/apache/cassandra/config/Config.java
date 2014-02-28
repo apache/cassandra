@@ -168,7 +168,7 @@ public class Config
     public volatile int row_cache_save_period = 0;
     public int row_cache_keys_to_save = Integer.MAX_VALUE;
     public String row_cache_provider = SerializingCacheProvider.class.getSimpleName();
-    public boolean populate_io_cache_on_flush = false;
+    public boolean populate_io_cache_on_flush = false; // ignored! see CASSANDRA-4694
 
     public boolean inter_dc_tcp_nodelay = true;
 
@@ -204,7 +204,6 @@ public class Config
         periodic,
         batch
     }
-
     public static enum InternodeCompression
     {
         all, none, dc
