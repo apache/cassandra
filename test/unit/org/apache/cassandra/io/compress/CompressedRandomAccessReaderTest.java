@@ -19,10 +19,12 @@
 package org.apache.cassandra.io.compress;
 
 import java.io.*;
+import java.util.Collections;
 import java.util.Random;
 
 import org.junit.Test;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.util.*;
@@ -91,6 +93,47 @@ public class CompressedRandomAccessReaderTest
             File metadata = new File(filename + ".metadata");
             if (compressed && metadata.exists())
                 metadata.delete();
+        }
+    }
+
+    @Test
+    public void test6791() throws IOException, ConfigurationException
+    {
+        File f = File.createTempFile("compressed6791_", "3");
+        String filename = f.getAbsolutePath();
+        try
+        {
+
+            SSTableMetadata.Collector sstableMetadataCollector = SSTableMetadata.createCollector().replayPosition(null);
+            CompressedSequentialWriter writer = new CompressedSequentialWriter(f, filename + ".metadata", false, new CompressionParameters(SnappyCompressor.instance, 32, Collections.<String, String>emptyMap()), sstableMetadataCollector);
+
+            for (int i = 0; i < 20; i++)
+                writer.write("x".getBytes());
+
+            FileMark mark = writer.mark();
+            // write enough garbage to create new chunks:
+            for (int i = 0; i < 40; i++)
+                writer.write("y".getBytes());
+
+            writer.resetAndTruncate(mark);
+
+            for (int i = 0; i < 20; i++)
+                writer.write("x".getBytes());
+            writer.close();
+
+            CompressedRandomAccessReader reader = CompressedRandomAccessReader.open(filename, new CompressionMetadata(filename + ".metadata", f.length()), false);
+            String res = reader.readLine();
+            assertEquals(res, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+            assertEquals(40, res.length());
+        }
+        finally
+        {
+            // cleanup
+            if (f.exists())
+                f.delete();
+            File metadata = new File(filename + ".metadata");
+                if (metadata.exists())
+                    metadata.delete();
         }
     }
 

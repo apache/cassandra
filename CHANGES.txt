@@ -19,7 +19,7 @@
  * Support negative timestamps for CQL3 dates in query string (CASSANDRA-6718)
  * Avoid NPEs when receiving table changes for an unknown keyspace (CASSANDRA-5631)
  * Fix bootstrapping when there is no schema (CASSANDRA-6685)
-
+ * Fix truncating compression metadata (CASSANDRA-6791)
 
 1.2.15
  * Move handling of migration event source to solve bootstrap race (CASSANDRA-6648)
