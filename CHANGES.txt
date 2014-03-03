@@ -40,6 +40,7 @@ Merged from 2.0:
  * Disallow post-query re-ordering when paging (CASSANDRA-6722)
  * Fix potential paging bug with deleted columns (CASSANDRA-6748)
  * Fix NPE on BulkLoader caused by losing StreamEvent (CASSANDRA-6636)
+ * Fix truncating compression metadata (CASSANDRA-6791)
  * Add CMSClassUnloadingEnabled JVM option (CASSANDRA-6541)
  * Catch memtable flush exceptions during shutdown (CASSANDRA-6735)
  * Fix upgradesstables NPE for non-CF-based indexes (CASSANDRA-6645)
