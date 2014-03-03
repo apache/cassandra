@@ -44,6 +44,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import static org.apache.cassandra.Util.dk;
@@ -99,17 +100,17 @@ public class RangeTombstoneTest extends SchemaLoader
         cf = cfs.getColumnFamily(QueryFilter.getNamesFilter(dk(key), CFNAME, columns, System.currentTimeMillis()));
 
         for (int i : live)
-            assert isLive(cf, cf.getColumn(b(i))) : "Cell " + i + " should be live";
+            assertTrue("Cell " + i + " should be live", isLive(cf, cf.getColumn(b(i))));
         for (int i : dead)
-            assert !isLive(cf, cf.getColumn(b(i))) : "Cell " + i + " shouldn't be live";
+            assertTrue("Cell " + i + " shouldn't be live", !isLive(cf, cf.getColumn(b(i))));
 
         // Queries by slices
         cf = cfs.getColumnFamily(QueryFilter.getSliceFilter(dk(key), CFNAME, b(7), b(30), false, Integer.MAX_VALUE, System.currentTimeMillis()));
 
         for (int i : new int[]{ 7, 8, 9, 11, 13, 15, 17, 28, 29, 30 })
-            assert isLive(cf, cf.getColumn(b(i))) : "Cell " + i + " should be live";
+            assertTrue("Cell " + i + " should be live", isLive(cf, cf.getColumn(b(i))));
         for (int i : new int[]{ 10, 12, 14, 16, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27 })
-            assert !isLive(cf, cf.getColumn(b(i))) : "Cell " + i + " shouldn't be live";
+            assertTrue("Cell " + i + " shouldn't be live", !isLive(cf, cf.getColumn(b(i))));
     }
 
     @Test
@@ -252,22 +253,22 @@ public class RangeTombstoneTest extends SchemaLoader
         cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(dk(key), CFNAME, System.currentTimeMillis()));
 
         for (int i = 0; i < 5; i++)
-            assert isLive(cf, cf.getColumn(b(i))) : "Cell " + i + " should be live";
+            assertTrue("Cell " + i + " should be live", isLive(cf, cf.getColumn(b(i))));
         for (int i = 16; i < 20; i++)
-            assert isLive(cf, cf.getColumn(b(i))) : "Cell " + i + " should be live";
+            assertTrue("Cell " + i + " should be live", isLive(cf, cf.getColumn(b(i))));
         for (int i = 5; i <= 15; i++)
-            assert !isLive(cf, cf.getColumn(b(i))) : "Cell " + i + " shouldn't be live";
+            assertTrue("Cell " + i + " shouldn't be live", !isLive(cf, cf.getColumn(b(i))));
 
         // Compact everything and re-test
         CompactionManager.instance.performMaximal(cfs);
         cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(dk(key), CFNAME, System.currentTimeMillis()));
 
         for (int i = 0; i < 5; i++)
-            assert isLive(cf, cf.getColumn(b(i))) : "Cell " + i + " should be live";
+            assertTrue("Cell " + i + " should be live", isLive(cf, cf.getColumn(b(i))));
         for (int i = 16; i < 20; i++)
-            assert isLive(cf, cf.getColumn(b(i))) : "Cell " + i + " should be live";
+            assertTrue("Cell " + i + " should be live", isLive(cf, cf.getColumn(b(i))));
         for (int i = 5; i <= 15; i++)
-            assert !isLive(cf, cf.getColumn(b(i))) : "Cell " + i + " shouldn't be live";
+            assertTrue("Cell " + i + " shouldn't be live", !isLive(cf, cf.getColumn(b(i))));
     }
 
     @Test
@@ -296,9 +297,9 @@ public class RangeTombstoneTest extends SchemaLoader
         // Get the last value of the row
         cf = cfs.getColumnFamily(QueryFilter.getSliceFilter(dk(key), CFNAME, Composites.EMPTY, Composites.EMPTY, true, 1, System.currentTimeMillis()));
 
-        assert !cf.isEmpty();
+        assertFalse(cf.isEmpty());
         int last = i(cf.getSortedColumns().iterator().next().name());
-        assert last == 1 : "Last column should be column 1 since column 2 has been deleted";
+        assertTrue("Last column should be column 1 since column 2 has been deleted", last == 1);
     }
 
     @Test
