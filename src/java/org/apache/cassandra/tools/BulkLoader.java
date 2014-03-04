@@ -78,7 +78,10 @@ public class BulkLoader
         StreamResultFuture future = null;
         try
         {
-            future = loader.stream(options.ignores);
+            if (options.noProgress)
+                future = loader.stream(options.ignores);
+            else
+                future = loader.stream(options.ignores, new ProgressIndicator());
         }
         catch (Exception e)
         {
@@ -93,8 +96,6 @@ public class BulkLoader
         }
 
         handler.output(String.format("Streaming session ID: %s", future.planId));
-        if (!options.noProgress)
-            future.addEventListener(new ProgressIndicator());
 
         try
         {

@@ -34,6 +34,7 @@ public class StreamPlan
 {
     private final UUID planId = UUIDGen.getTimeUUID();
     private final String description;
+    private final List<StreamEventHandler> handlers = new ArrayList<>();
 
     // sessions per InetAddress of the other end.
     private final Map<InetAddress, StreamSession> sessions = new HashMap<>();
@@ -130,6 +131,14 @@ public class StreamPlan
         return this;
     }
 
+    public StreamPlan listeners(StreamEventHandler handler, StreamEventHandler... handlers)
+    {
+        this.handlers.add(handler);
+        if (handlers != null)
+            Collections.addAll(this.handlers, handlers);
+        return this;
+    }
+
     /**
      * @return true if this plan has no plan to execute
      */
@@ -145,7 +154,7 @@ public class StreamPlan
      */
     public StreamResultFuture execute()
     {
-        return StreamResultFuture.init(planId, description, sessions.values());
+        return StreamResultFuture.init(planId, description, sessions.values(), handlers);
     }
 
     /**

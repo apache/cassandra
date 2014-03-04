@@ -19,14 +19,13 @@ package org.apache.cassandra.repair;
 
 import java.net.InetAddress;
 import java.util.*;
-import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 
 import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -51,12 +50,13 @@ public class RepairJob
     private final List<TreeResponse> trees = new ArrayList<>();
     // once all responses are received, each tree is compared with each other, and differencer tasks
     // are submitted. the job is done when all differencers are complete.
-    private final Set<Differencer> differencers = new HashSet<>();
     private final ListeningExecutorService taskExecutor;
     private final Condition requestsSent = new SimpleCondition();
     private int gcBefore = -1;
 
     private volatile boolean failed = false;
+    /* Count down as sync completes */
+    private AtomicInteger waitForSync;
 
     /**
      * Create repair job to run on specific columnfamily
@@ -172,7 +172,7 @@ public class RepairJob
     public void submitDifferencers()
     {
         assert !failed;
-
+        List<Differencer> differencers = new ArrayList<>();
         // We need to difference all trees one against another
         for (int i = 0; i < trees.size() - 1; ++i)
         {
@@ -183,21 +183,20 @@ public class RepairJob
                 Differencer differencer = new Differencer(desc, r1, r2);
                 differencers.add(differencer);
                 logger.debug("Queueing comparison {}", differencer);
-                taskExecutor.submit(differencer);
             }
         }
+        waitForSync = new AtomicInteger(differencers.size());
+        for (Differencer differencer : differencers)
+            taskExecutor.submit(differencer);
+
         trees.clear(); // allows gc to do its thing
     }
 
     /**
      * @return true if the given node pair was the last remaining
      */
-    synchronized boolean completedSynchronization(NodePair nodes, boolean success)
+    boolean completedSynchronization()
     {
-        if (!success)
-            failed = true;
-        Differencer completed = new Differencer(desc, new TreeResponse(nodes.endpoint1, null), new TreeResponse(nodes.endpoint2, null));
-        differencers.remove(completed);
-        return differencers.size() == 0;
+        return waitForSync.decrementAndGet() == 0;
     }
 }
