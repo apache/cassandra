@@ -179,6 +179,34 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         }
     }
 
+    static int indexFor(SSTableReader sstable, ByteBuffer name, List<IndexHelper.IndexInfo> indexes, AbstractType<?> comparator, boolean reversed, int startIdx)
+    {
+        // If it's a super CF and the sstable is from the old format, then the index will contain old format info, i.e. non composite
+        // SC names. So we need to 1) use only the SC name part of the comparator and 2) extract only that part from 'name'
+        if (sstable.metadata.isSuper() && sstable.descriptor.version.hasSuperColumns)
+        {
+            AbstractType<?> scComparator = SuperColumns.getComparatorFor(sstable.metadata, false);
+            ByteBuffer scName = SuperColumns.scName(name);
+            return IndexHelper.indexFor(scName, indexes, scComparator, reversed, startIdx);
+        }
+        return IndexHelper.indexFor(name, indexes, comparator, reversed, startIdx);
+    }
+
+    static ByteBuffer forIndexComparison(SSTableReader sstable, ByteBuffer name)
+    {
+        // See indexFor above.
+        return sstable.metadata.isSuper() && sstable.descriptor.version.hasSuperColumns
+             ? SuperColumns.scName(name)
+             : name;
+    }
+
+    static AbstractType<?> comparatorForIndex(SSTableReader sstable, AbstractType<?> comparator)
+    {
+        return sstable.metadata.isSuper() && sstable.descriptor.version.hasSuperColumns
+             ? SuperColumns.getComparatorFor(sstable.metadata, false)
+             : comparator;
+    }
+
     private abstract class BlockFetcher
     {
         protected int currentSliceIdx;
@@ -219,16 +247,22 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             return start.remaining() != 0 && comparator.compare(name, start) < 0;
         }
 
+        protected boolean isIndexEntryBeforeSliceStart(ByteBuffer name)
+        {
+            ByteBuffer start = currentStart();
+            return start.remaining() != 0 && comparatorForIndex(sstable, comparator).compare(name, forIndexComparison(sstable, start)) < 0;
+        }
+
         protected boolean isColumnBeforeSliceFinish(OnDiskAtom column)
         {
             ByteBuffer finish = currentFinish();
             return finish.remaining() == 0 || comparator.compare(column.name(), finish) <= 0;
         }
 
-        protected boolean isAfterSliceFinish(ByteBuffer name)
+        protected boolean isIndexEntryAfterSliceFinish(ByteBuffer name)
         {
             ByteBuffer finish = currentFinish();
-            return finish.remaining() != 0 && comparator.compare(name, finish) > 0;
+            return finish.remaining() != 0 && comparatorForIndex(sstable, comparator).compare(name, forIndexComparison(sstable, finish)) > 0;
         }
     }
 
@@ -259,7 +293,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         {
             while (++currentSliceIdx < slices.length)
             {
-                nextIndexIdx = IndexHelper.indexFor(slices[currentSliceIdx].start, indexes, comparator, reversed, nextIndexIdx);
+                nextIndexIdx = indexFor(sstable, slices[currentSliceIdx].start, indexes, comparator, reversed, nextIndexIdx);
                 if (nextIndexIdx < 0 || nextIndexIdx >= indexes.size())
                     // no index block for that slice
                     continue;
@@ -268,12 +302,12 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 IndexInfo info = indexes.get(nextIndexIdx);
                 if (reversed)
                 {
-                    if (!isBeforeSliceStart(info.lastName))
+                    if (!isIndexEntryBeforeSliceStart(info.lastName))
                         return true;
                 }
                 else
                 {
-                    if (!isAfterSliceFinish(info.firstName))
+                    if (!isIndexEntryAfterSliceFinish(info.firstName))
                         return true;
                 }
             }
