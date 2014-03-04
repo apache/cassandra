@@ -135,8 +135,7 @@ public class StandaloneScrubber
                     catch (Exception e)
                     {
                         System.err.println(String.format("Error scrubbing %s: %s", sstable, e.getMessage()));
-                        if (options.debug)
-                            e.printStackTrace(System.err);
+                        e.printStackTrace(System.err);
                     }
                 }
             }
