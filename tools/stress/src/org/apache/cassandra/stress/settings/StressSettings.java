@@ -104,7 +104,7 @@ public class StressSettings implements Serializable
                 client.set_cql_version(mode.cqlVersion.connectVersion);
 
             if (setKeyspace)
-                client.set_keyspace("Keyspace1");
+                client.set_keyspace(schema.keyspace);
         }
         catch (InvalidRequestException e)
         {
@@ -126,7 +126,7 @@ public class StressSettings implements Serializable
             String currentNode = node.randomNode();
             SimpleClient client = new SimpleClient(currentNode, port.nativePort);
             client.connect(false);
-            client.execute("USE \"Keyspace1\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
+            client.execute("USE \"" + schema.keyspace + "\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
             return client;
         }
         catch (Exception e)
@@ -153,7 +153,7 @@ public class StressSettings implements Serializable
                 EncryptionOptions.ClientEncryptionOptions encOptions = transport.getEncryptionOptions();
                 JavaDriverClient c = new JavaDriverClient(currentNode, port.nativePort, encOptions);
                 c.connect(mode.compression());
-                c.execute("USE \"Keyspace1\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
+                c.execute("USE \"" + schema.keyspace + "\";", org.apache.cassandra.db.ConsistencyLevel.ONE);
                 return client = c;
             }
         }
