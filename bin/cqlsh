@@ -1172,7 +1172,10 @@ class Shell(cmd.Cmd):
             if issubclass(coltype, ReversedType):
                 coltype = coltype.subtypes[0]
 
-            out.write("  %s %s,\n" % (colname, coltype.cql_parameterized_type()))
+            out.write("  %s %s" % (colname, coltype.cql_parameterized_type()))
+            if col.is_static():
+                out.write(" static")
+            out.write(",\n")
 
         out.write("  PRIMARY KEY (")
         partkeynames = self.cql_protect_names(layout.partition_key_columns)
