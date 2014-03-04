@@ -51,17 +51,19 @@ public class UpdateStatement extends ModificationStatement
         CFDefinition cfDef = cfm.getCfDef();
 
         // Inserting the CQL row marker (see #4361)
-        // We always need to insert a marker, because of the following situation:
+        // We always need to insert a marker for INSERT, because of the following situation:
         //   CREATE TABLE t ( k int PRIMARY KEY, c text );
         //   INSERT INTO t(k, c) VALUES (1, 1)
         //   DELETE c FROM t WHERE k = 1;
         //   SELECT * FROM t;
-        // The last query should return one row (but with c == null). Adding
-        // the marker with the insert make sure the semantic is correct (while making sure a
-        // 'DELETE FROM t WHERE k = 1' does remove the row entirely)
+        // The last query should return one row (but with c == null). Adding the marker with the insert make sure
+        // the semantic is correct (while making sure a 'DELETE FROM t WHERE k = 1' does remove the row entirely)
+        //
+        // We do not insert the marker for UPDATE however, as this amount to updating the columns in the WHERE
+        // clause which is inintuitive (#6782)
         //
         // We never insert markers for Super CF as this would confuse the thrift side.
-        if (cfDef.isComposite && !cfDef.isCompact && !cfm.isSuper())
+        if (type == StatementType.INSERT && cfDef.isComposite && !cfDef.isCompact && !cfm.isSuper())
         {
             ByteBuffer name = builder.copy().add(ByteBufferUtil.EMPTY_BYTE_BUFFER).build();
             cf.addColumn(params.makeColumn(name, ByteBufferUtil.EMPTY_BYTE_BUFFER));
