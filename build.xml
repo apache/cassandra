@@ -867,6 +867,9 @@
     <target name="artifacts" depends="jar,javadoc"
             description="Create Cassandra release artifacts">
       <mkdir dir="${dist.dir}"/>
+      <!-- fix the control linefeed so that builds on windows works on linux -->
+      <fixcrlf srcdir="bin" includes="**/*" excludes="**/*.bat" eol="lf" eof="remove" />
+      <fixcrlf srcdir="conf" includes="**/*" excludes="**/*.bat" eol="lf" eof="remove" />
       <copy todir="${dist.dir}/lib">
         <fileset dir="${build.lib}"/>
         <fileset dir="${build.dir}">
@@ -884,9 +887,6 @@
       <copy todir="${dist.dir}/conf">
         <fileset dir="conf"/>
       </copy>
-      <!-- fix the control linefeed so that builds on windows works on linux -->
-      <fixcrlf srcdir="${dist.dir}/bin" includes="**/*.sh" eol="lf" eof="remove" />
-      <fixcrlf srcdir="${dist.dir}/conf" includes="**/*.sh" eol="lf" eof="remove" />
       <copy todir="${dist.dir}/interface">
         <fileset dir="interface">
           <include name="**/*.thrift" />
