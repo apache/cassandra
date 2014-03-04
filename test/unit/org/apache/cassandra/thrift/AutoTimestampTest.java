@@ -42,7 +42,7 @@ public class AutoTimestampTest extends SchemaLoader
 {
     private static CassandraServer server;
     private static final ColumnParent COLUMN_PARENT = new ColumnParent("Standard1");
-    private static final String KEYSPACE = "keyspace1";
+    private static final String KEYSPACE = "Keyspace1";
     
     @BeforeClass
     public static void setup() throws IOException, TException
