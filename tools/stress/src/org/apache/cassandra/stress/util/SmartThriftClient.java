@@ -107,7 +107,7 @@ public class SmartThriftClient implements ThriftClient
 
     private Client get(ByteBuffer pk)
     {
-        Set<Host> hosts = metadata.getReplicas(keyspace, pk);
+        Set<Host> hosts = metadata.getReplicas(metadata.quote(keyspace), pk);
         int count = roundrobin.incrementAndGet() % hosts.size();
         if (count < 0)
             count = -count;
