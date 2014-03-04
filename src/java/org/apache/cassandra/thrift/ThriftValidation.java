@@ -437,8 +437,7 @@ public class ThriftValidation
         if (!column.isSetValue())
             throw new org.apache.cassandra.exceptions.InvalidRequestException("Column value is required");
         if (!column.isSetTimestamp())
-            throw new org.apache.cassandra.exceptions.InvalidRequestException("Column timestamp is required");
-
+            column.setTimestamp(System.nanoTime());
         CellName cn = scName == null
                     ? metadata.comparator.cellFromByteBuffer(column.name)
                     : metadata.comparator.makeCellName(scName, column.name);
