@@ -241,6 +241,10 @@ public class CassandraDaemon
         // clean up debris in the rest of the keyspaces
         for (String keyspaceName : Schema.instance.getKeyspaces())
         {
+            // Skip system as we've already cleaned it
+            if (keyspaceName.equals(Keyspace.SYSTEM_KS))
+                continue;
+
             for (CFMetaData cfm : Schema.instance.getKeyspaceMetaData(keyspaceName).values())
                 ColumnFamilyStore.scrubDataDirectories(cfm);
         }

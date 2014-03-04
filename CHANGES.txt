@@ -8,6 +8,7 @@
  * Improve handling of range tombstone for wide partitions (CASSANDRA-6446)
  * Fix ClassCastException for compact table with composites (CASSANDRA-6738)
 Merged from 2.0:
+ * Avoid race-prone second "scrub" of system keyspace (CASSANDRA-6797)
  * Pool CqlRecordWriter clients by inetaddress rather than Range 
    (CASSANDRA-6665)
  * Fix compaction_history timestamps (CASSANDRA-6784)
