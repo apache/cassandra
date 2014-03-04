@@ -1,4 +1,5 @@
 2.0.6
+ * Avoid race-prone second "scrub" of system keyspace (CASSANDRA-6797)
  * Pool CqlRecordWriter clients by inetaddress rather than Range 
    (CASSANDRA-6665)
  * Fix compaction_history timestamps (CASSANDRA-6784)
