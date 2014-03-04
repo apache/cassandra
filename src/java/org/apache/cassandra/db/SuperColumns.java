@@ -129,6 +129,11 @@ public class SuperColumns
         return new SimpleDenseCellNameType(type.subtype(1));
     }
 
+    public static CellNameType scNameType(CellNameType type)
+    {
+        return new SimpleDenseCellNameType(type.subtype(0));
+    }
+
     public static AbstractType<?> getComparatorFor(CFMetaData metadata, ByteBuffer superColumn)
     {
         return getComparatorFor(metadata, superColumn != null);

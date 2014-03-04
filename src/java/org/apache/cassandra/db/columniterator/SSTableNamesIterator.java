@@ -186,13 +186,15 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
         int lastIndexIdx = -1;
         for (CellName name : columnNames)
         {
-            int index = IndexHelper.indexFor(name, indexList, comparator, false, lastIndexIdx);
+            int index = IndexedSliceReader.indexFor(sstable, name, indexList, comparator, false, lastIndexIdx);
             if (index < 0 || index == indexList.size())
                 continue;
             IndexHelper.IndexInfo indexInfo = indexList.get(index);
             // Check the index block does contain the column names and that we haven't inserted this block yet.
-            if (comparator.compare(name, indexInfo.firstName) < 0 || index == lastIndexIdx)
+            if (IndexedSliceReader.comparatorForIndex(sstable, comparator).compare(IndexedSliceReader.forIndexComparison(sstable, name), indexInfo.firstName) < 0
+              || index == lastIndexIdx)
                 continue;
+
             ranges.add(indexInfo);
             lastIndexIdx = index;
         }

@@ -44,6 +44,9 @@ Merged from 2.0:
  * Add CMSClassUnloadingEnabled JVM option (CASSANDRA-6541)
  * Catch memtable flush exceptions during shutdown (CASSANDRA-6735)
  * Fix upgradesstables NPE for non-CF-based indexes (CASSANDRA-6645)
+ * Fix UPDATE updating PRIMARY KEY columns implicitly (CASSANDRA-6782)
+ * Fix IllegalArgumentException when updating from 1.2 with SuperColumns
+   (CASSANDRA-6733)
 
 
 2.1.0-beta1

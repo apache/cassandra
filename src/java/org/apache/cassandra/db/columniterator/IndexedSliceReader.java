@@ -26,6 +26,7 @@ import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
@@ -178,6 +179,34 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         }
     }
 
+    static int indexFor(SSTableReader sstable, Composite name, List<IndexHelper.IndexInfo> indexes, CellNameType comparator, boolean reversed, int startIdx)
+    {
+        // If it's a super CF and the sstable is from the old format, then the index will contain old format info, i.e. non composite
+        // SC names. So we need to 1) use only the SC name part of the comparator and 2) extract only that part from 'name'
+        if (sstable.metadata.isSuper() && sstable.descriptor.version.hasSuperColumns)
+        {
+            CellNameType scComparator = SuperColumns.scNameType(comparator);
+            Composite scName = CellNames.compositeDense(SuperColumns.scName(name));
+            return IndexHelper.indexFor(scName, indexes, scComparator, reversed, startIdx);
+        }
+        return IndexHelper.indexFor(name, indexes, comparator, reversed, startIdx);
+    }
+
+    static Composite forIndexComparison(SSTableReader sstable, Composite name)
+    {
+        // See indexFor above.
+        return sstable.metadata.isSuper() && sstable.descriptor.version.hasSuperColumns
+             ? CellNames.compositeDense(SuperColumns.scName(name))
+             : name;
+    }
+
+    static CellNameType comparatorForIndex(SSTableReader sstable, CellNameType comparator)
+    {
+        return sstable.metadata.isSuper() && sstable.descriptor.version.hasSuperColumns
+             ? SuperColumns.scNameType(comparator)
+             : comparator;
+    }
+
     private abstract class BlockFetcher
     {
         protected int currentSliceIdx;
@@ -218,16 +247,22 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             return !start.isEmpty() && comparator.compare(name, start) < 0;
         }
 
+        protected boolean isIndexEntryBeforeSliceStart(Composite name)
+        {
+            Composite start = currentStart();
+            return !start.isEmpty() && comparatorForIndex(sstable, comparator).compare(name, forIndexComparison(sstable, start)) < 0;
+        }
+
         protected boolean isColumnBeforeSliceFinish(OnDiskAtom column)
         {
             Composite finish = currentFinish();
             return finish.isEmpty() || comparator.compare(column.name(), finish) <= 0;
         }
 
-        protected boolean isAfterSliceFinish(Composite name)
+        protected boolean isIndexEntryAfterSliceFinish(Composite name)
         {
             Composite finish = currentFinish();
-            return !finish.isEmpty() && comparator.compare(name, finish) > 0;
+            return !finish.isEmpty() && comparatorForIndex(sstable, comparator).compare(name, forIndexComparison(sstable, finish)) > 0;
         }
     }
 
@@ -258,7 +293,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         {
             while (++currentSliceIdx < slices.length)
             {
-                nextIndexIdx = IndexHelper.indexFor(slices[currentSliceIdx].start, indexes, comparator, reversed, nextIndexIdx);
+                nextIndexIdx = indexFor(sstable, slices[currentSliceIdx].start, indexes, comparator, reversed, nextIndexIdx);
                 if (nextIndexIdx < 0 || nextIndexIdx >= indexes.size())
                     // no index block for that slice
                     continue;
@@ -267,12 +302,12 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 IndexInfo info = indexes.get(nextIndexIdx);
                 if (reversed)
                 {
-                    if (!isBeforeSliceStart(info.lastName))
+                    if (!isIndexEntryBeforeSliceStart(info.lastName))
                         return true;
                 }
                 else
                 {
-                    if (!isAfterSliceFinish(info.firstName))
+                    if (!isIndexEntryAfterSliceFinish(info.firstName))
                         return true;
                 }
             }
