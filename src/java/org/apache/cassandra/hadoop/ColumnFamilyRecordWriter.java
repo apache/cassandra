@@ -23,7 +23,6 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.twitter.elephantbird.util.HadoopCompat;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.thrift.*;
@@ -31,6 +30,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TException;
+import org.apache.hadoop.util.Progressable;
 
 
 /**
@@ -62,9 +62,9 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
     ColumnFamilyRecordWriter(TaskAttemptContext context)
     {
         this(HadoopCompat.getConfiguration(context));
-        this.progressable = new Progressable(context);
-    }
+        this.context = context;
 
+    }
     ColumnFamilyRecordWriter(Configuration conf, Progressable progressable)
     {
         this(conf);
@@ -128,7 +128,10 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
 
         for (Mutation amut : value)
             client.put(Pair.create(keybuff, amut));
+        if (progressable != null)
             progressable.progress();
+        if (context != null)
+            HadoopCompat.progress(context);
     }
 
     /**
@@ -140,9 +143,9 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
         public final String columnFamily = ConfigHelper.getOutputColumnFamily(conf);
         
         /**
-         * Constructs an {@link RangeClient} for the given endpoints.
-         * @param endpoints the possible endpoints to execute the mutations on
-         */
+        * Constructs an {@link RangeClient} for the given endpoints.
+        * @param endpoints the possible endpoints to execute the mutations on
+        */
         public RangeClient(List<InetAddress> endpoints)
         {
             super(endpoints);
