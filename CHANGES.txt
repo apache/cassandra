@@ -1,5 +1,6 @@
 3.0
  * Remove CQL2 (CASSANDRA-5918)
+ * add Thrift get_multi_slice call (CASSANDRA-6757)
 
 
 2.1.0-beta2

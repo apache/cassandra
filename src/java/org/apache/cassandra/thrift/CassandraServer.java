@@ -1997,6 +1997,74 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
+    @Override
+    public List<ColumnOrSuperColumn> get_multi_slice(MultiSliceRequest request)
+            throws InvalidRequestException, UnavailableException, TimedOutException
+    {
+        if (startSessionIfRequested())
+        {
+            Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(request.key),
+                                                                  "column_parent", request.column_parent.toString(),
+                                                                  "consistency_level", request.consistency_level.name(),
+                                                                  "count", String.valueOf(request.count),
+                                                                  "column_slices", request.column_slices.toString());
+            Tracing.instance.begin("get_multi_slice", traceParameters);
+        }
+        else
+        {
+            logger.debug("get_multi_slice");
+        }
+        try 
+        {
+            ClientState cState = state();
+            String keyspace = cState.getKeyspace();
+            state().hasColumnFamilyAccess(keyspace, request.getColumn_parent().column_family, Permission.SELECT);
+            CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, request.getColumn_parent().column_family);
+            if (metadata.cfType == ColumnFamilyType.Super)
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("get_multi_slice does not support super columns");
+            ThriftValidation.validateColumnParent(metadata, request.getColumn_parent());
+            org.apache.cassandra.db.ConsistencyLevel consistencyLevel = ThriftConversion.fromThrift(request.getConsistency_level());
+            consistencyLevel.validateForRead(keyspace);
+            List<ReadCommand> commands = new ArrayList<>(1);
+            ColumnSlice [] slices = new ColumnSlice[request.getColumn_slices().size()];
+            for (int i = 0 ; i < request.getColumn_slices().size() ; i++)
+            {
+                fixOptionalSliceParameters(request.getColumn_slices().get(i));
+                Composite start = metadata.comparator.fromByteBuffer(request.getColumn_slices().get(i).start);
+                Composite finish = metadata.comparator.fromByteBuffer(request.getColumn_slices().get(i).finish);
+                int compare = metadata.comparator.compare(start, finish);
+                if (!request.reversed && compare > 0)
+                    throw new InvalidRequestException(String.format("Column slice at index %d had start greater than finish", i));
+                else if (request.reversed && compare < 0)
+                    throw new InvalidRequestException(String.format("Reversed column slice at index %d had start less than finish", i));
+                slices[i] = new ColumnSlice(start, finish);
+            }
+            SliceQueryFilter filter = new SliceQueryFilter(slices, request.reversed, request.count);
+            ThriftValidation.validateKey(metadata, request.key);
+            commands.add(ReadCommand.create(keyspace, request.key, request.column_parent.getColumn_family(), System.currentTimeMillis(), filter));
+            return getSlice(commands, request.column_parent.isSetSuper_column(), consistencyLevel).entrySet().iterator().next().getValue();
+        } 
+        catch (RequestValidationException e)
+        {
+            throw ThriftConversion.toThrift(e);
+        } 
+        finally 
+        {
+            Tracing.instance.stopSession();
+        }
+    }
+
+    /**
+     * Set the to start-of end-of value of "" for start and finish.
+     * @param columnSlice
+     */
+    private static void fixOptionalSliceParameters(org.apache.cassandra.thrift.ColumnSlice columnSlice) {
+        if (!columnSlice.isSetStart())
+            columnSlice.setStart(new byte[0]);
+        if (!columnSlice.isSetFinish())
+            columnSlice.setFinish(new byte[0]);
+    }
+
     /*
      * No-op since 3.0.
      */

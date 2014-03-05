@@ -217,8 +217,35 @@ def get_range_slice(client, parent, predicate, start, end, count, cl, row_filter
     kr = KeyRange(start, end, count=count, row_filter=row_filter)
     return client.get_range_slices(parent, predicate, kr, cl)
     
+def _insert_six_columns(key='abc'):
+    CL = ConsistencyLevel.ONE
+    client.insert(key, ColumnParent('Standard1'), Column('a', '1', 0), CL)
+    client.insert(key, ColumnParent('Standard1'), Column('b', '2', 0), CL)
+    client.insert(key, ColumnParent('Standard1'), Column('c', '3', 0), CL)
+    client.insert(key, ColumnParent('Standard1'), Column('d', '4', 0), CL)
+    client.insert(key, ColumnParent('Standard1'), Column('e', '5', 0), CL)
+    client.insert(key, ColumnParent('Standard1'), Column('f', '6', 0), CL)
+
+def _big_multi_slice(key='abc'):
+    c1 = ColumnSlice()
+    c1.start = 'a'
+    c1.finish = 'c'
+    c2 = ColumnSlice()
+    c2.start = 'e'
+    c2.finish = 'f'
+    m = MultiSliceRequest()
+    m.key = key
+    m.column_parent = ColumnParent('Standard1')
+    m.column_slices = [ c1, c2 ]
+    m.reversed = False
+    m.count = 10
+    m.consistency_level = ConsistencyLevel.ONE
+    return client.get_multi_slice(m)
+
+_MULTI_SLICE_COLUMNS = [Column('a', '1', 0),Column('b', '2', 0), Column('c', '3', 0), Column('e','5',0) , Column('f','6',0)]
 
 class TestMutations(ThriftTester):
+
     def test_insert(self):
         _set_keyspace('Keyspace1')
         _insert_simple(False)
@@ -2063,6 +2090,13 @@ class TestMutations(ThriftTester):
         result = client.get_range_slices(cp, predicate, k_range, ConsistencyLevel.ONE)
         assert len(result[0].columns) == 1, result[0].columns
         assert result[0].columns[0].super_column.name == 'sc1'
+
+    def test_multi_slice(self):
+        _set_keyspace('Keyspace1')
+        _insert_six_columns('abc')
+        L = [result.column
+             for result in _big_multi_slice('abc')]
+        assert L == _MULTI_SLICE_COLUMNS, L
 
 
 class TestTruncate(ThriftTester):
