@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
-import com.twitter.elephantbird.util.HadoopCompat;
+import org.apache.cassandra.hadoop.HadoopCompat;
 import org.apache.cassandra.hadoop.AbstractColumnFamilyInputFormat;
 import org.apache.cassandra.hadoop.ReporterWrapper;
 import org.apache.hadoop.mapred.InputSplit;
