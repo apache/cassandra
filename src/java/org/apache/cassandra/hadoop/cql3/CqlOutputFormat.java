@@ -25,7 +25,6 @@ import java.util.Map;
 
 import org.apache.cassandra.hadoop.AbstractColumnFamilyOutputFormat;
 import org.apache.cassandra.hadoop.ConfigHelper;
-import org.apache.cassandra.hadoop.Progressable;
 import org.apache.hadoop.mapreduce.*;
 
 /**
@@ -59,7 +58,7 @@ public class CqlOutputFormat extends AbstractColumnFamilyOutputFormat<Map<String
     @Deprecated
     public CqlRecordWriter getRecordWriter(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job, String name, org.apache.hadoop.util.Progressable progress) throws IOException
     {
-        return new CqlRecordWriter(job, new Progressable(progress));
+        return new CqlRecordWriter(job, progress);
     }
 
     /**

@@ -23,9 +23,8 @@ import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 
-import com.twitter.elephantbird.util.HadoopCompat;
+import org.apache.cassandra.hadoop.HadoopCompat;
 import org.apache.cassandra.cql3.CFDefinition;
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
