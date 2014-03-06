@@ -88,7 +88,7 @@ public class YamlFileNetworkTopologySnitchTest
      * @param expectedRack
      *            expected rack
      */
-    private void checkEndpoint(final AbstractNetworkTopologySnitch snitch,
+    public static void checkEndpoint(final AbstractNetworkTopologySnitch snitch,
             final String endpointString, final String expectedDatacenter,
             final String expectedRack)
     {
