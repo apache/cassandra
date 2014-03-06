@@ -18,22 +18,35 @@
 */
 package org.apache.cassandra.db.compaction;
 
-import java.io.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotNull;
+
+import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-
-import com.google.common.base.Function;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
-import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.RowPosition;
+import org.apache.cassandra.db.SuperColumns;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.dht.BytesToken;
@@ -45,8 +58,13 @@ import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
-import static org.junit.Assert.*;
+import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class CompactionsTest extends SchemaLoader
@@ -115,7 +133,7 @@ public class CompactionsTest extends SchemaLoader
         ColumnFamilyStore store = testSingleSSTableCompaction(LeveledCompactionStrategy.class.getCanonicalName());
         LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) store.getCompactionStrategy();
         // tombstone removal compaction should not promote level
-        assert strategy.getLevelSize(0) == 1;
+        assertEquals(1, strategy.getLevelSize(0));
     }
 
     @Test
@@ -151,8 +169,8 @@ public class CompactionsTest extends SchemaLoader
         SSTableScanner scanner = sstable.getScanner(DataRange.forKeyRange(keyRange));
         OnDiskAtomIterator iter = scanner.next();
         assertEquals(key, iter.getKey());
-        assert iter.next() instanceof RangeTombstone;
-        assert !iter.hasNext();
+        assertTrue(iter.next() instanceof RangeTombstone);
+        assertFalse(iter.hasNext());
     }
 
     public static void assertMaxTimestamp(ColumnFamilyStore cfs, long maxTimestampExpected)
@@ -187,7 +205,7 @@ public class CompactionsTest extends SchemaLoader
                 cfs.forceBlockingFlush();
         }
         Collection<SSTableReader> toCompact = cfs.getSSTables();
-        assert toCompact.size() == 2;
+        assertEquals(2, toCompact.size());
 
         // Reinserting the same keys. We will compact only the previous sstable, but we need those new ones
         // to make sure we use EchoedRow, otherwise it won't be used because purge can be done.
@@ -203,7 +221,7 @@ public class CompactionsTest extends SchemaLoader
         for (SSTableReader sstable : cfs.getSSTables())
             if (!toCompact.contains(sstable))
                 tmpSSTable = sstable;
-        assert tmpSSTable != null;
+        assertNotNull(tmpSSTable);
 
         // Force compaction on first sstables. Since each row is in only one sstable, we will be using EchoedRow.
         Util.compact(cfs, toCompact);
@@ -248,7 +266,7 @@ public class CompactionsTest extends SchemaLoader
         cfs.forceBlockingFlush();
         Collection<SSTableReader> sstables = cfs.getSSTables();
 
-        assert sstables.size() == 1;
+        assertEquals(1, sstables.size());
         SSTableReader sstable = sstables.iterator().next();
 
         int prevGeneration = sstable.descriptor.generation;
@@ -262,8 +280,8 @@ public class CompactionsTest extends SchemaLoader
         } while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0);
         // CF should have only one sstable with generation number advanced
         sstables = cfs.getSSTables();
-        assert sstables.size() == 1;
-        assert sstables.iterator().next().descriptor.generation == prevGeneration + 1;
+        assertEquals(1, sstables.size());
+        assertEquals( prevGeneration + 1, sstables.iterator().next().descriptor.generation);
     }
 
     @Test
@@ -277,7 +295,7 @@ public class CompactionsTest extends SchemaLoader
         cfs.forceBlockingFlush();
 
         Collection<SSTableReader> sstables = cfs.getSSTables();
-        assert !sstables.isEmpty();
+        assertFalse(sstables.isEmpty());
         Set<Integer> generations = Sets.newHashSet(Iterables.transform(sstables, new Function<SSTableReader, Integer>()
         {
             public Integer apply(SSTableReader sstable)
@@ -288,11 +306,11 @@ public class CompactionsTest extends SchemaLoader
         UUID taskId = SystemKeyspace.startCompaction(cfs, sstables);
         Map<Pair<String, String>, Map<Integer, UUID>> compactionLogs = SystemKeyspace.getUnfinishedCompactions();
         Set<Integer> unfinishedCompactions = compactionLogs.get(Pair.create(KEYSPACE1, cf)).keySet();
-        assert unfinishedCompactions.containsAll(generations);
+        assertTrue(unfinishedCompactions.containsAll(generations));
 
         SystemKeyspace.finishCompaction(taskId);
         compactionLogs = SystemKeyspace.getUnfinishedCompactions();
-        assert !compactionLogs.containsKey(Pair.create(KEYSPACE1, cf));
+        assertFalse(compactionLogs.containsKey(Pair.create(KEYSPACE1, cf)));
     }
 
     private void testDontPurgeAccidentaly(String k, String cfname) throws InterruptedException
@@ -316,7 +334,7 @@ public class CompactionsTest extends SchemaLoader
         Collection<SSTableReader> sstablesBefore = cfs.getSSTables();
 
         QueryFilter filter = QueryFilter.getIdentityFilter(key, cfname, System.currentTimeMillis());
-        assert !(cfs.getColumnFamily(filter).getColumnCount() == 0);
+        assertTrue(0 != cfs.getColumnFamily(filter).getColumnCount());
 
         // Remove key
         rm = new Mutation(KEYSPACE1, key.key);
@@ -324,7 +342,7 @@ public class CompactionsTest extends SchemaLoader
         rm.apply();
 
         ColumnFamily cf = cfs.getColumnFamily(filter);
-        assert cf == null || cf.getColumnCount() == 0 : "should be empty: " + cf;
+        assertTrue( "should be empty: " + cf, cf == null || cf.getColumnCount() == 0);
 
         // Sleep one second so that the removal is indeed purgeable even with gcgrace == 0
         Thread.sleep(1000);
@@ -340,7 +358,7 @@ public class CompactionsTest extends SchemaLoader
         Util.compact(cfs, toCompact);
 
         cf = cfs.getColumnFamily(filter);
-        assert cf == null || cf.getColumnCount() == 0 : "should be empty: " + cf;
+        assertTrue( "should be empty: " + cf, cf == null || cf.getColumnCount() == 0);
     }
 
     private static Range<Token> rangeFor(int start, int end)
@@ -367,6 +385,7 @@ public class CompactionsTest extends SchemaLoader
     }
 
     @Test
+    @Ignore("making ranges based on the keys, not on the tokens")
     public void testNeedsCleanup()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
