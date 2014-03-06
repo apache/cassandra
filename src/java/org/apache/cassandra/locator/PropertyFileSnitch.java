@@ -73,7 +73,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         }
         catch (ConfigurationException ex)
         {
-            logger.debug("{} found, but does not look like a plain file. Will not watch it for changes", SNITCH_PROPERTIES_FILENAME);
+            logger.error("{} found, but does not look like a plain file. Will not watch it for changes", SNITCH_PROPERTIES_FILENAME);
         }
     }
 

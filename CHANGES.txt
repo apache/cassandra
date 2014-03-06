@@ -4,6 +4,7 @@
 
 
 2.1.0-beta2
+ * Auto reload GossipingPropertyFileSnitch config (CASSANDRA-5897)
  * Fix overflow of memtable_total_space_in_mb (CASSANDRA-6573)
  * Fix ABTC NPE (CASSANDRA-6692)
  * Allow nodetool to use a file or prompt for password (CASSANDRA-6660)
