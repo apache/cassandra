@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 import java.util.Iterator;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -68,6 +69,7 @@ public class CQLSSTableWriterTest
         writer.addRow(0, "test1", 24);
         writer.addRow(1, "test2", null);
         writer.addRow(2, "test3", 42);
+        writer.addRow(ImmutableMap.<String, Object>of("k", 3, "v2", 12));
         writer.close();
 
         SSTableLoader loader = new SSTableLoader(dataDir, new SSTableLoader.Client()
@@ -88,7 +90,7 @@ public class CQLSSTableWriterTest
         loader.stream().get();
 
         UntypedResultSet rs = QueryProcessor.processInternal("SELECT * FROM cql_keyspace.table1;");
-        assertEquals(3, rs.size());
+        assertEquals(4, rs.size());
 
         Iterator<UntypedResultSet.Row> iter = rs.iterator();
         UntypedResultSet.Row row;
@@ -107,5 +109,10 @@ public class CQLSSTableWriterTest
         assertEquals(2, row.getInt("k"));
         assertEquals("test3", row.getString("v1"));
         assertEquals(42, row.getInt("v2"));
+
+        row = iter.next();
+        assertEquals(3, row.getInt("k"));
+        assertEquals(null, row.getBytes("v1")); // Using getBytes because we know it won't NPE
+        assertEquals(12, row.getInt("v2"));
     }
 }

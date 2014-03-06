@@ -45,6 +45,7 @@ Merged from 2.0:
  * Fix IllegalArgumentException when updating from 1.2 with SuperColumns
    (CASSANDRA-6733)
  * FBUtilities.singleton() should use the CF comparator (CASSANDRA-6778)
+ * Fix CQLSStableWriter.addRow(Map<String, Object>) (CASSANDRA-6526)
 
 
 2.1.0-beta1
