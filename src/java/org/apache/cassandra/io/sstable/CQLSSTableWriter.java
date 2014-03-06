@@ -141,6 +141,11 @@ public class CQLSSTableWriter
      * keys are the names of the columns to add instead of taking a list of the
      * values in the order of the insert statement used during construction of
      * this write.
+     * <p>
+     * Please note that the column names in the map keys must be in lowercase unless
+     * the declared column name is a
+     * <a href="http://cassandra.apache.org/doc/cql3/CQL.html#identifiers">case-sensitive quoted identifier</a>
+     * (in which case the map key must use the exact case of the column).
      *
      * @param values a map of colum name to column values representing the new
      * row to add. Note that if a column is not part of the map, it's value will
@@ -152,11 +157,12 @@ public class CQLSSTableWriter
     public CQLSSTableWriter addRow(Map<String, Object> values)
     throws InvalidRequestException, IOException
     {
-        int size = Math.min(values.size(), boundNames.size());
+        int size = boundNames.size();
         List<ByteBuffer> rawValues = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             ColumnSpecification spec = boundNames.get(i);
-            rawValues.add(((AbstractType)spec.type).decompose(values.get(spec.name.toString())));
+            Object value = values.get(spec.name.toString());
+            rawValues.add(value == null ? null : ((AbstractType)spec.type).decompose(value));
         }
         return rawAddRow(rawValues);
     }
