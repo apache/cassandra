@@ -250,7 +250,7 @@ public class ColumnSlice
             throw new UnsupportedOperationException();
         }
 
-        public boolean isSameCQL3RowAs(CellName other)
+        public boolean isSameCQL3RowAs(CellNameType type, CellName other)
         {
             throw new UnsupportedOperationException();
         }

@@ -49,6 +49,7 @@ Merged from 2.0:
  * Fix UPDATE updating PRIMARY KEY columns implicitly (CASSANDRA-6782)
  * Fix IllegalArgumentException when updating from 1.2 with SuperColumns
    (CASSANDRA-6733)
+ * FBUtilities.singleton() should use the CF comparator (CASSANDRA-6778)
 
 
 2.1.0-beta1

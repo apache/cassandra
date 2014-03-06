@@ -206,7 +206,7 @@ public class CompoundSparseCellNameType extends AbstractCompoundCellNameType
 
     public CQL3Row.Builder CQL3RowBuilder(long now)
     {
-        return makeSparseCQL3RowBuilder(now);
+        return makeSparseCQL3RowBuilder(this, now);
     }
 
     public static class WithCollection extends CompoundSparseCellNameType
