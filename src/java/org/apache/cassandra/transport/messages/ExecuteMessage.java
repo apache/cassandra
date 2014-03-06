@@ -27,7 +27,7 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 
 import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
@@ -101,7 +101,8 @@ public class ExecuteMessage extends Message.Request
     {
         try
         {
-            CQLStatement statement = QueryProcessor.getPrepared(statementId);
+            QueryHandler handler = state.getClientState().getCQLQueryHandler();
+            CQLStatement statement = handler.getPrepared(statementId);
 
             if (statement == null)
                 throw new PreparedQueryNotFoundException(statementId);
@@ -128,7 +129,7 @@ public class ExecuteMessage extends Message.Request
                 Tracing.instance.begin("Execute CQL3 prepared query", builder.build());
             }
 
-            Message.Response response = QueryProcessor.processPrepared(statement, state, options);
+            Message.Response response = handler.processPrepared(statement, state, options);
             if (options.skipMetadata() && response instanceof ResultMessage.Rows)
                 ((ResultMessage.Rows)response).result.metadata.setSkipMetadata();
 

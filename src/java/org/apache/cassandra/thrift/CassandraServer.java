@@ -1956,7 +1956,7 @@ public class CassandraServer implements Cassandra.Iface
             }
 
             ThriftClientState cState = state();
-            return org.apache.cassandra.cql3.QueryProcessor.process(queryString, ThriftConversion.fromThrift(cLevel), cState.getQueryState()).toThriftResult();
+            return cState.getCQLQueryHandler().process(queryString, cState.getQueryState(), new QueryOptions(ThriftConversion.fromThrift(cLevel), Collections.<ByteBuffer>emptyList())).toThriftResult();
         }
         catch (RequestExecutionException e)
         {
@@ -2009,7 +2009,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             cState.validateLogin();
-            return org.apache.cassandra.cql3.QueryProcessor.prepare(queryString, cState, true).toThriftPreparedResult();
+            return cState.getCQLQueryHandler().prepare(queryString, cState.getQueryState()).toThriftPreparedResult();
         }
         catch (RequestValidationException e)
         {
@@ -2076,7 +2076,7 @@ public class CassandraServer implements Cassandra.Iface
         try
         {
             ThriftClientState cState = state();
-            org.apache.cassandra.cql3.CQLStatement statement = org.apache.cassandra.cql3.QueryProcessor.getPrepared(itemId);
+            org.apache.cassandra.cql3.CQLStatement statement = cState.getCQLQueryHandler().getPreparedForThrift(itemId);
 
             if (statement == null)
                 throw new InvalidRequestException(String.format("Prepared query with ID %d not found" +
@@ -2085,9 +2085,9 @@ public class CassandraServer implements Cassandra.Iface
                                                                 itemId));
             logger.trace("Retrieved prepared statement #{} with {} bind markers", itemId, statement.getBoundTerms());
 
-            return org.apache.cassandra.cql3.QueryProcessor.processPrepared(statement,
-                                                                            cState.getQueryState(),
-                                                                            new QueryOptions(ThriftConversion.fromThrift(cLevel), bindVariables)).toThriftResult();
+            return cState.getCQLQueryHandler().processPrepared(statement,
+                                                               cState.getQueryState(),
+                                                               new QueryOptions(ThriftConversion.fromThrift(cLevel), bindVariables)).toThriftResult();
         }
         catch (RequestExecutionException e)
         {

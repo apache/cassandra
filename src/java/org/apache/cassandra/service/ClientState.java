@@ -27,10 +27,14 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.QueryHandler;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.AuthenticationException;
@@ -38,6 +42,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.thrift.ThriftValidation;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.SemanticVersion;
 
@@ -46,6 +51,7 @@ import org.apache.cassandra.utils.SemanticVersion;
  */
 public class ClientState
 {
+    private static final Logger logger = LoggerFactory.getLogger(ClientState.class);
     public static final SemanticVersion DEFAULT_CQL_VERSION = org.apache.cassandra.cql3.QueryProcessor.CQL_VERSION;
 
     private static final Set<IResource> READABLE_SYSTEM_RESOURCES = new HashSet<>();
@@ -74,6 +80,25 @@ public class ClientState
     private volatile String keyspace;
 
     private SemanticVersion cqlVersion;
+    private static final QueryHandler cqlQueryHandler;
+    static
+    {
+        QueryHandler handler = QueryProcessor.instance;
+        String customHandlerClass = System.getProperty("cassandra.custom_query_handler_class");
+        if (customHandlerClass != null)
+        {
+            try
+            {
+                handler = (QueryHandler)FBUtilities.construct(customHandlerClass, "QueryHandler");
+                logger.info("Using {} as query handler for native protocol queries (as requested with -Dcassandra.custom_query_handler_class)", customHandlerClass);
+            }
+            catch (Exception e)
+            {
+                logger.info("Cannot use class {} as query handler ({}), ignoring by defaulting on normal query handling", customHandlerClass, e.getMessage());
+            }
+        }
+        cqlQueryHandler = handler;
+    }
 
     // isInternal is used to mark ClientState as used by some internal component
     // that should have an ability to modify system keyspace.
@@ -113,6 +138,11 @@ public class ClientState
     public static ClientState forExternalCalls(SocketAddress remoteAddress)
     {
         return new ClientState(remoteAddress);
+    }
+
+    public static QueryHandler getCQLQueryHandler()
+    {
+        return cqlQueryHandler;
     }
 
     public SocketAddress getRemoteAddress()
