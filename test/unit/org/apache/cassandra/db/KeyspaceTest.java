@@ -43,6 +43,7 @@ import static org.apache.cassandra.Util.expiringColumn;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 
 public class KeyspaceTest extends SchemaLoader
@@ -91,7 +92,7 @@ public class KeyspaceTest extends SchemaLoader
 
                 cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(TEST_KEY,
                                                                         "Standard3",
-                                                                        ByteBufferUtil.bytes("col99"),
+                                                                        FBUtilities.singleton(ByteBufferUtil.bytes("col99"), cfStore.getComparator()),
                                                                         System.currentTimeMillis()));
                 assertColumns(cf);
             }
@@ -120,13 +121,13 @@ public class KeyspaceTest extends SchemaLoader
 
                 cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(TEST_KEY,
                                                                         "Standard1",
-                                                                        ByteBufferUtil.bytes("col1"),
+                                                                        FBUtilities.singleton(ByteBufferUtil.bytes("col1"), cfStore.getComparator()),
                                                                         System.currentTimeMillis()));
                 assertColumns(cf, "col1");
 
                 cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(TEST_KEY,
                                                                         "Standard1",
-                                                                        ByteBufferUtil.bytes("col3"),
+                                                                        FBUtilities.singleton(ByteBufferUtil.bytes("col3"), cfStore.getComparator()),
                                                                         System.currentTimeMillis()));
                 assertColumns(cf, "col3");
             }

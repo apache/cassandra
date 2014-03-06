@@ -717,7 +717,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     {
         if (cfDef.isCompact)
         {
-            return FBUtilities.singleton(builder.build());
+            return FBUtilities.singleton(builder.build(), cfDef.cfm.comparator);
         }
         else
         {
@@ -994,10 +994,11 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 }
                 else if (sliceRestriction != null)
                 {
+                    Comparator<ByteBuffer> comp = cfDef.cfm.comparator;
                     // For dynamic CF, the column could be out of the requested bounds, filter here
-                    if (!sliceRestriction.isInclusive(Bound.START) && c.name().equals(sliceRestriction.bound(Bound.START, variables)))
+                    if (!sliceRestriction.isInclusive(Bound.START) && comp.compare(c.name(), sliceRestriction.bound(Bound.START, variables)) == 0)
                         continue;
-                    if (!sliceRestriction.isInclusive(Bound.END) && c.name().equals(sliceRestriction.bound(Bound.END, variables)))
+                    if (!sliceRestriction.isInclusive(Bound.END) && comp.compare(c.name(), sliceRestriction.bound(Bound.END, variables)) == 0)
                         continue;
                 }
 

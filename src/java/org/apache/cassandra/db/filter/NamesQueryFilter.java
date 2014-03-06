@@ -60,9 +60,9 @@ public class NamesQueryFilter implements IDiskAtomFilter
         this.countCQL3Rows = countCQL3Rows;
     }
 
-    public NamesQueryFilter(ByteBuffer column)
+    public NamesQueryFilter(ByteBuffer column, Comparator<ByteBuffer> comparator)
     {
-        this(FBUtilities.singleton(column));
+        this(FBUtilities.singleton(column, comparator));
     }
 
     public NamesQueryFilter cloneShallow()

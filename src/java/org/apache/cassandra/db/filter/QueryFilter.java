@@ -223,14 +223,6 @@ public class QueryFilter
         return new QueryFilter(key, cfName, new NamesQueryFilter(columns), timestamp);
     }
 
-    /**
-     * convenience method for creating a name filter matching a single column
-     */
-    public static QueryFilter getNamesFilter(DecoratedKey key, String cfName, ByteBuffer column, long timestamp)
-    {
-        return new QueryFilter(key, cfName, new NamesQueryFilter(column), timestamp);
-    }
-
     @Override
     public String toString()
     {

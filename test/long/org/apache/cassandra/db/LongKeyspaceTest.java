@@ -27,6 +27,7 @@ import static org.apache.cassandra.Util.column;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 
 public class LongKeyspaceTest extends SchemaLoader
@@ -58,7 +59,7 @@ public class LongKeyspaceTest extends SchemaLoader
                     {
                         cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("key" + i),
                                                                                 "Standard1",
-                                                                                ByteBufferUtil.bytes("c" + j),
+                                                                                FBUtilities.singleton(ByteBufferUtil.bytes("c" + j), cfStore.getComparator()),
                                                                                 System.currentTimeMillis()));
                         KeyspaceTest.assertColumns(cf, "c" + j);
                     }

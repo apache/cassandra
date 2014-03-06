@@ -33,6 +33,7 @@
  * Fix UPDATE updating PRIMARY KEY columns implicitly (CASSANDRA-6782)
  * Fix IllegalArgumentException when updating from 1.2 with SuperColumns
    (CASSANDRA-6733)
+ * FBUtilities.singleton() should use the CF comparator (CASSANDRA-6778)
 Merged from 1.2:
  * Add CMSClassUnloadingEnabled JVM option (CASSANDRA-6541)
  * Catch memtable flush exceptions during shutdown (CASSANDRA-6735)

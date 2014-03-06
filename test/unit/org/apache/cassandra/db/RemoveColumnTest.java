@@ -28,6 +28,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 
 public class RemoveColumnTest extends SchemaLoader
@@ -53,7 +54,7 @@ public class RemoveColumnTest extends SchemaLoader
 
         ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getNamesFilter(dk,
                                                                                   "Standard1",
-                                                                                  ByteBufferUtil.bytes("Column1"),
+                                                                                  FBUtilities.singleton(ByteBufferUtil.bytes("Column1"), store.getComparator()),
                                                                                   System.currentTimeMillis()));
         assert retrieved.getColumn(ByteBufferUtil.bytes("Column1")).isMarkedForDelete(System.currentTimeMillis());
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));

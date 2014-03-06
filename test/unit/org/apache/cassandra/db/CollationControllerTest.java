@@ -28,6 +28,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Test;
 
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -70,7 +71,7 @@ public class CollationControllerTest extends SchemaLoader
 
         // A NamesQueryFilter goes down one code path (through collectTimeOrderedData())
         // It should only iterate the last flushed sstable, since it probably contains the most recent value for Column1
-        QueryFilter filter = QueryFilter.getNamesFilter(dk, cfs.name, ByteBufferUtil.bytes("Column1"), System.currentTimeMillis());
+        QueryFilter filter = QueryFilter.getNamesFilter(dk, cfs.name, FBUtilities.singleton(ByteBufferUtil.bytes("Column1"), cfs.getComparator()), System.currentTimeMillis());
         CollationController controller = new CollationController(cfs, filter, Integer.MIN_VALUE);
         controller.getTopLevelColumns();
         assertEquals(1, controller.getSstablesIterated());
@@ -113,7 +114,7 @@ public class CollationControllerTest extends SchemaLoader
         long queryAt = System.currentTimeMillis() + 1000;
         int gcBefore = cfs.gcBefore(queryAt);
 
-        filter = QueryFilter.getNamesFilter(dk, cfs.name, cellName, queryAt);
+        filter = QueryFilter.getNamesFilter(dk, cfs.name, FBUtilities.singleton(cellName, cfs.getComparator()), queryAt);
         CollationController controller = new CollationController(cfs, filter, gcBefore);
         assert ColumnFamilyStore.removeDeleted(controller.getTopLevelColumns(), gcBefore) == null;
 

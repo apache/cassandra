@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.Pair;
 
@@ -155,7 +156,8 @@ public class ColumnGroupMap
         {
             for (int i = 0; i < idx; i++)
             {
-                if (!c[i].equals(previous[i]))
+                AbstractType<?> comp = composite.types.get(i);
+                if (comp.compare(c[i], previous[i]) != 0)
                     return false;
             }
             return true;

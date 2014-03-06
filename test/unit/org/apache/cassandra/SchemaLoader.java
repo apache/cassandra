@@ -46,6 +46,7 @@ import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class SchemaLoader
 {
@@ -446,7 +447,7 @@ public class SchemaLoader
         for (int i = offset; i < offset + numberOfRows; i++)
         {
             DecoratedKey key = Util.dk("key" + i);
-            store.getColumnFamily(QueryFilter.getNamesFilter(key, columnFamily, ByteBufferUtil.bytes("col" + i), System.currentTimeMillis()));
+            store.getColumnFamily(QueryFilter.getNamesFilter(key, columnFamily, FBUtilities.singleton(ByteBufferUtil.bytes("col" + i), store.getComparator()), System.currentTimeMillis()));
         }
     }
 

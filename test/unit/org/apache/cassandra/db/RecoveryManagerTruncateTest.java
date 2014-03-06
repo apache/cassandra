@@ -31,6 +31,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.junit.Test;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Test for the truncate operation.
@@ -74,7 +75,7 @@ public class RecoveryManagerTruncateTest extends SchemaLoader
 		}
 		cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(Util.dk(keyName),
                                                                 cfName,
-                                                                ByteBufferUtil.bytes(columnName),
+                                                                FBUtilities.singleton(ByteBufferUtil.bytes(columnName), cfStore.getComparator()),
                                                                 System.currentTimeMillis()));
 		if (cf == null)
 		{

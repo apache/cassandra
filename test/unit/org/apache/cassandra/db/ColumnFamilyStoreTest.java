@@ -52,6 +52,7 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -94,7 +95,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         cfs.forceBlockingFlush();
 
         cfs.getRecentSSTablesPerReadHistogram(); // resets counts
-        cfs.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("key1"), "Standard1", ByteBufferUtil.bytes("Column1"), System.currentTimeMillis()));
+        cfs.getColumnFamily(QueryFilter.getNamesFilter(Util.dk("key1"), "Standard1", FBUtilities.singleton(ByteBufferUtil.bytes("Column1"), cfs.getComparator()), System.currentTimeMillis()));
         assertEquals(1, cfs.getRecentSSTablesPerReadHistogram()[0]);
     }
 
@@ -148,7 +149,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
                 QueryFilter namesFilter = QueryFilter.getNamesFilter(Util.dk("key1"),
                                                                      "Standard2",
-                                                                     ByteBufferUtil.bytes("a"),
+                                                                     FBUtilities.singleton(ByteBufferUtil.bytes("a"), store.getComparator()),
                                                                      System.currentTimeMillis());
                 cf = store.getColumnFamily(namesFilter);
                 assert cf.isMarkedForDelete();
@@ -167,7 +168,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         IPartitioner p = StorageService.getPartitioner();
         List<Row> result = cfs.getRangeSlice(Util.range(p, "key1", "key2"),
                                              null,
-                                             new NamesQueryFilter(ByteBufferUtil.bytes("asdf")),
+                                             new NamesQueryFilter(FBUtilities.singleton(ByteBufferUtil.bytes("asdf"), cfs.getComparator())),
                                              10);
         assertEquals(1, result.size());
         assert result.get(0).key.key.equals(ByteBufferUtil.bytes("key2"));
@@ -198,13 +199,15 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         rm.add("Indexed1", ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(3L), 0);
         rm.apply();
 
+        ColumnFamilyStore store = Keyspace.open("Keyspace1").getColumnFamilyStore("Indexed1");
+
         // basic single-expression query
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(1L));
         List<IndexExpression> clause = Arrays.asList(expr);
         IDiskAtomFilter filter = new IdentityQueryFilter();
         IPartitioner p = StorageService.getPartitioner();
         Range<RowPosition> range = Util.range("", "");
-        List<Row> rows = Keyspace.open("Keyspace1").getColumnFamilyStore("Indexed1").search(range, clause, filter, 100);
+        List<Row> rows = store.search(range, clause, filter, 100);
 
         assert rows != null;
         assert rows.size() == 2 : StringUtils.join(rows, ",");
@@ -221,14 +224,14 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         // add a second expression
         IndexExpression expr2 = new IndexExpression(ByteBufferUtil.bytes("notbirthdate"), IndexOperator.GTE, ByteBufferUtil.bytes(2L));
         clause = Arrays.asList(expr, expr2);
-        rows = Keyspace.open("Keyspace1").getColumnFamilyStore("Indexed1").search(range, clause, filter, 100);
+        rows = store.search(range, clause, filter, 100);
 
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
         assert "k3".equals( key );
 
         // same query again, but with resultset not including the subordinate expression
-        rows = Keyspace.open("Keyspace1").getColumnFamilyStore("Indexed1").search(range, clause, new NamesQueryFilter(ByteBufferUtil.bytes("birthdate")), 100);
+        rows = store.search(range, clause, new NamesQueryFilter(FBUtilities.singleton(ByteBufferUtil.bytes("birthdate"), store.getComparator())), 100);
 
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
@@ -238,7 +241,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         // once more, this time with a slice rowset that needs to be expanded
         SliceQueryFilter emptyFilter = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 0);
-        rows = Keyspace.open("Keyspace1").getColumnFamilyStore("Indexed1").search(range, clause, emptyFilter, 100);
+        rows = store.search(range, clause, emptyFilter, 100);
 
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
@@ -250,7 +253,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         // doesn't tell the scan loop that it's done
         IndexExpression expr3 = new IndexExpression(ByteBufferUtil.bytes("notbirthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(-1L));
         clause = Arrays.asList(expr, expr3);
-        rows = Keyspace.open("Keyspace1").getColumnFamilyStore("Indexed1").search(range, clause, filter, 100);
+        rows = store.search(range, clause, filter, 100);
 
         assert rows.isEmpty();
     }
@@ -686,6 +689,50 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     }
 
     @Test
+    public void testCassandra6778() throws CharacterCodingException
+    {
+        String cfname = "StandardInteger1";
+        Keyspace keyspace = Keyspace.open("Keyspace1");
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
+
+        // insert two columns that represent the same integer but have different binary forms (the
+        // second one is padded with extra zeros)
+        RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("k1"));
+        byte[] column1 = {1};
+        rm.add(cfname, ByteBuffer.wrap(column1), ByteBufferUtil.bytes("data1"), 1);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("k1"));
+        byte[] column2 = {0, 0, 1};
+        rm.add(cfname, ByteBuffer.wrap(column2), ByteBufferUtil.bytes("data2"), 2);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        // fetch by the first column name; we should get the second version of the column value
+        SliceByNamesReadCommand cmd = new SliceByNamesReadCommand(
+            "Keyspace1", ByteBufferUtil.bytes("k1"), cfname, System.currentTimeMillis(),
+            new NamesQueryFilter(FBUtilities.singleton(ByteBuffer.wrap(column1), cfs.getComparator())));
+
+        ColumnFamily cf = cmd.getRow(keyspace).cf;
+        assertEquals(1, cf.getColumnCount());
+        Column column = cf.getColumn(ByteBuffer.wrap(column1));
+        assertEquals("data2", ByteBufferUtil.string(column.value()));
+        assertEquals(ByteBuffer.wrap(column2), column.name());
+
+        // fetch by the second column name; we should get the second version of the column value
+        cmd = new SliceByNamesReadCommand(
+            "Keyspace1", ByteBufferUtil.bytes("k1"), cfname, System.currentTimeMillis(),
+            new NamesQueryFilter(FBUtilities.singleton(ByteBuffer.wrap(column2), cfs.getComparator())));
+
+        cf = cmd.getRow(keyspace).cf;
+        assertEquals(1, cf.getColumnCount());
+        column = cf.getColumn(ByteBuffer.wrap(column2));
+        assertEquals("data2", ByteBufferUtil.string(column.value()));
+        assertEquals(ByteBuffer.wrap(column2), column.name());
+    }
+
+    @Test
     public void testInclusiveBounds() throws IOException, ExecutionException, InterruptedException
     {
         ColumnFamilyStore cfs = insertKey1Key2();
@@ -693,7 +740,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         IPartitioner p = StorageService.getPartitioner();
         List<Row> result = cfs.getRangeSlice(Util.bounds("key1", "key2"),
                                              null,
-                                             new NamesQueryFilter(ByteBufferUtil.bytes("asdf")),
+                                             new NamesQueryFilter(FBUtilities.singleton(ByteBufferUtil.bytes("asdf"), cfs.getComparator())),
                                              10);
         assertEquals(2, result.size());
         assert result.get(0).key.key.equals(ByteBufferUtil.bytes("key1"));
@@ -945,7 +992,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         putColsStandard(cfs, key, new Column(cname, ByteBufferUtil.bytes("b"), 1));
 
         // Test fetching the column by name returns the first column
-        SliceByNamesReadCommand cmd = new SliceByNamesReadCommand(keyspaceName, key.key, cfName, System.currentTimeMillis(), new NamesQueryFilter(cname));
+        SliceByNamesReadCommand cmd = new SliceByNamesReadCommand(keyspaceName, key.key, cfName, System.currentTimeMillis(), new NamesQueryFilter(FBUtilities.singleton(cname, cfs.getComparator())));
         ColumnFamily cf = cmd.getRow(keyspace).cf;
         Column column = (Column) cf.getColumn(cname);
         assert column.value().equals(ByteBufferUtil.bytes("a")) : "expecting a, got " + ByteBufferUtil.string(column.value());

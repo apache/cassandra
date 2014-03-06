@@ -41,6 +41,7 @@ import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -179,7 +180,7 @@ public class DefsTest extends SchemaLoader
         assert store != null;
         store.forceBlockingFlush();
 
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, cf, ByteBufferUtil.bytes("col0"), System.currentTimeMillis()));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, cf, FBUtilities.singleton(ByteBufferUtil.bytes("col0"), store.getComparator()), System.currentTimeMillis()));
         assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
         Column col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
         assert ByteBufferUtil.bytes("value0").equals(col.value());
@@ -252,7 +253,7 @@ public class DefsTest extends SchemaLoader
         assert store != null;
         store.forceBlockingFlush();
 
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, newCf.cfName, ByteBufferUtil.bytes("col0"), System.currentTimeMillis()));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, newCf.cfName, FBUtilities.singleton(ByteBufferUtil.bytes("col0"), store.getComparator()), System.currentTimeMillis()));
         assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
         Column col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
         assert ByteBufferUtil.bytes("value0").equals(col.value());
@@ -360,7 +361,7 @@ public class DefsTest extends SchemaLoader
         assert store != null;
         store.forceBlockingFlush();
 
-        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, newCf.cfName, ByteBufferUtil.bytes("col0"), System.currentTimeMillis()));
+        ColumnFamily cfam = store.getColumnFamily(QueryFilter.getNamesFilter(dk, newCf.cfName, FBUtilities.singleton(ByteBufferUtil.bytes("col0"), store.getComparator()), System.currentTimeMillis()));
         assert cfam.getColumn(ByteBufferUtil.bytes("col0")) != null;
         Column col = cfam.getColumn(ByteBufferUtil.bytes("col0"));
         assert ByteBufferUtil.bytes("value0").equals(col.value());
