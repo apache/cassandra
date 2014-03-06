@@ -91,8 +91,10 @@ public class Murmur3Partitioner extends AbstractPartitioner<LongToken>
      */
     public LongToken getToken(ByteBuffer key)
     {
-        if (key.remaining() == 0)
+        if (key.remaining() == 0) {
+            // comment
             return MINIMUM;
+        }
 
         long hash = MurmurHash.hash3_x64_128(key, key.position(), key.remaining(), 0)[0];
         return new LongToken(normalize(hash));
