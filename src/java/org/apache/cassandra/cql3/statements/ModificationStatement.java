@@ -488,9 +488,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
 
         ByteBuffer key = keys.get(0);
 
-        // It's cleaner to use the query timestamp below, but it's in seconds while the conditions expects microseconds, so just
-        // put it back in millis (we don't really lose precision because the ultimate consumer, Column.isLive, re-divide it).
-        CQL3CasConditions conditions = new CQL3CasConditions(cfm, queryState.getTimestamp() * 1000);
+        CQL3CasConditions conditions = new CQL3CasConditions(cfm, queryState.getTimestamp());
         Composite prefix = createClusteringPrefix(variables);
         ColumnFamily updates = ArrayBackedSortedColumns.factory.create(cfm);
         addUpdatesAndConditions(key, prefix, updates, conditions, variables, getTimestamp(queryState.getTimestamp(), variables));
