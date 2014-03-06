@@ -94,6 +94,6 @@ public class SimpleSparseCellNameType extends AbstractSimpleCellNameType
 
     public CQL3Row.Builder CQL3RowBuilder(long now)
     {
-        return makeSparseCQL3RowBuilder(now);
+        return makeSparseCQL3RowBuilder(this, now);
     }
 }

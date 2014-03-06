@@ -678,6 +678,50 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     }
 
     @Test
+    public void testCassandra6778() throws CharacterCodingException
+    {
+        String cfname = "StandardInteger1";
+        Keyspace keyspace = Keyspace.open("Keyspace1");
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
+
+        // insert two columns that represent the same integer but have different binary forms (the
+        // second one is padded with extra zeros)
+        Mutation rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("k1"));
+        CellName column1 = cellname(ByteBuffer.wrap(new byte[]{1}));
+        rm.add(cfname, column1, ByteBufferUtil.bytes("data1"), 1);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("k1"));
+        CellName column2 = cellname(ByteBuffer.wrap(new byte[]{0, 0, 1}));
+        rm.add(cfname, column2, ByteBufferUtil.bytes("data2"), 2);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        // fetch by the first column name; we should get the second version of the column value
+        SliceByNamesReadCommand cmd = new SliceByNamesReadCommand(
+            "Keyspace1", ByteBufferUtil.bytes("k1"), cfname, System.currentTimeMillis(),
+            new NamesQueryFilter(FBUtilities.singleton(column1, cfs.getComparator())));
+
+        ColumnFamily cf = cmd.getRow(keyspace).cf;
+        assertEquals(1, cf.getColumnCount());
+        Cell cell = cf.getColumn(column1);
+        assertEquals("data2", ByteBufferUtil.string(cell.value()));
+        assertEquals(column2, cell.name());
+
+        // fetch by the second column name; we should get the second version of the column value
+        cmd = new SliceByNamesReadCommand(
+            "Keyspace1", ByteBufferUtil.bytes("k1"), cfname, System.currentTimeMillis(),
+            new NamesQueryFilter(FBUtilities.singleton(column2, cfs.getComparator())));
+
+        cf = cmd.getRow(keyspace).cf;
+        assertEquals(1, cf.getColumnCount());
+        cell = cf.getColumn(column2);
+        assertEquals("data2", ByteBufferUtil.string(cell.value()));
+        assertEquals(column2, cell.name());
+    }
+
+    @Test
     public void testInclusiveBounds()
     {
         ColumnFamilyStore cfs = insertKey1Key2();

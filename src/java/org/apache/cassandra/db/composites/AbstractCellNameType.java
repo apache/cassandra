@@ -294,19 +294,20 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
         }
     }
 
-    protected static CQL3Row.Builder makeSparseCQL3RowBuilder(final long now)
+    protected static CQL3Row.Builder makeSparseCQL3RowBuilder(final CellNameType type, final long now)
     {
         return new CQL3Row.Builder()
         {
             public CQL3Row.RowIterator group(Iterator<Cell> cells)
             {
-                return new SparseRowIterator(cells, now);
+                return new SparseRowIterator(type, cells, now);
             }
         };
     }
 
     private static class SparseRowIterator extends AbstractIterator<CQL3Row> implements CQL3Row.RowIterator
     {
+        private final CellNameType type;
         private final Iterator<Cell> cells;
         private final long now;
         private final CQL3Row staticRow;
@@ -315,8 +316,9 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
         private CellName previous;
         private CQL3RowOfSparse currentRow;
 
-        public SparseRowIterator(Iterator<Cell> cells, long now)
+        public SparseRowIterator(CellNameType type, Iterator<Cell> cells, long now)
         {
+            this.type = type;
             this.cells = cells;
             this.now = now;
             this.staticRow = hasNextCell() && nextCell.name().isStatic()
@@ -352,7 +354,7 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
             {
                 CQL3Row toReturn = null;
                 CellName current = nextCell.name();
-                if (currentRow == null || !current.isSameCQL3RowAs(previous))
+                if (currentRow == null || !current.isSameCQL3RowAs(type, previous))
                 {
                     toReturn = currentRow;
                     currentRow = new CQL3RowOfSparse(current);

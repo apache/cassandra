@@ -65,7 +65,7 @@ public interface CellName extends Composite
     /**
      * Whether this cell is part of the same CQL3 row as the other cell.
      */
-    public boolean isSameCQL3RowAs(CellName other);
+    public boolean isSameCQL3RowAs(CellNameType type, CellName other);
 
     // If cellnames were sharing some prefix components, this will break it, so
     // we might want to try to do better.

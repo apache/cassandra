@@ -53,10 +53,10 @@ public class SimpleDenseCellName extends SimpleComposite implements CellName
         return false;
     }
 
-    public boolean isSameCQL3RowAs(CellName other)
+    public boolean isSameCQL3RowAs(CellNameType type, CellName other)
     {
         // Dense cell imply one cell by CQL row so no other cell will be the same row.
-        return equals(other);
+        return type.compare(this, other) == 0;
     }
 
     @Override

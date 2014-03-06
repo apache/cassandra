@@ -80,14 +80,14 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         return false;
     }
 
-    public boolean isSameCQL3RowAs(CellName other)
+    public boolean isSameCQL3RowAs(CellNameType type, CellName other)
     {
         if (clusteringSize() != other.clusteringSize() || other.isStatic() != isStatic())
             return false;
 
         for (int i = 0; i < clusteringSize(); i++)
         {
-            if (!elements[i].equals(other.get(i)))
+            if (type.subtype(i).compare(elements[i], other.get(i)) != 0)
                 return false;
         }
         return true;
