@@ -44,7 +44,8 @@ public class CQL3CasConditions implements CASConditions
     public CQL3CasConditions(CFMetaData cfm, long now)
     {
         this.cfm = cfm;
-        this.now = now;
+        // We will use now for Cell.isLive() which expects milliseconds but the argument is in microseconds.
+        this.now = now / 1000;
         this.conditions = new TreeMap<>(cfm.comparator);
     }
 
