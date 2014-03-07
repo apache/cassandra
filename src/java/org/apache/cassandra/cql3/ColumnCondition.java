@@ -92,7 +92,12 @@ public class ColumnCondition
         if (column.type instanceof CollectionType)
             return collectionAppliesTo((CollectionType)column.type, rowPrefix, current, now);
 
-        Column c = current.getColumn(copyOrUpdatePrefix(current.metadata(), rowPrefix).add(column.name.key).build());
+        ColumnNameBuilder prefix = copyOrUpdatePrefix(current.metadata(), rowPrefix);
+        ByteBuffer columnName = column.kind == CFDefinition.Name.Kind.VALUE_ALIAS
+                              ? prefix.build()
+                              : prefix.add(column.name.key).build();
+
+        Column c = current.getColumn(columnName);
         ByteBuffer v = value.bindAndGet(variables);
         return v == null
              ? c == null || !c.isLive(now)

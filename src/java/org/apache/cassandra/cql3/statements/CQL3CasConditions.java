@@ -82,7 +82,8 @@ public class CQL3CasConditions implements CASConditions
         for (Map.Entry<ByteBuffer, RowCondition> entry : conditions.entrySet())
             slices[i++] = new ColumnSlice(entry.getKey(), entry.getValue().rowPrefix.buildAsEndOfRange());
 
-        return new SliceQueryFilter(slices, false, slices.length, cfm.clusteringKeyColumns().size());
+        int toGroup = cfm.getCfDef().isCompact ? -1 : cfm.clusteringKeyColumns().size();
+        return new SliceQueryFilter(slices, false, slices.length, toGroup);
     }
 
     public boolean appliesTo(ColumnFamily current) throws InvalidRequestException
