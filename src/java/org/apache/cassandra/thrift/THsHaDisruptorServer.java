@@ -80,7 +80,8 @@ public class THsHaDisruptorServer extends TDisruptorServer
 
             com.thinkaurelius.thrift.util.TBinaryProtocol.Factory protocolFactory = new com.thinkaurelius.thrift.util.TBinaryProtocol.Factory(true, true);
 
-            TDisruptorServer.Args serverArgs = new TDisruptorServer.Args(serverTransport).inputTransportFactory(args.inTransportFactory)
+            TDisruptorServer.Args serverArgs = new TDisruptorServer.Args(serverTransport).useHeapBasedAllocation(true)
+                                                                                         .inputTransportFactory(args.inTransportFactory)
                                                                                          .outputTransportFactory(args.outTransportFactory)
                                                                                          .inputProtocolFactory(protocolFactory)
                                                                                          .outputProtocolFactory(protocolFactory)
