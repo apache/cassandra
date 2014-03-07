@@ -82,7 +82,8 @@ public class CQL3CasConditions implements CASConditions
         for (Composite prefix : conditions.keySet())
             slices[i++] = prefix.slice();
 
-        return new SliceQueryFilter(slices, false, slices.length, cfm.clusteringColumns().size());
+        int toGroup = cfm.comparator.isDense() ? -1 : cfm.clusteringColumns().size();
+        return new SliceQueryFilter(slices, false, slices.length, toGroup);
     }
 
     public boolean appliesTo(ColumnFamily current) throws InvalidRequestException
