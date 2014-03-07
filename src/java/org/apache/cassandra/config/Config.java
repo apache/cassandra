@@ -104,6 +104,7 @@ public class Config
 
     public Boolean start_rpc = true;
     public String rpc_address;
+    public String broadcast_rpc_address;
     public Integer rpc_port = 9160;
     public Integer rpc_listen_backlog = 50;
     public String rpc_server_type = "sync";

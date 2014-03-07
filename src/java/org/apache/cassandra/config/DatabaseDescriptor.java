@@ -68,6 +68,7 @@ public class DatabaseDescriptor
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost
     private static InetAddress broadcastAddress;
     private static InetAddress rpcAddress;
+    private static InetAddress broadcastRpcAddress;
     private static SeedProvider seedProvider;
     private static IInternodeAuthenticator internodeAuthenticator;
 
@@ -323,6 +324,39 @@ public class DatabaseDescriptor
         else
         {
             rpcAddress = FBUtilities.getLocalAddress();
+        }
+
+        /* RPC address to broadcast */
+        if (conf.broadcast_rpc_address != null)
+        {
+            if (conf.broadcast_rpc_address.equals("0.0.0.0"))
+                throw new ConfigurationException("broadcast_rpc_address cannot be 0.0.0.0");
+
+            try
+            {
+                broadcastRpcAddress = InetAddress.getByName(conf.broadcast_rpc_address);
+            }
+            catch (UnknownHostException e)
+            {
+                throw new ConfigurationException("Unkown broadcast_rpc_address '" + conf.broadcast_rpc_address + "'");
+            }
+        }
+        else
+        {
+            InetAddress bindAll;
+            try
+            {
+                bindAll = InetAddress.getByAddress(new byte[4]);
+            }
+            catch (UnknownHostException e)
+            {
+                throw new RuntimeException("Host 0.0.0.0 is somehow unknown");
+            }
+
+            if (rpcAddress.equals(bindAll))
+                throw new ConfigurationException("If rpc_address is set to 0.0.0.0, you must set broadcast_rpc_address " +
+                                                 "to a value other than 0.0.0.0");
+            broadcastRpcAddress = rpcAddress;
         }
 
         if (conf.thrift_framed_transport_size_in_mb <= 0)
@@ -1026,6 +1060,16 @@ public class DatabaseDescriptor
         return rpcAddress;
     }
 
+    public static void setBroadcastRpcAddress(InetAddress broadcastRPCAddr)
+    {
+        broadcastRpcAddress = broadcastRPCAddr;
+    }
+
+    public static InetAddress getBroadcastRpcAddress()
+    {
+        return broadcastRpcAddress;
+    }
+
     public static String getRpcServerType()
     {
         return conf.rpc_server_type;
@@ -1069,11 +1113,6 @@ public class DatabaseDescriptor
     public static boolean startNativeTransport()
     {
         return conf.start_native_transport;
-    }
-
-    public static InetAddress getNativeTransportAddress()
-    {
-        return getRpcAddress();
     }
 
     public static int getNativeTransportPort()
