@@ -53,6 +53,7 @@ Merged from 2.0:
    (CASSANDRA-6733)
  * FBUtilities.singleton() should use the CF comparator (CASSANDRA-6778)
  * Fix CQLSStableWriter.addRow(Map<String, Object>) (CASSANDRA-6526)
+ * Fix HSHA server introducing corrupt data (CASSANDRA-6285)
 
 
 2.1.0-beta1
