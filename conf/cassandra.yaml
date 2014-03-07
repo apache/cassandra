@@ -373,17 +373,22 @@ native_transport_port: 9042
 start_rpc: true
 
 # The address to bind the Thrift RPC service and native transport
-# server -- clients connect here.
+# server to.
 #
-# Leaving this blank has the same effect it does for ListenAddress,
+# Leaving this blank has the same effect as on listen_address
 # (i.e. it will be based on the configured hostname of the node).
 #
-# Note that unlike ListenAddress above, it is allowed to specify 0.0.0.0
-# here if you want to listen on all interfaces, but that will break clients 
-# that rely on node auto-discovery.
+# Note that unlike listen_address, you can specify 0.0.0.0, but you must also
+# set broadcast_rpc_address to a value other than 0.0.0.0.
 rpc_address: localhost
 # port for Thrift to listen for clients on
 rpc_port: 9160
+
+# RPC address to broadcast to drivers and other Cassandra nodes. This cannot
+# be set to 0.0.0.0. If left blank, this will be set to the value of
+# rpc_address. If rpc_address is set to 0.0.0.0, broadcast_rpc_address must
+# be set.
+# broadcast_rpc_address: 1.2.3.4
 
 # enable or disable keepalive on rpc connections
 rpc_keepalive: true

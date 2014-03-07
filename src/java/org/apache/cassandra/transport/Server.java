@@ -331,6 +331,8 @@ public class Server implements CassandraDaemon.Server
                 InetAddress rpcAddress = InetAddress.getByName(StorageService.instance.getRpcaddress(endpoint));
                 // If rpcAddress == 0.0.0.0 (i.e. bound on all addresses), returning that is not very helpful,
                 // so return the internal address (which is ok since "we're bound on all addresses").
+                // Note that after all nodes are running a version that includes CASSANDRA-5899, rpcAddress should
+                // never be 0.0.0.0, so this can eventually be removed.
                 return rpcAddress.equals(bindAll) ? endpoint : rpcAddress;
             }
             catch (UnknownHostException e)
