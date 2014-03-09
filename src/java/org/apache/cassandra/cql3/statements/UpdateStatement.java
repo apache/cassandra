@@ -71,7 +71,7 @@ public class UpdateStatement extends ModificationStatement
         if (cfm.comparator.isDense())
         {
             if (prefix.isEmpty())
-                throw new InvalidRequestException(String.format("Missing PRIMARY KEY part %s", cfm.clusteringColumns().iterator().next()));
+                throw new InvalidRequestException(String.format("Missing PRIMARY KEY part %s", cfm.clusteringColumns().get(0)));
 
             // An empty name for the compact value is what we use to recognize the case where there is not column
             // outside the PK, see CreateStatement.
