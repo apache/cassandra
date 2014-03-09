@@ -506,41 +506,49 @@ public class NodeTool
             else
                 System.out.println();
 
-            for (Map.Entry<InetAddress, Float> entry : filteredOwnerships.entrySet())
+            for (Map.Entry<String, String> entry : endpointsToTokens.entries())
             {
-                String endpoint = entry.getKey().getHostAddress();
-                for (String token : endpointsToTokens.get(endpoint))
+                String endpoint = entry.getKey();
+                String rack;
+                try
                 {
-                    String rack;
-                    try
-                    {
-                        rack = probe.getEndpointSnitchInfoProxy().getRack(endpoint);
-                    } catch (UnknownHostException e)
-                    {
-                        rack = "Unknown";
-                    }
-
-                    String status = liveNodes.contains(endpoint)
-                                    ? "Up"
-                                    : deadNodes.contains(endpoint)
-                                      ? "Down"
-                                      : "?";
-
-                    String state = "Normal";
-
-                    if (joiningNodes.contains(endpoint))
-                        state = "Joining";
-                    else if (leavingNodes.contains(endpoint))
-                        state = "Leaving";
-                    else if (movingNodes.contains(endpoint))
-                        state = "Moving";
-
-                    String load = loadMap.containsKey(endpoint)
-                                  ? loadMap.get(endpoint)
-                                  : "?";
-                    String owns = new DecimalFormat("##0.00%").format(entry.getValue());
-                    System.out.printf(format, endpoint, rack, status, state, load, owns, token);
+                    rack = probe.getEndpointSnitchInfoProxy().getRack(endpoint);
                 }
+                catch (UnknownHostException e)
+                {
+                    rack = "Unknown";
+                }
+
+                String status = liveNodes.contains(endpoint)
+                        ? "Up"
+                        : deadNodes.contains(endpoint)
+                                ? "Down"
+                                : "?";
+
+                String state = "Normal";
+
+                if (joiningNodes.contains(endpoint))
+                    state = "Joining";
+                else if (leavingNodes.contains(endpoint))
+                    state = "Leaving";
+                else if (movingNodes.contains(endpoint))
+                    state = "Moving";
+
+                String load = loadMap.containsKey(endpoint)
+                        ? loadMap.get(endpoint)
+                        : "?";
+                String owns;
+                try
+                {
+                    InetAddress ep = InetAddress.getByName(endpoint);
+                    Float percent = filteredOwnerships.get(ep);
+                    owns = (percent != null) ? new DecimalFormat("##0.00%").format(percent) : "?";
+                }
+                catch (UnknownHostException e)
+                {
+                    throw new RuntimeException(e);
+                }
+                System.out.printf(format, endpoint, rack, status, state, load, owns, entry.getValue());
             }
             System.out.println();
         }
