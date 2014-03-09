@@ -174,7 +174,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
         newRack = newRack.trim();
         final boolean newPreferLocal = Boolean.parseBoolean(properties.get("prefer_local", "false"));
 
-        if (myDC != newDc || myRack != newRack || (preferLocal != newPreferLocal))
+        if (!newDc.equals(myDC) || !newRack.equals(myRack) || (preferLocal != newPreferLocal))
         {
             myDC = newDc;
             myRack = newRack;
