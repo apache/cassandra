@@ -2581,9 +2581,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 Map<Range, Set<InetAddress>> rangeToNeighbors = new HashMap<>();
                 for (Range<Token> range : ranges)
                 {
-                    Set<InetAddress> neighbors = ActiveRepairService.getNeighbors(keyspace, range, dataCenters, hosts);
-                    rangeToNeighbors.put(range, neighbors);
-                    allNeighbors.addAll(neighbors);
+                    try
+                    {
+                        Set<InetAddress> neighbors = ActiveRepairService.getNeighbors(keyspace, range, dataCenters, hosts);
+                        rangeToNeighbors.put(range, neighbors);
+                        allNeighbors.addAll(neighbors);
+                    }
+                    catch (IllegalArgumentException e)
+                    {
+                        logger.error("Repair failed:", e);
+                        sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
+                        return;
+                    }
                 }
 
                 List<ColumnFamilyStore> columnFamilyStores = new ArrayList<>();
@@ -2597,17 +2606,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 List<RepairFuture> futures = new ArrayList<>(ranges.size());
                 for (Range<Token> range : ranges)
                 {
-                    RepairFuture future;
-                    try
-                    {
-                        future = forceKeyspaceRepair(parentSession, range, keyspace, isSequential, rangeToNeighbors.get(range), columnFamilies);
-                    }
-                    catch (IllegalArgumentException e)
-                    {
-                        logger.error("Repair session failed:", e);
-                        sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.SESSION_FAILED.ordinal()});
-                        continue;
-                    }
+                    RepairFuture future = forceKeyspaceRepair(parentSession, range, keyspace, isSequential, rangeToNeighbors.get(range), columnFamilies);
                     if (future == null)
                         continue;
                     futures.add(future);
