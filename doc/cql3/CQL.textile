@@ -217,9 +217,6 @@ bc(syntax)..
 <column-definition> ::= <identifier> <type> ( PRIMARY KEY )?
                       | PRIMARY KEY '(' <partition-key> ( ',' <identifier> )* ')'
 
-<partition-key> ::= <partition-key>
-                  | '(' <partition-key> ( ',' <identifier> )* ')'
-
 <partition-key> ::= <identifier>
                   | '(' <identifier> (',' <identifier> )* ')'
 
