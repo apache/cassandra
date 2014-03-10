@@ -222,9 +222,6 @@ bc(syntax)..
 <column-definition> ::= <identifier> <type> ( STATIC )? ( PRIMARY KEY )?
                       | PRIMARY KEY '(' <partition-key> ( ',' <identifier> )* ')'
 
-<partition-key> ::= <partition-key>
-                  | '(' <partition-key> ( ',' <identifier> )* ')'
-
 <partition-key> ::= <identifier>
                   | '(' <identifier> (',' <identifier> )* ')'
 
