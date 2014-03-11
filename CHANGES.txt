@@ -1,5 +1,6 @@
 2.0.7
  * Fix saving triggers to schema (CASSANDRA-6789)
+ * Fix trigger mutations when base mutation list is immutable (CASSANDRA-6790)
 
 
 2.0.6
