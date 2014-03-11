@@ -43,6 +43,7 @@ public class SettingsSchema implements Serializable
     private final boolean replicateOnWrite;
     private final String compression;
     private final String compactionStrategy;
+    private final Map<String, String> compactionStrategyOptions;
     public final String keyspace;
     public final String columnFamily;
 
@@ -56,24 +57,10 @@ public class SettingsSchema implements Serializable
         else
             indexType = null;
         compression = options.compression.value();
-        compactionStrategy = options.compactionStrategy.value();
-        if (compactionStrategy != null)
-        {
-            try
-            {
-                CFMetaData.createCompactionStrategy(compactionStrategy);
-            } catch (ConfigurationException e)
-            {
-                throw new IllegalArgumentException("Invalid compaction strategy: " + compactionStrategy);
-            }
-        }
+        compactionStrategy = options.compaction.getStrategy();
+        compactionStrategyOptions = options.compaction.getOptions();
         keyspace = options.keyspace.value();
         columnFamily = options.columnFamily.value();
-    }
-
-    private void createKeyspacesCql3(StressSettings settings)
-    {
-//        settings.getJavaDriverClient().execute("create table Standard1")
     }
 
     public void createKeySpaces(StressSettings settings)
@@ -152,9 +139,16 @@ public class SettingsSchema implements Serializable
             superCfDef.setCompaction_strategy(compactionStrategy);
             counterCfDef.setCompaction_strategy(compactionStrategy);
             counterSuperCfDef.setCompaction_strategy(compactionStrategy);
+            if (!compactionStrategyOptions.isEmpty())
+            {
+                standardCfDef.setCompaction_strategy_options(compactionStrategyOptions);
+                superCfDef.setCompaction_strategy_options(compactionStrategyOptions);
+                counterCfDef.setCompaction_strategy_options(compactionStrategyOptions);
+                counterSuperCfDef.setCompaction_strategy_options(compactionStrategyOptions);
+            }
         }
 
-        ksdef.setCf_defs(new ArrayList<CfDef>(Arrays.asList(standardCfDef, superCfDef, counterCfDef, counterSuperCfDef)));
+        ksdef.setCf_defs(new ArrayList<>(Arrays.asList(standardCfDef, superCfDef, counterCfDef, counterSuperCfDef)));
 
         Cassandra.Client client = settings.getRawThriftClient(false);
 
@@ -205,17 +199,17 @@ public class SettingsSchema implements Serializable
     private static final class Options extends GroupedOptions
     {
         final OptionReplication replication = new OptionReplication();
+        final OptionCompaction compaction = new OptionCompaction();
         final OptionSimple index = new OptionSimple("index=", "KEYS|CUSTOM|COMPOSITES", null, "Type of index to create on needed column families (KEYS)", false);
         final OptionSimple keyspace = new OptionSimple("keyspace=", ".*", "Keyspace1", "The keyspace name to use", false);
         final OptionSimple columnFamily = new OptionSimple("columnfamily=", ".*", "Standard1", "The column family name to use", false);
-        final OptionSimple compactionStrategy = new OptionSimple("compaction=", ".*", null, "The compaction strategy to use", false);
         final OptionSimple noReplicateOnWrite = new OptionSimple("no-replicate-on-write", "", null, "Set replicate_on_write to false for counters. Only counter add with CL=ONE will work", false);
         final OptionSimple compression = new OptionSimple("compression=", ".*", null, "Specify the compression to use for sstable, default:no compression", false);
 
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(replication, index, keyspace, columnFamily, compactionStrategy, noReplicateOnWrite, compression);
+            return Arrays.asList(replication, index, keyspace, columnFamily, compaction, noReplicateOnWrite, compression);
         }
     }
 

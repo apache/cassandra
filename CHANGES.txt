@@ -4,6 +4,7 @@
 
 
 2.1.0-beta2
+ * Allow cassandra-stress to set compaction strategy options (CASSANDRA-6451)
  * Add broadcast_rpc_address option to cassandra.yaml (CASSANDRA-5899)
  * Auto reload GossipingPropertyFileSnitch config (CASSANDRA-5897)
  * Fix overflow of memtable_total_space_in_mb (CASSANDRA-6573)
