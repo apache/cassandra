@@ -1532,6 +1532,9 @@ public final class CFMetaData
     {
         toSchemaNoColumnsNoTriggers(rm, timestamp);
 
+        for (TriggerDefinition td : triggers.values())
+            td.toSchema(rm, cfName, timestamp);
+
         for (ColumnDefinition cd : column_metadata.values())
             cd.toSchema(rm, cfName, getColumnDefinitionComparator(cd), timestamp);
     }
