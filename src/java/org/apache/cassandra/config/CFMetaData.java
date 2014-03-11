@@ -1704,6 +1704,9 @@ public final class CFMetaData
     {
         toSchemaNoColumnsNoTriggers(mutation, timestamp);
 
+        for (TriggerDefinition td : triggers.values())
+            td.toSchema(mutation, cfName, timestamp);
+
         for (ColumnDefinition cd : allColumns())
             cd.toSchema(mutation, timestamp);
     }

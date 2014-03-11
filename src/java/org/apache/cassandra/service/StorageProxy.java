@@ -511,13 +511,13 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    public static void mutateWithTriggers(Collection<? extends IMutation> mutations, ConsistencyLevel consistencyLevel, boolean mutateAtomically) throws WriteTimeoutException, UnavailableException,
-            OverloadedException, InvalidRequestException
+    public static void mutateWithTriggers(Collection<? extends IMutation> mutations, ConsistencyLevel consistencyLevel, boolean mutateAtomically)
+    throws WriteTimeoutException, UnavailableException, OverloadedException, InvalidRequestException
     {
         Collection<Mutation> tmutations = TriggerExecutor.instance.execute(mutations);
         if (mutateAtomically || tmutations != null)
         {
-            Collection<Mutation> allMutations = (Collection<Mutation>) mutations;
+            Collection<Mutation> allMutations = new ArrayList<>((Collection<Mutation>) mutations);
             if (tmutations != null)
                 allMutations.addAll(tmutations);
             StorageProxy.mutateAtomically(allMutations, consistencyLevel);
