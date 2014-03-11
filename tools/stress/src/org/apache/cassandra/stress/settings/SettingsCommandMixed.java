@@ -111,7 +111,7 @@ public class SettingsCommandMixed extends SettingsCommandMulti
 
         public Probabilities()
         {
-            super("ratio", "Specify the ratios for operations to perform; e.g. (reads=2,writes=1) will perform 2 reads for each write");
+            super("ratio", "Specify the ratios for operations to perform; e.g. (reads=2,writes=1) will perform 2 reads for each write", false);
             OptionSimple[] ratios = new OptionSimple[Command.values().length];
             List<OptionSimple> grouping = new ArrayList<>();
             for (Command command : Command.values())
