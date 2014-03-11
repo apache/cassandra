@@ -29,8 +29,10 @@ import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Maps;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.cli.*;
@@ -38,7 +40,6 @@ import org.yaml.snakeyaml.Loader;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
-
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.Table;
@@ -268,16 +269,7 @@ public class NodeCmd
         try
         {
             outs.println();
-            Map<String, Map<InetAddress, Float>> perDcOwnerships = Maps.newLinkedHashMap();
-            // get the different datasets and map to tokens
-            for (Map.Entry<InetAddress, Float> ownership : ownerships.entrySet())
-            {
-                String dc = probe.getEndpointSnitchInfoProxy().getDatacenter(ownership.getKey().getHostAddress());
-                if (!perDcOwnerships.containsKey(dc))
-                    perDcOwnerships.put(dc, new LinkedHashMap<InetAddress, Float>());
-                perDcOwnerships.get(dc).put(ownership.getKey(), ownership.getValue());
-            }
-            for (Map.Entry<String, Map<InetAddress, Float>> entry : perDcOwnerships.entrySet())
+            for (Entry<String, SetHostStat> entry : getOwnershipByDc(false, tokensToEndpoints, ownerships).entrySet())
                 printDc(outs, format, entry.getKey(), endpointsToTokens, keyspaceSelected, entry.getValue());
         }
         catch (UnknownHostException e)
@@ -293,7 +285,7 @@ public class NodeCmd
     }
 
     private void printDc(PrintStream outs, String format, String dc, LinkedHashMultimap<String, String> endpointsToTokens,
-            boolean keyspaceSelected, Map<InetAddress, Float> filteredOwnerships)
+                         boolean keyspaceSelected, SetHostStat hoststats)
     {
         Collection<String> liveNodes = probe.getLiveNodes();
         Collection<String> deadNodes = probe.getUnreachableNodes();
@@ -310,27 +302,27 @@ public class NodeCmd
         float totalReplicas = 0f;
         String lastToken = "";
 
-        for (Map.Entry<InetAddress, Float> entry : filteredOwnerships.entrySet())
+        for (HostStat stat : hoststats)
         {
-            tokens.addAll(endpointsToTokens.get(entry.getKey().getHostAddress()));
+            tokens.addAll(endpointsToTokens.get(stat.ip));
             lastToken = tokens.get(tokens.size() - 1);
-            totalReplicas += entry.getValue();
+            if (stat.owns != null)
+                totalReplicas += stat.owns;
         }
-
 
         if (keyspaceSelected)
             outs.print("Replicas: " + (int) totalReplicas + "\n\n");
 
         outs.printf(format, "Address", "Rack", "Status", "State", "Load", "Owns", "Token");
 
-        if (filteredOwnerships.size() > 1)
+        if (hoststats.size() > 1)
             outs.printf(format, "", "", "", "", "", "", lastToken);
         else
             outs.println();
 
-        for (Map.Entry<String, String> entry : endpointsToTokens.entries())
+        for (HostStat stat : hoststats)
         {
-            String endpoint = entry.getKey();
+            String endpoint = stat.ip;
             String rack;
             try
             {
@@ -359,18 +351,8 @@ public class NodeCmd
             String load = loadMap.containsKey(endpoint)
                     ? loadMap.get(endpoint)
                     : "?";
-            String owns;
-            try
-            {
-                InetAddress ep = InetAddress.getByName(endpoint);
-                Float percent = filteredOwnerships.get(ep);
-                owns = (percent != null) ? new DecimalFormat("##0.00%").format(percent) : "?";
-            }
-            catch (UnknownHostException e)
-            {
-                throw new RuntimeException(e);
-            }
-            outs.printf(format, endpoint, rack, status, state, load, owns, entry.getValue());
+            String owns = stat.owns != null ? new DecimalFormat("##0.00%").format(stat.owns) : "?";
+            outs.printf(format, endpoint, rack, status, state, load, owns, stat.token);
         }
         outs.println();
     }
@@ -407,63 +389,6 @@ public class NodeCmd
             outs.println("|/ State=Normal/Leaving/Joining/Moving");
         }
 
-        class SetHostStat implements Iterable<HostStat> {
-            final List<HostStat> hostStats = new ArrayList<HostStat>();
-
-            public SetHostStat() {}
-
-            public SetHostStat(Map<InetAddress, Float> ownerships) {
-                for (Map.Entry<InetAddress, Float> entry : ownerships.entrySet()) {
-                    hostStats.add(new HostStat(entry));
-                }
-            }
-
-            @Override
-            public Iterator<HostStat> iterator() {
-                return hostStats.iterator();
-            }
-
-            public void add(HostStat entry) {
-                hostStats.add(entry);
-            }
-        }
-
-        class HostStat {
-            public final String ip;
-            public final String dns;
-            public final Float owns;
-
-            public HostStat(Map.Entry<InetAddress, Float> ownership) {
-                this.ip = ownership.getKey().getHostAddress();
-                this.dns = ownership.getKey().getHostName();
-                this.owns = ownership.getValue();
-            }
-
-            public String ipOrDns() {
-                if (resolveIp) {
-                    return dns;
-                }
-                return ip;
-            }
-        }
-
-        private Map<String, SetHostStat> getOwnershipByDc(SetHostStat ownerships)
-        throws UnknownHostException
-        {
-            Map<String, SetHostStat> ownershipByDc = Maps.newLinkedHashMap();
-            EndpointSnitchInfoMBean epSnitchInfo = probe.getEndpointSnitchInfoProxy();
-
-            for (HostStat ownership : ownerships)
-            {
-                String dc = epSnitchInfo.getDatacenter(ownership.ip);
-                if (!ownershipByDc.containsKey(dc))
-                    ownershipByDc.put(dc, new SetHostStat());
-                ownershipByDc.get(dc).add(ownership);
-            }
-
-            return ownershipByDc;
-        }
-
         private String getFormat(boolean hasEffectiveOwns, boolean isTokenPerNode)
         {
             if (format == null)
@@ -486,12 +411,10 @@ public class NodeCmd
             return format;
         }
 
-        private void printNode(HostStat hostStat,
-                boolean hasEffectiveOwns, boolean isTokenPerNode) throws UnknownHostException
+        private void printNode(String endpoint, Float owns, List<String> tokens, boolean hasEffectiveOwns, boolean isTokenPerNode) throws UnknownHostException
         {
             String status, state, load, strOwns, hostID, rack, fmt;
             fmt = getFormat(hasEffectiveOwns, isTokenPerNode);
-            String endpoint = hostStat.ip;
             if      (liveNodes.contains(endpoint))        status = "U";
             else if (unreachableNodes.contains(endpoint)) status = "D";
             else                                          status = "?";
@@ -501,18 +424,17 @@ public class NodeCmd
             else                                          state = "N";
 
             load = loadMap.containsKey(endpoint) ? loadMap.get(endpoint) : "?";
-            strOwns = new DecimalFormat("##0.0%").format(hostStat.owns);
+            strOwns = owns != null ? new DecimalFormat("##0.0%").format(owns) : "?";
             hostID = hostIDMap.get(endpoint);
             rack = epSnitchInfo.getRack(endpoint);
 
             if (isTokenPerNode)
             {
-                outs.printf(fmt, status, state, hostStat.ipOrDns(), load, strOwns, hostID, probe.getTokens(endpoint).get(0), rack);
+                outs.printf(fmt, status, state, endpoint, load, strOwns, hostID, tokens.get(0), rack);
             }
             else
             {
-                int tokens = probe.getTokens(endpoint).size();
-                outs.printf(fmt, status, state, hostStat.ipOrDns(), load, tokens, strOwns, hostID, rack);
+                outs.printf(fmt, status, state, endpoint, load, tokens.size(), strOwns, hostID, rack);
             }
         }
 
@@ -539,24 +461,24 @@ public class NodeCmd
 
         void print() throws UnknownHostException
         {
-            SetHostStat ownerships;
+            Map<InetAddress, Float> ownerships;
             boolean hasEffectiveOwns = false, isTokenPerNode = true;
 
             try
             {
-                ownerships = new SetHostStat(probe.effectiveOwnership(kSpace));
+                ownerships = probe.effectiveOwnership(kSpace);
                 hasEffectiveOwns = true;
             }
             catch (IllegalStateException e)
             {
-                ownerships = new SetHostStat(probe.getOwnership());
+                ownerships = probe.getOwnership();
             }
 
             // More tokens then nodes (aka vnodes)?
-            if (new HashSet<String>(tokensToEndpoints.values()).size() < tokensToEndpoints.keySet().size())
+            if (tokensToEndpoints.values().size() < tokensToEndpoints.keySet().size())
                 isTokenPerNode = false;
 
-            Map<String, SetHostStat> dcs = getOwnershipByDc(ownerships);
+            Map<String, SetHostStat> dcs = getOwnershipByDc(resolveIp, tokensToEndpoints, ownerships);
 
             findMaxAddressLength(dcs);
 
@@ -571,10 +493,81 @@ public class NodeCmd
                 printStatusLegend();
                 printNodesHeader(hasEffectiveOwns, isTokenPerNode);
 
+                ArrayListMultimap<String, String> hostToTokens = ArrayListMultimap.create();
+                for (HostStat stat : dc.getValue())
+                    hostToTokens.put(stat.ipOrDns(), stat.token);
+
                 // Nodes
-                for (HostStat entry : dc.getValue())
-                    printNode(entry, hasEffectiveOwns, isTokenPerNode);
+                for (String endpoint : hostToTokens.keySet())
+                {
+                    Float owns = ownerships.get(InetAddress.getByName(endpoint));
+                    List<String> tokens = hostToTokens.get(endpoint);
+                    printNode(endpoint, owns, tokens, hasEffectiveOwns, isTokenPerNode);
+                }
             }
+        }
+    }
+
+    private Map<String, SetHostStat> getOwnershipByDc(boolean resolveIp, Map<String, String> tokenToEndpoint, 
+                                                      Map<InetAddress, Float> ownerships) throws UnknownHostException
+    {
+        Map<String, SetHostStat> ownershipByDc = Maps.newLinkedHashMap();
+        EndpointSnitchInfoMBean epSnitchInfo = probe.getEndpointSnitchInfoProxy();
+
+        for (Entry<String, String> tokenAndEndPoint : tokenToEndpoint.entrySet())
+        {
+            String dc = epSnitchInfo.getDatacenter(tokenAndEndPoint.getValue());
+            if (!ownershipByDc.containsKey(dc))
+                ownershipByDc.put(dc, new SetHostStat(resolveIp));
+            ownershipByDc.get(dc).add(tokenAndEndPoint.getKey(), tokenAndEndPoint.getValue(), ownerships);
+        }
+
+        return ownershipByDc;
+    }
+
+    static class SetHostStat implements Iterable<HostStat> {
+        final List<HostStat> hostStats = new ArrayList<HostStat>();
+        final boolean resolveIp;
+
+        public SetHostStat(boolean resolveIp)
+        {
+            this.resolveIp = resolveIp;
+        }
+
+        public int size()
+        {
+            return hostStats.size();
+        }
+
+        @Override
+        public Iterator<HostStat> iterator() {
+            return hostStats.iterator();
+        }
+
+        public void add(String token, String host, Map<InetAddress, Float> ownerships) throws UnknownHostException {
+            InetAddress endpoint = InetAddress.getByName(host);
+            Float owns = ownerships.get(endpoint);
+            hostStats.add(new HostStat(token, endpoint, resolveIp, owns));
+        }
+    }
+
+    static class HostStat {
+        public final String ip;
+        public final String dns;
+        public final Float owns;
+        public final String token;
+
+        public HostStat(String token, InetAddress endPoint, boolean resolveIp, Float owns) 
+        {
+            this.token = token;
+            this.ip = endPoint.getHostAddress();
+            this.dns = resolveIp ? endPoint.getHostName() : null;
+            this.owns = owns;
+        }
+
+        public String ipOrDns()
+        {
+            return (dns != null) ? dns : ip;
         }
     }
 
