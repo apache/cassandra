@@ -169,7 +169,7 @@ public class TriggersTest extends SchemaLoader
         public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
         {
             ColumnFamily extraUpdate = update.cloneMeShallow(ArrayBackedSortedColumns.factory, false);
-            extraUpdate.addColumn(new Cell(CellNames.compositeDense(bytes("v2")),
+            extraUpdate.addColumn(new Cell(update.metadata().comparator.makeCellName(bytes("v2")),
                                            bytes(999)));
             Mutation mutation = new Mutation(ksName, key);
             mutation.add(extraUpdate);
