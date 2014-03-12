@@ -72,7 +72,7 @@ public class ListType<T> extends CollectionType<List<T>>
         return elements;
     }
 
-    public TypeSerializer<List<T>> getSerializer()
+    public ListSerializer<T> getSerializer()
     {
         return serializer;
     }
@@ -112,17 +112,11 @@ public class ListType<T> extends CollectionType<List<T>>
         sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Collections.<AbstractType<?>>singletonList(elements)));
     }
 
-    public ByteBuffer serialize(List<Cell> cells)
+    public List<ByteBuffer> serializedValues(List<Cell> cells)
     {
-        cells = enforceLimit(cells);
-
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(cells.size());
-        int size = 0;
         for (Cell c : cells)
-        {
             bbs.add(c.value());
-            size += 2 + c.value().remaining();
-        }
-        return pack(bbs, cells.size(), size);
+        return bbs;
     }
 }

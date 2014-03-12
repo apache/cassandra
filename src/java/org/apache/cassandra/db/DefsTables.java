@@ -362,7 +362,7 @@ public class DefsTables
                     dropType(type);
 
                 for (MapDifference.ValueDifference<UserType> tdiff : typesDiff.entriesDiffering().values())
-                    addType(tdiff.rightValue()); // use the most recent value
+                    updateType(tdiff.rightValue()); // use the most recent value
             }
         }
     }
@@ -412,7 +412,7 @@ public class DefsTables
         ksm.userTypes.addType(ut);
 
         if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyUpdateKeyspace(ksm);
+            MigrationManager.instance.notifyCreateUserType(ut);
     }
 
     private static void updateKeyspace(KSMetaData newState)
@@ -442,6 +442,19 @@ public class DefsTables
             keyspace.getColumnFamilyStore(cfm.cfName).reload();
             MigrationManager.instance.notifyUpdateColumnFamily(cfm);
         }
+    }
+
+    private static void updateType(UserType ut)
+    {
+        KSMetaData ksm = Schema.instance.getKSMetaData(ut.keyspace);
+        assert ksm != null;
+
+        logger.info("Updating {}", ut);
+
+        ksm.userTypes.addType(ut);
+
+        if (!StorageService.instance.isClientMode())
+            MigrationManager.instance.notifyUpdateUserType(ut);
     }
 
     private static void dropKeyspace(String ksName)
@@ -515,7 +528,7 @@ public class DefsTables
         ksm.userTypes.removeType(ut);
 
         if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyUpdateKeyspace(ksm);
+            MigrationManager.instance.notifyUpdateUserType(ut);
     }
 
     private static KSMetaData makeNewKeyspaceDefinition(KSMetaData ksm, CFMetaData toExclude)

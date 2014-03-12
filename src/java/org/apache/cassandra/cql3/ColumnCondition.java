@@ -74,21 +74,21 @@ public class ColumnCondition
         value.collectMarkerSpecification(boundNames);
     }
 
-    public ColumnCondition.WithVariables with(List<ByteBuffer> variables)
+    public ColumnCondition.WithOptions with(QueryOptions options)
     {
-        return new WithVariables(variables);
+        return new WithOptions(options);
     }
 
-    public class WithVariables
+    public class WithOptions
     {
-        private final List<ByteBuffer> variables;
+        private final QueryOptions options;
 
-        private WithVariables(List<ByteBuffer> variables)
+        private WithOptions(QueryOptions options)
         {
-            this.variables = variables;
+            this.options = options;
         }
 
-        public boolean equalsTo(WithVariables other) throws InvalidRequestException
+        public boolean equalsTo(WithOptions other) throws InvalidRequestException
         {
             if (!column().equals(other.column()))
                 return false;
@@ -103,11 +103,11 @@ public class ColumnCondition
                                            ? Int32Type.instance
                                            : ((MapType)column.type).keys;
 
-                if (comparator.compare(collectionElement().bindAndGet(variables), other.collectionElement().bindAndGet(variables)) != 0)
+                if (comparator.compare(collectionElement().bindAndGet(options), other.collectionElement().bindAndGet(options)) != 0)
                     return false;
             }
 
-            return value().bindAndGet(variables).equals(other.value().bindAndGet(other.variables));
+            return value().bindAndGet(options).equals(other.value().bindAndGet(other.options));
         }
 
         private ColumnDefinition column()
@@ -127,7 +127,7 @@ public class ColumnCondition
 
         public ByteBuffer getCollectionElementValue() throws InvalidRequestException
         {
-            return collectionElement == null ? null : collectionElement.bindAndGet(variables);
+            return collectionElement == null ? null : collectionElement.bindAndGet(options);
         }
 
         /**
@@ -140,7 +140,7 @@ public class ColumnCondition
 
             assert collectionElement == null;
             Cell c = current.getColumn(current.metadata().comparator.create(rowPrefix, column));
-            ByteBuffer v = value.bindAndGet(variables);
+            ByteBuffer v = value.bindAndGet(options);
             return v == null
                  ? c == null || !c.isLive(now)
                  : c != null && c.isLive(now) && c.value().equals(v);
@@ -148,15 +148,15 @@ public class ColumnCondition
 
         private boolean collectionAppliesTo(CollectionType type, Composite rowPrefix, ColumnFamily current, final long now) throws InvalidRequestException
         {
-            Term.Terminal v = value.bind(variables);
+            Term.Terminal v = value.bind(options);
 
             // For map element access, we won't iterate over the collection, so deal with that first. In other case, we do.
             if (collectionElement != null && type instanceof MapType)
             {
-                ByteBuffer e = collectionElement.bindAndGet(variables);
+                ByteBuffer e = collectionElement.bindAndGet(options);
                 if (e == null)
                     throw new InvalidRequestException("Invalid null value for map access");
-                return mapElementAppliesTo((MapType)type, current, rowPrefix, e, v.get(), now);
+                return mapElementAppliesTo((MapType)type, current, rowPrefix, e, v.get(options), now);
             }
 
             CellName name = current.metadata().comparator.create(rowPrefix, column);
@@ -178,11 +178,11 @@ public class ColumnCondition
             if (collectionElement != null)
             {
                 assert type instanceof ListType;
-                ByteBuffer e = collectionElement.bindAndGet(variables);
+                ByteBuffer e = collectionElement.bindAndGet(options);
                 if (e == null)
                     throw new InvalidRequestException("Invalid null value for list access");
 
-                return listElementAppliesTo((ListType)type, iter, e, v.get());
+                return listElementAppliesTo((ListType)type, iter, e, v.get(options));
             }
 
             switch (type.kind)

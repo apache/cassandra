@@ -54,6 +54,7 @@
  * Preemptive opening of compaction result (CASSANDRA-6916)
  * Multi-threaded scrub/cleanup/upgradesstables (CASSANDRA-5547)
  * Optimize cellname comparison (CASSANDRA-6934)
+ * Native protocol v3 (CASSANDRA-6855)
 Merged from 2.0:
  * Allow overriding cassandra-rackdc.properties file (CASSANDRA-7072)
  * Set JMX RMI port to 7199 (CASSANDRA-7087)

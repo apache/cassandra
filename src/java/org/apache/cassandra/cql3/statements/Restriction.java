@@ -42,7 +42,7 @@ public interface Restriction
     public boolean isContains();
 
     // Not supported by Slice, but it's convenient to have here
-    public List<ByteBuffer> values(List<ByteBuffer> variables) throws InvalidRequestException;
+    public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException;
 
     public static class EQ implements Restriction
     {
@@ -55,9 +55,9 @@ public interface Restriction
             this.onToken = onToken;
         }
 
-        public List<ByteBuffer> values(List<ByteBuffer> variables) throws InvalidRequestException
+        public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
         {
-            return Collections.singletonList(value.bindAndGet(variables));
+            return Collections.singletonList(value.bindAndGet(options));
         }
 
         public boolean isSlice()
@@ -145,11 +145,11 @@ public interface Restriction
                 this.values = values;
             }
 
-            public List<ByteBuffer> values(List<ByteBuffer> variables) throws InvalidRequestException
+            public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
             {
                 List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(values.size());
                 for (Term value : values)
-                    buffers.add(value.bindAndGet(variables));
+                    buffers.add(value.bindAndGet(options));
                 return buffers;
             }
 
@@ -174,9 +174,9 @@ public interface Restriction
                 this.marker = marker;
             }
 
-            public List<ByteBuffer> values(List<ByteBuffer> variables) throws InvalidRequestException
+            public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
             {
-                Lists.Value lval = marker.bind(variables);
+                Lists.Value lval = marker.bind(options);
                 if (lval == null)
                     throw new InvalidRequestException("Invalid null value for IN restriction");
                 return lval.elements;
@@ -234,7 +234,7 @@ public interface Restriction
             return false;
         }
 
-        public List<ByteBuffer> values(List<ByteBuffer> variables) throws InvalidRequestException
+        public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
         {
             throw new UnsupportedOperationException();
         }
@@ -249,9 +249,9 @@ public interface Restriction
             return bounds[b.idx] != null;
         }
 
-        public ByteBuffer bound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
+        public ByteBuffer bound(Bound b, QueryOptions options) throws InvalidRequestException
         {
-            return bounds[b.idx].bindAndGet(variables);
+            return bounds[b.idx].bindAndGet(options);
         }
 
         public boolean isInclusive(Bound b)
@@ -379,25 +379,25 @@ public interface Restriction
             keys.add(t);
         }
 
-        public List<ByteBuffer> values(List<ByteBuffer> variables) throws InvalidRequestException
+        public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
         {
             if (values == null)
                 return Collections.emptyList();
 
             List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(values.size());
             for (Term value : values)
-                buffers.add(value.bindAndGet(variables));
+                buffers.add(value.bindAndGet(options));
             return buffers;
         }
 
-        public List<ByteBuffer> keys(List<ByteBuffer> variables) throws InvalidRequestException
+        public List<ByteBuffer> keys(QueryOptions options) throws InvalidRequestException
         {
             if (keys == null)
                 return Collections.emptyList();
 
             List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(keys.size());
             for (Term value : keys)
-                buffers.add(value.bindAndGet(variables));
+                buffers.add(value.bindAndGet(options));
             return buffers;
         }
 

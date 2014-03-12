@@ -64,6 +64,11 @@ public class UserType extends CompositeType
         return new UserType(keyspace, name, columnNames, columnTypes);
     }
 
+    public String getNameAsString()
+    {
+        return UTF8Type.instance.compose(name);
+    }
+
     @Override
     public final int hashCode()
     {

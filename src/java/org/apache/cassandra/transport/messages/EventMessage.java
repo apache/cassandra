@@ -28,17 +28,17 @@ public class EventMessage extends Message.Response
     {
         public EventMessage decode(ByteBuf body, int version)
         {
-            return new EventMessage(Event.deserialize(body));
+            return new EventMessage(Event.deserialize(body, version));
         }
 
         public void encode(EventMessage msg, ByteBuf dest, int version)
         {
-            msg.event.serialize(dest);
+            msg.event.serialize(dest, version);
         }
 
         public int encodedSize(EventMessage msg, int version)
         {
-            return msg.event.serializedSize();
+            return msg.event.serializedSize(version);
         }
     };
 

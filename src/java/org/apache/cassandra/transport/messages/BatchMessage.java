@@ -28,6 +28,7 @@ import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
+import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
@@ -61,8 +62,11 @@ public class BatchMessage extends Message.Request
                     throw new ProtocolException("Invalid query kind in BATCH messages. Must be 0 or 1 but got " + kind);
                 variables.add(CBUtil.readValueList(body));
             }
-            ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
-            return new BatchMessage(toType(type), queryOrIds, variables, consistency);
+            QueryOptions options = version < 3
+                                 ? QueryOptions.fromPreV3Batch(CBUtil.readConsistencyLevel(body))
+                                 : QueryOptions.codec.decode(body, version);
+
+            return new BatchMessage(toType(type), queryOrIds, variables, options);
         }
 
         public void encode(BatchMessage msg, ByteBuf dest, int version)
@@ -84,7 +88,10 @@ public class BatchMessage extends Message.Request
                 CBUtil.writeValueList(msg.values.get(i), dest);
             }
 
-            CBUtil.writeConsistencyLevel(msg.consistency, dest);
+            if (version < 3)
+                CBUtil.writeConsistencyLevel(msg.options.getConsistency(), dest);
+            else
+                QueryOptions.codec.encode(msg.options, dest, version);
         }
 
         public int encodedSize(BatchMessage msg, int version)
@@ -99,7 +106,9 @@ public class BatchMessage extends Message.Request
 
                 size += CBUtil.sizeOfValueList(msg.values.get(i));
             }
-            size += CBUtil.sizeOfConsistencyLevel(msg.consistency);
+            size += version < 3
+                  ? CBUtil.sizeOfConsistencyLevel(msg.options.getConsistency())
+                  : QueryOptions.codec.encodedSize(msg.options, version);
             return size;
         }
 
@@ -131,15 +140,15 @@ public class BatchMessage extends Message.Request
     public final BatchStatement.Type type;
     public final List<Object> queryOrIdList;
     public final List<List<ByteBuffer>> values;
-    public final ConsistencyLevel consistency;
+    public final QueryOptions options;
 
-    public BatchMessage(BatchStatement.Type type, List<Object> queryOrIdList, List<List<ByteBuffer>> values, ConsistencyLevel consistency)
+    public BatchMessage(BatchStatement.Type type, List<Object> queryOrIdList, List<List<ByteBuffer>> values, QueryOptions options)
     {
         super(Message.Type.BATCH);
         this.type = type;
         this.queryOrIdList = queryOrIdList;
         this.values = values;
-        this.consistency = consistency;
+        this.options = options;
     }
 
     public Message.Response execute(QueryState state)
@@ -161,27 +170,39 @@ public class BatchMessage extends Message.Request
             }
 
             QueryHandler handler = state.getClientState().getCQLQueryHandler();
-            List<ModificationStatement> statements = new ArrayList<ModificationStatement>(queryOrIdList.size());
+            List<ParsedStatement.Prepared> prepared = new ArrayList<>(queryOrIdList.size());
             for (int i = 0; i < queryOrIdList.size(); i++)
             {
                 Object query = queryOrIdList.get(i);
-                CQLStatement statement;
+                ParsedStatement.Prepared p;
                 if (query instanceof String)
                 {
-                    statement = QueryProcessor.parseStatement((String)query, state);
+                    p = QueryProcessor.parseStatement((String)query, state);
                 }
                 else
                 {
-                    statement = handler.getPrepared((MD5Digest)query);
-                    if (statement == null)
+                    p = handler.getPrepared((MD5Digest)query);
+                    if (p == null)
                         throw new PreparedQueryNotFoundException((MD5Digest)query);
                 }
 
                 List<ByteBuffer> queryValues = values.get(i);
-                if (queryValues.size() != statement.getBoundTerms())
+                if (queryValues.size() != p.statement.getBoundTerms())
                     throw new InvalidRequestException(String.format("There were %d markers(?) in CQL but %d bound variables",
-                                                                    statement.getBoundTerms(),
+                                                                    p.statement.getBoundTerms(),
                                                                     queryValues.size()));
+
+                prepared.add(p);
+            }
+
+            BatchQueryOptions batchOptions = BatchQueryOptions.withPerStatementVariables(options, values, queryOrIdList);
+            List<ModificationStatement> statements = new ArrayList<>(prepared.size());
+            for (int i = 0; i < prepared.size(); i++)
+            {
+                ParsedStatement.Prepared p = prepared.get(i);
+                batchOptions.forStatement(i).prepare(p.boundNames);
+                CQLStatement statement = p.statement;
+
                 if (!(statement instanceof ModificationStatement))
                     throw new InvalidRequestException("Invalid statement in batch: only UPDATE, INSERT and DELETE statements are allowed.");
 
@@ -202,7 +223,7 @@ public class BatchMessage extends Message.Request
             // Note: It's ok at this point to pass a bogus value for the number of bound terms in the BatchState ctor
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
             BatchStatement batch = new BatchStatement(-1, type, statements, Attributes.none());
-            Message.Response response = handler.processBatch(batch, state, new BatchQueryOptions(consistency, values, queryOrIdList));
+            Message.Response response = handler.processBatch(batch, state, batchOptions);
 
             if (tracingId != null)
                 response.setTracingId(tracingId);
@@ -229,7 +250,7 @@ public class BatchMessage extends Message.Request
             if (i > 0) sb.append(", ");
             sb.append(queryOrIdList.get(i)).append(" with ").append(values.get(i).size()).append(" values");
         }
-        sb.append("] at consistency ").append(consistency);
+        sb.append("] at consistency ").append(options.getConsistency());
         return sb.toString();
     }
 }

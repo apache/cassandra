@@ -373,7 +373,7 @@ public class ResultSet
                     String ksName = globalTablesSpec ? globalKsName : CBUtil.readString(body);
                     String cfName = globalTablesSpec ? globalCfName : CBUtil.readString(body);
                     ColumnIdentifier colName = new ColumnIdentifier(CBUtil.readString(body), true);
-                    AbstractType type = DataType.toType(DataType.codec.decodeOne(body));
+                    AbstractType type = DataType.toType(DataType.codec.decodeOne(body, version));
                     names.add(new ColumnSpecification(ksName, cfName, colName, type));
                 }
                 return new Metadata(flags, names).setHasMorePages(state);
@@ -410,7 +410,7 @@ public class ResultSet
                             CBUtil.writeString(name.cfName, dest);
                         }
                         CBUtil.writeString(name.name.toString(), dest);
-                        DataType.codec.writeOne(DataType.fromType(name.type), dest);
+                        DataType.codec.writeOne(DataType.fromType(name.type, version), dest, version);
                     }
                 }
             }
@@ -442,7 +442,7 @@ public class ResultSet
                             size += CBUtil.sizeOfString(name.cfName);
                         }
                         size += CBUtil.sizeOfString(name.name.toString());
-                        size += DataType.codec.oneSerializedSize(DataType.fromType(name.type));
+                        size += DataType.codec.oneSerializedSize(DataType.fromType(name.type, version), version);
                     }
                 }
                 return size;

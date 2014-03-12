@@ -46,19 +46,19 @@ public class FunctionCall extends Term.NonTerminal
             t.collectMarkerSpecification(boundNames);
     }
 
-    public Term.Terminal bind(List<ByteBuffer> values) throws InvalidRequestException
+    public Term.Terminal bind(QueryOptions options) throws InvalidRequestException
     {
-        return makeTerminal(fun, bindAndGet(values));
+        return makeTerminal(fun, bindAndGet(options), options.getProtocolVersion());
     }
 
-    public ByteBuffer bindAndGet(List<ByteBuffer> values) throws InvalidRequestException
+    public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
     {
         List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(terms.size());
         for (Term t : terms)
         {
             // For now, we don't allow nulls as argument as no existing function needs it and it
             // simplify things.
-            ByteBuffer val = t.bindAndGet(values);
+            ByteBuffer val = t.bindAndGet(options);
             if (val == null)
                 throw new InvalidRequestException(String.format("Invalid null value for argument to %s", fun));
             buffers.add(val);
@@ -77,16 +77,16 @@ public class FunctionCall extends Term.NonTerminal
         return false;
     }
 
-    private static Term.Terminal makeTerminal(Function fun, ByteBuffer result) throws InvalidRequestException
+    private static Term.Terminal makeTerminal(Function fun, ByteBuffer result, int version) throws InvalidRequestException
     {
         if (!(fun.returnType() instanceof CollectionType))
             return new Constants.Value(result);
 
         switch (((CollectionType)fun.returnType()).kind)
         {
-            case LIST: return Lists.Value.fromSerialized(result, (ListType)fun.returnType());
-            case SET:  return Sets.Value.fromSerialized(result, (SetType)fun.returnType());
-            case MAP:  return Maps.Value.fromSerialized(result, (MapType)fun.returnType());
+            case LIST: return Lists.Value.fromSerialized(result, (ListType)fun.returnType(), version);
+            case SET:  return Sets.Value.fromSerialized(result, (SetType)fun.returnType(), version);
+            case MAP:  return Maps.Value.fromSerialized(result, (MapType)fun.returnType(), version);
         }
         throw new AssertionError();
     }
@@ -119,7 +119,7 @@ public class FunctionCall extends Term.NonTerminal
             // If all parameters are terminal and the function is pure, we can
             // evaluate it now, otherwise we'd have to wait execution time
             return allTerminal && fun.isPure()
-                ? makeTerminal(fun, execute(fun, parameters))
+                ? makeTerminal(fun, execute(fun, parameters), QueryOptions.DEFAULT.getProtocolVersion())
                 : new FunctionCall(fun, parameters);
         }
 
@@ -130,7 +130,7 @@ public class FunctionCall extends Term.NonTerminal
             for (Term t : parameters)
             {
                 assert t instanceof Term.Terminal;
-                buffers.add(((Term.Terminal)t).get());
+                buffers.add(((Term.Terminal)t).get(QueryOptions.DEFAULT));
             }
             return fun.execute(buffers);
         }
