@@ -30,15 +30,14 @@ exit 1
 ":"""
 
 from __future__ import with_statement
+from uuid import UUID
 
 description = "CQL Shell for Apache Cassandra"
-version = "4.1.2"
+version = "5.0.0"
 
 from StringIO import StringIO
-from itertools import groupby
 from contextlib import contextmanager, closing
 from glob import glob
-from uuid import UUID
 
 import cmd
 import sys
@@ -63,8 +62,8 @@ try:
 except ImportError:
     pass
 
-CQL_LIB_PREFIX = 'cql-internal-only-'
-THRIFT_LIB_PREFIX = 'thrift-python-internal-only-'
+CQL_LIB_PREFIX = 'cassandra-driver-internal-only-'
+FUTURES_LIB_PREFIX = 'futures-'
 
 CASSANDRA_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
 
@@ -87,24 +86,25 @@ def find_zip(libprefix):
 cql_zip = find_zip(CQL_LIB_PREFIX)
 if cql_zip:
     ver = os.path.splitext(os.path.basename(cql_zip))[0][len(CQL_LIB_PREFIX):]
-    sys.path.insert(0, os.path.join(cql_zip, 'cql-' + ver))
-thrift_zip = find_zip(THRIFT_LIB_PREFIX)
-if thrift_zip:
-    sys.path.insert(0, thrift_zip)
+    sys.path.insert(0, os.path.join(cql_zip, 'cassandra-driver-' + ver))
+futures_zip = find_zip(FUTURES_LIB_PREFIX)
+if futures_zip:
+    sys.path.insert(0, futures_zip)
+
 
 try:
-    import cql
+    import cassandra
 except ImportError, e:
-    sys.exit("\nPython CQL driver not installed, or not on PYTHONPATH.\n"
-             'You might try "easy_install cql".\n\n'
+    sys.exit("\nPython Cassandra driver not installed, or not on PYTHONPATH.\n"
+             'You might try "pip install cassandra-driver".\n\n'
              'Python: %s\n'
              'Module load path: %r\n\n'
              'Error: %s\n' % (sys.executable, sys.path, e))
 
-import cql.decoders
-from cql.cursor import _VOID_DESCRIPTION
-from cql.cqltypes import (cql_types, cql_typename, lookup_casstype, lookup_cqltype,
-                          CassandraType, ReversedType, CompositeType)
+from cassandra.cluster import Cluster
+from cassandra.query import SimpleStatement
+from cassandra.policies import WhiteListRoundRobinPolicy
+from cassandra.metadata import protect_name, protect_names, protect_value
 
 # cqlsh should run correctly when run out of a Cassandra source tree,
 # out of an unpacked Cassandra tarball, and after a proper package install.
@@ -112,7 +112,7 @@ cqlshlibdir = os.path.join(CASSANDRA_PATH, 'pylib')
 if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
-from cqlshlib import cqlhandling, cql3handling, pylexotron, usertypes
+from cqlshlib import cqlhandling, cql3handling, pylexotron, usertypes, sslhandling
 from cqlshlib.displaying import (RED, BLUE, ANSI_RESET, COLUMN_NAME_COLORS,
                                  FormattedValue, colorme)
 from cqlshlib.formatting import format_by_type
@@ -132,10 +132,9 @@ OLD_HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
 if os.path.exists(OLD_HISTORY):
     os.rename(OLD_HISTORY, HISTORY)
 
-DEFAULT_HOST = 'localhost'
-DEFAULT_PORT = 9160
-DEFAULT_CQLVER = '3.1.1'
-DEFAULT_TRANSPORT_FACTORY = 'cqlshlib.tfactory.regular_transport_factory'
+DEFAULT_HOST = '127.0.0.1'
+DEFAULT_PORT = 9042
+DEFAULT_CQLVER = '3.1.5'
 
 DEFAULT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S%z'
 DEFAULT_FLOAT_PRECISION = 5
@@ -158,25 +157,24 @@ parser.add_option("-C", "--color", action='store_true', dest='color',
                   help='Always use color output')
 parser.add_option("--no-color", action='store_false', dest='color',
                   help='Never use color output')
+parser.add_option('--ssl', action='store_true', help='Use SSL', default=False)
 parser.add_option("-u", "--username", help="Authenticate as user.")
 parser.add_option("-p", "--password", help="Authenticate using password.")
 parser.add_option('-k', '--keyspace', help='Authenticate to the given keyspace.')
 parser.add_option("-f", "--file", help="Execute commands from FILE, then exit")
-parser.add_option("-t", "--transport-factory",
-                  help="Use the provided Thrift transport factory function.")
 parser.add_option('--debug', action='store_true',
                   help='Show additional debugging information')
 parser.add_option('--cqlversion', default=DEFAULT_CQLVER,
                   help='Specify a particular CQL version (default: %default).'
                        ' Examples: "3.0.3", "3.1.0"')
 
-CQL_ERRORS = (cql.Error,)
-try:
-    from thrift.Thrift import TException
-except ImportError:
-    pass
-else:
-    CQL_ERRORS += (TException,)
+CQL_ERRORS = (
+    cassandra.AlreadyExists, cassandra.AuthenticationFailed, cassandra.InvalidRequest,
+    cassandra.Timeout, cassandra.Unauthorized, cassandra.OperationTimedOut,
+    cassandra.cluster.NoHostAvailable,
+    cassandra.connection.ConnectionBusy, cassandra.connection.ProtocolError, cassandra.connection.ConnectionException,
+    cassandra.decoder.ErrorMessage, cassandra.decoder.InternalError, cassandra.query.TraceUnavailable
+)
 
 debug_completion = bool(os.environ.get('CQLSH_DEBUG_COMPLETION', '') == 'YES')
 
@@ -374,12 +372,9 @@ class UserTypeNotFound(Exception):
 class DecodeError(Exception):
     verb = 'decode'
 
-    def __init__(self, thebytes, err, expectedtype, colname=None):
+    def __init__(self, thebytes, err, colname=None):
         self.thebytes = thebytes
         self.err = err
-        if isinstance(expectedtype, type) and issubclass(expectedtype, CassandraType):
-            expectedtype = expectedtype.cql_parameterized_type()
-        self.expectedtype = expectedtype
         self.colname = colname
 
     def __str__(self):
@@ -389,8 +384,8 @@ class DecodeError(Exception):
         what = 'value %r' % (self.thebytes,)
         if self.colname is not None:
             what = 'value %r (for column %r)' % (self.thebytes, self.colname)
-        return 'Failed to %s %s as %s: %s' \
-               % (self.verb, what, self.expectedtype, self.err)
+        return 'Failed to %s %s : %s' \
+               % (self.verb, what, self.err)
 
     def __repr__(self):
         return '<%s %s>' % (self.__class__.__name__, self.message())
@@ -405,16 +400,14 @@ def full_cql_version(ver):
     vertuple = tuple(map(int, ver_parts[0].split('.')) + [ver_parts[1]])
     return ver, vertuple
 
-def format_value(val, typeclass, output_encoding, addcolor=False, time_format=None,
+def format_value(val, output_encoding, addcolor=False, time_format=None,
                  float_precision=None, colormap=None, nullval=None):
     if isinstance(val, DecodeError):
         if addcolor:
             return colorme(repr(val.thebytes), colormap, 'error')
         else:
             return FormattedValue(repr(val.thebytes))
-    if not issubclass(typeclass, CassandraType):
-        typeclass = lookup_casstype(typeclass)
-    return format_by_type(typeclass, val, output_encoding, colormap=colormap,
+    return format_by_type(type(val), val, output_encoding, colormap=colormap,
                           addcolor=addcolor, nullval=nullval, time_format=time_format,
                           float_precision=float_precision)
 
@@ -452,7 +445,6 @@ class Shell(cmd.Cmd):
     continue_prompt = "   ... "
     keyspace_prompt = custom_prompt + "cqlsh:%s> "
     keyspace_continue_prompt = "%s    ... "
-    num_retries = 4
     show_line_nums = False
     debug = False
     stop = False
@@ -460,38 +452,37 @@ class Shell(cmd.Cmd):
     shunted_query_out = None
     csv_dialect_defaults = dict(delimiter=',', doublequote=False,
                                 escapechar='\\', quotechar='"')
-    utypes_meta = None
 
-    def __init__(self, hostname, port, transport_factory, color=False,
+    def __init__(self, hostname, port, color=False,
                  username=None, password=None, encoding=None, stdin=None, tty=True,
                  completekey=DEFAULT_COMPLETEKEY, use_conn=None,
                  cqlver=DEFAULT_CQLVER, keyspace=None,
                  tracing_enabled=False, expand_enabled=False,
                  display_time_format=DEFAULT_TIME_FORMAT,
-                 display_float_precision=DEFAULT_FLOAT_PRECISION):
+                 display_float_precision=DEFAULT_FLOAT_PRECISION,
+                 ssl=False):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
-        self.transport_factory = transport_factory
-        self.username = username
-        self.password = password
+        self.auth_provider = None
+        if username and password:
+            self.auth_provider = lambda host: dict(username=username, password=password)
         self.keyspace = keyspace
         self.tracing_enabled = tracing_enabled
         self.expand_enabled = expand_enabled
-        if use_conn is not None:
+        if use_conn:
             self.conn = use_conn
         else:
-            transport = transport_factory(hostname, port, os.environ, CONFIG_FILE)
-            self.conn = cql.connect(hostname, port, user=username, password=password,
-                                    cql_version=cqlver, transport=transport)
+            self.conn = Cluster(contact_points=(self.hostname,), port=self.port, cql_version=cqlver,
+                                auth_provider=self.auth_provider,
+                                ssl_options=sslhandling.ssl_settings(hostname, CONFIG_FILE) if ssl else None,
+                                load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]))
         self.set_expanded_cql_version(cqlver)
-        # we could set the keyspace through cql.connect(), but as of 1.0.10,
-        # it doesn't quote the keyspace for USE :(
-        if keyspace is not None:
-            tempcurs = self.conn.cursor()
-            tempcurs.execute('USE %s;' % self.cql_protect_name(keyspace))
-            tempcurs.close()
-        self.cursor = self.conn.cursor()
+
+        if keyspace:
+            self.session = self.conn.connect(keyspace)
+        else:
+            self.session = self.conn.connect()
         self.get_connection_versions()
 
         self.current_keyspace = keyspace
@@ -520,13 +511,13 @@ class Shell(cmd.Cmd):
             self.show_line_nums = True
         self.stdin = stdin
         self.query_out = sys.stdout
-        self.refresh_utypes_meta()
-        #UserTypes will use it to get theirs field names
-        usertypes.get_field_names = lambda k, t: self.utypes_meta.get_field_names(k, t)
+        self.consistency_level = cassandra.ConsistencyLevel.ONE
+        #Python driver returns BLOBs as string, but we expect them as buffer()
+        cassandra.cqltypes.BytesType.deserialize = staticmethod(cassandra.cqltypes.BytesType.validate)
+        cassandra.cqltypes.CassandraType.support_empty_values = True
 
     def set_expanded_cql_version(self, ver):
         ver, vertuple = full_cql_version(ver)
-        self.set_cql_version(ver)
         self.cql_version = ver
         self.cql_ver_tuple = vertuple
 
@@ -536,31 +527,20 @@ class Shell(cmd.Cmd):
     def cassandraver_atleast(self, major, minor=0, patch=0):
         return self.cass_ver_tuple[:3] >= (major, minor, patch)
 
-    def myformat_value(self, val, casstype, **kwargs):
+    def myformat_value(self, val, **kwargs):
         if isinstance(val, DecodeError):
             self.decoding_errors.append(val)
         try:
-            return format_value(val, casstype, self.output_codec.name,
+            return format_value(val, self.output_codec.name,
                                 addcolor=self.color, time_format=self.display_time_format,
                                 float_precision=self.display_float_precision, **kwargs)
         except Exception, e:
-            err = FormatError(val, e, casstype)
+            err = FormatError(val, e)
             self.decoding_errors.append(err)
-            return format_value(err, None, self.output_codec.name, addcolor=self.color)
+            return format_value(err, self.output_codec.name, addcolor=self.color)
 
-    def myformat_colname(self, name, nametype):
-        return self.myformat_value(name, nametype, colormap=COLUMN_NAME_COLORS)
-
-    # cql/cursor.py:Cursor.decode_row() function, modified to not turn '' into None.
-    def decode_row(self, cursor, row):
-        values = []
-        bytevals = cursor.columnvalues(row)
-        for val, vtype, nameinfo in zip(bytevals, cursor.column_types, cursor.name_info):
-            if val == '':
-                values.append(val)
-            else:
-                values.append(cursor.decoder.decode_value(val, vtype, nameinfo[0]))
-        return values
+    def myformat_colname(self, name):
+        return self.myformat_value(name, colormap=COLUMN_NAME_COLORS)
 
     def report_connection(self):
         self.show_host()
@@ -578,155 +558,94 @@ class Shell(cmd.Cmd):
         # system.Versions['cql'] apparently does not reflect changes with
         # set_cql_version.
         vers['cql'] = self.cql_version
-        print "[cqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Thrift protocol %(thrift)s]" % vers
+        print "[cqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Native protocol v%(protocol)s]" % vers
 
     def show_session(self, sessionid):
-        print_trace_session(self, self.cursor, sessionid)
+        print_trace_session(self, self.session, sessionid)
 
     def get_connection_versions(self):
-        self.cursor.execute("select * from system.local where key = 'local'")
-        result = self.fetchdict()
+        result, = self.session.execute("select * from system.local where key = 'local'")
         vers = {
-            'build': result['release_version'],
-            'thrift': result['thrift_version'],
-            'cql': result['cql_version'],
+            'build': result.release_version,
+            'protocol': result.native_protocol_version,
+            'cql': result.cql_version,
         }
         self.connection_versions = vers
         self.cass_ver_tuple = tuple(map(int, vers['build'].split('-', 1)[0].split('.')[:3]))
 
-    def fetchdict(self):
-        row = self.cursor.fetchone()
-        if row is None:
-            return None
-        desc = self.cursor.description
-        return dict(zip([d[0] for d in desc], row))
-
-    def fetchdict_all(self):
-        dicts = []
-        for row in self.cursor:
-            desc = self.cursor.description
-            dicts.append(dict(zip([d[0] for d in desc], row)))
-        return dicts
-
     def get_keyspace_names(self):
-        return [k.name for k in self.get_keyspaces()]
+        return map(str, self.conn.metadata.keyspaces.keys())
 
     def get_columnfamily_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
-        cf_q = """select columnfamily_name from system.schema_columnfamilies
-                   where keyspace_name=:ks"""
-        self.cursor.execute(cf_q,
-                            {'ks': self.cql_unprotect_name(ksname)},
-                            consistency_level='ONE')
-        return [str(row[0]) for row in self.cursor.fetchall()]
+
+        return map(str, self.get_keyspace_meta(ksname).tables.keys())
 
     def get_index_names(self, ksname=None):
         idxnames = []
         for cfname in self.get_columnfamily_names(ksname=ksname):
-            for col in self.get_columnfamily_layout(ksname, cfname).columns:
-                if col.index_name is not None:
-                    idxnames.append(col.index_name)
+            for col in self.get_table_meta(ksname, cfname).columns.values():
+                if col.index:
+                    idxnames.append(col.index.name)
         return idxnames
 
     def get_column_names(self, ksname, cfname):
         if ksname is None:
             ksname = self.current_keyspace
-        layout = self.get_columnfamily_layout(ksname, cfname)
-        return [col.name for col in layout.columns]
+        layout = self.get_table_meta(ksname, cfname)
+        return [str(col) for col in layout.columns]
 
     def get_usertype_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return self.utypes_meta.get_usertypes_names(ksname)
+        return self.get_usertypes_meta().get_usertypes_names(ksname)
 
     def get_usertype_layout(self, ksname, typename):
         if ksname is None:
             ksname = self.current_keyspace
-        layout = self.utypes_meta.get_fields_with_types(ksname, typename)
+        layout = self.get_usertypes_meta().get_fields_with_types(ksname, typename)
 
         if not layout:
             raise UserTypeNotFound("User type %r not found" % typename)
         return layout
 
-    # ===== thrift-dependent parts =====
-
     def get_cluster_name(self):
-        return self.make_hacktastic_thrift_call('describe_cluster_name')
+        return self.conn.metadata.cluster_name
 
     def get_partitioner(self):
-        return self.make_hacktastic_thrift_call('describe_partitioner')
+        return self.conn.metadata.partitioner
 
-    def get_snitch(self):
-        return self.make_hacktastic_thrift_call('describe_snitch')
+    def get_keyspace_meta(self, ksname):
+        if not ksname in self.conn.metadata.keyspaces:
+            raise KeyspaceNotFound('Keyspace %r not found.' % ksname)
+        return self.conn.metadata.keyspaces[ksname]
 
-    def get_thrift_version(self):
-        return self.make_hacktastic_thrift_call('describe_version')
+    def get_keyspaces(self):
+        return self.conn.metadata.keyspaces.values()
 
     def get_ring(self):
         if self.current_keyspace is None or self.current_keyspace == 'system':
             raise NoKeyspaceError("Ring view requires a current non-system keyspace")
-        return self.make_hacktastic_thrift_call('describe_ring', self.current_keyspace)
+        return self.conn.metadata.token_map.tokens_to_hosts_by_ks[self.current_keyspace]
 
-    def get_keyspace(self, ksname):
-        try:
-            return self.make_hacktastic_thrift_call('describe_keyspace', ksname)
-        except cql.cassandra.ttypes.NotFoundException:
-            raise KeyspaceNotFound('Keyspace %r not found.' % ksname)
-
-    def get_keyspaces(self):
-        return self.make_hacktastic_thrift_call('describe_keyspaces')
-
-    def get_schema_versions(self):
-        return self.make_hacktastic_thrift_call('describe_schema_versions')
-
-    def set_cql_version(self, ver):
-        try:
-            return self.make_hacktastic_thrift_call('set_cql_version', ver)
-        except cql.cassandra.ttypes.InvalidRequestException, e:
-            raise VersionNotSupported(e.why)
-
-    def trace_next_query(self):
-        return self.make_hacktastic_thrift_call('trace_next_query')
-
-    def make_hacktastic_thrift_call(self, call, *args):
-        client = self.conn.client
-        return getattr(client, call)(*args)
-
-    # ===== end thrift-dependent parts =====
-
-    # ===== cql3-dependent parts =====
-
-    def get_columnfamily_layout(self, ksname, cfname):
+    def get_table_meta(self, ksname, tablename):
         if ksname is None:
             ksname = self.current_keyspace
-        cf_q = """select * from system.schema_columnfamilies
-                   where keyspace_name=:ks and columnfamily_name=:cf"""
-        col_q = """select * from system.schema_columns
-                    where keyspace_name=:ks and columnfamily_name=:cf"""
-        self.cursor.execute(cf_q,
-                            {'ks': ksname, 'cf': cfname},
-                            consistency_level='ONE')
-        layout = self.fetchdict()
-        if layout is None:
-            raise ColumnFamilyNotFound("Column family %r not found" % cfname)
-        self.cursor.execute(col_q,
-                            {'ks': ksname, 'cf': cfname},
-                            consistency_level='ONE')
-        cols = self.fetchdict_all()
-        return cql3handling.CqlTableDef.from_layout(layout, cols)
+        ksmeta = self.get_keyspace_meta(ksname)
 
-    def build_usertypes_meta(self):
-        ut_q = """select * from system.schema_usertypes"""
-        self.cursor.execute(ut_q, consistency_level='ONE')
-        data = self.fetchdict_all()
+        if tablename not in ksmeta.tables:
+            raise ColumnFamilyNotFound("Column family %r not found" % tablename)
+
+        return ksmeta.tables[tablename]
+
+    def get_usertypes_meta(self):
+        data = self.session.execute("select * from system.schema_usertypes")
         if not data:
             return cql3handling.UserTypesMeta({})
 
         return cql3handling.UserTypesMeta.from_layout(data)
-
-    # ===== end cql3-dependent parts =====
 
     def reset_statement(self):
         self.reset_prompt()
@@ -788,14 +707,6 @@ class Shell(cmd.Cmd):
                 return
             yield newline
 
-    def refresh_utypes_meta(self):
-        try:
-            self.utypes_meta = self.build_usertypes_meta()
-        except Exception, e:
-            if self.debug:
-                import traceback
-                traceback.print_exc()
-
 
     def cmdloop(self):
         """
@@ -812,7 +723,7 @@ class Shell(cmd.Cmd):
                         self.reset_statement()
                 except EOFError:
                     self.handle_eof()
-                except cql.Error, cqlerr:
+                except CQL_ERRORS, cqlerr:
                     self.printerr(str(cqlerr))
                 except KeyboardInterrupt:
                     self.reset_statement()
@@ -903,56 +814,37 @@ class Shell(cmd.Cmd):
 
     def do_use(self, parsed):
         ksname = parsed.get_binding('ksname')
-        if self.perform_statement_untraced(parsed.extract_orig()):
+        if self.perform_simple_statement(SimpleStatement(parsed.extract_orig())):
             if ksname[0] == '"' and ksname[-1] == '"':
                 self.current_keyspace = self.cql_unprotect_name(ksname)
             else:
                 self.current_keyspace = ksname.lower()
 
     def do_select(self, parsed):
-        ksname = parsed.get_binding('ksname')
-        if ksname is not None:
-            ksname = self.cql_unprotect_name(ksname)
-        cfname = self.cql_unprotect_name(parsed.get_binding('cfname'))
         statement = parsed.extract_orig()
         with_default_limit = parsed.get_binding('limit') is None
         if with_default_limit:
             statement = "%s LIMIT %d;" % (statement[:-1], DEFAULT_SELECT_LIMIT)
-        self.perform_statement(statement,
-                               decoder=ErrorHandlingSchemaDecoder,
-                               with_default_limit=with_default_limit)
+        self.perform_statement(statement, with_default_limit=with_default_limit)
 
-    def perform_statement(self, statement, decoder=None, with_default_limit=False):
+    def perform_statement(self, statement, with_default_limit=False):
+        stmt = SimpleStatement(statement, consistency_level=self.consistency_level)
+        result = self.perform_simple_statement(stmt,
+                                                with_default_limit=with_default_limit)
         if self.tracing_enabled:
-            session_id = UUID(bytes=self.trace_next_query())
-            result = self.perform_statement_untraced(statement,
-                                                     decoder=decoder,
-                                                     with_default_limit=with_default_limit)
             time.sleep(0.5) # trace writes are async so we wait a little.
-            print_trace_session(self, self.cursor, session_id)
-            return result
-        else:
-            return self.perform_statement_untraced(statement,
-                                                   decoder=decoder,
-                                                   with_default_limit=with_default_limit)
+            print_trace_session(self, self.session, stmt.trace.trace_id)
 
-    def perform_statement_untraced(self, statement, decoder=None, with_default_limit=False):
+        return result
+
+    def perform_simple_statement(self, statement, with_default_limit=False):
         if not statement:
             return False
-        trynum = 1
+        rows = None
         while True:
             try:
-                self.cursor.execute(statement, decoder=decoder)
+                rows = self.session.execute(statement, trace=self.tracing_enabled)
                 break
-            except cql.IntegrityError, err:
-                self.printerr("Attempt #%d: %s" % (trynum, str(err)))
-                trynum += 1
-                if trynum > self.num_retries:
-                    return False
-                time.sleep(1*trynum)
-            except cql.ProgrammingError, err:
-                self.printerr(str(err))
-                return False
             except CQL_ERRORS, err:
                 self.printerr(str(err))
                 return False
@@ -961,35 +853,22 @@ class Shell(cmd.Cmd):
                 self.printerr(traceback.format_exc())
                 return False
 
-        if statement[:6].lower() == 'select' or statement.lower().startswith("list"):
-            self.print_result(self.cursor, with_default_limit)
-        elif self.cursor.rowcount > 0:
+        if statement.query_string[:6].lower() == 'select' or statement.query_string.lower().startswith("list"):
+            self.print_result(rows, with_default_limit)
+        elif rows:
             # CAS INSERT/UPDATE
             self.writeresult("")
-            self.print_static_result(self.cursor)
+            self.print_static_result(rows)
         self.flush_output()
-        if self.could_change_schema(statement):
-            self.refresh_utypes_meta()
         return True
 
-    def get_nametype(self, cursor, num):
-        """
-        Determine the Cassandra type of a column name from the current row of
-        query results on the given cursor. The column in question is given by
-        its zero-based ordinal number within the row.
-
-        This is necessary to differentiate some things like ascii vs. blob hex.
-        """
-
-        return cursor.name_info[num][1]
-
-    def print_result(self, cursor, with_default_limit):
+    def print_result(self, rows, with_default_limit):
         self.decoding_errors = []
 
         self.writeresult("")
-        if cursor.rowcount != 0:
-            self.print_static_result(cursor)
-        self.writeresult("(%d rows)" % cursor.rowcount)
+        if rows :
+            self.print_static_result(rows)
+        self.writeresult("(%d rows)" % len(rows))
         self.writeresult("")
 
         if self.decoding_errors:
@@ -1000,24 +879,19 @@ class Shell(cmd.Cmd):
                                  % (len(self.decoding_errors) - 2), color=RED)
 
         if with_default_limit:
-            if (self.is_count_result(cursor) and self.get_count(cursor) == DEFAULT_SELECT_LIMIT) \
-                    or cursor.rowcount == DEFAULT_SELECT_LIMIT:
+            if len(rows) == DEFAULT_SELECT_LIMIT:
                 self.writeresult("Default LIMIT of %d was used. "
                                  "Specify your own LIMIT clause to get more results."
                                  % DEFAULT_SELECT_LIMIT, color=RED)
                 self.writeresult("")
 
-    def is_count_result(self, cursor):
-        return cursor.description == [(u'count', 'LongType', None, None, None, None, True)]
 
-    def get_count(self, cursor):
-        return lookup_casstype('LongType').deserialize(cursor.result[0][0].value)
-
-    def print_static_result(self, cursor):
-        colnames = [d[0] for d in cursor.description]
-        colnames_t = [(name, self.get_nametype(cursor, n)) for (n, name) in enumerate(colnames)]
-        formatted_names = [self.myformat_colname(name, nametype) for (name, nametype) in colnames_t]
-        formatted_values = [map(self.myformat_value, self.decode_row(cursor, row), cursor.column_types) for row in cursor.result]
+    def print_static_result(self, rows):
+        if not rows:
+            return
+        colnames = rows[0]._fields
+        formatted_names = [self.myformat_colname(name) for name in colnames]
+        formatted_values = [map(self.myformat_value, row) for row in rows]
         if self.expand_enabled:
             self.print_formatted_result_vertically(formatted_names, formatted_values)
         else:
@@ -1093,17 +967,6 @@ class Shell(cmd.Cmd):
     def set_prompt(self, prompt):
         self.prompt = prompt
 
-    def cql_protect_name(self, name):
-        if isinstance(name, unicode):
-            name = name.encode('utf8')
-        return cqlruleset.maybe_escape_name(name)
-
-    def cql_protect_names(self, names):
-        return map(self.cql_protect_name, names)
-
-    def cql_protect_value(self, value):
-        return cqlruleset.escape_value(value)
-
     def cql_unprotect_name(self, namestr):
         if namestr is None:
             return
@@ -1114,32 +977,20 @@ class Shell(cmd.Cmd):
             return cqlruleset.dequote_value(valstr)
 
     def print_recreate_keyspace(self, ksdef, out):
-        stratclass = trim_if_present(ksdef.strategy_class, 'org.apache.cassandra.locator.')
-        ksname = self.cql_protect_name(ksdef.name)
-        out.write("CREATE KEYSPACE %s WITH replication = {\n" % ksname)
-        out.write("  'class': %s" % self.cql_protect_value(stratclass))
-        for opname, opval in ksdef.strategy_options.iteritems():
-            out.write(",\n  %s: %s" % (self.cql_protect_value(opname),
-                                       self.cql_protect_value(opval)))
-        out.write("\n}")
-        if not ksdef.durable_writes:
-            out.write(" AND durable_writes = 'false'")
-        out.write(';\n')
+        ksname = protect_name(ksdef.name)
+        out.write(ksdef.as_cql_query())
+        out.write("\n\n")
 
-        #print usertypes first
-        uts = self.get_usertype_names(ksname)
+        uts = self.get_usertypes_meta().get_usertypes_names(ksname)
         if uts:
-            out.write('\nUSE %s;\n' % ksname)
+            out.write("USE %s;\n\n" % ksname)
             for ut in uts:
-                out.write('\n')
-                self.print_recreate_usertype(ksdef.name, ut, out)
+                self.print_recreate_usertype(ksname, ut, out)
 
-        cfs = self.get_columnfamily_names(ksname)
+        cfs = self.get_columnfamily_names(ksdef.name)
         if cfs:
-            out.write('\nUSE %s;\n' % ksname)
             for cf in cfs:
                 out.write('\n')
-                # yes, cf might be looked up again. oh well.
                 self.print_recreate_columnfamily(ksdef.name, cf, out)
 
     def print_recreate_usertype(self, ksname, utname, out):
@@ -1159,129 +1010,17 @@ class Shell(cmd.Cmd):
 
         Writes output to the given out stream.
         """
-        layout = self.get_columnfamily_layout(ksname, cfname)
-        cfname = self.cql_protect_name(layout.name)
-
-        out.write("CREATE TABLE %s (\n" % cfname)
-
-        for col in layout.columns:
-            colname = self.cql_protect_name(col.name)
-            coltype = col.cqltype
-
-            # Reversed types only matter for clustering order, not column definitions
-            if issubclass(coltype, ReversedType):
-                coltype = coltype.subtypes[0]
-
-            out.write("  %s %s" % (colname, coltype.cql_parameterized_type()))
-            if col.is_static():
-                out.write(" static")
-            out.write(",\n")
-
-        out.write("  PRIMARY KEY (")
-        partkeynames = self.cql_protect_names(layout.partition_key_columns)
-        if len(partkeynames) > 1:
-            partkey = "(%s)" % ', '.join(partkeynames)
-        else:
-            partkey = partkeynames[0]
-        pk_parts = [partkey] + self.cql_protect_names(layout.clustering_key_columns)
-        out.write(', '.join(pk_parts) + ')')
-
-        out.write("\n)")
-        joiner = 'WITH'
-
-        if layout.is_compact_storage():
-            out.write(' WITH COMPACT STORAGE')
-            joiner = 'AND'
-
-        # check if we need a CLUSTERING ORDER BY clause
-        if layout.clustering_key_columns:
-            # get a list of clustering component types
-            if issubclass(layout.comparator, CompositeType):
-                clustering_types = layout.comparator.subtypes
-            else:
-                clustering_types = [layout.comparator]
-
-            # only write CLUSTERING ORDER clause of we have >= 1 DESC item
-            if any(issubclass(t, ReversedType) for t in clustering_types):
-                if layout.is_compact_storage():
-                    out.write(' AND\n ')
-                else:
-                    out.write(' WITH')
-                out.write(' CLUSTERING ORDER BY (')
-
-                clustering_names = self.cql_protect_names(layout.clustering_key_columns)
-
-                inner = []
-                for colname, coltype in zip(clustering_names, clustering_types):
-                    ordering = "DESC" if issubclass(coltype, ReversedType) else "ASC"
-                    inner.append("%s %s" % (colname, ordering))
-                out.write(", ".join(inner))
-
-                out.write(")")
-                joiner = "AND"
-
-        cf_opts = []
-        compaction_strategy = trim_if_present(getattr(layout, 'compaction_strategy_class'),
-                                              'org.apache.cassandra.db.compaction.')
-        for cql3option, layoutoption in cqlruleset.columnfamily_layout_options:
-            if layoutoption is None:
-                layoutoption = cql3option
-            optval = getattr(layout, layoutoption, None)
-            if optval is None:
-                if layoutoption == 'bloom_filter_fp_chance':
-                    if compaction_strategy == 'LeveledCompactionStrategy':
-                        optval = 0.1
-                    else:
-                        optval = 0.01
-                else:
-                    continue
-            elif layoutoption == 'compaction_strategy_class':
-                optval = compaction_strategy
-            cf_opts.append((cql3option, self.cql_protect_value(optval)))
-        for cql3option, layoutoption, _ in cqlruleset.columnfamily_layout_map_options:
-            if layoutoption is None:
-                layoutoption = cql3option
-            optmap = getattr(layout, layoutoption, {})
-            if layoutoption == 'compression_parameters':
-                compclass = optmap.get('sstable_compression')
-                if compclass is not None:
-                    optmap['sstable_compression'] = \
-                            trim_if_present(compclass, 'org.apache.cassandra.io.compress.')
-            if layoutoption == 'compaction_strategy_options':
-                optmap['class'] = compaction_strategy
-
-            cf_opts.append((cql3option, optmap))
-
-        if cf_opts:
-            for optname, optval in cf_opts:
-                if isinstance(optval, dict):
-                    optval = '{%s}' % ', '.join(['%s: %s' % (self.cql_protect_value(k),
-                                                             self.cql_protect_value(v))
-                                                 for (k, v) in optval.items()])
-                out.write(" %s\n  %s=%s" % (joiner, optname, optval))
-                joiner = 'AND'
-        out.write(";\n")
-
-        for col in [ c for c in layout.columns if c.index_name is not None ]:
-            out.write('\n')
-            if col.index_type != 'CUSTOM':
-                out.write('CREATE INDEX %s ON %s (%s);\n'
-                             % (col.index_name, cfname, self.cql_protect_name(col.name)))
-            else:
-                out.write("CREATE CUSTOM INDEX %s ON %s (%s) USING '%s';\n"
-                             % (col.index_name,
-                                cfname,
-                                self.cql_protect_name(col.name),
-                                col.index_options[u'class_name']))
+        out.write(self.get_table_meta(ksname, cfname).export_as_string())
+        out.write("\n")
 
     def describe_keyspaces(self):
         print
-        cmd.Cmd.columnize(self, self.get_keyspace_names())
+        cmd.Cmd.columnize(self, protect_names(self.get_keyspace_names()))
         print
 
     def describe_keyspace(self, ksname):
         print
-        self.print_recreate_keyspace(self.get_keyspace(ksname), sys.stdout)
+        self.print_recreate_keyspace(self.get_keyspace_meta(ksname), sys.stdout)
         print
 
     def describe_columnfamily(self, ksname, cfname):
@@ -1295,26 +1034,26 @@ class Shell(cmd.Cmd):
         print
         if ksname is None:
             for k in self.get_keyspaces():
-                name = self.cql_protect_name(k.name)
+                name = protect_name(k.name)
                 print 'Keyspace %s' % (name,)
                 print '---------%s' % ('-' * len(name))
-                cmd.Cmd.columnize(self, self.get_columnfamily_names(k.name))
+                cmd.Cmd.columnize(self, protect_names(self.get_columnfamily_names(k.name)))
                 print
         else:
-            cmd.Cmd.columnize(self, self.get_columnfamily_names(ksname))
+            cmd.Cmd.columnize(self, protect_names(self.get_columnfamily_names(ksname)))
             print
 
     def describe_usertypes(self, ksname):
         print
         if ksname is None:
             for k in self.get_keyspaces():
-                name = self.cql_protect_name(k.name)
+                name = protect_name(k.name)
                 print 'Keyspace %s' % (name,)
                 print '---------%s' % ('-' * len(name))
-                cmd.Cmd.columnize(self, self.get_usertype_names(k.name))
+                cmd.Cmd.columnize(self, protect_names(self.get_usertype_names(k.name)))
                 print
         else:
-            cmd.Cmd.columnize(self, self.get_usertype_names(ksname))
+            cmd.Cmd.columnize(self, protect_names(self.get_usertype_names(ksname)))
             print
 
     def describe_usertype(self, ksname, typename):
@@ -1327,15 +1066,16 @@ class Shell(cmd.Cmd):
     def describe_cluster(self):
         print '\nCluster: %s' % self.get_cluster_name()
         p = trim_if_present(self.get_partitioner(), 'org.apache.cassandra.dht.')
-        print 'Partitioner: %s' % p
-        snitch = trim_if_present(self.get_snitch(), 'org.apache.cassandra.locator.')
-        print 'Snitch: %s\n' % snitch
+        print 'Partitioner: %s\n' % p
+        # TODO: snitch?
+        #snitch = trim_if_present(self.get_snitch(), 'org.apache.cassandra.locator.')
+        #print 'Snitch: %s\n' % snitch
         if self.current_keyspace is not None \
         and self.current_keyspace != 'system':
             print "Range ownership:"
             ring = self.get_ring()
-            for entry in ring:
-                print ' %39s  [%s]' % (entry.start_token, ', '.join(entry.endpoints))
+            for entry in ring.items():
+                print ' %39s  [%s]' % (str(entry[0].value), ', '.join([host.address for host in entry[1]]))
             print
 
     def describe_schema(self, include_system=False):
@@ -1516,7 +1256,7 @@ class Shell(cmd.Cmd):
         try:
             if header:
                 linesource.next()
-            layout = self.get_columnfamily_layout(ks, cf)
+            table_meta = self.get_table_meta(ks, cf)
             rownum = -1
             reader = csv.reader(linesource, **dialect_options)
             for rownum, row in enumerate(reader):
@@ -1525,7 +1265,7 @@ class Shell(cmd.Cmd):
                                   "(%d instead of %d)."
                                   % (rownum, reader.line_num, len(row), len(columns)))
                     return rownum
-                if not self.do_import_row(columns, nullval, layout, row):
+                if not self.do_import_row(columns, nullval, table_meta, row):
                     self.printerr("Aborting import at record #%d (line %d). "
                                   "Previously-inserted values still present."
                                   % (rownum, reader.line_num))
@@ -1537,40 +1277,39 @@ class Shell(cmd.Cmd):
                 print
         return rownum + 1
 
-    def do_import_row(self, columns, nullval, layout, row):
+    def do_import_row(self, columns, nullval, table_meta, row):
         rowmap = {}
+        clustering_key_columns = [col.name for col in table_meta.clustering_key]
         for name, value in zip(columns, row):
-            type = layout.get_column(name).cqltype
-            if issubclass(type, ReversedType):
-                type = type.subtypes[0]
-            cqltype = type.cql_parameterized_type()
+            type = table_meta.columns[name].data_type
+            cqltype = table_meta.columns[name].typestring
 
             if value != nullval:
                 if cqltype in ('ascii', 'text', 'timestamp', 'inet'):
-                    rowmap[name] = self.cql_protect_value(value)
+                    rowmap[name] = protect_value(value)
                 else:
                     rowmap[name] = value
-            elif name in layout.clustering_key_columns and not type.empty_binary_ok:
+            elif name in clustering_key_columns and not type.empty_binary_ok:
                 rowmap[name] = 'blobAs%s(0x)' % cqltype.title()
             else:
                 rowmap[name] = 'null'
-        return self.do_import_insert(layout, rowmap)
+        return self.do_import_insert(table_meta, rowmap)
 
-    def do_import_insert(self, layout, rowmap):
+    def do_import_insert(self, table_meta, rowmap):
         # would be nice to be able to use a prepared query here, but in order
         # to use that interface, we'd need to have all the input as native
         # values already, reading them from text just like the various
         # Cassandra cql types do. Better just to submit them all as intact
         # CQL string literals and let Cassandra do its thing.
         query = 'INSERT INTO %s.%s (%s) VALUES (%s)' % (
-            self.cql_protect_name(layout.keyspace_name),
-            self.cql_protect_name(layout.columnfamily_name),
-            ', '.join(self.cql_protect_names(rowmap.keys())),
+            protect_name(table_meta.keyspace.name),
+            protect_name(table_meta.name),
+            ', '.join(protect_names(rowmap.keys())),
             ', '.join(rowmap.values())
         )
         if self.debug:
             print 'Import using CQL: %s' % query
-        return self.perform_statement_untraced(query)
+        return self.perform_simple_statement(SimpleStatement(query))
 
     def perform_csv_export(self, ks, cf, columns, fname, opts):
         dialect_options = self.csv_dialect_defaults.copy()
@@ -1603,20 +1342,17 @@ class Shell(cmd.Cmd):
                 self.printerr("Can't open %r for writing: %s" % (fname, e))
                 return 0
         try:
-            self.prep_export_dump(ks, cf, columns)
+            dump = self.prep_export_dump(ks, cf, columns)
             writer = csv.writer(csvdest, **dialect_options)
             if header:
-                writer.writerow([d[0] for d in self.cursor.description])
+                writer.writerow(columns)
             rows = 0
-            while True:
-                row = self.cursor.fetchone()
-                if row is None:
-                    break
-                fmt = lambda v, t: \
-                    format_value(v, t, output_encoding=encoding, nullval=nullval,
+            for row in dump:
+                fmt = lambda v: \
+                    format_value(v, output_encoding=encoding, nullval=nullval,
                                  time_format=self.display_time_format,
                                  float_precision=self.display_float_precision).strval
-                writer.writerow(map(fmt, row, self.cursor.column_types))
+                writer.writerow(map(fmt, row))
                 rows += 1
         finally:
             if do_close:
@@ -1626,14 +1362,15 @@ class Shell(cmd.Cmd):
     def prep_export_dump(self, ks, cf, columns):
         if columns is None:
             columns = self.get_column_names(ks, cf)
-        columnlist = ', '.join(self.cql_protect_names(columns))
+        columnlist = ', '.join(protect_names(columns))
         # this limit is pretty awful. would be better to use row-key-paging, so
         # that the dump could be pretty easily aborted if necessary, but that
         # can be kind of tricky with cql3. Punt for now, until the real cursor
         # API is added in CASSANDRA-4415.
+        # https://datastax-oss.atlassian.net/browse/PYTHON-16
         query = 'SELECT %s FROM %s.%s LIMIT 99999999' \
-                % (columnlist, self.cql_protect_name(ks), self.cql_protect_name(cf))
-        self.cursor.execute(query)
+                % (columnlist, protect_name(ks), protect_name(cf))
+        return self.session.execute(query)
 
     def do_show(self, parsed):
         """
@@ -1664,7 +1401,7 @@ class Shell(cmd.Cmd):
             self.show_host()
         elif showwhat.startswith('session'):
             session_id = parsed.get_binding('sessionid').lower()
-            self.show_session(session_id)
+            self.show_session(UUID(session_id))
         else:
             self.printerr('Wait, how do I show %r?' % (showwhat,))
 
@@ -1695,7 +1432,7 @@ class Shell(cmd.Cmd):
         except IOError, e:
             self.printerr('Could not open %r: %s' % (fname, e))
             return
-        subshell = Shell(self.hostname, self.port, self.transport_factory,
+        subshell = Shell(self.hostname, self.port,
                          color=self.color, encoding=self.encoding, stdin=f,
                          tty=False, use_conn=self.conn, cqlver=self.cql_version,
                          display_time_format=self.display_time_format,
@@ -1870,10 +1607,10 @@ class Shell(cmd.Cmd):
         """
         level = parsed.get_binding('level')
         if level is None:
-            print 'Current consistency level is %s.' % (self.cursor.consistency_level,)
+            print 'Current consistency level is %s.' % (self.consistency_level)
             return
 
-        self.cursor.consistency_level = level.upper()
+        self.consistency_level = cassandra.ConsistencyLevel.name_to_value[level.upper()]
         print 'Consistency level set to %s.' % (level.upper(),)
 
     def do_exit(self, parsed=None):
@@ -1883,6 +1620,7 @@ class Shell(cmd.Cmd):
         Exits cqlsh.
         """
         self.stop = True
+        self.conn.shutdown()
     do_quit = do_exit
 
     def do_debug(self, parsed):
@@ -1942,18 +1680,6 @@ class Shell(cmd.Cmd):
             text = '%s:%d:%s' % (self.stdin.name, self.lineno, text)
         self.writeresult(text, color, newline=newline, out=sys.stderr)
 
-    @staticmethod
-    def could_change_schema(statement):
-        import re
-        return re.match(r"(alter|create|drop)\s+type", statement.lower())
-
-
-class ErrorHandlingSchemaDecoder(cql.decoders.SchemaDecoder):
-    def name_decode_error(self, err, namebytes, expectedtype):
-        return DecodeError(namebytes, err, expectedtype)
-
-    def value_decode_error(self, err, namebytes, valuebytes, expectedtype):
-        return DecodeError(valuebytes, err, expectedtype, colname=namebytes)
 
 def option_with_default(cparser_getter, section, option, default=None):
     try:
@@ -1988,21 +1714,6 @@ def should_use_color():
         pass
     return True
 
-def load_factory(name):
-    """
-    Attempts to load a transport factory function given its fully qualified
-    name, e.g. "cqlshlib.tfactory.regular_transport_factory"
-    """
-    parts = name.split('.')
-    module = ".".join(parts[:-1])
-    try:
-        t = __import__(module)
-        for part in parts[1:]:
-            t = getattr(t, part)
-        return t
-    except (ImportError, AttributeError):
-        sys.exit("Can't locate transport factory function %s" % name)
-
 def read_options(cmdlineargs, environment):
     configs = ConfigParser.SafeConfigParser()
     configs.read(CONFIG_FILE)
@@ -2011,8 +1722,6 @@ def read_options(cmdlineargs, environment):
     optvalues.username = option_with_default(configs.get, 'authentication', 'username')
     optvalues.password = option_with_default(configs.get, 'authentication', 'password')
     optvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
-    optvalues.transport_factory = option_with_default(configs.get, 'connection', 'factory',
-                                                      DEFAULT_TRANSPORT_FACTORY)
     optvalues.completekey = option_with_default(configs.get, 'ui', 'completekey',
                                                 DEFAULT_COMPLETEKEY)
     optvalues.color = option_with_default(configs.getboolean, 'ui', 'color')
@@ -2022,6 +1731,8 @@ def read_options(cmdlineargs, environment):
                                                     DEFAULT_FLOAT_PRECISION)
     optvalues.debug = False
     optvalues.file = None
+    optvalues.ssl = False
+
     optvalues.tty = sys.stdin.isatty()
     optvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', DEFAULT_CQLVER)
 
@@ -2040,8 +1751,6 @@ def read_options(cmdlineargs, environment):
 
     if options.file is not None:
         options.tty = False
-
-    options.transport_factory = load_factory(options.transport_factory)
 
     if optvalues.color in (True, False):
         options.color = optvalues.color
@@ -2108,14 +1817,11 @@ def main(options, hostname, port):
             sys.exit("Can't open %r: %s" % (options.file, e))
 
     if options.debug:
-        import thrift
-        sys.stderr.write("Using CQL driver: %s\n" % (cql,))
-        sys.stderr.write("Using thrift lib: %s\n" % (thrift,))
+        sys.stderr.write("Using CQL driver: %s\n" % (cassandra,))
 
     try:
         shell = Shell(hostname,
                       port,
-                      options.transport_factory,
                       color=options.color,
                       username=options.username,
                       password=options.password,
@@ -2125,7 +1831,8 @@ def main(options, hostname, port):
                       cqlver=options.cqlversion,
                       keyspace=options.keyspace,
                       display_time_format=options.time_format,
-                      display_float_precision=options.float_precision)
+                      display_float_precision=options.float_precision,
+                      ssl=options.ssl)
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
     except CQL_ERRORS, e:

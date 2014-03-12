@@ -16,11 +16,12 @@
 
 import re
 import time
-import binascii
+import calendar
 import math
 from collections import defaultdict
 from . import wcwidth
 from .displaying import colorme, FormattedValue, DEFAULT_VALUE_COLORS
+from cassandra.cqltypes import EMPTY
 
 unicode_controlchars_re = re.compile(r'[\x00-\x31\x7f-\xa0]')
 controlchars_re = re.compile(r'[\x00-\x31\x7f-\xff]')
@@ -95,11 +96,11 @@ def format_value_default(val, colormap, **_):
 # making format_value a generic function
 _formatters = {}
 
-def format_value(cqltype, val, **kwargs):
-    if val == '' and not cqltype.empty_binary_ok:
-        return format_value_default(val, **kwargs)
-    formatter = _formatters.get(cqltype.typename, format_value_default)
-    return formatter(val, subtypes=cqltype.subtypes, **kwargs)
+def format_value(type, val, **kwargs):
+    if val == EMPTY:
+        return format_value_default('', **kwargs)
+    formatter = _formatters.get(type.__name__, format_value_default)
+    return formatter(val, **kwargs)
 
 def formatter_for(typname):
     def registrator(f):
@@ -107,10 +108,12 @@ def formatter_for(typname):
         return f
     return registrator
 
-@formatter_for('blob')
+@formatter_for('bytearray')
 def format_value_blob(val, colormap, **_):
     bval = '0x' + ''.join('%02x' % ord(c) for c in val)
     return colorme(bval, colormap, 'blob')
+formatter_for('buffer')(format_value_blob)
+
 
 def format_python_formatted_type(val, colormap, color, quote=False):
     bval = str(val)
@@ -118,21 +121,20 @@ def format_python_formatted_type(val, colormap, color, quote=False):
         bval = "'%s'" % bval
     return colorme(bval, colormap, color)
 
-@formatter_for('decimal')
+@formatter_for('Decimal')
 def format_value_decimal(val, colormap, **_):
     return format_python_formatted_type(val, colormap, 'decimal')
 
-@formatter_for('uuid')
+@formatter_for('UUID')
 def format_value_uuid(val, colormap, **_):
     return format_python_formatted_type(val, colormap, 'uuid')
 
-formatter_for('timeuuid')(format_value_uuid)
 
 @formatter_for('inet')
 def formatter_value_inet(val, colormap, quote=False, **_):
     return format_python_formatted_type(val, colormap, 'inet', quote=quote)
 
-@formatter_for('boolean')
+@formatter_for('bool')
 def format_value_boolean(val, colormap, **_):
     return format_python_formatted_type(val, colormap, 'boolean')
 
@@ -146,24 +148,23 @@ def format_floating_point_type(val, colormap, float_precision, **_):
     return colorme(bval, colormap, 'float')
 
 formatter_for('float')(format_floating_point_type)
-formatter_for('double')(format_floating_point_type)
 
 def format_integer_type(val, colormap, **_):
     # base-10 only for now; support others?
     bval = str(val)
     return colorme(bval, colormap, 'int')
 
-formatter_for('bigint')(format_integer_type)
+formatter_for('long')(format_integer_type)
 formatter_for('int')(format_integer_type)
-formatter_for('varint')(format_integer_type)
-formatter_for('counter')(format_integer_type)
 
-@formatter_for('timestamp')
+@formatter_for('date')
 def format_value_timestamp(val, colormap, time_format, quote=False, **_):
-    bval = strftime(time_format, val)
+    bval = strftime(time_format, calendar.timegm(val.utctimetuple()))
     if quote:
         bval = "'%s'" % bval
     return colorme(bval, colormap, 'timestamp')
+
+formatter_for('datetime')(format_value_timestamp)
 
 def strftime(time_format, seconds):
     local = time.localtime(seconds)
@@ -182,7 +183,7 @@ def strftime(time_format, seconds):
     hours, minutes = divmod(abs(offset) / 60, 60)
     return formatted[:-5] + sign + '{0:0=2}{1:0=2}'.format(hours, minutes)
 
-@formatter_for('text')
+@formatter_for('str')
 def format_value_text(val, encoding, colormap, quote=False, **_):
     escapedval = val.replace(u'\\', u'\\\\')
     if quote:
@@ -195,11 +196,11 @@ def format_value_text(val, encoding, colormap, quote=False, **_):
     return color_text(bval, colormap, displaywidth)
 
 # name alias
-formatter_for('varchar')(format_value_text)
+formatter_for('unicode')(format_value_text)
 
-def format_simple_collection(subtype, val, lbracket, rbracket, encoding,
+def format_simple_collection(val, lbracket, rbracket, encoding,
                              colormap, time_format, float_precision, nullval):
-    subs = [format_value(subtype, sval, encoding=encoding, colormap=colormap,
+    subs = [format_value(type(sval), sval, encoding=encoding, colormap=colormap,
                          time_format=time_format, float_precision=float_precision,
                          nullval=nullval, quote=True)
             for sval in val]
@@ -211,24 +212,27 @@ def format_simple_collection(subtype, val, lbracket, rbracket, encoding,
     return FormattedValue(bval, coloredval, displaywidth)
 
 @formatter_for('list')
-def format_value_list(val, encoding, colormap, time_format, float_precision, subtypes, nullval, **_):
-    return format_simple_collection(subtypes[0], val, '[', ']', encoding, colormap,
+def format_value_list(val, encoding, colormap, time_format, float_precision, nullval, **_):
+    return format_simple_collection(val, '[', ']', encoding, colormap,
                                     time_format, float_precision, nullval)
+formatter_for('tuple')(format_value_list)
 
 @formatter_for('set')
-def format_value_set(val, encoding, colormap, time_format, float_precision, subtypes, nullval, **_):
-    return format_simple_collection(subtypes[0], sorted(val), '{', '}', encoding, colormap,
+def format_value_set(val, encoding, colormap, time_format, float_precision, nullval, **_):
+    return format_simple_collection(sorted(val), '{', '}', encoding, colormap,
                                     time_format, float_precision, nullval)
+formatter_for('frozenset')(format_value_set)
+formatter_for('sortedset')(format_value_set)
 
-@formatter_for('map')
-def format_value_map(val, encoding, colormap, time_format, float_precision, subtypes, nullval, **_):
-    def subformat(v, subtype):
-        return format_value(subtype, v, encoding=encoding, colormap=colormap,
+
+@formatter_for('dict')
+def format_value_map(val, encoding, colormap, time_format, float_precision, nullval, **_):
+    def subformat(v):
+        return format_value(type(v), v, encoding=encoding, colormap=colormap,
                             time_format=time_format, float_precision=float_precision,
                             nullval=nullval, quote=True)
 
-    subkeytype, subvaltype = subtypes
-    subs = [(subformat(k, subkeytype), subformat(v, subvaltype)) for (k, v) in sorted(val.items())]
+    subs = [(subformat(k), subformat(v)) for (k, v) in sorted(val.items())]
     bval = '{' + ', '.join(k.strval + ': ' + v.strval for (k, v) in subs) + '}'
     lb, comma, colon, rb = [colormap['collection'] + s + colormap['reset']
                             for s in ('{', ', ', ': ', '}')]
@@ -237,17 +241,19 @@ def format_value_map(val, encoding, colormap, time_format, float_precision, subt
                + rb
     displaywidth = 4 * len(subs) + sum(k.displaywidth + v.displaywidth for (k, v) in subs)
     return FormattedValue(bval, coloredval, displaywidth)
+formatter_for('OrderedDict')(format_value_map)
 
-def format_value_utype(val, encoding, colormap, time_format, float_precision, subtypes, nullval, **_):
-    def format_field_value(v, subtype):
-        return format_value(subtype, v, encoding=encoding, colormap=colormap,
+
+def format_value_utype(val, encoding, colormap, time_format, float_precision, nullval, **_):
+    def format_field_value(v):
+        return format_value(type(v), v, encoding=encoding, colormap=colormap,
                             time_format=time_format, float_precision=float_precision,
                             nullval=nullval, quote=True)
 
     def format_field_name(name):
         return format_value_text(name, encoding=encoding, colormap=colormap, quote=False)
 
-    subs = [(format_field_name(k), format_field_value(v, subtypes[index])) for (index, (k, v)) in enumerate(val)]
+    subs = [(format_field_name(k), format_field_value(v)) for (k, v) in val._asdict().items() if v is not None]
     bval = '{' + ', '.join(k.strval + ': ' + v.strval for (k, v) in subs) + '}'
     lb, comma, colon, rb = [colormap['collection'] + s + colormap['reset']
                             for s in ('{', ', ', ': ', '}')]

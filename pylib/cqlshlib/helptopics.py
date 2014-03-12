@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cql.cqltypes import cql_types
+from .cql3handling import simple_cql_types
 
 class CQLHelpTopics(object):
     def get_help_topics(self):
@@ -25,7 +25,7 @@ class CQLHelpTopics(object):
 
     def help_types(self):
         print "\n        CQL types recognized by this version of cqlsh:\n"
-        for t in cql_types:
+        for t in simple_cql_types:
             print '          ' + t
         print """
         For information on the various recognizable input formats for these

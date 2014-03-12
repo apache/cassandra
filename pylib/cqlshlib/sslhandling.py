@@ -17,15 +17,14 @@
 import os
 import sys
 import ConfigParser
-from thrift.transport import TSSLSocket, TTransport
+import ssl
 
-def ssl_transport_factory(host, port, env, config_file):
+def ssl_settings(host, config_file, env=os.environ):
     """
-    SSL Thrift transport factory function.
+    Function wcich generates SSL setting for cassandra.Cluster
 
     Params:
     * host .........: hostname of Cassandra node.
-    * port .........: port number to connect to.
     * env ..........: environment variables. SSL factory will use, if passed,
                       SSL_CERTFILE and SSL_VALIDATE variables.
     * config_file ..: path to cqlsh config file (usually ~/.cqlshrc).
@@ -65,6 +64,15 @@ def ssl_transport_factory(host, port, env, config_file):
     if not ssl_certfile is None:
         ssl_certfile = os.path.expanduser(ssl_certfile)
 
-    tsocket = TSSLSocket.TSSLSocket(host, port, ca_certs=ssl_certfile,
-                                    validate=ssl_validate)
-    return TTransport.TFramedTransport(tsocket)
+    userkey = get_option('ssl', 'userkey')
+    if userkey:
+        userkey = os.path.expanduser(userkey)
+    usercert = get_option('ssl', 'usercert')
+    if usercert:
+        usercert = os.path.expanduser(usercert)
+
+    return dict(ca_certs=ssl_certfile,
+                cert_reqs=ssl.CERT_REQUIRED if ssl_validate else ssl.CERT_NONE,
+                ssl_version=ssl.PROTOCOL_TLSv1,
+                keyfile=userkey, certfile=usercert)
+

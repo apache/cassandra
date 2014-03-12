@@ -26,18 +26,20 @@ color = on
 completekey = tab
 
 [cql]
-version = 3.0
+version = 3.1.5
 
 [connection]
 hostname = 127.0.0.1
-port = 9160
-; enable below for ssl
-;factory = cqlshlib.ssl.ssl_transport_factory
+port = 9042
 
 ;[ssl]
 ;certfile = ~/keys/cassandra.cert
 ;; optional - true by default.
 ;validate = true
+;; to be provided when require_client_auth=true
+;userkey = ~/key.pem
+;; to be provided when require_client_auth=true
+;usercert = ~/cert.pem
 
 ;; optional section, overrides default certfile in [ssl] section, if present
 ;[certfiles]
