@@ -564,7 +564,7 @@ public class CompactionManager implements CompactionManagerMBean
                 return false;
             }
 
-            if (i == (ownedRanges.size() - 1))
+            if (i == (sortedRanges.size() - 1))
             {
                 // we're at the last range and we found a key beyond the end of the range
                 return true;
