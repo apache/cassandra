@@ -184,7 +184,7 @@ public class LongBTreeTest
                     if (quickEquality)
                         testEqual("", BTree.<Integer>slice(btree, true), canon.keySet().iterator());
                     else
-                        r.addAll(testAllSlices("RND", btree, canon.navigableKeySet()));
+                        r.addAll(testAllSlices("RND", btree, new TreeSet<>(canon.keySet())));
 
                     if (!BTree.isWellFormed(btree))
                         System.out.println("ERROR: Not well formed");

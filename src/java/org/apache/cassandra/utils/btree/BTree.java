@@ -60,12 +60,6 @@ public class BTree
     }
     // NB we encode Path indexes as Bytes, so this needs to be less than Byte.MAX_VALUE / 2
     static final int FAN_FACTOR = 1 << FAN_SHIFT;
-    static final int QUICK_MERGE_LIMIT = Math.min(FAN_FACTOR, 16) * 2;
-
-    // Maximum depth of any B-Tree. In reality this is just an arbitrary limit, and is currently imposed on iterators only,
-    // but a maximum depth sufficient to store at worst Integer.MAX_VALUE items seems reasonable
-    // 2^n = (2^k).(2^(n/k)) => 2^31 <= 2^(FAN_SHIFT-1) . 2^ceil(31 / (FAN_SHIFT - 1))
-    static final int MAX_DEPTH = (int) Math.ceil(31d / (FAN_SHIFT - 1));
 
     // An empty BTree Leaf - which is the same as an empty BTree
     static final Object[] EMPTY_LEAF = new Object[0];
@@ -202,7 +196,7 @@ public class BTree
      */
     public static <V> Cursor<V> slice(Object[] btree, boolean forwards)
     {
-        Cursor<V> r = Cursor.newCursor();
+        Cursor<V> r = new Cursor<>();
         r.reset(btree, forwards);
         return r;
     }
@@ -220,7 +214,7 @@ public class BTree
      */
     public static <V> Cursor<V> slice(Object[] btree, Comparator<V> comparator, V start, V end, boolean forwards)
     {
-        Cursor<V> r = Cursor.newCursor();
+        Cursor<V> r = new Cursor<>();
         r.reset(btree, comparator, start, end, forwards);
         return r;
     }
@@ -238,7 +232,7 @@ public class BTree
      */
     public static <V> Cursor<V> slice(Object[] btree, Comparator<V> comparator, V start, boolean startInclusive, V end, boolean endInclusive, boolean forwards)
     {
-        Cursor<V> r = Cursor.newCursor();
+        Cursor<V> r = new Cursor<>();
         r.reset(btree, comparator, start, startInclusive, end, endInclusive, forwards);
         return r;
     }
@@ -340,6 +334,17 @@ public class BTree
     public static boolean isEmpty(Object[] tree)
     {
         return tree.length == 0;
+    }
+
+    public static int depth(Object[] tree)
+    {
+        int depth = 1;
+        while (!isLeaf(tree))
+        {
+            depth++;
+            tree = (Object[]) tree[getKeyEnd(tree)];
+        }
+        return depth;
     }
 
     // Special class for making certain operations easier, so we can define a +/- Inf
