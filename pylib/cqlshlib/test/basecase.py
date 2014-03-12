@@ -44,10 +44,10 @@ os.symlink(path_to_cqlsh, modulepath)
 
 sys.path.append(rundir)
 import cqlsh
-cql = cqlsh.cql
+cql = cqlsh.cassandra.cluster.Cluster
 
-TEST_HOST = os.environ.get('CQL_TEST_HOST', 'localhost')
-TEST_PORT = int(os.environ.get('CQL_TEST_PORT', 9160))
+TEST_HOST = os.environ.get('CQL_TEST_HOST', '127.0.0.1')
+TEST_PORT = int(os.environ.get('CQL_TEST_PORT', 9042))
 
 class BaseTestCase(unittest.TestCase):
     def assertNicelyFormattedTableHeader(self, line, msg=None):

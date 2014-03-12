@@ -246,6 +246,7 @@ class CqlshRunner(ProcRunner):
         # readline trying to be friendly- remove these artifacts
         output = output.replace(' \r', '')
         output = output.replace('\r', '')
+        output = output.replace(' \b', '')
         if self.tty:
             echo, output = output.split('\n', 1)
             assert echo == cmd, "unexpected echo %r instead of %r" % (echo, cmd)

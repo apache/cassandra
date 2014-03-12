@@ -26,8 +26,8 @@ test_keyspace_init = os.path.join(rundir, 'test_keyspace_init.cql')
 
 def get_cassandra_connection(cql_version=None):
     if cql_version is None:
-        cql_version = '3.1.0'
-    conn = cql.connect(TEST_HOST, TEST_PORT, cql_version=cql_version)
+        cql_version = '3.1.5'
+    conn = cql((TEST_HOST,), TEST_PORT, cql_version=cql_version)
     # until the cql lib does this for us
     conn.cql_version = cql_version
     return conn
@@ -46,17 +46,17 @@ def make_test_ks_name():
 
 def create_test_keyspace(cursor):
     ksname = make_test_ks_name()
-    qksname = quote_name(cursor, ksname)
+    qksname = quote_name(ksname)
     cursor.execute('''
         CREATE KEYSPACE %s WITH replication =
             {'class': 'SimpleStrategy', 'replication_factor': 1};
-    ''' % quote_name(cursor, ksname))
+    ''' % quote_name(ksname))
     cursor.execute('USE %s;' % qksname)
     TEST_KEYSPACES_CREATED.append(ksname)
     return ksname
 
-def split_cql_commands(source, cqlver='3.1.0'):
-    ruleset = cql_rule_set(cqlver)
+def split_cql_commands(source):
+    ruleset = cql_rule_set()
     statements, in_batch = ruleset.cql_split_statements(source)
     if in_batch:
         raise ValueError("CQL source ends unexpectedly")
@@ -64,7 +64,7 @@ def split_cql_commands(source, cqlver='3.1.0'):
     return [ruleset.cql_extract_orig(toks, source) for toks in statements if toks]
 
 def execute_cql_commands(cursor, source, logprefix='INIT: '):
-    for cql in split_cql_commands(source, cqlver=cursor._connection.cql_version):
+    for cql in split_cql_commands(source):
         cqlshlog.debug(logprefix + cql)
         cursor.execute(cql)
 
@@ -73,14 +73,14 @@ def execute_cql_file(cursor, fname):
         return execute_cql_commands(cursor, f.read())
 
 def create_test_db():
-    with cassandra_cursor(ks=None, cql_version='3.1.0') as c:
+    with cassandra_cursor(ks=None, cql_version='3.1.5') as c:
         k = create_test_keyspace(c)
         execute_cql_file(c, test_keyspace_init)
     return k
 
 def remove_test_db():
     with cassandra_cursor(ks=None) as c:
-        c.execute('DROP KEYSPACE %s' % quote_name(c, TEST_KEYSPACES_CREATED.pop(-1)))
+        c.execute('DROP KEYSPACE %s' % quote_name(TEST_KEYSPACES_CREATED.pop(-1)))
 
 @contextlib.contextmanager
 def cassandra_connection(cql_version=None):
@@ -115,22 +115,18 @@ def cassandra_cursor(cql_version=None, ks=''):
         ks = get_test_keyspace()
     conn = get_cassandra_connection(cql_version=cql_version)
     try:
-        c = conn.cursor()
-        if ks is not None:
-            c.execute('USE %s;' % quote_name(c, ks))
+        c = conn.connect(ks)
+        # if ks is not None:
+        #     c.execute('USE %s;' % quote_name(c, ks))
         yield c
     finally:
-        conn.close()
+        conn.shutdown()
 
-def cql_rule_set(cqlver):
+def cql_rule_set():
     return cqlsh.cql3handling.CqlRuleSet
 
-def quote_name(cqlver, name):
-    if isinstance(cqlver, cql.cursor.Cursor):
-        cqlver = cqlver._connection
-    if isinstance(cqlver, cql.connection.Connection):
-        cqlver = cqlver.cql_version
-    return cql_rule_set(cqlver).maybe_escape_name(name)
+def quote_name(name):
+    return cql_rule_set().maybe_escape_name(name)
 
 class DEFAULTVAL: pass
 

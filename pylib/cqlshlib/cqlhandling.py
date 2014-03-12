@@ -17,10 +17,8 @@
 # code for dealing with CQL's syntax, rules, interpretation
 # i.e., stuff that's not necessarily cqlsh-specific
 
-import re
 import traceback
 from . import pylexotron, util
-from cql import cqltypes
 
 Hint = pylexotron.Hint
 
