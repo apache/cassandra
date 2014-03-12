@@ -25,6 +25,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+
 import org.github.jamm.MemoryMeter;
 
 import org.apache.cassandra.auth.Permission;
@@ -33,6 +34,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
@@ -1052,7 +1054,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 staticValues = new HashMap<>();
                 ColumnGroupMap group = builder.firstGroup();
                 for (CFDefinition.Name name : Iterables.filter(selection.getColumnsList(), isStaticFilter))
-                    staticValues.put(name, name.type.isCollection() ? getCollectionValue(name, group) : getSimpleValue(name, group));
+                    staticValues.put(name, getValue(name, group));
                 builder.discardFirst();
 
                 // If there was static columns but there is no actual row, then provided the select was a full
@@ -1180,6 +1182,16 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         }
     }
 
+    private static ByteBuffer getValue(CFDefinition.Name name, ColumnGroupMap columns)
+    {
+        if (name.type.isCollection())
+            return getCollectionValue(name, columns);
+        else if (name.type.isCommutative())
+            return getCounterValue(name, columns);
+
+        return getSimpleValue(name, columns);
+    }
+
     private static ByteBuffer getCollectionValue(CFDefinition.Name name, ColumnGroupMap columns)
     {
         List<Pair<ByteBuffer, Column>> collection = columns.getCollection(name.name.key);
@@ -1190,6 +1202,12 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     {
         Column c = columns.getSimple(name.name.key);
         return c == null ? null : c.value();
+    }
+
+    private static ByteBuffer getCounterValue(CFDefinition.Name name, ColumnGroupMap columns)
+    {
+        Column c = columns.getSimple(name.name.key);
+        return c == null ? null : CounterColumnType.instance.decompose(CounterContext.instance().total(c.value()));
     }
 
     private static boolean isReversedType(CFDefinition.Name name)

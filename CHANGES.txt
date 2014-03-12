@@ -2,6 +2,7 @@
  * Fix saving triggers to schema (CASSANDRA-6789)
  * Fix trigger mutations when base mutation list is immutable (CASSANDRA-6790)
  * Fix accounting in FileCacheService to allow re-using RAR (CASSANDRA-6838)
+ * Fix static counter columns (CASSANDRA-6827)
 
 
 2.0.6
