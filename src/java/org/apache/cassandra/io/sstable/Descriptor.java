@@ -62,6 +62,7 @@ public class Descriptor
         //             checksum the compressed data
         // ka (2.1.0): new Statistics.db file format
         //             index summaries can be downsampled and the sampling level is persisted
+        //             switch uncompressed checksums to adler32
 
         public static final Version CURRENT = new Version(current_version);
 
@@ -77,6 +78,7 @@ public class Descriptor
         public final boolean hasPostCompressionAdlerChecksums;
         public final boolean hasSamplingLevel;
         public final boolean newStatsFile;
+        public final boolean hasAllAdlerChecksums;
         public final boolean hasRepairedAt;
 
         public Version(String version)
@@ -92,6 +94,7 @@ public class Descriptor
             hasPostCompressionAdlerChecksums = version.compareTo("jb") >= 0;
             hasSamplingLevel = version.compareTo("ka") >= 0;
             newStatsFile = version.compareTo("ka") >= 0;
+            hasAllAdlerChecksums = version.compareTo("ka") >= 0;
             hasRepairedAt = version.compareTo("ka") >= 0;
         }
 

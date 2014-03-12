@@ -23,6 +23,10 @@ import java.nio.channels.ClosedChannelException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.compress.CompressedSequentialWriter;
+import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.CLibrary;
 
 /**
@@ -59,7 +63,6 @@ public class SequentialWriter extends OutputStream
     private int bytesSinceTrickleFsync = 0;
 
     public final DataOutputStream stream;
-    private DataIntegrityMetadata.ChecksumWriter metadata;
 
     public SequentialWriter(File file, int bufferSize, boolean skipIOCache)
     {
@@ -105,6 +108,20 @@ public class SequentialWriter extends OutputStream
     public static SequentialWriter open(File file, int bufferSize, boolean skipIOCache)
     {
         return new SequentialWriter(file, bufferSize, skipIOCache);
+    }
+
+    public static ChecksummedSequentialWriter open(File file, boolean skipIOCache, File crcPath)
+    {
+        return new ChecksummedSequentialWriter(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, skipIOCache, crcPath);
+    }
+
+    public static CompressedSequentialWriter open(String dataFilePath,
+                                                  String offsetsPath,
+                                                  boolean skipIOCache,
+                                                  CompressionParameters parameters,
+                                                  MetadataCollector sstableMetadataCollector)
+    {
+        return new CompressedSequentialWriter(new File(dataFilePath), offsetsPath, skipIOCache, parameters, sstableMetadataCollector);
     }
 
     public void write(int value) throws ClosedChannelException
@@ -273,9 +290,6 @@ public class SequentialWriter extends OutputStream
         {
             throw new FSWriteError(e, getPath());
         }
-
-        if (metadata != null)
-            metadata.append(buffer, 0, validBufferBytes);
     }
 
     public long getFilePointer()
@@ -401,21 +415,12 @@ public class SequentialWriter extends OutputStream
             throw new FSWriteError(e, getPath());
         }
 
-        FileUtils.closeQuietly(metadata);
         CLibrary.tryCloseFD(directoryFD);
     }
 
-    /**
-     * Turn on digest computation on this writer.
-     * This can only be called before any data is written to this write,
-     * otherwise an IllegalStateException is thrown.
-     */
-    public void setDataIntegrityWriter(DataIntegrityMetadata.ChecksumWriter writer)
+    // hack to make life easier for subclasses
+    public void writeFullChecksum(Descriptor descriptor)
     {
-        if (current != 0)
-            throw new IllegalStateException();
-        metadata = writer;
-        metadata.writeChunkSize(buffer.length);
     }
 
     /**
