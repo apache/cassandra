@@ -26,7 +26,7 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.commons.collections.CollectionUtils;
+import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -208,9 +208,9 @@ public class RangeTombstoneTest extends SchemaLoader
 
     private Collection<RangeTombstone> rangeTombstones(ColumnFamily cf)
     {
-        List <RangeTombstone> res = new ArrayList<RangeTombstone>();
-        CollectionUtils.addAll(res, cf.deletionInfo().rangeIterator());
-        return res;
+        List<RangeTombstone> tombstones = new ArrayList<RangeTombstone>();
+        Iterators.addAll(tombstones, cf.deletionInfo().rangeIterator());
+        return tombstones;
     }
 
     @Test
