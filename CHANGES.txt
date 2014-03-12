@@ -1,4 +1,5 @@
 2.1.0-beta2
+ * Apply DONTNEED fadvise to commitlog segments (CASSANDRA-6759)
  * Switch CRC component to Adler and include it for compressed sstables 
    (CASSANDRA-4165)
  * Allow cassandra-stress to set compaction strategy options (CASSANDRA-6451)
