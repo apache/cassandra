@@ -19,6 +19,7 @@ Merged from 2.0:
  * Fix trigger mutations when base mutation list is immutable (CASSANDRA-6790)
  * Fix accounting in FileCacheService to allow re-using RAR (CASSANDRA-6838)
  * Fix static counter columns (CASSANDRA-6827)
+ * Restore expiring->deleted (cell) compaction optimization (CASSANDRA-6844)
  * Avoid race-prone second "scrub" of system keyspace (CASSANDRA-6797)
  * Pool CqlRecordWriter clients by inetaddress rather than Range 
    (CASSANDRA-6665)
