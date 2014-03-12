@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.commitlog;
 
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -34,6 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -95,6 +97,7 @@ public class CommitLogSegment
 
     private final File logFile;
     private final RandomAccessFile logFileAccessor;
+    private final int fd;
 
     private final MappedByteBuffer buffer;
 
@@ -150,6 +153,7 @@ public class CommitLogSegment
             // (We may have restarted after a segment size configuration change, leaving "incorrectly"
             // sized segments on disk.)
             logFileAccessor.setLength(DatabaseDescriptor.getCommitLogSegmentSize());
+            fd = CLibrary.getfd(logFileAccessor.getFD());
 
             buffer = logFileAccessor.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, DatabaseDescriptor.getCommitLogSegmentSize());
             // mark the initial header as uninitialised
@@ -317,6 +321,7 @@ public class CommitLogSegment
                 close();
                 nextMarker = buffer.capacity();
             }
+            CLibrary.trySkipCache(fd, offset, nextMarker);
 
             lastSyncedOffset = nextMarker;
         }
