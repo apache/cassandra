@@ -91,7 +91,10 @@ public class FileCacheService
         Queue<RandomAccessReader> instances = getCacheFor(path);
         RandomAccessReader result = instances.poll();
         if (result != null)
+        {
             metrics.hits.mark();
+            memoryUsage.addAndGet(-result.getTotalBufferSize());
+        }
 
         return result;
     }
