@@ -20,33 +20,21 @@ package org.apache.cassandra.io.sstable;
 import java.io.*;
 import java.util.Iterator;
 
-import org.apache.cassandra.serializers.MarshalException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.serializers.MarshalException;
 
 public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterator>, OnDiskAtomIterator
 {
-    private static final Logger logger = LoggerFactory.getLogger(SSTableIdentityIterator.class);
-
     private final DecoratedKey key;
     private final DataInput in;
     public final long dataSize; // we [still] require this so compaction can tell if it's safe to read the row into memory
     public final ColumnSerializer.Flag flag;
 
     private final ColumnFamily columnFamily;
-    private final int columnCount;
-
     private final Iterator<OnDiskAtom> atomIterator;
-    private final Descriptor.Version dataVersion;
-
-    // Used by lazilyCompactedRow, so that we see the same things when deserializing the first and second time
-    private final int expireBefore;
-
     private final boolean validateColumns;
     private final String filename;
 
@@ -56,7 +44,6 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
      * @param file Reading using this file.
      * @param key Key of this row.
      * @param dataSize length of row data
-     * @throws IOException
      */
     public SSTableIdentityIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey key, long dataSize)
     {
@@ -92,17 +79,18 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         this.filename = filename;
         this.key = key;
         this.dataSize = dataSize;
-        this.expireBefore = (int)(System.currentTimeMillis() / 1000);
         this.flag = flag;
         this.validateColumns = checkData;
-        this.dataVersion = sstable == null ? Descriptor.Version.CURRENT : sstable.descriptor.version;
+
+        Descriptor.Version dataVersion = sstable == null ? Descriptor.Version.CURRENT : sstable.descriptor.version;
+        int expireBefore = (int) (System.currentTimeMillis() / 1000);
+        columnFamily = ArrayBackedSortedColumns.factory.create(metadata);
 
         try
         {
-            columnFamily = ArrayBackedSortedColumns.factory.create(metadata);
             columnFamily.delete(DeletionTime.serializer.deserialize(in));
-            columnCount = dataVersion.hasRowSizeAndColumnCount ? in.readInt() : Integer.MAX_VALUE;
-            atomIterator = columnFamily.metadata().getOnDiskIterator(in, columnCount, dataVersion);
+            int columnCount = dataVersion.hasRowSizeAndColumnCount ? in.readInt() : Integer.MAX_VALUE;
+            atomIterator = columnFamily.metadata().getOnDiskIterator(in, columnCount, flag, expireBefore, dataVersion);
         }
         catch (IOException e)
         {
@@ -177,31 +165,8 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         }
     }
 
-    public ColumnFamily getColumnFamilyWithColumns(ColumnFamily.Factory containerFactory)
-    {
-        ColumnFamily cf = columnFamily.cloneMeShallow(containerFactory, false);
-        // since we already read column count, just pass that value and continue deserialization
-        Iterator<OnDiskAtom> iter = cf.metadata().getOnDiskIterator(in, columnCount, flag, expireBefore, dataVersion);
-        while (iter.hasNext())
-            cf.addAtom(iter.next());
-
-        if (validateColumns)
-        {
-            try
-            {
-                cf.metadata().validateColumns(cf);
-            }
-            catch (MarshalException e)
-            {
-                throw new RuntimeException("Error validating row " + key, e);
-            }
-        }
-        return cf;
-    }
-
     public int compareTo(SSTableIdentityIterator o)
     {
         return key.compareTo(o.key);
     }
-
 }
