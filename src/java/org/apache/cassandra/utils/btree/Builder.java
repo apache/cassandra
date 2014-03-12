@@ -55,7 +55,7 @@ final class Builder
      * we assume @param source has been sorted, e.g. by BTree.update, so the update of each key resumes where
      * the previous left off.
      */
-    public <V> Object[] update(Object[] btree, Comparator<V> comparator, Collection<V> source, UpdateFunction<V> updateF)
+    public <V> Object[] update(Object[] btree, Comparator<V> comparator, Iterable<V> source, UpdateFunction<V> updateF)
     {
         assert updateF != null;
 
@@ -97,15 +97,17 @@ final class Builder
         return r;
     }
 
-    public <V> Object[] build(Collection<V> source, int size)
+    public <V> Object[] build(Iterable<V> source, UpdateFunction<V> updateF, int size)
     {
+        assert updateF != null;
+
         NodeBuilder current = rootBuilder;
         // we descend only to avoid wasting memory; in update() we will often descend into existing trees
         // so here we want to descend also, so we don't have lg max(N) depth in both directions
         while ((size >>= FAN_SHIFT) > 0)
             current = current.ensureChild();
 
-        current.reset(EMPTY_LEAF, POSITIVE_INFINITY, UpdateFunction.NoOp.instance(), null);
+        current.reset(EMPTY_LEAF, POSITIVE_INFINITY, updateF, null);
         for (V key : source)
             current.addNewKey(key);
 

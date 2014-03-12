@@ -83,6 +83,11 @@ public class BTree
         return EMPTY_LEAF;
     }
 
+    public static <V> Object[] build(Collection<V> source, Comparator<V> comparator, boolean sorted, UpdateFunction<V> updateF)
+    {
+        return build(source, source.size(), comparator, sorted, updateF);
+    }
+
     /**
      * Creates a BTree containing all of the objects in the provided collection
      *
@@ -92,17 +97,23 @@ public class BTree
      * @param <V>
      * @return
      */
-    public static <V> Object[] build(Collection<V> source, Comparator<V> comparator, boolean sorted, UpdateFunction<V> updateF)
+    public static <V> Object[] build(Iterable<V> source, int size, Comparator<V> comparator, boolean sorted, UpdateFunction<V> updateF)
     {
-        int size = source.size();
-
         if (size < FAN_FACTOR)
         {
             // pad to even length to match contract that all leaf nodes are even
-            V[] values = source.toArray((V[]) new Object[size + (size & 1)]);
+            V[] values = (V[]) new Object[size + (size & 1)];
+            {
+                int i = 0;
+                for (V v : source)
+                    values[i++] = v;
+            }
+
             // inline sorting since we're already calling toArray
             if (!sorted)
                 Arrays.sort(values, 0, size, comparator);
+
+            // if updateF is specified
             if (updateF != null)
             {
                 for (int i = 0 ; i < size ; i++)
@@ -119,7 +130,7 @@ public class BTree
         Builder builder = queue.poll();
         if (builder == null)
             builder = new Builder();
-        Object[] btree = builder.build(source, size);
+        Object[] btree = builder.build(source, updateF, size);
         queue.add(builder);
         return btree;
     }
@@ -139,6 +150,15 @@ public class BTree
         return update(btree, comparator, updateWith, updateWithIsSorted, UpdateFunction.NoOp.<V>instance());
     }
 
+    public static <V> Object[] update(Object[] btree,
+                                      Comparator<V> comparator,
+                                      Collection<V> updateWith,
+                                      boolean updateWithIsSorted,
+                                      UpdateFunction<V> updateF)
+    {
+        return update(btree, comparator, updateWith, updateWith.size(), updateWithIsSorted, updateF);
+    }
+
     /**
      * Returns a new BTree with the provided set inserting/replacing as necessary any equal items
      *
@@ -152,15 +172,16 @@ public class BTree
      */
     public static <V> Object[] update(Object[] btree,
                                       Comparator<V> comparator,
-                                      Collection<V> updateWith,
+                                      Iterable<V> updateWith,
+                                      int updateWithLength,
                                       boolean updateWithIsSorted,
                                       UpdateFunction<V> updateF)
     {
         if (btree.length == 0)
-            return build(updateWith, comparator, updateWithIsSorted, updateF);
+            return build(updateWith, updateWithLength, comparator, updateWithIsSorted, updateF);
 
         if (!updateWithIsSorted)
-            updateWith = sorted(updateWith, comparator, updateWith.size());
+            updateWith = sorted(updateWith, comparator, updateWithLength);
 
         Queue<Builder> queue = modifier.get();
         Builder builder = queue.poll();
@@ -316,6 +337,11 @@ public class BTree
         return (node.length & 1) == 0;
     }
 
+    public static boolean isEmpty(Object[] tree)
+    {
+        return tree.length == 0;
+    }
+
     // Special class for making certain operations easier, so we can define a +/- Inf
     private static interface Special extends Comparable<Object> { }
     static final Special POSITIVE_INFINITY = new Special()
@@ -343,9 +369,12 @@ public class BTree
     };
 
     // return a sorted collection
-    private static <V> Collection<V> sorted(Collection<V> collection, Comparator<V> comparator, int size)
+    private static <V> Collection<V> sorted(Iterable<V> source, Comparator<V> comparator, int size)
     {
-        V[] vs = collection.toArray((V[]) new Object[size]);
+        V[] vs = (V[]) new Object[size];
+        int i = 0;
+        for (V v : source)
+            vs[i++] = v;
         Arrays.sort(vs, comparator);
         return Arrays.asList(vs);
     }
