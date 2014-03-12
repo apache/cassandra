@@ -33,16 +33,16 @@ public class CqlRangeSlicer extends CqlOperation<Integer>
     }
 
     @Override
-    protected List<ByteBuffer> getQueryParameters(byte[] key)
+    protected List<Object> getQueryParameters(byte[] key)
     {
-        return Collections.singletonList(ByteBuffer.wrap(key));
+        return Collections.<Object>singletonList(ByteBuffer.wrap(key));
     }
 
     @Override
     protected String buildQuery()
     {
         StringBuilder query = new StringBuilder("SELECT FIRST ").append(state.settings.columns.maxColumnsPerKey)
-                .append(" ''..'' FROM ").append(state.settings.schema.columnFamily);
+                .append(" ''..'' FROM ").append(wrapInQuotesIfRequired(state.type.table));
 
         if (state.isCql2())
             query.append(" USING CONSISTENCY ").append(state.settings.command.consistencyLevel);
@@ -51,7 +51,7 @@ public class CqlRangeSlicer extends CqlOperation<Integer>
     }
 
     @Override
-    protected CqlRunOp<Integer> buildRunOp(ClientWrapper client, String query, Object queryId, List<ByteBuffer> params, String keyid, ByteBuffer key)
+    protected CqlRunOp<Integer> buildRunOp(ClientWrapper client, String query, Object queryId, List<Object> params, String keyid, ByteBuffer key)
     {
         return new CqlRunOpTestNonEmpty(client, query, queryId, params, keyid, key);
     }

@@ -63,7 +63,7 @@ public class SettingsKey implements Serializable
 
         public DistributionOptions(String defaultLimit)
         {
-            dist = new OptionDistribution("dist=", "GAUSSIAN(1.." + defaultLimit + ")");
+            dist = new OptionDistribution("dist=", "GAUSSIAN(1.." + defaultLimit + ")", "Keys are selected from this distribution");
         }
 
         @Override

@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.apache.cassandra.stress.Operation;
-import org.apache.cassandra.stress.settings.SettingsCommandMulti;
 import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -52,7 +51,7 @@ public class ThriftIndexedRangeSlicer extends Operation
         final List<ByteBuffer> columns = generateColumnValues(getKey());
         final ColumnParent parent = state.columnParents.get(0);
 
-        final ByteBuffer columnName = getColumnNameBytes(1);
+        final ByteBuffer columnName = state.settings.columns.names.get(1);
         final ByteBuffer value = columns.get(1); // only C1 column is indexed
 
         IndexExpression expression = new IndexExpression(columnName, IndexOperator.EQ, value);
@@ -64,7 +63,7 @@ public class ThriftIndexedRangeSlicer extends Operation
             final boolean first = minKey.length == 0;
             final IndexClause clause = new IndexClause(Arrays.asList(expression),
                                                  ByteBuffer.wrap(minKey),
-                                                ((SettingsCommandMulti) state.settings.command).keysAtOnce);
+                                                state.settings.command.keysAtOnce);
 
             timeWithRetry(new RunOp()
             {

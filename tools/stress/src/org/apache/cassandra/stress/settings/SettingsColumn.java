@@ -30,6 +30,7 @@ import java.util.Map;
 
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.stress.generatedata.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * For parsing column options
@@ -39,12 +40,13 @@ public class SettingsColumn implements Serializable
 
     public final int maxColumnsPerKey;
     public final List<ByteBuffer> names;
+    public final List<String> namestrs;
     public final String comparator;
     public final boolean useTimeUUIDComparator;
     public final int superColumns;
     public final boolean useSuperColumns;
     public final boolean variableColumnCount;
-
+    public final boolean slice;
     private final DistributionFactory sizeDistribution;
     private final DistributionFactory countDistribution;
     private final DataGenFactory dataGenFactory;
@@ -95,11 +97,12 @@ public class SettingsColumn implements Serializable
                 comparator = TypeParser.parse(this.comparator);
             } catch (Exception e)
             {
-                throw new IllegalStateException(e);
+                throw new IllegalArgumentException(this.comparator + " is not a valid type");
             }
 
             final String[] names = name.name.value().split(",");
             this.names = new ArrayList<>(names.length);
+            this.namestrs = Arrays.asList(names);
 
             for (String columnName : names)
                 this.names.add(comparator.fromString(columnName));
@@ -117,10 +120,21 @@ public class SettingsColumn implements Serializable
         else
         {
             this.countDistribution = count.count.get();
-            this.names = null;
+            ByteBuffer[] names = new ByteBuffer[(int) countDistribution.get().maxValue()];
+            String[] namestrs = new String[(int) countDistribution.get().maxValue()];
+            for (int i = 0 ; i < names.length ; i++)
+            {
+                names[i] = ByteBufferUtil.bytes("C" + i);
+                namestrs[i] = "C" + i;
+            }
+            this.names = Arrays.asList(names);
+            this.namestrs = Arrays.asList(namestrs);
         }
         maxColumnsPerKey = (int) countDistribution.get().maxValue();
         variableColumnCount = countDistribution.get().minValue() < maxColumnsPerKey;
+        // TODO: should warn that we always slice for useTimeUUIDComparator?
+        slice = options.slice.setByUser() || useTimeUUIDComparator;
+        // TODO: with useTimeUUIDCOmparator, should we still try to select a random start for reads if possible?
     }
 
     public RowGen newRowGen()
@@ -134,7 +148,8 @@ public class SettingsColumn implements Serializable
     {
         final OptionSimple superColumns = new OptionSimple("super=", "[0-9]+", "0", "Number of super columns to use (no super columns used if not specified)", false);
         final OptionSimple comparator = new OptionSimple("comparator=", "TimeUUIDType|AsciiType|UTF8Type", "AsciiType", "Column Comparator to use", false);
-        final OptionDistribution size = new OptionDistribution("size=", "FIXED(34)");
+        final OptionSimple slice = new OptionSimple("slice", "", null, "If set, range slices will be used for reads, otherwise a names query will be", false);
+        final OptionDistribution size = new OptionDistribution("size=", "FIXED(34)", "Cell size distribution");
         final OptionDataGen generator = new OptionDataGen("data=", "REPEAT(50)");
     }
 
@@ -145,18 +160,18 @@ public class SettingsColumn implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(name, superColumns, comparator, size, generator);
+            return Arrays.asList(name, slice, superColumns, comparator, size, generator);
         }
     }
 
     private static final class CountOptions extends Options
     {
-        final OptionDistribution count = new OptionDistribution("n=", "FIXED(5)");
+        final OptionDistribution count = new OptionDistribution("n=", "FIXED(5)", "Cell count distribution, per operation");
 
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(count, superColumns, comparator, size, generator);
+            return Arrays.asList(count, slice, superColumns, comparator, size, generator);
         }
     }
 

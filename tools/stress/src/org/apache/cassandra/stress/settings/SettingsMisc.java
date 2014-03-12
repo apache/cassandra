@@ -43,7 +43,7 @@ public class SettingsMisc implements Serializable
 
     static final class PrintDistribution extends GroupedOptions
     {
-        final OptionDistribution dist = new OptionDistribution("dist=", null);
+        final OptionDistribution dist = new OptionDistribution("dist=", null, "A mathematical distribution");
 
         @Override
         public List<? extends Option> options()
@@ -180,7 +180,7 @@ public class SettingsMisc implements Serializable
                     @Override
                     public List<? extends Option> options()
                     {
-                        return Arrays.asList(new OptionDistribution("dist=", null));
+                        return Arrays.asList(new OptionDistribution("dist=", null, "A mathematical distribution"));
                     }
                 });
             }

@@ -47,7 +47,7 @@ public class SettingsTransport implements Serializable
         {
             Class<?> clazz = Class.forName(fqFactoryClass);
             if (!ITransportFactory.class.isAssignableFrom(clazz))
-                throw new ClassCastException();
+                throw new IllegalArgumentException(clazz + " is not a valid transport factory");
             // check we can instantiate it
             clazz.newInstance();
         }

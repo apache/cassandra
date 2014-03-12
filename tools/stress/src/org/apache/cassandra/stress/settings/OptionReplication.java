@@ -77,7 +77,7 @@ class OptionReplication extends OptionMulti
                 {
                     Class<?> clazz = Class.forName(fullname);
                     if (!AbstractReplicationStrategy.class.isAssignableFrom(clazz))
-                        throw new RuntimeException();
+                        throw new IllegalArgumentException(clazz + " is not a replication strategy");
                     strategy = fullname;
                     break;
                 } catch (Exception _)

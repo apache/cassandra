@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.stress.Operation;
-import org.apache.cassandra.stress.settings.SettingsCommandMulti;
 import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.KeyRange;
@@ -55,7 +54,7 @@ public final class ThriftRangeSlicer extends Operation
                 new KeyRange(state.settings.columns.maxColumnsPerKey)
                         .setStart_key(start)
                         .setEnd_key(ByteBufferUtil.EMPTY_BYTE_BUFFER)
-                        .setCount(((SettingsCommandMulti)state.settings.command).keysAtOnce);
+                        .setCount(state.settings.command.keysAtOnce);
 
         for (final ColumnParent parent : state.columnParents)
         {

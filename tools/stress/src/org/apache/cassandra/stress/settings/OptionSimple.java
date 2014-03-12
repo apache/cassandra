@@ -33,7 +33,7 @@ import com.google.common.base.Function;
 class OptionSimple extends Option
 {
 
-    private final String displayPrefix;
+    final String displayPrefix;
     private final Pattern matchPrefix;
     private final String defaultValue;
     private final Function<String, String> valueAdapter;

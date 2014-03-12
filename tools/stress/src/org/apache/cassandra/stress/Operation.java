@@ -19,27 +19,16 @@ package org.apache.cassandra.stress;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
+import org.apache.cassandra.stress.generatedata.Distribution;
 import org.apache.cassandra.stress.generatedata.KeyGen;
 import org.apache.cassandra.stress.generatedata.RowGen;
-import org.apache.cassandra.stress.operations.CqlCounterAdder;
-import org.apache.cassandra.stress.operations.CqlCounterGetter;
-import org.apache.cassandra.stress.operations.CqlIndexedRangeSlicer;
-import org.apache.cassandra.stress.operations.CqlInserter;
-import org.apache.cassandra.stress.operations.CqlMultiGetter;
-import org.apache.cassandra.stress.operations.CqlRangeSlicer;
-import org.apache.cassandra.stress.operations.CqlReader;
-import org.apache.cassandra.stress.operations.ThriftCounterAdder;
-import org.apache.cassandra.stress.operations.ThriftCounterGetter;
-import org.apache.cassandra.stress.operations.ThriftIndexedRangeSlicer;
-import org.apache.cassandra.stress.operations.ThriftInserter;
-import org.apache.cassandra.stress.operations.ThriftMultiGetter;
-import org.apache.cassandra.stress.operations.ThriftRangeSlicer;
-import org.apache.cassandra.stress.operations.ThriftReader;
 import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.CqlVersion;
 import org.apache.cassandra.stress.settings.SettingsCommandMixed;
@@ -49,6 +38,8 @@ import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.stress.util.Timer;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.SlicePredicate;
+import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -79,6 +70,7 @@ public abstract class Operation
         public final Command type;
         public final KeyGen keyGen;
         public final RowGen rowGen;
+        public final Distribution counteradd;
         public final List<ColumnParent> columnParents;
         public final StressMetrics metrics;
         public final SettingsCommandMixed.CommandSelector commandSelector;
@@ -99,19 +91,12 @@ public abstract class Operation
                 commandSelector = null;
                 substates = null;
             }
+            counteradd = settings.command.add.get();
             this.settings = settings;
             this.keyGen = settings.keys.newKeyGen();
             this.rowGen = settings.columns.newRowGen();
             this.metrics = metrics;
-            if (!settings.columns.useSuperColumns)
-                columnParents = Collections.singletonList(new ColumnParent(settings.schema.columnFamily));
-            else
-            {
-                ColumnParent[] cp = new ColumnParent[settings.columns.superColumns];
-                for (int i = 0 ; i < cp.length ; i++)
-                    cp[i] = new ColumnParent("Super1").setSuper_column(ByteBufferUtil.bytes("S" + i));
-                columnParents = Arrays.asList(cp);
-            }
+            this.columnParents = columnParents(type, settings);
         }
 
         private State(Command type, State copy)
@@ -120,12 +105,28 @@ public abstract class Operation
             this.timer = copy.timer;
             this.rowGen = copy.rowGen;
             this.keyGen = copy.keyGen;
-            this.columnParents = copy.columnParents;
+            this.columnParents = columnParents(type, copy.settings);
             this.metrics = copy.metrics;
             this.settings = copy.settings;
+            this.counteradd = copy.counteradd;
             this.substates = null;
             this.commandSelector = null;
         }
+
+        private List<ColumnParent> columnParents(Command type, StressSettings settings)
+        {
+            if (!settings.columns.useSuperColumns)
+                return Collections.singletonList(new ColumnParent(type.table));
+            else
+            {
+                ColumnParent[] cp = new ColumnParent[settings.columns.superColumns];
+                for (int i = 0 ; i < cp.length ; i++)
+                    cp[i] = new ColumnParent(type.supertable).setSuper_column(ByteBufferUtil.bytes("S" + i));
+                return Arrays.asList(cp);
+            }
+        }
+
+
 
         public boolean isCql3()
         {
@@ -172,6 +173,53 @@ public abstract class Operation
         return state.rowGen.generate(index, key);
     }
 
+    private int sliceStart(int count)
+    {
+        if (count == state.settings.columns.maxColumnsPerKey)
+            return 0;
+        return 1 + ThreadLocalRandom.current().nextInt(state.settings.columns.maxColumnsPerKey - count);
+    }
+
+    protected SlicePredicate slicePredicate()
+    {
+        final SlicePredicate predicate = new SlicePredicate();
+        if (state.settings.columns.slice)
+        {
+            int count = state.rowGen.count(index);
+            int start = sliceStart(count);
+            predicate.setSlice_range(new SliceRange()
+                                     .setStart(state.settings.columns.names.get(start))
+                                     .setFinish(new byte[] {})
+                                     .setReversed(false)
+                                     .setCount(count)
+            );
+        }
+        else
+            predicate.setColumn_names(randomNames());
+        return predicate;
+    }
+
+    protected List<ByteBuffer> randomNames()
+    {
+        int count = state.rowGen.count(index);
+        List<ByteBuffer> src = state.settings.columns.names;
+        if (count == src.size())
+            return src;
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        List<ByteBuffer> r = new ArrayList<>();
+        int c = 0, o = 0;
+        while (c < count && count + o < src.size())
+        {
+            int leeway = src.size() - (count + o);
+            int spreadover = count - c;
+            o += Math.round(rnd.nextDouble() * (leeway / (double) spreadover));
+            r.add(src.get(o + c++));
+        }
+        while (c < count)
+            r.add(src.get(o + c++));
+        return r;
+    }
+
     /**
      * Run operation
      * @param client Cassandra Thrift client connection
@@ -213,10 +261,11 @@ public abstract class Operation
 
         if (!success)
         {
-            error(String.format("Operation [%d] x%d key %s %s%n",
+            error(String.format("Operation [%d] x%d key %s (0x%s) %s%n",
                     index,
                     tries,
                     run.key(),
+                    ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(run.key())),
                     (exceptionMessage == null)
                         ? "Data returned was not validated"
                         : "Error executing: " + exceptionMessage));
@@ -237,16 +286,6 @@ public abstract class Operation
             throw new IOException(message);
         else
             System.err.println(message);
-    }
-
-    public static ByteBuffer getColumnNameBytes(int i)
-    {
-        return ByteBufferUtil.bytes("C" + i);
-    }
-
-    public static String getColumnName(int i)
-    {
-        return "C" + i;
     }
 
 }

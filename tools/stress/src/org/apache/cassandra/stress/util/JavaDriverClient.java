@@ -103,11 +103,11 @@ public class JavaDriverClient
         return getSession().execute(stmt);
     }
 
-    public ResultSet executePrepared(PreparedStatement stmt, List<ByteBuffer> queryParams, org.apache.cassandra.db.ConsistencyLevel consistency)
+    public ResultSet executePrepared(PreparedStatement stmt, List<Object> queryParams, org.apache.cassandra.db.ConsistencyLevel consistency)
     {
 
         stmt.setConsistencyLevel(from(consistency));
-        BoundStatement bstmt = stmt.bind((Object[]) queryParams.toArray(new ByteBuffer[queryParams.size()]));
+        BoundStatement bstmt = stmt.bind((Object[]) queryParams.toArray(new Object[queryParams.size()]));
         return getSession().execute(bstmt);
     }
 

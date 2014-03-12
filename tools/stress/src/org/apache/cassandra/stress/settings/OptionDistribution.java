@@ -43,11 +43,13 @@ class OptionDistribution extends Option
     final String prefix;
     private String spec;
     private final String defaultSpec;
+    private final String description;
 
-    public OptionDistribution(String prefix, String defaultSpec)
+    public OptionDistribution(String prefix, String defaultSpec, String description)
     {
         this.prefix = prefix;
         this.defaultSpec = defaultSpec;
+        this.description = description;
     }
 
     @Override
@@ -88,7 +90,7 @@ class OptionDistribution extends Option
 
     public String longDisplay()
     {
-        return shortDisplay() + ": Specify a mathematical distribution";
+        return shortDisplay() + ": " + description;
     }
 
     @Override
@@ -105,10 +107,15 @@ class OptionDistribution extends Option
         );
     }
 
+    boolean setByUser()
+    {
+        return spec != null;
+    }
+
     @Override
     public String shortDisplay()
     {
-        return prefix + "DIST(?)";
+        return (defaultSpec != null ? "[" : "") + prefix + "DIST(?)" + (defaultSpec != null ? "]" : "");
     }
 
     private static final Map<String, Impl> LOOKUP;

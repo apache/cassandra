@@ -51,6 +51,8 @@ public class RowGenDistributedSize extends RowGen
         this.sizeDistribution = sizeDistribution;
         ret = new ByteBuffer[(int) countDistribution.maxValue()];
         sizes = new int[ret.length];
+        // TODO: should keep it deterministic in event that count distribution is not, but size and dataGen are, so that
+        // we simply need to generate the correct selection of columns
         this.isDeterministic = dataGen.isDeterministic() && countDistribution.maxValue() == countDistribution.minValue()
             && sizeDistribution.minValue() == sizeDistribution.maxValue();
     }
@@ -98,6 +100,11 @@ public class RowGenDistributedSize extends RowGen
             i++;
         }
         return Arrays.asList(ret).subList(0, count);
+    }
+
+    public int count(long operationIndex)
+    {
+        return (int) countDistribution.next();
     }
 
     @Override

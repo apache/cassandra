@@ -34,9 +34,9 @@ public class CqlCounterGetter extends CqlOperation<Integer>
     }
 
     @Override
-    protected List<ByteBuffer> getQueryParameters(byte[] key)
+    protected List<Object> getQueryParameters(byte[] key)
     {
-        return Collections.singletonList(ByteBuffer.wrap(key));
+        return Collections.<Object>singletonList(ByteBuffer.wrap(key));
     }
 
     @Override
@@ -44,12 +44,13 @@ public class CqlCounterGetter extends CqlOperation<Integer>
     {
         StringBuilder query = new StringBuilder("SELECT ");
 
+        // TODO: obey slice/noslice option (instead of always slicing)
         if (state.isCql2())
             query.append("FIRST ").append(state.settings.columns.maxColumnsPerKey).append(" ''..''");
         else
             query.append("*");
 
-        String counterCF = state.isCql2() ? "Counter1" : "Counter3";
+        String counterCF = state.isCql2() ? state.type.table : "Counter3";
 
         query.append(" FROM ").append(wrapInQuotesIfRequired(counterCF));
 
@@ -60,7 +61,7 @@ public class CqlCounterGetter extends CqlOperation<Integer>
     }
 
     @Override
-    protected CqlRunOp<Integer> buildRunOp(ClientWrapper client, String query, Object queryId, List<ByteBuffer> params, String keyid, ByteBuffer key)
+    protected CqlRunOp<Integer> buildRunOp(ClientWrapper client, String query, Object queryId, List<Object> params, String keyid, ByteBuffer key)
     {
         return new CqlRunOpTestNonEmpty(client, query, queryId, params, keyid, key);
     }

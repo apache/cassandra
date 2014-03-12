@@ -172,12 +172,21 @@ public class StressSettings implements Serializable
 
     public static StressSettings parse(String[] args)
     {
-        final Map<String, String[]> clArgs = parseMap(args);
-        if (clArgs.containsKey("legacy"))
-            return Legacy.build(Arrays.copyOfRange(args, 1, args.length));
-        if (SettingsMisc.maybeDoSpecial(clArgs))
+        try
+        {
+            final Map<String, String[]> clArgs = parseMap(args);
+            if (clArgs.containsKey("legacy"))
+                return Legacy.build(Arrays.copyOfRange(args, 1, args.length));
+            if (SettingsMisc.maybeDoSpecial(clArgs))
+                System.exit(1);
+            return get(clArgs);
+        }
+        catch (IllegalArgumentException e)
+        {
+            System.out.println(e.getMessage());
             System.exit(1);
-        return get(clArgs);
+            throw new AssertionError();
+        }
     }
 
     public static StressSettings get(Map<String, String[]> clArgs)
@@ -231,15 +240,22 @@ public class StressSettings implements Serializable
             if (i == 0 || args[i].startsWith("-"))
             {
                 if (i > 0)
-                    r.put(key, params.toArray(new String[0]));
+                    putParam(key, params.toArray(new String[0]), r);
                 key = args[i].toLowerCase();
                 params.clear();
             }
             else
                 params.add(args[i]);
         }
-        r.put(key, params.toArray(new String[0]));
+        putParam(key, params.toArray(new String[0]), r);
         return r;
+    }
+
+    private static void putParam(String key, String[] args, Map<String, String[]> clArgs)
+    {
+        String[] prev = clArgs.put(key, args);
+        if (prev != null)
+            throw new IllegalArgumentException(key + " is defined multiple times. Each option/command can be specified at most once.");
     }
 
     public static void printHelp()
