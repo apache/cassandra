@@ -26,20 +26,15 @@ import java.util.zip.Checksum;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.SequentialWriter;
 
 public class CompressedSequentialWriter extends SequentialWriter
 {
-    public static SequentialWriter open(String dataFilePath,
-                                        String indexFilePath,
-                                        boolean skipIOCache,
-                                        CompressionParameters parameters,
-                                        MetadataCollector sstableMetadataCollector)
-    {
-        return new CompressedSequentialWriter(new File(dataFilePath), indexFilePath, skipIOCache, parameters, sstableMetadataCollector);
-    }
+    private final DataIntegrityMetadata.ChecksumWriter crcMetadata;
 
     // holds offset in the file where current chunk should be written
     // changed only by flush() method where data buffer gets compressed and stored to the file
@@ -55,14 +50,12 @@ public class CompressedSequentialWriter extends SequentialWriter
     // holds a number of already written chunks
     private int chunkCount = 0;
 
-    private final Checksum checksum = new Adler32();
-
     private long originalSize = 0, compressedSize = 0;
 
     private final MetadataCollector sstableMetadataCollector;
 
     public CompressedSequentialWriter(File file,
-                                      String indexFilePath,
+                                      String offsetsPath,
                                       boolean skipIOCache,
                                       CompressionParameters parameters,
                                       MetadataCollector sstableMetadataCollector)
@@ -74,10 +67,11 @@ public class CompressedSequentialWriter extends SequentialWriter
         compressed = new ICompressor.WrappedArray(new byte[compressor.initialCompressedBufferLength(buffer.length)]);
 
         /* Index File (-CompressionInfo.db component) and it's header */
-        metadataWriter = CompressionMetadata.Writer.open(indexFilePath);
+        metadataWriter = CompressionMetadata.Writer.open(offsetsPath);
         metadataWriter.writeHeader(parameters);
 
         this.sstableMetadataCollector = sstableMetadataCollector;
+        crcMetadata = new DataIntegrityMetadata.ChecksumWriter(out);
     }
 
     @Override
@@ -125,9 +119,6 @@ public class CompressedSequentialWriter extends SequentialWriter
         originalSize += validBufferBytes;
         compressedSize += compressedLength;
 
-        // update checksum
-        checksum.update(compressed.buffer, 0, compressedLength);
-
         try
         {
             // write an offset of the newly written chunk to the index file
@@ -139,15 +130,12 @@ public class CompressedSequentialWriter extends SequentialWriter
             // write data itself
             out.write(compressed.buffer, 0, compressedLength);
             // write corresponding checksum
-            out.writeInt((int) checksum.getValue());
+            crcMetadata.append(compressed.buffer, 0, compressedLength);
         }
         catch (IOException e)
         {
             throw new FSWriteError(e, getPath());
         }
-
-        // reset checksum object to the blank state for re-use
-        checksum.reset();
 
         // next chunk should be written right after current + length of the checksum (int)
         chunkOffset += compressedLength + 4;
@@ -203,6 +191,7 @@ public class CompressedSequentialWriter extends SequentialWriter
                 throw new CorruptBlockException(getPath(), chunkOffset, chunkSize);
             }
 
+            Checksum checksum = new Adler32();
             checksum.update(compressed.buffer, 0, chunkSize);
 
             if (out.readInt() != (int) checksum.getValue())
@@ -220,8 +209,6 @@ public class CompressedSequentialWriter extends SequentialWriter
         {
             throw new FSReadError(e, getPath());
         }
-
-        checksum.reset();
 
         // reset buffer
         validBufferBytes = realMark.bufferOffset;
@@ -268,6 +255,12 @@ public class CompressedSequentialWriter extends SequentialWriter
         {
             throw new FSWriteError(e, getPath());
         }
+    }
+
+    @Override
+    public void writeFullChecksum(Descriptor descriptor)
+    {
+        crcMetadata.writeFullChecksum(descriptor);
     }
 
     /**
