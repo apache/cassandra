@@ -280,7 +280,7 @@ final class NodeBuilder
     void addNewKey(Object key)
     {
         ensureRoom(buildKeyPosition + 1);
-        buildKeys[buildKeyPosition++] = key;
+        buildKeys[buildKeyPosition++] = updateFunction.apply(key);
     }
 
     // copies children from copyf to the builder, up to the provided index in copyf (exclusive)

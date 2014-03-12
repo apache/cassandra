@@ -11,7 +11,7 @@
  * Add broadcast_rpc_address option to cassandra.yaml (CASSANDRA-5899)
  * Auto reload GossipingPropertyFileSnitch config (CASSANDRA-5897)
  * Fix overflow of memtable_total_space_in_mb (CASSANDRA-6573)
- * Fix ABTC NPE (CASSANDRA-6692)
+ * Fix ABTC NPE and apply update function correctly (CASSANDRA-6692)
  * Allow nodetool to use a file or prompt for password (CASSANDRA-6660)
  * Fix AIOOBE when concurrently accessing ABSC (CASSANDRA-6742)
  * Fix assertion error in ALTER TYPE RENAME (CASSANDRA-6705)
