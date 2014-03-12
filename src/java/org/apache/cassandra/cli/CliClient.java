@@ -1350,7 +1350,7 @@ public class CliClient
                 cfDef.setCaching(CliUtils.unescapeSQLString(mValue));
                 break;
             case CELLS_PER_ROW_TO_CACHE:
-                cfDef.setCells_per_row_to_cache(mValue);
+                cfDef.setCells_per_row_to_cache(CliUtils.unescapeSQLString(mValue));
                 break;
             case DEFAULT_TIME_TO_LIVE:
                 cfDef.setDefault_time_to_live(Integer.parseInt(mValue));
@@ -1853,7 +1853,6 @@ public class CliClient
 
             writeAttrRaw(output, false, "compaction_strategy_options", cOptions.toString());
         }
-
         if (!StringUtils.isEmpty(cfDef.comment))
             writeAttr(output, false, "comment", cfDef.comment);
 

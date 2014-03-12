@@ -36,6 +36,7 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
@@ -1068,10 +1069,9 @@ public class SSTableReader extends SSTable implements Closeable
 
     public void cacheKey(DecoratedKey key, RowIndexEntry info)
     {
-        CFMetaData.Caching caching = metadata.getCaching();
+        CachingOptions caching = metadata.getCaching();
 
-        if (caching == CFMetaData.Caching.NONE
-            || caching == CFMetaData.Caching.ROWS_ONLY
+        if (!caching.keyCache.isEnabled()
             || keyCache == null
             || keyCache.getCapacity() == 0)
         {

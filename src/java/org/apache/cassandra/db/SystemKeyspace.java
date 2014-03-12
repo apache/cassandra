@@ -33,6 +33,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
@@ -112,7 +113,7 @@ public class SystemKeyspace
         setupVersion();
 
         migrateIndexInterval();
-
+        migrateCachingOption();
         // add entries to system schema columnfamilies for the hardcoded system definitions
         for (String ksname : Schema.systemKeyspaceNames)
         {
@@ -166,6 +167,36 @@ public class SystemKeyspace
             long timestamp = processInternal(query).one().getLong("writetime(type)");
             try
             {
+                table.toSchema(timestamp).apply();
+            }
+            catch (ConfigurationException e)
+            {
+                // shouldn't happen
+            }
+        }
+    }
+
+    private static void migrateCachingOption()
+    {
+        for (UntypedResultSet.Row row : processInternal(String.format("SELECT * FROM system.%s", SCHEMA_COLUMNFAMILIES_CF)))
+        {
+            if (!row.has("caching"))
+                continue;
+
+            if (!CachingOptions.isLegacy(row.getString("caching")))
+                continue;
+            try
+            {
+                CachingOptions caching = CachingOptions.fromString(row.getString("caching"));
+                CFMetaData table = CFMetaData.fromSchema(row);
+                logger.info("Migrating caching option {} to {} for {}.{}", row.getString("caching"), caching.toString(), table.ksName, table.cfName);
+                String query = String.format("SELECT writetime(type) "
+                        + "FROM system.%s "
+                        + "WHERE keyspace_name = '%s' AND columnfamily_name = '%s'",
+                        SCHEMA_COLUMNFAMILIES_CF,
+                        table.ksName,
+                        table.cfName);
+                long timestamp = processInternal(query).one().getLong("writetime(type)");
                 table.toSchema(timestamp).apply();
             }
             catch (ConfigurationException e)

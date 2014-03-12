@@ -77,8 +77,6 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
-import static org.apache.cassandra.config.CFMetaData.Caching;
-
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
@@ -276,7 +274,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         fileIndexGenerator.set(generation);
         sampleLatencyNanos = DatabaseDescriptor.getReadRpcTimeout() / 2;
 
-        Caching caching = metadata.getCaching();
+        CachingOptions caching = metadata.getCaching();
 
         logger.info("Initializing {}.{}", keyspace.getName(), name);
 
@@ -290,7 +288,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             data.addInitialSSTables(sstables);
         }
 
-        if (caching == Caching.ALL || caching == Caching.KEYS_ONLY)
+        if (caching.keyCache.isEnabled())
             CacheService.instance.keyCache.loadSaved(this);
 
         // compaction strategy should be created after the CFS has been prepared
@@ -1498,7 +1496,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         try
         {
             // If we are explicitely asked to fill the cache with full partitions, we go ahead and query the whole thing
-            if (metadata.getRowsPerPartitionToCache().cacheFullPartitions())
+            if (metadata.getCaching().rowCache.cacheFullPartitions())
             {
                 data = getTopLevelColumns(QueryFilter.getIdentityFilter(filter.key, name, filter.timestamp), Integer.MIN_VALUE);
                 toCache = data;
@@ -1521,7 +1519,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (filter.filter.isHeadFilter() && filter.filter.countCQL3Rows(metadata.comparator))
             {
                 SliceQueryFilter sliceFilter = (SliceQueryFilter)filter.filter;
-                int rowsToCache = metadata.getRowsPerPartitionToCache().rowsToCache;
+                int rowsToCache = metadata.getCaching().rowCache.rowsToCache;
 
                 SliceQueryFilter cacheSlice = readFilterForCache();
                 QueryFilter cacheFilter = new QueryFilter(filter.key, name, cacheSlice, filter.timestamp);
@@ -1578,7 +1576,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public SliceQueryFilter readFilterForCache()
     {
         // We create a new filter everytime before for now SliceQueryFilter is unfortunatly mutable.
-        return new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, false, metadata.getRowsPerPartitionToCache().rowsToCache, metadata.clusteringColumns().size());
+        return new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, false, metadata.getCaching().rowCache.rowsToCache, metadata.clusteringColumns().size());
     }
 
     public boolean isFilterFullyCoveredBy(IDiskAtomFilter filter, ColumnFamily cachedCf, long now)
@@ -1592,7 +1590,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // columns: if we use a timestamp newer than the one that was used when populating the cache, we might
         // end up deciding the whole partition is cached when it's really not (just some rows expired since the
         // cf was cached). This is the reason for Integer.MIN_VALUE below.
-        boolean wholePartitionCached = cachedCf.liveCQL3RowCount(Integer.MIN_VALUE) < metadata.getRowsPerPartitionToCache().rowsToCache;
+        boolean wholePartitionCached = cachedCf.liveCQL3RowCount(Integer.MIN_VALUE) < metadata.getCaching().rowCache.rowsToCache;
 
         // Contrarily to the "wholePartitionCached" check above, we do want isFullyCoveredBy to take the
         // timestamp of the query into account when dealing with expired columns. Otherwise, we could think
@@ -2674,9 +2672,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private boolean isRowCacheEnabled()
     {
-        return !(metadata.getCaching() == Caching.NONE
-              || metadata.getCaching() == Caching.KEYS_ONLY
-              || CacheService.instance.rowCache.getCapacity() == 0);
+        return metadata.getCaching().rowCache.isEnabled() && CacheService.instance.rowCache.getCapacity() > 0;
     }
 
     /**

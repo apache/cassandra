@@ -21,6 +21,7 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.db.index.PerRowSecondaryIndexTest;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.junit.AfterClass;
@@ -164,7 +165,9 @@ public class SchemaLoader
                                            standardCFMD(ks1, "legacyleveled")
                                                                                .compactionStrategyClass(LeveledCompactionStrategy.class)
                                                                                .compactionStrategyOptions(leveledOptions),
-                                           standardCFMD(ks1, "StandardLowIndexInterval").minIndexInterval(8).maxIndexInterval(256).caching(CFMetaData.Caching.NONE)));
+                                           standardCFMD(ks1, "StandardLowIndexInterval").minIndexInterval(8)
+                                                                                        .maxIndexInterval(256)
+                                                                                        .caching(CachingOptions.NONE)));
 
 
         // Keyspace 2
@@ -228,9 +231,12 @@ public class SchemaLoader
         schema.add(KSMetaData.testMetadata(ks_rcs,
                                            simple,
                                            opts_rf1,
-                                           standardCFMD(ks_rcs, "CFWithoutCache").caching(CFMetaData.Caching.NONE),
-                                           standardCFMD(ks_rcs, "CachedCF").caching(CFMetaData.Caching.ALL).rowsPerPartitionToCache(CFMetaData.RowsPerPartitionToCache.fromString("ALL")),
-                                           standardCFMD(ks_rcs, "CachedIntCF").defaultValidator(IntegerType.instance).caching(CFMetaData.Caching.ALL)));
+                                           standardCFMD(ks_rcs, "CFWithoutCache").caching(CachingOptions.NONE),
+                                           standardCFMD(ks_rcs, "CachedCF").caching(CachingOptions.ALL),
+                                           standardCFMD(ks_rcs, "CachedIntCF").
+                                                   defaultValidator(IntegerType.instance).
+                                                   caching(new CachingOptions(new CachingOptions.KeyCache(CachingOptions.KeyCache.Type.ALL),
+                                                                                  new CachingOptions.RowCache(CachingOptions.RowCache.Type.HEAD, 100)))));
 
         // CounterCacheSpace
         schema.add(KSMetaData.testMetadata(ks_ccs,
