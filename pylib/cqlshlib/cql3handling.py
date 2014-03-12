@@ -62,8 +62,6 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
 
     columnfamily_layout_options = (
         ('bloom_filter_fp_chance', None),
-        ('caching', None),
-        ('rows_per_partition_to_cache', None),
         ('comment', None),
         ('dclocal_read_repair_chance', 'local_read_repair_chance'),
         ('gc_grace_seconds', None),
@@ -83,6 +81,8 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
             ('class', 'min_threshold', 'max_threshold')),
         ('compression', 'compression_parameters',
             ('sstable_compression', 'chunk_length_kb', 'crc_check_chance')),
+        ('caching', None,
+            ('rows_per_partition', 'keys')),
     )
 
     obsolete_cf_options = ()
@@ -463,6 +463,8 @@ def cf_prop_val_mapkey_completer(ctxt, cass):
     pairsseen = dict(zip(keysseen, valsseen))
     if optname == 'compression':
         return map(escape_value, set(subopts).difference(keysseen))
+    if optname == 'caching':
+        return map(escape_value, set(subopts).difference(keysseen))
     if optname == 'compaction':
         opts = set(subopts)
         try:
@@ -488,6 +490,11 @@ def cf_prop_val_mapval_completer(ctxt, cass):
         if key == 'sstable_compression':
             return map(escape_value, CqlRuleSet.available_compression_classes)
         return [Hint('<option_value>')]
+    elif opt == 'caching':
+        if key == 'rows_per_partition':
+            return [Hint('ALL'), Hint('NONE'), Hint('#rows_per_partition')]
+        elif key == 'keys':
+            return [Hint('ALL'), Hint('NONE')]
     return ()
 
 def cf_prop_val_mapender_completer(ctxt, cass):
@@ -1187,7 +1194,7 @@ class CqlTableDef:
         for attr, val in layout.items():
             setattr(cf, attr.encode('ascii'), val)
         cf.comparator = lookup_casstype(cf.comparator)
-        for attr in ('compaction_strategy_options', 'compression_parameters'):
+        for attr in ('compaction_strategy_options', 'compression_parameters', 'caching'):
             setattr(cf, attr, json.loads(getattr(cf, attr)))
 
         # deal with columns, filter out empty column names (see CASSANDRA-6139)
