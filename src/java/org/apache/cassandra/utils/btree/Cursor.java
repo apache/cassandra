@@ -21,7 +21,6 @@ package org.apache.cassandra.utils.btree;
 import java.util.Comparator;
 import java.util.Iterator;
 
-import static org.apache.cassandra.utils.btree.BTree.MAX_DEPTH;
 import static org.apache.cassandra.utils.btree.BTree.NEGATIVE_INFINITY;
 import static org.apache.cassandra.utils.btree.BTree.POSITIVE_INFINITY;
 import static org.apache.cassandra.utils.btree.BTree.getLeafKeyEnd;
@@ -44,31 +43,12 @@ public final class Cursor<V> extends Path implements Iterator<V>
      * the first one.
      */
 
-    /**
-     * Returns a cursor that can be reused to iterate over trees
-     *
-     * @param <V>
-     * @return
-     */
-    static <V> Cursor<V> newCursor()
-    {
-        // try to encourage stack allocation - may be misguided. but no harm
-        Object[][] stack = new Object[MAX_DEPTH][];
-        byte[] index = new byte[MAX_DEPTH];
-        return new Cursor(stack, index);
-    }
-
     // the last node covered by the requested range
     private Object[] endNode;
     // the index within endNode that signals we're finished -- that is, endNode[endIndex] is NOT part of the Cursor
     private byte endIndex;
 
     private boolean forwards;
-
-    private Cursor(Object[][] stack, byte[] index)
-    {
-        super(stack, index);
-    }
 
     /**
      * Reset this cursor for the provided tree, to iterate over its entire range
@@ -113,6 +93,7 @@ public final class Cursor<V> extends Path implements Iterator<V>
 
     private void _reset(Object[] btree, Comparator<V> comparator, Object lowerBound, boolean inclusiveLowerBound, Object upperBound, boolean inclusiveUpperBound, boolean forwards)
     {
+        ensureDepth(btree);
         if (lowerBound == null)
             lowerBound = NEGATIVE_INFINITY;
         if (upperBound == null)
@@ -120,7 +101,7 @@ public final class Cursor<V> extends Path implements Iterator<V>
 
         this.forwards = forwards;
 
-        Path findLast = Path.newPath();
+        Path findLast = new Path(this.path.length);
         if (forwards)
         {
             findLast.find(btree, comparator, upperBound, inclusiveUpperBound ? Op.HIGHER : Op.CEIL, true);

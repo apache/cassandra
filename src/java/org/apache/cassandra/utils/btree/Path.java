@@ -20,7 +20,6 @@ package org.apache.cassandra.utils.btree;
 
 import java.util.Comparator;
 
-import static org.apache.cassandra.utils.btree.BTree.MAX_DEPTH;
 import static org.apache.cassandra.utils.btree.BTree.getBranchKeyEnd;
 import static org.apache.cassandra.utils.btree.BTree.getKeyEnd;
 import static org.apache.cassandra.utils.btree.BTree.getLeafKeyEnd;
@@ -46,25 +45,28 @@ class Path
         LOWER   // the greatest element strictly less than the given element
     }
 
-    static Path newPath()
+    // the path to the searched-for key
+    Object[][] path;
+    // the index within the node of our path at a given depth
+    byte[] indexes;
+    // current depth.  nothing in path[i] for i > depth is valid.
+    byte depth = -1;
+
+    Path() { }
+    Path(int depth)
     {
-        // try to encourage stack allocation - probably misguided/unnecessary. but no harm
-        Object[][] path = new Object[MAX_DEPTH][];
-        byte[] index = new byte[MAX_DEPTH];
-        return new Path(path, index);
+        this.path = new Object[depth][];
+        this.indexes = new byte[depth];
     }
 
-    // the path to the searched-for key
-    final Object[][] path;
-    // the index within the node of our path at a given depth
-    final byte[] indexes;
-    // current depth.  nothing in path[i] for i > depth is valid.
-    byte depth;
-
-    Path(Object[][] path, byte[] indexes)
+    void ensureDepth(Object[] btree)
     {
-        this.path = path;
-        this.indexes = indexes;
+        int depth = BTree.depth(btree);
+        if (path == null || path.length < depth)
+        {
+            path = new Object[depth][];
+            indexes = new byte[depth];
+        }
     }
 
     /**
