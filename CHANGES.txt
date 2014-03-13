@@ -17,6 +17,7 @@
  * Change caching option syntax (CASSANDRA-6745)
  * Fix stress to do proper counter reads (CASSANDRA-6835)
 Merged from 2.0:
+ * Fix leaking validator FH in StreamWriter (CASSANDRA-6832)
  * fix nodetool getsstables for blob PK (CASSANDRA-6803)
  * Fix saving triggers to schema (CASSANDRA-6789)
  * Fix trigger mutations when base mutation list is immutable (CASSANDRA-6790)
