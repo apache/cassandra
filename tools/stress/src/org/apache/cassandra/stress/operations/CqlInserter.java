@@ -33,12 +33,14 @@ public class CqlInserter extends CqlOperation<Integer>
     public CqlInserter(State state, long idx)
     {
         super(state, idx);
+        if (state.settings.columns.useTimeUUIDComparator)
+            throw new IllegalStateException("Cannot use TimeUUID Comparator with CQL");
     }
 
     @Override
     protected String buildQuery()
     {
-        StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotes(state.settings.schema.columnFamily));
+        StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotes(state.type.table));
 
         query.append(" SET ");
 
@@ -66,9 +68,9 @@ public class CqlInserter extends CqlOperation<Integer>
     }
 
     @Override
-    protected List<ByteBuffer> getQueryParameters(byte[] key)
+    protected List<Object> getQueryParameters(byte[] key)
     {
-        final ArrayList<ByteBuffer> queryParams = new ArrayList<>();
+        final ArrayList<Object> queryParams = new ArrayList<>();
         final List<ByteBuffer> values = generateColumnValues(ByteBuffer.wrap(key));
         queryParams.addAll(values);
         queryParams.add(ByteBuffer.wrap(key));
@@ -76,7 +78,7 @@ public class CqlInserter extends CqlOperation<Integer>
     }
 
     @Override
-    protected CqlRunOp<Integer> buildRunOp(ClientWrapper client, String query, Object queryId, List<ByteBuffer> params, String keyid, ByteBuffer key)
+    protected CqlRunOp<Integer> buildRunOp(ClientWrapper client, String query, Object queryId, List<Object> params, String keyid, ByteBuffer key)
     {
         return new CqlRunOpAlwaysSucceed(client, query, queryId, params, keyid, key, 1);
     }

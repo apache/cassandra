@@ -19,7 +19,6 @@ package org.apache.cassandra.stress.operations;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.stress.Operation;
@@ -27,7 +26,6 @@ import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.SlicePredicate;
-import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.thrift.SuperColumn;
 
 public final class ThriftReader extends Operation
@@ -40,17 +38,7 @@ public final class ThriftReader extends Operation
 
     public void run(final ThriftClient client) throws IOException
     {
-        final SlicePredicate predicate = new SlicePredicate();
-        if (state.settings.columns.names == null)
-            predicate.setSlice_range(new SliceRange()
-                    .setStart(new byte[] {})
-                    .setFinish(new byte[] {})
-                    .setReversed(false)
-                    .setCount(state.settings.columns.maxColumnsPerKey)
-            );
-        else // see CASSANDRA-3064 about why this is useful
-            predicate.setColumn_names(state.settings.columns.names);
-
+        final SlicePredicate predicate = slicePredicate();
         final ByteBuffer key = getKey();
         final List<ByteBuffer> expect = state.rowGen.isDeterministic() ? generateColumnValues(key) : null;
         for (final ColumnParent parent : state.columnParents)
@@ -63,6 +51,8 @@ public final class ThriftReader extends Operation
                     List<ColumnOrSuperColumn> row = client.get_slice(key, parent, predicate, state.settings.command.consistencyLevel);
                     if (expect == null)
                         return !row.isEmpty();
+                    if (row == null)
+                        return false;
                     if (!state.settings.columns.useSuperColumns)
                     {
                         if (row.size() != expect.size())

@@ -48,10 +48,4 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
             size += 2 + bb.remaining();
         return pack(buffers, elements, size);
     }
-
-    protected static int getUnsignedShort(ByteBuffer bb)
-    {
-        int length = (bb.get() & 0xFF) << 8;
-        return length | (bb.get() & 0xFF);
-    }
 }

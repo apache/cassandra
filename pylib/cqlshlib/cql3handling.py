@@ -419,6 +419,8 @@ def cf_prop_val_completer(ctxt, cass):
         return ["{'sstable_compression': '"]
     if this_opt == 'compaction':
         return ["{'class': '"]
+    if this_opt == 'caching':
+        return ["{'keys': '"]
     if any(this_opt == opt[0] for opt in CqlRuleSet.obsolete_cf_options):
         return ["'<obsolete_option>'"]
     if this_opt in ('read_repair_chance', 'bloom_filter_fp_chance',
@@ -472,9 +474,9 @@ def cf_prop_val_mapval_completer(ctxt, cass):
         return [Hint('<option_value>')]
     elif opt == 'caching':
         if key == 'rows_per_partition':
-            return [Hint('ALL'), Hint('NONE'), Hint('#rows_per_partition')]
+            return ["'ALL'", "'NONE'", Hint('#rows_per_partition')]
         elif key == 'keys':
-            return [Hint('ALL'), Hint('NONE')]
+            return ["'ALL'", "'NONE'"]
     return ()
 
 def cf_prop_val_mapender_completer(ctxt, cass):

@@ -26,11 +26,12 @@ import java.util.List;
 
 import org.apache.cassandra.stress.generatedata.Distribution;
 import org.apache.cassandra.stress.generatedata.DistributionFactory;
+
 import org.apache.commons.math3.distribution.EnumeratedDistribution;
 import org.apache.commons.math3.util.Pair;
 
 // Settings unique to the mixed command type
-public class SettingsCommandMixed extends SettingsCommandMulti
+public class SettingsCommandMixed extends SettingsCommand
 {
 
     // Ratios for selecting commands - index for each Command, NaN indicates the command is not requested
@@ -41,21 +42,8 @@ public class SettingsCommandMixed extends SettingsCommandMulti
     {
         super(Command.MIXED, options.parent);
 
-        OptionSimple[] ratiosIn = options.probabilities.ratios;
-        List<Pair<Command, Double>> ratiosOut = new ArrayList<>();
-        for (int i = 0 ; i < ratiosIn.length ; i++)
-        {
-            if (ratiosIn[i] != null && ratiosIn[i].present())
-            {
-                double d = Double.parseDouble(ratiosIn[i].value());
-                if (d > 0)
-                    ratiosOut.add(new Pair<>(Command.values()[i], d));
-            }
-        }
-
-        ratios = ratiosOut;
         clustering = options.clustering.get();
-
+        ratios = options.probabilities.ratios();
         if (ratios.size() == 0)
             throw new IllegalArgumentException("Must specify at least one command with a non-zero ratio");
     }
@@ -144,16 +132,30 @@ public class SettingsCommandMixed extends SettingsCommandMulti
         {
             return grouping;
         }
+
+        List<Pair<Command, Double>> ratios()
+        {
+            List<? extends Option> ratiosIn = setByUser() ? optionsSetByUser() : defaultOptions();
+            List<Pair<Command, Double>> ratiosOut = new ArrayList<>();
+            for (Option opt : ratiosIn)
+            {
+                OptionSimple ratioIn = (OptionSimple) opt;
+                Command command = Command.get(ratioIn.displayPrefix.substring(0, ratioIn.displayPrefix.length() - 1));
+                double d = Double.parseDouble(ratioIn.value());
+                ratiosOut.add(new Pair<>(command, d));
+            }
+            return ratiosOut;
+        }
     }
 
     static final class Options extends GroupedOptions
     {
-        final SettingsCommandMulti.Options parent;
-        protected Options(SettingsCommandMulti.Options parent)
+        final SettingsCommand.Options parent;
+        protected Options(SettingsCommand.Options parent)
         {
             this.parent = parent;
         }
-        final OptionDistribution clustering = new OptionDistribution("clustering=", "GAUSSIAN(1..10)");
+        final OptionDistribution clustering = new OptionDistribution("clustering=", "GAUSSIAN(1..10)", "Distribution clustering runs of operations of the same kind");
         final Probabilities probabilities = new Probabilities();
 
         @Override
@@ -173,8 +175,8 @@ public class SettingsCommandMixed extends SettingsCommandMulti
     public static SettingsCommandMixed build(String[] params)
     {
         GroupedOptions options = GroupedOptions.select(params,
-                new Options(new SettingsCommandMulti.Options(new Uncertainty())),
-                new Options(new SettingsCommandMulti.Options(new Count())));
+                new Options(new SettingsCommand.Uncertainty()),
+                new Options(new SettingsCommand.Count()));
         if (options == null)
         {
             printHelp();
@@ -187,8 +189,8 @@ public class SettingsCommandMixed extends SettingsCommandMulti
     public static void printHelp()
     {
         GroupedOptions.printOptions(System.out, "mixed",
-                new Options(new SettingsCommandMulti.Options(new Uncertainty())),
-                new Options(new SettingsCommandMulti.Options(new Count())));
+                                    new Options(new SettingsCommand.Uncertainty()),
+                                    new Options(new SettingsCommand.Count()));
     }
 
     public static Runnable helpPrinter()

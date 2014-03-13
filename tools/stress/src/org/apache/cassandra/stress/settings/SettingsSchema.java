@@ -45,7 +45,6 @@ public class SettingsSchema implements Serializable
     private final String compactionStrategy;
     private final Map<String, String> compactionStrategyOptions;
     public final String keyspace;
-    public final String columnFamily;
 
     public SettingsSchema(Options options)
     {
@@ -60,7 +59,6 @@ public class SettingsSchema implements Serializable
         compactionStrategy = options.compaction.getStrategy();
         compactionStrategyOptions = options.compaction.getOptions();
         keyspace = options.keyspace.value();
-        columnFamily = options.columnFamily.value();
     }
 
     public void createKeySpaces(StressSettings settings)
@@ -77,7 +75,7 @@ public class SettingsSchema implements Serializable
         KsDef ksdef = new KsDef();
 
         // column family for standard columns
-        CfDef standardCfDef = new CfDef(keyspace, columnFamily);
+        CfDef standardCfDef = new CfDef(keyspace, "Standard1");
         Map<String, String> compressionOptions = new HashMap<String, String>();
         if (compression != null)
             compressionOptions.put("sstable_compression", compression);
@@ -202,14 +200,13 @@ public class SettingsSchema implements Serializable
         final OptionCompaction compaction = new OptionCompaction();
         final OptionSimple index = new OptionSimple("index=", "KEYS|CUSTOM|COMPOSITES", null, "Type of index to create on needed column families (KEYS)", false);
         final OptionSimple keyspace = new OptionSimple("keyspace=", ".*", "Keyspace1", "The keyspace name to use", false);
-        final OptionSimple columnFamily = new OptionSimple("columnfamily=", ".*", "Standard1", "The column family name to use", false);
         final OptionSimple noReplicateOnWrite = new OptionSimple("no-replicate-on-write", "", null, "Set replicate_on_write to false for counters. Only counter add with CL=ONE will work", false);
         final OptionSimple compression = new OptionSimple("compression=", ".*", null, "Specify the compression to use for sstable, default:no compression", false);
 
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(replication, index, keyspace, columnFamily, compaction, noReplicateOnWrite, compression);
+            return Arrays.asList(replication, index, keyspace, compaction, noReplicateOnWrite, compression);
         }
     }
 

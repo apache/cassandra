@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.util.ThriftClient;
@@ -33,15 +35,13 @@ public class ThriftCounterAdder extends Operation
     public ThriftCounterAdder(State state, long index)
     {
         super(state, index);
-        if (state.settings.columns.variableColumnCount)
-            throw new IllegalStateException("Variable column counts not supported for counters");
     }
 
     public void run(final ThriftClient client) throws IOException
     {
         List<CounterColumn> columns = new ArrayList<>();
-        for (int i = 0; i < state.settings.columns.maxColumnsPerKey; i++)
-            columns.add(new CounterColumn(getColumnNameBytes(i), 1L));
+        for (ByteBuffer name : randomNames())
+            columns.add(new CounterColumn(name, state.counteradd.next()));
 
         Map<String, List<Mutation>> row;
         if (state.settings.columns.useSuperColumns)
@@ -53,7 +53,7 @@ public class ThriftCounterAdder extends Operation
                 ColumnOrSuperColumn cosc = new ColumnOrSuperColumn().setCounter_super_column(csc);
                 mutations.add(new Mutation().setColumn_or_supercolumn(cosc));
             }
-            row = Collections.singletonMap("SuperCounter1", mutations);
+            row = Collections.singletonMap(state.type.supertable, mutations);
         }
         else
         {
@@ -63,7 +63,7 @@ public class ThriftCounterAdder extends Operation
                 ColumnOrSuperColumn cosc = new ColumnOrSuperColumn().setCounter_column(c);
                 mutations.add(new Mutation().setColumn_or_supercolumn(cosc));
             }
-            row = Collections.singletonMap("Counter1", mutations);
+            row = Collections.singletonMap(state.type.table, mutations);
         }
 
         final ByteBuffer key = getKey();

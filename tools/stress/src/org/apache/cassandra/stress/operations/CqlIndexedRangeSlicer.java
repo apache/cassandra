@@ -26,7 +26,6 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.cassandra.stress.settings.SettingsCommandMulti;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
@@ -40,7 +39,7 @@ public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
     }
 
     @Override
-    protected List<ByteBuffer> getQueryParameters(byte[] key)
+    protected List<Object> getQueryParameters(byte[] key)
     {
         throw new UnsupportedOperationException();
     }
@@ -48,10 +47,11 @@ public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
     @Override
     protected String buildQuery()
     {
-        StringBuilder query = new StringBuilder("SELECT * FROM \"Standard1\"");
-        final String columnName = getColumnName(1);
-        query.append(" WHERE ").append(columnName).append("=?")
-             .append(" AND KEY > ? LIMIT ").append(((SettingsCommandMulti)state.settings.command).keysAtOnce);
+        final String indexColumn = (state.settings.columns.namestrs.get(1));
+        StringBuilder query = new StringBuilder("SELECT * FROM ");
+        query.append(wrapInQuotes(state.type.table));
+        query.append(" WHERE ").append(indexColumn).append("=?")
+                .append(" AND KEY > ? LIMIT ").append(state.settings.command.keysAtOnce);
         return query.toString();
     }
 
@@ -65,7 +65,7 @@ public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
         int rowCount;
         do
         {
-            List<ByteBuffer> params = Arrays.asList(value, ByteBuffer.wrap(minKey));
+            List<Object> params = Arrays.<Object>asList(value, ByteBuffer.wrap(minKey));
             CqlRunOp<byte[][]> op = run(client, params, value, new String(value.array()));
             byte[][] keys = op.result;
             rowCount = keys.length;
@@ -77,7 +77,7 @@ public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
     private final class IndexedRangeSliceRunOp extends CqlRunOpFetchKeys
     {
 
-        protected IndexedRangeSliceRunOp(ClientWrapper client, String query, Object queryId, List<ByteBuffer> params, String keyid, ByteBuffer key)
+        protected IndexedRangeSliceRunOp(ClientWrapper client, String query, Object queryId, List<Object> params, String keyid, ByteBuffer key)
         {
             super(client, query, queryId, params, keyid, key);
         }
@@ -90,7 +90,7 @@ public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
     }
 
     @Override
-    protected CqlRunOp<byte[][]> buildRunOp(ClientWrapper client, String query, Object queryId, List<ByteBuffer> params, String keyid, ByteBuffer key)
+    protected CqlRunOp<byte[][]> buildRunOp(ClientWrapper client, String query, Object queryId, List<Object> params, String keyid, ByteBuffer key)
     {
         return new IndexedRangeSliceRunOp(client, query, queryId, params, keyid, key);
     }

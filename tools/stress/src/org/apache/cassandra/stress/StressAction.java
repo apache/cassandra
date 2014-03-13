@@ -87,7 +87,7 @@ public class StressAction implements Runnable
                     warmup(subtype, command);
                 return;
             case MULTI:
-                int keysAtOnce = ((SettingsCommandMulti) command).keysAtOnce;
+                int keysAtOnce = command.keysAtOnce;
                 iterations = Math.min(50000, (int) Math.ceil(500000d / keysAtOnce));
                 break;
             default:
@@ -298,6 +298,8 @@ public class StressAction implements Runnable
                                 case SIMPLE_NATIVE:
                                     op.run(sclient);
                                     break;
+                                case THRIFT:
+                                case THRIFT_SMART:
                                 default:
                                     op.run(tclient);
                             }

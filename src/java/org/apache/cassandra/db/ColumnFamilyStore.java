@@ -1809,7 +1809,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public List<String> getSSTablesForKey(String key)
     {
-        DecoratedKey dk = new DecoratedKey(partitioner.getToken(ByteBuffer.wrap(key.getBytes())), ByteBuffer.wrap(key.getBytes()));
+        DecoratedKey dk = partitioner.decorateKey(metadata.getKeyValidator().fromString(key));
         ViewFragment view = markReferenced(dk);
         try
         {

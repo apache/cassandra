@@ -19,6 +19,7 @@ package org.apache.cassandra.stress.operations;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
 
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.util.ThriftClient;
@@ -31,20 +32,11 @@ public class ThriftCounterGetter extends Operation
     public ThriftCounterGetter(State state, long index)
     {
         super(state, index);
-        if (state.settings.columns.variableColumnCount)
-            throw new IllegalStateException("Variable column counts not supported for counters");
     }
 
     public void run(final ThriftClient client) throws IOException
     {
-        SliceRange sliceRange = new SliceRange();
-        // start/finish
-        sliceRange.setStart(new byte[] {}).setFinish(new byte[] {});
-        // reversed/count
-        sliceRange.setReversed(false).setCount(state.settings.columns.maxColumnsPerKey);
-        // initialize SlicePredicate with existing SliceRange
-        final SlicePredicate predicate = new SlicePredicate().setSlice_range(sliceRange);
-
+        final SlicePredicate predicate = slicePredicate();
         final ByteBuffer key = getKey();
         for (final ColumnParent parent : state.columnParents)
         {
@@ -54,7 +46,8 @@ public class ThriftCounterGetter extends Operation
                 @Override
                 public boolean run() throws Exception
                 {
-                    return client.get_slice(key, parent, predicate, state.settings.command.consistencyLevel).size() != 0;
+                    List<?> r = client.get_slice(key, parent, predicate, state.settings.command.consistencyLevel);
+                    return r != null && r.size() > 0;
                 }
 
                 @Override

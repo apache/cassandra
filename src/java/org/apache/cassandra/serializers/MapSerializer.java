@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.utils.Pair;
-
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 
 public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
 {
@@ -55,20 +56,14 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         try
         {
             ByteBuffer input = bytes.duplicate();
-            int n = getUnsignedShort(input);
+            int n = ByteBufferUtil.readShortLength(input);
             Map<K, V> m = new LinkedHashMap<K, V>(n);
             for (int i = 0; i < n; i++)
             {
-                int sk = getUnsignedShort(input);
-                byte[] datak = new byte[sk];
-                input.get(datak);
-                ByteBuffer kbb = ByteBuffer.wrap(datak);
+                ByteBuffer kbb = ByteBufferUtil.readBytesWithShortLength(input);
                 keys.validate(kbb);
 
-                int sv = getUnsignedShort(input);
-                byte[] datav = new byte[sv];
-                input.get(datav);
-                ByteBuffer vbb = ByteBuffer.wrap(datav);
+                ByteBuffer vbb = ByteBufferUtil.readBytesWithShortLength(input);
                 values.validate(vbb);
 
                 m.put(keys.deserialize(kbb), values.deserialize(vbb));

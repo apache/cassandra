@@ -40,7 +40,7 @@ public class CqlReader extends CqlOperation<ByteBuffer[][]>
     {
         StringBuilder query = new StringBuilder("SELECT ");
 
-        if (state.settings.columns.names == null)
+        if (state.settings.columns.slice)
         {
             query.append("*");
         }
@@ -54,28 +54,28 @@ public class CqlReader extends CqlOperation<ByteBuffer[][]>
             }
         }
 
-        query.append(" FROM ").append(wrapInQuotes(state.settings.schema.columnFamily));
+        query.append(" FROM ").append(wrapInQuotes(state.type.table));
 
         query.append(" WHERE KEY=?");
         return query.toString();
     }
 
     @Override
-    protected List<ByteBuffer> getQueryParameters(byte[] key)
+    protected List<Object> getQueryParameters(byte[] key)
     {
         if (state.settings.columns.names != null)
         {
-            final List<ByteBuffer> queryParams = new ArrayList<>();
+            final List<Object> queryParams = new ArrayList<>();
             for (ByteBuffer name : state.settings.columns.names)
                 queryParams.add(name);
             queryParams.add(ByteBuffer.wrap(key));
             return queryParams;
         }
-        return Collections.singletonList(ByteBuffer.wrap(key));
+        return Collections.<Object>singletonList(ByteBuffer.wrap(key));
     }
 
     @Override
-    protected CqlRunOp<ByteBuffer[][]> buildRunOp(ClientWrapper client, String query, Object queryId, List<ByteBuffer> params, String keyid, ByteBuffer key)
+    protected CqlRunOp<ByteBuffer[][]> buildRunOp(ClientWrapper client, String query, Object queryId, List<Object> params, String keyid, ByteBuffer key)
     {
         List<ByteBuffer> expectRow = state.rowGen.isDeterministic() ? generateColumnValues(key) : null;
         return new CqlRunOpMatchResults(client, query, queryId, params, keyid, key, Arrays.asList(expectRow));

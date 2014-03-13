@@ -22,7 +22,7 @@ package org.apache.cassandra.stress.operations;
 
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 
 public class CqlCounterAdder extends CqlOperation<Integer>
@@ -35,11 +35,7 @@ public class CqlCounterAdder extends CqlOperation<Integer>
     @Override
     protected String buildQuery()
     {
-        String counterCF = "Counter3";
-
-        StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotes(counterCF));
-
-        query.append(" SET ");
+        StringBuilder query = new StringBuilder("UPDATE \"Counter3\" SET ");
 
         // TODO : increment distribution subset of columns
         for (int i = 0; i < state.settings.columns.maxColumnsPerKey; i++)
@@ -47,20 +43,25 @@ public class CqlCounterAdder extends CqlOperation<Integer>
             if (i > 0)
                 query.append(",");
 
-            query.append('C').append(i).append("=C").append(i).append("+1");
+            String name = state.settings.columns.namestrs.get(i);
+            query.append(name).append("=").append(name).append("+?");
         }
         query.append(" WHERE KEY=?");
         return query.toString();
     }
 
     @Override
-    protected List<ByteBuffer> getQueryParameters(byte[] key)
+    protected List<Object> getQueryParameters(byte[] key)
     {
-        return Collections.singletonList(ByteBuffer.wrap(key));
+        final List<Object> list = new ArrayList<>();
+        for (int i = 0; i < state.settings.columns.maxColumnsPerKey; i++)
+            list.add(state.counteradd.next());
+        list.add(ByteBuffer.wrap(key));
+        return list;
     }
 
     @Override
-    protected CqlRunOp<Integer> buildRunOp(ClientWrapper client, String query, Object queryId, List<ByteBuffer> params, String keyid, ByteBuffer key)
+    protected CqlRunOp<Integer> buildRunOp(ClientWrapper client, String query, Object queryId, List<Object> params, String keyid, ByteBuffer key)
     {
         return new CqlRunOpAlwaysSucceed(client, query, queryId, params, keyid, key, 1);
     }

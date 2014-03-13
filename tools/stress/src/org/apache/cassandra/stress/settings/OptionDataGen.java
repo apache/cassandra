@@ -83,6 +83,11 @@ class OptionDataGen extends Option
         return factory != null || defaultFactory != null;
     }
 
+    public boolean setByUser()
+    {
+        return factory != null;
+    }
+
     @Override
     public String shortDisplay()
     {

@@ -34,19 +34,24 @@ public class CqlCounterGetter extends CqlOperation<Integer>
     }
 
     @Override
-    protected List<ByteBuffer> getQueryParameters(byte[] key)
+    protected List<Object> getQueryParameters(byte[] key)
     {
-        return Collections.singletonList(ByteBuffer.wrap(key));
+        return Collections.<Object>singletonList(ByteBuffer.wrap(key));
     }
 
     @Override
     protected String buildQuery()
     {
-        return "SELECT * FROM \"Counter3\" USING CONSISTENCY " + state.settings.command.consistencyLevel + " WHERE KEY=?";
+        StringBuilder query = new StringBuilder("SELECT *");
+
+        // TODO: obey slice/noslice option (instead of always slicing)
+        query.append(" FROM ").append(wrapInQuotes(state.type.table));
+
+        return query.append(" WHERE KEY=?").toString();
     }
 
     @Override
-    protected CqlRunOp<Integer> buildRunOp(ClientWrapper client, String query, Object queryId, List<ByteBuffer> params, String keyid, ByteBuffer key)
+    protected CqlRunOp<Integer> buildRunOp(ClientWrapper client, String query, Object queryId, List<Object> params, String keyid, ByteBuffer key)
     {
         return new CqlRunOpTestNonEmpty(client, query, queryId, params, keyid, key);
     }

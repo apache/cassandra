@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.stress.Operation;
-import org.apache.cassandra.stress.settings.SettingsCommandMulti;
 import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.SlicePredicate;
@@ -50,7 +49,7 @@ public final class ThriftMultiGetter extends Operation
                 )
         );
 
-        final List<ByteBuffer> keys = getKeys(((SettingsCommandMulti) state.settings.command).keysAtOnce);
+        final List<ByteBuffer> keys = getKeys(state.settings.command.keysAtOnce);
 
         for (final ColumnParent parent : state.columnParents)
         {

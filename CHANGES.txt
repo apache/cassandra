@@ -20,7 +20,17 @@
  * Fix ClassCastException for compact table with composites (CASSANDRA-6738)
  * Fix potentially repairing with wrong nodes (CASSANDRA-6808)
  * Change caching option syntax (CASSANDRA-6745)
+ * Fix stress to do proper counter reads (CASSANDRA-6835)
 Merged from 2.0:
+ * Fix leaking validator FH in StreamWriter (CASSANDRA-6832)
+ * fix nodetool getsstables for blob PK (CASSANDRA-6803)
+ * Fix saving triggers to schema (CASSANDRA-6789)
+ * Fix trigger mutations when base mutation list is immutable (CASSANDRA-6790)
+ * Fix accounting in FileCacheService to allow re-using RAR (CASSANDRA-6838)
+ * Fix static counter columns (CASSANDRA-6827)
+ * Restore expiring->deleted (cell) compaction optimization (CASSANDRA-6844)
+ * Fix CompactionManager.needsCleanup (CASSANDRA-6845)
+ * Correctly compare BooleanType values other than 0 and 1 (CASSANDRA-6779)
  * Avoid race-prone second "scrub" of system keyspace (CASSANDRA-6797)
  * Pool CqlRecordWriter clients by inetaddress rather than Range 
    (CASSANDRA-6665)
@@ -1258,6 +1268,7 @@ Merged from 1.0:
 
 
 1.1.1
+ * add populate_io_cache_on_flush option (CASSANDRA-2635)
  * allow larger cache capacities than 2GB (CASSANDRA-4150)
  * add getsstables command to nodetool (CASSANDRA-4199)
  * apply parent CF compaction settings to secondary index CFs (CASSANDRA-4280)

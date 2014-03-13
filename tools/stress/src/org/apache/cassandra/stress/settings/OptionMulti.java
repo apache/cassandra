@@ -100,7 +100,7 @@ abstract class OptionMulti extends Option
         StringBuilder sb = new StringBuilder();
         sb.append(name);
         sb.append("(");
-        for (Option option : options())
+        for (Option option : delegate.options())
         {
             sb.append(option);
             sb.append(",");
@@ -112,7 +112,7 @@ abstract class OptionMulti extends Option
     @Override
     public String shortDisplay()
     {
-        return name + "(?)";
+        return (happy() ? "[" : "") + name + "(?)" + (happy() ? "]" : "");
     }
 
     @Override
@@ -121,7 +121,7 @@ abstract class OptionMulti extends Option
         StringBuilder sb = new StringBuilder();
         sb.append(name);
         sb.append("(");
-        for (Option opt : options())
+        for (Option opt : delegate.options())
         {
             sb.append(opt.shortDisplay());
         }
@@ -181,6 +181,37 @@ abstract class OptionMulti extends Option
         {
             return Collections.emptyList();
         }
-    };
+
+        boolean setByUser()
+        {
+            return !options.isEmpty();
+        }
+    }
+
+    List<Option> optionsSetByUser()
+    {
+        List<Option> r = new ArrayList<>();
+        for (Option option : delegate.options())
+            if (option.setByUser())
+                r.add(option);
+        return r;
+    }
+
+    List<Option> defaultOptions()
+    {
+        List<Option> r = new ArrayList<>();
+        for (Option option : delegate.options())
+            if (!option.setByUser() && option.happy())
+                r.add(option);
+        return r;
+    }
+
+    boolean setByUser()
+    {
+        for (Option option : delegate.options())
+            if (option.setByUser())
+                return true;
+        return false;
+    }
 
 }
