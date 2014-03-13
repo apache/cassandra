@@ -71,10 +71,9 @@ public class StreamWriter
     {
         long totalSize = totalSize();
         RandomAccessReader file = sstable.openDataReader();
-        ChecksumValidator validator = null;
-        if (new File(sstable.descriptor.filenameFor(Component.CRC)).exists())
-            validator = DataIntegrityMetadata.checksumValidator(sstable.descriptor);
-
+        ChecksumValidator validator = new File(sstable.descriptor.filenameFor(Component.CRC)).exists()
+                                    ? DataIntegrityMetadata.checksumValidator(sstable.descriptor)
+                                    : null;
         transferBuffer = validator == null ? new byte[DEFAULT_CHUNK_SIZE] : new byte[validator.chunkSize];
 
         // setting up data compression stream
@@ -114,6 +113,7 @@ public class StreamWriter
         {
             // no matter what happens close file
             FileUtils.closeQuietly(file);
+            FileUtils.closeQuietly(validator);
         }
 
         // release reference only when completed successfully

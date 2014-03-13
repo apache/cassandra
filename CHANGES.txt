@@ -1,4 +1,5 @@
 2.0.7
+ * Fix leaking validator FH in StreamWriter (CASSANDRA-6832)
  * Fix saving triggers to schema (CASSANDRA-6789)
  * Fix trigger mutations when base mutation list is immutable (CASSANDRA-6790)
  * Fix accounting in FileCacheService to allow re-using RAR (CASSANDRA-6838)
