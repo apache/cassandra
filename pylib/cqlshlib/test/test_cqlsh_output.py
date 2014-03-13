@@ -652,7 +652,7 @@ class TestCqlshOutput(BaseTestCase):
                 varcharcol text,
                 varintcol varint
             ) WITH bloom_filter_fp_chance = 0.01
-                AND caching = 'KEYS_ONLY'
+                AND caching = '{"keys":"ALL", "rows_per_partition":"NONE"}'
                 AND comment = ''
                 AND compaction = {'min_threshold': '4', 'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32'}
                 AND compression = {'sstable_compression': 'org.apache.cassandra.io.compress.LZ4Compressor'}
@@ -663,7 +663,6 @@ class TestCqlshOutput(BaseTestCase):
                 AND min_index_interval = 128
                 AND populate_io_cache_on_flush = false
                 AND read_repair_chance = 0.1
-                AND rows_per_partition_to_cache = '100'
                 AND speculative_retry = '99.0PERCENTILE';
 
         """ % quote_name(get_test_keyspace()))

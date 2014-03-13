@@ -1207,7 +1207,8 @@ class Shell(cmd.Cmd):
             fname = os.path.expanduser(self.cql_unprotect_value(fname))
         copyoptnames = map(str.lower, parsed.get_binding('optnames', ()))
         copyoptvals = map(self.cql_unprotect_value, parsed.get_binding('optvals', ()))
-        opts = dict(zip(copyoptnames, copyoptvals))
+        cleancopyoptvals  = [optval.decode('string-escape') for optval in copyoptvals]
+        opts = dict(zip(copyoptnames, cleancopyoptvals))
 
         timestart = time.time()
 
