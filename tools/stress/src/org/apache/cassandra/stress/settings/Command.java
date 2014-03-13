@@ -21,8 +21,9 @@ package org.apache.cassandra.stress.settings;
  */
 
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+
+import com.google.common.collect.ImmutableList;
 
 public enum Command
 {
@@ -40,25 +41,25 @@ public enum Command
             "Interleaving of any basic commands, with configurable ratio and distribution - the cluster must first be populated by a write test",
             CommandCategory.MIXED
     ),
-    RANGESLICE(false, "Standard1", "Super1",
+    RANGE_SLICE(false, "Standard1", "Super1",
             "Range slice queries - the cluster must first be populated by a write test",
             CommandCategory.MULTI
     ),
-    IRANGESLICE(false, "Standard1", "Super1",
+    INDEXED_RANGE_SLICE(false, "Standard1", "Super1",
             "Range slice queries through a secondary index. The cluster must first be populated by a write test, with indexing enabled.",
             CommandCategory.BASIC
     ),
-    READMULTI(false, "Standard1", "Super1",
+    READ_MULTI(false, "Standard1", "Super1",
             "multi_read",
             "Multiple concurrent reads fetching multiple rows at once. The cluster must first be populated by a write test.",
             CommandCategory.MULTI
     ),
-    COUNTERWRITE(true, "Counter1", "SuperCounter1",
+    COUNTER_WRITE(true, "Counter1", "SuperCounter1",
             "counter_add",
             "Multiple concurrent updates of counters.",
             CommandCategory.BASIC
     ),
-    COUNTERREAD(false, "Counter1", "SuperCounter1",
+    COUNTER_READ(false, "Counter1", "SuperCounter1",
             "counter_get",
             "Multiple concurrent reads of counters. The cluster must first be populated by a counterwrite test.",
             CommandCategory.BASIC
@@ -76,9 +77,8 @@ public enum Command
         final Map<String, Command> lookup = new HashMap<>();
         for (Command cmd : values())
         {
-            lookup.put(cmd.toString().toLowerCase(), cmd);
-            if (cmd.extraName != null)
-                lookup.put(cmd.extraName, cmd);
+            for (String name : cmd.names)
+                lookup.put(name, cmd);
         }
         LOOKUP = lookup;
     }
@@ -90,7 +90,7 @@ public enum Command
 
     public final boolean updates;
     public final CommandCategory category;
-    public final String extraName;
+    public final List<String> names;
     public final String description;
     public final String table;
     public final String supertable;
@@ -106,7 +106,15 @@ public enum Command
         this.supertable = supertable;
         this.updates = updates;
         this.category = category;
-        this.extraName = extra;
+        List<String> names = new ArrayList<>();
+        names.add(this.toString().toLowerCase());
+        names.add(this.toString().replaceAll("_", "").toLowerCase());
+        if (extra != null)
+        {
+            names.add(extra.toLowerCase());
+            names.add(extra.replaceAll("_", "").toLowerCase());
+        }
+        this.names = ImmutableList.copyOf(names);
         this.description = description;
     }
 

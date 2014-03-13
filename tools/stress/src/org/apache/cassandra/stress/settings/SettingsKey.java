@@ -114,7 +114,7 @@ public class SettingsKey implements Serializable
             switch(command.type)
             {
                 case WRITE:
-                case COUNTERWRITE:
+                case COUNTER_WRITE:
                     return new SettingsKey(new PopulateOptions(defaultLimit));
                 default:
                     return new SettingsKey(new DistributionOptions(defaultLimit));

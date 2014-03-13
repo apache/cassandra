@@ -165,7 +165,7 @@ public class StressSettings implements Serializable
 
     public void maybeCreateKeyspaces()
     {
-        if (command.type == Command.WRITE || command.type == Command.COUNTERWRITE)
+        if (command.type == Command.WRITE || command.type == Command.COUNTER_WRITE)
             schema.createKeySpaces(this);
 
     }

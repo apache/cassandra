@@ -117,9 +117,13 @@ public class SettingsCommand implements Serializable
         {
             if (cmd.category == null)
                 continue;
-            final String[] params = clArgs.remove(cmd.toString().toLowerCase());
-            if (params != null)
+
+            for (String name : cmd.names)
             {
+                final String[] params = clArgs.remove(name);
+                if (params == null)
+                    continue;
+
                 switch (cmd.category)
                 {
                     case BASIC:
