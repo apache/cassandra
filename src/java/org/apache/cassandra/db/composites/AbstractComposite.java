@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.AbstractCompositeType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class AbstractComposite implements Composite
 {
@@ -75,12 +76,12 @@ public abstract class AbstractComposite implements Composite
         // See org.apache.cassandra.db.marshal.CompositeType for details.
         ByteBuffer result = ByteBuffer.allocate(dataSize() + 3 * size() + (isStatic() ? 2 : 0));
         if (isStatic())
-            AbstractCompositeType.putShortLength(result, CompositeType.STATIC_MARKER);
+            ByteBufferUtil.writeShortLength(result, CompositeType.STATIC_MARKER);
 
         for (int i = 0; i < size(); i++)
         {
             ByteBuffer bb = get(i);
-            AbstractCompositeType.putShortLength(result, bb.remaining());
+            ByteBufferUtil.writeShortLength(result, bb.remaining());
             result.put(bb.duplicate());
             result.put((byte)0);
         }
