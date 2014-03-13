@@ -464,7 +464,7 @@ public class StressAction implements Runnable
                 }
 
 
-            case COUNTERREAD:
+            case COUNTER_READ:
                 switch(state.settings.mode.style)
                 {
                     case THRIFT:
@@ -488,7 +488,7 @@ public class StressAction implements Runnable
                         throw new UnsupportedOperationException();
                 }
 
-            case COUNTERWRITE:
+            case COUNTER_WRITE:
                 switch(state.settings.mode.style)
                 {
                     case THRIFT:
@@ -500,7 +500,7 @@ public class StressAction implements Runnable
                         throw new UnsupportedOperationException();
                 }
 
-            case RANGESLICE:
+            case RANGE_SLICE:
                 switch(state.settings.mode.style)
                 {
                     case THRIFT:
@@ -512,7 +512,7 @@ public class StressAction implements Runnable
                         throw new UnsupportedOperationException();
                 }
 
-            case IRANGESLICE:
+            case INDEXED_RANGE_SLICE:
                 switch(state.settings.mode.style)
                 {
                     case THRIFT:
@@ -524,7 +524,7 @@ public class StressAction implements Runnable
                         throw new UnsupportedOperationException();
                 }
 
-            case READMULTI:
+            case READ_MULTI:
                 switch(state.settings.mode.style)
                 {
                     case THRIFT:

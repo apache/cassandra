@@ -21,6 +21,7 @@
  * Fix potentially repairing with wrong nodes (CASSANDRA-6808)
  * Change caching option syntax (CASSANDRA-6745)
  * Fix stress to do proper counter reads (CASSANDRA-6835)
+ * Fix help message for stress counter_write (CASSANDRA-6824)
 Merged from 2.0:
  * Fix leaking validator FH in StreamWriter (CASSANDRA-6832)
  * fix nodetool getsstables for blob PK (CASSANDRA-6803)

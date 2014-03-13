@@ -92,7 +92,7 @@ public class SettingsRate implements Serializable
             switch (command.type)
             {
                 case WRITE:
-                case COUNTERWRITE:
+                case COUNTER_WRITE:
                     if (command.count > 0)
                     {
                         ThreadOptions options = new ThreadOptions();

@@ -117,7 +117,8 @@ public class SettingsMisc implements Serializable
 
     public static void printHelp()
     {
-        System.out.println("Usage: ./bin/cassandra-stress <command> [options]");
+        System.out.println("Usage:      cassandra-stress <command> [options]");
+        System.out.println("Help usage: cassandra-stress help <command>");
         System.out.println();
         System.out.println("---Commands---");
         for (Command cmd : Command.values())
@@ -160,7 +161,7 @@ public class SettingsMisc implements Serializable
                 System.out.println("Usage: ./bin/cassandra-stress help <command|option>");
                 System.out.println("Commands:");
                 for (Command cmd : Command.values())
-                    System.out.println("    " + cmd.toString().toLowerCase() + (cmd.extraName != null ? ", " + cmd.extraName : ""));
+                    System.out.println("    " + cmd.names.toString().replaceAll("\\[|\\]", ""));
                 System.out.println("Options:");
                 for (CliOption op : CliOption.values())
                     System.out.println("    -" + op.toString().toLowerCase() + (op.extraName != null ? ", " + op.extraName : ""));
