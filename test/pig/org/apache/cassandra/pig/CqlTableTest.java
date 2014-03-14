@@ -177,18 +177,18 @@ public class CqlTableTest extends PigTestBase
         pig.registerQuery("STORE recs INTO 'cql://cql3ks/collectiontable?" + defaultParameters + "&output_query=update+cql3ks.collectiontable+set+n+%3D+%3F' USING CqlStorage();");
         pig.executeBatch();
 
-        //(book2,((m,mm),(n,nn)))
-        //(book3,((m,mm),(n,nn)))
-        //(book4,((m,mm),(n,nn)))
-        //(book1,((m,mm),(n,nn)))
+        //(book2,((key2, value2),(m,mm),(n,nn)))
+        //(book3,((key3, value3),(m,mm),(n,nn)))
+        //(book4,((key4, value4),(m,mm),(n,nn)))
+        //(book1,((key1, value1),(m,mm),(n,nn)))
         pig.registerQuery("result= LOAD 'cql://cql3ks/collectiontable?" + defaultParameters + "' USING CqlStorage();");
         Iterator<Tuple> it = pig.openIterator("result");
-        if (it.hasNext()) {
+        while (it.hasNext()) {
             Tuple t = it.next();
             Tuple t1 = (Tuple) t.get(1);
-            Assert.assertEquals(t1.size(), 2);
-            Tuple element1 = (Tuple) t1.get(0);
-            Tuple element2 = (Tuple) t1.get(1);
+            Assert.assertEquals(t1.size(), 3);
+            Tuple element1 = (Tuple) t1.get(1);
+            Tuple element2 = (Tuple) t1.get(2);
             Assert.assertEquals(element1.get(0), "m");
             Assert.assertEquals(element1.get(1), "mm");
             Assert.assertEquals(element2.get(0), "n");
