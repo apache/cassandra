@@ -207,8 +207,24 @@ public class SliceQueryFilter implements IDiskAtomFilter
 
         Tracing.trace("Read {} live and {} tombstoned cells", columnCounter.live(), columnCounter.ignored());
         if (respectTombstoneThresholds() && columnCounter.ignored() > DatabaseDescriptor.getTombstoneWarnThreshold())
-            logger.warn("Read {} live and {} tombstoned cells in {}.{} (see tombstone_warn_threshold)",
-                        columnCounter.live(), columnCounter.ignored(), container.metadata().ksName, container.metadata().cfName);
+        {
+            StringBuilder sb = new StringBuilder();
+            AbstractType<?> type = container.metadata().comparator;
+            for (ColumnSlice sl : slices)
+            {
+                if (sl == null)
+                    continue;
+
+                sb.append('[');
+                sb.append(type.getString(sl.start));
+                sb.append('-');
+                sb.append(type.getString(sl.finish));
+                sb.append(']');
+            }
+
+            logger.warn("Read {} live and {} tombstoned cells in {}.{} (see tombstone_warn_threshold). {} columns was requested, slices={}, delInfo={}",
+                        columnCounter.live(), columnCounter.ignored(), container.metadata().ksName, container.metadata().cfName, count, sb, container.deletionInfo());
+        }
     }
 
     protected boolean respectTombstoneThresholds()

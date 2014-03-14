@@ -1,4 +1,5 @@
 2.0.7
+ * Log more information when exceeding tombstone_warn_threshold (CASSANDRA-6865)
  * Fix truncate to not abort due to unreachable fat clients (CASSANDRA-6864)
  * Fix schema concurrency exceptions (CASSANDRA-6841)
  * Fix leaking validator FH in StreamWriter (CASSANDRA-6832)
