@@ -93,7 +93,7 @@
     <property name="test.long.timeout" value="600000" />
 
     <!-- http://cobertura.sourceforge.net/ -->
-    <property name="cobertura.version" value="2.0.2"/>
+    <property name="cobertura.version" value="2.0.3"/>
     <property name="cobertura.build.dir" value="${build.dir}/cobertura"/>
     <property name="cobertura.report.dir" value="${cobertura.build.dir}/report"/>
     <property name="cobertura.classes.dir" value="${cobertura.build.dir}/classes"/>
@@ -1202,6 +1202,7 @@
   <target name="cobertura-instrument" depends="build,build-test">
     <taskdef resource="tasks.properties">
       <classpath refid="cobertura.classpath"/>
+      <classpath refid="cassandra.classpath"/>
     </taskdef>
 
     <delete file="${cobertura.datafile}"/>
