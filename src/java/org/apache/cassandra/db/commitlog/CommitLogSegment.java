@@ -313,16 +313,16 @@ public class CommitLogSegment
 
             // actually perform the sync and signal those waiting for it
             buffer.force();
-            syncComplete.signalAll();
 
             if (close)
-            {
-                close();
                 nextMarker = buffer.capacity();
-            }
-            CLibrary.trySkipCache(fd, offset, nextMarker);
 
             lastSyncedOffset = nextMarker;
+            syncComplete.signalAll();
+
+            CLibrary.trySkipCache(fd, offset, nextMarker);
+            if (close)
+                close();
         }
         catch (Exception e) // MappedByteBuffer.force() does not declare IOException but can actually throw it
         {

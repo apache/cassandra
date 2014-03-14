@@ -21,6 +21,8 @@
  * Fix help message for stress counter_write (CASSANDRA-6824)
  * Fix stress smart Thrift client to pick servers correctly (CASSANDRA-6848)
  * Add logging levels (minimal, normal or verbose) to stress tool (CASSANDRA-6849)
+ * Fix race condition in Batch CLE (CASSANDRA-6860)
+ 
 Merged from 2.0:
  * Fix schema concurrency exceptions (CASSANDRA-6841)
  * Fix leaking validator FH in StreamWriter (CASSANDRA-6832)
