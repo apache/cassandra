@@ -1,6 +1,6 @@
 package org.apache.cassandra.thrift;
 
-import io.teknek.ArizonaServer;
+import io.teknek.arizona.ArizonaServer;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;

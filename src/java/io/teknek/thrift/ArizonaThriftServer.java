@@ -1,7 +1,7 @@
 
 package io.teknek.thrift;
 
-import io.teknek.ArizonaServer;
+import io.teknek.arizona.ArizonaServer;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
