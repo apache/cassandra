@@ -46,7 +46,7 @@ public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
                 replyTo = message.from;
                 byte[] forwardBytes = message.parameters.get(RowMutation.FORWARD_TO);
                 if (forwardBytes != null)
-                    forwardToLocalNodes(rm, message.verb, forwardBytes, message.from);
+                    forwardToLocalNodes(rm, message.verb, forwardBytes, message.from, message.version);
             }
             else
             {
@@ -68,7 +68,7 @@ public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
      * Older version (< 1.0) will not send this message at all, hence we don't
      * need to check the version of the data.
      */
-    private void forwardToLocalNodes(RowMutation rm, MessagingService.Verb verb, byte[] forwardBytes, InetAddress from) throws IOException
+    private void forwardToLocalNodes(RowMutation rm, MessagingService.Verb verb, byte[] forwardBytes, InetAddress from, int version) throws IOException
     {
         DataInputStream in = new DataInputStream(new FastByteArrayInputStream(forwardBytes));
         int size = in.readInt();
@@ -79,7 +79,16 @@ public class RowMutationVerbHandler implements IVerbHandler<RowMutation>
         for (int i = 0; i < size; i++)
         {
             InetAddress address = CompactEndpointSerializationHelper.deserialize(in);
-            int id = in.readInt();
+            int id;
+            if (version < MessagingService.VERSION_20)
+            {
+                String s = in.readUTF();
+                id = Integer.parseInt(s);
+            }
+            else
+            {
+                id = in.readInt();
+            }
             Tracing.trace("Enqueuing forwarded write to {}", address);
             MessagingService.instance().sendOneWay(message, id, address);
         }

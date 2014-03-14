@@ -7,6 +7,7 @@
  * Restore expiring->deleted (cell) compaction optimization (CASSANDRA-6844)
  * Fix CompactionManager.needsCleanup (CASSANDRA-6845)
  * Correctly compare BooleanType values other than 0 and 1 (CASSANDRA-6779)
+ * Read message id as string from earlier versions (CASSANDRA-6840)
 Merged from 1.2:
  * fix nodetool getsstables for blob PK (CASSANDRA-6803)
 
