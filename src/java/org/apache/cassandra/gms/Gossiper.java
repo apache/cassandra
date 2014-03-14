@@ -252,9 +252,27 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return tokenOwners;
     }
 
+    /**
+     * @return a list of unreachable gossip participants, including fat clients
+     */
     public Set<InetAddress> getUnreachableMembers()
     {
         return unreachableEndpoints.keySet();
+    }
+
+    /**
+     * @return a list of unreachable token owners
+     */
+    public Set<InetAddress> getUnreachableTokenOwners()
+    {
+        Set<InetAddress> tokenOwners = new HashSet<>();
+        for (InetAddress endpoint : unreachableEndpoints.keySet())
+        {
+            if (StorageService.instance.getTokenMetadata().isMember(endpoint))
+                tokenOwners.add(endpoint);
+        }
+
+        return tokenOwners;
     }
 
     public long getEndpointDowntime(InetAddress ep)
