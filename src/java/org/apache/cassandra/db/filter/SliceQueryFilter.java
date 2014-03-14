@@ -36,6 +36,7 @@ import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
@@ -222,11 +223,10 @@ public class SliceQueryFilter implements IDiskAtomFilter
         if (respectTombstoneThresholds() && columnCounter.ignored() > DatabaseDescriptor.getTombstoneWarnThreshold())
         {
             StringBuilder sb = new StringBuilder();
-            AbstractType<?> type = container.metadata().comparator;
+            CellNameType type = container.metadata().comparator;
             for (ColumnSlice sl : slices)
             {
-                if (sl == null)
-                    continue;
+                assert sl != null;
 
                 sb.append('[');
                 sb.append(type.getString(sl.start));
