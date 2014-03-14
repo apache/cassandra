@@ -590,7 +590,20 @@
         <arg line="-o ${interface.thrift.dir}" />
         <arg line="cassandra.thrift" />
       </exec>
+      <exec executable="thrift" dir="${basedir}/interface" failonerror="true">
+        <arg line="--gen java:hashcode" />
+        <arg line="-o ${interface.thrift.dir}" />
+        <arg line="arizona.thrift" />
+      </exec>
       <antcall target="write-java-license-headers" />
+    </target>
+    <target name="gen-arizona=java" >
+      <exec executable="thrift" dir="${basedir}/interface" failonerror="true">
+        <arg line="--gen java:hashcode" />
+        <arg line="-o ${interface.thrift.dir}" />
+        <arg line="arizona.thrift" />
+      </exec>
+
     </target>
 
     <target name="_write-java-license-headers" depends="rat-init">

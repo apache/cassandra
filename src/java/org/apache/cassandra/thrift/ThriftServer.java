@@ -123,7 +123,7 @@ public class ThriftServer implements CassandraDaemon.Server
             args.tProtocolFactory = new TBinaryProtocol.Factory(true, true);
             args.addr = new InetSocketAddress(listenAddr, listenPort);
             args.listenBacklog = listenBacklog;
-            args.cassandraServer = server;
+            //args.cassandraServer = server;
             args.processor = processor;
             args.keepAlive = DatabaseDescriptor.getRpcKeepAlive();
             args.sendBufferSize = DatabaseDescriptor.getRpcSendBufferSize();
