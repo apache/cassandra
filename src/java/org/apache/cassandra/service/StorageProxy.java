@@ -102,7 +102,7 @@ public class StorageProxy implements StorageProxyMBean
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
         {
-            mbs.registerMBean(new StorageProxy(), new ObjectName(MBEAN_NAME));
+            mbs.registerMBean(instance, new ObjectName(MBEAN_NAME));
         }
         catch (Exception e)
         {
