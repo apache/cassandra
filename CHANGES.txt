@@ -1,4 +1,5 @@
 2.0.7
+ * Fix schema concurrency exceptions (CASSANDRA-6841)
  * Fix leaking validator FH in StreamWriter (CASSANDRA-6832)
  * Fix saving triggers to schema (CASSANDRA-6789)
  * Fix trigger mutations when base mutation list is immutable (CASSANDRA-6790)
