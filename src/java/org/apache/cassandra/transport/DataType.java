@@ -24,7 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 
-import org.jboss.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.db.marshal.*;
@@ -78,7 +78,7 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         return id;
     }
 
-    public Object readValue(ChannelBuffer cb)
+    public Object readValue(ByteBuf cb)
     {
         switch (this)
         {
@@ -98,7 +98,7 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         }
     }
 
-    public void writeValue(Object value, ChannelBuffer cb)
+    public void writeValue(Object value, ByteBuf cb)
     {
         switch (this)
         {

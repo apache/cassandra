@@ -20,7 +20,7 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.jboss.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -195,7 +195,7 @@ public class ResultSet
          *   - rows count (4 bytes)
          *   - rows
          */
-        public ResultSet decode(ChannelBuffer body, int version)
+        public ResultSet decode(ByteBuf body, int version)
         {
             Metadata m = Metadata.codec.decode(body, version);
             int rowCount = body.readInt();
@@ -209,7 +209,7 @@ public class ResultSet
             return rs;
         }
 
-        public void encode(ResultSet rs, ChannelBuffer dest, int version)
+        public void encode(ResultSet rs, ByteBuf dest, int version)
         {
             Metadata.codec.encode(rs.metadata, dest, version);
             dest.writeInt(rs.rows.size());
@@ -341,7 +341,7 @@ public class ResultSet
 
         private static class Codec implements CBCodec<Metadata>
         {
-            public Metadata decode(ChannelBuffer body, int version)
+            public Metadata decode(ByteBuf body, int version)
             {
                 // flags & column count
                 int iflags = body.readInt();
@@ -379,7 +379,7 @@ public class ResultSet
                 return new Metadata(flags, names).setHasMorePages(state);
             }
 
-            public void encode(Metadata m, ChannelBuffer dest, int version)
+            public void encode(Metadata m, ByteBuf dest, int version)
             {
                 boolean noMetadata = m.flags.contains(Flag.NO_METADATA);
                 boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);

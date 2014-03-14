@@ -23,7 +23,7 @@ import java.util.Map;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.transport.ProtocolException;
-import org.jboss.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.service.QueryState;
@@ -37,7 +37,7 @@ public class CredentialsMessage extends Message.Request
 {
     public static final Message.Codec<CredentialsMessage> codec = new Message.Codec<CredentialsMessage>()
     {
-        public CredentialsMessage decode(ChannelBuffer body, int version)
+        public CredentialsMessage decode(ByteBuf body, int version)
         {
             if (version > 1)
                 throw new ProtocolException("Legacy credentials authentication is not supported in " +
@@ -47,7 +47,7 @@ public class CredentialsMessage extends Message.Request
             return new CredentialsMessage(credentials);
         }
 
-        public void encode(CredentialsMessage msg, ChannelBuffer dest, int version)
+        public void encode(CredentialsMessage msg, ByteBuf dest, int version)
         {
             CBUtil.writeStringMap(msg.credentials, dest);
         }

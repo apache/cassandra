@@ -19,7 +19,7 @@ package org.apache.cassandra.transport;
 
 import java.io.IOException;
 
-import org.jboss.netty.buffer.ChannelBuffers;
+import io.netty.buffer.Unpooled;
 import org.xerial.snappy.Snappy;
 import org.xerial.snappy.SnappyError;
 
@@ -77,7 +77,7 @@ public interface FrameCompressor
             byte[] output = new byte[Snappy.maxCompressedLength(input.length)];
 
             int written = Snappy.compress(input, 0, input.length, output, 0);
-            return frame.with(ChannelBuffers.wrappedBuffer(output, 0, written));
+            return frame.with(Unpooled.wrappedBuffer(output, 0, written));
         }
 
         public Frame decompress(Frame frame) throws IOException
@@ -89,7 +89,7 @@ public interface FrameCompressor
 
             byte[] output = new byte[Snappy.uncompressedLength(input)];
             int size = Snappy.uncompress(input, 0, input.length, output, 0);
-            return frame.with(ChannelBuffers.wrappedBuffer(output, 0, size));
+            return frame.with(Unpooled.wrappedBuffer(output, 0, size));
         }
     }
 
@@ -131,7 +131,7 @@ public interface FrameCompressor
             try
             {
                 int written = compressor.compress(input, 0, input.length, output, INTEGER_BYTES, maxCompressedLength);
-                return frame.with(ChannelBuffers.wrappedBuffer(output, 0, INTEGER_BYTES + written));
+                return frame.with(Unpooled.wrappedBuffer(output, 0, INTEGER_BYTES + written));
             }
             catch (LZ4Exception e)
             {
@@ -156,7 +156,7 @@ public interface FrameCompressor
                 if (read != input.length - INTEGER_BYTES)
                     throw new IOException("Compressed lengths mismatch");
 
-                return frame.with(ChannelBuffers.wrappedBuffer(output));
+                return frame.with(Unpooled.wrappedBuffer(output));
             }
             catch (LZ4Exception e)
             {

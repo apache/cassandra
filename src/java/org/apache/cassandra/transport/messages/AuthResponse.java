@@ -26,7 +26,7 @@ import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ServerConnection;
 
-import org.jboss.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ByteBuf;
 
 import java.nio.ByteBuffer;
 
@@ -39,7 +39,7 @@ public class AuthResponse extends Message.Request
 {
     public static final Message.Codec<AuthResponse> codec = new Message.Codec<AuthResponse>()
     {
-        public AuthResponse decode(ChannelBuffer body, int version)
+        public AuthResponse decode(ByteBuf body, int version)
         {
             if (version == 1)
                 throw new ProtocolException("SASL Authentication is not supported in version 1 of the protocol");
@@ -50,7 +50,7 @@ public class AuthResponse extends Message.Request
             return new AuthResponse(token);
         }
 
-        public void encode(AuthResponse response, ChannelBuffer dest, int version)
+        public void encode(AuthResponse response, ByteBuf dest, int version)
         {
             CBUtil.writeValue(response.token, dest);
         }

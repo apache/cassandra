@@ -17,16 +17,14 @@
  */
 package org.apache.cassandra.stress.util;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 import javax.net.ssl.SSLContext;
 
 import com.datastax.driver.core.*;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.security.SSLFactory;
-import org.apache.cassandra.utils.FBUtilities;
-import org.jboss.netty.logging.InternalLoggerFactory;
-import org.jboss.netty.logging.Slf4JLoggerFactory;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 
 public class JavaDriverClient
 {

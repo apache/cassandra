@@ -18,85 +18,84 @@
 package org.apache.cassandra.transport;
 
 import java.util.List;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.jboss.netty.handler.execution.MemoryAwareThreadPoolExecutor;
-import org.jboss.netty.util.ObjectSizeEstimator;
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import io.netty.util.concurrent.AbstractEventExecutor;
+import io.netty.util.concurrent.EventExecutorGroup;
+import io.netty.util.concurrent.Future;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.metrics.ThreadPoolMetrics;
 
-public class RequestThreadPoolExecutor extends MemoryAwareThreadPoolExecutor
+public class RequestThreadPoolExecutor extends AbstractEventExecutor
 {
+
     private final static int CORE_THREAD_TIMEOUT_SEC = 30;
     // Number of request we accept to queue before blocking. We could allow this to be configured...
     private final static int MAX_QUEUED_REQUESTS = 128;
 
     private final static String THREAD_FACTORY_ID = "Native-Transport-Requests";
+    private final JMXEnabledThreadPoolExecutor wrapped = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getNativeTransportMaxThreads(),
+                                                                                          CORE_THREAD_TIMEOUT_SEC, TimeUnit.SECONDS,
+                                                                                          new LinkedBlockingQueue<Runnable>(MAX_QUEUED_REQUESTS),
+                                                                                          new NamedThreadFactory(THREAD_FACTORY_ID),
+                                                                                          "transport");
 
-    private final ThreadPoolMetrics metrics;
-
-    public RequestThreadPoolExecutor()
+    public boolean isShuttingDown()
     {
-        super(DatabaseDescriptor.getNativeTransportMaxThreads(),
-              0, // We don't use the per-channel limit, only the global one
-              MAX_QUEUED_REQUESTS,
-              CORE_THREAD_TIMEOUT_SEC, TimeUnit.SECONDS,
-              sizeEstimator(),
-              new NamedThreadFactory(THREAD_FACTORY_ID));
-        metrics = new ThreadPoolMetrics(this, "transport", THREAD_FACTORY_ID);
+        return wrapped.isShutdown();
     }
 
-    /*
-     * In theory, the ObjectSizeEstimator should estimate the actual size of a
-     * request, and MemoryAwareThreadPoolExecutor sets a memory limit on how
-     * much memory we allow for request before blocking.
-     *
-     * However, the memory size used by a CQL query is not very intersting and
-     * by no mean reflect the memory size it's execution will use (the interesting part).
-     * Furthermore, we're mainly interested in limiting the number of unhandled requests that
-     * piles up to implement some back-pressure, and for that, there is no real need to do
-     * fancy esimation of request size. So we use a trivial estimator that just count the
-     * number of request.
-     *
-     * We could get more fancy later ...
-     */
-    private static ObjectSizeEstimator sizeEstimator()
+    public Future<?> shutdownGracefully(long l, long l2, TimeUnit timeUnit)
     {
-        return new ObjectSizeEstimator()
-        {
-            public int estimateSize(Object o)
-            {
-                return 1;
-            }
-        };
+        throw new IllegalStateException();
     }
 
-    @Override
-    protected void afterExecute(Runnable r, Throwable t)
+    public Future<?> terminationFuture()
     {
-        super.afterExecute(r, t);
-        DebuggableThreadPoolExecutor.logExceptionsAfterExecute(r, t);
+        throw new IllegalStateException();
     }
 
     @Override
     public void shutdown()
     {
-        if (!isShutdown())
-        {
-            metrics.release();
-        }
-        super.shutdown();
+        wrapped.shutdown();
     }
 
     @Override
     public List<Runnable> shutdownNow()
     {
-        if (!isShutdown())
-        {
-            metrics.release();
-        }
-        return super.shutdownNow();
+        return wrapped.shutdownNow();
+    }
+
+    public boolean isShutdown()
+    {
+        return wrapped.isShutdown();
+    }
+
+    public boolean isTerminated()
+    {
+        return wrapped.isTerminated();
+    }
+
+    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException
+    {
+        return wrapped.awaitTermination(timeout, unit);
+    }
+
+    public EventExecutorGroup parent()
+    {
+        return null;
+    }
+
+    public boolean inEventLoop(Thread thread)
+    {
+        return false;
+    }
+
+    public void execute(Runnable command)
+    {
+        wrapped.execute(command);
     }
 }

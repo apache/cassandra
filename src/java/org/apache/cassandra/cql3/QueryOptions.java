@@ -22,7 +22,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 
-import org.jboss.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.pager.PagingState;
@@ -174,7 +174,7 @@ public class QueryOptions
             }
         }
 
-        public QueryOptions decode(ChannelBuffer body, int version)
+        public QueryOptions decode(ByteBuf body, int version)
         {
             assert version >= 2;
 
@@ -200,7 +200,7 @@ public class QueryOptions
             return new QueryOptions(consistency, values, skipMetadata, options, version);
         }
 
-        public void encode(QueryOptions options, ChannelBuffer dest, int version)
+        public void encode(QueryOptions options, ByteBuf dest, int version)
         {
             assert version >= 2;
 

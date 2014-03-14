@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.transport.messages;
 
-import org.jboss.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ByteBuf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +39,7 @@ public class ErrorMessage extends Message.Response
 
     public static final Message.Codec<ErrorMessage> codec = new Message.Codec<ErrorMessage>()
     {
-        public ErrorMessage decode(ChannelBuffer body, int version)
+        public ErrorMessage decode(ByteBuf body, int version)
         {
             ExceptionCode code = ExceptionCode.fromValue(body.readInt());
             String msg = CBUtil.readString(body);
@@ -119,7 +119,7 @@ public class ErrorMessage extends Message.Response
             return new ErrorMessage(te);
         }
 
-        public void encode(ErrorMessage msg, ChannelBuffer dest, int version)
+        public void encode(ErrorMessage msg, ByteBuf dest, int version)
         {
             dest.writeInt(msg.error.code().value);
             CBUtil.writeString(msg.error.getMessage(), dest);

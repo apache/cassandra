@@ -21,9 +21,9 @@ import java.lang.reflect.Array;
 import java.util.EnumMap;
 import java.util.Map;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
+import io.netty.buffer.ByteBuf;
 
+import io.netty.buffer.Unpooled;
 import org.apache.cassandra.utils.Pair;
 
 public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
@@ -32,8 +32,8 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
     {
         public int getId();
 
-        public Object readValue(ChannelBuffer cb);
-        public void writeValue(Object value, ChannelBuffer cb);
+        public Object readValue(ByteBuf cb);
+        public void writeValue(Object value, ByteBuf cb);
         public int serializedValueSize(Object obj);
     }
 
@@ -66,7 +66,7 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         return opt;
     }
 
-    public Map<T, Object> decode(ChannelBuffer body)
+    public Map<T, Object> decode(ByteBuf body)
     {
         EnumMap<T, Object> options = new EnumMap<T, Object>(klass);
         int n = body.readUnsignedShort();
@@ -81,12 +81,12 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         return options;
     }
 
-    public ChannelBuffer encode(Map<T, Object> options)
+    public ByteBuf encode(Map<T, Object> options)
     {
         int optLength = 2;
         for (Map.Entry<T, Object> entry : options.entrySet())
             optLength += 2 + entry.getKey().serializedValueSize(entry.getValue());
-        ChannelBuffer cb = ChannelBuffers.buffer(optLength);
+        ByteBuf cb = Unpooled.buffer(optLength);
         cb.writeShort(options.size());
         for (Map.Entry<T, Object> entry : options.entrySet())
         {
@@ -97,14 +97,14 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         return cb;
     }
 
-    public Pair<T, Object> decodeOne(ChannelBuffer body)
+    public Pair<T, Object> decodeOne(ByteBuf body)
     {
         T opt = fromId(body.readUnsignedShort());
         Object value = opt.readValue(body);
         return Pair.create(opt, value);
     }
 
-    public void writeOne(Pair<T, Object> option, ChannelBuffer dest)
+    public void writeOne(Pair<T, Object> option, ByteBuf dest)
     {
         T opt = option.left;
         Object obj = option.right;

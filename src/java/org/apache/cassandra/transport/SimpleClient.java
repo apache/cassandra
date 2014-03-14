@@ -33,6 +33,15 @@ import javax.net.ssl.SSLEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.security.SSLFactory;
@@ -44,20 +53,11 @@ import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
 import org.apache.cassandra.utils.MD5Digest;
-import org.jboss.netty.bootstrap.ClientBootstrap;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
-import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
-import org.jboss.netty.handler.ssl.SslHandler;
-import org.jboss.netty.logging.InternalLoggerFactory;
-import org.jboss.netty.logging.Slf4JLoggerFactory;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPipeline;
+import io.netty.handler.ssl.SslHandler;
 import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 
 public class SimpleClient
@@ -76,7 +76,7 @@ public class SimpleClient
     protected final Connection.Tracker tracker = new ConnectionTracker();
     // We don't track connection really, so we don't need one Connection per channel
     protected final Connection connection = new Connection(null, Server.CURRENT_VERSION, tracker);
-    protected ClientBootstrap bootstrap;
+    protected Bootstrap bootstrap;
     protected Channel channel;
     protected ChannelFuture lastWriteFuture;
 
@@ -118,30 +118,28 @@ public class SimpleClient
     protected void establishConnection() throws IOException
     {
         // Configure the client.
-        bootstrap = new ClientBootstrap(
-                        new NioClientSocketChannelFactory(
-                            Executors.newCachedThreadPool(),
-                            Executors.newCachedThreadPool()));
-
-        bootstrap.setOption("tcpNoDelay", true);
+        bootstrap = new Bootstrap()
+                    .group(new NioEventLoopGroup())
+                    .channel(io.netty.channel.socket.nio.NioSocketChannel.class)
+                    .option(ChannelOption.TCP_NODELAY, true);
 
         // Configure the pipeline factory.
         if(encryptionOptions.enabled)
         {
-            bootstrap.setPipelineFactory(new SecurePipelineFactory());
+            bootstrap.handler(new SecureInitializer());
         }
         else
         {
-            bootstrap.setPipelineFactory(new PipelineFactory());
+            bootstrap.handler(new Initializer());
         }
         ChannelFuture future = bootstrap.connect(new InetSocketAddress(host, port));
 
         // Wait until the connection attempt succeeds or fails.
-        channel = future.awaitUninterruptibly().getChannel();
+        channel = future.awaitUninterruptibly().channel();
         if (!future.isSuccess())
         {
-            bootstrap.releaseExternalResources();
-            throw new IOException("Connection Error", future.getCause());
+            bootstrap.group().shutdownGracefully();
+            throw new IOException("Connection Error", future.cause());
         }
     }
 
@@ -189,7 +187,7 @@ public class SimpleClient
         channel.close().awaitUninterruptibly();
 
         // Shut down all thread pools to exit.
-        bootstrap.releaseExternalResources();
+        bootstrap.group().shutdownGracefully();
     }
 
     protected Message.Response execute(Message.Request request)
@@ -197,7 +195,7 @@ public class SimpleClient
         try
         {
             request.attach(connection);
-            lastWriteFuture = channel.write(request);
+            lastWriteFuture = channel.writeAndFlush(request);
             Message.Response msg = responseHandler.responses.take();
             if (msg instanceof ErrorMessage)
                 throw new RuntimeException((Throwable)((ErrorMessage)msg).error);
@@ -222,14 +220,11 @@ public class SimpleClient
         public void closeAll() {}
     }
 
-    private class PipelineFactory implements ChannelPipelineFactory
+    private class Initializer extends ChannelInitializer<Channel>
     {
-        public ChannelPipeline getPipeline() throws Exception
+        protected void initChannel(Channel channel) throws Exception
         {
-            ChannelPipeline pipeline = Channels.pipeline();
-
-            //pipeline.addLast("debug", new LoggingHandler());
-
+            ChannelPipeline pipeline = channel.pipeline();
             pipeline.addLast("frameDecoder", new Frame.Decoder(connectionFactory));
             pipeline.addLast("frameEncoder", frameEncoder);
 
@@ -240,43 +235,39 @@ public class SimpleClient
             pipeline.addLast("messageEncoder", messageEncoder);
 
             pipeline.addLast("handler", responseHandler);
-
-            return pipeline;
         }
     }
 
-    private class SecurePipelineFactory extends PipelineFactory
+    private class SecureInitializer extends Initializer
     {
         private final SSLContext sslContext;
 
-        public SecurePipelineFactory() throws IOException
+        public SecureInitializer() throws IOException
         {
             this.sslContext = SSLFactory.createSSLContext(encryptionOptions, true);
         }
 
-        public ChannelPipeline getPipeline() throws Exception
+        protected void initChannel(Channel channel) throws Exception
         {
+            super.initChannel(channel);
             SSLEngine sslEngine = sslContext.createSSLEngine();
             sslEngine.setUseClientMode(true);
             sslEngine.setEnabledCipherSuites(encryptionOptions.cipher_suites);
-            ChannelPipeline pipeline = super.getPipeline();
-
-            pipeline.addFirst("ssl", new SslHandler(sslEngine));
-            return pipeline;
+            channel.pipeline().addFirst("ssl", new SslHandler(sslEngine));
         }
     }
 
-    private static class ResponseHandler extends SimpleChannelUpstreamHandler
+    @ChannelHandler.Sharable
+    private static class ResponseHandler extends SimpleChannelInboundHandler<Message.Response>
     {
         public final BlockingQueue<Message.Response> responses = new SynchronousQueue<Message.Response>(true);
 
         @Override
-        public void messageReceived(ChannelHandlerContext ctx, MessageEvent e)
+        public void channelRead0(ChannelHandlerContext ctx, Message.Response r)
         {
-            assert e.getMessage() instanceof Message.Response;
             try
             {
-                responses.put((Message.Response)e.getMessage());
+                responses.put(r);
             }
             catch (InterruptedException ie)
             {
@@ -284,11 +275,11 @@ public class SimpleClient
             }
         }
 
-        public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception
         {
-            if (this == ctx.getPipeline().getLast())
-                logger.error("Exception in response", e.getCause());
-            ctx.sendUpstream(e);
+            if (this == ctx.pipeline().last())
+                logger.error("Exception in response", cause);
+            ctx.fireExceptionCaught(cause);
         }
     }
 }
