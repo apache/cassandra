@@ -27,6 +27,7 @@
  * Fix stress smart Thrift client to pick servers correctly (CASSANDRA-6848)
  * Add logging levels (minimal, normal or verbose) to stress tool (CASSANDRA-6849)
 Merged from 2.0:
+ * Fix schema concurrency exceptions (CASSANDRA-6841)
  * Fix leaking validator FH in StreamWriter (CASSANDRA-6832)
  * fix nodetool getsstables for blob PK (CASSANDRA-6803)
  * Fix saving triggers to schema (CASSANDRA-6789)

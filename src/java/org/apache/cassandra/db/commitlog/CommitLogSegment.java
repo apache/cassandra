@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.commitlog;
 
 import java.io.File;
-import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -27,6 +26,7 @@ import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -34,9 +34,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import org.apache.cassandra.utils.CLibrary;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
@@ -49,7 +46,9 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.PureJavaCrc32;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 /*
@@ -427,7 +426,7 @@ public class CommitLogSegment
      * @param cfId    the column family ID that is now clean
      * @param context the optional clean offset
      */
-    public void markClean(UUID cfId, ReplayPosition context)
+    public synchronized void markClean(UUID cfId, ReplayPosition context)
     {
         if (!cfDirty.containsKey(cfId))
             return;
@@ -486,7 +485,7 @@ public class CommitLogSegment
     /**
      * @return a collection of dirty CFIDs for this segment file.
      */
-    public Collection<UUID> getDirtyCFIDs()
+    public synchronized Collection<UUID> getDirtyCFIDs()
     {
         removeCleanFromDirty();
         if (cfClean.isEmpty() || cfDirty.isEmpty())
@@ -506,7 +505,7 @@ public class CommitLogSegment
     /**
      * @return true if this segment is unused and safe to recycle or delete
      */
-    public boolean isUnused()
+    public synchronized boolean isUnused()
     {
         // if room to allocate, we're still in use as the active allocatingFrom,
         // so we don't want to race with updates to cfClean with removeCleanFromDirty
