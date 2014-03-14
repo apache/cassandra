@@ -304,7 +304,7 @@ public class CommitLogAllocator
     {
         CommitLogSegment oldestSegment = activeSegments.peek();
 
-        if (oldestSegment != null)
+        if (oldestSegment != null && oldestSegment != CommitLog.instance.activeSegment)
         {
             for (UUID dirtyCFId : oldestSegment.getDirtyCFIDs())
             {
