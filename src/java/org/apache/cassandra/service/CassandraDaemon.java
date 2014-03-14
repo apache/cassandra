@@ -368,7 +368,7 @@ public class CassandraDaemon
         nativeServer = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
         
         //arizona
-        arizonaThriftServer = new ArizonaThriftServer(rpcAddr, rpcPort, listenBacklog);
+        arizonaThriftServer = new ArizonaThriftServer(rpcAddr, rpcPort+1, listenBacklog);
     }
 
     /**

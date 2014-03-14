@@ -365,7 +365,7 @@ public class ArizonaServer implements Iface  {
   @Override
   public FunctionalModifyResponse func_modifify(FunctionalModifyRequest request)
           throws InvalidRequestException, UnavailableException, TimedOutException, TException {
-    // TODO Auto-generated method stub
+    System.out.println("what up");
     return null;
   }
 

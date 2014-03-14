@@ -3,6 +3,26 @@
 Cassandra is a highly scalable, eventually consistent, distributed, structured 
 key-value store. 
 
+Arizona Distribution
+------------------
+Arizona distribution of Cassandra. What is it?
+
+  * New thrift methods
+  * Maven support (comming)
+  * Anything you want
+
+Arizona has a couple rules.
+
+  * Preserve compatability with Cassandra
+  * You can add whatever you want assuming you follow the last rule
+
+Want to add CLI commands to CQL? Go for it!
+Want to add brisk like features? Go for it!
+Want to add a rest interface? Go for it!
+
+You get the idea. We do not say no.
+
+But what about the maintanence of all this stuff? Well whatever Cassandra aint perfect neither are we.
 
 Project description
 -------------------
