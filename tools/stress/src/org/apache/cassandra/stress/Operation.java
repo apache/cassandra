@@ -29,10 +29,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.apache.cassandra.stress.generatedata.Distribution;
 import org.apache.cassandra.stress.generatedata.KeyGen;
 import org.apache.cassandra.stress.generatedata.RowGen;
-import org.apache.cassandra.stress.settings.Command;
-import org.apache.cassandra.stress.settings.CqlVersion;
-import org.apache.cassandra.stress.settings.SettingsCommandMixed;
-import org.apache.cassandra.stress.settings.StressSettings;
+import org.apache.cassandra.stress.settings.*;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.stress.util.Timer;
@@ -248,7 +245,22 @@ public abstract class Operation
             }
             catch (Exception e)
             {
-                System.err.println(e);
+                switch (state.settings.log.level)
+                {
+                    case MINIMAL:
+                        break;
+
+                    case NORMAL:
+                        System.err.println(e);
+                        break;
+
+                    case VERBOSE:
+                        e.printStackTrace(System.err);
+                        break;
+
+                    default:
+                        throw new AssertionError();
+                }
                 exceptionMessage = getExceptionMessage(e);
             }
         }
@@ -280,7 +292,7 @@ public abstract class Operation
     {
         if (!state.settings.command.ignoreErrors)
             throw new IOException(message);
-        else
+        else if (state.settings.log.level.compareTo(SettingsLog.Level.MINIMAL) > 0)
             System.err.println(message);
     }
 

@@ -22,6 +22,8 @@
  * Change caching option syntax (CASSANDRA-6745)
  * Fix stress to do proper counter reads (CASSANDRA-6835)
  * Fix help message for stress counter_write (CASSANDRA-6824)
+ * Fix stress smart Thrift client to pick servers correctly (CASSANDRA-6848)
+ * Add logging levels (minimal, normal or verbose) to stress tool (CASSANDRA-6849)
 Merged from 2.0:
  * Fix leaking validator FH in StreamWriter (CASSANDRA-6832)
  * fix nodetool getsstables for blob PK (CASSANDRA-6803)

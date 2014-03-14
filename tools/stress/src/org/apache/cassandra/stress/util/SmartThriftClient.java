@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.datastax.driver.core.Host;
 import com.datastax.driver.core.Metadata;
+import com.google.common.collect.Iterators;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -108,13 +109,10 @@ public class SmartThriftClient implements ThriftClient
     private Client get(ByteBuffer pk)
     {
         Set<Host> hosts = metadata.getReplicas(metadata.quote(keyspace), pk);
-        int count = roundrobin.incrementAndGet() % hosts.size();
-        if (count < 0)
-            count = -count;
-        Iterator<Host> iter = hosts.iterator();
-        while (count > 0 && iter.hasNext())
-            iter.next();
-        Host host = iter.next();
+        int pos = roundrobin.incrementAndGet() % hosts.size();
+        if (pos < 0)
+            pos = -pos;
+        Host host = Iterators.get(hosts.iterator(), pos);
         ConcurrentLinkedQueue<Client> q = cache.get(host);
         if (q == null)
         {
