@@ -77,8 +77,6 @@ public class CommitLogSegmentManager
 
     private final WaitQueue hasAvailableSegments = new WaitQueue();
 
-    private static final AtomicReferenceFieldUpdater<CommitLogSegmentManager, CommitLogSegment> allocatingFromUpdater = AtomicReferenceFieldUpdater.newUpdater(CommitLogSegmentManager.class, CommitLogSegment.class, "allocatingFrom");
-
     /**
      * Tracks commitlog size, in multiples of the segment size.  We need to do this so we can "promise" size
      * adjustments ahead of actually adding/freeing segments on disk, so that the "evict oldest segment" logic
@@ -203,33 +201,32 @@ public class CommitLogSegmentManager
     {
         while (true)
         {
-            Iterator<CommitLogSegment> iter = availableSegments.iterator();
-            if (iter.hasNext())
+            CommitLogSegment next;
+            synchronized (this)
             {
-                CommitLogSegment next;
-                if (!allocatingFromUpdater.compareAndSet(this, old, next = iter.next()))
-                    // failed to swap so we should already be able to continue
+                // do this in a critical section so we can atomically remove from availableSegments and add to allocatingFrom/activeSegments
+                // see https://issues.apache.org/jira/browse/CASSANDRA-6557?focusedCommentId=13874432&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13874432
+                if (allocatingFrom != old)
                     return;
-
-                iter.remove();
-                activeSegments.add(next);
-
-                if (availableSegments.isEmpty())
+                next = availableSegments.poll();
+                if (next != null)
                 {
-                    // if we've emptied the queue of available segments, trigger the manager to maybe add another
-                    wakeManager();
+                    allocatingFrom = next;
+                    activeSegments.add(next);
                 }
+            }
 
+            if (next != null)
+            {
                 if (old != null)
                 {
                     // Now we can run the user defined command just after switching to the new commit log.
                     // (Do this here instead of in the recycle call so we can get a head start on the archive.)
                     CommitLog.instance.archiver.maybeArchive(old.getPath(), old.getName());
-                }
 
-                // ensure we don't continue to use the old file; not strictly necessary, but cleaner to enforce it
-                if (old != null)
+                    // ensure we don't continue to use the old file; not strictly necessary, but cleaner to enforce it
                     old.discardUnusedTail();
+                }
 
                 // request that the CL be synced out-of-band, as we've finished a segment
                 CommitLog.instance.requestExtraSync();
