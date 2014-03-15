@@ -242,7 +242,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     private static Map<SSTableReader, Double> getHotnessMap(Collection<SSTableReader> sstables)
     {
-        Map<SSTableReader, Double> hotness = new HashMap<>();
+        Map<SSTableReader, Double> hotness = new HashMap<>(sstables.size());
         for (SSTableReader sstable : sstables)
             hotness.put(sstable, hotness(sstable));
         return hotness;
