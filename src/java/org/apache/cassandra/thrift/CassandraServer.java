@@ -374,7 +374,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    private SliceQueryFilter toInternalFilter(CFMetaData metadata, ColumnParent parent, SliceRange range)
+    private static SliceQueryFilter toInternalFilter(CFMetaData metadata, ColumnParent parent, SliceRange range)
     {
         Composite start = metadata.comparator.fromByteBuffer(range.start);
         Composite finish = metadata.comparator.fromByteBuffer(range.finish);
@@ -384,7 +384,7 @@ public class CassandraServer implements Cassandra.Iface
         return filter;
     }
 
-    private IDiskAtomFilter toInternalFilter(CFMetaData metadata, ColumnParent parent, SlicePredicate predicate)
+    public static IDiskAtomFilter toInternalFilter(CFMetaData metadata, ColumnParent parent, SlicePredicate predicate)
     {
         IDiskAtomFilter filter;
 

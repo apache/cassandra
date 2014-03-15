@@ -50,7 +50,7 @@ public class MultiSliceTest extends SchemaLoader
     @Test
     public void test_multi_slice_optional_column_slice() throws TException
     {
-      az.func_modifify(null);
+      //az.func_modifify(null);
         ColumnParent cp = new ColumnParent("Standard1");
         ByteBuffer key = ByteBuffer.wrap("multi_slice".getBytes());
         List<String> expected = new ArrayList<String>();

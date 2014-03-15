@@ -1,12 +1,34 @@
 package io.teknek.arizona;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
+import org.apache.cassandra.Util;
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.ArrayBackedSortedColumns;
+import org.apache.cassandra.db.Cell;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthenticationRequest;
 import org.apache.cassandra.thrift.AuthorizationException;
 import org.apache.cassandra.thrift.CASResult;
+import org.apache.cassandra.thrift.CassandraServer;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.CfSplit;
 import org.apache.cassandra.thrift.Column;
@@ -28,16 +50,29 @@ import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.thrift.NotFoundException;
 import org.apache.cassandra.thrift.SchemaDisagreementException;
 import org.apache.cassandra.thrift.SlicePredicate;
+import org.apache.cassandra.thrift.ThriftClientState;
+import org.apache.cassandra.thrift.ThriftSessionManager;
+import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.thrift.TimedOutException;
 import org.apache.cassandra.thrift.TokenRange;
 import org.apache.cassandra.thrift.UnavailableException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.thrift.TException;
+
+import com.google.common.base.Function;
+import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Iterables;
 
 import io.teknek.arizona.*;
 import io.teknek.arizona.Arizona.Iface;
 
 public class ArizonaServer implements Iface  {
 
+  public ThriftClientState state()
+  {
+      return ThriftSessionManager.instance.currentSession();
+  }
+  
   @Override
   public void login(AuthenticationRequest auth_request) throws AuthenticationException,
           AuthorizationException, TException {
@@ -362,10 +397,65 @@ public class ArizonaServer implements Iface  {
     
   }
 
+  public static class FunctionTransform {
+
+    private ColumnFamily columnFamily;
+    private SlicePredicate slicePredicate;
+    private CFMetaData cfm;
+    private Transformer transformer;
+    
+    public FunctionTransform(SlicePredicate predicate, ColumnFamily columnFamily, CFMetaData cfm, Transformer trans){
+      this.columnFamily = columnFamily;
+      this.slicePredicate = predicate;
+      this.cfm = cfm;
+      this.transformer = trans;
+    }    
+  }
+  
+  public interface Transformer{
+    public ColumnFamily transform(ColumnFamily source, Map<String,String> properties, CFMetaData cfm);
+  }
+  
+  public class SimpleTransformer implements Transformer{
+
+    @Override
+    public ColumnFamily transform(ColumnFamily source, Map<String, String> properties, CFMetaData cfm) {
+      ColumnFamily updates = ArrayBackedSortedColumns.factory.create(cfm);
+      for (Cell cell : source.getSortedColumns() ){
+        System.out.println(cell.name());
+        try {
+          System.out.println(ByteBufferUtil.string(cell.value()));
+        } catch (CharacterCodingException e) {
+        }
+      }
+      return updates;
+    }
+    
+  }
+  
   @Override
-  public FunctionalModifyResponse func_modifify(FunctionalModifyRequest request)
+  public FunctionalTransformResponse funcional_transform(FunctionalTransformRequest request)
           throws InvalidRequestException, UnavailableException, TimedOutException, TException {
     System.out.println("what up");
+    try
+    {
+        ThriftClientState cState = state();
+        String keyspace = cState.getKeyspace();
+        cState.hasColumnFamilyAccess(keyspace, request.column_family, Permission.MODIFY);
+        cState.hasColumnFamilyAccess(keyspace, request.column_family, Permission.SELECT);
+        CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, request.column_family, false);
+        ThriftValidation.validateKey(metadata, request.key);
+        CFMetaData cfm = Schema.instance.getCFMetaData(cState.getKeyspace(), request.column_family);
+        FunctionTransform ft = new FunctionTransform(request.getPredicate(), null, cfm);
+        
+        
+        
+    } catch (Exception ex){
+      
+    }
+        
+
+    
     return null;
   }
 

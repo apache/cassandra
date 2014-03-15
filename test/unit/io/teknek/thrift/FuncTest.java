@@ -3,6 +3,7 @@ package io.teknek.thrift;
 
 import io.teknek.arizona.ArizonaServer;
 import io.teknek.arizona.FunctionalModifyRequest;
+import io.teknek.arizona.FunctionalTransformRequest;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -45,13 +46,13 @@ public class FuncTest extends SchemaLoader
     @Test
     public void firstTry() throws TException
     {
-      FunctionalModifyRequest request = new FunctionalModifyRequest();
+      FunctionalTransformRequest request = new FunctionalTransformRequest();
       request.setColumn_family("Standard1");
       request.setSerial_consistency_level(ConsistencyLevel.ONE);
       request.setCommit_consistency_level(ConsistencyLevel.ONE);
       request.setFunction_name("append");
       request.setKey(ByteBufferUtil.bytes("row"));
-      az.func_modifify(request);
+      az.funcional_transform(request);
     }
 
 }
