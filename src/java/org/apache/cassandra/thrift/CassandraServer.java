@@ -154,7 +154,7 @@ public class CassandraServer implements Cassandra.Iface
             return new ColumnOrSuperColumn().setColumn(thriftifySubColumn(cell).setName(newName));
     }
 
-    private Column thriftifySubColumn(Cell cell)
+    private static Column thriftifySubColumn(Cell cell)
     {
         assert !(cell instanceof CounterCell);
 
@@ -166,7 +166,7 @@ public class CassandraServer implements Cassandra.Iface
         return thrift_column;
     }
 
-    private List<Column> thriftifyColumnsAsColumns(Collection<Cell> cells, long now)
+    public static List<Column> thriftifyColumnsAsColumns(Collection<Cell> cells, long now)
     {
         List<Column> thriftColumns = new ArrayList<Column>(cells.size());
         for (Cell cell : cells)

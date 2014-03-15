@@ -65,6 +65,9 @@ import com.google.common.collect.Iterables;
 
 import io.teknek.arizona.*;
 import io.teknek.arizona.Arizona.Iface;
+import io.teknek.arizona.transform.FunctionalTransform;
+import io.teknek.arizona.transform.SimpleTransformer;
+import io.teknek.arizona.transform.Transformer;
 
 public class ArizonaServer implements Iface  {
 
@@ -396,43 +399,7 @@ public class ArizonaServer implements Iface  {
     // TODO Auto-generated method stub
     
   }
-
-  public static class FunctionTransform {
-
-    private ColumnFamily columnFamily;
-    private SlicePredicate slicePredicate;
-    private CFMetaData cfm;
-    private Transformer transformer;
-    
-    public FunctionTransform(SlicePredicate predicate, ColumnFamily columnFamily, CFMetaData cfm, Transformer trans){
-      this.columnFamily = columnFamily;
-      this.slicePredicate = predicate;
-      this.cfm = cfm;
-      this.transformer = trans;
-    }    
-  }
-  
-  public interface Transformer{
-    public ColumnFamily transform(ColumnFamily source, Map<String,String> properties, CFMetaData cfm);
-  }
-  
-  public class SimpleTransformer implements Transformer{
-
-    @Override
-    public ColumnFamily transform(ColumnFamily source, Map<String, String> properties, CFMetaData cfm) {
-      ColumnFamily updates = ArrayBackedSortedColumns.factory.create(cfm);
-      for (Cell cell : source.getSortedColumns() ){
-        System.out.println(cell.name());
-        try {
-          System.out.println(ByteBufferUtil.string(cell.value()));
-        } catch (CharacterCodingException e) {
-        }
-      }
-      return updates;
-    }
-    
-  }
-  
+      
   @Override
   public FunctionalTransformResponse funcional_transform(FunctionalTransformRequest request)
           throws InvalidRequestException, UnavailableException, TimedOutException, TException {
@@ -440,22 +407,20 @@ public class ArizonaServer implements Iface  {
     try
     {
         ThriftClientState cState = state();
-        String keyspace = cState.getKeyspace();
-        cState.hasColumnFamilyAccess(keyspace, request.column_family, Permission.MODIFY);
-        cState.hasColumnFamilyAccess(keyspace, request.column_family, Permission.SELECT);
-        CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, request.column_family, false);
+        cState.hasColumnFamilyAccess(cState.getKeyspace(), request.column_family, Permission.MODIFY, Permission.SELECT);
+        CFMetaData metadata = ThriftValidation.validateColumnFamily(cState.getKeyspace(), request.column_family, false);
         ThriftValidation.validateKey(metadata, request.key);
         CFMetaData cfm = Schema.instance.getCFMetaData(cState.getKeyspace(), request.column_family);
-        FunctionTransform ft = new FunctionTransform(request.getPredicate(), null, cfm);
+        FunctionalTransform ft = new FunctionalTransform(request.getPredicate(), null, cfm, new SimpleTransformer());
         
-        
-        
+        ColumnFamily result = null; //= ArizonaProxy.functional_transform(keyspaceName, cfName, key, transform, consistencyForPaxos, consistencyForCommit)
+        FunctionalTransformResponse ret = new FunctionalTransformResponse();
+        ret.setSuccess(true);
+        ret.setCurrent_value(CassandraServer.thriftifyColumnsAsColumns(result.getSortedColumns(), System.currentTimeMillis()));
+        return ret;
     } catch (Exception ex){
       
     }
-        
-
-    
     return null;
   }
 
