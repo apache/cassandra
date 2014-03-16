@@ -65,7 +65,7 @@ import com.google.common.collect.Iterables;
 
 import io.teknek.arizona.*;
 import io.teknek.arizona.Arizona.Iface;
-import io.teknek.arizona.transform.FunctionalTransform;
+import io.teknek.arizona.transform.Transform;
 import io.teknek.arizona.transform.SimpleTransformer;
 import io.teknek.arizona.transform.Transformer;
 import org.apache.cassandra.thrift.ThriftConversion;
@@ -412,7 +412,7 @@ public class ArizonaServer implements Iface  {
         CFMetaData metadata = ThriftValidation.validateColumnFamily(cState.getKeyspace(), request.column_family, false);
         ThriftValidation.validateKey(metadata, request.key);
         CFMetaData cfm = Schema.instance.getCFMetaData(cState.getKeyspace(), request.column_family);
-        FunctionalTransform ft = new FunctionalTransform(request.getPredicate(), null, cfm, new SimpleTransformer());
+        Transform ft = new Transform(request.getPredicate(), null, cfm, new SimpleTransformer());
         ColumnFamily result = ArizonaProxy.functional_transform(cState.getKeyspace(),
               request.getColumn_family(), request.key, ft,
               ThriftConversion.fromThrift(request.getSerial_consistency_level()),

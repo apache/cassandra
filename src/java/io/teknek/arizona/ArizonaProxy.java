@@ -1,6 +1,6 @@
 package io.teknek.arizona;
 
-import io.teknek.arizona.transform.FunctionalTransform;
+import io.teknek.arizona.transform.Transform;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
@@ -39,7 +39,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 public class ArizonaProxy {
 
   public static ColumnFamily functional_transform(String keyspaceName, String cfName,
-          ByteBuffer key, FunctionalTransform transform, 
+          ByteBuffer key, Transform transform, 
           ConsistencyLevel consistencyForPaxos, ConsistencyLevel consistencyForCommit)
           throws UnavailableException, IsBootstrappingException, ReadTimeoutException,
           WriteTimeoutException, InvalidRequestException {

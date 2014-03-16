@@ -5,14 +5,14 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.thrift.SlicePredicate;
 
-public class FunctionalTransform {
+public class Transform {
 
   private ColumnFamily columnFamily;
   private SlicePredicate slicePredicate;
   private CFMetaData cfm;
   private Transformer transformer;
   
-  public FunctionalTransform(SlicePredicate predicate, ColumnFamily columnFamily, CFMetaData cfm, Transformer trans){
+  public Transform(SlicePredicate predicate, ColumnFamily columnFamily, CFMetaData cfm, Transformer trans){
     this.columnFamily = columnFamily;
     this.slicePredicate = predicate;
     this.cfm = cfm;
