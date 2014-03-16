@@ -4,10 +4,12 @@ package io.teknek.thrift;
 import io.teknek.arizona.ArizonaServer;
 import io.teknek.arizona.FunctionalModifyRequest;
 import io.teknek.arizona.FunctionalTransformRequest;
+import io.teknek.arizona.FunctionalTransformResponse;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,9 +21,18 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.thrift.CassandraServer;
+import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.thrift.ColumnOrSuperColumn;
+import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.thrift.InvalidRequestException;
+import org.apache.cassandra.thrift.MultiSliceTest;
+import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.ThriftSessionManager;
+import org.apache.cassandra.thrift.TimedOutException;
+import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.thrift.TException;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -43,16 +54,36 @@ public class FuncTest extends SchemaLoader
         server.set_keyspace("Keyspace1");
     }
     
-    @Test
-    public void firstTry() throws TException
+    public static void addTheAlphabetToRow(ByteBuffer key, ColumnParent parent) 
+            throws InvalidRequestException, UnavailableException, TimedOutException
     {
+        for (char a = 'a'; a <= 'z'; a++) {
+            Column c1 = new Column();
+            c1.setName(ByteBufferUtil.bytes(String.valueOf(a)));
+            c1.setValue(new byte [0]);
+            c1.setTimestamp(FBUtilities.timestampMicros());
+            server.insert(key, parent, c1, ConsistencyLevel.ONE); 
+         }
+    }
+    
+    @Test
+    public void firstTry() throws TException, CharacterCodingException
+    {
+      ColumnParent parent = new ColumnParent("Standard1");
+      addTheAlphabetToRow(ByteBufferUtil.bytes("row"), parent);
       FunctionalTransformRequest request = new FunctionalTransformRequest();
       request.setColumn_family("Standard1");
-      request.setSerial_consistency_level(ConsistencyLevel.ONE);
+      request.setSerial_consistency_level(ConsistencyLevel.SERIAL);
       request.setCommit_consistency_level(ConsistencyLevel.ONE);
       request.setFunction_name("append");
       request.setKey(ByteBufferUtil.bytes("row"));
-      az.funcional_transform(request);
+      request.setPredicate(new SlicePredicate());
+      request.getPredicate().setColumn_names(Arrays.asList(ByteBufferUtil.bytes("a")));
+      FunctionalTransformResponse resp = az.funcional_transform(request);
+      Assert.assertEquals(true, resp.success);
+      Assert.assertEquals("0", ByteBufferUtil.string(resp.getCurrent_value().get(0).value));
+      List<ColumnOrSuperColumn> results = server.get_slice(ByteBufferUtil.bytes("row"), parent,request.getPredicate(), ConsistencyLevel.ONE);
+      Assert.assertEquals("0", ByteBufferUtil.string(results.get(0).column.value));
     }
 
 }

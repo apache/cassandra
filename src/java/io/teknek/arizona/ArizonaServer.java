@@ -68,6 +68,7 @@ import io.teknek.arizona.Arizona.Iface;
 import io.teknek.arizona.transform.FunctionalTransform;
 import io.teknek.arizona.transform.SimpleTransformer;
 import io.teknek.arizona.transform.Transformer;
+import org.apache.cassandra.thrift.ThriftConversion;
 
 public class ArizonaServer implements Iface  {
 
@@ -412,14 +413,16 @@ public class ArizonaServer implements Iface  {
         ThriftValidation.validateKey(metadata, request.key);
         CFMetaData cfm = Schema.instance.getCFMetaData(cState.getKeyspace(), request.column_family);
         FunctionalTransform ft = new FunctionalTransform(request.getPredicate(), null, cfm, new SimpleTransformer());
-        
-        ColumnFamily result = null; //= ArizonaProxy.functional_transform(keyspaceName, cfName, key, transform, consistencyForPaxos, consistencyForCommit)
+        ColumnFamily result = ArizonaProxy.functional_transform(cState.getKeyspace(),
+              request.getColumn_family(), request.key, ft,
+              ThriftConversion.fromThrift(request.getSerial_consistency_level()),
+              ThriftConversion.fromThrift(request.getCommit_consistency_level()));
         FunctionalTransformResponse ret = new FunctionalTransformResponse();
         ret.setSuccess(true);
         ret.setCurrent_value(CassandraServer.thriftifyColumnsAsColumns(result.getSortedColumns(), System.currentTimeMillis()));
         return ret;
     } catch (Exception ex){
-      
+      ex.printStackTrace();
     }
     return null;
   }

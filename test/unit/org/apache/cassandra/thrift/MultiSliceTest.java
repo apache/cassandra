@@ -122,7 +122,7 @@ public class MultiSliceTest extends SchemaLoader
         assertColumnNameMatches(Arrays.asList("g", "e", "d", "c", "b", "a"), server.get_multi_slice(req)); 
     }
     
-    private static void addTheAlphabetToRow(ByteBuffer key, ColumnParent parent) 
+    public static void addTheAlphabetToRow(ByteBuffer key, ColumnParent parent) 
             throws InvalidRequestException, UnavailableException, TimedOutException
     {
         for (char a = 'a'; a <= 'z'; a++) {
