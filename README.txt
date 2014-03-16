@@ -22,7 +22,7 @@ Want to add a rest interface? Go for it!
 
 You get the idea. We do not say no.
 
-But what about the maintanence of all this stuff? Well whatever Cassandra aint perfect neither are we.
+But what about the maintanence of all this stuff? Write unit tests :)
 
 Project description
 -------------------
