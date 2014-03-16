@@ -1,4 +1,5 @@
 2.0.7
+ * Add uuid() function (CASSANDRA-6473)
  * Omit tombstones from schema digests (CASSANDRA-6862)
  * Include correct consistencyLevel in LWT timeout (CASSANDRA-6884)
  * Lower chances for losing new SSTables during nodetool refresh and

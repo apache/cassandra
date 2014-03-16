@@ -44,6 +44,7 @@ public abstract class Functions
         declared.put("maxtimeuuid", AbstractFunction.factory(TimeuuidFcts.maxTimeuuidFct));
         declared.put("dateof", AbstractFunction.factory(TimeuuidFcts.dateOfFct));
         declared.put("unixtimestampof", AbstractFunction.factory(TimeuuidFcts.unixTimestampOfFct));
+        declared.put("uuid", AbstractFunction.factory(UuidFcts.uuidFct));
 
         for (CQL3Type type : CQL3Type.Native.values())
         {
