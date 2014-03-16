@@ -1,7 +1,7 @@
 include "cassandra.thrift"
 namespace java io.teknek.arizona
 
-struct FunctionalTransformRequest {
+struct TransformRequest {
     1: optional binary key,
     2: optional string column_family,
     3: optional string function_name,
@@ -11,12 +11,12 @@ struct FunctionalTransformRequest {
     7: optional cassandra.SlicePredicate predicate
 }
 
-struct FunctionalTransformResponse {
+struct TransformResponse {
     1: required bool success,
     2: optional list<cassandra.Column> current_value,
 }
 
 service Arizona extends cassandra.Cassandra {
-  FunctionalTransformResponse funcional_transform(1:required FunctionalTransformRequest request)
+  TransformResponse transform(1:required TransformRequest request)
        throws (1:cassandra.InvalidRequestException ire, 2:cassandra.UnavailableException ue, 3:cassandra.TimedOutException te)
 }

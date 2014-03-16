@@ -402,7 +402,7 @@ public class ArizonaServer implements Iface  {
   }
       
   @Override
-  public FunctionalTransformResponse funcional_transform(FunctionalTransformRequest request)
+  public TransformResponse transform(TransformRequest request)
           throws InvalidRequestException, UnavailableException, TimedOutException, TException {
     System.out.println("what up");
     try
@@ -417,7 +417,7 @@ public class ArizonaServer implements Iface  {
               request.getColumn_family(), request.key, ft,
               ThriftConversion.fromThrift(request.getSerial_consistency_level()),
               ThriftConversion.fromThrift(request.getCommit_consistency_level()));
-        FunctionalTransformResponse ret = new FunctionalTransformResponse();
+        TransformResponse ret = new TransformResponse();
         ret.setSuccess(true);
         ret.setCurrent_value(CassandraServer.thriftifyColumnsAsColumns(result.getSortedColumns(), System.currentTimeMillis()));
         return ret;

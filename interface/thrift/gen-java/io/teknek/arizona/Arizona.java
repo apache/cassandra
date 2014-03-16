@@ -37,13 +37,13 @@ public class Arizona {
 
   public interface Iface extends org.apache.cassandra.thrift.Cassandra.Iface {
 
-    public FunctionalTransformResponse funcional_transform(FunctionalTransformRequest request) throws org.apache.cassandra.thrift.InvalidRequestException, org.apache.cassandra.thrift.UnavailableException, org.apache.cassandra.thrift.TimedOutException, org.apache.thrift.TException;
+    public TransformResponse transform(TransformRequest request) throws org.apache.cassandra.thrift.InvalidRequestException, org.apache.cassandra.thrift.UnavailableException, org.apache.cassandra.thrift.TimedOutException, org.apache.thrift.TException;
 
   }
 
   public interface AsyncIface extends org.apache.cassandra.thrift.Cassandra .AsyncIface {
 
-    public void funcional_transform(FunctionalTransformRequest request, org.apache.thrift.async.AsyncMethodCallback resultHandler) throws org.apache.thrift.TException;
+    public void transform(TransformRequest request, org.apache.thrift.async.AsyncMethodCallback resultHandler) throws org.apache.thrift.TException;
 
   }
 
@@ -67,23 +67,23 @@ public class Arizona {
       super(iprot, oprot);
     }
 
-    public FunctionalTransformResponse funcional_transform(FunctionalTransformRequest request) throws org.apache.cassandra.thrift.InvalidRequestException, org.apache.cassandra.thrift.UnavailableException, org.apache.cassandra.thrift.TimedOutException, org.apache.thrift.TException
+    public TransformResponse transform(TransformRequest request) throws org.apache.cassandra.thrift.InvalidRequestException, org.apache.cassandra.thrift.UnavailableException, org.apache.cassandra.thrift.TimedOutException, org.apache.thrift.TException
     {
-      send_funcional_transform(request);
-      return recv_funcional_transform();
+      send_transform(request);
+      return recv_transform();
     }
 
-    public void send_funcional_transform(FunctionalTransformRequest request) throws org.apache.thrift.TException
+    public void send_transform(TransformRequest request) throws org.apache.thrift.TException
     {
-      funcional_transform_args args = new funcional_transform_args();
+      transform_args args = new transform_args();
       args.setRequest(request);
-      sendBase("funcional_transform", args);
+      sendBase("transform", args);
     }
 
-    public FunctionalTransformResponse recv_funcional_transform() throws org.apache.cassandra.thrift.InvalidRequestException, org.apache.cassandra.thrift.UnavailableException, org.apache.cassandra.thrift.TimedOutException, org.apache.thrift.TException
+    public TransformResponse recv_transform() throws org.apache.cassandra.thrift.InvalidRequestException, org.apache.cassandra.thrift.UnavailableException, org.apache.cassandra.thrift.TimedOutException, org.apache.thrift.TException
     {
-      funcional_transform_result result = new funcional_transform_result();
-      receiveBase(result, "funcional_transform");
+      transform_result result = new transform_result();
+      receiveBase(result, "transform");
       if (result.isSetSuccess()) {
         return result.success;
       }
@@ -96,7 +96,7 @@ public class Arizona {
       if (result.te != null) {
         throw result.te;
       }
-      throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "funcional_transform failed: unknown result");
+      throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "transform failed: unknown result");
     }
 
   }
@@ -117,35 +117,35 @@ public class Arizona {
       super(protocolFactory, clientManager, transport);
     }
 
-    public void funcional_transform(FunctionalTransformRequest request, org.apache.thrift.async.AsyncMethodCallback resultHandler) throws org.apache.thrift.TException {
+    public void transform(TransformRequest request, org.apache.thrift.async.AsyncMethodCallback resultHandler) throws org.apache.thrift.TException {
       checkReady();
-      funcional_transform_call method_call = new funcional_transform_call(request, resultHandler, this, ___protocolFactory, ___transport);
+      transform_call method_call = new transform_call(request, resultHandler, this, ___protocolFactory, ___transport);
       this.___currentMethod = method_call;
       ___manager.call(method_call);
     }
 
-    public static class funcional_transform_call extends org.apache.thrift.async.TAsyncMethodCall {
-      private FunctionalTransformRequest request;
-      public funcional_transform_call(FunctionalTransformRequest request, org.apache.thrift.async.AsyncMethodCallback resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
+    public static class transform_call extends org.apache.thrift.async.TAsyncMethodCall {
+      private TransformRequest request;
+      public transform_call(TransformRequest request, org.apache.thrift.async.AsyncMethodCallback resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
         super(client, protocolFactory, transport, resultHandler, false);
         this.request = request;
       }
 
       public void write_args(org.apache.thrift.protocol.TProtocol prot) throws org.apache.thrift.TException {
-        prot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("funcional_transform", org.apache.thrift.protocol.TMessageType.CALL, 0));
-        funcional_transform_args args = new funcional_transform_args();
+        prot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("transform", org.apache.thrift.protocol.TMessageType.CALL, 0));
+        transform_args args = new transform_args();
         args.setRequest(request);
         args.write(prot);
         prot.writeMessageEnd();
       }
 
-      public FunctionalTransformResponse getResult() throws org.apache.cassandra.thrift.InvalidRequestException, org.apache.cassandra.thrift.UnavailableException, org.apache.cassandra.thrift.TimedOutException, org.apache.thrift.TException {
+      public TransformResponse getResult() throws org.apache.cassandra.thrift.InvalidRequestException, org.apache.cassandra.thrift.UnavailableException, org.apache.cassandra.thrift.TimedOutException, org.apache.thrift.TException {
         if (getState() != org.apache.thrift.async.TAsyncMethodCall.State.RESPONSE_READ) {
           throw new IllegalStateException("Method call not finished!");
         }
         org.apache.thrift.transport.TMemoryInputTransport memoryTransport = new org.apache.thrift.transport.TMemoryInputTransport(getFrameBuffer().array());
         org.apache.thrift.protocol.TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);
-        return (new Client(prot)).recv_funcional_transform();
+        return (new Client(prot)).recv_transform();
       }
     }
 
@@ -162,27 +162,27 @@ public class Arizona {
     }
 
     private static <I extends Iface> Map<String,  org.apache.thrift.ProcessFunction<I, ? extends  org.apache.thrift.TBase>> getProcessMap(Map<String,  org.apache.thrift.ProcessFunction<I, ? extends  org.apache.thrift.TBase>> processMap) {
-      processMap.put("funcional_transform", new funcional_transform());
+      processMap.put("transform", new transform());
       return processMap;
     }
 
-    public static class funcional_transform<I extends Iface> extends org.apache.thrift.ProcessFunction<I, funcional_transform_args> {
-      public funcional_transform() {
-        super("funcional_transform");
+    public static class transform<I extends Iface> extends org.apache.thrift.ProcessFunction<I, transform_args> {
+      public transform() {
+        super("transform");
       }
 
-      public funcional_transform_args getEmptyArgsInstance() {
-        return new funcional_transform_args();
+      public transform_args getEmptyArgsInstance() {
+        return new transform_args();
       }
 
       protected boolean isOneway() {
         return false;
       }
 
-      public funcional_transform_result getResult(I iface, funcional_transform_args args) throws org.apache.thrift.TException {
-        funcional_transform_result result = new funcional_transform_result();
+      public transform_result getResult(I iface, transform_args args) throws org.apache.thrift.TException {
+        transform_result result = new transform_result();
         try {
-          result.success = iface.funcional_transform(args.request);
+          result.success = iface.transform(args.request);
         } catch (org.apache.cassandra.thrift.InvalidRequestException ire) {
           result.ire = ire;
         } catch (org.apache.cassandra.thrift.UnavailableException ue) {
@@ -207,24 +207,24 @@ public class Arizona {
     }
 
     private static <I extends AsyncIface> Map<String,  org.apache.thrift.AsyncProcessFunction<I, ? extends  org.apache.thrift.TBase,?>> getProcessMap(Map<String,  org.apache.thrift.AsyncProcessFunction<I, ? extends  org.apache.thrift.TBase, ?>> processMap) {
-      processMap.put("funcional_transform", new funcional_transform());
+      processMap.put("transform", new transform());
       return processMap;
     }
 
-    public static class funcional_transform<I extends AsyncIface> extends org.apache.thrift.AsyncProcessFunction<I, funcional_transform_args, FunctionalTransformResponse> {
-      public funcional_transform() {
-        super("funcional_transform");
+    public static class transform<I extends AsyncIface> extends org.apache.thrift.AsyncProcessFunction<I, transform_args, TransformResponse> {
+      public transform() {
+        super("transform");
       }
 
-      public funcional_transform_args getEmptyArgsInstance() {
-        return new funcional_transform_args();
+      public transform_args getEmptyArgsInstance() {
+        return new transform_args();
       }
 
-      public AsyncMethodCallback<FunctionalTransformResponse> getResultHandler(final AsyncFrameBuffer fb, final int seqid) {
+      public AsyncMethodCallback<TransformResponse> getResultHandler(final AsyncFrameBuffer fb, final int seqid) {
         final org.apache.thrift.AsyncProcessFunction fcall = this;
-        return new AsyncMethodCallback<FunctionalTransformResponse>() { 
-          public void onComplete(FunctionalTransformResponse o) {
-            funcional_transform_result result = new funcional_transform_result();
+        return new AsyncMethodCallback<TransformResponse>() { 
+          public void onComplete(TransformResponse o) {
+            transform_result result = new transform_result();
             result.success = o;
             try {
               fcall.sendResponse(fb,result, org.apache.thrift.protocol.TMessageType.REPLY,seqid);
@@ -237,7 +237,7 @@ public class Arizona {
           public void onError(Exception e) {
             byte msgType = org.apache.thrift.protocol.TMessageType.REPLY;
             org.apache.thrift.TBase msg;
-            funcional_transform_result result = new funcional_transform_result();
+            transform_result result = new transform_result();
             if (e instanceof org.apache.cassandra.thrift.InvalidRequestException) {
                         result.ire = (org.apache.cassandra.thrift.InvalidRequestException) e;
                         result.setIreIsSet(true);
@@ -273,25 +273,25 @@ public class Arizona {
         return false;
       }
 
-      public void start(I iface, funcional_transform_args args, org.apache.thrift.async.AsyncMethodCallback<FunctionalTransformResponse> resultHandler) throws TException {
-        iface.funcional_transform(args.request,resultHandler);
+      public void start(I iface, transform_args args, org.apache.thrift.async.AsyncMethodCallback<TransformResponse> resultHandler) throws TException {
+        iface.transform(args.request,resultHandler);
       }
     }
 
   }
 
-  public static class funcional_transform_args implements org.apache.thrift.TBase<funcional_transform_args, funcional_transform_args._Fields>, java.io.Serializable, Cloneable, Comparable<funcional_transform_args>   {
-    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("funcional_transform_args");
+  public static class transform_args implements org.apache.thrift.TBase<transform_args, transform_args._Fields>, java.io.Serializable, Cloneable, Comparable<transform_args>   {
+    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("transform_args");
 
     private static final org.apache.thrift.protocol.TField REQUEST_FIELD_DESC = new org.apache.thrift.protocol.TField("request", org.apache.thrift.protocol.TType.STRUCT, (short)1);
 
     private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
     static {
-      schemes.put(StandardScheme.class, new funcional_transform_argsStandardSchemeFactory());
-      schemes.put(TupleScheme.class, new funcional_transform_argsTupleSchemeFactory());
+      schemes.put(StandardScheme.class, new transform_argsStandardSchemeFactory());
+      schemes.put(TupleScheme.class, new transform_argsTupleSchemeFactory());
     }
 
-    public FunctionalTransformRequest request; // required
+    public TransformRequest request; // required
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -356,16 +356,16 @@ public class Arizona {
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
       tmpMap.put(_Fields.REQUEST, new org.apache.thrift.meta_data.FieldMetaData("request", org.apache.thrift.TFieldRequirementType.REQUIRED, 
-          new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, FunctionalTransformRequest.class)));
+          new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, TransformRequest.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
-      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(funcional_transform_args.class, metaDataMap);
+      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(transform_args.class, metaDataMap);
     }
 
-    public funcional_transform_args() {
+    public transform_args() {
     }
 
-    public funcional_transform_args(
-      FunctionalTransformRequest request)
+    public transform_args(
+      TransformRequest request)
     {
       this();
       this.request = request;
@@ -374,14 +374,14 @@ public class Arizona {
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public funcional_transform_args(funcional_transform_args other) {
+    public transform_args(transform_args other) {
       if (other.isSetRequest()) {
-        this.request = new FunctionalTransformRequest(other.request);
+        this.request = new TransformRequest(other.request);
       }
     }
 
-    public funcional_transform_args deepCopy() {
-      return new funcional_transform_args(this);
+    public transform_args deepCopy() {
+      return new transform_args(this);
     }
 
     @Override
@@ -389,11 +389,11 @@ public class Arizona {
       this.request = null;
     }
 
-    public FunctionalTransformRequest getRequest() {
+    public TransformRequest getRequest() {
       return this.request;
     }
 
-    public funcional_transform_args setRequest(FunctionalTransformRequest request) {
+    public transform_args setRequest(TransformRequest request) {
       this.request = request;
       return this;
     }
@@ -419,7 +419,7 @@ public class Arizona {
         if (value == null) {
           unsetRequest();
         } else {
-          setRequest((FunctionalTransformRequest)value);
+          setRequest((TransformRequest)value);
         }
         break;
 
@@ -452,12 +452,12 @@ public class Arizona {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof funcional_transform_args)
-        return this.equals((funcional_transform_args)that);
+      if (that instanceof transform_args)
+        return this.equals((transform_args)that);
       return false;
     }
 
-    public boolean equals(funcional_transform_args that) {
+    public boolean equals(transform_args that) {
       if (that == null)
         return false;
 
@@ -486,7 +486,7 @@ public class Arizona {
     }
 
     @Override
-    public int compareTo(funcional_transform_args other) {
+    public int compareTo(transform_args other) {
       if (!getClass().equals(other.getClass())) {
         return getClass().getName().compareTo(other.getClass().getName());
       }
@@ -520,7 +520,7 @@ public class Arizona {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("funcional_transform_args(");
+      StringBuilder sb = new StringBuilder("transform_args(");
       boolean first = true;
 
       sb.append("request:");
@@ -561,15 +561,15 @@ public class Arizona {
       }
     }
 
-    private static class funcional_transform_argsStandardSchemeFactory implements SchemeFactory {
-      public funcional_transform_argsStandardScheme getScheme() {
-        return new funcional_transform_argsStandardScheme();
+    private static class transform_argsStandardSchemeFactory implements SchemeFactory {
+      public transform_argsStandardScheme getScheme() {
+        return new transform_argsStandardScheme();
       }
     }
 
-    private static class funcional_transform_argsStandardScheme extends StandardScheme<funcional_transform_args> {
+    private static class transform_argsStandardScheme extends StandardScheme<transform_args> {
 
-      public void read(org.apache.thrift.protocol.TProtocol iprot, funcional_transform_args struct) throws org.apache.thrift.TException {
+      public void read(org.apache.thrift.protocol.TProtocol iprot, transform_args struct) throws org.apache.thrift.TException {
         org.apache.thrift.protocol.TField schemeField;
         iprot.readStructBegin();
         while (true)
@@ -581,7 +581,7 @@ public class Arizona {
           switch (schemeField.id) {
             case 1: // REQUEST
               if (schemeField.type == org.apache.thrift.protocol.TType.STRUCT) {
-                struct.request = new FunctionalTransformRequest();
+                struct.request = new TransformRequest();
                 struct.request.read(iprot);
                 struct.setRequestIsSet(true);
               } else { 
@@ -599,7 +599,7 @@ public class Arizona {
         struct.validate();
       }
 
-      public void write(org.apache.thrift.protocol.TProtocol oprot, funcional_transform_args struct) throws org.apache.thrift.TException {
+      public void write(org.apache.thrift.protocol.TProtocol oprot, transform_args struct) throws org.apache.thrift.TException {
         struct.validate();
 
         oprot.writeStructBegin(STRUCT_DESC);
@@ -614,24 +614,24 @@ public class Arizona {
 
     }
 
-    private static class funcional_transform_argsTupleSchemeFactory implements SchemeFactory {
-      public funcional_transform_argsTupleScheme getScheme() {
-        return new funcional_transform_argsTupleScheme();
+    private static class transform_argsTupleSchemeFactory implements SchemeFactory {
+      public transform_argsTupleScheme getScheme() {
+        return new transform_argsTupleScheme();
       }
     }
 
-    private static class funcional_transform_argsTupleScheme extends TupleScheme<funcional_transform_args> {
+    private static class transform_argsTupleScheme extends TupleScheme<transform_args> {
 
       @Override
-      public void write(org.apache.thrift.protocol.TProtocol prot, funcional_transform_args struct) throws org.apache.thrift.TException {
+      public void write(org.apache.thrift.protocol.TProtocol prot, transform_args struct) throws org.apache.thrift.TException {
         TTupleProtocol oprot = (TTupleProtocol) prot;
         struct.request.write(oprot);
       }
 
       @Override
-      public void read(org.apache.thrift.protocol.TProtocol prot, funcional_transform_args struct) throws org.apache.thrift.TException {
+      public void read(org.apache.thrift.protocol.TProtocol prot, transform_args struct) throws org.apache.thrift.TException {
         TTupleProtocol iprot = (TTupleProtocol) prot;
-        struct.request = new FunctionalTransformRequest();
+        struct.request = new TransformRequest();
         struct.request.read(iprot);
         struct.setRequestIsSet(true);
       }
@@ -639,8 +639,8 @@ public class Arizona {
 
   }
 
-  public static class funcional_transform_result implements org.apache.thrift.TBase<funcional_transform_result, funcional_transform_result._Fields>, java.io.Serializable, Cloneable, Comparable<funcional_transform_result>   {
-    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("funcional_transform_result");
+  public static class transform_result implements org.apache.thrift.TBase<transform_result, transform_result._Fields>, java.io.Serializable, Cloneable, Comparable<transform_result>   {
+    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("transform_result");
 
     private static final org.apache.thrift.protocol.TField SUCCESS_FIELD_DESC = new org.apache.thrift.protocol.TField("success", org.apache.thrift.protocol.TType.STRUCT, (short)0);
     private static final org.apache.thrift.protocol.TField IRE_FIELD_DESC = new org.apache.thrift.protocol.TField("ire", org.apache.thrift.protocol.TType.STRUCT, (short)1);
@@ -649,11 +649,11 @@ public class Arizona {
 
     private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
     static {
-      schemes.put(StandardScheme.class, new funcional_transform_resultStandardSchemeFactory());
-      schemes.put(TupleScheme.class, new funcional_transform_resultTupleSchemeFactory());
+      schemes.put(StandardScheme.class, new transform_resultStandardSchemeFactory());
+      schemes.put(TupleScheme.class, new transform_resultTupleSchemeFactory());
     }
 
-    public FunctionalTransformResponse success; // required
+    public TransformResponse success; // required
     public org.apache.cassandra.thrift.InvalidRequestException ire; // required
     public org.apache.cassandra.thrift.UnavailableException ue; // required
     public org.apache.cassandra.thrift.TimedOutException te; // required
@@ -730,7 +730,7 @@ public class Arizona {
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
       tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, FunctionalTransformResponse.class)));
+          new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, TransformResponse.class)));
       tmpMap.put(_Fields.IRE, new org.apache.thrift.meta_data.FieldMetaData("ire", org.apache.thrift.TFieldRequirementType.DEFAULT, 
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       tmpMap.put(_Fields.UE, new org.apache.thrift.meta_data.FieldMetaData("ue", org.apache.thrift.TFieldRequirementType.DEFAULT, 
@@ -738,14 +738,14 @@ public class Arizona {
       tmpMap.put(_Fields.TE, new org.apache.thrift.meta_data.FieldMetaData("te", org.apache.thrift.TFieldRequirementType.DEFAULT, 
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRUCT)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
-      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(funcional_transform_result.class, metaDataMap);
+      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(transform_result.class, metaDataMap);
     }
 
-    public funcional_transform_result() {
+    public transform_result() {
     }
 
-    public funcional_transform_result(
-      FunctionalTransformResponse success,
+    public transform_result(
+      TransformResponse success,
       org.apache.cassandra.thrift.InvalidRequestException ire,
       org.apache.cassandra.thrift.UnavailableException ue,
       org.apache.cassandra.thrift.TimedOutException te)
@@ -760,9 +760,9 @@ public class Arizona {
     /**
      * Performs a deep copy on <i>other</i>.
      */
-    public funcional_transform_result(funcional_transform_result other) {
+    public transform_result(transform_result other) {
       if (other.isSetSuccess()) {
-        this.success = new FunctionalTransformResponse(other.success);
+        this.success = new TransformResponse(other.success);
       }
       if (other.isSetIre()) {
         this.ire = new org.apache.cassandra.thrift.InvalidRequestException(other.ire);
@@ -775,8 +775,8 @@ public class Arizona {
       }
     }
 
-    public funcional_transform_result deepCopy() {
-      return new funcional_transform_result(this);
+    public transform_result deepCopy() {
+      return new transform_result(this);
     }
 
     @Override
@@ -787,11 +787,11 @@ public class Arizona {
       this.te = null;
     }
 
-    public FunctionalTransformResponse getSuccess() {
+    public TransformResponse getSuccess() {
       return this.success;
     }
 
-    public funcional_transform_result setSuccess(FunctionalTransformResponse success) {
+    public transform_result setSuccess(TransformResponse success) {
       this.success = success;
       return this;
     }
@@ -815,7 +815,7 @@ public class Arizona {
       return this.ire;
     }
 
-    public funcional_transform_result setIre(org.apache.cassandra.thrift.InvalidRequestException ire) {
+    public transform_result setIre(org.apache.cassandra.thrift.InvalidRequestException ire) {
       this.ire = ire;
       return this;
     }
@@ -839,7 +839,7 @@ public class Arizona {
       return this.ue;
     }
 
-    public funcional_transform_result setUe(org.apache.cassandra.thrift.UnavailableException ue) {
+    public transform_result setUe(org.apache.cassandra.thrift.UnavailableException ue) {
       this.ue = ue;
       return this;
     }
@@ -863,7 +863,7 @@ public class Arizona {
       return this.te;
     }
 
-    public funcional_transform_result setTe(org.apache.cassandra.thrift.TimedOutException te) {
+    public transform_result setTe(org.apache.cassandra.thrift.TimedOutException te) {
       this.te = te;
       return this;
     }
@@ -889,7 +889,7 @@ public class Arizona {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((FunctionalTransformResponse)value);
+          setSuccess((TransformResponse)value);
         }
         break;
 
@@ -961,12 +961,12 @@ public class Arizona {
     public boolean equals(Object that) {
       if (that == null)
         return false;
-      if (that instanceof funcional_transform_result)
-        return this.equals((funcional_transform_result)that);
+      if (that instanceof transform_result)
+        return this.equals((transform_result)that);
       return false;
     }
 
-    public boolean equals(funcional_transform_result that) {
+    public boolean equals(transform_result that) {
       if (that == null)
         return false;
 
@@ -1037,7 +1037,7 @@ public class Arizona {
     }
 
     @Override
-    public int compareTo(funcional_transform_result other) {
+    public int compareTo(transform_result other) {
       if (!getClass().equals(other.getClass())) {
         return getClass().getName().compareTo(other.getClass().getName());
       }
@@ -1101,7 +1101,7 @@ public class Arizona {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder("funcional_transform_result(");
+      StringBuilder sb = new StringBuilder("transform_result(");
       boolean first = true;
 
       sb.append("success:");
@@ -1163,15 +1163,15 @@ public class Arizona {
       }
     }
 
-    private static class funcional_transform_resultStandardSchemeFactory implements SchemeFactory {
-      public funcional_transform_resultStandardScheme getScheme() {
-        return new funcional_transform_resultStandardScheme();
+    private static class transform_resultStandardSchemeFactory implements SchemeFactory {
+      public transform_resultStandardScheme getScheme() {
+        return new transform_resultStandardScheme();
       }
     }
 
-    private static class funcional_transform_resultStandardScheme extends StandardScheme<funcional_transform_result> {
+    private static class transform_resultStandardScheme extends StandardScheme<transform_result> {
 
-      public void read(org.apache.thrift.protocol.TProtocol iprot, funcional_transform_result struct) throws org.apache.thrift.TException {
+      public void read(org.apache.thrift.protocol.TProtocol iprot, transform_result struct) throws org.apache.thrift.TException {
         org.apache.thrift.protocol.TField schemeField;
         iprot.readStructBegin();
         while (true)
@@ -1183,7 +1183,7 @@ public class Arizona {
           switch (schemeField.id) {
             case 0: // SUCCESS
               if (schemeField.type == org.apache.thrift.protocol.TType.STRUCT) {
-                struct.success = new FunctionalTransformResponse();
+                struct.success = new TransformResponse();
                 struct.success.read(iprot);
                 struct.setSuccessIsSet(true);
               } else { 
@@ -1228,7 +1228,7 @@ public class Arizona {
         struct.validate();
       }
 
-      public void write(org.apache.thrift.protocol.TProtocol oprot, funcional_transform_result struct) throws org.apache.thrift.TException {
+      public void write(org.apache.thrift.protocol.TProtocol oprot, transform_result struct) throws org.apache.thrift.TException {
         struct.validate();
 
         oprot.writeStructBegin(STRUCT_DESC);
@@ -1258,16 +1258,16 @@ public class Arizona {
 
     }
 
-    private static class funcional_transform_resultTupleSchemeFactory implements SchemeFactory {
-      public funcional_transform_resultTupleScheme getScheme() {
-        return new funcional_transform_resultTupleScheme();
+    private static class transform_resultTupleSchemeFactory implements SchemeFactory {
+      public transform_resultTupleScheme getScheme() {
+        return new transform_resultTupleScheme();
       }
     }
 
-    private static class funcional_transform_resultTupleScheme extends TupleScheme<funcional_transform_result> {
+    private static class transform_resultTupleScheme extends TupleScheme<transform_result> {
 
       @Override
-      public void write(org.apache.thrift.protocol.TProtocol prot, funcional_transform_result struct) throws org.apache.thrift.TException {
+      public void write(org.apache.thrift.protocol.TProtocol prot, transform_result struct) throws org.apache.thrift.TException {
         TTupleProtocol oprot = (TTupleProtocol) prot;
         BitSet optionals = new BitSet();
         if (struct.isSetSuccess()) {
@@ -1298,11 +1298,11 @@ public class Arizona {
       }
 
       @Override
-      public void read(org.apache.thrift.protocol.TProtocol prot, funcional_transform_result struct) throws org.apache.thrift.TException {
+      public void read(org.apache.thrift.protocol.TProtocol prot, transform_result struct) throws org.apache.thrift.TException {
         TTupleProtocol iprot = (TTupleProtocol) prot;
         BitSet incoming = iprot.readBitSet(4);
         if (incoming.get(0)) {
-          struct.success = new FunctionalTransformResponse();
+          struct.success = new TransformResponse();
           struct.success.read(iprot);
           struct.setSuccessIsSet(true);
         }

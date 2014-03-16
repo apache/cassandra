@@ -5,6 +5,8 @@ import io.teknek.arizona.ArizonaServer;
 import io.teknek.arizona.FunctionalModifyRequest;
 import io.teknek.arizona.FunctionalTransformRequest;
 import io.teknek.arizona.FunctionalTransformResponse;
+import io.teknek.arizona.TransformRequest;
+import io.teknek.arizona.TransformResponse;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -71,7 +73,7 @@ public class FuncTest extends SchemaLoader
     {
       ColumnParent parent = new ColumnParent("Standard1");
       addTheAlphabetToRow(ByteBufferUtil.bytes("row"), parent);
-      FunctionalTransformRequest request = new FunctionalTransformRequest();
+      TransformRequest request = new TransformRequest();
       request.setColumn_family("Standard1");
       request.setSerial_consistency_level(ConsistencyLevel.SERIAL);
       request.setCommit_consistency_level(ConsistencyLevel.ONE);
@@ -79,7 +81,7 @@ public class FuncTest extends SchemaLoader
       request.setKey(ByteBufferUtil.bytes("row"));
       request.setPredicate(new SlicePredicate());
       request.getPredicate().setColumn_names(Arrays.asList(ByteBufferUtil.bytes("a")));
-      FunctionalTransformResponse resp = az.funcional_transform(request);
+      TransformResponse resp = az.transform(request);
       Assert.assertEquals(true, resp.success);
       Assert.assertEquals("0", ByteBufferUtil.string(resp.getCurrent_value().get(0).value));
       List<ColumnOrSuperColumn> results = server.get_slice(ByteBufferUtil.bytes("row"), parent,request.getPredicate(), ConsistencyLevel.ONE);
