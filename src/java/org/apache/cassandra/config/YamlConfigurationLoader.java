@@ -120,7 +120,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 configMap.put(sensitiveKey, "<REDACTED>");
             }
         }
-        logger.info("Node configuration:[" + Joiner.on("; ").join(configMap.entrySet()) + "]");
+        logger.info("Node configuration:[{}]", Joiner.on("; ").join(configMap.entrySet()));
     }
     
     private static class MissingPropertiesChecker extends PropertyUtils 

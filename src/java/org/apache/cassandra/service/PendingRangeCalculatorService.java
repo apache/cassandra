@@ -202,6 +202,6 @@ public class PendingRangeCalculatorService extends PendingRangeCalculatorService
         tm.setPendingRanges(keyspaceName, pendingRanges);
 
         if (logger.isDebugEnabled())
-            logger.debug("Pending ranges:\n" + (pendingRanges.isEmpty() ? "<empty>" : tm.printPendingRanges()));
+            logger.debug("Pending ranges:\n{}", (pendingRanges.isEmpty() ? "<empty>" : tm.printPendingRanges()));
     }
 }

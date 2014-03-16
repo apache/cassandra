@@ -158,7 +158,7 @@ public class SSTableWriter extends SSTable
             first = lastWrittenKey;
 
         if (logger.isTraceEnabled())
-            logger.trace("wrote " + decoratedKey + " at " + dataPosition);
+            logger.trace("wrote {} at {}", decoratedKey, dataPosition);
         iwriter.append(decoratedKey, index);
         dbuilder.addPotentialBoundary(dataPosition);
     }
@@ -471,7 +471,7 @@ public class SSTableWriter extends SSTable
             }
 
             if (logger.isTraceEnabled())
-                logger.trace("wrote index entry: " + indexEntry + " at " + indexPosition);
+                logger.trace("wrote index entry: {} at {}", indexEntry, indexPosition);
 
             summary.maybeAddEntry(key, indexPosition);
             builder.addPotentialBoundary(indexPosition);

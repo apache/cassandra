@@ -226,7 +226,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         long now = System.nanoTime();
         double phi = hbWnd.phi(now);
         if (logger.isTraceEnabled())
-            logger.trace("PHI for " + ep + " : " + phi);
+            logger.trace("PHI for {} : {}", ep, phi);
 
         if (PHI_FACTOR * phi > getPhiConvictThreshold())
         {

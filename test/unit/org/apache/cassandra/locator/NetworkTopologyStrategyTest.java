@@ -121,7 +121,7 @@ public class NetworkTopologyStrategyTest
                     byte[] ipBytes = new byte[]{10, (byte)dc, (byte)rack, (byte)ep};
                     InetAddress address = InetAddress.getByAddress(ipBytes);
                     StringToken token = new StringToken(String.format("%02x%02x%02x", ep, rack, dc));
-                    logger.debug("adding node " + address + " at " + token);
+                    logger.debug("adding node {} at {}", address, token);
                     tokens.put(address, token);
                 }
             }
@@ -137,7 +137,7 @@ public class NetworkTopologyStrategyTest
 
             Assert.assertEquals(totalRF, endpoints.size());
             Assert.assertEquals(totalRF, epSet.size());
-            logger.debug(testToken + ": " + endpoints.toString());
+            logger.debug("{}: {}", testToken, endpoints);
         }
     }
 
