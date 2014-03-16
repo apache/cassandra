@@ -412,7 +412,8 @@ public class ArizonaServer implements Iface  {
         CFMetaData metadata = ThriftValidation.validateColumnFamily(cState.getKeyspace(), request.column_family, false);
         ThriftValidation.validateKey(metadata, request.key);
         CFMetaData cfm = Schema.instance.getCFMetaData(cState.getKeyspace(), request.column_family);
-        Transform ft = new Transform(request.getPredicate(), null, cfm, new SimpleTransformer());
+        Transformer t = (Transformer) Class.forName(request.getFunction_name()).newInstance();
+        Transform ft = new Transform(request.getPredicate(), null, cfm, t);
         ColumnFamily result = ArizonaProxy.functional_transform(cState.getKeyspace(),
               request.getColumn_family(), request.key, ft,
               ThriftConversion.fromThrift(request.getSerial_consistency_level()),
