@@ -67,7 +67,7 @@ public class FuncTest extends SchemaLoader
             server.insert(key, parent, c1, ConsistencyLevel.ONE); 
          }
     }
-    
+        
     @Test
     public void firstTry() throws TException, CharacterCodingException
     {
@@ -87,5 +87,41 @@ public class FuncTest extends SchemaLoader
       List<ColumnOrSuperColumn> results = server.get_slice(ByteBufferUtil.bytes("row"), parent,request.getPredicate(), ConsistencyLevel.ONE);
       Assert.assertEquals("0", ByteBufferUtil.string(results.get(0).column.value));
     }
+    
+    
+    public static void addColumnsOneToTen(ByteBuffer key, ColumnParent parent) 
+            throws InvalidRequestException, UnavailableException, TimedOutException
+    {
+      
+      int i = 1;
+        for (char a = 'a' ; a <= 'j'; a++, i++) {
+            Column c1 = new Column();
+            c1.setName(ByteBufferUtil.bytes(String.valueOf(a)));
+            c1.setValue(ByteBufferUtil.bytes(String.valueOf(i)));
+            c1.setTimestamp(FBUtilities.timestampMicros());
+            server.insert(key, parent, c1, ConsistencyLevel.ONE); 
+         }
+    }
+    
+    @Test
+    public void increment() throws TException, CharacterCodingException
+    {
+      ColumnParent parent = new ColumnParent("Standard1");
+      addColumnsOneToTen(ByteBufferUtil.bytes("row2"), parent);
+      TransformRequest request = new TransformRequest();
+      request.setColumn_family("Standard1");
+      request.setSerial_consistency_level(ConsistencyLevel.SERIAL);
+      request.setCommit_consistency_level(ConsistencyLevel.ONE);
+      request.setFunction_name("io.teknek.arizona.transform.Increment");
+      request.setKey(ByteBufferUtil.bytes("row2"));
+      request.setPredicate(new SlicePredicate());
+      request.getPredicate().setColumn_names(Arrays.asList(ByteBufferUtil.bytes("a")));
+      TransformResponse resp = az.transform(request);
+      Assert.assertEquals(true, resp.success);
+      Assert.assertEquals("2", ByteBufferUtil.string(resp.getCurrent_value().get(0).value));
+      List<ColumnOrSuperColumn> results = server.get_slice(ByteBufferUtil.bytes("row2"), parent,request.getPredicate(), ConsistencyLevel.ONE);
+      Assert.assertEquals("2", ByteBufferUtil.string(results.get(0).column.value));
+    }
+    
 
 }
