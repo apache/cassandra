@@ -33,6 +33,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
@@ -63,6 +64,7 @@ public class WordCountCounters extends Configured implements Tool
     public static class SumMapper extends Mapper<Map<String, ByteBuffer>, Map<String, ByteBuffer>, Text, LongWritable>
     {
         long sum = -1;
+
         public void map(Map<String, ByteBuffer> key, Map<String, ByteBuffer> columns, Context context) throws IOException, InterruptedException
         {   
             if (sum < 0)
@@ -94,12 +96,26 @@ public class WordCountCounters extends Configured implements Tool
     }
 
     
+    public static class ReducerToFilesystem extends Reducer<Text, LongWritable, Text, LongWritable>
+    {
+        long sum = 0;
+
+        public void reduce(Text key, Iterable<LongWritable> values, Context context) throws IOException, InterruptedException
+        {
+            for (LongWritable val : values)
+                sum += val.get();
+            context.write(key, new LongWritable(sum));
+        }
+    }
+
     public int run(String[] args) throws Exception
     {
         Job job = new Job(getConf(), "wordcountcounters");
         job.setJarByClass(WordCountCounters.class);
         job.setMapperClass(SumMapper.class);
 
+        job.setCombinerClass(ReducerToFilesystem.class);
+        job.setReducerClass(ReducerToFilesystem.class);
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(LongWritable.class);
         FileOutputFormat.setOutputPath(job, new Path(OUTPUT_PATH_PREFIX));
