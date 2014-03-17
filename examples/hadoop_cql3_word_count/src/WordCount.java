@@ -45,21 +45,16 @@ import java.nio.charset.CharacterCodingException;
 
 /**
  * This counts the occurrences of words in ColumnFamily
- *   cql3_worldcount ( user_id text,
- *                   category_id text,
- *                   sub_category_id text,
- *                   title  text,
- *                   body  text,
- *                   PRIMARY KEY (user_id, category_id, sub_category_id))
+ *   cql3_worldcount ( id uuid,
+ *                   line  text,
+ *                   PRIMARY KEY (id))
  *
  * For each word, we output the total number of occurrences across all body texts.
  *
  * When outputting to Cassandra, we write the word counts to column family
- *  output_words ( row_id1 text,
- *                 row_id2 text,
- *                 word text,
+ *  output_words ( word text,
  *                 count_num text,
- *                 PRIMARY KEY ((row_id1, row_id2), word))
+ *                 PRIMARY KEY (word))
  * as a {word, count} to columns: word, count_num with a row key of "word sum"
  */
 public class WordCount extends Configured implements Tool
@@ -98,13 +93,10 @@ public class WordCount extends Configured implements Tool
         {
             for (Entry<String, ByteBuffer> column : columns.entrySet())
             {
-                if (!"body".equalsIgnoreCase(column.getKey()))
+                if (!"line".equalsIgnoreCase(column.getKey()))
                     continue;
 
                 String value = ByteBufferUtil.string(column.getValue());
-
-                logger.debug("read {}:{}={} from {}",
-                             new Object[] {toString(keys), column.getKey(), value, context.getInputSplit()});
 
                 StringTokenizer itr = new StringTokenizer(value);
                 while (itr.hasMoreTokens())
@@ -113,21 +105,6 @@ public class WordCount extends Configured implements Tool
                     context.write(word, one);
                 }
             }
-        }
-
-        private String toString(Map<String, ByteBuffer> keys)
-        {
-            String result = "";
-            try
-            {
-                for (ByteBuffer key : keys.values())
-                    result = result + ByteBufferUtil.string(key) + ":";
-            }
-            catch (CharacterCodingException e)
-            {
-                logger.error("Failed to print keys", e);
-            }
-            return result;
         }
     }
 
@@ -150,9 +127,6 @@ public class WordCount extends Configured implements Tool
         throws IOException, InterruptedException
         {
             keys = new LinkedHashMap<String, ByteBuffer>();
-            String[] partitionKeys = context.getConfiguration().get(PRIMARY_KEY).split(",");
-            keys.put("row_id1", ByteBufferUtil.bytes(partitionKeys[0]));
-            keys.put("row_id2", ByteBufferUtil.bytes(partitionKeys[1]));
         }
 
         public void reduce(Text word, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException
@@ -160,13 +134,13 @@ public class WordCount extends Configured implements Tool
             int sum = 0;
             for (IntWritable val : values)
                 sum += val.get();
+            keys.put("word", ByteBufferUtil.bytes(word.toString()));
             context.write(keys, getBindVariables(word, sum));
         }
 
         private List<ByteBuffer> getBindVariables(Text word, int sum)
         {
             List<ByteBuffer> variables = new ArrayList<ByteBuffer>();
-            keys.put("word", ByteBufferUtil.bytes(word.toString()));
             variables.add(ByteBufferUtil.bytes(String.valueOf(sum)));         
             return variables;
         }
@@ -223,8 +197,6 @@ public class WordCount extends Configured implements Tool
         ConfigHelper.setInputPartitioner(job.getConfiguration(), "Murmur3Partitioner");
 
         CqlConfigHelper.setInputCQLPageRowSize(job.getConfiguration(), "3");
-        //this is the user defined filter clauses, you can comment it out if you want count all titles
-        CqlConfigHelper.setInputWhereClauses(job.getConfiguration(), "title='A'");
         job.waitForCompletion(true);
         return 0;
     }
