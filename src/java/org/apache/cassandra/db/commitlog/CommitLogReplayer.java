@@ -239,7 +239,7 @@ public class CommitLogReplayer
         try
         {
             assert reader.length() <= Integer.MAX_VALUE;
-            int offset = getStartOffset(segmentId, desc.getMessagingVersion());
+            int offset = getStartOffset(segmentId, desc.getVersion());
             if (offset < 0)
             {
                 logger.debug("skipping replay of fully-flushed {}", file);
