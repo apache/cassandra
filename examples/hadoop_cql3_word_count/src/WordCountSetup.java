@@ -90,12 +90,9 @@ public class WordCountSetup
             TException
     {
         String query = "CREATE TABLE " + WordCount.KEYSPACE + "."  + WordCount.COLUMN_FAMILY + 
-                          " ( user_id text," +
-                          "   category_id text, " +
-                          "   sub_category_id text," +
-                          "   title  text," +
-                          "   body  text," +
-                          "   PRIMARY KEY (user_id, category_id, sub_category_id) ) ";
+                          " ( id uuid," +
+                          "   line text, " +
+                          "   PRIMARY KEY (id) ) ";
 
         try
         {
@@ -107,22 +104,10 @@ public class WordCountSetup
             logger.error("failed to create table " + WordCount.KEYSPACE + "."  + WordCount.COLUMN_FAMILY, e);
         }
 
-        query = "CREATE INDEX title on " + WordCount.COLUMN_FAMILY + "(title)";
-        try
-        {
-            logger.info("set up index on title column ");
-            client.execute_cql3_query(ByteBufferUtil.bytes(query), Compression.NONE, ConsistencyLevel.ONE);
-        }
-        catch (InvalidRequestException e)
-        {
-            logger.error("Failed to create index on title", e);
-        }
-
         query = "CREATE TABLE " + WordCount.KEYSPACE + "."  + WordCount.OUTPUT_COLUMN_FAMILY + 
-                " ( row_id text," +
-                "   word text, " +
+                " ( word text," +
                 "   count_num text," +
-                "   PRIMARY KEY (row_id, word) ) ";
+                "   PRIMARY KEY (word) ) ";
 
         try
         {
@@ -163,26 +148,19 @@ public class WordCountSetup
             TException
     {
         String query = "INSERT INTO " + WordCount.COLUMN_FAMILY +  
-                           "(user_id, category_id, sub_category_id, title, body ) " +
-                           " values (?, ?, ?, ?, ?) ";
+                           "(id, line) " +
+                           " values (?, ?) ";
         CqlPreparedResult result = client.prepare_cql3_query(ByteBufferUtil.bytes(query), Compression.NONE);
 
-        String [] title = titleData();
         String [] body = bodyData();
-        for (int i=1; i<5; i++)
+        for (int i = 0; i < 5; i++)
         {         
-            for (int j=1; j<444; j++) 
+            for (int j = 1; j <= 200; j++)
             {
-                for (int k=1; k<4; k++)
-                {
                     List<ByteBuffer> values = new ArrayList<ByteBuffer>();
-                    values.add(ByteBufferUtil.bytes(String.valueOf(j)));
-                    values.add(ByteBufferUtil.bytes(String.valueOf(i)));
-                    values.add(ByteBufferUtil.bytes(String.valueOf(k)));
-                    values.add(ByteBufferUtil.bytes(title[i]));
+                    values.add(ByteBufferUtil.bytes(UUID.randomUUID()));
                     values.add(ByteBufferUtil.bytes(body[i]));
                     client.execute_prepared_cql3_query(result.itemId, values, ConsistencyLevel.ONE);
-                }
             }
         } 
     }
@@ -190,24 +168,11 @@ public class WordCountSetup
     private static String[] bodyData()
     {   // Public domain context, source http://en.wikisource.org/wiki/If%E2%80%94
         return new String[]{
-                "",
                 "If you can keep your head when all about you",
                 "Are losing theirs and blaming it on you",
                 "If you can trust yourself when all men doubt you,",
                 "But make allowance for their doubting too:",
                 "If you can wait and not be tired by waiting,"
-        };
-    }
-
-    private static String[] titleData()
-    {   // Public domain context, source http://en.wikisource.org/wiki/If%E2%80%94
-        return new String[]{
-                "",
-                "A",
-                "B",
-                "C",
-                "D",
-                "E"            
         };
     }
 }
