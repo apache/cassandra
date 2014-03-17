@@ -28,6 +28,7 @@
  * Add logging levels (minimal, normal or verbose) to stress tool (CASSANDRA-6849)
  * Fix race condition in Batch CLE (CASSANDRA-6860)
 Merged from 2.0:
+ * Fix handling of RejectedExecution in sync Thrift server (CASSANDRA-6788)
  * Log more information when exceeding tombstone_warn_threshold (CASSANDRA-6865)
  * Fix truncate to not abort due to unreachable fat clients (CASSANDRA-6864)
  * Fix schema concurrency exceptions (CASSANDRA-6841)
