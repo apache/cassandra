@@ -186,7 +186,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         if (sstable.metadata.isSuper() && sstable.descriptor.version.hasSuperColumns)
         {
             CellNameType scComparator = SuperColumns.scNameType(comparator);
-            Composite scName = CellNames.compositeDense(SuperColumns.scName(name));
+            Composite scName = CellNames.simpleDense(SuperColumns.scName(name));
             return IndexHelper.indexFor(scName, indexes, scComparator, reversed, startIdx);
         }
         return IndexHelper.indexFor(name, indexes, comparator, reversed, startIdx);
