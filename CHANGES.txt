@@ -14,6 +14,7 @@
  * Read message id as string from earlier versions (CASSANDRA-6840)
  * Properly use the Paxos consistency for (non-protocol) batch (CASSANDRA-6837)
 Merged from 1.2:
+ * add extra SSL cipher suites (CASSANDRA-6613)
  * fix nodetool getsstables for blob PK (CASSANDRA-6803)
 
 
