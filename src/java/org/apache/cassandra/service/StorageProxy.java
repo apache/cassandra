@@ -208,21 +208,15 @@ public class StorageProxy implements StorageProxyMBean
     {
         consistencyForPaxos.validateForCas();
         consistencyForCommit.validateForCasCommit(keyspaceName);
-
         CFMetaData metadata = Schema.instance.getCFMetaData(keyspaceName, cfName);
-
         long start = System.nanoTime();
         long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getCasContentionTimeout());
         while (System.nanoTime() - start < timeout)
         {
-            // for simplicity, we'll do a single liveness check at the start of each attempt
             Pair<List<InetAddress>, Integer> p = getPaxosParticipants(keyspaceName, key, consistencyForPaxos);
             List<InetAddress> liveEndpoints = p.left;
             int requiredParticipants = p.right;
-
             UUID ballot = beginAndRepairPaxos(start, key, metadata, liveEndpoints, requiredParticipants, consistencyForPaxos);
-
-            // read the current values and check they validate the conditions
             Tracing.trace("Reading existing values for CAS precondition");
             long timestamp = System.currentTimeMillis();
             ReadCommand readCommand = ReadCommand.create(keyspaceName, key, cfName, timestamp, conditions.readFilter());
@@ -231,12 +225,8 @@ public class StorageProxy implements StorageProxyMBean
             if (!conditions.appliesTo(current))
             {
                 Tracing.trace("CAS precondition {} does not match current values {}", conditions, current);
-                // We should not return null as this means success
                 return current == null ? ArrayBackedSortedColumns.factory.create(metadata) : current;
             }
-
-            // finish the paxos round w/ the desired updates
-            // TODO turn null updates into delete?
             Commit proposal = Commit.newProposal(key, ballot, updates);
             Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
             if (proposePaxos(proposal, liveEndpoints, requiredParticipants, true))
@@ -269,7 +259,7 @@ public class StorageProxy implements StorageProxyMBean
         };
     }
 
-    private static Pair<List<InetAddress>, Integer> getPaxosParticipants(String keyspaceName, ByteBuffer key, ConsistencyLevel consistencyForPaxos) throws UnavailableException
+    public static Pair<List<InetAddress>, Integer> getPaxosParticipants(String keyspaceName, ByteBuffer key, ConsistencyLevel consistencyForPaxos) throws UnavailableException
     {
         Token tk = StorageService.getPartitioner().getToken(key);
         List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(keyspaceName, tk);
@@ -295,7 +285,7 @@ public class StorageProxy implements StorageProxyMBean
      * @return the Paxos ballot promised by the replicas if no in-progress requests were seen and a quorum of
      * nodes have seen the mostRecentCommit.  Otherwise, return null.
      */
-    private static UUID beginAndRepairPaxos(long start, ByteBuffer key, CFMetaData metadata, List<InetAddress> liveEndpoints, int requiredParticipants, ConsistencyLevel consistencyForPaxos)
+    public static UUID beginAndRepairPaxos(long start, ByteBuffer key, CFMetaData metadata, List<InetAddress> liveEndpoints, int requiredParticipants, ConsistencyLevel consistencyForPaxos)
     throws WriteTimeoutException
     {
         long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getCasContentionTimeout());
@@ -367,14 +357,14 @@ public class StorageProxy implements StorageProxyMBean
     /**
      * Unlike commitPaxos, this does not wait for replies
      */
-    private static void sendCommit(Commit commit, Iterable<InetAddress> replicas)
+    public static void sendCommit(Commit commit, Iterable<InetAddress> replicas)
     {
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_COMMIT, commit, Commit.serializer);
         for (InetAddress target : replicas)
             MessagingService.instance().sendOneWay(message, target);
     }
 
-    private static PrepareCallback preparePaxos(Commit toPrepare, List<InetAddress> endpoints, int requiredParticipants)
+    public static PrepareCallback preparePaxos(Commit toPrepare, List<InetAddress> endpoints, int requiredParticipants)
     throws WriteTimeoutException
     {
         PrepareCallback callback = new PrepareCallback(toPrepare.key, toPrepare.update.metadata(), requiredParticipants);
@@ -385,7 +375,7 @@ public class StorageProxy implements StorageProxyMBean
         return callback;
     }
 
-    private static boolean proposePaxos(Commit proposal, List<InetAddress> endpoints, int requiredParticipants, boolean timeoutIfPartial)
+    public static boolean proposePaxos(Commit proposal, List<InetAddress> endpoints, int requiredParticipants, boolean timeoutIfPartial)
     throws WriteTimeoutException
     {
         ProposeCallback callback = new ProposeCallback(endpoints.size(), requiredParticipants, !timeoutIfPartial);
@@ -404,7 +394,7 @@ public class StorageProxy implements StorageProxyMBean
         return false;
     }
 
-    private static void commitPaxos(Commit proposal, ConsistencyLevel consistencyLevel) throws WriteTimeoutException
+    public static void commitPaxos(Commit proposal, ConsistencyLevel consistencyLevel) throws WriteTimeoutException
     {
         Keyspace keyspace = Keyspace.open(proposal.update.metadata().ksName);
 

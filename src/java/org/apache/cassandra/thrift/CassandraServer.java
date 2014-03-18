@@ -154,7 +154,7 @@ public class CassandraServer implements Cassandra.Iface
             return new ColumnOrSuperColumn().setColumn(thriftifySubColumn(cell).setName(newName));
     }
 
-    private Column thriftifySubColumn(Cell cell)
+    private static Column thriftifySubColumn(Cell cell)
     {
         assert !(cell instanceof CounterCell);
 
@@ -166,7 +166,7 @@ public class CassandraServer implements Cassandra.Iface
         return thrift_column;
     }
 
-    private List<Column> thriftifyColumnsAsColumns(Collection<Cell> cells, long now)
+    public static List<Column> thriftifyColumnsAsColumns(Collection<Cell> cells, long now)
     {
         List<Column> thriftColumns = new ArrayList<Column>(cells.size());
         for (Cell cell : cells)
@@ -374,7 +374,7 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    private SliceQueryFilter toInternalFilter(CFMetaData metadata, ColumnParent parent, SliceRange range)
+    private static SliceQueryFilter toInternalFilter(CFMetaData metadata, ColumnParent parent, SliceRange range)
     {
         Composite start = metadata.comparator.fromByteBuffer(range.start);
         Composite finish = metadata.comparator.fromByteBuffer(range.finish);
@@ -384,7 +384,7 @@ public class CassandraServer implements Cassandra.Iface
         return filter;
     }
 
-    private IDiskAtomFilter toInternalFilter(CFMetaData metadata, ColumnParent parent, SlicePredicate predicate)
+    public static IDiskAtomFilter toInternalFilter(CFMetaData metadata, ColumnParent parent, SlicePredicate predicate)
     {
         IDiskAtomFilter filter;
 

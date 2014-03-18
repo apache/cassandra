@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.service;
 
+import io.teknek.thrift.ArizonaThriftServer;
+
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -86,6 +88,7 @@ public class CassandraDaemon
 
     public Server thriftServer;
     public Server nativeServer;
+    public Server arizonaThriftServer;  
 
     /**
      * This is a hook for concrete daemons to initialize themselves suitably.
@@ -363,6 +366,9 @@ public class CassandraDaemon
         InetAddress nativeAddr = DatabaseDescriptor.getRpcAddress();
         int nativePort = DatabaseDescriptor.getNativeTransportPort();
         nativeServer = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
+        
+        //arizona
+        arizonaThriftServer = new ArizonaThriftServer(rpcAddr, rpcPort+1, listenBacklog);
     }
 
     /**
@@ -394,8 +400,10 @@ public class CassandraDaemon
             logger.info("Not starting native transport as requested. Use JMX (StorageService->startNativeTransport()) or nodetool (enablebinary) to start it");
 
         String rpcFlag = System.getProperty("cassandra.start_rpc");
-        if ((rpcFlag != null && Boolean.parseBoolean(rpcFlag)) || (rpcFlag == null && DatabaseDescriptor.startRpc()))
+        if ((rpcFlag != null && Boolean.parseBoolean(rpcFlag)) || (rpcFlag == null && DatabaseDescriptor.startRpc())){
             thriftServer.start();
+            this.arizonaThriftServer.start();
+        }
         else
             logger.info("Not starting RPC server as requested. Use JMX (StorageService->startRPCServer()) or nodetool (enablethrift) to start it");
     }
@@ -412,6 +420,7 @@ public class CassandraDaemon
         logger.info("Cassandra shutting down...");
         thriftServer.stop();
         nativeServer.stop();
+        arizonaThriftServer.stop();
     }
 
 

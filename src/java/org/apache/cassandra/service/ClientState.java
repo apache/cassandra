@@ -164,11 +164,13 @@ public class ClientState
         hasAccess(keyspace, perm, DataResource.keyspace(keyspace));
     }
 
-    public void hasColumnFamilyAccess(String keyspace, String columnFamily, Permission perm)
+    public void hasColumnFamilyAccess(String keyspace, String columnFamily, Permission ... permissions)
     throws UnauthorizedException, InvalidRequestException
     {
         ThriftValidation.validateColumnFamily(keyspace, columnFamily);
-        hasAccess(keyspace, perm, DataResource.columnFamily(keyspace, columnFamily));
+        for (Permission permission: permissions)
+            hasAccess(keyspace, permission, DataResource.columnFamily(keyspace, columnFamily));
+        
     }
 
     private void hasAccess(String keyspace, Permission perm, DataResource resource)

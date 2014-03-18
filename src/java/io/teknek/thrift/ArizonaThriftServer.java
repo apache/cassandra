@@ -1,21 +1,7 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-package org.apache.cassandra.thrift;
+
+package io.teknek.thrift;
+
+import io.teknek.arizona.ArizonaServer;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -24,6 +10,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.thrift.TServerCustomFactory;
+import org.apache.cassandra.thrift.TServerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TBinaryProtocol;
@@ -31,9 +20,9 @@ import org.apache.thrift.server.TServer;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TTransportFactory;
 
-public class ThriftServer implements CassandraDaemon.Server
+public class ArizonaThriftServer implements CassandraDaemon.Server
 {
-    private static Logger logger = LoggerFactory.getLogger(ThriftServer.class);
+    private static Logger logger = LoggerFactory.getLogger(ArizonaThriftServer.class);
     protected final static String SYNC = "sync";
     protected final static String ASYNC = "async";
     protected final static String HSHA = "hsha";
@@ -41,9 +30,9 @@ public class ThriftServer implements CassandraDaemon.Server
     protected final InetAddress address;
     protected final int port;
     protected final int backlog;
-    private volatile ThriftServerThread server;
+    private volatile ArizonaServerThread server;
 
-    public ThriftServer(InetAddress address, int port, int backlog)
+    public ArizonaThriftServer(InetAddress address, int port, int backlog)
     {
         this.address = address;
         this.port = port;
@@ -54,8 +43,8 @@ public class ThriftServer implements CassandraDaemon.Server
     {
         if (server == null)
         {
-            CassandraServer iface = getCassandraServer();
-            server = new ThriftServerThread(address, port, backlog, iface, getProcessor(iface), getTransportFactory());
+            ArizonaServer iface = getArizonaServer();
+            server = new ArizonaServerThread(address, port, backlog, iface, getProcessor(iface), getTransportFactory());
             server.start();
         }
     }
@@ -85,14 +74,14 @@ public class ThriftServer implements CassandraDaemon.Server
     /*
      * These methods are intended to be overridden to provide custom implementations.
      */
-    protected CassandraServer getCassandraServer()
+    protected ArizonaServer getArizonaServer()
     {
-        return new CassandraServer();
+        return new ArizonaServer();
     }
 
-    protected TProcessor getProcessor(CassandraServer server)
+    protected TProcessor getProcessor(ArizonaServer server)
     {
-        return new Cassandra.Processor<Cassandra.Iface>(server);
+        return new io.teknek.arizona.Arizona.Processor<io.teknek.arizona.Arizona.Iface>(server);
     }
 
     protected TTransportFactory getTransportFactory()
@@ -105,14 +94,14 @@ public class ThriftServer implements CassandraDaemon.Server
      * Simple class to run the thrift connection accepting code in separate
      * thread of control.
      */
-    private static class ThriftServerThread extends Thread
+    private static class ArizonaServerThread extends Thread
     {
         private final TServer serverEngine;
 
-        public ThriftServerThread(InetAddress listenAddr,
+        public ArizonaServerThread(InetAddress listenAddr,
                                   int listenPort,
                                   int listenBacklog,
-                                  CassandraServer server,
+                                  ArizonaServer server,
                                   TProcessor processor,
                                   TTransportFactory transportFactory)
         {
@@ -123,7 +112,6 @@ public class ThriftServer implements CassandraDaemon.Server
             args.tProtocolFactory = new TBinaryProtocol.Factory(true, true);
             args.addr = new InetSocketAddress(listenAddr, listenPort);
             args.listenBacklog = listenBacklog;
-            //args.cassandraServer = server;
             args.processor = processor;
             args.keepAlive = DatabaseDescriptor.getRpcKeepAlive();
             args.sendBufferSize = DatabaseDescriptor.getRpcSendBufferSize();

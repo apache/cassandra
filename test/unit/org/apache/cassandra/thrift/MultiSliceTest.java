@@ -1,5 +1,7 @@
 package org.apache.cassandra.thrift;
 
+import io.teknek.arizona.ArizonaServer;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -21,6 +23,7 @@ import org.junit.Test;
 public class MultiSliceTest extends SchemaLoader
 {
     private static CassandraServer server;
+    private static ArizonaServer az;
     
     @BeforeClass
     public static void setup() throws IOException, TException 
@@ -29,6 +32,7 @@ public class MultiSliceTest extends SchemaLoader
         new EmbeddedCassandraService().start();
         ThriftSessionManager.instance.setCurrentSocket(new InetSocketAddress(9160));        
         server = new CassandraServer();
+        az = new ArizonaServer();
         server.set_keyspace("Keyspace1");
     }
 
@@ -46,6 +50,7 @@ public class MultiSliceTest extends SchemaLoader
     @Test
     public void test_multi_slice_optional_column_slice() throws TException
     {
+      //az.func_modifify(null);
         ColumnParent cp = new ColumnParent("Standard1");
         ByteBuffer key = ByteBuffer.wrap("multi_slice".getBytes());
         List<String> expected = new ArrayList<String>();
@@ -117,7 +122,7 @@ public class MultiSliceTest extends SchemaLoader
         assertColumnNameMatches(Arrays.asList("g", "e", "d", "c", "b", "a"), server.get_multi_slice(req)); 
     }
     
-    private static void addTheAlphabetToRow(ByteBuffer key, ColumnParent parent) 
+    public static void addTheAlphabetToRow(ByteBuffer key, ColumnParent parent) 
             throws InvalidRequestException, UnavailableException, TimedOutException
     {
         for (char a = 'a'; a <= 'z'; a++) {

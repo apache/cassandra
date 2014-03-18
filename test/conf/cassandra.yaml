@@ -32,3 +32,6 @@ server_encryption_options:
     truststore_password: cassandra
 incremental_backups: true
 compaction_throughput_mb_per_sec: 0
+dynamic_loading:
+    - JAVA_LOCAL_CLASSPATH
+    - GROOVY_CLASS_LOADER

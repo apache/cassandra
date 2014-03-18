@@ -217,6 +217,8 @@ public class Config
     private static final CsvPreference STANDARD_SURROUNDING_SPACES_NEED_QUOTES = new CsvPreference.Builder(CsvPreference.STANDARD_PREFERENCE)
                                                                                                   .surroundingSpacesNeedQuotes(true).build();
 
+    public String[] dynamic_loading;
+
     public static boolean getOutboundBindAny()
     {
         return outboundBindAny;
