@@ -29,6 +29,8 @@ import java.util.concurrent.Future;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
@@ -1725,6 +1727,83 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         sstables = dir.sstableLister().list();
         assert sstables.size() == 1;
         assert sstables.containsKey(sstable1.descriptor);
+    }
+
+    @Test
+    public void testLoadNewSSTablesAvoidsOverwrites() throws Throwable
+    {
+        String ks = "Keyspace1";
+        String cf = "Standard1";
+        ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore(cf);
+        cfs.truncateBlocking();
+        SSTableDeletingTask.waitForDeletions();
+
+        final CFMetaData cfmeta = Schema.instance.getCFMetaData(ks, cf);
+        Directories dir = new Directories(cfs.metadata);
+
+        // clear old SSTables (probably left by CFS.clearUnsafe() calls in other tests)
+        for (Map.Entry<Descriptor, Set<Component>> entry : dir.sstableLister().list().entrySet())
+        {
+            for (Component component : entry.getValue())
+            {
+                FileUtils.delete(entry.getKey().filenameFor(component));
+            }
+        }
+
+        // sanity check
+        int existingSSTables = dir.sstableLister().list().keySet().size();
+        assert existingSSTables == 0 : String.format("%d SSTables unexpectedly exist", existingSSTables);
+
+        ByteBuffer key = bytes("key");
+
+        SSTableSimpleWriter writer = new SSTableSimpleWriter(dir.getDirectoryForCompactedSSTables(),
+                                                              cfmeta, StorageService.getPartitioner());
+        writer.newRow(key);
+        writer.addColumn(bytes("col"), bytes("val"), 1);
+        writer.close();
+
+        writer = new SSTableSimpleWriter(dir.getDirectoryForCompactedSSTables(),
+                                         cfmeta, StorageService.getPartitioner());
+        writer.newRow(key);
+        writer.addColumn(bytes("col"), bytes("val"), 1);
+        writer.close();
+
+        Set<Integer> generations = new HashSet<>();
+        for (Descriptor descriptor : dir.sstableLister().list().keySet())
+            generations.add(descriptor.generation);
+
+        // we should have two generations: [1, 2]
+        assertEquals(2, generations.size());
+        assertTrue(generations.contains(1));
+        assertTrue(generations.contains(2));
+
+        assertEquals(0, cfs.getSSTables().size());
+
+        // start the generation counter at 1 again (other tests have incremented it already)
+        cfs.resetFileIndexGenerator();
+
+        boolean incrementalBackupsEnabled = DatabaseDescriptor.isIncrementalBackupsEnabled();
+        try
+        {
+            // avoid duplicate hardlinks to incremental backups
+            DatabaseDescriptor.setIncrementalBackupsEnabled(false);
+            cfs.loadNewSSTables();
+        }
+        finally
+        {
+            DatabaseDescriptor.setIncrementalBackupsEnabled(incrementalBackupsEnabled);
+        }
+
+        assertEquals(2, cfs.getSSTables().size());
+        generations = new HashSet<>();
+        for (Descriptor descriptor : dir.sstableLister().list().keySet())
+            generations.add(descriptor.generation);
+
+        // normally they would get renamed to generations 1 and 2, but since those filenames already exist,
+        // they get skipped and we end up with generations 3 and 4
+        assertEquals(2, generations.size());
+        assertTrue(generations.contains(3));
+        assertTrue(generations.contains(4));
     }
 
     private ColumnFamilyStore prepareMultiRangeSlicesTest(int valueSize, boolean flush) throws Throwable
