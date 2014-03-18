@@ -36,6 +36,8 @@ import com.addthis.metrics.reporter.config.ReporterConfig;
 
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -206,6 +208,13 @@ public class CassandraDaemon
                         if (e2 != e) // make sure FSError gets logged exactly once.
                             logger.error("Exception in thread " + t, e2);
                         FileUtils.handleFSError((FSError) e2);
+                    }
+
+                    if (e2 instanceof CorruptSSTableException)
+                    {
+                        if (e2 != e)
+                            logger.error("Exception in thread " + t, e2);
+                        FileUtils.handleCorruptSSTable((CorruptSSTableException) e2);
                     }
                 }
             }

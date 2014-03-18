@@ -38,6 +38,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.service.StorageService;
 
 public class FileUtils
@@ -407,11 +408,18 @@ public class FileUtils
             n += skipped;
         }
     }
+
+    public static void handleCorruptSSTable(CorruptSSTableException e)
+    {
+        if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.stop_paranoid)
+            StorageService.instance.stopTransports();
+    }
     
     public static void handleFSError(FSError e)
     {
         switch (DatabaseDescriptor.getDiskFailurePolicy())
         {
+            case stop_paranoid:
             case stop:
                 StorageService.instance.stopTransports();
                 break;

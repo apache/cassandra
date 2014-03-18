@@ -275,6 +275,7 @@ public class Config
         best_effort,
         stop,
         ignore,
+        stop_paranoid,
     }
 
     public static enum CommitFailurePolicy
