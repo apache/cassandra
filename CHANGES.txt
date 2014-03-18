@@ -24,6 +24,7 @@
  * Fix race condition in Batch CLE (CASSANDRA-6860)
  * Improve cleanup/scrub/upgradesstables failure handling (CASSANDRA-6774)
 Merged from 2.0:
+ * Add support for DELETE ... IF EXISTS to CQL3 (CASSANDRA-5708)
  * Update hadoop_cql3_word_count example (CASSANDRA-6793)
  * Fix handling of RejectedExecution in sync Thrift server (CASSANDRA-6788)
  * Log more information when exceeding tombstone_warn_threshold (CASSANDRA-6865)

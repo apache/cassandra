@@ -53,7 +53,21 @@ public class CQL3CasConditions implements CASConditions
     {
         RowCondition previous = conditions.put(prefix, new NotExistCondition(prefix, now));
         if (previous != null && !(previous instanceof NotExistCondition))
-            throw new InvalidRequestException("Cannot mix IF conditions and IF NOT EXISTS for the same row");
+        {
+            // these should be prevented by the parser, but it doesn't hurt to check
+            if (previous instanceof ExistCondition)
+                throw new InvalidRequestException("Cannot mix IF EXISTS and IF NOT EXISTS conditions for the same row");
+            else
+                throw new InvalidRequestException("Cannot mix IF conditions and IF NOT EXISTS for the same row");
+        }
+    }
+
+    public void addExist(Composite prefix) throws InvalidRequestException
+    {
+        RowCondition previous = conditions.put(prefix, new ExistCondition(prefix, now));
+        // this should be prevented by the parser, but it doesn't hurt to check
+        if (previous != null && previous instanceof NotExistCondition)
+            throw new InvalidRequestException("Cannot mix IF EXISTS and IF NOT EXISTS conditions for the same row");
     }
 
     public void addConditions(Composite prefix, Collection<ColumnCondition> conds, List<ByteBuffer> variables) throws InvalidRequestException
@@ -127,6 +141,26 @@ public class CQL3CasConditions implements CASConditions
                 if (iter.next().isLive(now))
                     return false;
             return true;
+        }
+    }
+
+    private static class ExistCondition extends RowCondition
+    {
+        private ExistCondition(Composite rowPrefix, long now)
+        {
+            super (rowPrefix, now);
+        }
+
+        public boolean appliesTo(ColumnFamily current)
+        {
+            if (current == null)
+                return false;
+
+            Iterator<Cell> iter = current.iterator(new ColumnSlice[]{ rowPrefix.slice() });
+            while (iter.hasNext())
+                if (iter.next().isLive(now))
+                    return true;
+            return false;
         }
     }
 
