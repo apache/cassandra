@@ -117,6 +117,7 @@ commitlog_directory: /var/lib/cassandra/commitlog
 flush_directory: /var/lib/cassandra/flush
 
 # policy for data disk failures:
+# stop_paranoid: shut down gossip and Thrift even for single-sstable errors.
 # stop: shut down gossip and Thrift, leaving the node effectively dead, but
 #       can still be inspected via JMX.
 # best_effort: stop using the failed disk and respond to requests based on
