@@ -904,7 +904,7 @@ public class NodeTool
 
                 try
                 {
-                    probe.forceKeyspaceCleanup(keyspace, cfnames);
+                    probe.forceKeyspaceCleanup(System.out, keyspace, cfnames);
                 } catch (Exception e)
                 {
                     throw new RuntimeException("Error occurred during cleanup", e);
@@ -1025,7 +1025,7 @@ public class NodeTool
             {
                 try
                 {
-                    probe.scrub(disableSnapshot, skipCorrupted, keyspace, cfnames);
+                    probe.scrub(System.out, disableSnapshot, skipCorrupted, keyspace, cfnames);
                 } catch (Exception e)
                 {
                     throw new RuntimeException("Error occurred during flushing", e);
@@ -1103,7 +1103,7 @@ public class NodeTool
             {
                 try
                 {
-                    probe.upgradeSSTables(keyspace, !includeAll, cfnames);
+                    probe.upgradeSSTables(System.out, keyspace, !includeAll, cfnames);
                 } catch (Exception e)
                 {
                     throw new RuntimeException("Error occurred during enabling auto-compaction", e);

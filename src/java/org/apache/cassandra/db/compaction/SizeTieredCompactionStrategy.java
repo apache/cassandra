@@ -277,7 +277,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     public Collection<AbstractCompactionTask> getMaximalTask(final int gcBefore)
     {
         Iterable<SSTableReader> allSSTables = cfs.markAllCompacting();
-        if (allSSTables == null)
+        if (allSSTables == null || Iterables.isEmpty(allSSTables))
             return null;
         Set<SSTableReader> sstables = Sets.newHashSet(allSSTables);
         Set<SSTableReader> repaired = new HashSet<>();
