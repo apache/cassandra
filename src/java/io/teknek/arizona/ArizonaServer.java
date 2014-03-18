@@ -12,6 +12,7 @@ import java.util.TreeSet;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ArrayBackedSortedColumns;
 import org.apache.cassandra.db.Cell;
@@ -24,6 +25,7 @@ import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.thrift.AuthenticationException;
 import org.apache.cassandra.thrift.AuthenticationRequest;
 import org.apache.cassandra.thrift.AuthorizationException;
@@ -68,6 +70,10 @@ import io.teknek.arizona.Arizona.Iface;
 import io.teknek.arizona.transform.Transform;
 import io.teknek.arizona.transform.SimpleTransformer;
 import io.teknek.arizona.transform.Transformer;
+import io.teknek.nit.NitDesc;
+import io.teknek.nit.NitException;
+import io.teknek.nit.NitFactory;
+
 import org.apache.cassandra.thrift.ThriftConversion;
 
 public class ArizonaServer implements Iface  {
@@ -404,7 +410,6 @@ public class ArizonaServer implements Iface  {
   @Override
   public TransformResponse transform(TransformRequest request)
           throws InvalidRequestException, UnavailableException, TimedOutException, TException {
-    System.out.println("what up");
     try
     {
         ThriftClientState cState = state();
@@ -412,7 +417,9 @@ public class ArizonaServer implements Iface  {
         CFMetaData metadata = ThriftValidation.validateColumnFamily(cState.getKeyspace(), request.column_family, false);
         ThriftValidation.validateKey(metadata, request.key);
         CFMetaData cfm = Schema.instance.getCFMetaData(cState.getKeyspace(), request.column_family);
-        Transformer t = (Transformer) Class.forName(request.getFunction_name()).newInstance();
+        Transformer t = CodeLoader.INSTANCE.getTransformer(request.getFunction_name());
+        if (t==null)
+          throw new InvalidRequestException(request.function_name + " is not found");
         Transform ft = new Transform(request.getPredicate(), null, cfm, t);
         ColumnFamily result = ArizonaProxy.functional_transform(cState.getKeyspace(),
               request.getColumn_family(), request.key, ft,
@@ -427,5 +434,29 @@ public class ArizonaServer implements Iface  {
     }
     return null;
   }
+
+  
+  @Override
+  public void load(LoadRequest request) throws InvalidRequestException, UnavailableException,
+          TimedOutException, TException {
+    NitDesc.NitSpec spec = NitDesc.NitSpec.valueOf(request.getSpec());
+    if (!DatabaseDescriptor.getDynamicLoading().contains(spec)){
+      throw new InvalidRequestException(spec +" is not in allowed list "+ DatabaseDescriptor.getDynamicLoading());
+    }
+    NitDesc n = new NitDesc();
+    n.setSpec(spec);
+    n.setTheClass(request.class_name);
+    n.setScript(request.getScript());
+    if (request.getType().equalsIgnoreCase("transformer")){
+      try {
+        CodeLoader.INSTANCE.reloadTransformer(n, request.getName());
+      } catch (NitException e) {
+        throw new InvalidRequestException(e.getMessage());
+      }
+    }
+    throw new InvalidRequestException("Request failed");
+  }
+  
+  
 
 }

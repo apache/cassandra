@@ -77,7 +77,7 @@ public class FuncTest extends SchemaLoader
       request.setColumn_family("Standard1");
       request.setSerial_consistency_level(ConsistencyLevel.SERIAL);
       request.setCommit_consistency_level(ConsistencyLevel.ONE);
-      request.setFunction_name("io.teknek.arizona.transform.SimpleTransformer");
+      request.setFunction_name("simple_transformer");
       request.setKey(ByteBufferUtil.bytes("row"));
       request.setPredicate(new SlicePredicate());
       request.getPredicate().setColumn_names(Arrays.asList(ByteBufferUtil.bytes("a")));
@@ -112,7 +112,7 @@ public class FuncTest extends SchemaLoader
       request.setColumn_family("Standard1");
       request.setSerial_consistency_level(ConsistencyLevel.SERIAL);
       request.setCommit_consistency_level(ConsistencyLevel.ONE);
-      request.setFunction_name("io.teknek.arizona.transform.Increment");
+      request.setFunction_name("increment");
       request.setKey(ByteBufferUtil.bytes("row2"));
       request.setPredicate(new SlicePredicate());
       request.getPredicate().setColumn_names(Arrays.asList(ByteBufferUtil.bytes("a")));

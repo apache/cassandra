@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.config;
 
+import io.teknek.nit.NitDesc;
+
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
@@ -96,6 +98,12 @@ public class DatabaseDescriptor
     private static Comparator<InetAddress> localComparator;
 
     private static Class<? extends Pool> memtablePool;
+    
+    private static Collection<NitDesc.NitSpec> dynamicLoading;
+    
+    public static Collection<NitDesc.NitSpec> getDynamicLoading(){
+       return dynamicLoading;
+    }
 
     static
     {
@@ -143,6 +151,18 @@ public class DatabaseDescriptor
     {
         conf = config;
 
+        dynamicLoading = new ArrayList<NitDesc.NitSpec>();
+                 
+        if (conf.dynamic_loading == null)
+        {
+          dynamicLoading.add(NitDesc.NitSpec.JAVA_LOCAL_CLASSPATH);
+        } else
+        {
+            for (int i = 0 ; i < conf.dynamic_loading.length ; i++)
+               dynamicLoading.add(NitDesc.NitSpec.valueOf(conf.dynamic_loading[i]));
+        }
+
+        
         if (conf.commitlog_sync == null)
         {
             throw new ConfigurationException("Missing required directive CommitLogSync");

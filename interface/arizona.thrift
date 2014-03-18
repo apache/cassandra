@@ -16,7 +16,18 @@ struct TransformResponse {
     2: optional list<cassandra.Column> current_value,
 }
 
+struct LoadRequest {
+    1: required string name,
+    2: required string type,
+    3: optional string spec,
+    4: optional string class_name,
+    5: optional string script
+}
+
 service Arizona extends cassandra.Cassandra {
   TransformResponse transform(1:required TransformRequest request)
+       throws (1:cassandra.InvalidRequestException ire, 2:cassandra.UnavailableException ue, 3:cassandra.TimedOutException te),
+
+  void load(1:required LoadRequest request)
        throws (1:cassandra.InvalidRequestException ire, 2:cassandra.UnavailableException ue, 3:cassandra.TimedOutException te)
 }
