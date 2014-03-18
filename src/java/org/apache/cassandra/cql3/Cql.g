@@ -371,24 +371,27 @@ updateConditions returns [List<Pair<ColumnIdentifier, ColumnCondition.Raw>> cond
  * DELETE name1, name2
  * FROM <CF>
  * USING TIMESTAMP <long>
- * WHERE KEY = keyname;
+ * WHERE KEY = keyname
+   [IF (EXISTS | name = value, ...)];
  */
 deleteStatement returns [DeleteStatement.Parsed expr]
     @init {
         Attributes.Raw attrs = new Attributes.Raw();
         List<Operation.RawDeletion> columnDeletions = Collections.emptyList();
+        boolean ifExists = false;
     }
     : K_DELETE ( dels=deleteSelection { columnDeletions = dels; } )?
       K_FROM cf=columnFamilyName
       ( usingClauseDelete[attrs] )?
       K_WHERE wclause=whereClause
-      ( K_IF conditions=updateConditions )?
+      ( K_IF ( K_EXISTS { ifExists = true; } | conditions=updateConditions ))?
       {
           return new DeleteStatement.Parsed(cf,
                                             attrs,
                                             columnDeletions,
                                             wclause,
-                                            conditions == null ? Collections.<Pair<ColumnIdentifier, ColumnCondition.Raw>>emptyList() : conditions);
+                                            conditions == null ? Collections.<Pair<ColumnIdentifier, ColumnCondition.Raw>>emptyList() : conditions,
+                                            ifExists);
       }
     ;
 

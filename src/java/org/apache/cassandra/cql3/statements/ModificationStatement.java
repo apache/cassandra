@@ -73,6 +73,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
     private List<ColumnCondition> columnConditions;
     private List<ColumnCondition> staticConditions;
     private boolean ifNotExists;
+    private boolean ifExists;
 
     private boolean hasNoClusteringColumns = true;
     private boolean setsOnlyStaticColumns;
@@ -195,7 +196,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
 
     public Iterable<ColumnIdentifier> getColumnsWithConditions()
     {
-        if (ifNotExists)
+        if (ifNotExists || ifExists)
             return null;
 
         return Iterables.concat(columnConditions == null ? Collections.<ColumnIdentifier>emptyList() : Iterables.transform(columnConditions, getColumnForCondition),
@@ -228,6 +229,16 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
     public boolean hasIfNotExistCondition()
     {
         return ifNotExists;
+    }
+
+    public void setIfExistCondition()
+    {
+        ifExists = true;
+    }
+
+    public boolean hasIfExistCondition()
+    {
+        return ifExists;
     }
 
     private void addKeyValues(CFDefinition.Name name, Restriction values) throws InvalidRequestException
@@ -489,6 +500,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
     public boolean hasConditions()
     {
         return ifNotExists
+            || ifExists
             || (columnConditions != null && !columnConditions.isEmpty())
             || (staticConditions != null && !staticConditions.isEmpty());
     }
@@ -561,6 +573,10 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
             // columns and the prefix should be the rowPrefix. But if only static columns are set, then the ifNotExists apply to the existence
             // of any static columns and we should use the prefix for the "static part" of the partition.
             conditions.addNotExist(setsOnlyStaticColumns ? cfm.getStaticColumnNameBuilder() : clusteringPrefix);
+        }
+        else if (ifExists)
+        {
+            conditions.addExist(clusteringPrefix);
         }
         else
         {
@@ -701,15 +717,17 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
     public static abstract class Parsed extends CFStatement
     {
         protected final Attributes.Raw attrs;
-        private final List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions;
+        protected final List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions;
         private final boolean ifNotExists;
+        private final boolean ifExists;
 
-        protected Parsed(CFName name, Attributes.Raw attrs, List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions, boolean ifNotExists)
+        protected Parsed(CFName name, Attributes.Raw attrs, List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions, boolean ifNotExists, boolean ifExists)
         {
             super(name);
             this.attrs = attrs;
             this.conditions = conditions == null ? Collections.<Pair<ColumnIdentifier, ColumnCondition.Raw>>emptyList() : conditions;
             this.ifNotExists = ifNotExists;
+            this.ifExists = ifExists;
         }
 
         public ParsedStatement.Prepared prepare() throws InvalidRequestException
@@ -733,7 +751,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
 
             ModificationStatement stmt = prepareInternal(cfDef, boundNames, preparedAttributes);
 
-            if (ifNotExists || !conditions.isEmpty())
+            if (ifNotExists || ifExists || !conditions.isEmpty())
             {
                 if (stmt.isCounter())
                     throw new InvalidRequestException("Conditional updates are not supported on counter tables");
@@ -746,7 +764,14 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                     // To have both 'IF NOT EXISTS' and some other conditions doesn't make sense.
                     // So far this is enforced by the parser, but let's assert it for sanity if ever the parse changes.
                     assert conditions.isEmpty();
+                    assert !ifExists;
                     stmt.setIfNotExistCondition();
+                }
+                else if (ifExists)
+                {
+                    assert conditions.isEmpty();
+                    assert !ifNotExists;
+                    stmt.setIfExistCondition();
                 }
                 else
                 {

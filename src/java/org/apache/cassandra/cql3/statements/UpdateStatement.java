@@ -118,7 +118,7 @@ public class UpdateStatement extends ModificationStatement
                             List<ColumnIdentifier> columnNames, List<Term.Raw> columnValues,
                             boolean ifNotExists)
         {
-            super(name, attrs, null, ifNotExists);
+            super(name, attrs, null, ifNotExists, false);
             this.columnNames = columnNames;
             this.columnValues = columnValues;
         }
@@ -189,7 +189,7 @@ public class UpdateStatement extends ModificationStatement
                             List<Relation> whereClause,
                             List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions)
         {
-            super(name, attrs, conditions, false);
+            super(name, attrs, conditions, false, false);
             this.updates = updates;
             this.whereClause = whereClause;
         }
