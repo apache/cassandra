@@ -31,12 +31,14 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BlacklistedDirectories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.service.StorageService;
 
 public class FileUtils
@@ -406,29 +408,20 @@ public class FileUtils
             n += skipped;
         }
     }
+
+    public static void handleCorruptSSTable(CorruptSSTableException e)
+    {
+        if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.stop_paranoid)
+            StorageService.instance.stopTransports();
+    }
     
     public static void handleFSError(FSError e)
     {
         switch (DatabaseDescriptor.getDiskFailurePolicy())
         {
+            case stop_paranoid:
             case stop:
-                if (StorageService.instance.isInitialized())
-                {
-                    logger.error("Stopping gossiper");
-                    StorageService.instance.stopGossiping();
-                }
-
-                if (StorageService.instance.isRPCServerRunning())
-                {
-                    logger.error("Stopping RPC server");
-                    StorageService.instance.stopRPCServer();
-                }
-
-                if (StorageService.instance.isNativeTransportRunning())
-                {
-                    logger.error("Stopping native transport");
-                    StorageService.instance.stopNativeTransport();
-                }
+                StorageService.instance.stopTransports();
                 break;
             case best_effort:
                 // for both read and write errors mark the path as unwritable.
