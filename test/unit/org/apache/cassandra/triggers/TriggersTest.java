@@ -35,17 +35,16 @@ import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.composites.CellNames;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.ColumnOrSuperColumn;
-import org.apache.cassandra.thrift.ColumnParent;
-import org.apache.cassandra.thrift.TFramedTransportFactory;
-import org.apache.cassandra.thrift.ThriftServer;
+import org.apache.cassandra.thrift.*;
 import org.apache.thrift.protocol.TBinaryProtocol;
 
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.apache.cassandra.utils.ByteBufferUtil.toInt;
 
 public class TriggersTest extends SchemaLoader
 {
@@ -54,6 +53,7 @@ public class TriggersTest extends SchemaLoader
 
     private static String ksName = "triggers_test_ks";
     private static String cfName = "test_table";
+    private static String otherCf = "other_table";
 
     @Before
     public void setup() throws Exception
@@ -71,6 +71,9 @@ public class TriggersTest extends SchemaLoader
         QueryProcessor.process(cql, ConsistencyLevel.ONE);
 
         cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (k int, v1 int, v2 int, PRIMARY KEY (k))", ksName, cfName);
+        QueryProcessor.process(cql, ConsistencyLevel.ONE);
+
+        cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (k int, v1 int, v2 int, PRIMARY KEY (k))", ksName, otherCf);
         QueryProcessor.process(cql, ConsistencyLevel.ONE);
 
         // no conditional execution of create trigger stmt yet
@@ -148,11 +151,155 @@ public class TriggersTest extends SchemaLoader
         assertUpdateIsAugmented(3);
     }
 
+    @Test
+    public void executeTriggerOnCqlInsertWithConditions() throws Exception
+    {
+        String cql = String.format("INSERT INTO %s.%s (k, v1) VALUES (4, 4) IF NOT EXISTS", ksName, cfName);
+        QueryProcessor.process(cql, ConsistencyLevel.ONE);
+        assertUpdateIsAugmented(4);
+    }
+
+    @Test
+    public void executeTriggerOnCqlBatchWithConditions() throws Exception
+    {
+        String cql = String.format("BEGIN BATCH " +
+                                   "  INSERT INTO %1$s.%2$s (k, v1) VALUES (5, 5) IF NOT EXISTS; " +
+                                   "  INSERT INTO %1$s.%2$s (k, v1) VALUES (5, 5); " +
+                                   "APPLY BATCH",
+                                    ksName, cfName);
+        QueryProcessor.process(cql, ConsistencyLevel.ONE);
+        assertUpdateIsAugmented(5);
+    }
+
+    @Test
+    public void executeTriggerOnThriftCASOperation() throws Exception
+    {
+        Cassandra.Client client = new Cassandra.Client(
+                new TBinaryProtocol(
+                        new TFramedTransportFactory().openTransport(
+                                InetAddress.getLocalHost().getHostName(), 9170)));
+        client.set_keyspace(ksName);
+        client.cas(bytes(6),
+                   cfName,
+                   Collections.<Column>emptyList(),
+                   Collections.singletonList(getColumnForInsert("v1", 6)),
+                   org.apache.cassandra.thrift.ConsistencyLevel.LOCAL_SERIAL,
+                   org.apache.cassandra.thrift.ConsistencyLevel.ONE);
+
+        assertUpdateIsAugmented(6);
+    }
+
+    // Unfortunately, an IRE thrown from StorageProxy.cas
+    // results in a RuntimeException from QueryProcessor.process
+    @Test(expected=RuntimeException.class)
+    public void onCqlUpdateWithConditionsRejectGeneratedUpdatesForDifferentPartition() throws Exception
+    {
+        String cf = "cf" + System.nanoTime();
+        try
+        {
+            setupTableWithTrigger(cf, CrossPartitionTrigger.class);
+            String cql = String.format("INSERT INTO %s.%s (k, v1) VALUES (7, 7) IF NOT EXISTS", ksName, cf);
+            QueryProcessor.process(cql, ConsistencyLevel.ONE);
+        }
+        finally
+        {
+            assertUpdateNotExecuted(cf, 7);
+        }
+    }
+
+    // Unfortunately, an IRE thrown from StorageProxy.cas
+    // results in a RuntimeException from QueryProcessor.process
+    @Test(expected=RuntimeException.class)
+    public void onCqlUpdateWithConditionsRejectGeneratedUpdatesForDifferentTable() throws Exception
+    {
+        String cf = "cf" + System.nanoTime();
+        try
+        {
+            setupTableWithTrigger(cf, CrossTableTrigger.class);
+            String cql = String.format("INSERT INTO %s.%s (k, v1) VALUES (8, 8) IF NOT EXISTS", ksName, cf);
+            QueryProcessor.process(cql, ConsistencyLevel.ONE);
+        }
+        finally
+        {
+            assertUpdateNotExecuted(cf, 7);
+        }
+    }
+
+    @Test(expected=InvalidRequestException.class)
+    public void onThriftCASRejectGeneratedUpdatesForDifferentPartition() throws Exception
+    {
+        String cf = "cf" + System.nanoTime();
+        try
+        {
+            setupTableWithTrigger(cf, CrossPartitionTrigger.class);
+            Cassandra.Client client = new Cassandra.Client(
+                    new TBinaryProtocol(
+                            new TFramedTransportFactory().openTransport(
+                                    InetAddress.getLocalHost().getHostName(), 9170)));
+            client.set_keyspace(ksName);
+            client.cas(bytes(9),
+                       cf,
+                       Collections.<Column>emptyList(),
+                       Collections.singletonList(getColumnForInsert("v1", 9)),
+                       org.apache.cassandra.thrift.ConsistencyLevel.LOCAL_SERIAL,
+                       org.apache.cassandra.thrift.ConsistencyLevel.ONE);
+        }
+        finally
+        {
+            assertUpdateNotExecuted(cf, 9);
+        }
+    }
+
+    @Test(expected=InvalidRequestException.class)
+    public void onThriftCASRejectGeneratedUpdatesForDifferentCF() throws Exception
+    {
+        String cf = "cf" + System.nanoTime();
+        try
+        {
+            setupTableWithTrigger(cf, CrossTableTrigger.class);
+            Cassandra.Client client = new Cassandra.Client(
+                    new TBinaryProtocol(
+                            new TFramedTransportFactory().openTransport(
+                                    InetAddress.getLocalHost().getHostName(), 9170)));
+            client.set_keyspace(ksName);
+            client.cas(bytes(10),
+                       cf,
+                       Collections.<Column>emptyList(),
+                       Collections.singletonList(getColumnForInsert("v1", 10)),
+                       org.apache.cassandra.thrift.ConsistencyLevel.LOCAL_SERIAL,
+                       org.apache.cassandra.thrift.ConsistencyLevel.ONE);
+        }
+        finally
+        {
+            assertUpdateNotExecuted(cf, 10);
+        }
+    }
+
+    private void setupTableWithTrigger(String cf, Class<? extends ITrigger> triggerImpl)
+    throws RequestExecutionException
+    {
+        String cql = String.format("CREATE TABLE IF NOT EXISTS %s.%s (k int, v1 int, v2 int, PRIMARY KEY (k))", ksName, cf);
+        QueryProcessor.process(cql, ConsistencyLevel.ONE);
+
+        // no conditional execution of create trigger stmt yet
+        cql = String.format("CREATE TRIGGER trigger_1 ON %s.%s USING '%s'",
+                            ksName, cf, triggerImpl.getName());
+        QueryProcessor.process(cql, ConsistencyLevel.ONE);
+    }
+
     private void assertUpdateIsAugmented(int key)
     {
         UntypedResultSet rs = QueryProcessor.processInternal(
                                 String.format("SELECT * FROM %s.%s WHERE k=%s", ksName, cfName, key));
+        assertTrue(String.format("Expected value (%s) for augmented cell v2 was not found", key), rs.one().has("v2"));
         assertEquals(999, rs.one().getInt("v2"));
+    }
+
+    private void assertUpdateNotExecuted(String cf, int key)
+    {
+        UntypedResultSet rs = QueryProcessor.processInternal(
+                String.format("SELECT * FROM %s.%s WHERE k=%s", ksName, cf, key));
+        assertTrue(rs.isEmpty());
     }
 
     private org.apache.cassandra.thrift.Column getColumnForInsert(String columnName, int value)
@@ -171,6 +318,35 @@ public class TriggersTest extends SchemaLoader
             ColumnFamily extraUpdate = update.cloneMeShallow(ArrayBackedSortedColumns.factory, false);
             extraUpdate.addColumn(new Cell(update.metadata().comparator.makeCellName(bytes("v2")),
                                            bytes(999)));
+            Mutation mutation = new Mutation(ksName, key);
+            mutation.add(extraUpdate);
+            return Collections.singletonList(mutation);
+        }
+    }
+
+    public static class CrossPartitionTrigger implements ITrigger
+    {
+        public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
+        {
+            ColumnFamily extraUpdate = update.cloneMeShallow(ArrayBackedSortedColumns.factory, false);
+            extraUpdate.addColumn(new Cell(update.metadata().comparator.makeCellName(bytes("v2")),
+                                           bytes(999)));
+
+            int newKey = toInt(key) + 1000;
+            Mutation mutation = new Mutation(ksName, bytes(newKey));
+            mutation.add(extraUpdate);
+            return Collections.singletonList(mutation);
+        }
+    }
+
+    public static class CrossTableTrigger implements ITrigger
+    {
+        public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
+        {
+            ColumnFamily extraUpdate = ArrayBackedSortedColumns.factory.create(ksName, otherCf);
+            extraUpdate.addColumn(new Cell(extraUpdate.metadata().comparator.makeCellName(bytes("v2")),
+                                           bytes(999)));
+
             Mutation mutation = new Mutation(ksName, key);
             mutation.add(extraUpdate);
             return Collections.singletonList(mutation);

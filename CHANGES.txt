@@ -43,6 +43,7 @@ Merged from 2.0:
  * Properly use the Paxos consistency for (non-protocol) batch (CASSANDRA-6837)
  * Add paranoid disk failure option (CASSANDRA-6646)
  * Improve PerRowSecondaryIndex performance (CASSANDRA-6876)
+ * Extend triggers to support CAS updates (CASSANDRA-6882)
  * add extra SSL cipher suites (CASSANDRA-6613)
  * fix nodetool getsstables for blob PK (CASSANDRA-6803)
 
