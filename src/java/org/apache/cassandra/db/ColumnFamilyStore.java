@@ -652,12 +652,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 continue;
             }
 
-            Descriptor newDescriptor = new Descriptor(descriptor.version,
-                                                      descriptor.directory,
-                                                      descriptor.ksname,
-                                                      descriptor.cfname,
-                                                      fileIndexGenerator.incrementAndGet(),
-                                                      false);
+            // Increment the generation until we find a filename that doesn't exist. This is needed because the new
+            // SSTables that are being loaded might already use these generation numbers.
+            Descriptor newDescriptor;
+            do
+            {
+                newDescriptor = new Descriptor(descriptor.version,
+                                               descriptor.directory,
+                                               descriptor.ksname,
+                                               descriptor.cfname,
+                                               fileIndexGenerator.incrementAndGet(),
+                                               false);
+            }
+            while (new File(newDescriptor.filenameFor(Component.DATA)).exists());
+
             logger.info("Renaming new SSTable {} to {}", descriptor, newDescriptor);
             SSTableWriter.rename(descriptor, newDescriptor, entry.getValue());
 
@@ -2430,5 +2438,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         Pair<ReplayPosition, Long> truncationRecord = SystemKeyspace.getTruncationRecords().get(metadata.cfId);
         return truncationRecord == null ? Long.MIN_VALUE : truncationRecord.right;
+    }
+
+    @VisibleForTesting
+    void resetFileIndexGenerator()
+    {
+        fileIndexGenerator.set(0);
     }
 }
