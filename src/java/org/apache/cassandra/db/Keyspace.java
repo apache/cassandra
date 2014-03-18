@@ -394,7 +394,7 @@ public class Keyspace
         final OpOrder.Group opGroup = cfs.keyspace.writeOrder.start();
         try
         {
-            Collection<SecondaryIndex> indexes = cfs.indexManager.getIndexesByNames(idxNames);
+            Set<SecondaryIndex> indexes = cfs.indexManager.getIndexesByNames(idxNames);
 
             Iterator<ColumnFamily> pager = QueryPagers.pageRowLocally(cfs, key.key, DEFAULT_PAGE_SIZE);
             while (pager.hasNext())
