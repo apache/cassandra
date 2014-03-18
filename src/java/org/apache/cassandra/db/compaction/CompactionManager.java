@@ -209,45 +209,80 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    private static interface AllSSTablesOperation
+    private abstract static class UnmarkingRunnable implements Runnable
     {
-        public void perform(ColumnFamilyStore store, Iterable<SSTableReader> sstables) throws IOException;
+        private final ColumnFamilyStore cfs;
+        private final Iterable<SSTableReader> sstables;
+
+        private UnmarkingRunnable(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables)
+        {
+            this.cfs = cfs;
+            this.sstables = sstables;
+        }
+
+        protected abstract void runMayThrow() throws IOException;
+
+        public final void run()
+        {
+            try
+            {
+                runMayThrow();
+            }
+            catch (Exception e)
+            {
+                throw Throwables.propagate(e);
+            }
+            finally
+            {
+                cfs.getDataTracker().unmarkCompacting(sstables);
+            }
+        }
     }
 
-    private void performAllSSTableOperation(final ColumnFamilyStore cfs, final AllSSTablesOperation operation) throws InterruptedException, ExecutionException
+    public enum AllSSTableOpStatus { ABORTED, SUCCESSFUL }
+
+    public AllSSTableOpStatus performScrub(final ColumnFamilyStore cfs, final boolean skipCorrupted) throws InterruptedException, ExecutionException
     {
         final Iterable<SSTableReader> sstables = cfs.markAllCompacting();
         if (sstables == null)
-            return;
-
-        Callable<Object> runnable = new Callable<Object>()
         {
-            public Object call() throws IOException
+            logger.info("Aborting scrub of {}.{} after failing to interrupt other compaction operations", cfs.keyspace.getName(), cfs.name);
+            return AllSSTableOpStatus.ABORTED;
+        }
+        if (Iterables.isEmpty(sstables))
+        {
+            logger.info("No sstables to scrub for {}.{}", cfs.keyspace.getName(), cfs.name);
+            return AllSSTableOpStatus.SUCCESSFUL;
+        }
+
+        Runnable runnable = new UnmarkingRunnable(cfs, sstables)
+        {
+            protected void runMayThrow() throws IOException
             {
-                operation.perform(cfs, sstables);
-                cfs.getDataTracker().unmarkCompacting(sstables);
-                return this;
+                doScrub(cfs, sstables, skipCorrupted);
             }
         };
         executor.submit(runnable).get();
+        return AllSSTableOpStatus.SUCCESSFUL;
     }
 
-    public void performScrub(ColumnFamilyStore cfStore, final boolean skipCorrupted) throws InterruptedException, ExecutionException
+    public AllSSTableOpStatus performSSTableRewrite(final ColumnFamilyStore cfs, final boolean excludeCurrentVersion) throws InterruptedException, ExecutionException
     {
-        performAllSSTableOperation(cfStore, new AllSSTablesOperation()
+        final Iterable<SSTableReader> sstables = cfs.markAllCompacting();
+        if (sstables == null)
         {
-            public void perform(ColumnFamilyStore store, Iterable<SSTableReader> sstables) throws IOException
-            {
-                doScrub(store, sstables, skipCorrupted);
-            }
-        });
-    }
+            logger.info("Aborting sstable format upgrade of {}.{} after failing to interrupt other compaction operations", cfs.keyspace.getName(), cfs.name);
+            return AllSSTableOpStatus.ABORTED;
+        }
+        if (Iterables.isEmpty(sstables))
+        {
+            logger.info("No sstables to upgrade for {}.{}", cfs.keyspace.getName(), cfs.name);
+            return AllSSTableOpStatus.SUCCESSFUL;
+        }
 
-    public void performSSTableRewrite(ColumnFamilyStore cfStore, final boolean excludeCurrentVersion) throws InterruptedException, ExecutionException
-    {
-        performAllSSTableOperation(cfStore, new AllSSTablesOperation()
+        Runnable runnable = new UnmarkingRunnable(cfs, sstables)
         {
-            public void perform(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables)
+            protected void runMayThrow() throws IOException
             {
                 for (final SSTableReader sstable : sstables)
                 {
@@ -262,23 +297,39 @@ public class CompactionManager implements CompactionManagerMBean
                     task.execute(metrics);
                 }
             }
-        });
+        };
+        executor.submit(runnable).get();
+        return AllSSTableOpStatus.SUCCESSFUL;
     }
 
-    public void performCleanup(ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
+    public AllSSTableOpStatus performCleanup(final ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
     {
-        performAllSSTableOperation(cfStore, new AllSSTablesOperation()
+        final Iterable<SSTableReader> sstables = cfStore.markAllCompacting();
+        if (sstables == null)
         {
-            public void perform(ColumnFamilyStore store, Iterable<SSTableReader> sstables) throws IOException
+            logger.info("Aborting cleanup of {}.{} after failing to interrupt other compaction operations", cfStore.keyspace.getName(), cfStore.name);
+            return AllSSTableOpStatus.ABORTED;
+        }
+        if (Iterables.isEmpty(sstables))
+        {
+            logger.info("No sstables to cleanup for {}.{}", cfStore.keyspace.getName(), cfStore.name);
+            return AllSSTableOpStatus.SUCCESSFUL;
+        }
+
+        Runnable runnable = new UnmarkingRunnable(cfStore, sstables)
+        {
+            protected void runMayThrow() throws IOException
             {
                 // Sort the column families in order of SSTable size, so cleanup of smaller CFs
                 // can free up space for larger ones
                 List<SSTableReader> sortedSSTables = Lists.newArrayList(sstables);
                 Collections.sort(sortedSSTables, new SSTableReader.SizeComparator());
 
-                doCleanupCompaction(store, sortedSSTables);
+                doCleanupCompaction(cfStore, sortedSSTables);
             }
-        });
+        };
+        executor.submit(runnable).get();
+        return AllSSTableOpStatus.SUCCESSFUL;
     }
 
     public Future<?> submitAntiCompaction(final ColumnFamilyStore cfs,
