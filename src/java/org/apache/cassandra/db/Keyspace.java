@@ -389,7 +389,7 @@ public class Keyspace
         if (logger.isDebugEnabled())
             logger.debug("Indexing row {} ", cfs.metadata.getKeyValidator().getString(key.key));
 
-        Collection<SecondaryIndex> indexes = cfs.indexManager.getIndexesByNames(idxNames);
+        Set<SecondaryIndex> indexes = cfs.indexManager.getIndexesByNames(idxNames);
 
         switchLock.readLock().lock();
         try
