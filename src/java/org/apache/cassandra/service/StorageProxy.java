@@ -237,6 +237,16 @@ public class StorageProxy implements StorageProxyMBean
 
             // finish the paxos round w/ the desired updates
             // TODO turn null updates into delete?
+
+            // Apply triggers to cas updates. A consideration here is that
+            // triggers emit Mutations, and so a given trigger implementation
+            // may generate mutations for partitions other than the one this
+            // paxos round is scoped for. In this case, TriggerExecutor will
+            // validate that the generated mutations are targetted at the same
+            // partition as the initial updates and reject (via an
+            // InvalidRequestException) any which aren't.
+            updates = TriggerExecutor.instance.execute(key, updates);
+
             Commit proposal = Commit.newProposal(key, ballot, updates);
             Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
             if (proposePaxos(proposal, liveEndpoints, requiredParticipants, true))

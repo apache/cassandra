@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -30,6 +31,7 @@ import com.google.common.collect.Maps;
 import org.apache.cassandra.config.TriggerDefinition;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -59,6 +61,24 @@ public class TriggerExecutor
         cachedTriggers.clear();
     }
 
+    public ColumnFamily execute(ByteBuffer key, ColumnFamily updates) throws InvalidRequestException
+    {
+        List<Mutation> intermediate = executeInternal(key, updates);
+        if (intermediate == null)
+            return updates;
+
+        validateForSinglePartition(updates.metadata().getKeyValidator(), updates.id(), key, intermediate);
+
+        for (Mutation mutation : intermediate)
+        {
+            for (ColumnFamily cf : mutation.getColumnFamilies())
+            {
+                updates.addAll(cf);
+            }
+        }
+        return updates;
+    }
+
     public Collection<Mutation> execute(Collection<? extends IMutation> updates) throws InvalidRequestException
     {
         boolean hasCounters = false;
@@ -67,7 +87,7 @@ public class TriggerExecutor
         {
             for (ColumnFamily cf : mutation.getColumnFamilies())
             {
-                List<Mutation> intermediate = execute(mutation.key(), cf);
+                List<Mutation> intermediate = executeInternal(mutation.key(), cf);
                 if (intermediate == null)
                     continue;
 
@@ -85,6 +105,26 @@ public class TriggerExecutor
         return tmutations;
     }
 
+    private void validateForSinglePartition(AbstractType<?> keyValidator,
+                                            UUID cfId,
+                                            ByteBuffer key,
+                                            Collection<Mutation> tmutations)
+    throws InvalidRequestException
+    {
+        for (Mutation mutation : tmutations)
+        {
+            if (keyValidator.compare(mutation.key(), key) != 0)
+                throw new InvalidRequestException("Partition key of additional mutation does not match primary update key");
+
+            for (ColumnFamily cf : mutation.getColumnFamilies())
+            {
+                if (! cf.id().equals(cfId))
+                    throw new InvalidRequestException("Column family of additional mutation does not match primary update cf");
+            }
+        }
+        validate(tmutations);
+    }
+
     private void validate(Collection<Mutation> tmutations) throws InvalidRequestException
     {
         for (Mutation mutation : tmutations)
@@ -100,7 +140,7 @@ public class TriggerExecutor
      * Switch class loader before using the triggers for the column family, if
      * not loaded them with the custom class loader.
      */
-    private List<Mutation> execute(ByteBuffer key, ColumnFamily columnFamily)
+    private List<Mutation> executeInternal(ByteBuffer key, ColumnFamily columnFamily)
     {
         Map<String,TriggerDefinition> triggers = columnFamily.metadata().getTriggers();
         if (triggers.isEmpty())
