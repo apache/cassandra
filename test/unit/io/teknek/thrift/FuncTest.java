@@ -1,12 +1,17 @@
 package io.teknek.thrift;
 
 
+import io.teknek.arizona.Arizona;
 import io.teknek.arizona.ArizonaServer;
+import io.teknek.arizona.CodeLoader;
 import io.teknek.arizona.FunctionalModifyRequest;
 import io.teknek.arizona.FunctionalTransformRequest;
 import io.teknek.arizona.FunctionalTransformResponse;
+import io.teknek.arizona.LoadRequest;
 import io.teknek.arizona.TransformRequest;
 import io.teknek.arizona.TransformResponse;
+import io.teknek.arizona.transform.Transformer;
+import io.teknek.nit.NitDesc.NitSpec;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -86,6 +91,20 @@ public class FuncTest extends SchemaLoader
       Assert.assertEquals("0", ByteBufferUtil.string(resp.getCurrent_value().get(0).value));
       List<ColumnOrSuperColumn> results = server.get_slice(ByteBufferUtil.bytes("row"), parent,request.getPredicate(), ConsistencyLevel.ONE);
       Assert.assertEquals("0", ByteBufferUtil.string(results.get(0).column.value));
+    }
+    
+    @Test
+    public void loadCode() throws InvalidRequestException, UnavailableException, TimedOutException, TException{
+      LoadRequest l = new LoadRequest();
+      l.setClass_name("increment2");
+      l.setSpec(NitSpec.GROOVY_CLASS_LOADER.toString());
+      l.setType("transformer");
+      l.setScript("public class Increment2 extends io.teknek.arizona.transform.SimpleTransformer { \n }");
+      l.setName("increment2");
+      az.load(l);
+      Transformer t = CodeLoader.INSTANCE.getTransformer("increment2");
+      Assert.assertEquals("Increment2", t.getClass().getName());
+      
     }
     
     

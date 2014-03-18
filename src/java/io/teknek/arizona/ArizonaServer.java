@@ -453,6 +453,7 @@ public class ArizonaServer implements Iface  {
       } catch (NitException e) {
         throw new InvalidRequestException(e.getMessage());
       }
+      return;
     }
     throw new InvalidRequestException("Request failed");
   }
