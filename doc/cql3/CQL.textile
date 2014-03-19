@@ -1006,6 +1006,10 @@ CREATE TABLE users (
 
 then the @token@ function will take a single argument of type @text@ (in that case, the partition key is @userid@ (there is no clustering columns so the partition key is the same than the primary key)), and the return type will be @bigint@.
 
+h3(#uuidFun). Uuid
+
+The @uuid@ function takes no parameters and generates a random type 4 uuid suitable for use in INSERT or SET statements.
+
 h3(#timeuuidFun). Timeuuid functions
 
 h4. @now@
