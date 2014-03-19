@@ -524,7 +524,14 @@ enum CqlResultType {
     INT = 3
 }
 
-/** Row returned from a CQL query */
+/** 
+  Row returned from a CQL query.
+
+  This struct is used for both CQL2 and CQL3 queries.  For CQL2, the partition key
+  is special-cased and is always returned.  For CQL3, it is not special cased;
+  it will be included in the columns list if it was included in the SELECT and
+  the key field is always null.
+*/
 struct CqlRow {
     1: required binary key,
     2: required list<Column> columns
