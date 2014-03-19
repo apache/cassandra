@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
+import static org.junit.Assert.assertEquals;
 import org.junit.Test;
 
 import org.apache.cassandra.utils.btree.BTree;
@@ -119,7 +120,7 @@ public class BTreeTest
         assert vs.size() == count;
         int i = 0;
         for (Integer j : vs)
-            assert j == ints[i++];
+            assertEquals(j, ints[i++]);
     }
 
 }
