@@ -24,6 +24,7 @@
  * Fix race condition in Batch CLE (CASSANDRA-6860)
  * Improve cleanup/scrub/upgradesstables failure handling (CASSANDRA-6774)
 Merged from 2.0:
+ * Include correct consistencyLevel in LWT timeout (CASSANDRA-6884)
  * Lower chances for losing new SSTables during nodetool refresh and
    ColumnFamilyStore.loadNewSSTables (CASSANDRA-6514)
  * Add support for DELETE ... IF EXISTS to CQL3 (CASSANDRA-5708)
