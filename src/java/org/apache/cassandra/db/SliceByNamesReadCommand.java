@@ -26,6 +26,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -74,7 +75,7 @@ public class SliceByNamesReadCommand extends ReadCommand
 
 class SliceByNamesReadCommandSerializer implements IVersionedSerializer<ReadCommand>
 {
-    public void serialize(ReadCommand cmd, DataOutput out, int version) throws IOException
+    public void serialize(ReadCommand cmd, DataOutputPlus out, int version) throws IOException
     {
         SliceByNamesReadCommand command = (SliceByNamesReadCommand) cmd;
         out.writeBoolean(command.isDigestQuery());

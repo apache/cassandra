@@ -18,7 +18,6 @@
 package org.apache.cassandra.utils;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
@@ -33,6 +32,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
  * A MerkleTree implemented as a binary tree.
@@ -78,7 +78,7 @@ public class MerkleTree implements Serializable
 
     public static class MerkleTreeSerializer implements IVersionedSerializer<MerkleTree>
     {
-        public void serialize(MerkleTree mt, DataOutput out, int version) throws IOException
+        public void serialize(MerkleTree mt, DataOutputPlus out, int version) throws IOException
         {
             out.writeByte(mt.hashdepth);
             out.writeLong(mt.maxsize);
@@ -813,7 +813,7 @@ public class MerkleTree implements Serializable
 
         private static class InnerSerializer implements IVersionedSerializer<Inner>
         {
-            public void serialize(Inner inner, DataOutput out, int version) throws IOException
+            public void serialize(Inner inner, DataOutputPlus out, int version) throws IOException
             {
                 if (inner.hash == null)
                     out.writeInt(-1);
@@ -894,7 +894,7 @@ public class MerkleTree implements Serializable
 
         private static class LeafSerializer implements IVersionedSerializer<Leaf>
         {
-            public void serialize(Leaf leaf, DataOutput out, int version) throws IOException
+            public void serialize(Leaf leaf, DataOutputPlus out, int version) throws IOException
             {
                 if (leaf.hash == null)
                 {
@@ -1035,7 +1035,7 @@ public class MerkleTree implements Serializable
 
         private static class HashableSerializer implements IVersionedSerializer<Hashable>
         {
-            public void serialize(Hashable h, DataOutput out, int version) throws IOException
+            public void serialize(Hashable h, DataOutputPlus out, int version) throws IOException
             {
                 if (h instanceof Inner)
                 {

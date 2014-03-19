@@ -17,16 +17,14 @@
  */
 package org.apache.cassandra.streaming.messages;
 
-import java.io.DataOutput;
-import java.io.DataOutputStream;
 import java.io.IOException;
-import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.WritableByteChannel;
 import java.util.List;
 
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamWriter;
 import org.apache.cassandra.streaming.compress.CompressedStreamWriter;
@@ -45,10 +43,9 @@ public class OutgoingFileMessage extends StreamMessage
             throw new UnsupportedOperationException("Not allowed to call deserialize on an outgoing file");
         }
 
-        public void serialize(OutgoingFileMessage message, WritableByteChannel out, int version, StreamSession session) throws IOException
+        public void serialize(OutgoingFileMessage message, DataOutputStreamAndChannel out, int version, StreamSession session) throws IOException
         {
-            DataOutput output = new DataOutputStream(Channels.newOutputStream(out));
-            FileMessageHeader.serializer.serialize(message.header, output, version);
+            FileMessageHeader.serializer.serialize(message.header, out, version);
 
             final SSTableReader reader = message.sstable;
             StreamWriter writer = message.header.compressionInfo == null ?
@@ -56,7 +53,7 @@ public class OutgoingFileMessage extends StreamMessage
                     new CompressedStreamWriter(reader,
                             message.header.sections,
                             message.header.compressionInfo, session);
-            writer.write(out);
+            writer.write(out.getChannel());
             session.fileSent(message.header);
         }
     };

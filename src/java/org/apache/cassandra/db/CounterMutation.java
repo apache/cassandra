@@ -31,6 +31,7 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -280,7 +281,7 @@ public class CounterMutation implements IMutation
 
     public static class CounterMutationSerializer implements IVersionedSerializer<CounterMutation>
     {
-        public void serialize(CounterMutation cm, DataOutput out, int version) throws IOException
+        public void serialize(CounterMutation cm, DataOutputPlus out, int version) throws IOException
         {
             Mutation.serializer.serialize(cm.mutation, out, version);
             out.writeUTF(cm.consistency.name());

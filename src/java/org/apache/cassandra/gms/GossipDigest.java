@@ -22,6 +22,7 @@ import java.net.InetAddress;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
 /**
@@ -79,7 +80,7 @@ public class GossipDigest implements Comparable<GossipDigest>
 
 class GossipDigestSerializer implements IVersionedSerializer<GossipDigest>
 {
-    public void serialize(GossipDigest gDigest, DataOutput out, int version) throws IOException
+    public void serialize(GossipDigest gDigest, DataOutputPlus out, int version) throws IOException
     {
         CompactEndpointSerializationHelper.serialize(gDigest.endpoint, out);
         out.writeInt(gDigest.generation);

@@ -36,6 +36,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
 import org.apache.cassandra.io.util.FileUtils;
 
 public class BloomFilterTest
@@ -162,7 +163,7 @@ public class BloomFilterTest
         File file = FileUtils.createTempFile("bloomFilterTest-", ".dat");
         BloomFilter filter = (BloomFilter) FilterFactory.getFilter(((long)Integer.MAX_VALUE / 8) + 1, 0.01d, true);
         filter.add(test);
-        DataOutputStream out = new DataOutputStream(new FileOutputStream(file));
+        DataOutputStreamAndChannel out = new DataOutputStreamAndChannel(new FileOutputStream(file));
         FilterFactory.serialize(filter, out);
         filter.bitset.serialize(out);
         out.close();

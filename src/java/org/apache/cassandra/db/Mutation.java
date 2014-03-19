@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -31,6 +30,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -262,7 +262,7 @@ public class Mutation implements IMutation
 
     public static class MutationSerializer implements IVersionedSerializer<Mutation>
     {
-        public void serialize(Mutation mutation, DataOutput out, int version) throws IOException
+        public void serialize(Mutation mutation, DataOutputPlus out, int version) throws IOException
         {
             if (version < MessagingService.VERSION_20)
                 out.writeUTF(mutation.getKeyspaceName());

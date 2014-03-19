@@ -21,6 +21,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /*
  * This file has been modified from Apache Harmony's ByteArrayOutputStream
@@ -219,6 +222,14 @@ public class FastByteArrayOutputStream extends OutputStream {
         /* Expand if necessary */
         expand(len);
         System.arraycopy(buffer, offset, buf, this.count, len);
+        this.count += len;
+    }
+
+    public void write(ByteBuffer buffer)
+    {
+        int len = buffer.remaining();
+        expand(len);
+        ByteBufferUtil.arrayCopy(buffer, buffer.position(), buf, this.count, len);
         this.count += len;
     }
 

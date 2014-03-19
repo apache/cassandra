@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +28,7 @@ import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -119,7 +119,7 @@ public class PagedRangeCommand extends AbstractRangeCommand
 
     private static class Serializer implements IVersionedSerializer<PagedRangeCommand>
     {
-        public void serialize(PagedRangeCommand cmd, DataOutput out, int version) throws IOException
+        public void serialize(PagedRangeCommand cmd, DataOutputPlus out, int version) throws IOException
         {
             out.writeUTF(cmd.keyspace);
             out.writeUTF(cmd.columnFamily);

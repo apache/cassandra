@@ -23,6 +23,7 @@
  * Add logging levels (minimal, normal or verbose) to stress tool (CASSANDRA-6849)
  * Fix race condition in Batch CLE (CASSANDRA-6860)
  * Improve cleanup/scrub/upgradesstables failure handling (CASSANDRA-6774)
+ * ByteBuffer write() methods for serializing sstables (CASSANDRA-6781)
 Merged from 2.0:
  * Add uuid() function (CASSANDRA-6473)
  * Omit tombstones from schema digests (CASSANDRA-6862)
@@ -49,9 +50,11 @@ Merged from 2.0:
  * Add paranoid disk failure option (CASSANDRA-6646)
  * Improve PerRowSecondaryIndex performance (CASSANDRA-6876)
  * Extend triggers to support CAS updates (CASSANDRA-6882)
+ * Static columns with IF NOT EXISTS don't always work as expected (CASSANDRA-6873)
+Merged from 1.2:
+ * Add UNLOGGED, COUNTER options to BATCH documentation (CASSANDRA-6816)
  * add extra SSL cipher suites (CASSANDRA-6613)
  * fix nodetool getsstables for blob PK (CASSANDRA-6803)
- * Static columns with IF NOT EXISTS don't always work as expected (CASSANDRA-6873)
 
 
 2.0.6
