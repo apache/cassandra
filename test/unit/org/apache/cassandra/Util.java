@@ -49,6 +49,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
@@ -314,12 +315,11 @@ public class Util
     {
         try
         {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            DataOutputStream out = new DataOutputStream(baos);
+            DataOutputBuffer out = new DataOutputBuffer();
             DeletionTime.serializer.serialize(cf.deletionInfo().getTopLevelDeletion(), out);
             out.writeInt(cf.getColumnCount());
             new ColumnIndex.Builder(cf, ByteBufferUtil.EMPTY_BYTE_BUFFER, out).build(cf);
-            return ByteBuffer.wrap(baos.toByteArray());
+            return ByteBuffer.wrap(out.toByteArray());
         }
         catch (IOException e)
         {

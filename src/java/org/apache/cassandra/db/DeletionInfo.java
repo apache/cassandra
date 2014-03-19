@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.*;
 
@@ -29,6 +28,7 @@ import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ObjectSizes;
 
 /**
@@ -359,7 +359,7 @@ public class DeletionInfo implements IMeasurableMemory
             this.rtlSerializer = new RangeTombstoneList.Serializer(type);
         }
 
-        public void serialize(DeletionInfo info, DataOutput out, int version) throws IOException
+        public void serialize(DeletionInfo info, DataOutputPlus out, int version) throws IOException
         {
             DeletionTime.serializer.serialize(info.topLevel, out);
             rtlSerializer.serialize(info.ranges, out, version);

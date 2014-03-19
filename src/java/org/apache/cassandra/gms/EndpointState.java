@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -121,7 +122,7 @@ public class EndpointState
 
 class EndpointStateSerializer implements IVersionedSerializer<EndpointState>
 {
-    public void serialize(EndpointState epState, DataOutput out, int version) throws IOException
+    public void serialize(EndpointState epState, DataOutputPlus out, int version) throws IOException
     {
         /* serialize the HeartBeatState */
         HeartBeatState hbState = epState.getHeartBeatState();

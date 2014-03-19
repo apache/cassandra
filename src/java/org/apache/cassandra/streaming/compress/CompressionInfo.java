@@ -25,6 +25,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
  * Container that carries compression parameters and chunks to decompress data from stream.
@@ -45,7 +46,7 @@ public class CompressionInfo
 
     static class CompressionInfoSerializer implements IVersionedSerializer<CompressionInfo>
     {
-        public void serialize(CompressionInfo info, DataOutput out, int version) throws IOException
+        public void serialize(CompressionInfo info, DataOutputPlus out, int version) throws IOException
         {
             if (info == null)
             {

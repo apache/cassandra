@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.filter;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -38,6 +37,7 @@ import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 
 public class NamesQueryFilter implements IDiskAtomFilter
@@ -226,7 +226,7 @@ public class NamesQueryFilter implements IDiskAtomFilter
             this.type = type;
         }
 
-        public void serialize(NamesQueryFilter f, DataOutput out, int version) throws IOException
+        public void serialize(NamesQueryFilter f, DataOutputPlus out, int version) throws IOException
         {
             out.writeInt(f.columns.size());
             ISerializer<CellName> serializer = type.cellSerializer();

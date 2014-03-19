@@ -18,7 +18,6 @@
 package org.apache.cassandra.streaming.messages;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
@@ -27,6 +26,7 @@ import java.util.UUID;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.UUIDSerializer;
@@ -96,7 +96,7 @@ public class StreamInitMessage
 
     private static class StreamInitMessageSerializer implements IVersionedSerializer<StreamInitMessage>
     {
-        public void serialize(StreamInitMessage message, DataOutput out, int version) throws IOException
+        public void serialize(StreamInitMessage message, DataOutputPlus out, int version) throws IOException
         {
             CompactEndpointSerializationHelper.serialize(message.from, out);
             UUIDSerializer.serializer.serialize(message.planId, out, MessagingService.current_version);

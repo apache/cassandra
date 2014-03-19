@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable.metadata;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
@@ -28,6 +27,7 @@ import com.clearspring.analytics.stream.cardinality.ICardinality;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -83,7 +83,7 @@ public class CompactionMetadata extends MetadataComponent
             return size;
         }
 
-        public void serialize(CompactionMetadata component, DataOutput out) throws IOException
+        public void serialize(CompactionMetadata component, DataOutputPlus out) throws IOException
         {
             out.writeInt(component.ancestors.size());
             for (int g : component.ancestors)

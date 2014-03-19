@@ -19,7 +19,6 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.Closeable;
 import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
@@ -29,8 +28,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.Memory;
-import org.apache.cassandra.io.util.MemoryInputStream;
 import org.apache.cassandra.io.util.MemoryOutputStream;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -209,7 +208,7 @@ public class IndexSummary implements Closeable
 
     public static class IndexSummarySerializer
     {
-        public void serialize(IndexSummary t, DataOutputStream out, boolean withSamplingLevel) throws IOException
+        public void serialize(IndexSummary t, DataOutputPlus out, boolean withSamplingLevel) throws IOException
         {
             out.writeInt(t.minIndexInterval);
             out.writeInt(t.summarySize);
@@ -219,7 +218,7 @@ public class IndexSummary implements Closeable
                 out.writeInt(t.samplingLevel);
                 out.writeInt(t.sizeAtFullSampling);
             }
-            FBUtilities.copy(new MemoryInputStream(t.bytes), out, t.bytes.size());
+            out.write(t.bytes);
         }
 
         public IndexSummary deserialize(DataInputStream in, IPartitioner partitioner, boolean haveSamplingLevel, int expectedMinIndexInterval, int maxIndexInterval) throws IOException

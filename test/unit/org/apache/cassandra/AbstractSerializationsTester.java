@@ -19,13 +19,12 @@
  */
 package org.apache.cassandra;
 
-import com.google.common.io.ByteArrayDataOutput;
-import com.google.common.io.ByteStreams;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
 import org.apache.cassandra.net.MessagingService;
 
 import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -54,9 +53,9 @@ public class AbstractSerializationsTester extends SchemaLoader
 
     protected <T> void testSerializedSize(T obj, IVersionedSerializer<T> serializer) throws IOException
     {
-        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        DataOutputBuffer out = new DataOutputBuffer();
         serializer.serialize(obj, out, getVersion());
-        assert out.toByteArray().length == serializer.serializedSize(obj, getVersion());
+        assert out.getLength() == serializer.serializedSize(obj, getVersion());
     }
 
     protected static DataInputStream getInput(String name) throws IOException
@@ -66,10 +65,10 @@ public class AbstractSerializationsTester extends SchemaLoader
         return new DataInputStream(new FileInputStream(f));
     }
 
-    protected static DataOutputStream getOutput(String name) throws IOException
+    protected static DataOutputStreamAndChannel getOutput(String name) throws IOException
     {
         File f = new File("test/data/serialization/" + CUR_VER + "/" + name);
         f.getParentFile().mkdirs();
-        return new DataOutputStream(new FileOutputStream(f));
+        return new DataOutputStreamAndChannel(new FileOutputStream(f));
     }
 }

@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -61,7 +62,7 @@ public class Row
 
     public static class RowSerializer implements IVersionedSerializer<Row>
     {
-        public void serialize(Row row, DataOutput out, int version) throws IOException
+        public void serialize(Row row, DataOutputPlus out, int version) throws IOException
         {
             ByteBufferUtil.writeWithShortLength(row.key.key, out);
             ColumnFamily.serializer.serialize(row.cf, out, version);

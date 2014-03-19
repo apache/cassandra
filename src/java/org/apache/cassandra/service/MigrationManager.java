@@ -18,7 +18,6 @@
 package org.apache.cassandra.service;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
@@ -45,6 +44,7 @@ import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -372,7 +372,7 @@ public class MigrationManager
     {
         public static MigrationsSerializer instance = new MigrationsSerializer();
 
-        public void serialize(Collection<Mutation> schema, DataOutput out, int version) throws IOException
+        public void serialize(Collection<Mutation> schema, DataOutputPlus out, int version) throws IOException
         {
             out.writeInt(schema.size());
             for (Mutation mutation : schema)
