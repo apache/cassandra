@@ -355,6 +355,10 @@ public class Schema
                 if (invalidSchemaRow(row) || ignoredSchemaRow(row))
                     continue;
 
+                // we want to digest only live columns
+                ColumnFamilyStore.removeDeletedColumnsOnly(row.cf, Integer.MAX_VALUE);
+                row.cf.purgeTombstones(Integer.MAX_VALUE);
+                
                 row.cf.updateDigest(versionDigest);
             }
 
