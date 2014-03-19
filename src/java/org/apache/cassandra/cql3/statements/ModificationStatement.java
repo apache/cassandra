@@ -69,7 +69,9 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
     private boolean ifExists;
 
     private boolean hasNoClusteringColumns = true;
-    private boolean setsOnlyStaticColumns;
+
+    private boolean setsStaticColumns;
+    private boolean setsRegularColumns;
 
     private final Function<ColumnCondition, ColumnDefinition> getColumnForCondition = new Function<ColumnCondition, ColumnDefinition>()
     {
@@ -159,14 +161,9 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
     public void addOperation(Operation op)
     {
         if (op.column.isStatic())
-        {
-            if (columnOperations.isEmpty())
-                setsOnlyStaticColumns = true;
-        }
+            setsStaticColumns = true;
         else
-        {
-            setsOnlyStaticColumns = false;
-        }
+            setsRegularColumns = true;
         columnOperations.add(op);
     }
 
@@ -189,12 +186,14 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         List<ColumnCondition> conds = null;
         if (cond.column.isStatic())
         {
+            setsStaticColumns = true;
             if (staticConditions == null)
                 staticConditions = new ArrayList<ColumnCondition>();
             conds = staticConditions;
         }
         else
         {
+            setsRegularColumns = true;
             if (columnConditions == null)
                 columnConditions = new ArrayList<ColumnCondition>();
             conds = columnConditions;
@@ -338,13 +337,23 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         //   UPDATE t SET s = 3 WHERE k = 0 AND v = 1
         //   DELETE v FROM t WHERE k = 0 AND v = 1
         // sounds like you don't really understand what your are doing.
-        if (setsOnlyStaticColumns && columnConditions == null && (type != StatementType.INSERT || hasNoClusteringColumns))
+        if (setsStaticColumns && !setsRegularColumns)
         {
-            // Reject if any clustering columns is set
-            for (ColumnDefinition def : cfm.clusteringColumns())
-                if (processedKeys.get(def.name) != null)
-                    throw new InvalidRequestException(String.format("Invalid restriction on clustering column %s since the %s statement modifies only static columns", def.name, type));
-            return cfm.comparator.staticPrefix();
+            // If we set no non-static columns, then it's fine not to have clustering columns
+            if (hasNoClusteringColumns)
+                return cfm.comparator.staticPrefix();
+
+            // If we do have clustering columns however, then either it's an INSERT and the query is valid
+            // but we still need to build a proper prefix, or it's not an INSERT, and then we want to reject
+            // (see above)
+            if (type != StatementType.INSERT)
+            {
+                for (ColumnDefinition def : cfm.clusteringColumns())
+                    if (processedKeys.get(def.name) != null)
+                        throw new InvalidRequestException(String.format("Invalid restriction on clustering column %s since the %s statement modifies only static columns", def.name, type));
+                // we should get there as it contradicts hasNoClusteringColumns == false
+                throw new AssertionError();
+            }
         }
 
         return createClusteringPrefixBuilderInternal(variables);
@@ -526,7 +535,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
             // If we use ifNotExists, if the statement applies to any non static columns, then the condition is on the row of the non-static
             // columns and the prefix should be the clusteringPrefix. But if only static columns are set, then the ifNotExists apply to the existence
             // of any static columns and we should use the prefix for the "static part" of the partition.
-            conditions.addNotExist(setsOnlyStaticColumns ? cfm.comparator.staticPrefix() : clusteringPrefix);
+            conditions.addNotExist(clusteringPrefix);
         }
         else if (ifExists)
         {

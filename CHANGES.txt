@@ -55,6 +55,7 @@ Merged from 2.0:
  * Extend triggers to support CAS updates (CASSANDRA-6882)
  * add extra SSL cipher suites (CASSANDRA-6613)
  * fix nodetool getsstables for blob PK (CASSANDRA-6803)
+ * Static columns with IF NOT EXISTS don't always work as expected (CASSANDRA-6873)
 
 
 2.0.6

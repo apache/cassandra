@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.ConcurrentBiMap;
@@ -356,9 +357,8 @@ public class Schema
                     continue;
 
                 // we want to digest only live columns
-                ColumnFamilyStore.removeDeletedColumnsOnly(row.cf, Integer.MAX_VALUE);
+                ColumnFamilyStore.removeDeletedColumnsOnly(row.cf, Integer.MAX_VALUE, SecondaryIndexManager.nullUpdater);
                 row.cf.purgeTombstones(Integer.MAX_VALUE);
-                
                 row.cf.updateDigest(versionDigest);
             }
 
