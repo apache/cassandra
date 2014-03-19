@@ -15,31 +15,43 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.utils;
+package org.apache.cassandra.io.util;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class BooleanSerializer implements IVersionedSerializer<Boolean>
+/**
+ * When possible use {@link DataOutputStreamAndChannel} instead of this class, as it will
+ * be more efficient. This class is only for situations where it cannot be used
+ */
+public class DataOutputStreamPlus extends AbstractDataOutput implements DataOutputPlus
 {
-    public static BooleanSerializer serializer = new BooleanSerializer();
-
-    public void serialize(Boolean b, DataOutputPlus out, int version) throws IOException
+    protected final OutputStream out;
+    public DataOutputStreamPlus(OutputStream out)
     {
-        out.writeBoolean(b);
+        this.out = out;
     }
 
-    public Boolean deserialize(DataInput in, int version) throws IOException
+    public void write(byte[] buffer, int offset, int count) throws IOException
     {
-        return in.readBoolean();
+        out.write(buffer, offset, count);
     }
 
-    public long serializedSize(Boolean aBoolean, int version)
+    public void write(int oneByte) throws IOException
     {
-        return 1;
+        out.write(oneByte);
+    }
+
+    public void close() throws IOException
+    {
+        out.close();
+    }
+
+    public void flush() throws IOException
+    {
+        out.flush();
     }
 }

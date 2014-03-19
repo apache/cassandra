@@ -702,10 +702,10 @@ public class SSTableReader extends SSTable implements Closeable
         if (summariesFile.exists())
             FileUtils.deleteWithConfirm(summariesFile);
 
-        DataOutputStream oStream = null;
+        DataOutputStreamAndChannel oStream = null;
         try
         {
-            oStream = new DataOutputStream(new FileOutputStream(summariesFile));
+            oStream = new DataOutputStreamAndChannel(new FileOutputStream(summariesFile));
             IndexSummary.serializer.serialize(summary, oStream, descriptor.version.hasSamplingLevel);
             ByteBufferUtil.writeWithLength(first.key, oStream);
             ByteBufferUtil.writeWithLength(last.key, oStream);

@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.composites;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -35,6 +34,7 @@ import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.ColumnToCollectionType;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class AbstractCellNameType extends AbstractCType implements CellNameType
@@ -97,7 +97,7 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
         // A trivial wrapped over the composite serializer
         cellSerializer = new ISerializer<CellName>()
         {
-            public void serialize(CellName c, DataOutput out) throws IOException
+            public void serialize(CellName c, DataOutputPlus out) throws IOException
             {
                 serializer().serialize(c, out);
             }

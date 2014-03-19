@@ -18,18 +18,18 @@
 package org.apache.cassandra.utils;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.obs.IBitSet;
 import org.apache.cassandra.utils.obs.OffHeapBitSet;
 import org.apache.cassandra.utils.obs.OpenBitSet;
 
 abstract class BloomFilterSerializer implements ISerializer<BloomFilter>
 {
-    public void serialize(BloomFilter bf, DataOutput out) throws IOException
+    public void serialize(BloomFilter bf, DataOutputPlus out) throws IOException
     {
         out.writeInt(bf.hashCount);
         bf.bitset.serialize(out);
@@ -51,7 +51,7 @@ abstract class BloomFilterSerializer implements ISerializer<BloomFilter>
 
     /**
      * Calculates a serialized size of the given Bloom Filter
-     * @see BloomFilterSerializer#serialize(BloomFilter, DataOutput)
+     * @see org.apache.cassandra.io.ISerializer#serialize(Object, org.apache.cassandra.io.util.DataOutputPlus)
      *
      * @param bf Bloom filter to calculate serialized size
      *

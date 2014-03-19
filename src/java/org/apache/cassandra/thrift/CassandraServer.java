@@ -1865,7 +1865,7 @@ public class CassandraServer implements Cassandra.Iface
 
                     decompressor.end();
 
-                    queryString = new String(decompressed.getData(), 0, decompressed.size(), "UTF-8");
+                    queryString = new String(decompressed.getData(), 0, decompressed.getLength(), "UTF-8");
                     break;
                 case NONE:
                     try

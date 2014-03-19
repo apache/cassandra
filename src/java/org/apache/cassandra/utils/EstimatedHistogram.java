@@ -18,7 +18,6 @@
 package org.apache.cassandra.utils;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLongArray;
@@ -27,6 +26,8 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
+
 import org.slf4j.Logger;
 
 public class EstimatedHistogram
@@ -317,7 +318,7 @@ public class EstimatedHistogram
 
     public static class EstimatedHistogramSerializer implements ISerializer<EstimatedHistogram>
     {
-        public void serialize(EstimatedHistogram eh, DataOutput out) throws IOException
+        public void serialize(EstimatedHistogram eh, DataOutputPlus out) throws IOException
         {
             long[] offsets = eh.getBucketOffsets();
             long[] buckets = eh.getBuckets(false);

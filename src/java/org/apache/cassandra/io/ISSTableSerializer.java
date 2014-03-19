@@ -18,21 +18,22 @@
 package org.apache.cassandra.io;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 public interface ISSTableSerializer<T>
 {
     /**
      * Serialize the specified type into the specified DataOutputStream
      * instance in the format suited for SSTables.
+     *
      * @param t type that needs to be serialized
      * @param out DataOutput into which serialization needs to happen.
      * @throws java.io.IOException
      */
-    public void serializeForSSTable(T t, DataOutput out) throws IOException;
+    public void serializeForSSTable(T t, DataOutputPlus out) throws IOException;
 
     /**
      * Deserialize into the specified DataInputStream instance in the format

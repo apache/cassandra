@@ -21,6 +21,7 @@ import java.io.*;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
  * HeartBeat State associated with any given endpoint.
@@ -71,7 +72,7 @@ class HeartBeatState
 
 class HeartBeatStateSerializer implements IVersionedSerializer<HeartBeatState>
 {
-    public void serialize(HeartBeatState hbState, DataOutput out, int version) throws IOException
+    public void serialize(HeartBeatState hbState, DataOutputPlus out, int version) throws IOException
     {
         out.writeInt(hbState.getGeneration());
         out.writeInt(hbState.getHeartBeatVersion());

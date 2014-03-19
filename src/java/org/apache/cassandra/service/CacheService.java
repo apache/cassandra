@@ -18,7 +18,6 @@
 package org.apache.cassandra.service;
 
 import java.io.DataInputStream;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
@@ -47,12 +46,11 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.Composites;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -386,7 +384,7 @@ public class CacheService implements CacheServiceMBean
 
     public class CounterCacheSerializer implements CacheSerializer<CounterCacheKey, ClockAndCount>
     {
-        public void serialize(CounterCacheKey key, DataOutput out) throws IOException
+        public void serialize(CounterCacheKey key, DataOutputPlus out) throws IOException
         {
             ByteBufferUtil.writeWithLength(key.partitionKey, out);
             ByteBufferUtil.writeWithLength(key.cellName, out);
@@ -429,7 +427,7 @@ public class CacheService implements CacheServiceMBean
 
     public class RowCacheSerializer implements CacheSerializer<RowCacheKey, IRowCacheEntry>
     {
-        public void serialize(RowCacheKey key, DataOutput out) throws IOException
+        public void serialize(RowCacheKey key, DataOutputPlus out) throws IOException
         {
             ByteBufferUtil.writeWithLength(key.key, out);
         }
@@ -452,7 +450,7 @@ public class CacheService implements CacheServiceMBean
 
     public class KeyCacheSerializer implements CacheSerializer<KeyCacheKey, RowIndexEntry>
     {
-        public void serialize(KeyCacheKey key, DataOutput out) throws IOException
+        public void serialize(KeyCacheKey key, DataOutputPlus out) throws IOException
         {
             RowIndexEntry entry = CacheService.instance.keyCache.get(key);
             if (entry == null)

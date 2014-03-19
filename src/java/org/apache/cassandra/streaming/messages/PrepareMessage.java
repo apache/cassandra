@@ -20,10 +20,11 @@ package org.apache.cassandra.streaming.messages;
 import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
 import org.apache.cassandra.streaming.StreamRequest;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamSummary;
@@ -47,17 +48,16 @@ public class PrepareMessage extends StreamMessage
             return message;
         }
 
-        public void serialize(PrepareMessage message, WritableByteChannel out, int version, StreamSession session) throws IOException
+        public void serialize(PrepareMessage message, DataOutputStreamAndChannel out, int version, StreamSession session) throws IOException
         {
-            DataOutput output = new DataOutputStream(Channels.newOutputStream(out));
             // requests
-            output.writeInt(message.requests.size());
+            out.writeInt(message.requests.size());
             for (StreamRequest request : message.requests)
-                StreamRequest.serializer.serialize(request, output, version);
+                StreamRequest.serializer.serialize(request, out, version);
             // summaries
-            output.writeInt(message.summaries.size());
+            out.writeInt(message.summaries.size());
             for (StreamSummary summary : message.summaries)
-                StreamSummary.serializer.serialize(summary, output, version);
+                StreamSummary.serializer.serialize(summary, out, version);
         }
     };
 

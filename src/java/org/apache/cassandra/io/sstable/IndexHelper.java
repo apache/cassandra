@@ -27,6 +27,7 @@ import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.FileUtils;
@@ -179,7 +180,7 @@ public class IndexHelper
                 this.type = type;
             }
 
-            public void serialize(IndexInfo info, DataOutput out) throws IOException
+            public void serialize(IndexInfo info, DataOutputPlus out) throws IOException
             {
                 type.serializer().serialize(info.firstName, out);
                 type.serializer().serialize(info.lastName, out);

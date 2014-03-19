@@ -18,7 +18,6 @@
 package org.apache.cassandra.repair;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.UUID;
 
@@ -29,8 +28,8 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 /**
@@ -90,7 +89,7 @@ public class RepairJobDesc
 
     private static class RepairJobDescSerializer implements IVersionedSerializer<RepairJobDesc>
     {
-        public void serialize(RepairJobDesc desc, DataOutput out, int version) throws IOException
+        public void serialize(RepairJobDesc desc, DataOutputPlus out, int version) throws IOException
         {
             if (version >= MessagingService.VERSION_21)
             {

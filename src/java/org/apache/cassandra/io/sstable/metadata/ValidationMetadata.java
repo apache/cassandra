@@ -18,11 +18,11 @@
 package org.apache.cassandra.io.sstable.metadata;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
  * SSTable metadata component used only for validating SSTable.
@@ -76,7 +76,7 @@ public class ValidationMetadata extends MetadataComponent
             return TypeSizes.NATIVE.sizeof(component.partitioner) + 8;
         }
 
-        public void serialize(ValidationMetadata component, DataOutput out) throws IOException
+        public void serialize(ValidationMetadata component, DataOutputPlus out) throws IOException
         {
             out.writeUTF(component.partitioner);
             out.writeDouble(component.bloomFilterFPChance);

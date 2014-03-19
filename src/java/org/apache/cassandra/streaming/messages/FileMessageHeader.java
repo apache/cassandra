@@ -18,7 +18,6 @@
 package org.apache.cassandra.streaming.messages;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +26,7 @@ import java.util.UUID;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.compress.CompressionInfo;
 import org.apache.cassandra.utils.Pair;
@@ -119,7 +119,7 @@ public class FileMessageHeader
 
     static class FileMessageHeaderSerializer implements IVersionedSerializer<FileMessageHeader>
     {
-        public void serialize(FileMessageHeader header, DataOutput out, int version) throws IOException
+        public void serialize(FileMessageHeader header, DataOutputPlus out, int version) throws IOException
         {
             UUIDSerializer.serializer.serialize(header.cfId, out, version);
             out.writeInt(header.sequenceNumber);
