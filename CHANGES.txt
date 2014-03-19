@@ -1,4 +1,5 @@
 1.2.16
+ * Add UNLOGGED, COUNTER options to BATCH documentation (CASSANDRA-6816)
  * add extra SSL cipher suites (CASSANDRA-6613)
  * fix nodetool getsstables for blob PK (CASSANDRA-6803)
  * Add CMSClassUnloadingEnabled JVM option (CASSANDRA-6541)
