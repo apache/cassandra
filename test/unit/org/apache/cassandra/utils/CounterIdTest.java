@@ -23,7 +23,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.SystemKeyspace;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class CounterIdTest extends SchemaLoader
 {
@@ -38,12 +37,12 @@ public class CounterIdTest extends SchemaLoader
         CounterId.renewLocalId();
         CounterId id1 = CounterId.getLocalId();
         assertEquals(id1, SystemKeyspace.getCurrentLocalCounterId());
-        assertTrue(id1.compareTo(id0) == 1);
+        assertEquals(1, id1.compareTo(id0));
 
         CounterId.renewLocalId();
         CounterId id2 = CounterId.getLocalId();
         assertEquals(id2, SystemKeyspace.getCurrentLocalCounterId());
-        assertTrue(id2.compareTo(id1) == 1);
+        assertEquals(1, id2.compareTo(id1));
     }
 }
 

@@ -299,7 +299,7 @@ public class RangeTombstoneTest extends SchemaLoader
 
         assertFalse(cf.isEmpty());
         int last = i(cf.getSortedColumns().iterator().next().name());
-        assertTrue("Last column should be column 1 since column 2 has been deleted", last == 1);
+        assertEquals("Last column should be column 1 since column 2 has been deleted", 1, last);
     }
 
     @Test
