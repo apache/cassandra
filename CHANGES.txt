@@ -1,4 +1,5 @@
 2.0.7
+ * Include correct consistencyLevel in LWT timeout (CASSANDRA-6884)
  * Lower chances for losing new SSTables during nodetool refresh and
    ColumnFamilyStore.loadNewSSTables (CASSANDRA-6514)
  * Add support for DELETE ... IF EXISTS to CQL3 (CASSANDRA-5708)
