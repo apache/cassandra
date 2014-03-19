@@ -91,7 +91,7 @@ futures_zip = find_zip(FUTURES_LIB_PREFIX)
 if futures_zip:
     sys.path.insert(0, futures_zip)
 
-
+warnings.filterwarnings("ignore", r".*blist.*")
 try:
     import cassandra
 except ImportError, e:
