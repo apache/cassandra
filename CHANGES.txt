@@ -24,6 +24,7 @@
  * Fix race condition in Batch CLE (CASSANDRA-6860)
  * Improve cleanup/scrub/upgradesstables failure handling (CASSANDRA-6774)
 Merged from 2.0:
+ * Add uuid() function (CASSANDRA-6473)
  * Omit tombstones from schema digests (CASSANDRA-6862)
  * Include correct consistencyLevel in LWT timeout (CASSANDRA-6884)
  * Lower chances for losing new SSTables during nodetool refresh and
