@@ -46,7 +46,7 @@ public final class AtomicLongArrayUpdater {
                         } catch (NoSuchFieldException e)
                         {
                             // It doesn't matter what we throw;
-                            // it's swallowed in getBestComparer().
+                            // it's swallowed in getBest().
                             throw new Error();
                         } catch (IllegalAccessException e)
                         {

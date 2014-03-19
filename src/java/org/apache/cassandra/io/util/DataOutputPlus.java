@@ -15,31 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.utils;
+package org.apache.cassandra.io.util;
 
-import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataOutputPlus;
-
-public class BooleanSerializer implements IVersionedSerializer<Boolean>
+public interface DataOutputPlus extends DataOutput
 {
-    public static BooleanSerializer serializer = new BooleanSerializer();
 
-    public void serialize(Boolean b, DataOutputPlus out, int version) throws IOException
-    {
-        out.writeBoolean(b);
-    }
+    // write the buffer without modifying its position
+    void write(ByteBuffer buffer) throws IOException;
 
-    public Boolean deserialize(DataInput in, int version) throws IOException
-    {
-        return in.readBoolean();
-    }
+    void write(Memory memory) throws IOException;
 
-    public long serializedSize(Boolean aBoolean, int version)
-    {
-        return 1;
-    }
 }

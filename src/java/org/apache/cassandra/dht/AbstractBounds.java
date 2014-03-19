@@ -28,6 +28,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.Pair;
 
 public abstract class AbstractBounds<T extends RingPosition> implements Serializable
@@ -126,7 +127,7 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
 
     public static class AbstractBoundsSerializer implements IVersionedSerializer<AbstractBounds<?>>
     {
-        public void serialize(AbstractBounds<?> range, DataOutput out, int version) throws IOException
+        public void serialize(AbstractBounds<?> range, DataOutputPlus out, int version) throws IOException
         {
             /*
              * The first int tells us if it's a range or bounds (depending on the value) _and_ if it's tokens or keys (depending on the

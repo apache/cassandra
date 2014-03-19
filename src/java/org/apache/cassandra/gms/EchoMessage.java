@@ -22,10 +22,10 @@ package org.apache.cassandra.gms;
 
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class EchoMessage
 {
@@ -33,7 +33,7 @@ public class EchoMessage
 
     public static class EchoMessageSerializer implements IVersionedSerializer<EchoMessage>
     {
-        public void serialize(EchoMessage t, DataOutput out, int version) throws IOException
+        public void serialize(EchoMessage t, DataOutputPlus out, int version) throws IOException
         {
         }
 

@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -31,6 +30,7 @@ import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 
 import org.apache.cassandra.utils.ObjectSizes;
@@ -663,7 +663,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             this.type = type;
         }
 
-        public void serialize(RangeTombstoneList tombstones, DataOutput out, int version) throws IOException
+        public void serialize(RangeTombstoneList tombstones, DataOutputPlus out, int version) throws IOException
         {
             if (tombstones == null)
             {

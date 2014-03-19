@@ -24,6 +24,7 @@ import java.util.Map;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
 /**
@@ -49,7 +50,7 @@ public class GossipDigestAck2
 
 class GossipDigestAck2Serializer implements IVersionedSerializer<GossipDigestAck2>
 {
-    public void serialize(GossipDigestAck2 ack2, DataOutput out, int version) throws IOException
+    public void serialize(GossipDigestAck2 ack2, DataOutputPlus out, int version) throws IOException
     {
         out.writeInt(ack2.epStateMap.size());
         for (Map.Entry<InetAddress, EndpointState> entry : ack2.epStateMap.entrySet())

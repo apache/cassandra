@@ -18,7 +18,6 @@
 package org.apache.cassandra.utils;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.*;
 
@@ -26,6 +25,7 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
  * Histogram that can be constructed from streaming of data.
@@ -170,7 +170,7 @@ public class StreamingHistogram
 
     public static class StreamingHistogramSerializer implements ISerializer<StreamingHistogram>
     {
-        public void serialize(StreamingHistogram histogram, DataOutput out) throws IOException
+        public void serialize(StreamingHistogram histogram, DataOutputPlus out) throws IOException
         {
             out.writeInt(histogram.maxBinSize);
             Map<Double, Long> entries = histogram.getAsMap();

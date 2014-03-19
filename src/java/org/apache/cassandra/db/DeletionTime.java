@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -26,6 +25,7 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ObjectSizes;
 
@@ -115,7 +115,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 
     public static class Serializer implements ISerializer<DeletionTime>
     {
-        public void serialize(DeletionTime delTime, DataOutput out) throws IOException
+        public void serialize(DeletionTime delTime, DataOutputPlus out) throws IOException
         {
             out.writeInt(delTime.localDeletionTime);
             out.writeLong(delTime.markedForDeleteAt);

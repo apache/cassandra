@@ -34,6 +34,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
@@ -70,7 +71,7 @@ public class MetadataSerializerTest
         MetadataSerializer serializer = new MetadataSerializer();
         // Serialize to tmp file
         File statsFile = File.createTempFile(Component.STATS.name, null);
-        try (DataOutputStream out = new DataOutputStream(new FileOutputStream(statsFile)))
+        try (DataOutputStreamAndChannel out = new DataOutputStreamAndChannel(new FileOutputStream(statsFile)))
         {
             serializer.serialize(originalMetadata, out);
         }

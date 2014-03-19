@@ -26,6 +26,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.io.ISSTableSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.UUIDSerializer;
 
@@ -48,7 +49,7 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
      * <column count>
      * <columns, serialized individually>
     */
-    public void serialize(ColumnFamily cf, DataOutput out, int version)
+    public void serialize(ColumnFamily cf, DataOutputPlus out, int version)
     {
         try
         {
@@ -140,7 +141,7 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
         return serializedSize(cf, TypeSizes.NATIVE, version);
     }
 
-    public void serializeForSSTable(ColumnFamily cf, DataOutput out)
+    public void serializeForSSTable(ColumnFamily cf, DataOutputPlus out)
     {
         // Column families shouldn't be written directly to disk, use ColumnIndex.Builder instead
         throw new UnsupportedOperationException();
@@ -151,7 +152,7 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
         throw new UnsupportedOperationException();
     }
 
-    public void serializeCfId(UUID cfId, DataOutput out, int version) throws IOException
+    public void serializeCfId(UUID cfId, DataOutputPlus out, int version) throws IOException
     {
         UUIDSerializer.serializer.serialize(cfId, out, version);
     }

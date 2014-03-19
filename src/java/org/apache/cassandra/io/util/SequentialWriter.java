@@ -18,7 +18,9 @@
 package org.apache.cassandra.io.util;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
+import java.nio.channels.WritableByteChannel;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
@@ -27,13 +29,14 @@ import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CLibrary;
 
 /**
  * Adds buffering, mark, and fsyncing to OutputStream.  We always fsync on close; we may also
  * fsync incrementally if Config.trickle_fsync is enabled.
  */
-public class SequentialWriter extends OutputStream
+public class SequentialWriter extends OutputStream implements WritableByteChannel
 {
     // isDirty - true if this.buffer contains any un-synced bytes
     protected boolean isDirty = false, syncNeeded = false;
@@ -62,7 +65,7 @@ public class SequentialWriter extends OutputStream
     private int trickleFsyncByteInterval;
     private int bytesSinceTrickleFsync = 0;
 
-    public final DataOutputStream stream;
+    public final DataOutputPlus stream;
 
     public SequentialWriter(File file, int bufferSize, boolean skipIOCache)
     {
@@ -92,7 +95,7 @@ public class SequentialWriter extends OutputStream
         }
 
         directoryFD = CLibrary.tryOpenDirectory(file.getParent());
-        stream = new DataOutputStream(this);
+        stream = new DataOutputStreamAndChannel(this, this);
     }
 
     public static SequentialWriter open(File file)
@@ -160,8 +163,55 @@ public class SequentialWriter extends OutputStream
         }
     }
 
+    public int write(ByteBuffer src) throws IOException
+    {
+        if (buffer == null)
+            throw new ClosedChannelException();
+
+        int length = src.remaining();
+        int offset = src.position();
+        while (length > 0)
+        {
+            int n = writeAtMost(src, offset, length);
+            offset += n;
+            length -= n;
+            isDirty = true;
+            syncNeeded = true;
+        }
+        src.position(offset);
+        return length;
+    }
+
     /*
-     * Write at most "length" bytes from "b" starting at position "offset", and
+     * Write at most "length" bytes from "data" starting at position "offset", and
+     * return the number of bytes written. caller is responsible for setting
+     * isDirty.
+     */
+    private int writeAtMost(ByteBuffer data, int offset, int length)
+    {
+        if (current >= bufferOffset + buffer.length)
+            reBuffer();
+
+        assert current < bufferOffset + buffer.length
+        : String.format("File (%s) offset %d, buffer offset %d.", getPath(), current, bufferOffset);
+
+
+        int toCopy = Math.min(length, buffer.length - bufferCursor());
+
+        // copy bytes from external buffer
+        ByteBufferUtil.arrayCopy(data, offset, buffer, bufferCursor(), toCopy);
+
+        assert current <= bufferOffset + buffer.length
+        : String.format("File (%s) offset %d, buffer offset %d.", getPath(), current, bufferOffset);
+
+        validBufferBytes = Math.max(validBufferBytes, bufferCursor() + toCopy);
+        current += toCopy;
+
+        return toCopy;
+    }
+
+    /*
+     * Write at most "length" bytes from "data" starting at position "offset", and
      * return the number of bytes written. caller is responsible for setting
      * isDirty.
      */
@@ -391,6 +441,11 @@ public class SequentialWriter extends OutputStream
         {
             throw new FSWriteError(e, getPath());
         }
+    }
+
+    public boolean isOpen()
+    {
+        return out.getChannel().isOpen();
     }
 
     @Override

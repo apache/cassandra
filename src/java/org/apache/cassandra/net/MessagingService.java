@@ -50,6 +50,7 @@ import org.apache.cassandra.gms.GossipDigestAck;
 import org.apache.cassandra.gms.GossipDigestAck2;
 import org.apache.cassandra.gms.GossipDigestSyn;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.metrics.ConnectionMetrics;
@@ -249,7 +250,7 @@ public final class MessagingService implements MessagingServiceMBean
             throw new UnsupportedOperationException();
         }
 
-        public void serialize(Object o, DataOutput out, int version) throws IOException
+        public void serialize(Object o, DataOutputPlus out, int version) throws IOException
         {
             throw new UnsupportedOperationException();
         }

@@ -32,6 +32,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -72,14 +73,13 @@ public class IndexSummaryTest
     public void testSerialization() throws IOException
     {
         Pair<List<DecoratedKey>, IndexSummary> random = generateRandomIndex(100, 1);
-        ByteArrayOutputStream aos = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(aos);
+        DataOutputBuffer dos = new DataOutputBuffer();
         IndexSummary.serializer.serialize(random.right, dos, false);
         // write junk
         dos.writeUTF("JUNK");
         dos.writeUTF("JUNK");
         FileUtils.closeQuietly(dos);
-        DataInputStream dis = new DataInputStream(new ByteArrayInputStream(aos.toByteArray()));
+        DataInputStream dis = new DataInputStream(new ByteArrayInputStream(dos.toByteArray()));
         IndexSummary is = IndexSummary.serializer.deserialize(dis, DatabaseDescriptor.getPartitioner(), false, 1, 1);
         for (int i = 0; i < 100; i++)
             assertEquals(i, is.binarySearch(random.left.get(i)));
@@ -100,10 +100,9 @@ public class IndexSummaryTest
         assertEquals(0, summary.getPosition(0));
         assertArrayEquals(new byte[0], summary.getKey(0));
 
-        ByteArrayOutputStream aos = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(aos);
+        DataOutputBuffer dos = new DataOutputBuffer();
         IndexSummary.serializer.serialize(summary, dos, false);
-        DataInputStream dis = new DataInputStream(new ByteArrayInputStream(aos.toByteArray()));
+        DataInputStream dis = new DataInputStream(new ByteArrayInputStream(dos.toByteArray()));
         IndexSummary loaded = IndexSummary.serializer.deserialize(dis, p, false, 1, 1);
 
         assertEquals(1, loaded.size());

@@ -18,7 +18,6 @@
 package org.apache.cassandra.dht;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
@@ -27,6 +26,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -83,7 +83,7 @@ public abstract class Token<T> implements RingPosition<Token<T>>, Serializable
 
     public static class TokenSerializer implements ISerializer<Token>
     {
-        public void serialize(Token token, DataOutput out) throws IOException
+        public void serialize(Token token, DataOutputPlus out) throws IOException
         {
             IPartitioner p = StorageService.getPartitioner();
             ByteBuffer b = p.getTokenFactory().toByteArray(token);

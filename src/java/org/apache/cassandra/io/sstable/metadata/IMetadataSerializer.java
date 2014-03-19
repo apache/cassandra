@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.io.sstable.metadata;
 
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
 
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
  * Interface for SSTable metadata serializer
@@ -32,10 +32,12 @@ public interface IMetadataSerializer
     /**
      * Serialize given metadata components
      *
+     *
      * @param components Metadata components to serialize
+     * @param out
      * @throws IOException
      */
-    void serialize(Map<MetadataType, MetadataComponent> components, DataOutput out) throws IOException;
+    void serialize(Map<MetadataType, MetadataComponent> components, DataOutputPlus out) throws IOException;
 
     /**
      * Deserialize specified metadata components from given descriptor.

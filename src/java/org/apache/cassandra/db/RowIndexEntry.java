@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,6 +31,7 @@ import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ObjectSizes;
 
@@ -98,7 +98,7 @@ public class RowIndexEntry implements IMeasurableMemory
             this.type = type;
         }
 
-        public void serialize(RowIndexEntry rie, DataOutput out) throws IOException
+        public void serialize(RowIndexEntry rie, DataOutputPlus out) throws IOException
         {
             out.writeLong(rie.position);
             out.writeInt(rie.promotedSize(type));

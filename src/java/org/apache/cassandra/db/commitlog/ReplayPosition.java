@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.commitlog;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Comparator;
 
@@ -29,6 +28,7 @@ import com.google.common.collect.Ordering;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class ReplayPosition implements Comparable<ReplayPosition>
 {
@@ -124,7 +124,7 @@ public class ReplayPosition implements Comparable<ReplayPosition>
 
     public static class ReplayPositionSerializer implements ISerializer<ReplayPosition>
     {
-        public void serialize(ReplayPosition rp, DataOutput out) throws IOException
+        public void serialize(ReplayPosition rp, DataOutputPlus out) throws IOException
         {
             out.writeLong(rp.segment);
             out.writeInt(rp.position);

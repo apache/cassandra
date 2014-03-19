@@ -18,9 +18,9 @@
 package org.apache.cassandra.utils;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.obs.IBitSet;
 import org.apache.cassandra.utils.obs.OffHeapBitSet;
 import org.apache.cassandra.utils.obs.OpenBitSet;
@@ -35,7 +35,7 @@ public class FilterFactory
     private static final Logger logger = LoggerFactory.getLogger(FilterFactory.class);
     private static final long BITSET_EXCESS = 20;
 
-    public static void serialize(IFilter bf, DataOutput output) throws IOException
+    public static void serialize(IFilter bf, DataOutputPlus output) throws IOException
     {
         Murmur3BloomFilter.serializer.serialize((Murmur3BloomFilter) bf, output);
     }

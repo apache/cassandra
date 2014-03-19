@@ -17,8 +17,11 @@
  */
 package org.apache.cassandra.io.util;
 
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import com.sun.jna.Native;
+import com.sun.jna.Pointer;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import sun.misc.Unsafe;
 
@@ -285,5 +288,21 @@ public class Memory
             return true;
         return false;
     }
-}
 
+    public ByteBuffer[] asByteBuffers()
+    {
+        if (size() == 0)
+            return new ByteBuffer[0];
+
+        ByteBuffer[] result = new ByteBuffer[(int) (size() / Integer.MAX_VALUE) + 1];
+        long offset = 0;
+        int size = (int) (size() / result.length);
+        for (int i = 0 ; i < result.length - 1 ; i++)
+        {
+            result[i] = Native.getDirectByteBuffer(peer + offset, size);
+            offset += size;
+        }
+        result[result.length - 1] = Native.getDirectByteBuffer(peer + offset, (int) (size() - offset));
+        return result;
+    }
+}

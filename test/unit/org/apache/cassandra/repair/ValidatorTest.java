@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.repair;
 
-import java.io.DataOutput;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.security.MessageDigest;
@@ -36,6 +35,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ColumnStats;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -127,7 +127,7 @@ public class ValidatorTest extends SchemaLoader
             super(key);
         }
 
-        public RowIndexEntry write(long currentPosition, DataOutput out) throws IOException
+        public RowIndexEntry write(long currentPosition, DataOutputPlus out) throws IOException
         {
             throw new UnsupportedOperationException();
         }

@@ -18,7 +18,6 @@
 package org.apache.cassandra.utils;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -34,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class IntervalTree<C, D, I extends Interval<C, D>> implements Iterable<I>
 {
@@ -91,7 +91,7 @@ public class IntervalTree<C, D, I extends Interval<C, D>> implements Iterable<I>
 
     public static <C, D, I extends Interval<C, D>> Serializer<C, D, I> serializer(ISerializer<C> pointSerializer, ISerializer<D> dataSerializer, Constructor<I> constructor)
     {
-        return new Serializer(pointSerializer, dataSerializer, constructor);
+        return new Serializer<>(pointSerializer, dataSerializer, constructor);
     }
 
     @SuppressWarnings("unchecked")
@@ -390,7 +390,7 @@ public class IntervalTree<C, D, I extends Interval<C, D>> implements Iterable<I>
             this.constructor = constructor;
         }
 
-        public void serialize(IntervalTree<C, D, I> it, DataOutput out, int version) throws IOException
+        public void serialize(IntervalTree<C, D, I> it, DataOutputPlus out, int version) throws IOException
         {
             out.writeInt(it.count);
             for (Interval<C, D> interval : it)

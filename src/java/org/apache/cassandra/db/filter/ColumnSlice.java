@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NavigableMap;
 import java.util.NavigableSet;
 
 import com.google.common.collect.AbstractIterator;
@@ -33,6 +32,7 @@ import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.memory.PoolAllocator;
@@ -116,7 +116,7 @@ public class ColumnSlice
             this.type = type;
         }
 
-        public void serialize(ColumnSlice cs, DataOutput out, int version) throws IOException
+        public void serialize(ColumnSlice cs, DataOutputPlus out, int version) throws IOException
         {
             ISerializer<Composite> serializer = type.serializer();
             serializer.serialize(cs.start, out);
