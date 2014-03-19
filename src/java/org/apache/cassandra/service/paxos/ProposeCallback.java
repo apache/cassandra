@@ -23,6 +23,7 @@ package org.apache.cassandra.service.paxos;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,9 +50,9 @@ public class ProposeCallback extends AbstractPaxosCallback<Boolean>
     private final int requiredAccepts;
     private final boolean failFast;
 
-    public ProposeCallback(int totalTargets, int requiredTargets, boolean failFast)
+    public ProposeCallback(int totalTargets, int requiredTargets, boolean failFast, ConsistencyLevel consistency)
     {
-        super(totalTargets);
+        super(totalTargets, consistency);
         this.requiredAccepts = requiredTargets;
         this.failFast = failFast;
     }
