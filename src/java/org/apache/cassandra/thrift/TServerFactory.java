@@ -33,7 +33,6 @@ public interface TServerFactory
     {
         public InetSocketAddress addr;
         public Integer listenBacklog;
-        public CassandraServer cassandraServer;
         public TProcessor processor;
         public TProtocolFactory tProtocolFactory;
         public TTransportFactory inTransportFactory;

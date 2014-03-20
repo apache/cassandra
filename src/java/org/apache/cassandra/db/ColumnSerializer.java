@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
@@ -26,6 +25,7 @@ import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -61,7 +61,7 @@ public class ColumnSerializer implements ISerializer<Cell>
         this.type = type;
     }
 
-    public void serialize(Cell cell, DataOutput out) throws IOException
+    public void serialize(Cell cell, DataOutputPlus out) throws IOException
     {
         assert !cell.name().isEmpty();
         type.cellSerializer().serialize(cell.name(), out);

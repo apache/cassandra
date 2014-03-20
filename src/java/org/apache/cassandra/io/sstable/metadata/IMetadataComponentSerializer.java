@@ -18,10 +18,10 @@
 package org.apache.cassandra.io.sstable.metadata;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
  * Metadata component serializer
@@ -40,11 +40,12 @@ public interface IMetadataComponentSerializer<T extends MetadataComponent>
     /**
      * Serialize metadata component to given output.
      *
+     *
      * @param component MetadataComponent to serialize
      * @param out  serialize destination
      * @throws IOException
      */
-    void serialize(T component, DataOutput out) throws IOException;
+    void serialize(T component, DataOutputPlus out) throws IOException;
 
     /**
      * Deserialize metadata component from given input.

@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.composites;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
@@ -33,6 +32,7 @@ import org.apache.cassandra.db.marshal.AbstractCompositeType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
@@ -318,7 +318,7 @@ public abstract class AbstractCType implements CType
             this.type = type;
         }
 
-        public void serialize(Composite c, DataOutput out) throws IOException
+        public void serialize(Composite c, DataOutputPlus out) throws IOException
         {
             ByteBufferUtil.writeWithShortLength(c.toByteBuffer(), out);
         }

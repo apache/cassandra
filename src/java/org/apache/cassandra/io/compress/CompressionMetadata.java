@@ -31,6 +31,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.utils.Pair;
@@ -408,7 +409,7 @@ public class CompressionMetadata
 
     static class ChunkSerializer implements IVersionedSerializer<Chunk>
     {
-        public void serialize(Chunk chunk, DataOutput out, int version) throws IOException
+        public void serialize(Chunk chunk, DataOutputPlus out, int version) throws IOException
         {
             out.writeLong(chunk.offset);
             out.writeInt(chunk.length);

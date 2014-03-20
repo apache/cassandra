@@ -18,7 +18,6 @@
 package org.apache.cassandra.dht;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
@@ -34,6 +33,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -136,7 +136,7 @@ public class BootStrapper
     {
         public static final StringSerializer instance = new StringSerializer();
 
-        public void serialize(String s, DataOutput out, int version) throws IOException
+        public void serialize(String s, DataOutputPlus out, int version) throws IOException
         {
             out.writeUTF(s);
         }

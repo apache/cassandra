@@ -169,7 +169,6 @@ public class SSTableExport
      * Serialize a given cell to the JSON format
      *
      * @param cell     cell presentation
-     * @param comparator columns comparator
      * @param cfMetaData Column Family metadata (to get validator)
      * @return cell as serialized list
      */
@@ -178,7 +177,7 @@ public class SSTableExport
         CellNameType comparator = cfMetaData.comparator;
         ArrayList<Object> serializedColumn = new ArrayList<Object>();
 
-        ByteBuffer value = ByteBufferUtil.clone(cell.value());
+        ByteBuffer value = cell.value();
 
         serializedColumn.add(comparator.getString(cell.name()));
         if (cell instanceof DeletedCell)

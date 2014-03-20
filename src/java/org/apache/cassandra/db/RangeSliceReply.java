@@ -19,7 +19,6 @@ package org.apache.cassandra.db;
 
 import java.io.DataInput;
 import java.io.DataInputStream;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +26,7 @@ import java.util.List;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -62,7 +62,7 @@ public class RangeSliceReply
 
     private static class RangeSliceReplySerializer implements IVersionedSerializer<RangeSliceReply>
     {
-        public void serialize(RangeSliceReply rsr, DataOutput out, int version) throws IOException
+        public void serialize(RangeSliceReply rsr, DataOutputPlus out, int version) throws IOException
         {
             out.writeInt(rsr.rows.size());
             for (Row row : rsr.rows)

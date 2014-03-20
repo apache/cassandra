@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.UUID;
 
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -81,35 +82,17 @@ public class ByteBufferUtil
     {
         assert o1 != null;
         assert o2 != null;
-        if (o1 == o2)
-            return 0;
-
-        if (o1.hasArray() && o2.hasArray())
-        {
-            return FBUtilities.compareUnsigned(o1.array(), o2.array(), o1.position() + o1.arrayOffset(),
-                    o2.position() + o2.arrayOffset(), o1.remaining(), o2.remaining());
-        }
-
-        int end1 = o1.position() + o1.remaining();
-        int end2 = o2.position() + o2.remaining();
-        for (int i = o1.position(), j = o2.position(); i < end1 && j < end2; i++, j++)
-        {
-            int a = (o1.get(i) & 0xff);
-            int b = (o2.get(j) & 0xff);
-            if (a != b)
-                return a - b;
-        }
-        return o1.remaining() - o2.remaining();
+        return FastByteOperations.compareUnsigned(o1, o2);
     }
 
     public static int compare(byte[] o1, ByteBuffer o2)
     {
-        return compareUnsigned(ByteBuffer.wrap(o1), o2);
+        return FastByteOperations.compareUnsigned(o1, 0, o1.length, o2);
     }
 
     public static int compare(ByteBuffer o1, byte[] o2)
     {
-        return compareUnsigned(o1, ByteBuffer.wrap(o2));
+        return FastByteOperations.compareUnsigned(o1, o2, 0, o2.length);
     }
 
     /**
@@ -270,12 +253,9 @@ public class ByteBufferUtil
         return clone;
     }
 
-    public static void arrayCopy(ByteBuffer buffer, int position, byte[] bytes, int offset, int length)
+    public static void arrayCopy(ByteBuffer src, int srcPos, byte[] dst, int dstPos, int length)
     {
-        if (buffer.hasArray())
-            System.arraycopy(buffer.array(), buffer.arrayOffset() + position, bytes, offset, length);
-        else
-            ((ByteBuffer) buffer.duplicate().position(position)).get(bytes, offset, length);
+        FastByteOperations.copy(src, srcPos, dst, dstPos, length);
     }
 
     /**
@@ -290,29 +270,13 @@ public class ByteBufferUtil
      */
     public static void arrayCopy(ByteBuffer src, int srcPos, ByteBuffer dst, int dstPos, int length)
     {
-        if (src.hasArray() && dst.hasArray())
-        {
-            System.arraycopy(src.array(),
-                             src.arrayOffset() + srcPos,
-                             dst.array(),
-                             dst.arrayOffset() + dstPos,
-                             length);
-        }
-        else
-        {
-            if (src.limit() - srcPos < length || dst.limit() - dstPos < length)
-                throw new IndexOutOfBoundsException();
-
-            for (int i = 0; i < length; i++)
-                // TODO: ByteBuffer.put is polymorphic, and might be slow here
-                dst.put(dstPos++, src.get(srcPos++));
-        }
+        FastByteOperations.copy(src, srcPos, dst, dstPos, length);
     }
 
-    public static void writeWithLength(ByteBuffer bytes, DataOutput out) throws IOException
+    public static void writeWithLength(ByteBuffer bytes, DataOutputPlus out) throws IOException
     {
         out.writeInt(bytes.remaining());
-        write(bytes, out); // writing data bytes to output source
+        out.write(bytes);
     }
 
     public static void writeWithLength(byte[] bytes, DataOutput out) throws IOException
@@ -321,27 +285,20 @@ public class ByteBufferUtil
         out.write(bytes);
     }
 
-    public static void write(ByteBuffer buffer, DataOutput out) throws IOException
-    {
-        if (buffer.hasArray())
-        {
-            out.write(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
-        }
-        else
-        {
-            for (int i = buffer.position(); i < buffer.limit(); i++)
-            {
-                out.writeByte(buffer.get(i));
-            }
-        }
-    }
-
-    public static void writeWithShortLength(ByteBuffer buffer, DataOutput out) throws IOException
+    public static void writeWithShortLength(ByteBuffer buffer, DataOutputPlus out) throws IOException
     {
         int length = buffer.remaining();
         assert 0 <= length && length <= FBUtilities.MAX_UNSIGNED_SHORT : length;
         out.writeShort(length);
-        write(buffer, out); // writing data bytes to output source
+        out.write(buffer);
+    }
+
+    public static void writeWithShortLength(byte[] buffer, DataOutput out) throws IOException
+    {
+        int length = buffer.length;
+        assert 0 <= length && length <= FBUtilities.MAX_UNSIGNED_SHORT : length;
+        out.writeShort(length);
+        out.write(buffer);
     }
 
     public static ByteBuffer readWithLength(DataInput in) throws IOException

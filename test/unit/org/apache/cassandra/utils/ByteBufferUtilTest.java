@@ -32,6 +32,9 @@ import java.util.Arrays;
 
 import org.junit.Test;
 
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.FastByteArrayOutputStream;
+
 public class ByteBufferUtilTest
 {
     private static final String s = "cassandra";
@@ -171,12 +174,11 @@ public class ByteBufferUtilTest
 
     private void checkReadWrite(ByteBuffer bb) throws IOException
     {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        DataOutputStream out = new DataOutputStream(bos);
+        DataOutputBuffer out = new DataOutputBuffer();
         ByteBufferUtil.writeWithLength(bb, out);
         ByteBufferUtil.writeWithShortLength(bb, out);
 
-        DataInputStream in = new DataInputStream(new ByteArrayInputStream(bos.toByteArray()));
+        DataInputStream in = new DataInputStream(new ByteArrayInputStream(out.toByteArray()));
         assert bb.equals(ByteBufferUtil.readWithLength(in));
         assert bb.equals(ByteBufferUtil.readWithShortLength(in));
     }

@@ -18,12 +18,12 @@
 package org.apache.cassandra.cache;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 
 public class SerializingCacheProvider
@@ -36,7 +36,7 @@ public class SerializingCacheProvider
     // Package protected for tests
     static class RowCacheSerializer implements ISerializer<IRowCacheEntry>
     {
-        public void serialize(IRowCacheEntry entry, DataOutput out) throws IOException
+        public void serialize(IRowCacheEntry entry, DataOutputPlus out) throws IOException
         {
             assert entry != null; // unlike CFS we don't support nulls, since there is no need for that in the cache
             boolean isSentinel = entry instanceof RowCacheSentinel;

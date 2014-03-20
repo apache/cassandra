@@ -580,7 +580,7 @@ h3(#batchStmt). BATCH
 __Syntax:__
 
 bc(syntax).. 
-<batch-stmt> ::= BEGIN BATCH
+<batch-stmt> ::= BEGIN ( UNLOGGED | COUNTER ) BATCH
                  ( USING <option> ( AND <option> )* )?
                     <modification-stmt> ( ';' <modification-stmt> )*
                  APPLY BATCH
@@ -601,10 +601,21 @@ BEGIN BATCH
   DELETE name FROM users WHERE userid = 'user1';
 APPLY BATCH;
 
-The @BATCH@ statement group multiple modification statements (insertions/updates and deletions) into a single statement. It mainly serves two purposes:
-# it saves network round-trips between the client and the server (and sometimes between the server coordinator and the replicas) when batching multiple updates.
-# all updates in a @BATCH@ belonging to a given partition key are performed atomically and in isolation
+The @BATCH@ statement group multiple modification statements (insertions/updates and deletions) into a single statement. It serves several purposes:
+# It saves network round-trips between the client and the server (and sometimes between the server coordinator and the replicas) when batching multiple updates.
+# All updates in a @BATCH@ belonging to a given partition key are performed in isolation.
+# By default, all operations in the batch are performed atomically.  See the notes on "@UNLOGGED@":#unloggedBatch for more details.
 Note however that the @BATCH@ statement only allows @UPDATE@, @INSERT@ and @DELETE@ statements and is _not_ a full analogue for SQL transactions.
+
+h4(#unloggedBatch). @UNLOGGED@
+
+By default, Cassandra uses a batch log to ensure all operations in a batch are applied atomically. (Note that the operations are still only isolated within a single partition.)
+
+There is a performance penalty for batch atomicity when a batch spans multiple partitions. If you do not want to incur this penalty, you can tell Cassandra to skip the batchlog with the @UNLOGGED@ option. If the @UNLOGGED@ option is used, operations are only atomic within a single partition.
+
+h4(#counterBatch). @COUNTER@
+
+Use the @COUNTER@ option for batched counter updates.  Unlike other updates in Cassandra, counter updates are not idempotent.
 
 h4(#batchOptions). @<option>@
 
@@ -1005,6 +1016,10 @@ CREATE TABLE users (
 )
 
 then the @token@ function will take a single argument of type @text@ (in that case, the partition key is @userid@ (there is no clustering columns so the partition key is the same than the primary key)), and the return type will be @bigint@.
+
+h3(#uuidFun). Uuid
+
+The @uuid@ function takes no parameters and generates a random type 4 uuid suitable for use in INSERT or SET statements.
 
 h3(#timeuuidFun). Timeuuid functions
 

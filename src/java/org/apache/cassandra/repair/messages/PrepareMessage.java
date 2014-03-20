@@ -18,7 +18,6 @@
 package org.apache.cassandra.repair.messages;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -28,6 +27,7 @@ import java.util.UUID;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 
@@ -49,7 +49,7 @@ public class PrepareMessage extends RepairMessage
 
     public static class PrepareMessageSerializer implements MessageSerializer<PrepareMessage>
     {
-        public void serialize(PrepareMessage message, DataOutput out, int version) throws IOException
+        public void serialize(PrepareMessage message, DataOutputPlus out, int version) throws IOException
         {
             out.writeInt(message.cfIds.size());
             for (UUID cfId : message.cfIds)

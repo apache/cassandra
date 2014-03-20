@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 package org.apache.cassandra.utils;
+import java.nio.ByteBuffer;
 import java.util.zip.Checksum;
 
 /**
@@ -29,7 +30,10 @@ import java.util.zip.Checksum;
  * java.util.zip.CRC32 in Java 1.6
  *
  * @see java.util.zip.CRC32
- * * This class is copied from hadoop-commons project. * (The initial patch added PureJavaCrc32 was HADOOP-6148) */
+ *
+ * This class is copied from hadoop-commons project.
+ * (The initial patch added PureJavaCrc32 was HADOOP-6148)
+ */
 public class PureJavaCrc32 implements Checksum {
 
   /** the current CRC value, bit-flipped */
@@ -91,7 +95,47 @@ public class PureJavaCrc32 implements Checksum {
     crc = localCrc;
   }
 
-  @Override
+    public void update(ByteBuffer b, int off, int len) {
+        int localCrc = crc;
+
+        while(len > 7) {
+            final int c0 =(b.get(off+0) ^ localCrc) & 0xff;
+            final int c1 =(b.get(off+1) ^ (localCrc >>>= 8)) & 0xff;
+            final int c2 =(b.get(off+2) ^ (localCrc >>>= 8)) & 0xff;
+            final int c3 =(b.get(off+3) ^ (localCrc >>>= 8)) & 0xff;
+            localCrc = (T[T8_7_start + c0] ^ T[T8_6_start + c1])
+                       ^ (T[T8_5_start + c2] ^ T[T8_4_start + c3]);
+
+            final int c4 = b.get(off+4) & 0xff;
+            final int c5 = b.get(off+5) & 0xff;
+            final int c6 = b.get(off+6) & 0xff;
+            final int c7 = b.get(off+7) & 0xff;
+
+            localCrc ^= (T[T8_3_start + c4] ^ T[T8_2_start + c5])
+                        ^ (T[T8_1_start + c6] ^ T[T8_0_start + c7]);
+
+            off += 8;
+            len -= 8;
+        }
+
+    /* loop unroll - duff's device style */
+        switch(len) {
+            case 7: localCrc = (localCrc >>> 8) ^ T[T8_0_start + ((localCrc ^ b.get(off++)) & 0xff)];
+            case 6: localCrc = (localCrc >>> 8) ^ T[T8_0_start + ((localCrc ^ b.get(off++)) & 0xff)];
+            case 5: localCrc = (localCrc >>> 8) ^ T[T8_0_start + ((localCrc ^ b.get(off++)) & 0xff)];
+            case 4: localCrc = (localCrc >>> 8) ^ T[T8_0_start + ((localCrc ^ b.get(off++)) & 0xff)];
+            case 3: localCrc = (localCrc >>> 8) ^ T[T8_0_start + ((localCrc ^ b.get(off++)) & 0xff)];
+            case 2: localCrc = (localCrc >>> 8) ^ T[T8_0_start + ((localCrc ^ b.get(off++)) & 0xff)];
+            case 1: localCrc = (localCrc >>> 8) ^ T[T8_0_start + ((localCrc ^ b.get(off++)) & 0xff)];
+            default:
+        /* nothing */
+        }
+
+        // Publish crc out to object
+        crc = localCrc;
+    }
+
+    @Override
   final public void update(int b) {
     crc = (crc >>> 8) ^ T[T8_0_start + ((crc ^ b) & 0xff)];
   }

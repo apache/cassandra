@@ -18,12 +18,12 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -71,7 +71,7 @@ public abstract class RowPosition implements RingPosition<RowPosition>
          * token is recreated on the other side). In the other cases, we then
          * serialize the token.
          */
-        public void serialize(RowPosition pos, DataOutput out) throws IOException
+        public void serialize(RowPosition pos, DataOutputPlus out) throws IOException
         {
             Kind kind = pos.kind();
             out.writeByte(kind.ordinal());

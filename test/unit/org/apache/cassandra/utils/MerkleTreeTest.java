@@ -30,6 +30,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.MerkleTree.Hashable;
 import org.apache.cassandra.utils.MerkleTree.RowHash;
@@ -392,7 +393,7 @@ public class MerkleTreeTest
 
         byte[] initialhash = mt.hash(full);
 
-        ByteArrayDataOutput out = ByteStreams.newDataOutput();
+        DataOutputBuffer out = new DataOutputBuffer();
         MerkleTree.serializer.serialize(mt, out, MessagingService.current_version);
         byte[] serialized = out.toByteArray();
 

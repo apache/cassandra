@@ -18,12 +18,10 @@
 package org.apache.cassandra.service.pager;
 
 import java.io.DataInputStream;
-import java.io.DataOutput;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.io.util.ByteBufferOutputStream;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -63,13 +61,11 @@ public class PagingState
     {
         try
         {
-            ByteBuffer result = ByteBuffer.allocate(serializedSize());
-            DataOutput out = new DataOutputStream(new ByteBufferOutputStream(result));
+            DataOutputBuffer out = new DataOutputBuffer(serializedSize());
             ByteBufferUtil.writeWithShortLength(partitionKey, out);
             ByteBufferUtil.writeWithShortLength(cellName, out);
             out.writeInt(remaining);
-            result.flip();
-            return result;
+            return out.asByteBuffer();
         }
         catch (IOException e)
         {
