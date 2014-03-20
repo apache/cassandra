@@ -67,11 +67,6 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return sb.toString();
     }
 
-    public int compare(ByteBuffer o1, ByteBuffer o2)
-    {
-        throw new UnsupportedOperationException("CollectionType should not be use directly as a comparator");
-    }
-
     public String getString(ByteBuffer bytes)
     {
         return BytesType.instance.getString(bytes);
