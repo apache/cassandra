@@ -227,18 +227,22 @@ public class SecondaryIndexManager
         if (index == null)
             return;
 
-        // Remove this column from from row level index map
+        // Remove this column from from row level index map as well as all indexes set
         if (index instanceof PerRowSecondaryIndex)
         {
             index.removeColumnDef(column);
 
-            //If now columns left on this CF remove from row level lookup
+            // If no columns left remove from row level lookup as well as all indexes set
             if (index.getColumnDefs().isEmpty())
+            {
+                allIndexes.remove(index);
                 rowLevelIndexMap.remove(index.getClass());
+            }
         }
-
-        // Remove from all indexes set:
-        allIndexes.remove(index);
+        else
+        {
+            allIndexes.remove(index);
+        }
 
         index.removeIndex(column);
         SystemKeyspace.setIndexRemoved(baseCfs.metadata.ksName, index.getNameForSystemKeyspace(column));
