@@ -30,6 +30,7 @@
  * Improve cleanup/scrub/upgradesstables failure handling (CASSANDRA-6774)
  * ByteBuffer write() methods for serializing sstables (CASSANDRA-6781)
  * Proper compare function for CollectionType (CASSANDRA-6783)
+ * Update native server to Netty 4 (CASSANDRA-6236)
 Merged from 2.0:
  * Add uuid() function (CASSANDRA-6473)
  * Omit tombstones from schema digests (CASSANDRA-6862)

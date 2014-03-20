@@ -23,7 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-import org.jboss.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -43,7 +43,7 @@ public class BatchMessage extends Message.Request
 {
     public static final Message.Codec<BatchMessage> codec = new Message.Codec<BatchMessage>()
     {
-        public BatchMessage decode(ChannelBuffer body, int version)
+        public BatchMessage decode(ByteBuf body, int version)
         {
             if (version == 1)
                 throw new ProtocolException("BATCH messages are not support in version 1 of the protocol");
@@ -67,7 +67,7 @@ public class BatchMessage extends Message.Request
             return new BatchMessage(toType(type), queryOrIds, variables, consistency);
         }
 
-        public void encode(BatchMessage msg, ChannelBuffer dest, int version)
+        public void encode(BatchMessage msg, ByteBuf dest, int version)
         {
             int queries = msg.queryOrIdList.size();
 

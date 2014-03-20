@@ -18,13 +18,14 @@
 package org.apache.cassandra.transport;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.UUID;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.*;
-import org.jboss.netty.handler.codec.oneone.OneToOneDecoder;
-import org.jboss.netty.handler.codec.oneone.OneToOneEncoder;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.*;
+import io.netty.handler.codec.MessageToMessageDecoder;
+import io.netty.handler.codec.MessageToMessageEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -195,13 +196,11 @@ public abstract class Message
         }
     }
 
-    public static class ProtocolDecoder extends OneToOneDecoder
+    @ChannelHandler.Sharable
+    public static class ProtocolDecoder extends MessageToMessageDecoder<Frame>
     {
-        public Object decode(ChannelHandlerContext ctx, Channel channel, Object msg)
+        public void decode(ChannelHandlerContext ctx, Frame frame, List results)
         {
-            assert msg instanceof Frame : "Expecting frame, got " + msg;
-
-            Frame frame = (Frame)msg;
             boolean isRequest = frame.header.type.direction == Direction.REQUEST;
             boolean isTracing = frame.header.flags.contains(Frame.Header.Flag.TRACING);
 
@@ -216,7 +215,8 @@ public abstract class Message
                 {
                     assert message instanceof Request;
                     Request req = (Request)message;
-                    req.attach((Connection)channel.getAttachment());
+                    Connection connection = ctx.channel().attr(Connection.attributeKey).get();
+                    req.attach(connection);
                     if (isTracing)
                         req.setTracingRequested();
                 }
@@ -227,7 +227,7 @@ public abstract class Message
                         ((Response)message).setTracingId(tracingId);
                 }
 
-                return message;
+                results.add(message);
             }
             catch (Exception ex)
             {
@@ -237,15 +237,12 @@ public abstract class Message
         }
     }
 
-    public static class ProtocolEncoder extends OneToOneEncoder
+    @ChannelHandler.Sharable
+    public static class ProtocolEncoder extends MessageToMessageEncoder<Message>
     {
-        public Object encode(ChannelHandlerContext ctx, Channel channel, Object msg)
+        public void encode(ChannelHandlerContext ctx, Message message, List results)
         {
-            assert msg instanceof Message : "Expecting message, got " + msg;
-
-            Message message = (Message)msg;
-
-            Connection connection = (Connection)channel.getAttachment();
+            Connection connection = ctx.channel().attr(Connection.attributeKey).get();
             // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
             int version = connection == null ? Server.CURRENT_VERSION : connection.getVersion();
 
@@ -253,46 +250,40 @@ public abstract class Message
 
             Codec<Message> codec = (Codec<Message>)message.type.codec;
             int messageSize = codec.encodedSize(message, version);
-            ChannelBuffer body;
+            ByteBuf body;
             if (message instanceof Response)
             {
                 UUID tracingId = ((Response)message).getTracingId();
                 if (tracingId != null)
                 {
-                    body = ChannelBuffers.buffer(CBUtil.sizeOfUUID(tracingId) + messageSize);
+                    body = Unpooled.buffer(CBUtil.sizeOfUUID(tracingId) + messageSize);
                     CBUtil.writeUUID(tracingId, body);
                     flags.add(Frame.Header.Flag.TRACING);
                 }
                 else
                 {
-                    body = ChannelBuffers.buffer(messageSize);
+                    body = Unpooled.buffer(messageSize);
                 }
             }
             else
             {
                 assert message instanceof Request;
-                body = ChannelBuffers.buffer(messageSize);
+                body = Unpooled.buffer(messageSize);
                 if (((Request)message).isTracingRequested())
                     flags.add(Frame.Header.Flag.TRACING);
             }
 
             codec.encode(message, body, version);
-            return Frame.create(message.type, message.getStreamId(), version, flags, body);
+            results.add(Frame.create(message.type, message.getStreamId(), version, flags, body));
         }
     }
 
-    public static class Dispatcher extends SimpleChannelUpstreamHandler
+    @ChannelHandler.Sharable
+    public static class Dispatcher extends SimpleChannelInboundHandler<Request>
     {
         @Override
-        public void messageReceived(ChannelHandlerContext ctx, MessageEvent e)
+        public void channelRead0(ChannelHandlerContext ctx, Request request)
         {
-            assert e.getMessage() instanceof Message : "Expecting message, got " + e.getMessage();
-
-            if (e.getMessage() instanceof Response)
-                throw new ProtocolException("Invalid response message received, expecting requests");
-
-            Request request = (Request)e.getMessage();
-
             try
             {
                 assert request.connection() instanceof ServerConnection;
@@ -308,28 +299,28 @@ public abstract class Message
 
                 logger.debug("Responding: {}, v={}", response, connection.getVersion());
 
-                ctx.getChannel().write(response);
+                ctx.channel().writeAndFlush(response);
             }
             catch (Exception ex)
             {
                 // Don't let the exception propagate to exceptionCaught() if we can help it so that we can assign the right streamID.
-                ctx.getChannel().write(ErrorMessage.fromException(ex).setStreamId(request.getStreamId()));
+                ctx.channel().writeAndFlush(ErrorMessage.fromException(ex).setStreamId(request.getStreamId()));
             }
         }
 
         @Override
-        public void exceptionCaught(final ChannelHandlerContext ctx, ExceptionEvent e)
+        public void exceptionCaught(final ChannelHandlerContext ctx, Throwable cause)
         throws Exception
         {
-            if (ctx.getChannel().isOpen())
+            if (ctx.channel().isOpen())
             {
-                ChannelFuture future = ctx.getChannel().write(ErrorMessage.fromException(e.getCause()));
+                ChannelFuture future = ctx.channel().writeAndFlush(ErrorMessage.fromException(cause));
                 // On protocol exception, close the channel as soon as the message have been sent
-                if (e.getCause() instanceof ProtocolException)
+                if (cause instanceof ProtocolException)
                 {
                     future.addListener(new ChannelFutureListener() {
                         public void operationComplete(ChannelFuture future) {
-                            ctx.getChannel().close();
+                            ctx.channel().close();
                         }
                     });
                 }

@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
-import org.jboss.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -39,7 +39,7 @@ public class ExecuteMessage extends Message.Request
 {
     public static final Message.Codec<ExecuteMessage> codec = new Message.Codec<ExecuteMessage>()
     {
-        public ExecuteMessage decode(ChannelBuffer body, int version)
+        public ExecuteMessage decode(ByteBuf body, int version)
         {
             byte[] id = CBUtil.readBytes(body);
             if (version == 1)
@@ -54,7 +54,7 @@ public class ExecuteMessage extends Message.Request
             }
         }
 
-        public void encode(ExecuteMessage msg, ChannelBuffer dest, int version)
+        public void encode(ExecuteMessage msg, ByteBuf dest, int version)
         {
             CBUtil.writeBytes(msg.statementId.bytes, dest);
             if (version == 1)

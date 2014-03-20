@@ -19,7 +19,7 @@ package org.apache.cassandra.transport.messages;
 
 import java.util.*;
 
-import org.jboss.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -36,13 +36,13 @@ public abstract class ResultMessage extends Message.Response
 {
     public static final Message.Codec<ResultMessage> codec = new Message.Codec<ResultMessage>()
     {
-        public ResultMessage decode(ChannelBuffer body, int version)
+        public ResultMessage decode(ByteBuf body, int version)
         {
             Kind kind = Kind.fromId(body.readInt());
             return kind.subcodec.decode(body, version);
         }
 
-        public void encode(ResultMessage msg, ChannelBuffer dest, int version)
+        public void encode(ResultMessage msg, ByteBuf dest, int version)
         {
             dest.writeInt(msg.kind.id);
             msg.kind.subcodec.encode(msg, dest, version);
@@ -116,12 +116,12 @@ public abstract class ResultMessage extends Message.Response
 
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
-            public ResultMessage decode(ChannelBuffer body, int version)
+            public ResultMessage decode(ByteBuf body, int version)
             {
                 return new Void();
             }
 
-            public void encode(ResultMessage msg, ChannelBuffer dest, int version)
+            public void encode(ResultMessage msg, ByteBuf dest, int version)
             {
                 assert msg instanceof Void;
             }
@@ -156,13 +156,13 @@ public abstract class ResultMessage extends Message.Response
 
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
-            public ResultMessage decode(ChannelBuffer body, int version)
+            public ResultMessage decode(ByteBuf body, int version)
             {
                 String keyspace = CBUtil.readString(body);
                 return new SetKeyspace(keyspace);
             }
 
-            public void encode(ResultMessage msg, ChannelBuffer dest, int version)
+            public void encode(ResultMessage msg, ByteBuf dest, int version)
             {
                 assert msg instanceof SetKeyspace;
                 CBUtil.writeString(((SetKeyspace)msg).keyspace, dest);
@@ -191,12 +191,12 @@ public abstract class ResultMessage extends Message.Response
     {
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
-            public ResultMessage decode(ChannelBuffer body, int version)
+            public ResultMessage decode(ByteBuf body, int version)
             {
                 return new Rows(ResultSet.codec.decode(body, version));
             }
 
-            public void encode(ResultMessage msg, ChannelBuffer dest, int version)
+            public void encode(ResultMessage msg, ByteBuf dest, int version)
             {
                 assert msg instanceof Rows;
                 Rows rowMsg = (Rows)msg;
@@ -236,7 +236,7 @@ public abstract class ResultMessage extends Message.Response
     {
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
-            public ResultMessage decode(ChannelBuffer body, int version)
+            public ResultMessage decode(ByteBuf body, int version)
             {
                 MD5Digest id = MD5Digest.wrap(CBUtil.readBytes(body));
                 ResultSet.Metadata metadata = ResultSet.Metadata.codec.decode(body, version);
@@ -248,7 +248,7 @@ public abstract class ResultMessage extends Message.Response
                 return new Prepared(id, -1, metadata, resultMetadata);
             }
 
-            public void encode(ResultMessage msg, ChannelBuffer dest, int version)
+            public void encode(ResultMessage msg, ByteBuf dest, int version)
             {
                 assert msg instanceof Prepared;
                 Prepared prepared = (Prepared)msg;
@@ -356,7 +356,7 @@ public abstract class ResultMessage extends Message.Response
 
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
-            public ResultMessage decode(ChannelBuffer body, int version)
+            public ResultMessage decode(ByteBuf body, int version)
             {
                 Change change = CBUtil.readEnumValue(Change.class, body);
                 String keyspace = CBUtil.readString(body);
@@ -365,7 +365,7 @@ public abstract class ResultMessage extends Message.Response
 
             }
 
-            public void encode(ResultMessage msg, ChannelBuffer dest, int version)
+            public void encode(ResultMessage msg, ByteBuf dest, int version)
             {
                 assert msg instanceof SchemaChange;
                 SchemaChange scm = (SchemaChange)msg;

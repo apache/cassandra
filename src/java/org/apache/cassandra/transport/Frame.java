@@ -20,13 +20,14 @@ package org.apache.cassandra.transport;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.List;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.*;
-import org.jboss.netty.handler.codec.oneone.OneToOneDecoder;
-import org.jboss.netty.handler.codec.oneone.OneToOneEncoder;
-import org.jboss.netty.handler.codec.frame.*;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.*;
+import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.codec.MessageToMessageDecoder;
+import io.netty.handler.codec.MessageToMessageEncoder;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -35,7 +36,7 @@ import org.apache.cassandra.transport.messages.ErrorMessage;
 public class Frame
 {
     public final Header header;
-    public final ChannelBuffer body;
+    public final ByteBuf body;
 
     /**
      * On-wire frame.
@@ -48,13 +49,13 @@ public class Frame
      *   |                length                 |
      *   +---------+---------+---------+---------+
      */
-    private Frame(Header header, ChannelBuffer body)
+    private Frame(Header header, ByteBuf body)
     {
         this.header = header;
         this.body = body;
     }
 
-    public static Frame create(Message.Type type, int streamId, int version, EnumSet<Header.Flag> flags, ChannelBuffer body)
+    public static Frame create(Message.Type type, int streamId, int version, EnumSet<Header.Flag> flags, ByteBuf body)
     {
         Header header = new Header(version, flags, streamId, type);
         return new Frame(header, body);
@@ -113,12 +114,12 @@ public class Frame
         }
     }
 
-    public Frame with(ChannelBuffer newBody)
+    public Frame with(ByteBuf newBody)
     {
         return new Frame(header, newBody);
     }
 
-    public static class Decoder extends FrameDecoder
+    public static class Decoder extends ByteToMessageDecoder
     {
         private static final int MAX_FRAME_LENGTH = DatabaseDescriptor.getNativeTransportMaxFrameSize();
 
@@ -135,7 +136,7 @@ public class Frame
         }
 
         @Override
-        protected Object decode(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer)
+        protected void decode(ChannelHandlerContext ctx, ByteBuf buffer, List<Object> results)
         throws Exception
         {
             if (discardingTooLongFrame)
@@ -144,12 +145,12 @@ public class Frame
                 // If we have discarded everything, throw the exception
                 if (bytesToDiscard <= 0)
                     fail();
-                return null;
+                return;
             }
 
             // Wait until we have read at least the header
             if (buffer.readableBytes() < Header.LENGTH)
-                return null;
+                return;
 
             int idx = buffer.readerIndex();
 
@@ -184,31 +185,32 @@ public class Frame
                 bytesToDiscard = discard(buffer, frameLength);
                 if (bytesToDiscard <= 0)
                     fail();
-                return null;
+                return;
             }
 
             // never overflows because it's less than the max frame length
             int frameLengthInt = (int) frameLength;
             if (buffer.readableBytes() < frameLengthInt)
-                return null;
+                return;
 
             // extract body
-            ChannelBuffer body = extractFrame(buffer, idx + Header.LENGTH, (int)bodyLength);
+            // TODO: do we need unpooled?
+            ByteBuf body = Unpooled.copiedBuffer(buffer.duplicate().slice(idx + Header.LENGTH, (int) bodyLength));
             buffer.readerIndex(idx + frameLengthInt);
 
-            Connection connection = (Connection)channel.getAttachment();
+            Connection connection = ctx.channel().attr(Connection.attributeKey).get();
             if (connection == null)
             {
                 // First message seen on this channel, attach the connection object
-                connection = factory.newConnection(channel, version);
-                channel.setAttachment(connection);
+                connection = factory.newConnection(ctx.channel(), version);
+                ctx.channel().attr(Connection.attributeKey).set(connection);
             }
             else if (connection.getVersion() != version)
             {
                 throw new ProtocolException(String.format("Invalid message version. Got %d but previous messages on this connection had version %d", version, connection.getVersion()));
             }
 
-            return new Frame(new Header(version, flags, streamId, type), body);
+            results.add(new Frame(new Header(version, flags, streamId, type), body));
         }
 
         private void fail()
@@ -223,23 +225,20 @@ public class Frame
     }
 
     // How much remains to be discarded
-    private static long discard(ChannelBuffer buffer, long remainingToDiscard)
+    private static long discard(ByteBuf buffer, long remainingToDiscard)
     {
         int availableToDiscard = (int) Math.min(remainingToDiscard, buffer.readableBytes());
         buffer.skipBytes(availableToDiscard);
         return remainingToDiscard - availableToDiscard;
     }
 
-    public static class Encoder extends OneToOneEncoder
+    @ChannelHandler.Sharable
+    public static class Encoder extends MessageToMessageEncoder<Frame>
     {
-        public Object encode(ChannelHandlerContext ctx, Channel channel, Object msg)
+        public void encode(ChannelHandlerContext ctx, Frame frame, List results)
         throws IOException
         {
-            assert msg instanceof Frame : "Expecting frame, got " + msg;
-
-            Frame frame = (Frame)msg;
-
-            ChannelBuffer header = ChannelBuffers.buffer(Frame.Header.LENGTH);
+            ByteBuf header = Unpooled.buffer(Frame.Header.LENGTH);
             Message.Type type = frame.header.type;
             header.writeByte(type.direction.addToVersion(frame.header.version));
             header.writeByte(Header.Flag.serialize(frame.header.flags));
@@ -247,52 +246,59 @@ public class Frame
             header.writeByte(type.opcode);
             header.writeInt(frame.body.readableBytes());
 
-            return ChannelBuffers.wrappedBuffer(header, frame.body);
+            results.add(Unpooled.wrappedBuffer(header, frame.body));
         }
     }
 
-    public static class Decompressor extends OneToOneDecoder
+    @ChannelHandler.Sharable
+    public static class Decompressor extends MessageToMessageDecoder<Frame>
     {
-        public Object decode(ChannelHandlerContext ctx, Channel channel, Object msg)
+        public void decode(ChannelHandlerContext ctx, Frame frame, List results)
         throws IOException
         {
-            assert msg instanceof Frame : "Expecting frame, got " + msg;
-
-            Frame frame = (Frame)msg;
-            Connection connection = (Connection)channel.getAttachment();
+            Connection connection = ctx.channel().attr(Connection.attributeKey).get();
 
             if (!frame.header.flags.contains(Header.Flag.COMPRESSED) || connection == null)
-                return frame;
+            {
+                results.add(frame);
+                return;
+            }
 
             FrameCompressor compressor = connection.getCompressor();
             if (compressor == null)
-                return frame;
+            {
+                results.add(frame);
+                return;
+            }
 
-            return compressor.decompress(frame);
+            results.add(compressor.decompress(frame));
         }
     }
 
-    public static class Compressor extends OneToOneEncoder
+    @ChannelHandler.Sharable
+    public static class Compressor extends MessageToMessageEncoder<Frame>
     {
-        public Object encode(ChannelHandlerContext ctx, Channel channel, Object msg)
+        public void encode(ChannelHandlerContext ctx, Frame frame, List results)
         throws IOException
         {
-            assert msg instanceof Frame : "Expecting frame, got " + msg;
-
-            Frame frame = (Frame)msg;
-            Connection connection = (Connection)channel.getAttachment();
+            Connection connection = ctx.channel().attr(Connection.attributeKey).get();
 
             // Never compress STARTUP messages
             if (frame.header.type == Message.Type.STARTUP || connection == null)
-                return frame;
+            {
+                results.add(frame);
+                return;
+            }
 
             FrameCompressor compressor = connection.getCompressor();
             if (compressor == null)
-                return frame;
+            {
+                results.add(frame);
+                return;
+            }
 
             frame.header.flags.add(Header.Flag.COMPRESSED);
-            return compressor.compress(frame);
-
+            results.add(compressor.compress(frame));
         }
     }
 }

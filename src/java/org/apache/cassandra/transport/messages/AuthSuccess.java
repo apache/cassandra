@@ -19,7 +19,7 @@ package org.apache.cassandra.transport.messages;
 
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
-import org.jboss.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ByteBuf;
 
 import java.nio.ByteBuffer;
 
@@ -33,7 +33,7 @@ public class AuthSuccess extends Message.Response
 {
     public static final Message.Codec<AuthSuccess> codec = new Message.Codec<AuthSuccess>()
     {
-        public AuthSuccess decode(ChannelBuffer body, int version)
+        public AuthSuccess decode(ByteBuf body, int version)
         {
             ByteBuffer b = CBUtil.readValue(body);
             byte[] token = new byte[b.remaining()];
@@ -41,7 +41,7 @@ public class AuthSuccess extends Message.Response
             return new AuthSuccess(token);
         }
 
-        public void encode(AuthSuccess success, ChannelBuffer dest, int version)
+        public void encode(AuthSuccess success, ByteBuf dest, int version)
         {
             CBUtil.writeValue(success.token, dest);
         }
