@@ -50,6 +50,7 @@ import locale
 import platform
 import warnings
 import csv
+import getpass
 
 
 readline = None
@@ -465,7 +466,9 @@ class Shell(cmd.Cmd):
         self.hostname = hostname
         self.port = port
         self.auth_provider = None
-        if username and password:
+        if username:
+            if not password:
+                password = getpass.getpass()
             self.auth_provider = lambda host: dict(username=username, password=password)
         self.keyspace = keyspace
         self.tracing_enabled = tracing_enabled
