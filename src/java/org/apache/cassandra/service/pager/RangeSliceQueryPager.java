@@ -81,7 +81,8 @@ public class RangeSliceQueryPager extends AbstractQueryPager
                                                           start,
                                                           sf.finish(),
                                                           command.rowFilter,
-                                                          pageSize);
+                                                          pageSize,
+                                                          command.countCQL3Rows);
 
         return localQuery
              ? pageCmd.executeLocally()
