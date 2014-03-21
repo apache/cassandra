@@ -1671,10 +1671,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                              ByteBuffer columnStop,
                                              List<IndexExpression> rowFilter,
                                              int maxResults,
+                                             boolean countCQL3Rows,
                                              long now)
     {
         DataRange dataRange = new DataRange.Paging(keyRange, columnRange, columnStart, columnStop, metadata.comparator);
-        return ExtendedFilter.create(this, dataRange, rowFilter, maxResults, true, now);
+        return ExtendedFilter.create(this, dataRange, rowFilter, maxResults, countCQL3Rows, now);
     }
 
     public List<Row> getRangeSlice(AbstractBounds<RowPosition> range,

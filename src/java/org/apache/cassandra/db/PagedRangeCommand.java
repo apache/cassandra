@@ -97,14 +97,22 @@ public class PagedRangeCommand extends AbstractRangeCommand
 
     public boolean countCQL3Rows()
     {
-        return true;
+        // We only use PagedRangeCommand for CQL3. However, for SELECT DISTINCT, we want to return false here, because
+        // we just want to pick the first cell of each partition and returning true here would throw off the logic in
+        // ColumnFamilyStore.filter().
+        // What we do know is that for a SELECT DISTINCT the underlying SliceQueryFilter will have a compositesToGroup==-1
+        // and a count==1. And while it would be possible for a normal SELECT on a COMPACT table to also have such
+        // parameters, it's fine returning false since if we do count one cell for each partition, then each partition
+        // will coincide with exactly one CQL3 row.
+        SliceQueryFilter filter = (SliceQueryFilter)predicate;
+        return filter.compositesToGroup >= 0 || filter.count != 1;
     }
 
     public List<Row> executeLocally()
     {
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
 
-        ExtendedFilter exFilter = cfs.makeExtendedFilter(keyRange, (SliceQueryFilter)predicate, start, stop, rowFilter, limit, timestamp);
+        ExtendedFilter exFilter = cfs.makeExtendedFilter(keyRange, (SliceQueryFilter)predicate, start, stop, rowFilter, limit, countCQL3Rows(), timestamp);
         if (cfs.indexManager.hasIndexFor(rowFilter))
             return cfs.search(exFilter);
         else

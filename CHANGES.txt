@@ -25,6 +25,7 @@
  * Extend triggers to support CAS updates (CASSANDRA-6882)
  * Static columns with IF NOT EXISTS don't always work as expected (CASSANDRA-6873)
  * Add CqlRecordReader to take advantage of native CQL pagination (CASSANDRA-6311)
+ * Fix paging with SELECT DISTINCT (CASSANDRA-6857)
 Merged from 1.2:
  * Add UNLOGGED, COUNTER options to BATCH documentation (CASSANDRA-6816)
  * add extra SSL cipher suites (CASSANDRA-6613)
