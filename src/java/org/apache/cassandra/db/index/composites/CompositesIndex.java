@@ -132,8 +132,7 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
     public void delete(IndexedEntry entry)
     {
         // start a mini-transaction for this delete, to ensure safe memtable updates
-        OpOrder.Group opGroup = baseCfs.keyspace.writeOrder.start();
-        try
+        try (OpOrder.Group opGroup = baseCfs.keyspace.writeOrder.start())
         {
             int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
             ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
@@ -141,10 +140,6 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
             indexCfs.apply(entry.indexValue, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
             if (logger.isDebugEnabled())
                 logger.debug("removed index entry for cleaned-up value {}:{}", entry.indexValue, cfi);
-        }
-        finally
-        {
-            opGroup.finishOne();
         }
     }
 
