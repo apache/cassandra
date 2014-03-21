@@ -2298,21 +2298,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if(tag == null)
             tag = "";
 
-        Iterable<Keyspace> keyspaces;
-        if (keyspaceNames.length == 0)
+        Set<String> keyspaces = new HashSet<>();
+        for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
         {
-            keyspaces = Keyspace.all();
-        }
-        else
-        {
-            ArrayList<Keyspace> tempKeyspaces = new ArrayList<Keyspace>(keyspaceNames.length);
-            for(String keyspaceName : keyspaceNames)
-                tempKeyspaces.add(getValidKeyspace(keyspaceName));
-            keyspaces = tempKeyspaces;
+            for(String keyspaceDir : new File(dataDir).list())
+            {
+                // Only add a ks if it has been specified as a param, assuming params were actually provided.
+                if (keyspaceNames.length > 0 && !Arrays.asList(keyspaceNames).contains(keyspaceDir))
+                    continue;
+                keyspaces.add(keyspaceDir);
+            }
         }
 
-        for (Keyspace keyspace : keyspaces)
-            keyspace.clearSnapshot(tag);
+        for (String keyspace : keyspaces)
+            Keyspace.clearSnapshot(tag, keyspace);
 
         if (logger.isDebugEnabled())
             logger.debug("Cleared out snapshot directories");
