@@ -334,7 +334,7 @@ class OptionDistribution extends Option
         @Override
         public Distribution get()
         {
-            return new DistributionBoundApache(new UniformRealDistribution(min, max), min, max);
+            return new DistributionBoundApache(new UniformRealDistribution(min, max + 1), min, max);
         }
     }
 
