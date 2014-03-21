@@ -64,17 +64,12 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
         public void produce()
         {
-            Group opGroup = order.start();
-            try
+            try (Group opGroup = order.start())
             {
                 SharedState s = state;
                 while (s.barrier != null && !s.barrier.isAfter(opGroup))
                     s = s.getReplacement();
                 s.doProduceWork();
-            }
-            finally
-            {
-                opGroup.finishOne();
             }
         }
     }
@@ -97,7 +92,7 @@ public class OpOrder
 
     /**
      * Start an operation against this OpOrder.
-     * Once the operation is completed Ordered.finishOne() MUST be called EXACTLY once for this operation.
+     * Once the operation is completed Ordered.close() MUST be called EXACTLY once for this operation.
      *
      * @return the Ordered instance that manages this OpOrder
      */
@@ -131,17 +126,17 @@ public class OpOrder
 
     /**
      * Represents a group of identically ordered operations, i.e. all operations started in the interval between
-     * two barrier issuances. For each register() call this is returned, finishOne() must be called exactly once.
+     * two barrier issuances. For each register() call this is returned, close() must be called exactly once.
      * It should be treated like taking a lock().
      */
-    public static final class Group implements Comparable<Group>
+    public static final class Group implements Comparable<Group>, AutoCloseable
     {
         /**
          * In general this class goes through the following stages:
-         * 1) LIVE:      many calls to register() and finishOne()
+         * 1) LIVE:      many calls to register() and close()
          * 2) FINISHING: a call to expire() (after a barrier issue), means calls to register() will now fail,
          *               and we are now 'in the past' (new operations will be started against a new Ordered)
-         * 3) FINISHED:  once the last finishOne() is called, this Ordered is done. We call unlink().
+         * 3) FINISHED:  once the last close() is called, this Ordered is done. We call unlink().
          * 4) ZOMBIE:    all our operations are finished, but some operations against an earlier Ordered are still
          *               running, or tidying up, so unlink() fails to remove us
          * 5) COMPLETE:  all operations started on or before us are FINISHED (and COMPLETE), so we are unlinked
@@ -176,7 +171,7 @@ public class OpOrder
         }
 
         // prevents any further operations starting against this Ordered instance
-        // if there are no running operations, calls unlink; otherwise, we let the last op to finishOne call it.
+        // if there are no running operations, calls unlink; otherwise, we let the last op to close call it.
         // this means issue() won't have to block for ops to finish.
         private void expire()
         {
@@ -212,7 +207,7 @@ public class OpOrder
          * To be called exactly once for each register() call this object is returned for, indicating the operation
          * is complete
          */
-        public void finishOne()
+        public void close()
         {
             while (true)
             {

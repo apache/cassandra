@@ -21,14 +21,6 @@ package org.apache.cassandra.concurrent;
  */
 
 
-import org.apache.cassandra.utils.concurrent.OpOrder;
-
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
-import org.junit.*;
-import org.slf4j.*;
-
-import static org.junit.Assert.*;
-
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -36,6 +28,15 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.utils.concurrent.OpOrder;
+
+import static org.junit.Assert.assertTrue;
 
 // TODO: we don't currently test SAFE functionality at all!
 // TODO: should also test markBlocking and SyncOrdered
@@ -202,8 +203,7 @@ public class LongOpOrderTest
                 while (true)
                 {
                     AtomicInteger c;
-                    OpOrder.Group opGroup = order.start();
-                    try
+                    try (OpOrder.Group opGroup = order.start())
                     {
                         if (null == (c = count.get(opGroup)))
                         {
@@ -214,10 +214,6 @@ public class LongOpOrderTest
                         State s = state;
                         while (!s.accept(opGroup))
                             s = s.replacement;
-                    }
-                    finally
-                    {
-                        opGroup.finishOne();
                     }
                 }
             }

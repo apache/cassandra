@@ -178,7 +178,7 @@ public class CommitLogSegment
             int position = allocate(size);
             if (position < 0)
             {
-                commandOrder.finishOne();
+                commandOrder.close();
                 return false;
             }
             alloc.buffer = (ByteBuffer) buffer.duplicate().position(position).limit(position + size);
@@ -190,7 +190,7 @@ public class CommitLogSegment
         }
         catch (Throwable t)
         {
-            commandOrder.finishOne();
+            commandOrder.close();
             throw t;
         }
     }
@@ -216,8 +216,7 @@ public class CommitLogSegment
         // this actually isn't strictly necessary, as currently all calls to discardUnusedTail occur within a block
         // already protected by this OpOrdering, but to prevent future potential mistakes, we duplicate the protection here
         // so that the contract between discardUnusedTail() and sync() is more explicit.
-        OpOrder.Group group = appendOrder.start();
-        try
+        try (OpOrder.Group group = appendOrder.start())
         {
             while (true)
             {
@@ -232,10 +231,6 @@ public class CommitLogSegment
                     return;
                 }
             }
-        }
-        finally
-        {
-            group.finishOne();
         }
     }
 
@@ -581,7 +576,7 @@ public class CommitLogSegment
         // but must not be called more than once
         void markWritten()
         {
-            appendOp.finishOne();
+            appendOp.close();
         }
 
         void awaitDiskSync()
