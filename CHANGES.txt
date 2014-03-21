@@ -1,4 +1,5 @@
 2.0.7
+ * Allow deleting snapshots from dropped keyspaces (CASSANDRA-6821)
  * Add uuid() function (CASSANDRA-6473)
  * Omit tombstones from schema digests (CASSANDRA-6862)
  * Include correct consistencyLevel in LWT timeout (CASSANDRA-6884)
