@@ -279,7 +279,6 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean repairedAt, String... columnFamilies) throws IOException;
 
-
     /**
      * Invoke repair asynchronously.
      * You can track repair progress by subscribing JMX notification sent from this StorageServiceMBean.
@@ -288,7 +287,6 @@ public interface StorageServiceMBean extends NotificationEmitter
      *   userObject: int array of length 2, [0]=command number, [1]=ordinal of AntiEntropyService.Status
      *
      * @return Repair command number, or 0 if nothing to repair
-     * @see #forceKeyspaceRepair(String, boolean, boolean, boolean, String...)
      */
     public int forceRepairAsync(String keyspace, boolean isSequential, boolean isLocal, boolean primaryRange, boolean fullRepair, String... columnFamilies);
 
@@ -296,28 +294,6 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Same as forceRepairAsync, but handles a specified range
      */
     public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, boolean repairedAt, String... columnFamilies);
-
-    /**
-     * Triggers proactive repair for given column families, or all columnfamilies for the given keyspace
-     * if none are explicitly listed.
-     * @param keyspaceName
-     * @param columnFamilies
-     * @throws IOException
-     */
-    public void forceKeyspaceRepair(String keyspaceName, boolean isSequential, boolean isLocal, boolean repairedAt, String... columnFamilies) throws IOException;
-
-    /**
-     * Triggers proactive repair but only for the node primary range.
-     */
-    public void forceKeyspaceRepairPrimaryRange(String keyspaceName, boolean isSequential, boolean isLocal, boolean repairedAt, String... columnFamilies) throws IOException;
-
-    /**
-     * Perform repair of a specific range.
-     *
-     * This allows incremental repair to be performed by having an external controller submitting repair jobs.
-     * Note that the provided range much be a subset of one of the node local range.
-     */
-    public void forceKeyspaceRepairRange(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, boolean repairedAt, String... columnFamilies) throws IOException;
 
     public void forceTerminateAllRepairSessions();
 

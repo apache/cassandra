@@ -28,6 +28,7 @@
  * Update native server to Netty 4 (CASSANDRA-6236)
  * Fix off-by-one error in stress (CASSANDRA-6883)
  * Make OpOrder AutoCloseable (CASSANDRA-6901)
+ * Remove sync repair JMX interface (CASSANDRA-6900)
 Merged from 2.0:
  * Allow deleting snapshots from dropped keyspaces (CASSANDRA-6821)
  * Add uuid() function (CASSANDRA-6473)
