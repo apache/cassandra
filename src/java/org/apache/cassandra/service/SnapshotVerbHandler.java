@@ -35,7 +35,9 @@ public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
     {
         SnapshotCommand command = message.payload;
         if (command.clear_snapshot)
-            Keyspace.open(command.keyspace).clearSnapshot(command.snapshot_name);
+        {
+            Keyspace.clearSnapshot(command.snapshot_name, command.keyspace);
+        }
         else
             Keyspace.open(command.keyspace).getColumnFamilyStore(command.column_family).snapshot(command.snapshot_name);
         logger.debug("Enqueuing response to snapshot request {} to {}", command.snapshot_name, message.from);
