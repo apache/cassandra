@@ -1,4 +1,6 @@
 2.1.0-beta2
+ * Fail write instead of logging a warning when unable to append to CL
+   (CASSANDRA-6764)
  * Eliminate possibility of CL segment appearing twice in active list 
    (CASSANDRA-6557)
  * Apply DONTNEED fadvise to commitlog segments (CASSANDRA-6759)

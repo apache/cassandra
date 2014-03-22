@@ -202,8 +202,8 @@ public class CommitLog implements CommitLogMBean
         long totalSize = size + ENTRY_OVERHEAD_SIZE;
         if (totalSize > MAX_MUTATION_SIZE)
         {
-            logger.warn("Skipping commitlog append of extremely large mutation ({} bytes)", totalSize);
-            return alloc;
+            throw new IllegalArgumentException(String.format("Mutation of %s bytes is too large for the maxiumum size of %s",
+                                                             totalSize, MAX_MUTATION_SIZE));
         }
 
         allocator.allocate(mutation, (int) totalSize, alloc);
