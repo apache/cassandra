@@ -1830,6 +1830,7 @@ public class NodeTool
             } catch (IllegalStateException e)
             {
                 ownerships = probe.getOwnership();
+                System.out.printf("Note: Ownership information does not include topology; for complete information, specify a keyspace%n");
             }
 
             // More tokens then nodes (aka vnodes)?
