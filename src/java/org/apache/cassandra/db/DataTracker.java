@@ -515,6 +515,12 @@ public class DataTracker
 
         View(Memtable memtable, Set<Memtable> pendingFlush, Set<SSTableReader> sstables, Set<SSTableReader> compacting, SSTableIntervalTree intervalTree)
         {
+            assert memtable != null;
+            assert pendingFlush != null;
+            assert sstables != null;
+            assert compacting != null;
+            assert intervalTree != null;
+
             this.memtable = memtable;
             this.memtablesPendingFlush = pendingFlush;
             this.sstables = sstables;
