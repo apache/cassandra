@@ -1,4 +1,5 @@
 2.0.7
+ * Fix NPE in MeteredFlusher (CASSANDRA-6820)
  * Fix race processing range scan responses (CASSANDRA-6820)
  * Allow deleting snapshots from dropped keyspaces (CASSANDRA-6821)
  * Add uuid() function (CASSANDRA-6473)
