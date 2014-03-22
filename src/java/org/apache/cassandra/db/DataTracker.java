@@ -558,6 +558,12 @@ public class DataTracker
 
         View(List<Memtable> liveMemtables, List<Memtable> flushingMemtables, Set<SSTableReader> sstables, Set<SSTableReader> compacting, SSTableIntervalTree intervalTree)
         {
+            assert liveMemtables != null;
+            assert flushingMemtables != null;
+            assert sstables != null;
+            assert compacting != null;
+            assert intervalTree != null;
+
             this.liveMemtables = liveMemtables;
             this.flushingMemtables = flushingMemtables;
             this.sstables = sstables;
