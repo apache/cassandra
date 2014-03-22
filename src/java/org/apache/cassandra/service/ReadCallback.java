@@ -76,6 +76,8 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         this.resolver = resolver;
         this.start = System.nanoTime();
         this.endpoints = endpoints;
+        // we don't support read repair (or rapid read protection) for range scans yet (CASSANDRA-6897)
+        assert !(resolver instanceof RangeSliceResponseResolver) || blockfor >= endpoints.size();
     }
 
     public boolean await(long timePastStart, TimeUnit unit)
