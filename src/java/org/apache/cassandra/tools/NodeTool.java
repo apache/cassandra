@@ -484,7 +484,7 @@ public class NodeTool
 
             for (HostStat stat : hoststats)
             {
-                tokens.addAll(endpointsToTokens.get(stat.ip));
+                tokens.addAll(endpointsToTokens.get(stat.endpoint.getHostAddress()));
                 lastToken = tokens.get(tokens.size() - 1);
             }
 
@@ -497,7 +497,7 @@ public class NodeTool
 
             for (HostStat stat : hoststats)
             {
-                String endpoint = stat.ip;
+                String endpoint = stat.endpoint.getHostAddress();
                 String rack;
                 try
                 {
@@ -1855,22 +1855,15 @@ public class NodeTool
 
                 printNodesHeader(hasEffectiveOwns, isTokenPerNode);
 
-                ArrayListMultimap<String, String> hostToTokens = ArrayListMultimap.create();
+                ArrayListMultimap<InetAddress, HostStat> hostToTokens = ArrayListMultimap.create();
                 for (HostStat stat : dc.getValue())
-                    hostToTokens.put(stat.ipOrDns(), stat.token);
+                    hostToTokens.put(stat.endpoint, stat);
 
-                try
+                for (InetAddress endpoint : hostToTokens.keySet())
                 {
-                    for (String endpoint : hostToTokens.keySet())
-                    {
-                        Float owns = ownerships.get(InetAddress.getByName(endpoint));
-                        List<String> tokens = hostToTokens.get(endpoint);
-                        printNode(endpoint, owns, tokens, hasEffectiveOwns, isTokenPerNode);
-                    }
-                }
-                catch (UnknownHostException e)
-                {
-                    throw new RuntimeException(e);
+                    Float owns = ownerships.get(endpoint);
+                    List<HostStat> tokens = hostToTokens.get(endpoint);
+                    printNode(endpoint.getHostAddress(), owns, tokens, hasEffectiveOwns, isTokenPerNode);
                 }
             }
 
@@ -1899,7 +1892,7 @@ public class NodeTool
                 System.out.printf(fmt, "-", "-", "Address", "Load", "Tokens", owns, "Host ID", "Rack");
         }
 
-        private void printNode(String endpoint, Float owns, List<String> tokens, boolean hasEffectiveOwns, boolean isTokenPerNode)
+        private void printNode(String endpoint, Float owns, List<HostStat> tokens, boolean hasEffectiveOwns, boolean isTokenPerNode)
         {
             String status, state, load, strOwns, hostID, rack, fmt;
             fmt = getFormat(hasEffectiveOwns, isTokenPerNode);
@@ -1923,10 +1916,11 @@ public class NodeTool
                 throw new RuntimeException(e);
             }
 
+            String endpointDns = tokens.get(0).ipOrDns();
             if (isTokenPerNode)
-                System.out.printf(fmt, status, state, endpoint, load, strOwns, hostID, tokens.get(0), rack);
+                System.out.printf(fmt, status, state, endpointDns, load, strOwns, hostID, tokens.get(0).token, rack);
             else
-                System.out.printf(fmt, status, state, endpoint, load, tokens.size(), strOwns, hostID, rack);
+                System.out.printf(fmt, status, state, endpointDns, load, tokens.size(), strOwns, hostID, rack);
         }
 
         private String getFormat(
@@ -2012,24 +2006,25 @@ public class NodeTool
 
     static class HostStat
     {
-        public final String ip;
-        public final String dns;
+        public final InetAddress endpoint;
+        public final boolean resolveIp;
         public final Float owns;
         public final String token;
 
-        public HostStat(String token, InetAddress endPoint, boolean resolveIp, Float owns)
+        public HostStat(String token, InetAddress endpoint, boolean resolveIp, Float owns)
         {
             this.token = token;
-            this.ip = endPoint.getHostAddress();
-            this.dns = resolveIp ? endPoint.getHostName() : null;
+            this.endpoint = endpoint;
+            this.resolveIp = resolveIp;
             this.owns = owns;
         }
 
         public String ipOrDns()
         {
-            return (dns != null) ? dns : ip;
+            return resolveIp ? endpoint.getHostName() : endpoint.getHostAddress();
         }
     }
+
     @Command(name = "statusbinary", description = "Status of native transport (binary protocol)")
     public static class StatusBinary extends NodeToolCmd
     {
