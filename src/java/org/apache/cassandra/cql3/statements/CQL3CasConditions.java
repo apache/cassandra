@@ -66,7 +66,7 @@ public class CQL3CasConditions implements CASConditions
     {
         RowCondition previous = conditions.put(prefix, new ExistCondition(prefix, now));
         // this should be prevented by the parser, but it doesn't hurt to check
-        if (previous != null && previous instanceof NotExistCondition)
+        if (previous instanceof NotExistCondition)
             throw new InvalidRequestException("Cannot mix IF EXISTS and IF NOT EXISTS conditions for the same row");
     }
 
