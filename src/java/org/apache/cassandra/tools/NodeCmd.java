@@ -304,7 +304,7 @@ public class NodeCmd
 
         for (HostStat stat : hoststats)
         {
-            tokens.addAll(endpointsToTokens.get(stat.ip));
+            tokens.addAll(endpointsToTokens.get(stat.endpoint.getHostAddress()));
             lastToken = tokens.get(tokens.size() - 1);
             if (stat.owns != null)
                 totalReplicas += stat.owns;
@@ -322,7 +322,7 @@ public class NodeCmd
 
         for (HostStat stat : hoststats)
         {
-            String endpoint = stat.ip;
+            String endpoint = stat.endpoint.getHostAddress();
             String rack;
             try
             {
@@ -411,7 +411,7 @@ public class NodeCmd
             return format;
         }
 
-        private void printNode(String endpoint, Float owns, List<String> tokens, boolean hasEffectiveOwns, boolean isTokenPerNode) throws UnknownHostException
+        private void printNode(String endpoint, Float owns, List<HostStat> tokens, boolean hasEffectiveOwns, boolean isTokenPerNode) throws UnknownHostException
         {
             String status, state, load, strOwns, hostID, rack, fmt;
             fmt = getFormat(hasEffectiveOwns, isTokenPerNode);
@@ -428,13 +428,14 @@ public class NodeCmd
             hostID = hostIDMap.get(endpoint);
             rack = epSnitchInfo.getRack(endpoint);
 
+            String endpointDns = tokens.get(0).ipOrDns();
             if (isTokenPerNode)
             {
-                outs.printf(fmt, status, state, endpoint, load, strOwns, hostID, tokens.get(0), rack);
+                outs.printf(fmt, status, state, endpointDns, load, strOwns, hostID, tokens.get(0).token, rack);
             }
             else
             {
-                outs.printf(fmt, status, state, endpoint, load, tokens.size(), strOwns, hostID, rack);
+                outs.printf(fmt, status, state, endpointDns, load, tokens.size(), strOwns, hostID, rack);
             }
         }
 
@@ -494,16 +495,16 @@ public class NodeCmd
                 printStatusLegend();
                 printNodesHeader(hasEffectiveOwns, isTokenPerNode);
 
-                ArrayListMultimap<String, String> hostToTokens = ArrayListMultimap.create();
+                ArrayListMultimap<InetAddress, HostStat> hostToTokens = ArrayListMultimap.create();
                 for (HostStat stat : dc.getValue())
-                    hostToTokens.put(stat.ipOrDns(), stat.token);
+                    hostToTokens.put(stat.endpoint, stat);
 
                 // Nodes
-                for (String endpoint : hostToTokens.keySet())
+                for (InetAddress endpoint : hostToTokens.keySet())
                 {
-                    Float owns = ownerships.get(InetAddress.getByName(endpoint));
-                    List<String> tokens = hostToTokens.get(endpoint);
-                    printNode(endpoint, owns, tokens, hasEffectiveOwns, isTokenPerNode);
+                    Float owns = ownerships.get(endpoint);
+                    List<HostStat> tokens = hostToTokens.get(endpoint);
+                    printNode(endpoint.getHostAddress(), owns, tokens, hasEffectiveOwns, isTokenPerNode);
                 }
             }
         }
@@ -553,22 +554,22 @@ public class NodeCmd
     }
 
     static class HostStat {
-        public final String ip;
-        public final String dns;
+        public final InetAddress endpoint;
+        public final boolean resolveIp;
         public final Float owns;
         public final String token;
 
-        public HostStat(String token, InetAddress endPoint, boolean resolveIp, Float owns) 
+        public HostStat(String token, InetAddress endpoint, boolean resolveIp, Float owns) 
         {
             this.token = token;
-            this.ip = endPoint.getHostAddress();
-            this.dns = resolveIp ? endPoint.getHostName() : null;
+            this.endpoint = endpoint;
+            this.resolveIp = resolveIp;
             this.owns = owns;
         }
 
         public String ipOrDns()
         {
-            return (dns != null) ? dns : ip;
+            return (resolveIp) ? endpoint.getHostName() : endpoint.getHostAddress();
         }
     }
 
