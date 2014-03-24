@@ -23,6 +23,7 @@
  * Avoid NPEs when receiving table changes for an unknown keyspace (CASSANDRA-5631)
  * Fix bootstrapping when there is no schema (CASSANDRA-6685)
  * Fix truncating compression metadata (CASSANDRA-6791)
+ * Fix SSTable not released if stream session fails before starts (CASSANDRA-6818)
 
 
 1.2.15

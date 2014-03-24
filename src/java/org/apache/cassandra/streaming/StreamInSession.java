@@ -24,6 +24,7 @@ import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
@@ -61,6 +62,8 @@ public class StreamInSession extends AbstractStreamSession
     public static StreamInSession create(InetAddress host, IStreamCallback callback)
     {
         StreamInSession session = new StreamInSession(host, UUIDGen.getTimeUUID(), callback);
+        Gossiper.instance.register(session);
+        FailureDetector.instance.registerFailureDetectionEventListener(session);
         sessions.put(session.getSessionId(), session);
         return session;
     }
@@ -71,6 +74,8 @@ public class StreamInSession extends AbstractStreamSession
         if (session == null)
         {
             StreamInSession possibleNew = new StreamInSession(host, sessionId, null);
+            Gossiper.instance.register(possibleNew);
+            FailureDetector.instance.registerFailureDetectionEventListener(possibleNew);
             if ((session = sessions.putIfAbsent(sessionId, possibleNew)) == null)
                 session = possibleNew;
         }

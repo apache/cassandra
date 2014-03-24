@@ -25,6 +25,8 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -154,6 +156,9 @@ public class StreamOutSession extends AbstractStreamSession
 
     public void begin()
     {
+        Gossiper.instance.register(this);
+        FailureDetector.instance.registerFailureDetectionEventListener(this);
+
         PendingFile first = files.isEmpty() ? null : files.values().iterator().next();
         currentFile = first == null ? null : first.getFilename();
         StreamHeader header = new StreamHeader(table, getSessionId(), first, files.values());
