@@ -92,7 +92,7 @@ public class TriggersSchemaTest extends SchemaLoader
                                                 Collections.singletonList(cfm1));
         MigrationManager.announceNewKeyspace(ksm);
 
-        CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName).clone();
+        CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName).copy();
         TriggerDefinition td = TriggerDefinition.create(triggerName, triggerClass);
         cfm2.addTriggerDefinition(td);
         MigrationManager.announceColumnFamilyUpdate(cfm2, false);
@@ -116,11 +116,11 @@ public class TriggersSchemaTest extends SchemaLoader
                                                 Collections.singletonList(cfm1));
         MigrationManager.announceNewKeyspace(ksm);
 
-        CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName).clone();
+        CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName).copy();
         cfm2.removeTrigger(triggerName);
         MigrationManager.announceColumnFamilyUpdate(cfm2, false);
 
-        CFMetaData cfm3 = Schema.instance.getCFMetaData(ksName, cfName).clone();
+        CFMetaData cfm3 = Schema.instance.getCFMetaData(ksName, cfName).copy();
         assertTrue(cfm3.getTriggers().isEmpty());
     }
 }

@@ -77,7 +77,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
     public void announceMigration() throws RequestValidationException
     {
         CFMetaData meta = validateColumnFamily(keyspace(), columnFamily());
-        CFMetaData cfm = meta.clone();
+        CFMetaData cfm = meta.copy();
 
         CQL3Type validator = this.validator == null ? null : this.validator.prepare(keyspace());
 

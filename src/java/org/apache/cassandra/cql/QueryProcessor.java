@@ -681,7 +681,7 @@ public class QueryProcessor
                 boolean columnExists = false;
                 ByteBuffer columnName = createIdx.getColumnName().getByteBuffer();
                 // mutating oldCfm directly would be bad, but mutating a copy is fine.
-                CFMetaData cfm = oldCfm.clone();
+                CFMetaData cfm = oldCfm.copy();
                 for (ColumnDefinition cd : cfm.regularColumns())
                 {
                     if (cd.name.bytes.equals(columnName))

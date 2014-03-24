@@ -20,26 +20,23 @@ package org.apache.cassandra.config;
 import java.io.DataInput;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
+import com.google.common.base.Strings;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
-
-import org.apache.cassandra.cache.CachingOptions;
-import org.apache.cassandra.db.composites.*;
-
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.CFStatement;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
@@ -47,6 +44,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -66,14 +64,11 @@ import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.utils.FBUtilities.*;
 
+/**
+ * This class can be tricky to modify. Please read http://wiki.apache.org/cassandra/ConfigurationNotes for how to do so safely.
+ */
 public final class CFMetaData
 {
-    //
-    // !! Important !!
-    // This class can be tricky to modify.  Please read http://wiki.apache.org/cassandra/ConfigurationNotes
-    // for how to do so safely.
-    //
-
     private static final Logger logger = LoggerFactory.getLogger(CFMetaData.class);
 
     public final static double DEFAULT_READ_REPAIR_CHANCE = 0.1;
@@ -306,7 +301,7 @@ public final class CFMetaData
     {
         public enum RetryType
         {
-            NONE, CUSTOM, PERCENTILE, ALWAYS;
+            NONE, CUSTOM, PERCENTILE, ALWAYS
         }
 
         public final RetryType type;
@@ -398,7 +393,7 @@ public final class CFMetaData
     private volatile CachingOptions caching = DEFAULT_CACHING_STRATEGY;
     private volatile int minIndexInterval = DEFAULT_MIN_INDEX_INTERVAL;
     private volatile int maxIndexInterval = DEFAULT_MAX_INDEX_INTERVAL;
-    private int memtableFlushPeriod = 0;
+    private volatile int memtableFlushPeriod = 0;
     private volatile int defaultTimeToLive = DEFAULT_DEFAULT_TIME_TO_LIVE;
     private volatile SpeculativeRetry speculativeRetry = DEFAULT_SPECULATIVE_RETRY;
     private volatile boolean populateIoCacheOnFlush = DEFAULT_POPULATE_IO_CACHE_ON_FLUSH;
@@ -429,7 +424,7 @@ public final class CFMetaData
     public volatile CompressionParameters compressionParameters = new CompressionParameters(null);
 
     // attribute setters that return the modified CFMetaData instance
-    public CFMetaData comment(String prop) { comment = enforceCommentNotNull(prop); return this;}
+    public CFMetaData comment(String prop) { comment = Strings.nullToEmpty(prop); return this;}
     public CFMetaData readRepairChance(double prop) {readRepairChance = prop; return this;}
     public CFMetaData dcLocalReadRepairChance(double prop) {dcLocalReadRepairChance = prop; return this;}
     public CFMetaData gcGraceSeconds(int prop) {gcGraceSeconds = prop; return this;}
@@ -464,17 +459,13 @@ public final class CFMetaData
         this(keyspace, name, type, comp, UUIDGen.getTimeUUID());
     }
 
-    @VisibleForTesting
-    CFMetaData(String keyspace, String name, ColumnFamilyType type, CellNameType comp,  UUID id)
+    private CFMetaData(String keyspace, String name, ColumnFamilyType type, CellNameType comp, UUID id)
     {
-        // (subcc may be null for non-supercolumns)
-        // (comp may also be null for custom indexes, which is kind of broken if you ask me)
-
+        cfId = id;
         ksName = keyspace;
         cfName = name;
         cfType = type;
         comparator = comp;
-        cfId = id;
     }
 
     public static CFMetaData denseCFMetaData(String keyspace, String name, AbstractType<?> comp, AbstractType<?> subcc)
@@ -527,11 +518,6 @@ public final class CFMetaData
         }
     }
 
-    private static String enforceCommentNotNull (CharSequence comment)
-    {
-        return (comment == null) ? "" : comment.toString();
-    }
-
     /**
      * Generates deterministic UUID from keyspace/columnfamily name pair.
      * This is used to generate the same UUID for C* version < 2.1
@@ -545,12 +531,12 @@ public final class CFMetaData
 
     private static CFMetaData newSystemMetadata(String keyspace, String cfName, String comment, CellNameType comparator)
     {
-        CFMetaData newCFMD = new CFMetaData(keyspace, cfName, ColumnFamilyType.Standard, comparator, generateLegacyCfId(keyspace, cfName));
-        return newCFMD.comment(comment)
-                .readRepairChance(0)
-                .dcLocalReadRepairChance(0)
-                .gcGraceSeconds(0)
-                .memtableFlushPeriod(3600 * 1000);
+        return new CFMetaData(keyspace, cfName, ColumnFamilyType.Standard, comparator, generateLegacyCfId(keyspace, cfName))
+                             .comment(comment)
+                             .readRepairChance(0)
+                             .dcLocalReadRepairChance(0)
+                             .gcGraceSeconds(0)
+                             .memtableFlushPeriod(3600 * 1000);
     }
 
     /**
@@ -593,7 +579,7 @@ public final class CFMetaData
         return this;
     }
 
-    public CFMetaData clone()
+    public CFMetaData copy()
     {
         return copyOpts(new CFMetaData(ksName, cfName, cfType, comparator, cfId), this);
     }
@@ -604,7 +590,7 @@ public final class CFMetaData
      * @param newCfId the cfId for the cloned CFMetaData
      * @return the cloned CFMetaData instance with the new cfId
      */
-    public CFMetaData clone(UUID newCfId)
+    public CFMetaData copy(UUID newCfId)
     {
         return copyOpts(new CFMetaData(ksName, cfName, cfType, comparator, newCfId), this);
     }
@@ -932,11 +918,6 @@ public final class CFMetaData
             .toHashCode();
     }
 
-    public AbstractType<?> getValueValidator(ColumnIdentifier column)
-    {
-        return getValueValidator(getColumnDefinition(column));
-    }
-
     public AbstractType<?> getValueValidator(CellName name)
     {
         return getValueValidator(getColumnDefinition(name));
@@ -1142,7 +1123,7 @@ public final class CFMetaData
         // compaction thresholds are checked by ThriftValidation. We shouldn't be doing
         // validation on the apply path; it's too late for that.
 
-        comment = enforceCommentNotNull(cfm.comment);
+        comment = Strings.nullToEmpty(cfm.comment);
         readRepairChance = cfm.readRepairChance;
         dcLocalReadRepairChance = cfm.dcLocalReadRepairChance;
         gcGraceSeconds = cfm.gcGraceSeconds;
@@ -1216,8 +1197,7 @@ public final class CFMetaData
             if (options == null)
                 return;
 
-            Method validateMethod = strategyClass.getMethod("validateOptions", Map.class);
-            Map<String, String> unknownOptions = (Map<String, String>) validateMethod.invoke(null, options);
+            Map<?,?> unknownOptions = (Map) strategyClass.getMethod("validateOptions", Map.class).invoke(null, options);
             if (!unknownOptions.isEmpty())
                 throw new ConfigurationException(String.format("Properties specified %s are not understood by %s", unknownOptions.keySet(), strategyClass.getSimpleName()));
         }
@@ -1283,7 +1263,7 @@ public final class CFMetaData
             def.setComparator_type(comparator.toString());
         }
 
-        def.setComment(enforceCommentNotNull(comment));
+        def.setComment(Strings.nullToEmpty(comment));
         def.setRead_repair_chance(readRepairChance);
         def.setDclocal_read_repair_chance(dcLocalReadRepairChance);
         def.setPopulate_io_cache_on_flush(populateIoCacheOnFlush);
@@ -1503,13 +1483,11 @@ public final class CFMetaData
 
     private static Set<String> existingIndexNames(String cfToExclude)
     {
-        Set<String> indexNames = new HashSet<String>();
+        Set<String> indexNames = new HashSet<>();
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-        {
             if (cfToExclude == null || !cfs.name.equals(cfToExclude))
                 for (ColumnDefinition cd : cfs.metadata.allColumns())
                     indexNames.add(cd.getIndexName());
-        }
         return indexNames;
     }
 
@@ -1715,17 +1693,11 @@ public final class CFMetaData
             CellNameType comparator = CellNames.fromAbstractType(fullRawComparator, isDense(fullRawComparator, columnDefs));
 
             // if we are upgrading, we use id generated from names initially
-            UUID cfId;
-            if (result.has("cf_id"))
-                cfId = result.getUUID("cf_id");
-            else
-                cfId = generateLegacyCfId(ksName, cfName);
+            UUID cfId = result.has("cf_id")
+                      ? result.getUUID("cf_id")
+                      : generateLegacyCfId(ksName, cfName);
 
-            CFMetaData cfm = new CFMetaData(ksName,
-                                            cfName,
-                                            cfType,
-                                            comparator,
-                                            cfId);
+            CFMetaData cfm = new CFMetaData(ksName, cfName, cfType, comparator, cfId);
 
             cfm.readRepairChance(result.getDouble("read_repair_chance"));
             cfm.dcLocalReadRepairChance(result.getDouble("local_read_repair_chance"));
@@ -1774,7 +1746,7 @@ public final class CFMetaData
                 cfm.addColumnMetadataFromAliases(aliasesFromStrings(fromJsonList(result.getString("column_aliases"))), cfm.comparator.asAbstractType(), ColumnDefinition.Kind.CLUSTERING_COLUMN);
 
             if (result.has("value_alias"))
-                cfm.addColumnMetadataFromAliases(Collections.<ByteBuffer>singletonList(result.getBytes("value_alias")), cfm.defaultValidator, ColumnDefinition.Kind.COMPACT_VALUE);
+                cfm.addColumnMetadataFromAliases(Collections.singletonList(result.getBytes("value_alias")), cfm.defaultValidator, ColumnDefinition.Kind.COMPACT_VALUE);
 
             if (result.has("dropped_columns"))
                 cfm.droppedColumns(convertDroppedColumns(result.getMap("dropped_columns", UTF8Type.instance, LongType.instance)));
@@ -1841,7 +1813,7 @@ public final class CFMetaData
         if (rawAliases == null)
             return null;
 
-        List<String> aliases = new ArrayList<String>(rawAliases.size());
+        List<String> aliases = new ArrayList<>(rawAliases.size());
         for (ColumnDefinition rawAlias : rawAliases)
             aliases.add(rawAlias.name.toString());
         return json(aliases);
@@ -1849,7 +1821,7 @@ public final class CFMetaData
 
     private static List<ByteBuffer> aliasesFromStrings(List<String> aliases)
     {
-        List<ByteBuffer> rawAliases = new ArrayList<ByteBuffer>(aliases.size());
+        List<ByteBuffer> rawAliases = new ArrayList<>(aliases.size());
         for (String alias : aliases)
             rawAliases.add(UTF8Type.instance.decompose(alias));
         return rawAliases;
@@ -2196,12 +2168,6 @@ public final class CFMetaData
     public boolean hasStaticColumns()
     {
         return !staticColumns.isEmpty();
-    }
-
-    public void validateColumns(Iterable<Cell> columns)
-    {
-        for (Cell cell : columns)
-            cell.validateFields(this);
     }
 
     @Override

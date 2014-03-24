@@ -67,7 +67,7 @@ public class AlterTableStatement
     public CFMetaData getCFMetaData(String keyspace) throws ConfigurationException, InvalidRequestException, SyntaxException
     {
         CFMetaData meta = Schema.instance.getCFMetaData(keyspace, columnFamily);
-        CFMetaData cfm = meta.clone();
+        CFMetaData cfm = meta.copy();
 
         ByteBuffer columnName = this.oType == OperationType.OPTS ? null
                                                                  : meta.comparator.subtype(0).fromStringCQL2(this.columnName);

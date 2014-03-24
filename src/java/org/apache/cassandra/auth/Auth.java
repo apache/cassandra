@@ -205,7 +205,7 @@ public class Auth
                 CFStatement parsed = (CFStatement)QueryProcessor.parseStatement(cql);
                 parsed.prepareKeyspace(AUTH_KS);
                 CreateTableStatement statement = (CreateTableStatement) parsed.prepare().statement;
-                CFMetaData cfm = statement.getCFMetaData().clone(CFMetaData.generateLegacyCfId(AUTH_KS, name));
+                CFMetaData cfm = statement.getCFMetaData().copy(CFMetaData.generateLegacyCfId(AUTH_KS, name));
                 assert cfm.cfName.equals(name);
                 MigrationManager.announceNewColumnFamily(cfm);
             }

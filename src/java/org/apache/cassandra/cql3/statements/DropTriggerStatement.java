@@ -55,7 +55,7 @@ public class DropTriggerStatement extends SchemaAlteringStatement
 
     public void announceMigration() throws ConfigurationException
     {
-        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).clone();
+        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
         if (!cfm.removeTrigger(triggerName))
             throw new ConfigurationException(String.format("Trigger %s was not found", triggerName));
         logger.info("Dropping trigger with name {}", triggerName);

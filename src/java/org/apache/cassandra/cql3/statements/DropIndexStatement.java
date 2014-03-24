@@ -74,7 +74,7 @@ public class DropIndexStatement extends SchemaAlteringStatement
     {
         ColumnDefinition column = findIndexedColumn(cfm);
         assert column != null;
-        CFMetaData cloned = cfm.clone();
+        CFMetaData cloned = cfm.copy();
         ColumnDefinition toChange = cloned.getColumnDefinition(column.name);
         assert toChange.getIndexName() != null && toChange.getIndexName().equals(indexName);
         toChange.setIndexName(null);
