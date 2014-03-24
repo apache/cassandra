@@ -49,7 +49,7 @@ public class ThriftValidationTest extends SchemaLoader
     public void testColumnNameEqualToKeyAlias()
     {
         CFMetaData metaData = Schema.instance.getCFMetaData("Keyspace1", "Standard1");
-        CFMetaData newMetadata = metaData.clone();
+        CFMetaData newMetadata = metaData.copy();
 
         boolean gotException = false;
 

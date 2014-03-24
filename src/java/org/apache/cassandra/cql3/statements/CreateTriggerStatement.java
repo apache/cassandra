@@ -67,7 +67,7 @@ public class CreateTriggerStatement extends SchemaAlteringStatement
 
     public void announceMigration() throws ConfigurationException
     {
-        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).clone();
+        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
         cfm.addTriggerDefinition(TriggerDefinition.create(triggerName, triggerClass));
         logger.info("Adding trigger with name {} and class {}", triggerName, triggerClass);
         MigrationManager.announceColumnFamilyUpdate(cfm, false);

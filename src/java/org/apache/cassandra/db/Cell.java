@@ -38,7 +38,6 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.memory.HeapAllocator;
 
 /**
  * Cell is immutable, which prevents all kinds of confusion in a multithreaded environment.
@@ -134,16 +133,6 @@ public class Cell implements OnDiskAtom
         return timestamp;
     }
 
-    public long minTimestamp()
-    {
-        return timestamp;
-    }
-
-    public long maxTimestamp()
-    {
-        return timestamp;
-    }
-
     public boolean isMarkedForDelete(long now)
     {
         return false;
@@ -223,11 +212,6 @@ public class Cell implements OnDiskAtom
 
     public Cell reconcile(Cell cell)
     {
-        return reconcile(cell, HeapAllocator.instance);
-    }
-
-    public Cell reconcile(Cell cell, AbstractAllocator allocator)
-    {
         // tombstones take precedence.  (if both are tombstones, then it doesn't matter which one we use.)
         if (isMarkedForDelete(System.currentTimeMillis()))
             return timestamp() < cell.timestamp() ? cell : this;
@@ -263,7 +247,7 @@ public class Cell implements OnDiskAtom
         return result;
     }
 
-    public Cell localCopy(ColumnFamilyStore cfs, AbstractAllocator allocator)
+    public Cell localCopy(AbstractAllocator allocator)
     {
         return new Cell(name.copy(allocator), allocator.clone(value), timestamp);
     }
@@ -289,11 +273,6 @@ public class Cell implements OnDiskAtom
         AbstractType<?> valueValidator = metadata.getValueValidator(name());
         if (valueValidator != null)
             valueValidator.validate(value());
-    }
-
-    public boolean hasIrrelevantData(int gcBefore)
-    {
-        return getLocalDeletionTime() < gcBefore;
     }
 
     public static Cell create(CellName name, ByteBuffer value, long timestamp, int ttl, CFMetaData metadata)

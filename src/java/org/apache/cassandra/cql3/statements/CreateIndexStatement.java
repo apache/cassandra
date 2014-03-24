@@ -120,7 +120,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
     public void announceMigration() throws RequestValidationException
     {
         logger.debug("Updating column {} definition for index {}", target.column, indexName);
-        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).clone();
+        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
         ColumnDefinition cd = cfm.getColumnDefinition(target.column);
 
         if (cd.getIndexType() != null && ifNotExists)

@@ -30,11 +30,6 @@ import org.apache.cassandra.db.ClockAndCount;
 import org.apache.cassandra.db.context.CounterContext.Relationship;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.utils.*;
-import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
-import org.apache.cassandra.utils.memory.HeapAllocator;
-import org.apache.cassandra.utils.memory.HeapPool;
-import org.apache.cassandra.utils.memory.Pool;
 
 import static org.apache.cassandra.db.context.CounterContext.ContextState;
 
@@ -49,52 +44,30 @@ public class CounterContextTest
     private static final int countLength = 8;
     private static final int stepLength = idLength + clockLength + countLength;
 
-    private static final Pool POOL = new HeapPool(Integer.MAX_VALUE, 1f, null);
-
-    /** Allocates 1 byte from a new SlabAllocator and returns it. */
-    private AbstractAllocator bumpedSlab()
-    {
-        AbstractAllocator allocator = POOL.newAllocator(new OpOrder());
-        allocator.allocate(1);
-        return allocator;
-    }
-
     @Test
     public void testAllocate()
     {
-        runAllocate(HeapAllocator.instance);
-        runAllocate(bumpedSlab());
-    }
-
-    private void runAllocate(AbstractAllocator allocator)
-    {
-        ContextState allGlobal = ContextState.allocate(3, 0, 0, allocator);
+        ContextState allGlobal = ContextState.allocate(3, 0, 0);
         assertEquals(headerSizeLength + 3 * headerEltLength + 3 * stepLength, allGlobal.context.remaining());
 
-        ContextState allLocal = ContextState.allocate(0, 3, 0, allocator);
+        ContextState allLocal = ContextState.allocate(0, 3, 0);
         assertEquals(headerSizeLength + 3 * headerEltLength + 3 * stepLength, allLocal.context.remaining());
 
-        ContextState allRemote = ContextState.allocate(0, 0, 3, allocator);
+        ContextState allRemote = ContextState.allocate(0, 0, 3);
         assertEquals(headerSizeLength + 3 * stepLength, allRemote.context.remaining());
 
-        ContextState mixed = ContextState.allocate(1, 1, 1, allocator);
+        ContextState mixed = ContextState.allocate(1, 1, 1);
         assertEquals(headerSizeLength + 2 * headerEltLength + 3 * stepLength, mixed.context.remaining());
     }
 
     @Test
     public void testDiff()
     {
-        runDiff(HeapAllocator.instance);
-        runDiff(bumpedSlab());
-    }
-
-    private void runDiff(AbstractAllocator allocator)
-    {
         ContextState left;
         ContextState right;
 
         // equality: equal nodes, all counts same
-        left = ContextState.allocate(0, 0, 3, allocator);
+        left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 3L, 0L);
         left.writeRemote(CounterId.fromInt(6), 2L, 0L);
         left.writeRemote(CounterId.fromInt(9), 1L, 0L);
@@ -103,13 +76,13 @@ public class CounterContextTest
         assertEquals(Relationship.EQUAL, cc.diff(left.context, right.context));
 
         // greater than: left has superset of nodes (counts equal)
-        left = ContextState.allocate(0, 0, 4, allocator);
+        left = ContextState.allocate(0, 0, 4);
         left.writeRemote(CounterId.fromInt(3),  3L, 0L);
         left.writeRemote(CounterId.fromInt(6),  2L, 0L);
         left.writeRemote(CounterId.fromInt(9),  1L, 0L);
         left.writeRemote(CounterId.fromInt(12), 0L, 0L);
 
-        right = ContextState.allocate(0, 0, 3, allocator);
+        right = ContextState.allocate(0, 0, 3);
         right.writeRemote(CounterId.fromInt(3), 3L, 0L);
         right.writeRemote(CounterId.fromInt(6), 2L, 0L);
         right.writeRemote(CounterId.fromInt(9), 1L, 0L);
@@ -117,12 +90,12 @@ public class CounterContextTest
         assertEquals(Relationship.GREATER_THAN, cc.diff(left.context, right.context));
 
         // less than: left has subset of nodes (counts equal)
-        left = ContextState.allocate(0, 0, 3, allocator);
+        left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 3L, 0L);
         left.writeRemote(CounterId.fromInt(6), 2L, 0L);
         left.writeRemote(CounterId.fromInt(9), 1L, 0L);
 
-        right = ContextState.allocate(0, 0, 4, allocator);
+        right = ContextState.allocate(0, 0, 4);
         right.writeRemote(CounterId.fromInt(3),  3L, 0L);
         right.writeRemote(CounterId.fromInt(6),  2L, 0L);
         right.writeRemote(CounterId.fromInt(9),  1L, 0L);
@@ -131,12 +104,12 @@ public class CounterContextTest
         assertEquals(Relationship.LESS_THAN, cc.diff(left.context, right.context));
 
         // greater than: equal nodes, but left has higher counts
-        left = ContextState.allocate(0, 0, 3, allocator);
+        left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 3L, 0L);
         left.writeRemote(CounterId.fromInt(6), 2L, 0L);
         left.writeRemote(CounterId.fromInt(9), 3L, 0L);
 
-        right = ContextState.allocate(0, 0, 3, allocator);
+        right = ContextState.allocate(0, 0, 3);
         right.writeRemote(CounterId.fromInt(3), 3L, 0L);
         right.writeRemote(CounterId.fromInt(6), 2L, 0L);
         right.writeRemote(CounterId.fromInt(9), 1L, 0L);
@@ -144,12 +117,12 @@ public class CounterContextTest
         assertEquals(Relationship.GREATER_THAN, cc.diff(left.context, right.context));
 
         // less than: equal nodes, but right has higher counts
-        left = ContextState.allocate(0, 0, 3, allocator);
+        left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 3L, 0L);
         left.writeRemote(CounterId.fromInt(6), 2L, 0L);
         left.writeRemote(CounterId.fromInt(9), 3L, 0L);
 
-        right = ContextState.allocate(0, 0, 3, allocator);
+        right = ContextState.allocate(0, 0, 3);
         right.writeRemote(CounterId.fromInt(3), 3L, 0L);
         right.writeRemote(CounterId.fromInt(6), 9L, 0L);
         right.writeRemote(CounterId.fromInt(9), 3L, 0L);
@@ -157,24 +130,24 @@ public class CounterContextTest
         assertEquals(Relationship.LESS_THAN, cc.diff(left.context, right.context));
 
         // disjoint: right and left have disjoint node sets
-        left = ContextState.allocate(0, 0, 3, allocator);
+        left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 1L, 0L);
         left.writeRemote(CounterId.fromInt(4), 1L, 0L);
         left.writeRemote(CounterId.fromInt(9), 1L, 0L);
 
-        right = ContextState.allocate(0, 0, 3, allocator);
+        right = ContextState.allocate(0, 0, 3);
         right.writeRemote(CounterId.fromInt(3), 1L, 0L);
         right.writeRemote(CounterId.fromInt(6), 1L, 0L);
         right.writeRemote(CounterId.fromInt(9), 1L, 0L);
 
         assertEquals(Relationship.DISJOINT, cc.diff(left.context, right.context));
 
-        left = ContextState.allocate(0, 0, 3, allocator);
+        left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 1L, 0L);
         left.writeRemote(CounterId.fromInt(4), 1L, 0L);
         left.writeRemote(CounterId.fromInt(9), 1L, 0L);
 
-        right = ContextState.allocate(0, 0, 3, allocator);
+        right = ContextState.allocate(0, 0, 3);
         right.writeRemote(CounterId.fromInt(2),  1L, 0L);
         right.writeRemote(CounterId.fromInt(6),  1L, 0L);
         right.writeRemote(CounterId.fromInt(12), 1L, 0L);
@@ -182,24 +155,24 @@ public class CounterContextTest
         assertEquals(Relationship.DISJOINT, cc.diff(left.context, right.context));
 
         // disjoint: equal nodes, but right and left have higher counts in differing nodes
-        left = ContextState.allocate(0, 0, 3, allocator);
+        left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 1L, 0L);
         left.writeRemote(CounterId.fromInt(6), 3L, 0L);
         left.writeRemote(CounterId.fromInt(9), 1L, 0L);
 
-        right = ContextState.allocate(0, 0, 3, allocator);
+        right = ContextState.allocate(0, 0, 3);
         right.writeRemote(CounterId.fromInt(3), 1L, 0L);
         right.writeRemote(CounterId.fromInt(6), 1L, 0L);
         right.writeRemote(CounterId.fromInt(9), 5L, 0L);
 
         assertEquals(Relationship.DISJOINT, cc.diff(left.context, right.context));
 
-        left = ContextState.allocate(0, 0, 3, allocator);
+        left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 2L, 0L);
         left.writeRemote(CounterId.fromInt(6), 3L, 0L);
         left.writeRemote(CounterId.fromInt(9), 1L, 0L);
 
-        right = ContextState.allocate(0, 0, 3, allocator);
+        right = ContextState.allocate(0, 0, 3);
         right.writeRemote(CounterId.fromInt(3), 1L, 0L);
         right.writeRemote(CounterId.fromInt(6), 9L, 0L);
         right.writeRemote(CounterId.fromInt(9), 5L, 0L);
@@ -207,13 +180,13 @@ public class CounterContextTest
         assertEquals(Relationship.DISJOINT, cc.diff(left.context, right.context));
 
         // disjoint: left has more nodes, but lower counts
-        left = ContextState.allocate(0, 0, 4, allocator);
+        left = ContextState.allocate(0, 0, 4);
         left.writeRemote(CounterId.fromInt(3),  2L, 0L);
         left.writeRemote(CounterId.fromInt(6),  3L, 0L);
         left.writeRemote(CounterId.fromInt(9),  1L, 0L);
         left.writeRemote(CounterId.fromInt(12), 1L, 0L);
 
-        right = ContextState.allocate(0, 0, 3, allocator);
+        right = ContextState.allocate(0, 0, 3);
         right.writeRemote(CounterId.fromInt(3), 4L, 0L);
         right.writeRemote(CounterId.fromInt(6), 9L, 0L);
         right.writeRemote(CounterId.fromInt(9), 5L, 0L);
@@ -221,12 +194,12 @@ public class CounterContextTest
         assertEquals(Relationship.DISJOINT, cc.diff(left.context, right.context));
 
         // disjoint: left has less nodes, but higher counts
-        left = ContextState.allocate(0, 0, 3, allocator);
+        left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 5L, 0L);
         left.writeRemote(CounterId.fromInt(6), 3L, 0L);
         left.writeRemote(CounterId.fromInt(9), 2L, 0L);
 
-        right = ContextState.allocate(0, 0, 4, allocator);
+        right = ContextState.allocate(0, 0, 4);
         right.writeRemote(CounterId.fromInt(3),  4L, 0L);
         right.writeRemote(CounterId.fromInt(6),  3L, 0L);
         right.writeRemote(CounterId.fromInt(9),  2L, 0L);
@@ -235,12 +208,12 @@ public class CounterContextTest
         assertEquals(Relationship.DISJOINT, cc.diff(left.context, right.context));
 
         // disjoint: mixed nodes and counts
-        left = ContextState.allocate(0, 0, 3, allocator);
+        left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 5L, 0L);
         left.writeRemote(CounterId.fromInt(6), 2L, 0L);
         left.writeRemote(CounterId.fromInt(9), 2L, 0L);
 
-        right = ContextState.allocate(0, 0, 4, allocator);
+        right = ContextState.allocate(0, 0, 4);
         right.writeRemote(CounterId.fromInt(3),  4L, 0L);
         right.writeRemote(CounterId.fromInt(6),  3L, 0L);
         right.writeRemote(CounterId.fromInt(9),  2L, 0L);
@@ -248,13 +221,13 @@ public class CounterContextTest
 
         assertEquals(Relationship.DISJOINT, cc.diff(left.context, right.context));
 
-        left = ContextState.allocate(0, 0, 4, allocator);
+        left = ContextState.allocate(0, 0, 4);
         left.writeRemote(CounterId.fromInt(3), 5L, 0L);
         left.writeRemote(CounterId.fromInt(6), 2L, 0L);
         left.writeRemote(CounterId.fromInt(7), 2L, 0L);
         left.writeRemote(CounterId.fromInt(9), 2L, 0L);
 
-        right = ContextState.allocate(0, 0, 3, allocator);
+        right = ContextState.allocate(0, 0, 3);
         right.writeRemote(CounterId.fromInt(3), 4L, 0L);
         right.writeRemote(CounterId.fromInt(6), 3L, 0L);
         right.writeRemote(CounterId.fromInt(9), 2L, 0L);
@@ -265,25 +238,19 @@ public class CounterContextTest
     @Test
     public void testMerge()
     {
-        runMerge(HeapAllocator.instance);
-        runMerge(bumpedSlab());
-    }
-
-    private void runMerge(AbstractAllocator allocator)
-    {
         // note: local counts aggregated; remote counts are reconciled (i.e. take max)
-        ContextState left = ContextState.allocate(0, 1, 3, allocator);
+        ContextState left = ContextState.allocate(0, 1, 3);
         left.writeRemote(CounterId.fromInt(1), 1L, 1L);
         left.writeRemote(CounterId.fromInt(2), 2L, 2L);
         left.writeRemote(CounterId.fromInt(4), 6L, 3L);
         left.writeLocal(CounterId.getLocalId(), 7L, 3L);
 
-        ContextState right = ContextState.allocate(0, 1, 2, allocator);
+        ContextState right = ContextState.allocate(0, 1, 2);
         right.writeRemote(CounterId.fromInt(4), 4L, 4L);
         right.writeRemote(CounterId.fromInt(5), 5L, 5L);
         right.writeLocal(CounterId.getLocalId(), 2L, 9L);
 
-        ByteBuffer merged = cc.merge(left.context, right.context, allocator);
+        ByteBuffer merged = cc.merge(left.context, right.context);
         int hd = 4;
 
         assertEquals(hd + 5 * stepLength, merged.remaining());
@@ -312,17 +279,17 @@ public class CounterContextTest
         //
         // Test merging two exclusively global contexts
         //
-        left = ContextState.allocate(3, 0, 0, allocator);
+        left = ContextState.allocate(3, 0, 0);
         left.writeGlobal(CounterId.fromInt(1), 1L, 1L);
         left.writeGlobal(CounterId.fromInt(2), 2L, 2L);
         left.writeGlobal(CounterId.fromInt(3), 3L, 3L);
 
-        right = ContextState.allocate(3, 0, 0, allocator);
+        right = ContextState.allocate(3, 0, 0);
         right.writeGlobal(CounterId.fromInt(3), 6L, 6L);
         right.writeGlobal(CounterId.fromInt(4), 4L, 4L);
         right.writeGlobal(CounterId.fromInt(5), 5L, 5L);
 
-        merged = cc.merge(left.context, right.context, allocator);
+        merged = cc.merge(left.context, right.context);
         assertEquals(headerSizeLength + 5 * headerEltLength + 5 * stepLength, merged.remaining());
         assertEquals(18L, cc.total(merged));
         assertEquals(5, merged.getShort(merged.position()));
@@ -348,13 +315,13 @@ public class CounterContextTest
         //
         // Test merging two global contexts w/ 'invalid shards'
         //
-        left = ContextState.allocate(1, 0, 0, allocator);
+        left = ContextState.allocate(1, 0, 0);
         left.writeGlobal(CounterId.fromInt(1), 10L, 20L);
 
-        right = ContextState.allocate(1, 0, 0, allocator);
+        right = ContextState.allocate(1, 0, 0);
         right.writeGlobal(CounterId.fromInt(1), 10L, 30L);
 
-        merged = cc.merge(left.context, right.context, allocator);
+        merged = cc.merge(left.context, right.context);
         headerLength = headerSizeLength + headerEltLength;
         assertEquals(headerLength + stepLength, merged.remaining());
         assertEquals(30L, cc.total(merged));
@@ -367,16 +334,16 @@ public class CounterContextTest
         //
         // Test merging global w/ mixed contexts
         //
-        left = ContextState.allocate(2, 0, 0, allocator);
+        left = ContextState.allocate(2, 0, 0);
         left.writeGlobal(CounterId.fromInt(1), 1L, 1L);
         left.writeGlobal(CounterId.fromInt(2), 1L, 1L);
 
-        right = ContextState.allocate(0, 1, 1, allocator);
+        right = ContextState.allocate(0, 1, 1);
         right.writeLocal(CounterId.fromInt(1), 100L, 100L);
         right.writeRemote(CounterId.fromInt(2), 100L, 100L);
 
         // global shards should dominate local/remote, even with lower clock and value
-        merged = cc.merge(left.context, right.context, allocator);
+        merged = cc.merge(left.context, right.context);
         headerLength = headerSizeLength + 2 * headerEltLength;
         assertEquals(headerLength + 2 * stepLength, merged.remaining());
         assertEquals(2L, cc.total(merged));
@@ -392,13 +359,7 @@ public class CounterContextTest
     @Test
     public void testTotal()
     {
-        runTotal(HeapAllocator.instance);
-        runTotal(bumpedSlab());
-    }
-
-    private void runTotal(AbstractAllocator allocator)
-    {
-        ContextState mixed = ContextState.allocate(0, 1, 4, allocator);
+        ContextState mixed = ContextState.allocate(0, 1, 4);
         mixed.writeRemote(CounterId.fromInt(1), 1L, 1L);
         mixed.writeRemote(CounterId.fromInt(2), 2L, 2L);
         mixed.writeRemote(CounterId.fromInt(4), 4L, 4L);
@@ -406,7 +367,7 @@ public class CounterContextTest
         mixed.writeLocal(CounterId.getLocalId(), 12L, 12L);
         assertEquals(24L, cc.total(mixed.context));
 
-        ContextState global = ContextState.allocate(3, 0, 0, allocator);
+        ContextState global = ContextState.allocate(3, 0, 0);
         global.writeGlobal(CounterId.fromInt(1), 1L, 1L);
         global.writeGlobal(CounterId.fromInt(2), 2L, 2L);
         global.writeGlobal(CounterId.fromInt(3), 3L, 3L);
@@ -419,10 +380,9 @@ public class CounterContextTest
         ContextState state;
         ByteBuffer marked;
         ByteBuffer cleared;
-        AbstractAllocator allocator = HeapAllocator.instance;
 
         // mark/clear for remote-only contexts is a no-op
-        state = ContextState.allocate(0, 0, 1, allocator);
+        state = ContextState.allocate(0, 0, 1);
         state.writeRemote(CounterId.fromInt(1), 1L, 1L);
 
         assertFalse(cc.shouldClearLocal(state.context));
@@ -434,7 +394,7 @@ public class CounterContextTest
         assertSame(cleared, marked); // shouldn't alter anything either
 
         // a single local shard
-        state = ContextState.allocate(0, 1, 0, allocator);
+        state = ContextState.allocate(0, 1, 0);
         state.writeLocal(CounterId.fromInt(1), 1L, 1L);
 
         assertFalse(cc.shouldClearLocal(state.context));
@@ -448,7 +408,7 @@ public class CounterContextTest
         assertEquals(0, cleared.getShort(cleared.position()));
 
         // 2 global + 1 local shard
-        state = ContextState.allocate(2, 1, 0, allocator);
+        state = ContextState.allocate(2, 1, 0);
         state.writeLocal(CounterId.fromInt(1), 1L, 1L);
         state.writeGlobal(CounterId.fromInt(2), 2L, 2L);
         state.writeGlobal(CounterId.fromInt(3), 3L, 3L);
@@ -496,7 +456,7 @@ public class CounterContextTest
         assertEquals(3L, cleared.getLong(cleared.position() + headerLength + 2 * stepLength + idLength + clockLength));
 
         // a single global shard - no-op
-        state = ContextState.allocate(1, 0, 0, allocator);
+        state = ContextState.allocate(1, 0, 0);
         state.writeGlobal(CounterId.fromInt(1), 1L, 1L);
 
         assertFalse(cc.shouldClearLocal(state.context));
@@ -511,7 +471,7 @@ public class CounterContextTest
     @Test
     public void testFindPositionOf()
     {
-        ContextState state = ContextState.allocate(3, 3, 3, HeapAllocator.instance);
+        ContextState state = ContextState.allocate(3, 3, 3);
 
         state.writeGlobal(CounterId.fromInt(1), 1L, 1L);
         state.writeRemote(CounterId.fromInt(2), 2L, 2L);
@@ -543,7 +503,7 @@ public class CounterContextTest
     @Test
     public void testGetGlockAndCountOf()
     {
-        ContextState state = ContextState.allocate(3, 3, 3, HeapAllocator.instance);
+        ContextState state = ContextState.allocate(3, 3, 3);
 
         state.writeGlobal(CounterId.fromInt(1), 1L, 1L);
         state.writeRemote(CounterId.fromInt(2), 2L, 2L);

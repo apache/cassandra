@@ -55,12 +55,7 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
         return data.localDeletionTime;
     }
 
-    public long minTimestamp()
-    {
-        return data.markedForDeleteAt;
-    }
-
-    public long maxTimestamp()
+    public long timestamp()
     {
         return data.markedForDeleteAt;
     }
@@ -233,7 +228,7 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
             {
                 if (comparator.compare(cell.name(), tombstone.min) >= 0
                     && comparator.compare(cell.name(), tombstone.max) <= 0
-                    && tombstone.maxTimestamp() >= cell.timestamp())
+                    && tombstone.timestamp() >= cell.timestamp())
                 {
                     return true;
                 }

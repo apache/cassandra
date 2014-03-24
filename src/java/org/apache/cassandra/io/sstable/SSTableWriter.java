@@ -270,8 +270,8 @@ public class SSTableWriter extends SSTable
                 {
                     tombstones.update(deletionTime);
                 }
-                minTimestamp = Math.min(minTimestamp, atom.minTimestamp());
-                maxTimestamp = Math.max(maxTimestamp, atom.maxTimestamp());
+                minTimestamp = Math.min(minTimestamp, atom.timestamp());
+                maxTimestamp = Math.max(maxTimestamp, atom.timestamp());
                 minColumnNames = ColumnNameHelper.minComponents(minColumnNames, atom.name(), metadata.comparator);
                 maxColumnNames = ColumnNameHelper.maxComponents(maxColumnNames, atom.name(), metadata.comparator);
                 maxLocalDeletionTime = Math.max(maxLocalDeletionTime, atom.getLocalDeletionTime());

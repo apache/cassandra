@@ -71,7 +71,7 @@ public class DefsTest extends SchemaLoader
         // we'll be adding this one later. make sure it's not already there.
         Assert.assertNull(cfm.getColumnDefinition(ByteBuffer.wrap(new byte[] { 5 })));
 
-        CFMetaData cfNew = cfm.clone();
+        CFMetaData cfNew = cfm.copy();
 
         // add one.
         ColumnDefinition addIndexDef = ColumnDefinition.regularDef(cfm, ByteBuffer.wrap(new byte[] { 5 }), BytesType.instance, null)
@@ -412,7 +412,7 @@ public class DefsTest extends SchemaLoader
         Assert.assertNotNull(Schema.instance.getCFMetaData(cf.ksName, cf.cfName));
 
         // updating certain fields should fail.
-        CFMetaData newCfm = cf.clone();
+        CFMetaData newCfm = cf.copy();
         newCfm.defaultValidator(BytesType.instance);
         newCfm.minCompactionThreshold(5);
         newCfm.maxCompactionThreshold(31);
@@ -445,7 +445,7 @@ public class DefsTest extends SchemaLoader
         Assert.assertEquals(UTF8Type.instance, Schema.instance.getCFMetaData(cf.ksName, cf.cfName).getDefaultValidator());
 
         // Change cfId
-        newCfm = new CFMetaData(cf.ksName, cf.cfName, cf.cfType, cf.comparator, UUID.randomUUID());
+        newCfm = new CFMetaData(cf.ksName, cf.cfName, cf.cfType, cf.comparator);
         CFMetaData.copyOpts(newCfm, cf);
         try
         {
@@ -512,7 +512,7 @@ public class DefsTest extends SchemaLoader
         Descriptor desc = indexedCfs.getSSTables().iterator().next().descriptor;
 
         // drop the index
-        CFMetaData meta = cfs.metadata.clone();
+        CFMetaData meta = cfs.metadata.copy();
         ColumnDefinition cdOld = meta.regularColumns().iterator().next();
         ColumnDefinition cdNew = ColumnDefinition.regularDef(meta, cdOld.name.bytes, cdOld.type, null);
         meta.addOrReplaceColumnDefinition(cdNew);

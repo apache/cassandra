@@ -89,15 +89,15 @@ public class DeletedCell extends Cell
     }
 
     @Override
-    public Cell reconcile(Cell cell, AbstractAllocator allocator)
+    public Cell reconcile(Cell cell)
     {
         if (cell instanceof DeletedCell)
-            return super.reconcile(cell, allocator);
-        return cell.reconcile(this, allocator);
+            return super.reconcile(cell);
+        return cell.reconcile(this);
     }
 
     @Override
-    public Cell localCopy(ColumnFamilyStore cfs, AbstractAllocator allocator)
+    public Cell localCopy(AbstractAllocator allocator)
     {
         return new DeletedCell(name.copy(allocator), allocator.clone(value), timestamp);
     }

@@ -17,13 +17,12 @@
  */
 package org.apache.cassandra.utils.memory;
 
-import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.concurrent.WaitQueue;
-
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicLong;
+
+import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
 {
@@ -150,9 +149,9 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
         return cloned;
     }
 
-    public ContextAllocator wrap(OpOrder.Group opGroup, ColumnFamilyStore cfs)
+    public ContextAllocator wrap(OpOrder.Group opGroup)
     {
-        return new ContextAllocator(opGroup, this, cfs);
+        return new ContextAllocator(opGroup, this);
     }
 
     @Override

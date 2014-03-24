@@ -154,7 +154,7 @@ public class CounterMutation implements IMutation
             if (cell instanceof CounterUpdateCell)
                 counterUpdateCells.add((CounterUpdateCell)cell);
             else
-                resultCF.addColumn(cell.localCopy(cfs, allocator));
+                resultCF.addColumn(cell.localCopy(allocator));
         }
 
         if (counterUpdateCells.isEmpty())
@@ -170,7 +170,7 @@ public class CounterMutation implements IMutation
             long count = currentValue.count + update.delta();
 
             resultCF.addColumn(new CounterCell(update.name().copy(allocator),
-                                               CounterContext.instance().createGlobal(CounterId.getLocalId(), clock, count, allocator),
+                                               CounterContext.instance().createGlobal(CounterId.getLocalId(), clock, count),
                                                update.timestamp()));
         }
 

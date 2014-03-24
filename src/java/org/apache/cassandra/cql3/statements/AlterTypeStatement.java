@@ -115,7 +115,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
         {
             for (CFMetaData cfm : ksm2.cfMetaData().values())
             {
-                CFMetaData copy = cfm.clone();
+                CFMetaData copy = cfm.copy();
                 boolean modified = false;
                 for (ColumnDefinition def : copy.allColumns())
                     modified |= updateDefinition(copy, def, toUpdate.keyspace, toUpdate.name, updated);
