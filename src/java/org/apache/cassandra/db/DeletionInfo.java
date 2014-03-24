@@ -227,7 +227,7 @@ public class DeletionInfo
     public boolean mayModify(DeletionInfo delInfo)
     {
         return topLevel.markedForDeleteAt > delInfo.topLevel.markedForDeleteAt
-            || ranges == null;
+            || ranges != null;
     }
 
     @Override
