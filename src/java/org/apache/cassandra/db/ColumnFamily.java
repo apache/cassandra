@@ -325,7 +325,7 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
     {
         long maxTimestamp = deletionInfo().maxTimestamp();
         for (Cell cell : this)
-            maxTimestamp = Math.max(maxTimestamp, cell.maxTimestamp());
+            maxTimestamp = Math.max(maxTimestamp, cell.timestamp());
         return maxTimestamp;
     }
 
@@ -407,8 +407,8 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
                 RangeTombstone rangeTombstone = it.next();
                 tombstones.update(rangeTombstone.getLocalDeletionTime());
             }
-            minTimestampSeen = Math.min(minTimestampSeen, cell.minTimestamp());
-            maxTimestampSeen = Math.max(maxTimestampSeen, cell.maxTimestamp());
+            minTimestampSeen = Math.min(minTimestampSeen, cell.timestamp());
+            maxTimestampSeen = Math.max(maxTimestampSeen, cell.timestamp());
             maxLocalDeletionTime = Math.max(maxLocalDeletionTime, cell.getLocalDeletionTime());
             int deletionTime = cell.getLocalDeletionTime();
             if (deletionTime < Integer.MAX_VALUE)

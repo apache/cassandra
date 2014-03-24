@@ -33,7 +33,6 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.memory.HeapAllocator;
 
 public abstract class AbstractSSTableSimpleWriter
 {
@@ -158,7 +157,7 @@ public abstract class AbstractSSTableSimpleWriter
     public void addCounterColumn(ByteBuffer name, long value)
     {
         addColumn(new CounterCell(metadata.comparator.cellFromByteBuffer(name),
-                                  CounterContext.instance().createGlobal(counterid, 1L, value, HeapAllocator.instance),
+                                  CounterContext.instance().createGlobal(counterid, 1L, value),
                                   System.currentTimeMillis()));
     }
 

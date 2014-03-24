@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -103,9 +102,9 @@ public class CounterContext
     /**
      * Creates a counter context with a single global, 2.1+ shard (a result of increment).
      */
-    public ByteBuffer createGlobal(CounterId id, long clock, long count, AbstractAllocator allocator)
+    public ByteBuffer createGlobal(CounterId id, long clock, long count)
     {
-        ContextState state = ContextState.allocate(1, 0, 0, allocator);
+        ContextState state = ContextState.allocate(1, 0, 0);
         state.writeGlobal(id, clock, count);
         return state.context;
     }
@@ -114,9 +113,9 @@ public class CounterContext
      * Creates a counter context with a single local shard.
      * For use by tests of compatibility with pre-2.1 counters only.
      */
-    public ByteBuffer createLocal(long count, AbstractAllocator allocator)
+    public ByteBuffer createLocal(long count)
     {
-        ContextState state = ContextState.allocate(0, 1, 0, allocator);
+        ContextState state = ContextState.allocate(0, 1, 0);
         state.writeLocal(CounterId.getLocalId(), 1L, count);
         return state.context;
     }
@@ -125,9 +124,9 @@ public class CounterContext
      * Creates a counter context with a single remote shard.
      * For use by tests of compatibility with pre-2.1 counters only.
      */
-    public ByteBuffer createRemote(CounterId id, long clock, long count, AbstractAllocator allocator)
+    public ByteBuffer createRemote(CounterId id, long clock, long count)
     {
-        ContextState state = ContextState.allocate(0, 0, 1, allocator);
+        ContextState state = ContextState.allocate(0, 0, 1);
         state.writeRemote(id, clock, count);
         return state.context;
     }
@@ -254,9 +253,8 @@ public class CounterContext
      *
      * @param left counter context.
      * @param right counter context.
-     * @param allocator An allocator for the merged value.
      */
-    public ByteBuffer merge(ByteBuffer left, ByteBuffer right, AbstractAllocator allocator)
+    public ByteBuffer merge(ByteBuffer left, ByteBuffer right)
     {
         int globalCount = 0;
         int localCount = 0;
@@ -331,7 +329,7 @@ public class CounterContext
         leftState.reset();
         rightState.reset();
 
-        return merge(ContextState.allocate(globalCount, localCount, remoteCount, allocator), leftState, rightState);
+        return merge(ContextState.allocate(globalCount, localCount, remoteCount), leftState, rightState);
     }
 
     private ByteBuffer merge(ContextState mergedState, ContextState leftState, ContextState rightState)
@@ -700,12 +698,12 @@ public class CounterContext
          * Allocate a new context big enough for globalCount + localCount + remoteCount elements
          * and return the initial corresponding ContextState.
          */
-        public static ContextState allocate(int globalCount, int localCount, int remoteCount, AbstractAllocator allocator)
+        public static ContextState allocate(int globalCount, int localCount, int remoteCount)
         {
             int headerLength = HEADER_SIZE_LENGTH + (globalCount + localCount) * HEADER_ELT_LENGTH;
             int bodyLength = (globalCount + localCount + remoteCount) * STEP_LENGTH;
 
-            ByteBuffer buffer = allocator.allocate(headerLength + bodyLength);
+            ByteBuffer buffer = ByteBuffer.allocate(headerLength + bodyLength);
             buffer.putShort(buffer.position(), (short) (globalCount + localCount));
 
             return ContextState.wrap(buffer);

@@ -105,7 +105,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 
     public boolean isDeleted(OnDiskAtom atom)
     {
-        return atom.maxTimestamp() <= markedForDeleteAt;
+        return atom.timestamp() <= markedForDeleteAt;
     }
 
     public long unsharedHeapSize()

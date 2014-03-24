@@ -56,7 +56,7 @@ public class CounterUpdateCell extends Cell
     }
 
     @Override
-    public Cell reconcile(Cell cell, AbstractAllocator allocator)
+    public Cell reconcile(Cell cell)
     {
         // The only time this could happen is if a batchAdd ships two
         // increment for the same cell. Hence we simply sums the delta.
@@ -78,7 +78,7 @@ public class CounterUpdateCell extends Cell
     }
 
     @Override
-    public Cell localCopy(ColumnFamilyStore cfs, AbstractAllocator allocator)
+    public Cell localCopy(AbstractAllocator allocator)
     {
         throw new UnsupportedOperationException();
     }

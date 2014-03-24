@@ -191,8 +191,8 @@ public class Memtable
             }
         }
 
-        ContextAllocator contextAllocator = allocator.wrap(opGroup, cfs);
-        AtomicBTreeColumns.Delta delta = previous.addAllWithSizeDelta(cf, contextAllocator, contextAllocator, indexer, new AtomicBTreeColumns.Delta());
+        ContextAllocator contextAllocator = allocator.wrap(opGroup);
+        AtomicBTreeColumns.Delta delta = previous.addAllWithSizeDelta(cf, contextAllocator, indexer, new AtomicBTreeColumns.Delta());
         liveDataSize.addAndGet(delta.dataSize());
         currentOperations.addAndGet(cf.getColumnCount() + (cf.isMarkedForDelete() ? 1 : 0) + cf.deletionInfo().rangeCount());
 

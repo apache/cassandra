@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
-import org.apache.cassandra.utils.memory.HeapAllocator;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
@@ -60,7 +59,7 @@ public class CounterCell extends Cell
     // For use by tests of compatibility with pre-2.1 counter only.
     public static CounterCell createLocal(CellName name, long value, long timestamp, long timestampOfLastDelete)
     {
-        return new CounterCell(name, contextManager.createLocal(value, HeapAllocator.instance), timestamp, timestampOfLastDelete);
+        return new CounterCell(name, contextManager.createLocal(value), timestamp, timestampOfLastDelete);
     }
 
     @Override
@@ -142,7 +141,7 @@ public class CounterCell extends Cell
     }
 
     @Override
-    public Cell reconcile(Cell cell, AbstractAllocator allocator)
+    public Cell reconcile(Cell cell)
     {
         // live + tombstone: track last tombstone
         if (cell.isMarkedForDelete(Long.MIN_VALUE)) // cannot be an expired cell, so the current time is irrelevant
@@ -171,7 +170,7 @@ public class CounterCell extends Cell
             return this;
         // live + live: merge clocks; update value
         return new CounterCell(name(),
-                               contextManager.merge(value(), cell.value(), allocator),
+                               contextManager.merge(value(), cell.value()),
                                Math.max(timestamp(), cell.timestamp()),
                                Math.max(timestampOfLastDelete(), ((CounterCell) cell).timestampOfLastDelete()));
     }
@@ -190,7 +189,7 @@ public class CounterCell extends Cell
     }
 
     @Override
-    public Cell localCopy(ColumnFamilyStore cfs, AbstractAllocator allocator)
+    public Cell localCopy(AbstractAllocator allocator)
     {
         return new CounterCell(name.copy(allocator), allocator.clone(value), timestamp, timestampOfLastDelete);
     }

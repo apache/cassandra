@@ -211,7 +211,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         {
             if (current instanceof RangeTombstone)
             {
-                if (tombstone == null || current.maxTimestamp() >= tombstone.maxTimestamp())
+                if (tombstone == null || current.timestamp() >= tombstone.timestamp())
                     tombstone = (RangeTombstone)current;
             }
             else
@@ -285,8 +285,8 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                 }
 
                 columns++;
-                minTimestampSeen = Math.min(minTimestampSeen, reduced.minTimestamp());
-                maxTimestampSeen = Math.max(maxTimestampSeen, reduced.maxTimestamp());
+                minTimestampSeen = Math.min(minTimestampSeen, reduced.timestamp());
+                maxTimestampSeen = Math.max(maxTimestampSeen, reduced.timestamp());
                 maxLocalDeletionTimeSeen = Math.max(maxLocalDeletionTimeSeen, reduced.getLocalDeletionTime());
                 minColumnNameSeen = ColumnNameHelper.minComponents(minColumnNameSeen, reduced.name(), controller.cfs.metadata.comparator);
                 maxColumnNameSeen = ColumnNameHelper.maxComponents(maxColumnNameSeen, reduced.name(), controller.cfs.metadata.comparator);

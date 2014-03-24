@@ -50,7 +50,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.memory.HeapAllocator;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -316,7 +315,7 @@ public class StreamingTransferTest extends SchemaLoader
                 Map<String, ColumnFamily> entries = new HashMap<>();
                 ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfs.metadata);
                 ColumnFamily cfCleaned = ArrayBackedSortedColumns.factory.create(cfs.metadata);
-                CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 1, 3, HeapAllocator.instance);
+                CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 1, 3);
                 state.writeLocal(CounterId.fromInt(2), 9L, 3L);
                 state.writeRemote(CounterId.fromInt(4), 4L, 2L);
                 state.writeRemote(CounterId.fromInt(6), 3L, 3L);

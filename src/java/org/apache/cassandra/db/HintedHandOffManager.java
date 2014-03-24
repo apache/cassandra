@@ -419,7 +419,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 catch (UnknownColumnFamilyException e)
                 {
                     logger.debug("Skipping delivery of hint for deleted columnfamily", e);
-                    deleteHint(hostIdBytes, hint.name(), hint.maxTimestamp());
+                    deleteHint(hostIdBytes, hint.name(), hint.timestamp());
                     continue;
                 }
                 catch (IOException e)
@@ -438,7 +438,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                         truncationTimesCache.put(cfId, truncatedAt);
                     }
 
-                    if (hint.maxTimestamp() < truncatedAt)
+                    if (hint.timestamp() < truncatedAt)
                     {
                         logger.debug("Skipping delivery of hint for truncated columnfamily {}", cfId);
                         mutation = mutation.without(cfId);
@@ -447,7 +447,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
                 if (mutation.isEmpty())
                 {
-                    deleteHint(hostIdBytes, hint.name(), hint.maxTimestamp());
+                    deleteHint(hostIdBytes, hint.name(), hint.timestamp());
                     continue;
                 }
 
@@ -458,7 +458,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                     public void run()
                     {
                         rowsReplayed.incrementAndGet();
-                        deleteHint(hostIdBytes, hint.name(), hint.maxTimestamp());
+                        deleteHint(hostIdBytes, hint.name(), hint.timestamp());
                     }
                 };
                 WriteResponseHandler responseHandler = new WriteResponseHandler(endpoint, WriteType.UNLOGGED_BATCH, callback);

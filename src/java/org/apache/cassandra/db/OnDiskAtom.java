@@ -37,8 +37,7 @@ public interface OnDiskAtom
      * For a standard column, this is the same as timestamp().
      * For a super column, this is the min/max column timestamp of the sub columns.
      */
-    public long minTimestamp();
-    public long maxTimestamp();
+    public long timestamp();
     public int getLocalDeletionTime(); // for tombstone GC, so int is sufficient granularity
 
     public void validateFields(CFMetaData metadata) throws MarshalException;

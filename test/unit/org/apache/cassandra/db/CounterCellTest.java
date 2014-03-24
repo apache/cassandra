@@ -26,8 +26,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-import org.apache.cassandra.utils.memory.AbstractAllocator;
-import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -67,7 +65,7 @@ public class CounterCellTest extends SchemaLoader
     {
         long delta = 3L;
         CounterCell cell = new CounterCell(Util.cellname("x"),
-                                           CounterContext.instance().createLocal(delta, HeapAllocator.instance),
+                                           CounterContext.instance().createLocal(delta),
                                            1L,
                                            Long.MIN_VALUE);
 
@@ -87,8 +85,6 @@ public class CounterCellTest extends SchemaLoader
         Cell reconciled;
 
         ByteBuffer context;
-
-        AbstractAllocator allocator = HeapAllocator.instance;
 
         // tombstone + tombstone
         left  = new DeletedCell(cellname("x"), 1, 1L);
@@ -154,20 +150,20 @@ public class CounterCellTest extends SchemaLoader
         assert ((CounterCell)reconciled).timestampOfLastDelete() == right.getMarkedForDeleteAt();
 
         // live < live last delete
-        left  = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L, allocator), 1L, Long.MIN_VALUE);
-        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 1L, 1L, allocator), 4L, 3L);
+        left  = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L), 1L, Long.MIN_VALUE);
+        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 1L, 1L), 4L, 3L);
 
         assert left.reconcile(right) == right;
 
         // live last delete > live
-        left  = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L, allocator), 6L, 5L);
-        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 1L, 1L, allocator), 4L, 3L);
+        left  = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L), 6L, 5L);
+        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 1L, 1L), 4L, 3L);
 
         assert left.reconcile(right) == left;
 
         // live + live
-        left = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 1L, 1L, allocator), 4L, Long.MIN_VALUE);
-        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L, allocator), 1L, Long.MIN_VALUE);
+        left = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 1L, 1L), 4L, Long.MIN_VALUE);
+        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L), 1L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
         assert reconciled.name().equals(left.name());
@@ -175,7 +171,7 @@ public class CounterCellTest extends SchemaLoader
         assert reconciled.timestamp() == 4L;
 
         left = reconciled;
-        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(2), 1L, 5L, allocator), 2L, Long.MIN_VALUE);
+        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(2), 1L, 5L), 2L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
         assert reconciled.name().equals(left.name());
@@ -183,7 +179,7 @@ public class CounterCellTest extends SchemaLoader
         assert reconciled.timestamp() == 4L;
 
         left = reconciled;
-        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(2), 2L, 2L, allocator), 6L, Long.MIN_VALUE);
+        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(2), 2L, 2L), 6L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
         assert reconciled.name().equals(left.name());
@@ -208,7 +204,6 @@ public class CounterCellTest extends SchemaLoader
     @Test
     public void testDiff()
     {
-        AbstractAllocator allocator = HeapAllocator.instance;
         ContextState left;
         ContextState right;
 
@@ -230,7 +225,7 @@ public class CounterCellTest extends SchemaLoader
         assert null      == rightCell.diff(leftCell);
 
         // equality: equal nodes, all counts same
-        left = ContextState.allocate(0, 0, 3, allocator);
+        left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 3L, 0L);
         left.writeRemote(CounterId.fromInt(6), 2L, 0L);
         left.writeRemote(CounterId.fromInt(9), 1L, 0L);
@@ -241,13 +236,13 @@ public class CounterCellTest extends SchemaLoader
         assert leftCell.diff(rightCell) == null;
 
         // greater than: left has superset of nodes (counts equal)
-        left = ContextState.allocate(0, 0, 4, allocator);
+        left = ContextState.allocate(0, 0, 4);
         left.writeRemote(CounterId.fromInt(3), 3L, 0L);
         left.writeRemote(CounterId.fromInt(6), 2L, 0L);
         left.writeRemote(CounterId.fromInt(9), 1L, 0L);
         left.writeRemote(CounterId.fromInt(12), 0L, 0L);
 
-        right = ContextState.allocate(0, 0, 3, allocator);
+        right = ContextState.allocate(0, 0, 3);
         right.writeRemote(CounterId.fromInt(3), 3L, 0L);
         right.writeRemote(CounterId.fromInt(6), 2L, 0L);
         right.writeRemote(CounterId.fromInt(9), 1L, 0L);
@@ -260,12 +255,12 @@ public class CounterCellTest extends SchemaLoader
         assert leftCell == rightCell.diff(leftCell);
 
         // disjoint: right and left have disjoint node sets
-        left = ContextState.allocate(0, 0, 3, allocator);
+        left = ContextState.allocate(0, 0, 3);
         left.writeRemote(CounterId.fromInt(3), 1L, 0L);
         left.writeRemote(CounterId.fromInt(4), 1L, 0L);
         left.writeRemote(CounterId.fromInt(9), 1L, 0L);
 
-        right = ContextState.allocate(0, 0, 3, allocator);
+        right = ContextState.allocate(0, 0, 3);
         right.writeRemote(CounterId.fromInt(3), 1L, 0L);
         right.writeRemote(CounterId.fromInt(6), 1L, 0L);
         right.writeRemote(CounterId.fromInt(9), 1L, 0L);
@@ -279,8 +274,7 @@ public class CounterCellTest extends SchemaLoader
     @Test
     public void testSerializeDeserialize() throws IOException
     {
-        AbstractAllocator allocator = HeapAllocator.instance;
-        CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 2, 2, allocator);
+        CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 2, 2);
         state.writeRemote(CounterId.fromInt(1), 4L, 4L);
         state.writeLocal(CounterId.fromInt(2), 4L, 4L);
         state.writeRemote(CounterId.fromInt(3), 4L, 4L);
@@ -312,11 +306,10 @@ public class CounterCellTest extends SchemaLoader
     @Test
     public void testUpdateDigest() throws Exception
     {
-        AbstractAllocator allocator = HeapAllocator.instance;
         MessageDigest digest1 = MessageDigest.getInstance("md5");
         MessageDigest digest2 = MessageDigest.getInstance("md5");
 
-        CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 2, 2, allocator);
+        CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 2, 2);
         state.writeRemote(CounterId.fromInt(1), 4L, 4L);
         state.writeLocal(CounterId.fromInt(2), 4L, 4L);
         state.writeRemote(CounterId.fromInt(3), 4L, 4L);
