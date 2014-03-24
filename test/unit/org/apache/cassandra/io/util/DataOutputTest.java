@@ -31,14 +31,12 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
-import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.avro.util.ByteBufferInputStream;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DataOutputTest
@@ -79,7 +77,7 @@ public class DataOutputTest
         ByteBuffer buf = wrap(new byte[345], true);
         DataOutputByteBuffer write = new DataOutputByteBuffer(buf.duplicate());
         DataInput canon = testWrite(write);
-        DataInput test = new DataInputStream(new ByteBufferInputStream(Arrays.asList(buf)));
+        DataInput test = new DataInputStream(new ByteArrayInputStream(ByteBufferUtil.getArray(buf)));
         testRead(test, canon);
     }
 
@@ -89,7 +87,7 @@ public class DataOutputTest
         ByteBuffer buf = wrap(new byte[345], false);
         DataOutputByteBuffer write = new DataOutputByteBuffer(buf.duplicate());
         DataInput canon = testWrite(write);
-        DataInput test = new DataInputStream(new ByteBufferInputStream(Arrays.asList(buf)));
+        DataInput test = new DataInputStream(new ByteArrayInputStream(ByteBufferUtil.getArray(buf)));
         testRead(test, canon);
     }
 
