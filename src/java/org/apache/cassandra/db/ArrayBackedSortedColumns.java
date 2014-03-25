@@ -94,7 +94,7 @@ public class ArrayBackedSortedColumns extends ColumnFamily
         final Cell[] cells = new Cell[value.getColumnCount()];
         int i = 0;
         for (Cell cell : value)
-            cells[i++] = cell.localCopy(cfs, HeapAllocator.instance);
+            cells[i++] = cell.localCopy(HeapAllocator.instance);
         ColumnFamily r = new ArrayBackedSortedColumns(cfs.metadata, value.isInsertReversed(), cells, i, i);
         r.delete(value);
         return r;
