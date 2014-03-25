@@ -113,6 +113,7 @@ Merged from 2.0:
  * Fix performance regression from CASSANDRA-5614 (CASSANDRA-6949)
  * Ensure that batchlog and hint timeouts do not produce hints (CASSANDRA-7058)
  * Merge groupable mutations in TriggerExecutor#execute() (CASSANDRA-7047)
+ * Plug holes in resource release when wiring up StreamSession (CASSANDRA-7073)
 Merged from 1.2:
  * Fix nodetool display with vnodes (CASSANDRA-7082)
  * Add UNLOGGED, COUNTER options to BATCH documentation (CASSANDRA-6816)

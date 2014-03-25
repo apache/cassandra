@@ -121,7 +121,8 @@ public class StreamPlan
      * Add transfer task to send given SSTable files.
      *
      * @param to endpoint address of receiver
-     * @param sstableDetails sstables with file positions and estimated key count
+     * @param sstableDetails sstables with file positions and estimated key count.
+     *                       this collection will be modified to remove those files that are successfully handed off
      * @return this object for chaining
      */
     public StreamPlan transferFiles(InetAddress to, Collection<StreamSession.SSTableStreamingSections> sstableDetails)

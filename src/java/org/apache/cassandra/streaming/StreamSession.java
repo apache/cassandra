@@ -241,8 +241,16 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
             flushSSTables(stores);
 
         List<Range<Token>> normalizedRanges = Range.normalize(ranges);
-        List<SSTableReader> sstables = getSSTablesForRanges(normalizedRanges, stores);
-        addTransferFiles(normalizedRanges, sstables, repairedAt);
+        List<SSTableStreamingSections> sections = getSSTableSectionsForRanges(normalizedRanges, stores, repairedAt);
+        try
+        {
+            addTransferFiles(sections);
+        }
+        finally
+        {
+            for (SSTableStreamingSections release : sections)
+                release.sstable.releaseReference();
+        }
     }
 
     private Collection<ColumnFamilyStore> getColumnFamilyStores(String keyspace, Collection<String> columnFamilies)
@@ -261,53 +269,51 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
         return stores;
     }
 
-    private List<SSTableReader> getSSTablesForRanges(Collection<Range<Token>> normalizedRanges, Collection<ColumnFamilyStore> stores)
+    private List<SSTableStreamingSections> getSSTableSectionsForRanges(Collection<Range<Token>> ranges, Collection<ColumnFamilyStore> stores, long overriddenRepairedAt)
     {
-        List<SSTableReader> sstables = Lists.newLinkedList();
-        for (ColumnFamilyStore cfStore : stores)
+        List<SSTableReader> sstables = new ArrayList<>();
+        try
         {
-            List<AbstractBounds<RowPosition>> rowBoundsList = Lists.newLinkedList();
-            for (Range<Token> range : normalizedRanges)
-                rowBoundsList.add(range.toRowBounds());
-            ColumnFamilyStore.ViewFragment view = cfStore.selectAndReference(cfStore.viewFilter(rowBoundsList));
-            sstables.addAll(view.sstables);
-        }
-        return sstables;
-    }
+            for (ColumnFamilyStore cfStore : stores)
+            {
+                List<AbstractBounds<RowPosition>> rowBoundsList = new ArrayList<>(ranges.size());
+                for (Range<Token> range : ranges)
+                    rowBoundsList.add(range.toRowBounds());
+                ColumnFamilyStore.ViewFragment view = cfStore.selectAndReference(cfStore.viewFilter(rowBoundsList));
+                sstables.addAll(view.sstables);
+            }
 
-    /**
-     * Set up transfer of the specific SSTables.
-     * {@code sstables} must be marked as referenced so that not get deleted until transfer completes.
-     *
-     * @param ranges Transfer ranges
-     * @param sstables Transfer files
-     * @param overriddenRepairedAt use this repairedAt time, for use in repair.
-     */
-    public void addTransferFiles(Collection<Range<Token>> ranges, Collection<SSTableReader> sstables, long overriddenRepairedAt)
-    {
-        List<SSTableStreamingSections> sstableDetails = new ArrayList<>(sstables.size());
-        for (SSTableReader sstable : sstables)
+            List<SSTableStreamingSections> sections = new ArrayList<>(sstables.size());
+            for (SSTableReader sstable : sstables)
+            {
+                long repairedAt = overriddenRepairedAt;
+                if (overriddenRepairedAt == ActiveRepairService.UNREPAIRED_SSTABLE)
+                    repairedAt = sstable.getSSTableMetadata().repairedAt;
+                sections.add(new SSTableStreamingSections(sstable,
+                                                          sstable.getPositionsForRanges(ranges),
+                                                          sstable.estimatedKeysForRanges(ranges),
+                                                          repairedAt));
+            }
+            return sections;
+        }
+        catch (Throwable t)
         {
-            long repairedAt = overriddenRepairedAt;
-            if (overriddenRepairedAt == ActiveRepairService.UNREPAIRED_SSTABLE)
-                repairedAt = sstable.getSSTableMetadata().repairedAt;
-            sstableDetails.add(new SSTableStreamingSections(sstable,
-                                                            sstable.getPositionsForRanges(ranges),
-                                                            sstable.estimatedKeysForRanges(ranges),
-                                                            repairedAt));
+            SSTableReader.releaseReferences(sstables);
+            throw t;
         }
-
-        addTransferFiles(sstableDetails);
     }
 
     public void addTransferFiles(Collection<SSTableStreamingSections> sstableDetails)
     {
-        for (SSTableStreamingSections details : sstableDetails)
+        Iterator<SSTableStreamingSections> iter = sstableDetails.iterator();
+        while (iter.hasNext())
         {
+            SSTableStreamingSections details = iter.next();
             if (details.sections.isEmpty())
             {
                 // A reference was acquired on the sstable and we won't stream it
                 details.sstable.releaseReference();
+                iter.remove();
                 continue;
             }
 
@@ -319,6 +325,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
                 transfers.put(cfId, task);
             }
             task.addTransferFile(details.sstable, details.estimatedKeys, details.sections, details.repairedAt);
+            iter.remove();
         }
     }
 
