@@ -166,7 +166,7 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         }
 
         @Override
-        public void free(PoolAllocator<?> allocator)
+        public void free(PoolAllocator allocator)
         {
             super.free(allocator);
             allocator.free(collectionElement);

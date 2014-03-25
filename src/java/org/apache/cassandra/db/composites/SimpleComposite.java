@@ -78,7 +78,7 @@ public class SimpleComposite extends AbstractComposite
     }
 
     @Override
-    public void free(PoolAllocator<?> allocator)
+    public void free(PoolAllocator allocator)
     {
         allocator.free(element);
     }

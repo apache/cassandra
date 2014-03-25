@@ -21,16 +21,17 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.Set;
 
-import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.junit.Test;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.db.composites.*;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.db.index.PerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.PerRowSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.PoolAllocator;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -92,7 +93,7 @@ public class SecondaryIndexCellSizeTest
         {
         }
 
-        public AbstractAllocator getOnHeapAllocator()
+        public PoolAllocator getAllocator()
         {
             return null;
         }
@@ -172,7 +173,7 @@ public class SecondaryIndexCellSizeTest
         }
 
         @Override
-        public AbstractAllocator getOnHeapAllocator()
+        public PoolAllocator getAllocator()
         {
             return null;
         }

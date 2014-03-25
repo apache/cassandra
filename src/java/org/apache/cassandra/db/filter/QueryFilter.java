@@ -17,15 +17,23 @@
  */
 package org.apache.cassandra.db.filter;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.SortedSet;
 
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.db.Cell;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.OnDiskAtom;
+import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.MergeIterator;
 
 public class QueryFilter
@@ -43,14 +51,6 @@ public class QueryFilter
         this.timestamp = timestamp;
     }
 
-    public OnDiskAtomIterator getMemtableColumnIterator(Memtable memtable)
-    {
-        ColumnFamily cf = memtable.getColumnFamily(key);
-        if (cf == null)
-            return null;
-        return getColumnFamilyIterator(cf);
-    }
-
     public OnDiskAtomIterator getColumnFamilyIterator(ColumnFamily cf)
     {
         assert cf != null;
@@ -60,11 +60,6 @@ public class QueryFilter
     public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable)
     {
         return filter.getSSTableColumnIterator(sstable, key);
-    }
-
-    public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry)
-    {
-        return filter.getSSTableColumnIterator(sstable, file, key, indexEntry);
     }
 
     public void collateOnDiskAtom(final ColumnFamily returnCF, List<? extends Iterator<? extends OnDiskAtom>> toCollate, final int gcBefore)

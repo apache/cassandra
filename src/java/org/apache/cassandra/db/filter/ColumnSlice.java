@@ -267,7 +267,7 @@ public class ColumnSlice
         }
 
         @Override
-        public void free(PoolAllocator<?> allocator)
+        public void free(PoolAllocator allocator)
         {
             throw new UnsupportedOperationException();
         }

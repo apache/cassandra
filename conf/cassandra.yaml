@@ -278,6 +278,12 @@ concurrent_counter_writes: 32
 # that will trigger a flush of the largest memtable.
 memtable_cleanup_threshold: 0.4
 
+# Specify the way Cassandra allocates and manages memtable memory.
+# Options are:
+#   heap_buffers:    on heap nio buffers
+#   offheap_buffers: off heap (direct) nio buffers
+memtable_allocation_type: heap_buffers
+
 # Total space to use for commitlogs.  Since commitlog segments are
 # mmapped, and hence use up address space, the default size is 32
 # on 32-bit JVMs, and 1024 on 64-bit JVMs.

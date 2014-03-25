@@ -92,8 +92,8 @@ public class Config
     // we don't want a lot of contention, but we also don't want to starve all other tables
     // if a big one flushes. OS buffering should be able to minimize contention with 2 threads.
     public int memtable_flush_writers = 2;
-
-    public Integer memtable_total_space_in_mb;
+    public Integer memtable_heap_space_in_mb;
+    public Integer memtable_offheap_space_in_mb;
     public float memtable_cleanup_threshold = 0.4f;
 
     public Integer storage_port = 7000;
@@ -204,7 +204,7 @@ public class Config
 
     public boolean inter_dc_tcp_nodelay = true;
 
-    public String memtable_allocator = "HeapSlabPool";
+    public MemtableAllocationType memtable_allocation_type = MemtableAllocationType.heap_buffers;
 
     private static boolean outboundBindAny = false;
 
@@ -285,6 +285,13 @@ public class Config
         mmap,
         mmap_index_only,
         standard,
+    }
+
+    public static enum MemtableAllocationType
+    {
+        unslabbed_heap_buffers,
+        heap_buffers,
+        offheap_buffers
     }
 
     public static enum DiskFailurePolicy

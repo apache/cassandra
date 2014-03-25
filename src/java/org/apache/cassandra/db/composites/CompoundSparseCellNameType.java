@@ -93,7 +93,7 @@ public class CompoundSparseCellNameType extends AbstractCompoundCellNameType
             }
 
             @Override
-            public void free(PoolAllocator<?> allocator)
+            public void free(PoolAllocator allocator)
             {
             }
         };

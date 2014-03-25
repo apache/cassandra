@@ -18,35 +18,38 @@
 package org.apache.cassandra.db;
 
 import java.io.File;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.AbstractMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Throwables;
-
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
-import org.apache.cassandra.dht.LongToken;
-import org.apache.cassandra.io.util.DiskAwareRunnable;
-
-import org.apache.cassandra.utils.memory.AbstractAllocator;
-import org.apache.cassandra.utils.memory.ContextAllocator;
-import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.Pool;
-import org.apache.cassandra.utils.memory.PoolAllocator;
-import org.apache.cassandra.service.ActiveRepairService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
+import org.apache.cassandra.dht.LongToken;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.DiskAwareRunnable;
+import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.ContextAllocator;
+import org.apache.cassandra.utils.memory.HeapAllocator;
+import org.apache.cassandra.utils.memory.Pool;
+import org.apache.cassandra.utils.memory.PoolAllocator;
 
 public class Memtable
 {
@@ -82,12 +85,12 @@ public class Memtable
     public Memtable(ColumnFamilyStore cfs)
     {
         this.cfs = cfs;
-        this.allocator = memoryPool.newAllocator(cfs.keyspace.writeOrder);
+        this.allocator = memoryPool.newAllocator();
         this.initialComparator = cfs.metadata.comparator;
         this.cfs.scheduleFlush();
     }
 
-    public AbstractAllocator getAllocator()
+    public PoolAllocator getAllocator()
     {
         return allocator;
     }
@@ -225,37 +228,44 @@ public class Memtable
 
     public String toString()
     {
-        return String.format("Memtable-%s@%s(%s serialized bytes, %s ops, %.0f%% of heap limit)",
-                             cfs.name, hashCode(), liveDataSize, currentOperations, 100 * allocator.ownershipRatio());
+        return String.format("Memtable-%s@%s(%s serialized bytes, %s ops, %.0f%%/%.0f%% of on/off-heap limit)",
+                             cfs.name, hashCode(), liveDataSize, currentOperations, 100 * allocator.onHeap().ownershipRatio(), 100 * allocator.offHeap().ownershipRatio());
     }
 
     /**
      * @param startWith Include data in the result from and including this key and to the end of the memtable
      * @return An iterator of entries with the data from the start key
      */
-    public Iterator<Map.Entry<DecoratedKey, AtomicBTreeColumns>> getEntryIterator(final RowPosition startWith, final RowPosition stopAt)
+    public Iterator<Map.Entry<DecoratedKey, ColumnFamily>> getEntryIterator(final RowPosition startWith, final RowPosition stopAt)
     {
-        return new Iterator<Map.Entry<DecoratedKey, AtomicBTreeColumns>>()
+        return new Iterator<Map.Entry<DecoratedKey, ColumnFamily>>()
         {
-            private Iterator<? extends Map.Entry<RowPosition, AtomicBTreeColumns>> iter = stopAt.isMinimum(cfs.partitioner)
+            private Iterator<? extends Map.Entry<? extends RowPosition, AtomicBTreeColumns>> iter = stopAt.isMinimum(cfs.partitioner)
                                                                                         ? rows.tailMap(startWith).entrySet().iterator()
                                                                                         : rows.subMap(startWith, true, stopAt, true).entrySet().iterator();
-            private Map.Entry<RowPosition, AtomicBTreeColumns> currentEntry;
+            private Map.Entry<? extends RowPosition, ? extends ColumnFamily> currentEntry;
 
             public boolean hasNext()
             {
                 return iter.hasNext();
             }
 
-            public Map.Entry<DecoratedKey, AtomicBTreeColumns> next()
+            public Map.Entry<DecoratedKey, ColumnFamily> next()
             {
-                Map.Entry<RowPosition, AtomicBTreeColumns> entry = iter.next();
-                // Store the reference to the current entry so that remove() can update the current size.
-                currentEntry = entry;
+                Map.Entry<? extends RowPosition, ? extends ColumnFamily> entry = iter.next();
                 // Actual stored key should be true DecoratedKey
                 assert entry.getKey() instanceof DecoratedKey;
+                if (memoryPool.needToCopyOnHeap())
+                {
+                    DecoratedKey key = (DecoratedKey) entry.getKey();
+                    key = new DecoratedKey(key.token, HeapAllocator.instance.clone(key.key));
+                    ColumnFamily columns = ArrayBackedSortedColumns.cloneToHeap(entry.getValue(), cfs);
+                    entry = new AbstractMap.SimpleImmutableEntry<>(key, columns);
+                }
+                // Store the reference to the current entry so that remove() can update the current size.
+                currentEntry = entry;
                 // Object cast is required since otherwise we can't turn RowPosition into DecoratedKey
-                return (Map.Entry<DecoratedKey, AtomicBTreeColumns>) (Object)entry;
+                return (Map.Entry<DecoratedKey, ColumnFamily>) entry;
             }
 
             public void remove()
@@ -359,6 +369,8 @@ public class Memtable
 
                 if (writer.getFilePointer() > 0)
                 {
+                    writer.isolateReferences();
+
                     // temp sstables should contain non-repaired data.
                     ssTable = writer.closeAndOpenReader();
                     logger.info(String.format("Completed flushing %s (%d bytes) for commitlog position %s",

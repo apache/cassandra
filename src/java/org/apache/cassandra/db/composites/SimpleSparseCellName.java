@@ -102,7 +102,7 @@ public class SimpleSparseCellName extends AbstractComposite implements CellName
         return new SimpleSparseCellName(columnName.clone(allocator));
     }
 
-    public void free(PoolAllocator<?> allocator)
+    public void free(PoolAllocator allocator)
     {
         allocator.free(columnName.bytes);
     }

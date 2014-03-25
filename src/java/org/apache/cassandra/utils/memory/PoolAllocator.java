@@ -18,50 +18,64 @@
 package org.apache.cassandra.utils.memory;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
+
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
-public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
+public abstract class PoolAllocator extends AbstractAllocator
 {
-    public final P pool;
+
+    private final SubAllocator onHeap;
+    private final SubAllocator offHeap;
     volatile LifeCycle state = LifeCycle.LIVE;
 
     static enum LifeCycle
     {
         LIVE, DISCARDING, DISCARDED;
-        LifeCycle transition(LifeCycle target)
+        LifeCycle transition(LifeCycle targetState)
         {
-            assert target.ordinal() == ordinal() + 1;
-            return target;
+            switch (targetState)
+            {
+                case DISCARDING:
+                    assert this == LifeCycle.LIVE;
+                    return LifeCycle.DISCARDING;
+                case DISCARDED:
+                    assert this == LifeCycle.DISCARDING;
+                    return LifeCycle.DISCARDED;
+            }
+            throw new IllegalStateException();
         }
     }
 
-    // the amount of memory/resource owned by this object
-    private AtomicLong owns = new AtomicLong();
-    // the amount of memory we are reporting to collect; this may be inaccurate, but is close
-    // and is used only to ensure that once we have reclaimed we mark the tracker with the same amount
-    private AtomicLong reclaiming = new AtomicLong();
-
-    PoolAllocator(P pool)
+    PoolAllocator(SubAllocator onHeap, SubAllocator offHeap)
     {
-        this.pool = pool;
+        this.onHeap = onHeap;
+        this.offHeap = offHeap;
+    }
+
+    public SubAllocator onHeap()
+    {
+        return onHeap;
+    }
+
+    public SubAllocator offHeap()
+    {
+        return offHeap;
     }
 
     /**
-     * Mark this allocator as reclaiming; this will mark the memory it owns as reclaiming, so remove it from
-     * any calculation deciding if further cleaning/reclamation is necessary.
+     * Mark this allocator reclaiming; this will permit any outstanding allocations to temporarily
+     * overshoot the maximum memory limit so that flushing can begin immediately
      */
     public void setDiscarding()
     {
         state = state.transition(LifeCycle.DISCARDING);
         // mark the memory owned by this allocator as reclaiming
-        long prev = reclaiming.get();
-        long cur = owns.get();
-        reclaiming.set(cur);
-        pool.adjustReclaiming(cur - prev);
+        onHeap.markAllReclaiming();
+        offHeap.markAllReclaiming();
     }
 
     /**
@@ -72,66 +86,17 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
     {
         state = state.transition(LifeCycle.DISCARDED);
         // release any memory owned by this allocator; automatically signals waiters
-        pool.release(owns.getAndSet(0));
-        pool.adjustReclaiming(-reclaiming.get());
-    }
-
-    public abstract ByteBuffer allocate(int size, OpOrder.Group opGroup);
-
-    /** Mark the BB as unused, permitting it to be reclaimed */
-    public abstract void free(ByteBuffer name);
-
-    // mark ourselves as owning memory from the tracker.  meant to be called by subclass
-    // allocate method that actually allocates and returns a ByteBuffer
-    protected void markAllocated(int size, OpOrder.Group opGroup)
-    {
-        while (true)
-        {
-            if (pool.tryAllocate(size))
-            {
-                acquired(size);
-                return;
-            }
-            WaitQueue.Signal signal = opGroup.isBlockingSignal(pool.hasRoom.register());
-            boolean allocated = pool.tryAllocate(size);
-            if (allocated || opGroup.isBlocking())
-            {
-                signal.cancel();
-                if (allocated) // if we allocated, take ownership
-                    acquired(size);
-                else // otherwise we're blocking so we're permitted to overshoot our constraints, to just allocate without blocking
-                    allocated(size);
-                return;
-            }
-            else
-                signal.awaitUninterruptibly();
-        }
-    }
-
-    // retroactively mark (by-passes any constraints) an amount allocated in the tracker, and owned by us.
-    private void allocated(int size)
-    {
-        pool.adjustAllocated(size);
-        owns.addAndGet(size);
-    }
-
-    // retroactively mark (by-passes any constraints) an amount owned by us
-    private void acquired(int size)
-    {
-        owns.addAndGet(size);
-    }
-
-    // release an amount of memory from our ownership, and deallocate it in the tracker
-    void release(int size)
-    {
-        pool.release(size);
-        owns.addAndGet(-size);
+        onHeap.releaseAll();
+        offHeap.releaseAll();
     }
 
     public boolean isLive()
     {
         return state == LifeCycle.LIVE;
     }
+
+    public abstract ByteBuffer allocate(int size, OpOrder.Group opGroup);
+    public abstract void free(ByteBuffer name);
 
     /**
      * Allocate a slice of the given length.
@@ -154,21 +119,107 @@ public abstract class PoolAllocator<P extends Pool> extends AbstractAllocator
         return new ContextAllocator(opGroup, this);
     }
 
-    @Override
-    public long owns()
+    /** Mark the BB as unused, permitting it to be reclaimed */
+    public static final class SubAllocator
     {
-        return owns.get();
+        // the tracker we are owning memory from
+        private final Pool.SubPool parent;
+
+        // the amount of memory/resource owned by this object
+        private volatile long owns;
+        // the amount of memory we are reporting to collect; this may be inaccurate, but is close
+        // and is used only to ensure that once we have reclaimed we mark the tracker with the same amount
+        private volatile long reclaiming;
+
+        SubAllocator(Pool.SubPool parent)
+        {
+            this.parent = parent;
+        }
+
+        // should only be called once we know we will never allocate to the object again.
+        // currently no corroboration/enforcement of this is performed.
+        void releaseAll()
+        {
+            parent.adjustAcquired(-ownsUpdater.getAndSet(this, 0), false);
+            parent.adjustReclaiming(-reclaimingUpdater.getAndSet(this, 0));
+        }
+
+        // allocate memory in the tracker, and mark ourselves as owning it
+        public void allocate(long size, OpOrder.Group opGroup)
+        {
+            while (true)
+            {
+                if (parent.tryAllocate(size))
+                {
+                    acquired(size);
+                    return;
+                }
+                WaitQueue.Signal signal = opGroup.isBlockingSignal(parent.hasRoom().register());
+                boolean allocated = parent.tryAllocate(size);
+                if (allocated || opGroup.isBlocking())
+                {
+                    signal.cancel();
+                    if (allocated) // if we allocated, take ownership
+                        acquired(size);
+                    else // otherwise we're blocking so we're permitted to overshoot our constraints, to just allocate without blocking
+                        allocated(size);
+                    return;
+                }
+                else
+                    signal.awaitUninterruptibly();
+            }
+        }
+
+        // retroactively mark an amount allocated amd acquired in the tracker, and owned by us
+        void allocated(long size)
+        {
+            parent.adjustAcquired(size, true);
+            ownsUpdater.addAndGet(this, size);
+        }
+
+        // retroactively mark an amount acquired in the tracker, and owned by us
+        void acquired(long size)
+        {
+            parent.adjustAcquired(size, false);
+            ownsUpdater.addAndGet(this, size);
+        }
+
+        void release(long size)
+        {
+            parent.adjustAcquired(-size, false);
+            ownsUpdater.addAndGet(this, -size);
+        }
+
+        // mark everything we currently own as reclaiming, both here and in our parent
+        void markAllReclaiming()
+        {
+            while (true)
+            {
+                long cur = owns;
+                long prev = reclaiming;
+                if (reclaimingUpdater.compareAndSet(this, prev, cur))
+                {
+                    parent.adjustReclaiming(cur - prev);
+                    return;
+                }
+            }
+        }
+
+        public long owns()
+        {
+            return owns;
+        }
+
+        public float ownershipRatio()
+        {
+            float r = owns / (float) parent.limit;
+            if (Float.isNaN(r))
+                return 0;
+            return r;
+        }
+
+        private static final AtomicLongFieldUpdater<SubAllocator> ownsUpdater = AtomicLongFieldUpdater.newUpdater(SubAllocator.class, "owns");
+        private static final AtomicLongFieldUpdater<SubAllocator> reclaimingUpdater = AtomicLongFieldUpdater.newUpdater(SubAllocator.class, "reclaiming");
     }
 
-    @Override
-    public float ownershipRatio()
-    {
-        return owns.get() / (float) pool.limit;
-    }
-
-    @Override
-    public long reclaiming()
-    {
-        return reclaiming.get();
-    }
 }

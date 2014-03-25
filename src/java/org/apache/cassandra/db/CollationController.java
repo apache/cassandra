@@ -17,7 +17,11 @@
  */
 package org.apache.cassandra.db;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.TreeSet;
 
 import com.google.common.collect.Iterables;
 
@@ -30,6 +34,7 @@ import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 
 public class CollationController
 {
@@ -46,12 +51,12 @@ public class CollationController
         this.gcBefore = gcBefore;
     }
 
-    public ColumnFamily getTopLevelColumns()
+    public ColumnFamily getTopLevelColumns(boolean copyOnHeap)
     {
         return filter.filter instanceof NamesQueryFilter
                && cfs.metadata.getDefaultValidator() != CounterColumnType.instance
-               ? collectTimeOrderedData()
-               : collectAllData();
+               ? collectTimeOrderedData(copyOnHeap)
+               : collectAllData(copyOnHeap);
     }
 
     /**
@@ -59,7 +64,7 @@ public class CollationController
      * Once we have data for all requests columns that is newer than the newest remaining maxtimestamp,
      * we stop.
      */
-    private ColumnFamily collectTimeOrderedData()
+    private ColumnFamily collectTimeOrderedData(boolean copyOnHeap)
     {
         final ColumnFamily container = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());
         List<OnDiskAtomIterator> iterators = new ArrayList<>();
@@ -71,13 +76,19 @@ public class CollationController
             Tracing.trace("Merging memtable contents");
             for (Memtable memtable : view.memtables)
             {
-                OnDiskAtomIterator iter = filter.getMemtableColumnIterator(memtable);
-                if (iter != null)
+                ColumnFamily cf = memtable.getColumnFamily(filter.key);
+                if (cf != null)
                 {
+                    OnDiskAtomIterator iter = filter.getColumnFamilyIterator(cf);
                     iterators.add(iter);
                     filter.delete(container.deletionInfo(), iter.getColumnFamily());
                     while (iter.hasNext())
-                        container.addAtom(iter.next());
+                    {
+                        OnDiskAtom atom = iter.next();
+                        if (copyOnHeap)
+                            atom = ((Cell) atom).localCopy(HeapAllocator.instance);
+                        container.addAtom(atom);
+                    }
                 }
             }
 
@@ -173,7 +184,7 @@ public class CollationController
      * Collects data the brute-force way: gets an iterator for the filter in question
      * from every memtable and sstable, then merges them together.
      */
-    private ColumnFamily collectAllData()
+    private ColumnFamily collectAllData(boolean copyOnHeap)
     {
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
@@ -185,10 +196,21 @@ public class CollationController
             Tracing.trace("Merging memtable tombstones");
             for (Memtable memtable : view.memtables)
             {
-                OnDiskAtomIterator iter = filter.getMemtableColumnIterator(memtable);
-                if (iter != null)
+                ColumnFamily cf = memtable.getColumnFamily(filter.key);
+                if (cf != null)
                 {
-                    filter.delete(returnDeletionInfo, iter.getColumnFamily());
+                    OnDiskAtomIterator iter = filter.getColumnFamilyIterator(cf);
+                    if (copyOnHeap)
+                    {
+                        ColumnFamily newCf = cf.cloneMeShallow(ArrayBackedSortedColumns.factory, false);
+                        for (Cell cell : cf)
+                        {
+                            newCf.addColumn(cell.localCopy(HeapAllocator.instance));
+                        }
+                        cf = newCf;
+                        iter = filter.getColumnFamilyIterator(cf);
+                    }
+                    filter.delete(returnDeletionInfo, cf);
                     iterators.add(iter);
                 }
             }

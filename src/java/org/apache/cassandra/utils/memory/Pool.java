@@ -18,140 +18,182 @@
  */
 package org.apache.cassandra.utils.memory;
 
-import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.concurrent.WaitQueue;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
-import java.util.concurrent.atomic.AtomicLong;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 
 /**
  * Represents an amount of memory used for a given purpose, that can be allocated to specific tasks through
- * child AbstractAllocator objects. AbstractAllocator and MemoryTracker correspond approximately to PoolAllocator and Pool,
- * respectively, with the MemoryTracker bookkeeping the total shared use of resources, and the AbstractAllocator the amount
- * checked out and in use by a specific PoolAllocator.
- *
- * Note the difference between acquire() and allocate(); allocate() makes more resources available to all owners,
- * and acquire() makes shared resources unavailable but still recorded. An Owner must always acquire resources,
- * but only needs to allocate if there are none already available. This distinction is not always meaningful.
+ * child PoolAllocator objects.
  */
 public abstract class Pool
 {
-    // total memory/resource permitted to allocate
-    public final long limit;
+    final PoolCleanerThread<?> cleaner;
 
-    // ratio of used to spare (both excluding 'reclaiming') at which to trigger a clean
-    public final float cleanThreshold;
-
-    // total bytes allocated and reclaiming
-    private AtomicLong allocated = new AtomicLong();
-    private AtomicLong reclaiming = new AtomicLong();
+    // the total memory used by this pool
+    public final SubPool onHeap;
+    public final SubPool offHeap;
 
     final WaitQueue hasRoom = new WaitQueue();
 
-    // a cache of the calculation determining at what allocation threshold we should next clean, and the cleaner we trigger
-    private volatile long nextClean;
-    private final PoolCleanerThread<?> cleanerThread;
-
-    public Pool(long limit, float cleanThreshold, Runnable cleaner)
+    Pool(long maxOnHeapMemory, long maxOffHeapMemory, float cleanThreshold, Runnable cleaner)
     {
-        this.limit = limit;
-        this.cleanThreshold = cleanThreshold;
-        updateNextClean();
-        cleanerThread = cleaner == null ? null : new PoolCleanerThread<>(this, cleaner);
-        if (cleanerThread != null)
-            cleanerThread.start();
+        this.onHeap = getSubPool(maxOnHeapMemory, cleanThreshold);
+        this.offHeap = getSubPool(maxOffHeapMemory, cleanThreshold);
+        this.cleaner = getCleaner(cleaner);
+        if (this.cleaner != null)
+            this.cleaner.start();
     }
 
-    /** Methods for tracking and triggering a clean **/
-
-    boolean needsCleaning()
+    SubPool getSubPool(long limit, float cleanThreshold)
     {
-        return used() >= nextClean && updateNextClean() && cleanerThread != null;
+        return new SubPool(limit, cleanThreshold);
     }
 
-    void maybeClean()
+    PoolCleanerThread<?> getCleaner(Runnable cleaner)
     {
-        if (needsCleaning())
-            cleanerThread.trigger();
+        return cleaner == null ? null : new PoolCleanerThread<>(this, cleaner);
     }
 
-    private boolean updateNextClean()
-    {
-        long reclaiming = this.reclaiming.get();
-        return used() >= (nextClean = reclaiming
-                + (long) (this.limit * cleanThreshold));
-    }
-
-    /** Methods to allocate space **/
-
-    boolean tryAllocate(int size)
-    {
-        while (true)
-        {
-            long cur;
-            if ((cur = allocated.get()) + size > limit)
-                return false;
-            if (allocated.compareAndSet(cur, cur + size))
-            {
-                maybeClean();
-                return true;
-            }
-        }
-    }
+    public abstract boolean needToCopyOnHeap();
+    public abstract PoolAllocator newAllocator();
 
     /**
-     * apply the size adjustment to allocated, bypassing any limits or constraints. If this reduces the
-     * allocated total, we will signal waiters
+     * Note the difference between acquire() and allocate(); allocate() makes more resources available to all owners,
+     * and acquire() makes shared resources unavailable but still recorded. An Owner must always acquire resources,
+     * but only needs to allocate if there are none already available. This distinction is not always meaningful.
      */
-    void adjustAllocated(long size)
+    public class SubPool
     {
-        if (size == 0)
-            return;
-        while (true)
+
+        // total memory/resource permitted to allocate
+        public final long limit;
+
+        // ratio of used to spare (both excluding 'reclaiming') at which to trigger a clean
+        public final float cleanThreshold;
+
+        // total bytes allocated and reclaiming
+        volatile long allocated;
+        volatile long reclaiming;
+
+        // a cache of the calculation determining at what allocation threshold we should next clean
+        volatile long nextClean;
+
+        public SubPool(long limit, float cleanThreshold)
         {
-            long cur = allocated.get();
-            if (allocated.compareAndSet(cur, cur + size))
+            this.limit = limit;
+            this.cleanThreshold = cleanThreshold;
+        }
+
+        /** Methods for tracking and triggering a clean **/
+
+        boolean needsCleaning()
+        {
+            // use strictly-greater-than so we don't clean when limit is 0
+            return used() > nextClean && updateNextClean();
+        }
+
+        void maybeClean()
+        {
+            if (needsCleaning() && cleaner != null)
+                cleaner.trigger();
+        }
+
+        private boolean updateNextClean()
+        {
+            while (true)
             {
-                if (size > 0)
-                {
-                    maybeClean();
-                }
-                return;
+                long current = nextClean;
+                long reclaiming = this.reclaiming;
+                long next =  reclaiming + (long) (this.limit * cleanThreshold);
+                if (current == next || nextCleanUpdater.compareAndSet(this, current, next))
+                    return used() > next;
             }
+        }
+
+        /** Methods to allocate space **/
+
+        boolean tryAllocate(long size)
+        {
+            while (true)
+            {
+                long cur;
+                if ((cur = allocated) + size > limit)
+                    return false;
+                if (allocatedUpdater.compareAndSet(this, cur, cur + size))
+                    return true;
+            }
+        }
+
+        /**
+         * apply the size adjustment to allocated, bypassing any limits or constraints. If this reduces the
+         * allocated total, we will signal waiters
+         */
+        void adjustAllocated(long size)
+        {
+            if (size == 0)
+                return;
+            while (true)
+            {
+                long cur = allocated;
+                if (allocatedUpdater.compareAndSet(this, cur, cur + size))
+                    return;
+            }
+        }
+
+        // 'acquires' an amount of memory, and maybe also marks it allocated. This method is meant to be overridden
+        // by implementations with a separate concept of acquired/allocated. As this method stands, an acquire
+        // without an allocate is a no-op (acquisition is achieved through allocation), however a release (where size < 0)
+        // is always processed and accounted for in allocated.
+        void adjustAcquired(long size, boolean alsoAllocated)
+        {
+            if (size > 0 || alsoAllocated)
+            {
+                if (alsoAllocated)
+                    adjustAllocated(size);
+                maybeClean();
+            }
+            else if (size < 0)
+            {
+                adjustAllocated(size);
+                hasRoom.signalAll();
+            }
+        }
+
+        // space reclaimed should be released prior to calling this, to avoid triggering unnecessary cleans
+        void adjustReclaiming(long reclaiming)
+        {
+            if (reclaiming == 0)
+                return;
+            reclaimingUpdater.addAndGet(this, reclaiming);
+            if (reclaiming < 0 && updateNextClean() && cleaner != null)
+                cleaner.trigger();
+        }
+
+        public long allocated()
+        {
+            return allocated;
+        }
+
+        public long used()
+        {
+            return allocated;
+        }
+
+        public PoolAllocator.SubAllocator newAllocator()
+        {
+            return new PoolAllocator.SubAllocator(this);
+        }
+
+        public WaitQueue hasRoom()
+        {
+            return hasRoom;
         }
     }
 
-    void release(long size)
-    {
-        adjustAllocated(-size);
-        hasRoom.signalAll();
-    }
+    private static final AtomicLongFieldUpdater<SubPool> reclaimingUpdater = AtomicLongFieldUpdater.newUpdater(SubPool.class, "reclaiming");
+    private static final AtomicLongFieldUpdater<SubPool> allocatedUpdater = AtomicLongFieldUpdater.newUpdater(SubPool.class, "allocated");
+    private static final AtomicLongFieldUpdater<SubPool> nextCleanUpdater = AtomicLongFieldUpdater.newUpdater(SubPool.class, "nextClean");
 
-    // space reclaimed should be released prior to calling this, to avoid triggering unnecessary cleans
-    void adjustReclaiming(long reclaiming)
-    {
-        if (reclaiming == 0)
-            return;
-        this.reclaiming.addAndGet(reclaiming);
-        if (reclaiming < 0 && updateNextClean() && cleanerThread != null)
-            cleanerThread.trigger();
-    }
-
-    public long allocated()
-    {
-        return allocated.get();
-    }
-
-    public long used()
-    {
-        return allocated.get();
-    }
-
-    public long reclaiming()
-    {
-        return reclaiming.get();
-    }
-
-    public abstract PoolAllocator newAllocator(OpOrder writes);
 }
-

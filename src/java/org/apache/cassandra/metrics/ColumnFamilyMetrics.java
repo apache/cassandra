@@ -34,11 +34,15 @@ import org.apache.cassandra.utils.EstimatedHistogram;
 public class ColumnFamilyMetrics
 {
     /** Total amount of data stored in the memtable that resides on-heap, including column related overhead and overwritten rows. */
-    public final Gauge<Long> memtableHeapSize;
+    public final Gauge<Long> memtableOnHeapSize;
+    /** Total amount of data stored in the memtable that resides off-heap, including column related overhead and overwritten rows. */
+    public final Gauge<Long> memtableOffHeapSize;
     /** Total amount of live data stored in the memtable, excluding any data structure overhead */
     public final Gauge<Long> memtableLiveDataSize;
     /** Total amount of data stored in the memtables (2i and pending flush memtables included) that resides on-heap. */
-    public final Gauge<Long> allMemtablesHeapSize;
+    public final Gauge<Long> allMemtablesOnHeapSize;
+    /** Total amount of data stored in the memtables (2i and pending flush memtables included) that resides off-heap. */
+    public final Gauge<Long> allMemtablesOffHeapSize;
     /** Total amount of live data stored in the memtables (2i and pending flush memtables included) that resides off-heap, excluding any data structure overhead */
     public final Gauge<Long> allMemtablesLiveDataSize;
     /** Total number of columns present in the memtable. */
@@ -127,11 +131,18 @@ public class ColumnFamilyMetrics
                 return cfs.getDataTracker().getView().getCurrentMemtable().getOperations();
             }
         });
-        memtableHeapSize = Metrics.newGauge(factory.createMetricName("MemtableHeapSize"), new Gauge<Long>()
+        memtableOnHeapSize = Metrics.newGauge(factory.createMetricName("MemtableHeapSize"), new Gauge<Long>()
         {
             public Long value()
             {
-                return cfs.getDataTracker().getView().getCurrentMemtable().getAllocator().owns();
+                return cfs.getDataTracker().getView().getCurrentMemtable().getAllocator().onHeap().owns();
+            }
+        });
+        memtableOffHeapSize = Metrics.newGauge(factory.createMetricName("MemtableHeapSize"), new Gauge<Long>()
+        {
+            public Long value()
+            {
+                return cfs.getDataTracker().getView().getCurrentMemtable().getAllocator().offHeap().owns();
             }
         });
         memtableLiveDataSize = Metrics.newGauge(factory.createMetricName("MemtableLiveDataSize"), new Gauge<Long>()
@@ -141,13 +152,23 @@ public class ColumnFamilyMetrics
                 return cfs.getDataTracker().getView().getCurrentMemtable().getLiveDataSize();
             }
         });
-        allMemtablesHeapSize = Metrics.newGauge(factory.createMetricName("AllMemtablesHeapSize"), new Gauge<Long>()
+        allMemtablesOnHeapSize = Metrics.newGauge(factory.createMetricName("AllMemtablesHeapSize"), new Gauge<Long>()
         {
             public Long value()
             {
                 long size = 0;
                 for (ColumnFamilyStore cfs2 : cfs.concatWithIndexes())
-                    size += cfs2.getDataTracker().getView().getCurrentMemtable().getAllocator().owns();
+                    size += cfs2.getDataTracker().getView().getCurrentMemtable().getAllocator().onHeap().owns();
+                return size;
+            }
+        });
+        allMemtablesOffHeapSize = Metrics.newGauge(factory.createMetricName("AllMemtablesHeapSize"), new Gauge<Long>()
+        {
+            public Long value()
+            {
+                long size = 0;
+                for (ColumnFamilyStore cfs2 : cfs.concatWithIndexes())
+                    size += cfs2.getDataTracker().getView().getCurrentMemtable().getAllocator().offHeap().owns();
                 return size;
             }
         });

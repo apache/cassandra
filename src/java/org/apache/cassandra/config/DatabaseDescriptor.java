@@ -22,7 +22,15 @@ import java.io.FileFilter;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -30,7 +38,12 @@ import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.*;
+import org.apache.cassandra.auth.AllowAllAuthenticator;
+import org.apache.cassandra.auth.AllowAllAuthorizer;
+import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
+import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.auth.IAuthorizer;
+import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
 import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
@@ -52,7 +65,9 @@ import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.memory.HeapPool;
 import org.apache.cassandra.utils.memory.Pool;
+import org.apache.cassandra.utils.memory.SlabPool;
 
 public class DatabaseDescriptor
 {
@@ -94,8 +109,6 @@ public class DatabaseDescriptor
 
     private static String localDC;
     private static Comparator<InetAddress> localComparator;
-
-    private static Class<? extends Pool> memtablePool;
 
     static
     {
@@ -260,12 +273,20 @@ public class DatabaseDescriptor
         if (conf.file_cache_size_in_mb == null)
             conf.file_cache_size_in_mb = Math.min(512, (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
 
-        if (conf.memtable_total_space_in_mb == null)
-            conf.memtable_total_space_in_mb = (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576));
-        if (conf.memtable_total_space_in_mb <= 0)
+        if (conf.memtable_offheap_space_in_mb == null)
+            conf.memtable_offheap_space_in_mb = (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576));
+        if (conf.memtable_offheap_space_in_mb < 0)
+            throw new ConfigurationException("memtable_offheap_space_in_mb must be positive");
+        // for the moment, we default to twice as much on-heap space as off-heap, as heap overhead is very large
+        if (conf.memtable_heap_space_in_mb == null)
+            conf.memtable_heap_space_in_mb = (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576));
+        if (conf.memtable_heap_space_in_mb <= 0)
             throw new ConfigurationException("memtable_heap_space_in_mb must be positive");
-        logger.info("Global memtable heap threshold is enabled at {}MB", conf.memtable_total_space_in_mb);
-
+        logger.info("Global memtable on-heap threshold is enabled at {}MB", conf.memtable_heap_space_in_mb);
+        if (conf.memtable_offheap_space_in_mb == 0)
+            logger.info("Global memtable off-heap threshold is disabled, HeapAllocator will be used instead");
+        else
+            logger.info("Global memtable off-heap threshold is enabled at {}MB", conf.memtable_offheap_space_in_mb);
         if (conf.memtable_cleanup_threshold < 0.01f)
             throw new ConfigurationException("memtable_cleanup_threshold must be >= 0.01");
         if (conf.memtable_cleanup_threshold > 0.99f)
@@ -519,11 +540,6 @@ public class DatabaseDescriptor
             //operate under the assumption that server_encryption_options is not set in yaml rather than both
             conf.server_encryption_options = conf.encryption_options;
         }
-
-        String allocatorPoolClass = conf.memtable_allocator;
-        if (!allocatorPoolClass.contains("."))
-            allocatorPoolClass = "org.apache.cassandra.utils.memory." + allocatorPoolClass;
-        memtablePool = FBUtilities.classForName(allocatorPoolClass, "allocator pool");
 
         // Hardcoded system keyspaces
         List<KSMetaData> systemKeyspaces = Arrays.asList(KSMetaData.systemKeyspace());
@@ -1462,15 +1478,23 @@ public class DatabaseDescriptor
 
     public static Pool getMemtableAllocatorPool()
     {
-        try
+        long heapLimit = ((long) conf.memtable_heap_space_in_mb) << 20;
+        long offHeapLimit = ((long) conf.memtable_offheap_space_in_mb) << 20;
+        switch (conf.memtable_allocation_type)
         {
-            return memtablePool
-                   .getConstructor(long.class, float.class, Runnable.class)
-                   .newInstance(((long) conf.memtable_total_space_in_mb) << 20, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
-        }
-        catch (Exception e)
-        {
-            throw new AssertionError(e);
+            case unslabbed_heap_buffers:
+                return new HeapPool(heapLimit, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
+            case heap_buffers:
+                return new SlabPool(heapLimit, 0, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
+            case offheap_buffers:
+                if (!FileUtils.isCleanerAvailable())
+                {
+                    logger.error("Could not free direct byte buffer: offheap_buffers is not a safe memtable_allocation_type without this ability, please adjust your config. This feature is only guaranteed to work on an Oracle JVM. Refusing to start.");
+                    System.exit(-1);
+                }
+                return new SlabPool(heapLimit, offHeapLimit, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
+            default:
+                throw new AssertionError();
         }
     }
 
