@@ -27,7 +27,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.hadoop.cql3.CqlPagingInputFormat;
-import org.apache.cassandra.hadoop.cql3.CqlInputFormat;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.hadoop.conf.Configuration;
@@ -38,11 +37,10 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
-import org.apache.hadoop.mapreduce.Mapper.Context;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
-import com.datastax.driver.core.Row;
+
 import java.nio.charset.CharacterCodingException;
 
 /**
@@ -62,7 +60,7 @@ import java.nio.charset.CharacterCodingException;
 public class WordCount extends Configured implements Tool
 {
     private static final Logger logger = LoggerFactory.getLogger(WordCount.class);
-    static final String INPUT_MAPPER_VAR = "input_mapper";
+
     static final String KEYSPACE = "cql3_worldcount";
     static final String COLUMN_FAMILY = "inputs";
 
@@ -70,6 +68,7 @@ public class WordCount extends Configured implements Tool
     static final String OUTPUT_COLUMN_FAMILY = "output_words";
 
     private static final String OUTPUT_PATH_PREFIX = "/tmp/word_count";
+
     private static final String PRIMARY_KEY = "row_key";
 
     public static void main(String[] args) throws Exception
@@ -105,30 +104,6 @@ public class WordCount extends Configured implements Tool
                     word.set(itr.nextToken());
                     context.write(word, one);
                 }
-            }
-        }
-    }
-
-    public static class NativeTokenizerMapper extends Mapper<Long, Row, Text, IntWritable>
-    {
-        private final static IntWritable one = new IntWritable(1);
-        private Text word = new Text();
-        private ByteBuffer sourceColumn;
-
-        protected void setup(org.apache.hadoop.mapreduce.Mapper.Context context)
-        throws IOException, InterruptedException
-        {
-        }
-
-        public void map(Long key, Row row, Context context) throws IOException, InterruptedException
-        {
-            String value = row.getString("line");
-            logger.debug("read {}:{}={} from {}", new Object[] {key, "line", value, context.getInputSplit()});
-            StringTokenizer itr = new StringTokenizer(value);
-            while (itr.hasMoreTokens())
-            {
-                word.set(itr.nextToken());
-                context.write(word, one);
             }
         }
     }
@@ -174,41 +149,17 @@ public class WordCount extends Configured implements Tool
     public int run(String[] args) throws Exception
     {
         String outputReducerType = "filesystem";
-        String inputMapperType = "native";
-        String outputReducer = null;
-        String inputMapper = null;
-
-        if (args != null)
+        if (args != null && args[0].startsWith(OUTPUT_REDUCER_VAR))
         {
-            if(args[0].startsWith(OUTPUT_REDUCER_VAR))
-                outputReducer = args[0];
-            if(args[0].startsWith(INPUT_MAPPER_VAR))
-                inputMapper = args[0];
-            
-            if (args.length == 2)
-            {
-                if(args[1].startsWith(OUTPUT_REDUCER_VAR))
-                    outputReducer = args[1];
-                if(args[1].startsWith(INPUT_MAPPER_VAR))
-                    inputMapper = args[1]; 
-            }
-        }
-
-        if (outputReducer != null)
-        {
-            String[] s = outputReducer.split("=");
+            String[] s = args[0].split("=");
             if (s != null && s.length == 2)
                 outputReducerType = s[1];
         }
         logger.info("output reducer type: " + outputReducerType);
-        if (inputMapper != null)
-        {
-            String[] s = inputMapper.split("=");
-            if (s != null && s.length == 2)
-                inputMapperType = s[1];
-        }
+
         Job job = new Job(getConf(), "wordcount");
         job.setJarByClass(WordCount.class);
+        job.setMapperClass(TokenizerMapper.class);
 
         if (outputReducerType.equalsIgnoreCase("filesystem"))
         {
@@ -238,19 +189,9 @@ public class WordCount extends Configured implements Tool
             ConfigHelper.setOutputPartitioner(job.getConfiguration(), "Murmur3Partitioner");
         }
 
-        if (inputMapperType.equalsIgnoreCase("native"))
-        {
-            job.setMapperClass(NativeTokenizerMapper.class);
-            job.setInputFormatClass(CqlInputFormat.class);
-            CqlConfigHelper.setInputCql(job.getConfiguration(), "select * from " + COLUMN_FAMILY + " where token(id) > ? and token(id) <= ? allow filtering");
-        }
-        else
-        {
-            job.setMapperClass(TokenizerMapper.class);
-            job.setInputFormatClass(CqlPagingInputFormat.class);
-            ConfigHelper.setInputRpcPort(job.getConfiguration(), "9160");
-        }
+        job.setInputFormatClass(CqlPagingInputFormat.class);
 
+        ConfigHelper.setInputRpcPort(job.getConfiguration(), "9160");
         ConfigHelper.setInputInitialAddress(job.getConfiguration(), "localhost");
         ConfigHelper.setInputColumnFamily(job.getConfiguration(), KEYSPACE, COLUMN_FAMILY);
         ConfigHelper.setInputPartitioner(job.getConfiguration(), "Murmur3Partitioner");
