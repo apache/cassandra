@@ -48,7 +48,8 @@
  * Clean up IndexInfo on keyspace/table drops (CASSANDRA-6924)
  * Only snapshot relative SSTables when sequential repair (CASSANDRA-7024)
  * Require nodetool rebuild_index to specify index names (CASSANDRA-7038)
- * fix cassandra stress errors on reads with native protocol (CASANDRA-7033)
+ * fix cassandra stress errors on reads with native protocol (CASSANDRA-7033)
+ * Use OpOrder to guard sstable references for reads (CASSANDRA-6919)
 Merged from 2.0:
  * Use LOCAL_QUORUM for data reads at LOCAL_SERIAL (CASSANDRA-6939)
  * Log a warning for large batches (CASSANDRA-6487)

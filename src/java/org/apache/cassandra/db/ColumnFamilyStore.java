@@ -1780,68 +1780,64 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return repairedSSTables;
     }
 
-    private ViewFragment markReferenced(Function<DataTracker.View, List<SSTableReader>> filter)
+    public ViewFragment selectAndReference(Function<DataTracker.View, List<SSTableReader>> filter)
     {
-        List<SSTableReader> sstables;
-        DataTracker.View view;
-
         while (true)
         {
-            view = data.getView();
-
-            if (view.intervalTree.isEmpty())
-            {
-                sstables = Collections.emptyList();
-                break;
-            }
-
-            sstables = filter.apply(view);
-            if (SSTableReader.acquireReferences(sstables))
-                break;
-            // retry w/ new view
+            ViewFragment view = select(filter);
+            if (view.sstables.isEmpty() || SSTableReader.acquireReferences(view.sstables))
+                return view;
         }
+    }
 
+    public ViewFragment select(Function<DataTracker.View, List<SSTableReader>> filter)
+    {
+        DataTracker.View view = data.getView();
+        List<SSTableReader> sstables = view.intervalTree.isEmpty()
+                                       ? Collections.<SSTableReader>emptyList()
+                                       : filter.apply(view);
         return new ViewFragment(sstables, view.getAllMemtables());
     }
+
 
     /**
      * @return a ViewFragment containing the sstables and memtables that may need to be merged
      * for the given @param key, according to the interval tree
      */
-    public ViewFragment markReferenced(final DecoratedKey key)
+    public Function<DataTracker.View, List<SSTableReader>> viewFilter(final DecoratedKey key)
     {
         assert !key.isMinimum(partitioner);
-        return markReferenced(new Function<DataTracker.View, List<SSTableReader>>()
+        return new Function<DataTracker.View, List<SSTableReader>>()
         {
             public List<SSTableReader> apply(DataTracker.View view)
             {
                 return compactionStrategy.filterSSTablesForReads(view.intervalTree.search(key));
             }
-        });
+        };
     }
 
     /**
      * @return a ViewFragment containing the sstables and memtables that may need to be merged
      * for rows within @param rowBounds, inclusive, according to the interval tree.
      */
-    public ViewFragment markReferenced(final AbstractBounds<RowPosition> rowBounds)
+    public Function<DataTracker.View, List<SSTableReader>> viewFilter(final AbstractBounds<RowPosition> rowBounds)
     {
-        return markReferenced(new Function<DataTracker.View, List<SSTableReader>>()
+        return new Function<DataTracker.View, List<SSTableReader>>()
         {
             public List<SSTableReader> apply(DataTracker.View view)
             {
                 return compactionStrategy.filterSSTablesForReads(view.sstablesInBounds(rowBounds));
             }
-        });
+        };
     }
 
     /**
      * @return a ViewFragment containing the sstables and memtables that may need to be merged
      * for rows for all of @param rowBoundsCollection, inclusive, according to the interval tree.
      */
-    public ViewFragment markReferenced(final Collection<AbstractBounds<RowPosition>> rowBoundsCollection)
+    public Function<DataTracker.View, List<SSTableReader>> viewFilter(final Collection<AbstractBounds<RowPosition>> rowBoundsCollection)
     {
-        return markReferenced(new Function<DataTracker.View, List<SSTableReader>>()
+        return new Function<DataTracker.View, List<SSTableReader>>()
         {
             public List<SSTableReader> apply(DataTracker.View view)
             {
@@ -1851,27 +1847,22 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 return ImmutableList.copyOf(sstables);
             }
-        });
+        };
     }
 
     public List<String> getSSTablesForKey(String key)
     {
         DecoratedKey dk = partitioner.decorateKey(metadata.getKeyValidator().fromString(key));
-        ViewFragment view = markReferenced(dk);
-        try
+        try (OpOrder.Group op = readOrdering.start())
         {
-            List<String> files = new ArrayList<String>();
-            for (SSTableReader sstr : view.sstables)
+            List<String> files = new ArrayList<>();
+            for (SSTableReader sstr : select(viewFilter(dk)).sstables)
             {
                 // check if the key actually exists in this sstable, without updating cache and stats
                 if (sstr.getPosition(dk, SSTableReader.Operator.EQ, false) != null)
                     files.add(sstr.getFilename());
             }
             return files;
-        }
-        finally
-        {
-            SSTableReader.releaseReferences(view.sstables);
         }
     }
 
@@ -1927,51 +1918,41 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         assert !(range.keyRange() instanceof Range) || !((Range)range.keyRange()).isWrapAround() || range.keyRange().right.isMinimum(partitioner) : range.keyRange();
 
-        final ViewFragment view = markReferenced(range.keyRange());
+        final ViewFragment view = select(viewFilter(range.keyRange()));
         Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), range.keyRange().getString(metadata.getKeyValidator()));
 
-        try
-        {
-            final CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(view.memtables, view.sstables, range, this, now);
+        final CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(view.memtables, view.sstables, range, this, now);
 
-            // todo this could be pushed into SSTableScanner
-            return new AbstractScanIterator()
+        // todo this could be pushed into SSTableScanner
+        return new AbstractScanIterator()
+        {
+            protected Row computeNext()
             {
-                protected Row computeNext()
-                {
-                    // pull a row out of the iterator
-                    if (!iterator.hasNext())
-                        return endOfData();
+                // pull a row out of the iterator
+                if (!iterator.hasNext())
+                    return endOfData();
 
-                    Row current = iterator.next();
-                    DecoratedKey key = current.key;
+                Row current = iterator.next();
+                DecoratedKey key = current.key;
 
-                    if (!range.stopKey().isMinimum(partitioner) && range.stopKey().compareTo(key) < 0)
-                        return endOfData();
+                if (!range.stopKey().isMinimum(partitioner) && range.stopKey().compareTo(key) < 0)
+                    return endOfData();
 
-                    // skipping outside of assigned range
-                    if (!range.contains(key))
-                        return computeNext();
+                // skipping outside of assigned range
+                if (!range.contains(key))
+                    return computeNext();
 
-                    if (logger.isTraceEnabled())
-                        logger.trace("scanned {}", metadata.getKeyValidator().getString(key.key));
+                if (logger.isTraceEnabled())
+                    logger.trace("scanned {}", metadata.getKeyValidator().getString(key.key));
 
-                    return current;
-                }
+                return current;
+            }
 
-                public void close() throws IOException
-                {
-                    SSTableReader.releaseReferences(view.sstables);
-                    iterator.close();
-                }
-            };
-        }
-        catch (RuntimeException e)
-        {
-            // In case getIterator() throws, otherwise the iteror close method releases the references.
-            SSTableReader.releaseReferences(view.sstables);
-            throw e;
-        }
+            public void close() throws IOException
+            {
+                iterator.close();
+            }
+        };
     }
 
     @VisibleForTesting

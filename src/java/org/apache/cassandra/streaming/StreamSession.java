@@ -269,7 +269,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
             List<AbstractBounds<RowPosition>> rowBoundsList = Lists.newLinkedList();
             for (Range<Token> range : normalizedRanges)
                 rowBoundsList.add(range.toRowBounds());
-            ColumnFamilyStore.ViewFragment view = cfStore.markReferenced(rowBoundsList);
+            ColumnFamilyStore.ViewFragment view = cfStore.selectAndReference(cfStore.viewFilter(rowBoundsList));
             sstables.addAll(view.sstables);
         }
         return sstables;
