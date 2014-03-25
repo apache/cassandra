@@ -21,7 +21,7 @@ package org.apache.cassandra.utils.memory;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 /**
- * A thread that reclaims memor from a Pool on demand.  The actual reclaiming work is delegated to the
+ * A thread that reclaims memory from a Pool on demand.  The actual reclaiming work is delegated to the
  * cleaner Runnable, e.g., FlushLargestColumnFamily
  */
 class PoolCleanerThread<P extends Pool> extends Thread
@@ -44,7 +44,7 @@ class PoolCleanerThread<P extends Pool> extends Thread
 
     boolean needsCleaning()
     {
-        return pool.needsCleaning();
+        return pool.onHeap.needsCleaning() || pool.offHeap.needsCleaning();
     }
 
     // should ONLY be called when we really think it already needs cleaning

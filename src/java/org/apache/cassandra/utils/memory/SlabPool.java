@@ -18,17 +18,24 @@
  */
 package org.apache.cassandra.utils.memory;
 
-import org.apache.cassandra.utils.concurrent.OpOrder;
 
-public class HeapSlabPool extends Pool
+public class SlabPool extends Pool
 {
-    public HeapSlabPool(long maxOnHeapMemory, float cleanupThreshold, Runnable cleaner)
+
+    final boolean allocateOnHeap;
+    public SlabPool(long maxOnHeapMemory, long maxOffHeapMemory, float cleanupThreshold, Runnable cleaner)
     {
-        super(maxOnHeapMemory, cleanupThreshold, cleaner);
+        super(maxOnHeapMemory, maxOffHeapMemory, cleanupThreshold, cleaner);
+        this.allocateOnHeap = maxOffHeapMemory == 0;
     }
 
-    public HeapSlabAllocator newAllocator(OpOrder writes)
+    public SlabAllocator newAllocator()
     {
-        return new HeapSlabAllocator(this);
+        return new SlabAllocator(onHeap.newAllocator(), offHeap.newAllocator(), allocateOnHeap);
+    }
+
+    public boolean needToCopyOnHeap()
+    {
+        return !allocateOnHeap;
     }
 }

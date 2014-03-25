@@ -50,7 +50,7 @@ public class SimpleSparseInternedCellName extends SimpleSparseCellName
     }
 
     @Override
-    public void free(PoolAllocator<?> allocator)
+    public void free(PoolAllocator allocator)
     {
         // no-op, never copied
     }

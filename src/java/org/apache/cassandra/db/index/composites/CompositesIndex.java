@@ -129,18 +129,14 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
 
     public abstract boolean isStale(IndexedEntry entry, ColumnFamily data, long now);
 
-    public void delete(IndexedEntry entry)
+    public void delete(IndexedEntry entry, OpOrder.Group opGroup)
     {
-        // start a mini-transaction for this delete, to ensure safe memtable updates
-        try (OpOrder.Group opGroup = baseCfs.keyspace.writeOrder.start())
-        {
-            int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
-            ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
-            cfi.addTombstone(entry.indexEntry, localDeletionTime, entry.timestamp);
-            indexCfs.apply(entry.indexValue, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
-            if (logger.isDebugEnabled())
-                logger.debug("removed index entry for cleaned-up value {}:{}", entry.indexValue, cfi);
-        }
+        int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
+        ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
+        cfi.addTombstone(entry.indexEntry, localDeletionTime, entry.timestamp);
+        indexCfs.apply(entry.indexValue, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
+        if (logger.isDebugEnabled())
+            logger.debug("removed index entry for cleaned-up value {}:{}", entry.indexValue, cfi);
     }
 
     protected AbstractType<?> getExpressionComparator()

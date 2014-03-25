@@ -35,7 +35,7 @@ public interface ColumnFamilyStoreMBean
      * Returns the total amount of data stored in the memtable, including
      * column related overhead.
      *
-     * @see org.apache.cassandra.metrics.ColumnFamilyMetrics#memtableHeapSize
+     * @see org.apache.cassandra.metrics.ColumnFamilyMetrics#memtableOnHeapSize
      * @return The size in bytes.
      * @deprecated
      */

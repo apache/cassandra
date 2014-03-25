@@ -513,7 +513,7 @@ public class ByteBufferUtil
     /** trims size of bytebuffer to exactly number of bytes in it, to do not hold too much memory */
     public static ByteBuffer minimalBufferFor(ByteBuffer buf)
     {
-        return buf.capacity() > buf.remaining() ? ByteBuffer.wrap(getArray(buf)) : buf;
+        return buf.capacity() > buf.remaining() || !buf.hasArray() ? ByteBuffer.wrap(getArray(buf)) : buf;
     }
 
     // Doesn't change bb position

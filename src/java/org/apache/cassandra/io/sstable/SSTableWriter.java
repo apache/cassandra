@@ -321,6 +321,16 @@ public class SSTableWriter extends SSTable
         }
     }
 
+    // we use this method to ensure any managed data we may have retained references to during the write are no
+    // longer referenced, so that we do not need to enclose the expensive call to closeAndOpenReader() in a transaction
+    public void isolateReferences()
+    {
+        // currently we only maintain references to first/last/lastWrittenKey from the data provided; all other
+        // data retention is done through copying
+        first = getMinimalKey(first);
+        last = lastWrittenKey = getMinimalKey(last);
+    }
+
     public SSTableReader closeAndOpenReader()
     {
         return closeAndOpenReader(System.currentTimeMillis());

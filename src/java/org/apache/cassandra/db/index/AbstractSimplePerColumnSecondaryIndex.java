@@ -20,17 +20,24 @@ package org.apache.cassandra.db.index;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Future;
 
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ArrayBackedSortedColumns;
+import org.apache.cassandra.db.Cell;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.ExpiringCell;
+import org.apache.cassandra.db.IndexExpression;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.dht.LocalToken;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.PoolAllocator;
 
 /**
  * Implements a secondary index for a column family using a second column family
@@ -164,7 +171,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         return indexCfs.name;
     }
 
-    public AbstractAllocator getOnHeapAllocator()
+    public PoolAllocator getAllocator()
     {
         return indexCfs.getDataTracker().getView().getCurrentMemtable().getAllocator();
     }

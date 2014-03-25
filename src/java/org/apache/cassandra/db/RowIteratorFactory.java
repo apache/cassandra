@@ -62,7 +62,7 @@ public class RowIteratorFactory
         // memtables
         for (Memtable memtable : memtables)
         {
-            iterators.add(new ConvertToColumnIterator<>(range, memtable.getEntryIterator(range.startKey(), range.stopKey())));
+            iterators.add(new ConvertToColumnIterator(range, memtable.getEntryIterator(range.startKey(), range.stopKey())));
         }
 
         for (SSTableReader sstable : sstables)
@@ -120,12 +120,12 @@ public class RowIteratorFactory
     /**
      * Get a ColumnIterator for a specific key in the memtable.
      */
-    private static class ConvertToColumnIterator<T extends ColumnFamily> implements CloseableIterator<OnDiskAtomIterator>
+    private static class ConvertToColumnIterator implements CloseableIterator<OnDiskAtomIterator>
     {
         private final DataRange range;
-        private final Iterator<Map.Entry<DecoratedKey, T>> iter;
+        private final Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter;
 
-        public ConvertToColumnIterator(DataRange range, Iterator<Map.Entry<DecoratedKey, T>> iter)
+        public ConvertToColumnIterator(DataRange range, Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter)
         {
             this.range = range;
             this.iter = iter;
@@ -145,7 +145,7 @@ public class RowIteratorFactory
          */
         public OnDiskAtomIterator next()
         {
-            final Map.Entry<DecoratedKey, T> entry = iter.next();
+            final Map.Entry<DecoratedKey, ColumnFamily> entry = iter.next();
             return new LazyColumnIterator(entry.getKey(), new IColumnIteratorFactory()
             {
                 public OnDiskAtomIterator create()

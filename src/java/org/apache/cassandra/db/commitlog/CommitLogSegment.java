@@ -390,7 +390,8 @@ public class CommitLogSegment
     {
         try
         {
-            FileUtils.clean(buffer);
+            if (FileUtils.isCleanerAvailable())
+                FileUtils.clean(buffer);
             logFileAccessor.close();
         }
         catch (IOException e)

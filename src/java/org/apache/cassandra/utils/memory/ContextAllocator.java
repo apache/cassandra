@@ -20,8 +20,9 @@ package org.apache.cassandra.utils.memory;
 
 import java.nio.ByteBuffer;
 
-import com.google.common.base.*;
 import org.apache.cassandra.db.Cell;
+import com.google.common.base.Function;
+
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 /**
@@ -53,22 +54,5 @@ public final class ContextAllocator extends AbstractAllocator implements Functio
     public Cell apply(Cell column)
     {
         return column.localCopy(this);
-    }
-
-    public long owns()
-    {
-        return allocator.owns();
-    }
-
-    @Override
-    public float ownershipRatio()
-    {
-        return allocator.ownershipRatio();
-    }
-
-    @Override
-    public long reclaiming()
-    {
-        return allocator.reclaiming();
     }
 }

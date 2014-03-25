@@ -87,7 +87,7 @@ public class CompoundComposite extends AbstractComposite
     }
 
     @Override
-    public void free(PoolAllocator<?> allocator)
+    public void free(PoolAllocator allocator)
     {
         for (ByteBuffer element : elements)
             allocator.free(element);
