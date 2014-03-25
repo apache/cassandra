@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,97 +33,102 @@ public class MeteredFlusher implements Runnable
 
     public void run()
     {
-        long totalMemtableBytesAllowed = DatabaseDescriptor.getTotalMemtableSpaceInMB() * 1048576L;
+        long allowedSize = calculateAllowedSize();
 
-        // first, find how much memory non-active memtables are using
-        ColumnFamilyStore measuredCfs = Memtable.activelyMeasuring;
-        long flushingBytes = measuredCfs == null ? 0 : measuredCfs.getMemtableThreadSafe().getLiveSize();
-        flushingBytes += countFlushingBytes();
-        if (flushingBytes > 0)
-            logger.debug("Currently flushing {} bytes of {} max", flushingBytes, totalMemtableBytesAllowed);
+        // find how much memory non-active memtables are using
+        long flushingSize = calculateFlushingSize();
+        if (flushingSize > 0)
+            logger.debug("Currently flushing {} bytes of {} max", flushingSize, allowedSize);
 
-        // next, flush CFs using more than 1 / (maximum number of memtables it could have in the pipeline)
-        // of the total size allotted.  Then, flush other CFs in order of size if necessary.
-        long liveBytes = 0;
-        try
+        List<ColumnFamilyStore> affectedCFs = affectedColumnFamilies();
+        long liveSize = 0;
+
+        // flush CFs using more than 1 / (maximum number of memtables it could have in the pipeline)
+        // of the total size allotted. Then, flush other CFs in order of size if necessary.
+        for (ColumnFamilyStore cfs : affectedCFs)
         {
-            long totalMemtableBytesUnused = totalMemtableBytesAllowed - flushingBytes;
-            for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+            int maxInFlight = (int) Math.ceil((double) (1 // live memtable
+                                                        + 1 // potentially a flushed memtable being counted by jamm
+                                                        + DatabaseDescriptor.getFlushWriters()
+                                                        + DatabaseDescriptor.getFlushQueueSize())
+                                              / (1 + cfs.indexManager.getIndexesBackedByCfs().size()));
+            long size = cfs.getTotalMemtableLiveSize();
+            if (allowedSize > flushingSize && size > (allowedSize - flushingSize) / maxInFlight)
             {
-                long size = cfs.getTotalMemtableLiveSize();
-                int maxInFlight = (int) Math.ceil((double) (1 // live memtable
-                                                            + 1 // potentially a flushed memtable being counted by jamm
-                                                            + DatabaseDescriptor.getFlushWriters()
-                                                            + DatabaseDescriptor.getFlushQueueSize())
-                                                  / (1 + cfs.indexManager.getIndexesBackedByCfs().size()));
-                if (cfs.getCompactionStrategy().isAffectedByMeteredFlusher() && totalMemtableBytesUnused > 0 && size > totalMemtableBytesUnused / maxInFlight)
-                {
-                    logger.info("flushing high-traffic column family {} (estimated {} bytes)", cfs, size);
-                    cfs.forceFlush();
-                }
-                else
-                {
-                    liveBytes += size;
-                }
+                logger.info("flushing high-traffic column family {} (estimated {} bytes)", cfs, size);
+                cfs.forceFlush();
             }
-
-            if (flushingBytes + liveBytes <= totalMemtableBytesAllowed)
-                return;
-
-            logger.info("estimated {} live and {} flushing bytes used by all memtables", liveBytes, flushingBytes);
-
-            // sort memtables by size
-            List<ColumnFamilyStore> sorted = new ArrayList<ColumnFamilyStore>();
-            Iterables.addAll(sorted, ColumnFamilyStore.all());
-            Collections.sort(sorted, new Comparator<ColumnFamilyStore>()
+            else
             {
-                public int compare(ColumnFamilyStore o1, ColumnFamilyStore o2)
-                {
-                    long size1 = o1.getTotalMemtableLiveSize();
-                    long size2 = o2.getTotalMemtableLiveSize();
-                    if (size1 < size2)
-                        return -1;
-                    if (size1 > size2)
-                        return 1;
-                    return 0;
-                }
-            });
-
-            // flush largest first until we get below our threshold.
-            // although it looks like liveBytes + flushingBytes will stay a constant, it will not if flushes finish
-            // while we loop, which is especially likely to happen if the flush queue fills up (so further forceFlush calls block)
-            while (!sorted.isEmpty())
-            {
-                flushingBytes = countFlushingBytes();
-                if (liveBytes + flushingBytes <= totalMemtableBytesAllowed)
-                    break;
-
-                ColumnFamilyStore cfs = sorted.remove(sorted.size() - 1);
-                if (cfs.getCompactionStrategy().isAffectedByMeteredFlusher())
-                {
-                    long size = cfs.getTotalMemtableLiveSize();
-                    if (size == 0)
-                        break;
-                    logger.info("flushing {} to free up {} bytes", cfs, size);
-                    liveBytes -= size;
-                    cfs.forceFlush();
-                }
+                liveSize += size;
             }
         }
-        finally
+
+        if (liveSize + flushingSize <= allowedSize)
+            return;
+        logger.info("estimated {} live and {} flushing bytes used by all memtables", liveSize, flushingSize);
+
+        Collections.sort(affectedCFs, new Comparator<ColumnFamilyStore>()
         {
-            logger.trace("memtable memory usage is {} bytes with {} live", liveBytes + flushingBytes, liveBytes);
+            public int compare(ColumnFamilyStore lhs, ColumnFamilyStore rhs)
+            {
+                return Long.compare(lhs.getTotalMemtableLiveSize(), rhs.getTotalMemtableLiveSize());
+            }
+        });
+
+        // flush largest first until we get below our threshold.
+        // although it looks like liveSize + flushingSize will stay a constant, it will not if flushes finish
+        // while we loop, which is especially likely to happen if the flush queue fills up (so further forceFlush calls block)
+        while (!affectedCFs.isEmpty())
+        {
+            flushingSize = calculateFlushingSize();
+            if (liveSize + flushingSize <= allowedSize)
+                break;
+
+            ColumnFamilyStore cfs = affectedCFs.remove(affectedCFs.size() - 1);
+            long size = cfs.getTotalMemtableLiveSize();
+            if (size > 0)
+            {
+                logger.info("flushing {} to free up {} bytes", cfs, size);
+                liveSize -= size;
+                cfs.forceFlush();
+            }
         }
+
+        logger.trace("memtable memory usage is {} bytes with {} live", liveSize + flushingSize, liveSize);
     }
 
-    private long countFlushingBytes()
+    private static List<ColumnFamilyStore> affectedColumnFamilies()
     {
-        long flushingBytes = 0;
+        List<ColumnFamilyStore> affected = new ArrayList<>();
+        // filter out column families that aren't affected by MeteredFlusher
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-        {
-            for (Memtable memtable : cfs.getMemtablesPendingFlush())
-                flushingBytes += memtable.getLiveSize();
-        }
-        return flushingBytes;
+            if (cfs.getCompactionStrategy().isAffectedByMeteredFlusher())
+                affected.add(cfs);
+        return affected;
+    }
+
+    private static long calculateAllowedSize()
+    {
+        long allowed = DatabaseDescriptor.getTotalMemtableSpaceInMB() * 1048576L;
+        // deduct the combined memory limit of the tables unaffected by the metered flusher (we don't flush them, we
+        // should not count their limits to the total limit either).
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+            if (!cfs.getCompactionStrategy().isAffectedByMeteredFlusher())
+                allowed -= cfs.getCompactionStrategy().getMemtableReservedSize();
+        return allowed;
+    }
+
+    private static long calculateFlushingSize()
+    {
+        ColumnFamilyStore measuredCFS = Memtable.activelyMeasuring;
+        long flushing = measuredCFS != null && measuredCFS.getCompactionStrategy().isAffectedByMeteredFlusher()
+                      ? measuredCFS.getMemtableThreadSafe().getLiveSize()
+                      : 0;
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+            if (cfs.getCompactionStrategy().isAffectedByMeteredFlusher())
+                for (Memtable memtable : cfs.getMemtablesPendingFlush())
+                    flushing += memtable.getLiveSize();
+        return flushing;
     }
 }
