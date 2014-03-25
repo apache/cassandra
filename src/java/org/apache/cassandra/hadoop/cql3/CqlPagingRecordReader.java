@@ -117,7 +117,7 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
 
         try
         {
-            pageRowSize = CqlConfigHelper.getInputPageRowSize(conf).get();
+            pageRowSize = Integer.parseInt(CqlConfigHelper.getInputPageRowSize(conf));
         }
         catch (NumberFormatException e)
         {
