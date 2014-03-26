@@ -15,27 +15,41 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3.hooks;
+package org.apache.cassandra.cql3;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.db.ConsistencyLevel;
 
 /**
- * Contextual information about the preparation of a CQLStatement.
- * Used by {@link org.apache.cassandra.cql3.hooks.PostPreparationHook}
+ * Options for a batch (at the protocol level) queries.
  */
-public class PreparationContext
+public class BatchQueryOptions
 {
-    public final ClientState clientState;
-    public final String queryString;
-    public final List<ColumnSpecification> boundNames;
+    private final ConsistencyLevel consistency;
+    private final List<List<ByteBuffer>> values;
+    private final List<Object> queryOrIdList;
 
-    public PreparationContext(ClientState clientState, String queryString, List<ColumnSpecification> boundNames)
+    public BatchQueryOptions(ConsistencyLevel cl, List<List<ByteBuffer>> values, List<Object> queryOrIdList)
     {
-        this.clientState = clientState;
-        this.queryString = queryString;
-        this.boundNames = boundNames;
+        this.consistency = cl;
+        this.values = values;
+        this.queryOrIdList = queryOrIdList;
+    }
+
+    public ConsistencyLevel getConsistency()
+    {
+        return consistency;
+    }
+
+    public List<List<ByteBuffer>> getValues()
+    {
+        return values;
+    }
+
+    public List<Object> getQueryOrIdList()
+    {
+        return queryOrIdList;
     }
 }

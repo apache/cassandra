@@ -74,7 +74,7 @@ public class PrepareMessage extends Message.Request
                 Tracing.instance.begin("Preparing CQL3 query", ImmutableMap.of("query", query));
             }
 
-            Message.Response response = QueryProcessor.prepare(query, state.getClientState(), false);
+            Message.Response response = state.getClientState().getCQLQueryHandler().prepare(query, state);
 
             if (tracingId != null)
                 response.setTracingId(tracingId);

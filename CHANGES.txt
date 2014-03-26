@@ -71,6 +71,7 @@ Merged from 2.0:
  * Improve MeteredFlusher handling of MF-unaffected column families
    (CASSANDRA-6867)
  * Add CqlRecordReader using native pagination (CASSANDRA-6311)
+ * Add QueryHandler interface (CASSANDRA-6659)
 Merged from 1.2:
  * Add UNLOGGED, COUNTER options to BATCH documentation (CASSANDRA-6816)
  * add extra SSL cipher suites (CASSANDRA-6613)
