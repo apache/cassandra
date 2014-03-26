@@ -23,7 +23,6 @@ import java.util.*;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterators;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
@@ -117,14 +116,14 @@ public class ColumnCondition
 
         switch (type.kind)
         {
-            case LIST: return listAppliesTo(current.metadata(), iter, ((Lists.Value)v).elements);
-            case SET: return setAppliesTo(current.metadata(), iter, ((Sets.Value)v).elements);
-            case MAP: return mapAppliesTo(current.metadata(), iter, ((Maps.Value)v).map);
+            case LIST: return listAppliesTo(iter, ((Lists.Value)v).elements);
+            case SET: return setAppliesTo(iter, ((Sets.Value)v).elements);
+            case MAP: return mapAppliesTo(iter, ((Maps.Value)v).map);
         }
         throw new AssertionError();
     }
 
-    private boolean listAppliesTo(CFMetaData cfm, Iterator<Cell> iter, List<ByteBuffer> elements)
+    private boolean listAppliesTo(Iterator<Cell> iter, List<ByteBuffer> elements)
     {
         for (ByteBuffer e : elements)
             if (!iter.hasNext() || iter.next().value().equals(e))
@@ -133,7 +132,7 @@ public class ColumnCondition
         return !iter.hasNext();
     }
 
-    private boolean setAppliesTo(CFMetaData cfm, Iterator<Cell> iter, Set<ByteBuffer> elements)
+    private boolean setAppliesTo(Iterator<Cell> iter, Set<ByteBuffer> elements)
     {
         Set<ByteBuffer> remaining = new HashSet<>(elements);
         while (iter.hasNext())
@@ -147,7 +146,7 @@ public class ColumnCondition
         return remaining.isEmpty();
     }
 
-    private boolean mapAppliesTo(CFMetaData cfm, Iterator<Cell> iter, Map<ByteBuffer, ByteBuffer> elements)
+    private boolean mapAppliesTo(Iterator<Cell> iter, Map<ByteBuffer, ByteBuffer> elements)
     {
         Map<ByteBuffer, ByteBuffer> remaining = new HashMap<>(elements);
         while (iter.hasNext())
