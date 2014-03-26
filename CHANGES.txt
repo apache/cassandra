@@ -32,6 +32,7 @@
  * Make OpOrder AutoCloseable (CASSANDRA-6901)
  * Remove sync repair JMX interface (CASSANDRA-6900)
  * Add multiple memory allocation options for memtables (CASSANDRA-6689)
+ * Remove adjusted op rate from stress output (CASSANDRA-6921)
 Merged from 2.0:
  * Restrict Windows to parallel repairs (CASSANDRA-6907)
  * (Hadoop) Allow manually specifying start/end tokens in CFIF (CASSANDRA-6436)
