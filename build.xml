@@ -380,6 +380,7 @@
           <dependency groupId="edu.stanford.ppl" artifactId="snaptree" version="0.1" />
           <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.3m" />
           <dependency groupId="io.netty" artifactId="netty" version="3.6.6.Final" />
+          <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" version="2.0.1" />
           <dependency groupId="net.sf.supercsv" artifactId="super-csv" version="2.1.0" />
         </dependencyManagement>
         <developer id="alakshman" name="Avinash Lakshman"/>
@@ -410,7 +411,7 @@
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core"/>
       	<dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster"/>
         <dependency groupId="org.apache.pig" artifactId="pig"/>
-
+        <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core"/>
         <dependency groupId="net.java.dev.jna" artifactId="jna"/>
       </artifact:pom>
 
@@ -473,6 +474,7 @@
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" optional="true"/>
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" optional="true"/>
         <dependency groupId="org.apache.pig" artifactId="pig" optional="true"/>
+      	<dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" optional="true"/>
 
         <!-- don't need jna to run, but nice to have -->
         <dependency groupId="net.java.dev.jna" artifactId="jna" optional="true"/>
