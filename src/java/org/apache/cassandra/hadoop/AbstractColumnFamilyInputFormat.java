@@ -141,11 +141,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
             Range<Token> jobRange = null;
             if (jobKeyRange != null)
             {
-                if (jobKeyRange.start_key == null)
-                {
-                    logger.warn("ignoring jobKeyRange specified without start_key");
-                }
-                else
+                if (jobKeyRange.start_key != null)
                 {
                     if (!partitioner.preservesOrder())
                         throw new UnsupportedOperationException("KeyRange based on keys can only be used with a order preserving paritioner");
@@ -153,9 +149,19 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
                         throw new IllegalArgumentException("only start_key supported");
                     if (jobKeyRange.end_token != null)
                         throw new IllegalArgumentException("only start_key supported");
-                    jobRange = new Range<Token>(partitioner.getToken(jobKeyRange.start_key),
-                                                partitioner.getToken(jobKeyRange.end_key),
-                                                partitioner);
+                    jobRange = new Range<>(partitioner.getToken(jobKeyRange.start_key),
+                                           partitioner.getToken(jobKeyRange.end_key),
+                                           partitioner);
+                }
+                else if (jobKeyRange.start_token != null)
+                {
+                    jobRange = new Range<>(partitioner.getTokenFactory().fromString(jobKeyRange.start_token),
+                                           partitioner.getTokenFactory().fromString(jobKeyRange.end_token),
+                                           partitioner);
+                }
+                else
+                {
+                    logger.warn("ignoring jobKeyRange specified without start_key or start_token");
                 }
             }
 

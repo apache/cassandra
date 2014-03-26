@@ -33,6 +33,8 @@
  * Remove sync repair JMX interface (CASSANDRA-6900)
  * Add multiple memory allocation options for memtables (CASSANDRA-6689)
 Merged from 2.0:
+ * (Hadoop) Allow manually specifying start/end tokens in CFIF (CASSANDRA-6436)
+ * Fix NPE in MeteredFlusher (CASSANDRA-6820)
  * Fix race processing range scan responses (CASSANDRA-6820)
  * Allow deleting snapshots from dropped keyspaces (CASSANDRA-6821)
  * Add uuid() function (CASSANDRA-6473)
