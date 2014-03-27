@@ -1089,7 +1089,7 @@ public final class CFMetaData
     {
         Row cfDefRow = SystemKeyspace.readSchemaRow(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF, ksName, cfName);
 
-        if (cfDefRow.cf == null || cfDefRow.cf.getColumnCount() == 0)
+        if (cfDefRow.cf == null || !cfDefRow.cf.hasColumns())
             throw new RuntimeException(String.format("%s not found in the schema definitions keyspace.", ksName + ":" + cfName));
 
         try

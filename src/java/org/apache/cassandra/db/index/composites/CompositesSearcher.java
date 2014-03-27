@@ -184,7 +184,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                                                                              rowsPerQuery,
                                                                              filter.timestamp);
                         ColumnFamily indexRow = index.getIndexCfs().getColumnFamily(indexFilter);
-                        if (indexRow == null || indexRow.getColumnCount() == 0)
+                        if (indexRow == null || !indexRow.hasColumns())
                             return makeReturn(currentKey, data);
 
                         Collection<Cell> sortedCells = indexRow.getSortedColumns();

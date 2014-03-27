@@ -734,7 +734,7 @@ public class SystemKeyspace
                                                         1,
                                                         System.currentTimeMillis());
         ColumnFamily cf = keyspace.getColumnFamilyStore(COUNTER_ID_CF).getColumnFamily(filter);
-        if (cf != null && cf.getColumnCount() != 0)
+        if (cf != null && cf.hasColumns())
             return CounterId.wrap(cf.iterator().next().name().toByteBuffer());
         else
             return null;

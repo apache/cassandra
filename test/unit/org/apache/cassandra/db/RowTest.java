@@ -20,17 +20,18 @@ package org.apache.cassandra.db;
 
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
-
-import org.apache.cassandra.SchemaLoader;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
-import static org.apache.cassandra.Util.column;
-import org.apache.cassandra.db.composites.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.db.composites.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+
+import static org.apache.cassandra.Util.column;
 
 public class RowTest extends SchemaLoader
 {
@@ -45,7 +46,7 @@ public class RowTest extends SchemaLoader
         cf2.delete(delInfo);
 
         ColumnFamily cfDiff = cf1.diff(cf2);
-        assertEquals(cfDiff.getColumnCount(), 0);
+        assertFalse(cfDiff.hasColumns());
         assertEquals(cfDiff.deletionInfo(), delInfo);
     }
 

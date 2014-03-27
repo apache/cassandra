@@ -248,7 +248,7 @@ public class ArrayBackedSortedColumns extends ColumnFamily
     {
         delete(other.deletionInfo());
 
-        if (other.getColumnCount() == 0)
+        if (!other.hasColumns())
             return;
 
         // In reality, with ABSC being the only remaining container (aside from ABTC), other will aways be ABSC.
@@ -363,6 +363,11 @@ public class ArrayBackedSortedColumns extends ColumnFamily
     {
         maybeSortCells();
         return size;
+    }
+
+    public boolean hasColumns()
+    {
+        return size > 0;
     }
 
     public void clear()
