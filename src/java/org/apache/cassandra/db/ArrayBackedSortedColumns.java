@@ -86,7 +86,7 @@ public class ArrayBackedSortedColumns extends ColumnFamily
         this.isSorted = original.isSorted;
     }
 
-    public static ColumnFamily cloneToHeap(ColumnFamily value, ColumnFamilyStore cfs)
+    public static ColumnFamily cloneToHeap(ColumnFamily value)
     {
         if (value.getColumnCount() == 0)
             return value;
@@ -95,7 +95,7 @@ public class ArrayBackedSortedColumns extends ColumnFamily
         int i = 0;
         for (Cell cell : value)
             cells[i++] = cell.localCopy(HeapAllocator.instance);
-        ColumnFamily r = new ArrayBackedSortedColumns(cfs.metadata, value.isInsertReversed(), cells, i, i);
+        ColumnFamily r = new ArrayBackedSortedColumns(value.metadata, value.isInsertReversed(), cells, i, i);
         r.delete(value);
         return r;
     }
