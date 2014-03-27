@@ -265,7 +265,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         }
     }
 
-    private class WrappedRow implements Row
+    private static class WrappedRow implements Row
     {
         private Row row;
 
