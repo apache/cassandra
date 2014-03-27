@@ -24,8 +24,13 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.BooleanSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class BooleanType extends AbstractType<Boolean>
 {
+    private static final Logger logger = LoggerFactory.getLogger(BooleanType.class);
+
     public static final BooleanType instance = new BooleanType();
 
     BooleanType() {} // singleton
@@ -38,8 +43,8 @@ public class BooleanType extends AbstractType<Boolean>
             return 1;
 
         // False is 0, True is anything else, makes False sort before True.
-        byte b1 = o1.get();
-        byte b2 = o2.get();
+        byte b1 = o1.get(o1.position());
+        byte b2 = o2.get(o2.position());
         if (b1 == 0)
             return b2 == 0 ? 0 : -1;
         return b2 == 0 ? 1 : 0;
