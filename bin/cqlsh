@@ -480,6 +480,7 @@ class Shell(cmd.Cmd):
                                 auth_provider=self.auth_provider,
                                 ssl_options=sslhandling.ssl_settings(hostname, CONFIG_FILE) if ssl else None,
                                 load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]))
+        self.owns_connection = not use_conn
         self.set_expanded_cql_version(cqlver)
 
         if keyspace:
@@ -1624,7 +1625,8 @@ class Shell(cmd.Cmd):
         Exits cqlsh.
         """
         self.stop = True
-        self.conn.shutdown()
+        if self.owns_connection:
+            self.conn.shutdown()
     do_quit = do_exit
 
     def do_debug(self, parsed):
