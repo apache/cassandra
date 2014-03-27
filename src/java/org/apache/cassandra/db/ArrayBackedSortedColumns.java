@@ -34,7 +34,7 @@ import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.utils.memory.HeapAllocator;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
  * A ColumnFamily backed by an array.
@@ -86,18 +86,14 @@ public class ArrayBackedSortedColumns extends ColumnFamily
         this.isSorted = original.isSorted;
     }
 
-    public static ColumnFamily cloneToHeap(ColumnFamily value, ColumnFamilyStore cfs)
+    public static ArrayBackedSortedColumns localCopy(ColumnFamily original, AbstractAllocator allocator)
     {
-        if (value.getColumnCount() == 0)
-            return value;
-        // we skip anything
-        final Cell[] cells = new Cell[value.getColumnCount()];
-        int i = 0;
-        for (Cell cell : value)
-            cells[i++] = cell.localCopy(HeapAllocator.instance);
-        ColumnFamily r = new ArrayBackedSortedColumns(cfs.metadata, value.isInsertReversed(), cells, i, i);
-        r.delete(value);
-        return r;
+        ArrayBackedSortedColumns copy = new ArrayBackedSortedColumns(original.metadata, false, new Cell[original.getColumnCount()], 0, 0);
+        for (Cell cell : original)
+            copy.internalAdd(cell.localCopy(allocator));
+        copy.sortedSize = copy.size; // internalAdd doesn't update sortedSize.
+        copy.delete(original);
+        return copy;
     }
 
     public ColumnFamily.Factory getFactory()
