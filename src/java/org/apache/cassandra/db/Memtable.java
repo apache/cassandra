@@ -241,8 +241,9 @@ public class Memtable
         return new Iterator<Map.Entry<DecoratedKey, ColumnFamily>>()
         {
             private Iterator<? extends Map.Entry<? extends RowPosition, AtomicBTreeColumns>> iter = stopAt.isMinimum(cfs.partitioner)
-                                                                                        ? rows.tailMap(startWith).entrySet().iterator()
-                                                                                        : rows.subMap(startWith, true, stopAt, true).entrySet().iterator();
+                    ? rows.tailMap(startWith).entrySet().iterator()
+                    : rows.subMap(startWith, true, stopAt, true).entrySet().iterator();
+
             private Map.Entry<? extends RowPosition, ? extends ColumnFamily> currentEntry;
 
             public boolean hasNext()
@@ -259,8 +260,8 @@ public class Memtable
                 {
                     DecoratedKey key = (DecoratedKey) entry.getKey();
                     key = new DecoratedKey(key.token, HeapAllocator.instance.clone(key.key));
-                    ColumnFamily columns = ArrayBackedSortedColumns.cloneToHeap(entry.getValue(), cfs);
-                    entry = new AbstractMap.SimpleImmutableEntry<>(key, columns);
+                    ColumnFamily cells = ArrayBackedSortedColumns.localCopy(entry.getValue(), HeapAllocator.instance);
+                    entry = new AbstractMap.SimpleImmutableEntry<>(key, cells);
                 }
                 // Store the reference to the current entry so that remove() can update the current size.
                 currentEntry = entry;
