@@ -141,13 +141,13 @@ public class ColumnFamilyStoreTest extends SchemaLoader
             {
                 QueryFilter sliceFilter = QueryFilter.getSliceFilter(Util.dk("key1"), "Standard2", Composites.EMPTY, Composites.EMPTY, false, 1, System.currentTimeMillis());
                 ColumnFamily cf = store.getColumnFamily(sliceFilter);
-                assert cf.isMarkedForDelete();
-                assert cf.getColumnCount() == 0;
+                assertTrue(cf.isMarkedForDelete());
+                assertFalse(cf.hasColumns());
 
                 QueryFilter namesFilter = Util.namesQueryFilter(store, Util.dk("key1"), "a");
                 cf = store.getColumnFamily(namesFilter);
-                assert cf.isMarkedForDelete();
-                assert cf.getColumnCount() == 0;
+                assertTrue(cf.isMarkedForDelete());
+                assertFalse(cf.hasColumns());
             }
         };
 
@@ -241,7 +241,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         key = new String(rows.get(0).key.key.array(),rows.get(0).key.key.position(),rows.get(0).key.key.remaining());
         assert "k3".equals( key );
 
-        assert rows.get(0).cf.getColumnCount() == 0;
+        assertFalse(rows.get(0).cf.hasColumns());
 
         // query with index hit but rejected by secondary clause, with a small enough count that just checking count
         // doesn't tell the scan loop that it's done

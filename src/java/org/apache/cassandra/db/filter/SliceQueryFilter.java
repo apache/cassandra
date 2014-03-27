@@ -381,7 +381,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
         if (isHeadFilter() && count <= getLiveCount(cf, now))
             return true;
 
-        if (start().isEmpty() || finish().isEmpty() || cf.getColumnCount() == 0)
+        if (start().isEmpty() || finish().isEmpty() || !cf.hasColumns())
             return false;
 
         Composite low = isReversed() ? finish() : start();

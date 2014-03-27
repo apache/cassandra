@@ -203,7 +203,7 @@ public class SSTableWriter extends SSTable
 
     public static RowIndexEntry rawAppend(ColumnFamily cf, long startPosition, DecoratedKey key, DataOutputPlus out) throws IOException
     {
-        assert cf.getColumnCount() > 0 || cf.isMarkedForDelete();
+        assert cf.hasColumns() || cf.isMarkedForDelete();
 
         ColumnIndex.Builder builder = new ColumnIndex.Builder(cf, key.key, out);
         ColumnIndex index = builder.build(cf);

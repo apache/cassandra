@@ -1166,7 +1166,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         cf.purgeTombstones(gcBefore);
 
         // if there are no columns or tombstones left, return null
-        return cf.getColumnCount() == 0 && !cf.isMarkedForDelete() ? null : cf;
+        return !cf.hasColumns() && !cf.isMarkedForDelete() ? null : cf;
     }
 
     /**

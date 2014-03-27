@@ -398,7 +398,7 @@ public class Schema
 
     public static boolean invalidSchemaRow(Row row)
     {
-        return row.cf == null || (row.cf.isMarkedForDelete() && row.cf.getColumnCount() == 0);
+        return row.cf == null || (row.cf.isMarkedForDelete() && !row.cf.hasColumns());
     }
 
     public static boolean ignoredSchemaRow(Row row)

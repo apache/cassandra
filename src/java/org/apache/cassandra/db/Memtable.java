@@ -353,18 +353,19 @@ public class Memtable
                 for (Map.Entry<RowPosition, AtomicBTreeColumns> entry : rows.entrySet())
                 {
                     ColumnFamily cf = entry.getValue();
-                    if (cf.isMarkedForDelete())
+
+                    if (cf.isMarkedForDelete() && cf.hasColumns())
                     {
                         // When every node is up, there's no reason to write batchlog data out to sstables
                         // (which in turn incurs cost like compaction) since the BL write + delete cancel each other out,
                         // and BL data is strictly local, so we don't need to preserve tombstones for repair.
                         // If we have a data row + row level tombstone, then writing it is effectively an expensive no-op so we skip it.
                         // See CASSANDRA-4667.
-                        if (cfs.name.equals(SystemKeyspace.BATCHLOG_CF) && cfs.keyspace.getName().equals(Keyspace.SYSTEM_KS) && !(cf.getColumnCount() == 0))
+                        if (cfs.name.equals(SystemKeyspace.BATCHLOG_CF) && cfs.keyspace.getName().equals(Keyspace.SYSTEM_KS))
                             continue;
                     }
 
-                    if (cf.getColumnCount() > 0 || cf.isMarkedForDelete())
+                    if (!cf.isEmpty())
                         writer.append((DecoratedKey)entry.getKey(), cf);
                 }
 

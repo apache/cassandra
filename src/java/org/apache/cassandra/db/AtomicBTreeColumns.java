@@ -347,6 +347,11 @@ public class AtomicBTreeColumns extends ColumnFamily
         return BTree.slice(ref.tree, true).count();
     }
 
+    public boolean hasColumns()
+    {
+        return !BTree.isEmpty(ref.tree);
+    }
+
     public Iterator<Cell> iterator(ColumnSlice[] slices)
     {
         return new ColumnSlice.NavigableSetIterator(new BTreeSet<>(ref.tree, getComparator().columnComparator()), slices);

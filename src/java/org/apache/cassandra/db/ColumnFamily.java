@@ -245,11 +245,16 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
     public abstract int getColumnCount();
 
     /**
+     * Returns whether or not there are any columns present.
+     */
+    public abstract boolean hasColumns();
+
+    /**
      * Returns true if this contains no columns or deletion info
      */
     public boolean isEmpty()
     {
-        return deletionInfo().isLive() && getColumnCount() == 0;
+        return deletionInfo().isLive() && !hasColumns();
     }
 
     /**

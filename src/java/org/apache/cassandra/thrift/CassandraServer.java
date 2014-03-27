@@ -280,7 +280,7 @@ public class CassandraServer implements Cassandra.Iface
 
     private List<ColumnOrSuperColumn> thriftifyColumnFamily(ColumnFamily cf, boolean subcolumnsOnly, boolean reverseOrder, long now)
     {
-        if (cf == null || cf.getColumnCount() == 0)
+        if (cf == null || !cf.hasColumns())
             return EMPTY_COLUMNS;
 
         if (cf.metadata().isSuper())

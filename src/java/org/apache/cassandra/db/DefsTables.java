@@ -201,7 +201,7 @@ public class DefsTables
             ColumnFamily ksAttrs = entry.getValue();
 
             // we don't care about nested ColumnFamilies here because those are going to be processed separately
-            if (!(ksAttrs.getColumnCount() == 0))
+            if (ksAttrs.hasColumns())
                 addKeyspace(KSMetaData.fromSchema(new Row(entry.getKey(), entry.getValue()), Collections.<CFMetaData>emptyList(), new UTMetaData()));
         }
 
@@ -221,7 +221,7 @@ public class DefsTables
             ColumnFamily prevValue = entry.getValue().leftValue();
             ColumnFamily newValue = entry.getValue().rightValue();
 
-            if (prevValue.getColumnCount() == 0)
+            if (!prevValue.hasColumns())
             {
                 addKeyspace(KSMetaData.fromSchema(new Row(entry.getKey(), newValue), Collections.<CFMetaData>emptyList(), new UTMetaData()));
                 continue;
@@ -245,10 +245,10 @@ public class DefsTables
 
             ColumnFamily newState = valueDiff.rightValue();
 
-            if (newState.getColumnCount() == 0)
-                keyspacesToDrop.add(AsciiType.instance.getString(key.key));
-            else
+            if (newState.hasColumns())
                 updateKeyspace(KSMetaData.fromSchema(new Row(key, newState), Collections.<CFMetaData>emptyList(), new UTMetaData()));
+            else
+                keyspacesToDrop.add(AsciiType.instance.getString(key.key));
         }
 
         return keyspacesToDrop;
@@ -264,7 +264,7 @@ public class DefsTables
         {
             ColumnFamily cfAttrs = entry.getValue();
 
-            if (!(cfAttrs.getColumnCount() == 0))
+            if (cfAttrs.hasColumns())
             {
                Map<String, CFMetaData> cfDefs = KSMetaData.deserializeColumnFamilies(new Row(entry.getKey(), cfAttrs));
 
@@ -285,12 +285,12 @@ public class DefsTables
 
             Row newRow = new Row(keyspace, newValue);
 
-            if (prevValue.getColumnCount() == 0) // whole keyspace was deleted and now it's re-created
+            if (!prevValue.hasColumns()) // whole keyspace was deleted and now it's re-created
             {
                 for (CFMetaData cfm : KSMetaData.deserializeColumnFamilies(newRow).values())
                     addColumnFamily(cfm);
             }
-            else if (newValue.getColumnCount() == 0) // whole keyspace is deleted
+            else if (!newValue.hasColumns()) // whole keyspace is deleted
             {
                 for (CFMetaData cfm : KSMetaData.deserializeColumnFamilies(new Row(keyspace, prevValue)).values())
                     dropColumnFamily(cfm.ksName, cfm.cfName);
@@ -327,7 +327,7 @@ public class DefsTables
         for (Map.Entry<DecoratedKey, ColumnFamily> entry : diff.entriesOnlyOnRight().entrySet())
         {
             ColumnFamily cfTypes = entry.getValue();
-            if (cfTypes.getColumnCount() == 0)
+            if (!cfTypes.hasColumns())
                 continue;
 
             for (UserType ut : UTMetaData.fromSchema(new Row(entry.getKey(), cfTypes)).values())
@@ -340,12 +340,12 @@ public class DefsTables
             ColumnFamily prevCFTypes = modifiedEntry.getValue().leftValue(); // state before external modification
             ColumnFamily newCFTypes = modifiedEntry.getValue().rightValue(); // updated state
 
-            if (prevCFTypes.getColumnCount() == 0) // whole keyspace was deleted and now it's re-created
+            if (!prevCFTypes.hasColumns()) // whole keyspace was deleted and now it's re-created
             {
                 for (UserType ut : UTMetaData.fromSchema(new Row(keyspace, newCFTypes)).values())
                     addType(ut);
             }
-            else if (newCFTypes.getColumnCount() == 0) // whole keyspace is deleted
+            else if (!newCFTypes.hasColumns()) // whole keyspace is deleted
             {
                 for (UserType ut : UTMetaData.fromSchema(new Row(keyspace, prevCFTypes)).values())
                     dropType(ut);
