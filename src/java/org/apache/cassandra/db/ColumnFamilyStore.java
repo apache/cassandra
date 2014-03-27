@@ -1725,6 +1725,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     ColumnFamily filterColumnFamily(ColumnFamily cached, QueryFilter filter)
     {
+        if (cached == null)
+            return null;
+
         ColumnFamily cf = cached.cloneMeShallow(ArrayBackedSortedColumns.factory, filter.filter.isReversed());
         OnDiskAtomIterator ci = filter.getColumnFamilyIterator(cached);
 
