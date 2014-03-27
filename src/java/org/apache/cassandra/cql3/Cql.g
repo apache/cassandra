@@ -632,7 +632,6 @@ alterTypeStatement returns [AlterTypeStatement expr]
     : K_ALTER K_TYPE name=userTypeName
           ( K_ALTER f=cident K_TYPE v=comparatorType { $expr = AlterTypeStatement.alter(name, f, v); }
           | K_ADD   f=cident v=comparatorType        { $expr = AlterTypeStatement.addition(name, f, v); }
-          | K_RENAME K_TO new_name=userTypeName      { $expr = AlterTypeStatement.typeRename(name, new_name); }
           | K_RENAME
                { Map<ColumnIdentifier, ColumnIdentifier> renames = new HashMap<ColumnIdentifier, ColumnIdentifier>(); }
                  id1=cident K_TO toId1=cident { renames.put(id1, toId1); }

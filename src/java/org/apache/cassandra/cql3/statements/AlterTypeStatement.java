@@ -67,11 +67,6 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
         return new Renames(name, renames);
     }
 
-    public static AlterTypeStatement typeRename(UTName name, UTName newName)
-    {
-        return new TypeRename(name, newName);
-    }
-
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
         state.hasKeyspaceAccess(keyspace(), Permission.ALTER);
@@ -344,41 +339,5 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
             return updated;
         }
 
-    }
-
-    private static class TypeRename extends AlterTypeStatement
-    {
-        private final UTName newName;
-
-        public TypeRename(UTName name, UTName newName)
-        {
-            super(name);
-            this.newName = newName;
-        }
-
-        @Override
-        public void prepareKeyspace(ClientState state) throws InvalidRequestException
-        {
-            super.prepareKeyspace(state);
-
-            if (!newName.hasKeyspace())
-                newName.setKeyspace(state.getKeyspace());
-
-            if (newName.getKeyspace() == null)
-                throw new InvalidRequestException("You need to be logged in a keyspace or use a fully qualified user type name");
-        }
-
-        protected UserType makeUpdatedType(UserType toUpdate) throws InvalidRequestException
-        {
-            KSMetaData ksm = Schema.instance.getKSMetaData(newName.getKeyspace());
-            if (ksm == null)
-                throw new InvalidRequestException("Unknown keyspace " + newName.getKeyspace());
-
-            UserType previous = ksm.userTypes.getType(newName.getUserTypeName());
-            if (previous != null)
-                throw new InvalidRequestException(String.format("Cannot rename user type %s to %s as another type of that name exists", name, newName));
-
-            return new UserType(newName.getKeyspace(), newName.getUserTypeName(), new ArrayList<>(toUpdate.columnNames), new ArrayList<>(toUpdate.types));
-        }
     }
 }
