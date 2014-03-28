@@ -46,6 +46,18 @@ public class Memtable
 {
     private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
 
+    // size in memory can never be less than serialized size.
+    private static final double MIN_SANE_LIVE_RATIO = 1.0;
+    // max liveratio seen w/ 1-byte columns on a 64-bit jvm was 19. If it gets higher than 64 something is probably broken.
+    private static final double MAX_SANE_LIVE_RATIO = 64.0;
+    // reasonable initial live ratio used until we compute one.
+    private static final double INITIAL_LIVE_RATIO = 10.0;
+
+    // ratio of in-memory memtable size, to serialized size
+    private volatile double liveRatio = INITIAL_LIVE_RATIO;
+    // ops count last time we computed liveRatio
+    private final AtomicLong liveRatioComputedAt = new AtomicLong(32);
+
     /*
      * switchMemtable puts Memtable.getSortedContents on the writer executor.  When the write is complete,
      * we turn the writer into an SSTableReader and add it to ssTables where it is available for reads.
@@ -65,11 +77,6 @@ public class Memtable
                                                new LinkedBlockingQueue<Runnable>(DatabaseDescriptor.getFlushQueueSize()),
                                                new NamedThreadFactory("FlushWriter"),
                                                "internal");
-
-    // size in memory can never be less than serialized size
-    private static final double MIN_SANE_LIVE_RATIO = 1.0;
-    // max liveratio seen w/ 1-byte columns on a 64-bit jvm was 19. If it gets higher than 64 something is probably broken.
-    private static final double MAX_SANE_LIVE_RATIO = 64.0;
 
     // We need to take steps to avoid retaining inactive membtables in memory, because counting is slow (can be
     // minutes, for a large memtable and a busy server).  A strictly FIFO Memtable queue could keep memtables
@@ -113,11 +120,19 @@ public class Memtable
     // memtable was created with the new or old comparator.
     public final AbstractType initialComparator;
 
-    public Memtable(ColumnFamilyStore cfs)
+    public Memtable(ColumnFamilyStore cfs, Memtable previous)
     {
         this.cfs = cfs;
         this.initialComparator = cfs.metadata.comparator;
         this.cfs.scheduleFlush();
+
+        // Inherit liveRatio and liveRatioCompareAt from the previous memtable, if available,
+        // to minimise recalculation frequency as much as possible.
+        if (previous != null)
+        {
+            liveRatio = previous.liveRatio;
+            liveRatioComputedAt.set(previous.liveRatioComputedAt.get() / 2);
+        }
 
         Callable<Set<Object>> provider = new Callable<Set<Object>>()
         {
@@ -134,7 +149,7 @@ public class Memtable
 
     public long getLiveSize()
     {
-        long estimatedSize = (long) (currentSize.get() * cfs.liveRatio);
+        long estimatedSize = (long) (currentSize.get() * liveRatio);
 
         // liveRatio is just an estimate; we can get a lower bound directly from the allocator
         if (estimatedSize < allocator.getMinimumSize())
@@ -158,6 +173,23 @@ public class Memtable
         resolve(key, columnFamily, indexer);
     }
 
+    public void maybeUpdateLiveRatio()
+    {
+        // recompute liveRatio, if we have doubled the number of ops since last calculated
+        while (true)
+        {
+            long last = liveRatioComputedAt.get();
+            long operations = currentOperations.get();
+            if (operations < 2 * last)
+                break;
+            if (liveRatioComputedAt.compareAndSet(last, operations))
+            {
+                logger.debug("computing liveRatio of {} at {} ops", this, operations);
+                updateLiveRatio();
+            }
+        }
+    }
+
     public void updateLiveRatio() throws RuntimeException
     {
         if (!MemoryMeter.isInitialized())
@@ -165,7 +197,7 @@ public class Memtable
             // hack for openjdk.  we log a warning about this in the startup script too.
             logger.error("MemoryMeter uninitialized (jamm not specified as java agent); assuming liveRatio of {}.  "
                          + " Usually this means cassandra-env.sh disabled jamm because you are using a buggy JRE; "
-                         + " upgrade to the Sun JRE instead", cfs.liveRatio);
+                         + " upgrade to the Sun JRE instead", liveRatio);
             return;
         }
 
@@ -440,14 +472,14 @@ public class Memtable
                 }
 
                 // we want to be very conservative about our estimate, since the penalty for guessing low is OOM
-                // death.  thus, higher estimates are believed immediately; lower ones are averaged w/ the old
-                if (newRatio > cfs.liveRatio)
-                    cfs.liveRatio = newRatio;
+                // death. thus, higher estimates are believed immediately; lower ones are averaged w/ the old
+                if (newRatio > memtable.liveRatio)
+                    memtable.liveRatio = newRatio;
                 else
-                    cfs.liveRatio = (cfs.liveRatio + newRatio) / 2.0;
+                    memtable.liveRatio = (memtable.liveRatio + newRatio) / 2.0;
 
                 logger.info("{} liveRatio is {} (just-counted was {}).  calculation took {}ms for {} cells",
-                            cfs, cfs.liveRatio, newRatio, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start), objects);
+                            cfs, memtable.liveRatio, newRatio, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start), objects);
             }
             finally
             {

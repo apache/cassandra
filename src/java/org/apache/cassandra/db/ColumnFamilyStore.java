@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import javax.management.*;
 
@@ -104,11 +103,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private volatile AbstractCompactionStrategy compactionStrategy;
 
     public final Directories directories;
-
-    /** ratio of in-memory memtable size, to serialized size */
-    volatile double liveRatio = 10.0; // reasonable default until we compute what it is based on actual data
-    /** ops count last time we computed liveRatio */
-    private final AtomicLong liveRatioComputedAt = new AtomicLong(32);
 
     public final ColumnFamilyMetrics metric;
     public volatile long sampleLatencyNanos;
@@ -899,20 +893,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         mt.put(key, columnFamily, indexer);
         maybeUpdateRowCache(key);
         metric.writeLatency.addNano(System.nanoTime() - start);
-
-        // recompute liveRatio, if we have doubled the number of ops since last calculated
-        while (true)
-        {
-            long last = liveRatioComputedAt.get();
-            long operations = metric.writeLatency.latency.count();
-            if (operations < 2 * last)
-                break;
-            if (liveRatioComputedAt.compareAndSet(last, operations))
-            {
-                logger.debug("computing liveRatio of {} at {} ops", this, operations);
-                mt.updateLiveRatio();
-            }
-        }
+        mt.maybeUpdateLiveRatio();
     }
 
     /**

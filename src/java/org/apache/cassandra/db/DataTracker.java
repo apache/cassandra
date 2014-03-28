@@ -30,7 +30,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.StorageMetrics;
@@ -110,7 +109,7 @@ public class DataTracker
     public Memtable switchMemtable()
     {
         // atomically change the current memtable
-        Memtable newMemtable = new Memtable(cfstore);
+        Memtable newMemtable = new Memtable(cfstore, view.get().memtable);
         Memtable toFlushMemtable;
         View currentView, newView;
         do
@@ -131,7 +130,7 @@ public class DataTracker
      */
     public void renewMemtable()
     {
-        Memtable newMemtable = new Memtable(cfstore);
+        Memtable newMemtable = new Memtable(cfstore, view.get().memtable);
         View currentView, newView;
         do
         {
@@ -322,7 +321,7 @@ public class DataTracker
     /** (Re)initializes the tracker, purging all references. */
     void init()
     {
-        view.set(new View(new Memtable(cfstore),
+        view.set(new View(new Memtable(cfstore, null),
                           Collections.<Memtable>emptySet(),
                           Collections.<SSTableReader>emptySet(),
                           Collections.<SSTableReader>emptySet(),
