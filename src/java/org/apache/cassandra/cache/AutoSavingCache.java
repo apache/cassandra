@@ -170,6 +170,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 type = OperationType.KEY_CACHE_SAVE;
             else if (cacheType == CacheService.CacheType.ROW_CACHE)
                 type = OperationType.ROW_CACHE_SAVE;
+            else if (cacheType == CacheService.CacheType.COUNTER_CACHE)
+                type = OperationType.COUNTER_CACHE_SAVE;
             else
                 type = OperationType.UNKNOWN;
 

@@ -23,6 +23,7 @@ public enum OperationType
     VALIDATION("Validation"),
     KEY_CACHE_SAVE("Key cache save"),
     ROW_CACHE_SAVE("Row cache save"),
+    COUNTER_CACHE_SAVE("Counter cache save"),
     CLEANUP("Cleanup"),
     SCRUB("Scrub"),
     UPGRADE_SSTABLES("Upgrade sstables"),
