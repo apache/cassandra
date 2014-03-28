@@ -382,7 +382,7 @@ public class CacheService implements CacheServiceMBean
         logger.debug("cache saves completed");
     }
 
-    public class CounterCacheSerializer implements CacheSerializer<CounterCacheKey, ClockAndCount>
+    public static class CounterCacheSerializer implements CacheSerializer<CounterCacheKey, ClockAndCount>
     {
         public void serialize(CounterCacheKey key, DataOutputPlus out) throws IOException
         {
@@ -425,7 +425,7 @@ public class CacheService implements CacheServiceMBean
         }
     }
 
-    public class RowCacheSerializer implements CacheSerializer<RowCacheKey, IRowCacheEntry>
+    public static class RowCacheSerializer implements CacheSerializer<RowCacheKey, IRowCacheEntry>
     {
         public void serialize(RowCacheKey key, DataOutputPlus out) throws IOException
         {
@@ -448,7 +448,7 @@ public class CacheService implements CacheServiceMBean
         }
     }
 
-    public class KeyCacheSerializer implements CacheSerializer<KeyCacheKey, RowIndexEntry>
+    public static class KeyCacheSerializer implements CacheSerializer<KeyCacheKey, RowIndexEntry>
     {
         public void serialize(KeyCacheKey key, DataOutputPlus out) throws IOException
         {
