@@ -131,7 +131,7 @@ public class Memtable
         if (previous != null)
         {
             liveRatio = previous.liveRatio;
-            liveRatioComputedAt.set(previous.liveRatioComputedAt.get() / 2);
+            liveRatioComputedAt.set(previous.liveRatioComputedAt.get() / 4);
         }
 
         Callable<Set<Object>> provider = new Callable<Set<Object>>()
