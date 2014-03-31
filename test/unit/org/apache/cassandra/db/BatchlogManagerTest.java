@@ -30,6 +30,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -66,7 +67,11 @@ public class BatchlogManagerTest extends SchemaLoader
             long timestamp = System.currentTimeMillis();
             if (i < 500)
                 timestamp -= DatabaseDescriptor.getWriteRpcTimeout() * 2;
-            BatchlogManager.getBatchlogMutationFor(Collections.singleton(mutation), UUIDGen.getTimeUUID(), timestamp * 1000).apply();
+            BatchlogManager.getBatchlogMutationFor(Collections.singleton(mutation),
+                                                   UUIDGen.getTimeUUID(),
+                                                   MessagingService.current_version,
+                                                   timestamp * 1000)
+                           .apply();
         }
 
         assertEquals(1000, BatchlogManager.instance.countAllBatches());
