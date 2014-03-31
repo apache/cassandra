@@ -525,14 +525,14 @@ public class SSTableReader extends SSTable implements Closeable
             // bf is enabled, but filter component is missing.
             load(true, true);
         }
-        else if (descriptor.version.hasBloomFilterFPChance && validation.bloomFilterFPChance != metadata.getBloomFilterFpChance())
+        else if (validation.bloomFilterFPChance != metadata.getBloomFilterFpChance())
         {
             // bf fp chance in sstable metadata and it has changed since compaction.
             load(true, true);
         }
         else
         {
-            // bf is enabled, but fp chance isn't present in metadata (pre-ja) OR matches the currently configured value.
+            // bf is enabled and fp chance matches the currently configured value.
             load(false, true);
             loadBloomFilter();
         }
@@ -655,7 +655,7 @@ public class SSTableReader extends SSTable implements Closeable
     public boolean loadSummary(SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder)
     {
         File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
-        if (!descriptor.version.offHeapSummaries || !summariesFile.exists())
+        if (!summariesFile.exists())
             return false;
 
         DataInputStream iStream = null;

@@ -97,7 +97,7 @@ public class LegacySSTableTest extends SchemaLoader
         StorageService.instance.initServer();
 
         for (File version : LEGACY_SSTABLE_ROOT.listFiles())
-            if (Descriptor.Version.validate(version.getName()))
+            if (Descriptor.Version.validate(version.getName()) && new Descriptor.Version(version.getName()).isCompatible())
                 testStreaming(version.getName());
     }
 
@@ -135,7 +135,7 @@ public class LegacySSTableTest extends SchemaLoader
     public void testVersions() throws Throwable
     {
         for (File version : LEGACY_SSTABLE_ROOT.listFiles())
-            if (Descriptor.Version.validate(version.getName()))
+            if (Descriptor.Version.validate(version.getName()) && new Descriptor.Version(version.getName()).isCompatible())
                 testVersion(version.getName());
     }
 

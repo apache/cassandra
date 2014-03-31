@@ -48,12 +48,7 @@ public class Cell implements OnDiskAtom
 
     private static final long EMPTY_SIZE = ObjectSizes.measure(new Cell(CellNames.simpleDense(ByteBuffer.allocate(1))));
 
-    /**
-     * For 2.0-formatted sstables (where column count is not stored), @param count should be Integer.MAX_VALUE,
-     * and we will look for the end-of-row column name marker instead of relying on that.
-     */
     public static Iterator<OnDiskAtom> onDiskIterator(final DataInput in,
-                                                      final int count,
                                                       final ColumnSerializer.Flag flag,
                                                       final int expireBefore,
                                                       final Descriptor.Version version,
@@ -61,13 +56,8 @@ public class Cell implements OnDiskAtom
     {
         return new AbstractIterator<OnDiskAtom>()
         {
-            int i = 0;
-
             protected OnDiskAtom computeNext()
             {
-                if (i++ >= count)
-                    return endOfData();
-
                 OnDiskAtom atom;
                 try
                 {

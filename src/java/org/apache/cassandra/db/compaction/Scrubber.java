@@ -130,11 +130,6 @@ public class Scrubber implements Closeable
                 try
                 {
                     key = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(dataFile));
-                    if (sstable.descriptor.version.hasRowSizeAndColumnCount)
-                    {
-                        dataSize = dataFile.readLong();
-                        outputHandler.debug(String.format("row %s is %s bytes", ByteBufferUtil.bytesToHex(key.key), dataSize));
-                    }
                 }
                 catch (Throwable th)
                 {
@@ -162,22 +157,12 @@ public class Scrubber implements Closeable
                 long dataStartFromIndex = currentIndexKey == null
                                         ? -1
                                         : rowStart + 2 + currentIndexKey.remaining();
-                if (sstable.descriptor.version.hasRowSizeAndColumnCount)
-                    dataStartFromIndex += 8;
                 long dataSizeFromIndex = nextRowPositionFromIndex - dataStartFromIndex;
 
-                if (!sstable.descriptor.version.hasRowSizeAndColumnCount)
-                {
-                    dataSize = dataSizeFromIndex;
-                    // avoid an NPE if key is null
-                    String keyName = key == null ? "(unreadable key)" : ByteBufferUtil.bytesToHex(key.key);
-                    outputHandler.debug(String.format("row %s is %s bytes", keyName, dataSize));
-                }
-                else
-                {
-                    if (currentIndexKey != null)
-                        outputHandler.debug(String.format("Index doublecheck: row %s is %s bytes", ByteBufferUtil.bytesToHex(currentIndexKey),  dataSizeFromIndex));
-                }
+                dataSize = dataSizeFromIndex;
+                // avoid an NPE if key is null
+                String keyName = key == null ? "(unreadable key)" : ByteBufferUtil.bytesToHex(key.key);
+                outputHandler.debug(String.format("row %s is %s bytes", keyName, dataSize));
 
                 assert currentIndexKey != null || indexFile.isEOF();
 

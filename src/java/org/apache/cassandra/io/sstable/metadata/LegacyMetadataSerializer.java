@@ -38,8 +38,6 @@ import org.apache.cassandra.utils.StreamingHistogram;
 @Deprecated
 public class LegacyMetadataSerializer extends MetadataSerializer
 {
-    public static final double NO_BLOOM_FILTER_FP_CHANCE = -1.0;
-
     /**
      * Legacy serialization is only used for SSTable level reset.
      */
@@ -96,8 +94,8 @@ public class LegacyMetadataSerializer extends MetadataSerializer
                 ReplayPosition replayPosition = ReplayPosition.serializer.deserialize(in);
                 long minTimestamp = in.readLong();
                 long maxTimestamp = in.readLong();
-                int maxLocalDeletionTime = descriptor.version.tracksMaxLocalDeletionTime ? in.readInt() : Integer.MAX_VALUE;
-                double bloomFilterFPChance = descriptor.version.hasBloomFilterFPChance ? in.readDouble() : NO_BLOOM_FILTER_FP_CHANCE;
+                int maxLocalDeletionTime = in.readInt();
+                double bloomFilterFPChance = in.readDouble();
                 double compressionRatio = in.readDouble();
                 String partitioner = in.readUTF();
                 int nbAncestors = in.readInt();
@@ -109,28 +107,15 @@ public class LegacyMetadataSerializer extends MetadataSerializer
                 if (in.available() > 0)
                     sstableLevel = in.readInt();
 
-                List<ByteBuffer> minColumnNames;
-                List<ByteBuffer> maxColumnNames;
-                if (descriptor.version.tracksMaxMinColumnNames)
-                {
-                    int colCount = in.readInt();
-                    minColumnNames = new ArrayList<>(colCount);
-                    for (int i = 0; i < colCount; i++)
-                    {
-                        minColumnNames.add(ByteBufferUtil.readWithShortLength(in));
-                    }
-                    colCount = in.readInt();
-                    maxColumnNames = new ArrayList<>(colCount);
-                    for (int i = 0; i < colCount; i++)
-                    {
-                        maxColumnNames.add(ByteBufferUtil.readWithShortLength(in));
-                    }
-                }
-                else
-                {
-                    minColumnNames = Collections.emptyList();
-                    maxColumnNames = Collections.emptyList();
-                }
+                int colCount = in.readInt();
+                List<ByteBuffer> minColumnNames = new ArrayList<>(colCount);
+                for (int i = 0; i < colCount; i++)
+                    minColumnNames.add(ByteBufferUtil.readWithShortLength(in));
+
+                colCount = in.readInt();
+                List<ByteBuffer> maxColumnNames = new ArrayList<>(colCount);
+                for (int i = 0; i < colCount; i++)
+                    maxColumnNames.add(ByteBufferUtil.readWithShortLength(in));
 
                 if (types.contains(MetadataType.VALIDATION))
                     components.put(MetadataType.VALIDATION,

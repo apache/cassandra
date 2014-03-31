@@ -21,7 +21,6 @@ import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.lang3.builder.EqualsBuilder;
@@ -234,35 +233,24 @@ public class StatsMetadata extends MetadataComponent
             ReplayPosition replayPosition = ReplayPosition.serializer.deserialize(in);
             long minTimestamp = in.readLong();
             long maxTimestamp = in.readLong();
-            int maxLocalDeletionTime = version.tracksMaxLocalDeletionTime ? in.readInt() : Integer.MAX_VALUE;
+            int maxLocalDeletionTime = in.readInt();
             double compressionRatio = in.readDouble();
             StreamingHistogram tombstoneHistogram = StreamingHistogram.serializer.deserialize(in);
             int sstableLevel = in.readInt();
             long repairedAt = 0;
             if (version.hasRepairedAt)
                 repairedAt = in.readLong();
-            List<ByteBuffer> minColumnNames;
-            List<ByteBuffer> maxColumnNames;
-            if (version.tracksMaxMinColumnNames)
-            {
-                int colCount = in.readInt();
-                minColumnNames = new ArrayList<>(colCount);
-                for (int i = 0; i < colCount; i++)
-                {
-                    minColumnNames.add(ByteBufferUtil.readWithShortLength(in));
-                }
-                colCount = in.readInt();
-                maxColumnNames = new ArrayList<>(colCount);
-                for (int i = 0; i < colCount; i++)
-                {
-                    maxColumnNames.add(ByteBufferUtil.readWithShortLength(in));
-                }
-            }
-            else
-            {
-                minColumnNames = Collections.emptyList();
-                maxColumnNames = Collections.emptyList();
-            }
+
+            int colCount = in.readInt();
+            List<ByteBuffer> minColumnNames = new ArrayList<>(colCount);
+            for (int i = 0; i < colCount; i++)
+                minColumnNames.add(ByteBufferUtil.readWithShortLength(in));
+
+            colCount = in.readInt();
+            List<ByteBuffer> maxColumnNames = new ArrayList<>(colCount);
+            for (int i = 0; i < colCount; i++)
+                maxColumnNames.add(ByteBufferUtil.readWithShortLength(in));
+
             return new StatsMetadata(rowSizes,
                                      columnCounts,
                                      replayPosition,

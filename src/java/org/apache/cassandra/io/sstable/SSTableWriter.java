@@ -229,18 +229,9 @@ public class SSTableWriter extends SSTable
         StreamingHistogram tombstones = new StreamingHistogram(TOMBSTONE_HISTOGRAM_BIN_SIZE);
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(metadata);
 
-        // skip row size for version < ja
-        if (version.hasRowSizeAndColumnCount)
-            FileUtils.skipBytesFully(in, 8);
-
         cf.delete(DeletionTime.serializer.deserialize(in));
 
         ColumnIndex.Builder columnIndexer = new ColumnIndex.Builder(cf, key.key, dataFile.stream);
-
-        // read column count for version < ja
-        int columnCount = Integer.MAX_VALUE;
-        if (version.hasRowSizeAndColumnCount)
-            columnCount = in.readInt();
 
         if (cf.deletionInfo().getTopLevelDeletion().localDeletionTime < Integer.MAX_VALUE)
             tombstones.update(cf.deletionInfo().getTopLevelDeletion().localDeletionTime);
@@ -252,7 +243,7 @@ public class SSTableWriter extends SSTable
             tombstones.update(rangeTombstone.getLocalDeletionTime());
         }
 
-        Iterator<OnDiskAtom> iter = metadata.getOnDiskIterator(in, columnCount, ColumnSerializer.Flag.PRESERVE_SIZE, Integer.MIN_VALUE, version);
+        Iterator<OnDiskAtom> iter = metadata.getOnDiskIterator(in, ColumnSerializer.Flag.PRESERVE_SIZE, Integer.MIN_VALUE, version);
         try
         {
             while (iter.hasNext())

@@ -89,8 +89,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         try
         {
             columnFamily.delete(DeletionTime.serializer.deserialize(in));
-            int columnCount = dataVersion.hasRowSizeAndColumnCount ? in.readInt() : Integer.MAX_VALUE;
-            atomIterator = columnFamily.metadata().getOnDiskIterator(in, columnCount, flag, expireBefore, dataVersion);
+            atomIterator = columnFamily.metadata().getOnDiskIterator(in, flag, expireBefore, dataVersion);
         }
         catch (IOException e)
         {
