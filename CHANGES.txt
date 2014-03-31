@@ -41,6 +41,7 @@
  * Add optimized CF.hasColumns() implementations (CASSANDRA-6941)
  * Serialize batchlog mutations with the version of the target node
    (CASSANDRA-6931)
+ * Optimize CounterColumn#reconcile() (CASSANDRA-6953)
 Merged from 2.0:
  * (Hadoop) Allow manually specifying start/end tokens in CFIF (CASSANDRA-6436)
  * Fix NPE in MeteredFlusher (CASSANDRA-6820)
