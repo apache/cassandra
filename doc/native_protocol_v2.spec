@@ -523,6 +523,7 @@ Table of Contents
             0x0007    Double
             0x0008    Float
             0x0009    Int
+            0x000A    Text
             0x000B    Timestamp
             0x000C    Uuid
             0x000D    Varchar
