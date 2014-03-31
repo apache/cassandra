@@ -33,11 +33,11 @@ New features
 
 Upgrading
 ---------
-   - Rolling upgrades from anything pre-2.0.6 is not supported. Furthermore
-   - Pre-2.0 sstables are not supported. This means that before upgrading
-     a node a 2.1, this node must be started on 2.0 and
+   - Rolling upgrades from anything pre-2.0.7 is not supported. Furthermore
+     pre-2.0 sstables are not supported. This means that before upgrading
+     a node on 2.1, this node must be started on 2.0 and
      'nodetool upgdradesstables' must be run (and this even in the case
-     of no-rolling upgrades).
+     of not-rolling upgrades).
    - For size-tiered compaction users, Cassandra now defaults to ignoring
      the coldest 5% of sstables.  This can be customized with the
      cold_reads_to_omit compaction option; 0.0 omits nothing (the old

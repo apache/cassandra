@@ -44,9 +44,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -65,7 +63,6 @@ import org.apache.cassandra.utils.WrappedRunnable;
 public class BatchlogManager implements BatchlogManagerMBean
 {
     private static final String MBEAN_NAME = "org.apache.cassandra.db:type=BatchlogManager";
-    private static final int VERSION = MessagingService.VERSION_12;
     private static final long REPLAY_INTERVAL = 60 * 1000; // milliseconds
     private static final int PAGE_SIZE = 128; // same as HHOM, for now, w/out using any heuristics. TODO: set based on avg batch size.
 
@@ -122,26 +119,23 @@ public class BatchlogManager implements BatchlogManagerMBean
         batchlogTasks.execute(runnable);
     }
 
-    public static Mutation getBatchlogMutationFor(Collection<Mutation> mutations, UUID uuid)
+    public static Mutation getBatchlogMutationFor(Collection<Mutation> mutations, UUID uuid, int version)
     {
-        return getBatchlogMutationFor(mutations, uuid, FBUtilities.timestampMicros());
+        return getBatchlogMutationFor(mutations, uuid, version, FBUtilities.timestampMicros());
     }
 
     @VisibleForTesting
-    static Mutation getBatchlogMutationFor(Collection<Mutation> mutations, UUID uuid, long now)
+    static Mutation getBatchlogMutationFor(Collection<Mutation> mutations, UUID uuid, int version, long now)
     {
-        ByteBuffer writtenAt = LongType.instance.decompose(now / 1000);
-        ByteBuffer data = serializeMutations(mutations);
-
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(CFMetaData.BatchlogCf);
-        cf.addColumn(new Cell(cellName(""), ByteBufferUtil.EMPTY_BYTE_BUFFER, now));
-        cf.addColumn(new Cell(cellName("data"), data, now));
-        cf.addColumn(new Cell(cellName("written_at"), writtenAt, now));
-
+        CFRowAdder adder = new CFRowAdder(cf, CFMetaData.BatchlogCf.comparator.builder().build(), now);
+        adder.add("data", serializeMutations(mutations, version))
+             .add("written_at", new Date(now / 1000))
+             .add("version", version);
         return new Mutation(Keyspace.SYSTEM_KS, UUIDType.instance.decompose(uuid), cf);
     }
 
-    private static ByteBuffer serializeMutations(Collection<Mutation> mutations)
+    private static ByteBuffer serializeMutations(Collection<Mutation> mutations, int version)
     {
         DataOutputBuffer buf = new DataOutputBuffer();
 
@@ -149,7 +143,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         {
             buf.writeInt(mutations.size());
             for (Mutation mutation : mutations)
-                Mutation.serializer.serialize(mutation, buf, VERSION);
+                Mutation.serializer.serialize(mutation, buf, version);
         }
         catch (IOException e)
         {
@@ -174,7 +168,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         try
         {
-            UntypedResultSet page = process("SELECT id, data, written_at FROM %s.%s LIMIT %d",
+            UntypedResultSet page = process("SELECT id, data, written_at, version FROM %s.%s LIMIT %d",
                                             Keyspace.SYSTEM_KS,
                                             SystemKeyspace.BATCHLOG_CF,
                                             PAGE_SIZE);
@@ -186,7 +180,7 @@ public class BatchlogManager implements BatchlogManagerMBean
                 if (page.size() < PAGE_SIZE)
                     break; // we've exhausted the batchlog, next query would be empty.
 
-                page = process("SELECT id, data, written_at FROM %s.%s WHERE token(id) > token(%s) LIMIT %d",
+                page = process("SELECT id, data, written_at, version FROM %s.%s WHERE token(id) > token(%s) LIMIT %d",
                                Keyspace.SYSTEM_KS,
                                SystemKeyspace.BATCHLOG_CF,
                                id,
@@ -211,22 +205,23 @@ public class BatchlogManager implements BatchlogManagerMBean
         {
             id = row.getUUID("id");
             long writtenAt = row.getLong("written_at");
+            int version = row.has("version") ? row.getInt("version") : MessagingService.VERSION_12;
             // enough time for the actual write + batchlog entry mutation delivery (two separate requests).
             long timeout = DatabaseDescriptor.getWriteRpcTimeout() * 2; // enough time for the actual write + BM removal mutation
             if (System.currentTimeMillis() < writtenAt + timeout)
                 continue; // not ready to replay yet, might still get a deletion.
-            replayBatch(id, row.getBytes("data"), writtenAt, rateLimiter);
+            replayBatch(id, row.getBytes("data"), writtenAt, version, rateLimiter);
         }
         return id;
     }
 
-    private void replayBatch(UUID id, ByteBuffer data, long writtenAt, RateLimiter rateLimiter)
+    private void replayBatch(UUID id, ByteBuffer data, long writtenAt, int version, RateLimiter rateLimiter)
     {
         logger.debug("Replaying batch {}", id);
 
         try
         {
-            replaySerializedMutations(data, writtenAt, rateLimiter);
+            replaySerializedMutations(data, writtenAt, version, rateLimiter);
         }
         catch (IOException e)
         {
@@ -245,19 +240,19 @@ public class BatchlogManager implements BatchlogManagerMBean
         mutation.apply();
     }
 
-    private void replaySerializedMutations(ByteBuffer data, long writtenAt, RateLimiter rateLimiter) throws IOException
+    private void replaySerializedMutations(ByteBuffer data, long writtenAt, int version, RateLimiter rateLimiter) throws IOException
     {
         DataInputStream in = new DataInputStream(ByteBufferUtil.inputStream(data));
         int size = in.readInt();
         for (int i = 0; i < size; i++)
-            replaySerializedMutation(Mutation.serializer.deserialize(in, VERSION), writtenAt, rateLimiter);
+            replaySerializedMutation(Mutation.serializer.deserialize(in, version), writtenAt, version, rateLimiter);
     }
 
     /*
      * We try to deliver the mutations to the replicas ourselves if they are alive and only resort to writing hints
      * when a replica is down or a write request times out.
      */
-    private void replaySerializedMutation(Mutation mutation, long writtenAt, RateLimiter rateLimiter)
+    private void replaySerializedMutation(Mutation mutation, long writtenAt, int version, RateLimiter rateLimiter)
     {
         int ttl = calculateHintTTL(mutation, writtenAt);
         if (ttl <= 0)
@@ -266,7 +261,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         Set<InetAddress> liveEndpoints = new HashSet<>();
         String ks = mutation.getKeyspaceName();
         Token<?> tk = StorageService.getPartitioner().getToken(mutation.key());
-        int mutationSize = (int) Mutation.serializer.serializedSize(mutation, VERSION);
+        int mutationSize = (int) Mutation.serializer.serializedSize(mutation, version);
 
         for (InetAddress endpoint : Iterables.concat(StorageService.instance.getNaturalEndpoints(ks, tk),
                                                      StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, ks)))
@@ -329,11 +324,6 @@ public class BatchlogManager implements BatchlogManagerMBean
     private int calculateHintTTL(Mutation mutation, long writtenAt)
     {
         return (int) ((HintedHandOffManager.calculateHintTTL(mutation) * 1000 - (System.currentTimeMillis() - writtenAt)) / 1000);
-    }
-
-    private static CellName cellName(String name)
-    {
-        return CFMetaData.BatchlogCf.comparator.makeCellName(name);
     }
 
     // force flush + compaction to reclaim space from the replayed batches

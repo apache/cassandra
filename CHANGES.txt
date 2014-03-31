@@ -34,6 +34,9 @@
  * Add multiple memory allocation options for memtables (CASSANDRA-6689)
  * Remove adjusted op rate from stress output (CASSANDRA-6921)
  * Add optimized CF.hasColumns() implementations (CASSANDRA-6941)
+ * Serialize batchlog mutations with the version of the target node
+   (CASSANDRA-6931)
+ * Optimize CounterColumn#reconcile() (CASSANDRA-6953)
  * Properly remove 1.2 sstable support in 2.1 (CASSANDRA-6869)
 Merged from 2.0:
  * Restrict Windows to parallel repairs (CASSANDRA-6907)
