@@ -168,11 +168,18 @@ public class CounterCell extends Cell
         // live last delete > live
         if (timestampOfLastDelete() > cell.timestamp())
             return this;
-        // live + live: merge clocks; update value
-        return new CounterCell(name(),
-                               contextManager.merge(value(), cell.value()),
-                               Math.max(timestamp(), cell.timestamp()),
-                               Math.max(timestampOfLastDelete(), ((CounterCell) cell).timestampOfLastDelete()));
+
+        // live + live. return one of the cells if its context is a superset of the other's, or merge them otherwise
+        ByteBuffer context = contextManager.merge(value(), cell.value());
+        if (context == value() && timestamp() >= cell.timestamp() && timestampOfLastDelete() >= ((CounterCell) cell).timestampOfLastDelete())
+            return this;
+        else if (context == cell.value() && cell.timestamp() >= timestamp() && ((CounterCell) cell).timestampOfLastDelete() >= timestampOfLastDelete())
+            return cell;
+        else // merge clocks and timsestamps.
+            return new CounterCell(name(),
+                                   context,
+                                   Math.max(timestamp(), cell.timestamp()),
+                                   Math.max(timestampOfLastDelete(), ((CounterCell) cell).timestampOfLastDelete()));
     }
 
     @Override
