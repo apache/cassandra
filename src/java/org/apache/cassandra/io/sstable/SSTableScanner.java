@@ -261,8 +261,6 @@ public class SSTableScanner implements ICompactionScanner
                 {
                     dfile.seek(currentEntry.position);
                     ByteBufferUtil.readWithShortLength(dfile); // key
-                    if (sstable.descriptor.version.hasRowSizeAndColumnCount)
-                        dfile.readLong();
                     long dataSize = readEnd - dfile.getFilePointer();
                     return new SSTableIdentityIterator(sstable, dfile, currentKey, dataSize);
                 }

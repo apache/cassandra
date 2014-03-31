@@ -308,12 +308,8 @@ public class SSTableExport
 
             dfile.seek(entry.position);
             ByteBufferUtil.readWithShortLength(dfile); // row key
-            if (sstable.descriptor.version.hasRowSizeAndColumnCount)
-                dfile.readLong(); // row size
             DeletionInfo deletionInfo = new DeletionInfo(DeletionTime.serializer.deserialize(dfile));
-            int columnCount = sstable.descriptor.version.hasRowSizeAndColumnCount ? dfile.readInt() : Integer.MAX_VALUE;
-
-            Iterator<OnDiskAtom> atomIterator = sstable.metadata.getOnDiskIterator(dfile, columnCount, sstable.descriptor.version);
+            Iterator<OnDiskAtom> atomIterator = sstable.metadata.getOnDiskIterator(dfile, sstable.descriptor.version);
 
             checkStream(outs);
 

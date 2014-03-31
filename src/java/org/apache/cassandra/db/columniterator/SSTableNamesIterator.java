@@ -109,8 +109,6 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
 
             DecoratedKey keyInDisk = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(file));
             assert keyInDisk.equals(key) : String.format("%s != %s in %s", keyInDisk, key, file.getPath());
-            if (sstable.descriptor.version.hasRowSizeAndColumnCount)
-                file.readLong();
         }
 
         indexList = indexEntry.columnsIndex();
@@ -137,8 +135,7 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
         List<OnDiskAtom> result = new ArrayList<OnDiskAtom>();
         if (indexList.isEmpty())
         {
-            int columnCount = sstable.descriptor.version.hasRowSizeAndColumnCount ? file.readInt() : Integer.MAX_VALUE;
-            readSimpleColumns(file, columns, result, columnCount);
+            readSimpleColumns(file, columns, result);
         }
         else
         {
@@ -149,9 +146,9 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
         iter = result.iterator();
     }
 
-    private void readSimpleColumns(FileDataInput file, SortedSet<CellName> columnNames, List<OnDiskAtom> result, int columnCount)
+    private void readSimpleColumns(FileDataInput file, SortedSet<CellName> columnNames, List<OnDiskAtom> result)
     {
-        Iterator<OnDiskAtom> atomIterator = cf.metadata().getOnDiskIterator(file, columnCount, sstable.descriptor.version);
+        Iterator<OnDiskAtom> atomIterator = cf.metadata().getOnDiskIterator(file, sstable.descriptor.version);
         int n = 0;
         while (atomIterator.hasNext())
         {
@@ -186,13 +183,12 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
         int lastIndexIdx = -1;
         for (CellName name : columnNames)
         {
-            int index = IndexedSliceReader.indexFor(sstable, name, indexList, comparator, false, lastIndexIdx);
+            int index = IndexHelper.indexFor(name, indexList, comparator, false, lastIndexIdx);
             if (index < 0 || index == indexList.size())
                 continue;
             IndexHelper.IndexInfo indexInfo = indexList.get(index);
             // Check the index block does contain the column names and that we haven't inserted this block yet.
-            if (IndexedSliceReader.comparatorForIndex(sstable, comparator).compare(IndexedSliceReader.forIndexComparison(sstable, name), indexInfo.firstName) < 0
-              || index == lastIndexIdx)
+            if (comparator.compare(name, indexInfo.firstName) < 0 || index == lastIndexIdx)
                 continue;
 
             ranges.add(indexInfo);

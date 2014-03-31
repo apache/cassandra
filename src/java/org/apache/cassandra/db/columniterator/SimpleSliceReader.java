@@ -64,17 +64,12 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
                 this.needsClosing = false;
             }
 
-            Descriptor.Version version = sstable.descriptor.version;
-
             // Skip key and data size
             ByteBufferUtil.skipShortLength(file);
-            if (version.hasRowSizeAndColumnCount)
-                file.readLong();
 
             emptyColumnFamily = ArrayBackedSortedColumns.factory.create(sstable.metadata);
             emptyColumnFamily.delete(DeletionTime.serializer.deserialize(file));
-            int columnCount = version.hasRowSizeAndColumnCount ? file.readInt() : Integer.MAX_VALUE;
-            atomIterator = emptyColumnFamily.metadata().getOnDiskIterator(file, columnCount, sstable.descriptor.version);
+            atomIterator = emptyColumnFamily.metadata().getOnDiskIterator(file, sstable.descriptor.version);
         }
         catch (IOException e)
         {

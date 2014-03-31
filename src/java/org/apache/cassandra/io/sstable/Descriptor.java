@@ -49,7 +49,6 @@ public class Descriptor
         // This needs to be at the begining for initialization sake
         public static final String current_version = "ka";
 
-        // ic (1.2.5): omits per-row bloom filter of column names
         // ja (2.0.0): super columns are serialized as composites (note that there is no real format change,
         //               this is mostly a marker to know if we should expect super columns or not. We do need
         //               a major version bump however, because we should not allow streaming of super columns
@@ -69,12 +68,6 @@ public class Descriptor
         private final String version;
 
         public final boolean isLatestVersion;
-        public final boolean hasSuperColumns;
-        public final boolean tracksMaxLocalDeletionTime;
-        public final boolean hasBloomFilterFPChance;
-        public final boolean offHeapSummaries;
-        public final boolean hasRowSizeAndColumnCount;
-        public final boolean tracksMaxMinColumnNames;
         public final boolean hasPostCompressionAdlerChecksums;
         public final boolean hasSamplingLevel;
         public final boolean newStatsFile;
@@ -84,13 +77,7 @@ public class Descriptor
         public Version(String version)
         {
             this.version = version;
-            tracksMaxLocalDeletionTime = version.compareTo("ja") >= 0;
             isLatestVersion = version.compareTo(current_version) == 0;
-            hasSuperColumns = version.compareTo("ja") < 0;
-            hasBloomFilterFPChance = version.compareTo("ja") >= 0;
-            offHeapSummaries = version.compareTo("ja") >= 0;
-            hasRowSizeAndColumnCount = version.compareTo("ja") < 0;
-            tracksMaxMinColumnNames = version.compareTo("ja") >= 0;
             hasPostCompressionAdlerChecksums = version.compareTo("jb") >= 0;
             hasSamplingLevel = version.compareTo("ka") >= 0;
             newStatsFile = version.compareTo("ka") >= 0;
@@ -110,7 +97,7 @@ public class Descriptor
 
         public boolean isCompatible()
         {
-            return version.compareTo("ic") >= 0 && version.charAt(0) <= CURRENT.version.charAt(0);
+            return version.compareTo("ja") >= 0 && version.charAt(0) <= CURRENT.version.charAt(0);
         }
 
         @Override
@@ -249,7 +236,7 @@ public class Descriptor
         }
 
         if (!Version.validate(nexttok))
-            throw new UnsupportedOperationException("SSTable " + name + " is too old to open.  Upgrade to 1.2.5 first, and run upgradesstables");
+            throw new UnsupportedOperationException("SSTable " + name + " is too old to open.  Upgrade to 2.0 first, and run upgradesstables");
         Version version = new Version(nexttok);
 
         nexttok = st.nextToken();

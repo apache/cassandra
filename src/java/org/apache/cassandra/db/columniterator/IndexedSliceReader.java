@@ -26,7 +26,6 @@ import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellNameType;
-import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
@@ -113,8 +112,6 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             in.seek(rowEntry.position);
         }
         sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(file));
-        if (sstable.descriptor.version.hasRowSizeAndColumnCount)
-            file.readLong();
     }
 
     public ColumnFamily getColumnFamily()
@@ -179,34 +176,6 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         }
     }
 
-    static int indexFor(SSTableReader sstable, Composite name, List<IndexHelper.IndexInfo> indexes, CellNameType comparator, boolean reversed, int startIdx)
-    {
-        // If it's a super CF and the sstable is from the old format, then the index will contain old format info, i.e. non composite
-        // SC names. So we need to 1) use only the SC name part of the comparator and 2) extract only that part from 'name'
-        if (sstable.metadata.isSuper() && sstable.descriptor.version.hasSuperColumns)
-        {
-            CellNameType scComparator = SuperColumns.scNameType(comparator);
-            Composite scName = CellNames.simpleDense(SuperColumns.scName(name));
-            return IndexHelper.indexFor(scName, indexes, scComparator, reversed, startIdx);
-        }
-        return IndexHelper.indexFor(name, indexes, comparator, reversed, startIdx);
-    }
-
-    static Composite forIndexComparison(SSTableReader sstable, Composite name)
-    {
-        // See indexFor above.
-        return sstable.metadata.isSuper() && sstable.descriptor.version.hasSuperColumns
-             ? CellNames.simpleDense(SuperColumns.scName(name))
-             : name;
-    }
-
-    static CellNameType comparatorForIndex(SSTableReader sstable, CellNameType comparator)
-    {
-        return sstable.metadata.isSuper() && sstable.descriptor.version.hasSuperColumns
-             ? SuperColumns.scNameType(comparator)
-             : comparator;
-    }
-
     private abstract class BlockFetcher
     {
         protected int currentSliceIdx;
@@ -247,22 +216,16 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             return !start.isEmpty() && comparator.compare(name, start) < 0;
         }
 
-        protected boolean isIndexEntryBeforeSliceStart(Composite name)
-        {
-            Composite start = currentStart();
-            return !start.isEmpty() && comparatorForIndex(sstable, comparator).compare(name, forIndexComparison(sstable, start)) < 0;
-        }
-
         protected boolean isColumnBeforeSliceFinish(OnDiskAtom column)
         {
             Composite finish = currentFinish();
             return finish.isEmpty() || comparator.compare(column.name(), finish) <= 0;
         }
 
-        protected boolean isIndexEntryAfterSliceFinish(Composite name)
+        protected boolean isAfterSliceFinish(Composite name)
         {
             Composite finish = currentFinish();
-            return !finish.isEmpty() && comparatorForIndex(sstable, comparator).compare(name, forIndexComparison(sstable, finish)) > 0;
+            return !finish.isEmpty() && comparator.compare(name, finish) > 0;
         }
     }
 
@@ -293,7 +256,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
         {
             while (++currentSliceIdx < slices.length)
             {
-                nextIndexIdx = indexFor(sstable, slices[currentSliceIdx].start, indexes, comparator, reversed, nextIndexIdx);
+                nextIndexIdx = IndexHelper.indexFor(slices[currentSliceIdx].start, indexes, comparator, reversed, nextIndexIdx);
                 if (nextIndexIdx < 0 || nextIndexIdx >= indexes.size())
                     // no index block for that slice
                     continue;
@@ -302,12 +265,12 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 IndexInfo info = indexes.get(nextIndexIdx);
                 if (reversed)
                 {
-                    if (!isIndexEntryBeforeSliceStart(info.lastName))
+                    if (!isBeforeSliceStart(info.lastName))
                         return true;
                 }
                 else
                 {
-                    if (!isIndexEntryAfterSliceFinish(info.firstName))
+                    if (!isAfterSliceFinish(info.firstName))
                         return true;
                 }
             }
@@ -480,10 +443,8 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             // We remenber when we are whithin a slice to avoid some comparison
             boolean inSlice = false;
 
-            int columnCount = sstable.descriptor.version.hasRowSizeAndColumnCount ? file.readInt() : Integer.MAX_VALUE;
             AtomDeserializer deserializer = emptyColumnFamily.metadata().getOnDiskDeserializer(file, sstable.descriptor.version);
-            int deserialized = 0;
-            while (deserializer.hasNext() && deserialized < columnCount)
+            while (deserializer.hasNext())
             {
                 // col is before slice
                 // (If in slice, don't bother checking that until we change slice)
@@ -491,7 +452,6 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 if (!inSlice && !start.isEmpty() && deserializer.compareNextTo(start) < 0)
                 {
                     deserializer.skipNext();
-                    ++deserialized;
                     continue;
                 }
 
@@ -501,7 +461,6 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 {
                     inSlice = true;
                     addColumn(deserializer.readNext());
-                    ++deserialized;
                 }
                 // col is after slice. more slices?
                 else
