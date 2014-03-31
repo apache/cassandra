@@ -44,9 +44,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -121,26 +119,23 @@ public class BatchlogManager implements BatchlogManagerMBean
         batchlogTasks.execute(runnable);
     }
 
-    public static Mutation getBatchlogMutationFor(Collection<Mutation> mutations, UUID uuid)
+    public static Mutation getBatchlogMutationFor(Collection<Mutation> mutations, UUID uuid, int version)
     {
-        return getBatchlogMutationFor(mutations, uuid, FBUtilities.timestampMicros());
+        return getBatchlogMutationFor(mutations, uuid, version, FBUtilities.timestampMicros());
     }
 
     @VisibleForTesting
-    static Mutation getBatchlogMutationFor(Collection<Mutation> mutations, UUID uuid, long now)
+    static Mutation getBatchlogMutationFor(Collection<Mutation> mutations, UUID uuid, int version, long now)
     {
-        ByteBuffer writtenAt = LongType.instance.decompose(now / 1000);
-        ByteBuffer data = serializeMutations(mutations);
-
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(CFMetaData.BatchlogCf);
-        cf.addColumn(new Cell(cellName(""), ByteBufferUtil.EMPTY_BYTE_BUFFER, now));
-        cf.addColumn(new Cell(cellName("data"), data, now));
-        cf.addColumn(new Cell(cellName("written_at"), writtenAt, now));
-
+        CFRowAdder adder = new CFRowAdder(cf, CFMetaData.BatchlogCf.comparator.builder().build(), now);
+        adder.add("data", serializeMutations(mutations, version))
+             .add("written_at", new Date(now / 1000))
+             .add("version", version);
         return new Mutation(Keyspace.SYSTEM_KS, UUIDType.instance.decompose(uuid), cf);
     }
 
-    private static ByteBuffer serializeMutations(Collection<Mutation> mutations)
+    private static ByteBuffer serializeMutations(Collection<Mutation> mutations, int version)
     {
         DataOutputBuffer buf = new DataOutputBuffer();
 
@@ -148,7 +143,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         {
             buf.writeInt(mutations.size());
             for (Mutation mutation : mutations)
-                Mutation.serializer.serialize(mutation, buf, MessagingService.VERSION_12);
+                Mutation.serializer.serialize(mutation, buf, version);
         }
         catch (IOException e)
         {
@@ -329,11 +324,6 @@ public class BatchlogManager implements BatchlogManagerMBean
     private int calculateHintTTL(Mutation mutation, long writtenAt)
     {
         return (int) ((HintedHandOffManager.calculateHintTTL(mutation) * 1000 - (System.currentTimeMillis() - writtenAt)) / 1000);
-    }
-
-    private static CellName cellName(String name)
-    {
-        return CFMetaData.BatchlogCf.comparator.makeCellName(name);
     }
 
     // force flush + compaction to reclaim space from the replayed batches
