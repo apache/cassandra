@@ -255,7 +255,8 @@ public abstract class ExtendedFilter
              * 2) We don't yet allow non-indexed range slice with filters in CQL3 (i.e. this will never be
              * called by CFS.filter() for composites).
              */
-            assert !(cfs.getComparator() instanceof CompositeType);
+            assert !(cfs.getComparator() instanceof CompositeType) : "Sequential scan with filters is not supported (if you just created an index, you "
+                                                                     + "need to wait for the creation to be propagated to all nodes before querying it)";
 
             if (!needsExtraQuery(rowKey.key, data))
                 return null;
