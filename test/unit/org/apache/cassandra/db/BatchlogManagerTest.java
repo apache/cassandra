@@ -74,6 +74,9 @@ public class BatchlogManagerTest extends SchemaLoader
                            .apply();
         }
 
+        // Flush the batchlog to disk (see CASSANDRA-6822).
+        Keyspace.open(Keyspace.SYSTEM_KS).getColumnFamilyStore(SystemKeyspace.BATCHLOG_CF).forceBlockingFlush();
+
         assertEquals(1000, BatchlogManager.instance.countAllBatches());
         assertEquals(0, BatchlogManager.instance.getTotalBatchesReplayed());
 
