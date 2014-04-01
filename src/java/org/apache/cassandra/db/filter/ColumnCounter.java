@@ -123,13 +123,16 @@ public class ColumnCounter
             }
             else
             {
-                boolean isSameGroup = true;
-                for (int i = 0; i < toGroup; i++)
+                boolean isSameGroup = previousGroupIsStatic == type.isStaticName(column.name());
+                if (isSameGroup)
                 {
-                    if (ByteBufferUtil.compareUnsigned(previous[i], current[i]) != 0)
+                    for (int i = 0; i < toGroup; i++)
                     {
-                        isSameGroup = false;
-                        break;
+                        if (ByteBufferUtil.compareUnsigned(previous[i], current[i]) != 0)
+                        {
+                            isSameGroup = false;
+                            break;
+                        }
                     }
                 }
 
@@ -141,6 +144,7 @@ public class ColumnCounter
                 // just don't count the 2nd group if there is one and the first one was static
                 if (previousGroupIsStatic)
                 {
+                    previous = current;
                     previousGroupIsStatic = false;
                     return;
                 }
