@@ -271,12 +271,6 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         return new CompactionTask(cfs, sstables, gcBefore).setUserDefined(true);
     }
 
-    @Override
-    public AbstractCompactionTask getCompactionTask(Collection<SSTableReader> sstables, int gcBefore, long maxSSTableBytes)
-    {
-        return new CompactionTask(cfs, sstables, gcBefore);
-    }
-
     public int getEstimatedRemainingTasks()
     {
         return estimatedRemainingTasks;
