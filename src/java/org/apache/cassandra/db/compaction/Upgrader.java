@@ -66,6 +66,7 @@ public class Upgrader
 
         // Get the max timestamp of the precompacted sstables
         // and adds generation of live ancestors
+        // -- note that we always only have one SSTable in toUpgrade here:
         for (SSTableReader sstable : toUpgrade)
         {
             sstableMetadataCollector.addAncestor(sstable.descriptor.generation);
@@ -74,6 +75,7 @@ public class Upgrader
                 if (new File(sstable.descriptor.withGeneration(i).filenameFor(Component.DATA)).exists())
                     sstableMetadataCollector.addAncestor(i);
             }
+            sstableMetadataCollector.sstableLevel(sstable.getSSTableLevel());
         }
 
         return new SSTableWriter(cfs.getTempSSTablePath(directory), estimatedRows, cfs.metadata, cfs.partitioner, sstableMetadataCollector);

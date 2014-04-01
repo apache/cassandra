@@ -152,6 +152,22 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
         throw new UnsupportedOperationException("LevelDB compaction strategy does not allow user-specified compactions");
     }
 
+    @Override
+    public AbstractCompactionTask getCompactionTask(Collection<SSTableReader> sstables, int gcBefore, long maxSSTableBytes)
+    {
+        assert sstables.size() > 0;
+        int level = -1;
+        // if all sstables are in the same level, we can set that level:
+        for (SSTableReader sstable : sstables)
+        {
+            if (level == -1)
+                level = sstable.getSSTableLevel();
+            if (level != sstable.getSSTableLevel())
+                level = 0;
+        }
+        return new LeveledCompactionTask(cfs, sstables, level, gcBefore, maxSSTableBytes);
+    }
+
     public int getEstimatedRemainingTasks()
     {
         return manifest.getEstimatedTasks();

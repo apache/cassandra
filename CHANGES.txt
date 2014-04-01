@@ -36,6 +36,7 @@
  * Add CqlRecordReader using native pagination (CASSANDRA-6311)
  * Add QueryHandler interface (CASSANDRA-6659)
  * Track liveRatio per-memtable, not per-CF (CASSANDRA-6945)
+ * Make sure upgradesstables keeps sstable level (CASSANDRA-6958)
 Merged from 1.2:
  * Add UNLOGGED, COUNTER options to BATCH documentation (CASSANDRA-6816)
  * add extra SSL cipher suites (CASSANDRA-6613)
