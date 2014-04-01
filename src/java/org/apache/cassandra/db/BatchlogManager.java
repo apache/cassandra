@@ -246,7 +246,7 @@ public class BatchlogManager implements BatchlogManagerMBean
     private void deleteBatch(UUID id)
     {
         RowMutation mutation = new RowMutation(Table.SYSTEM_KS, UUIDType.instance.decompose(id));
-        mutation.delete(new QueryPath(SystemTable.BATCHLOG_CF, null, null), System.currentTimeMillis());
+        mutation.delete(new QueryPath(SystemTable.BATCHLOG_CF, null, null), FBUtilities.timestampMicros());
         mutation.apply();
     }
 

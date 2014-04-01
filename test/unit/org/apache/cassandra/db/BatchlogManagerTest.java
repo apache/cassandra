@@ -67,6 +67,9 @@ public class BatchlogManagerTest extends SchemaLoader
             BatchlogManager.getBatchlogMutationFor(Collections.singleton(mutation), UUIDGen.getTimeUUID(), timestamp * 1000).apply();
         }
 
+        // Flush the batchlog to disk (see CASSANDRA-6822).
+        Table.open(Table.SYSTEM_KS).getColumnFamilyStore(SystemTable.BATCHLOG_CF).forceFlush();
+
         assertEquals(1000, BatchlogManager.instance.countAllBatches());
         assertEquals(0, BatchlogManager.instance.getTotalBatchesReplayed());
 
