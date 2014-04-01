@@ -80,6 +80,8 @@ Merged from 1.2:
  * Add UNLOGGED, COUNTER options to BATCH documentation (CASSANDRA-6816)
  * add extra SSL cipher suites (CASSANDRA-6613)
  * fix nodetool getsstables for blob PK (CASSANDRA-6803)
+ * Fix BatchlogManager#deleteBatch() use of millisecond timsestamps
+   (CASSANDRA-6822)
 
 
 2.0.6
