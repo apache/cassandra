@@ -167,7 +167,10 @@ public abstract class AbstractCompactionStrategy
      */
     public abstract AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore);
 
-    public abstract AbstractCompactionTask getCompactionTask(Collection<SSTableReader> sstables, final int gcBefore, long maxSSTableBytes);
+    public AbstractCompactionTask getCompactionTask(Collection<SSTableReader> sstables, final int gcBefore, long maxSSTableBytes)
+    {
+        return new CompactionTask(cfs, sstables, gcBefore);
+    }
 
     /**
      * @return the number of background tasks estimated to still be needed for this columnfamilystore
