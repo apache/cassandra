@@ -45,6 +45,7 @@ public class SSTableLoaderTest extends SchemaLoader
     @BeforeClass
     public static void setup() throws Exception
     {
+        Keyspace.setInitialized();
         StorageService.instance.initServer();
     }
 

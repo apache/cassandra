@@ -83,13 +83,21 @@ public class Keyspace
         }
     };
 
+    private static volatile boolean initialized = false;
+    public static void setInitialized()
+    {
+        initialized = true;
+    }
+
     public static Keyspace open(String keyspaceName)
     {
+        assert initialized || keyspaceName.equals(SYSTEM_KS);
         return open(keyspaceName, Schema.instance, true);
     }
 
     public static Keyspace openWithoutSSTables(String keyspaceName)
     {
+        assert initialized || keyspaceName.equals(SYSTEM_KS);
         return open(keyspaceName, Schema.instance, false);
     }
 
