@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -35,7 +36,6 @@ import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 public class ExpiringMap<K, V>
 {
     private static final Logger logger = LoggerFactory.getLogger(ExpiringMap.class);
-    private volatile boolean shutdown;
 
     public static class CacheableObject<T>
     {
@@ -55,12 +55,17 @@ public class ExpiringMap<K, V>
         {
             return atNano - createdAt > TimeUnit.MILLISECONDS.toNanos(timeout);
         }
+
+        public String toString()
+        {
+            return "CacheableObject(obj=" + value.toString() + ", deltaFromTimeout=" + (System.nanoTime() - (createdAt + TimeUnit.MILLISECONDS.toNanos(timeout))) + "ns)";
+        }
     }
 
     // if we use more ExpiringMaps we may want to add multiple threads to this executor
     private static final ScheduledExecutorService service = new DebuggableScheduledThreadPoolExecutor("EXPIRING-MAP-REAPER");
 
-    private final ConcurrentMap<K, CacheableObject<V>> cache = new ConcurrentHashMap<K, CacheableObject<V>>();
+    private final ConcurrentMap<K, CacheableObject<V>> cache = new ConcurrentHashMap<>();
     private final long defaultExpiration;
 
     public ExpiringMap(long defaultExpiration)
@@ -81,7 +86,7 @@ public class ExpiringMap<K, V>
             throw new IllegalArgumentException("Argument specified must be a positive number");
         }
 
-        Runnable runnable = new Runnable()
+        Runnable reaperTask = new Runnable()
         {
             public void run()
             {
@@ -100,45 +105,17 @@ public class ExpiringMap<K, V>
                 logger.trace("Expired {} entries", n);
             }
         };
-        service.scheduleWithFixedDelay(runnable, defaultExpiration / 2, defaultExpiration / 2, TimeUnit.MILLISECONDS);
+        service.scheduleWithFixedDelay(reaperTask, defaultExpiration / 2, defaultExpiration / 2, TimeUnit.MILLISECONDS);
     }
 
-    public void shutdownBlocking()
-    {
-        service.shutdown();
-        try
-        {
-            service.awaitTermination(defaultExpiration * 2, TimeUnit.MILLISECONDS);
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-    }
-
-    public void reset()
-    {
-        shutdown = false;
-        cache.clear();
-    }
-
-    public V put(K key, V value)
+    public CacheableObject<V> put(K key, V value)
     {
         return put(key, value, this.defaultExpiration);
     }
 
-    public V put(K key, V value, long timeout)
+    public CacheableObject<V> put(K key, V value, long timeout)
     {
-        if (shutdown)
-        {
-            // StorageProxy isn't equipped to deal with "I'm nominally alive, but I can't send any messages out."
-            // So we'll just sit on this thread until the rest of the server shutdown completes.
-            //
-            // See comments in CustomTThreadPoolServer.serve, CASSANDRA-3335, and CASSANDRA-3727.
-            Uninterruptibles.sleepUninterruptibly(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-        }
-        CacheableObject<V> previous = cache.put(key, new CacheableObject<V>(value, timeout));
-        return (previous == null) ? null : previous.value;
+        return cache.put(key, new CacheableObject<V>(value, timeout));
     }
 
     public V get(K key)
