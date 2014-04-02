@@ -458,6 +458,10 @@ public class CompositeTypeTest extends SchemaLoader
         filter = new SliceQueryFilter(composite(1, 2), composite(1, 3), false, 1);
         assertFalse(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 1, 0), filter));
 
+        // same case, but with missing start and end components and different lengths for start and end
+        filter = new SliceQueryFilter(composite(1, 2), composite(1), false, 1);
+        assertFalse(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 1, 0), filter));
+
 
         // same as the previous set of tests, but the second component is equal in the slice start and end
         filter = new SliceQueryFilter(composite(1, 2, 0), composite(1, 2, 0), false, 1);

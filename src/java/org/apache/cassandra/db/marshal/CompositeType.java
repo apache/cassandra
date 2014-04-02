@@ -278,16 +278,18 @@ public class CompositeType extends AbstractCompositeType
             // We could safely return true here, but there's a minor optimization: if the first component is restricted
             // to a single value, we can check that the second component falls within the min/max for that component
             // (and repeat for all components).
-            for (int i = 0; i < Math.min(Math.min(start.length, finish.length), minColumnNames.size()); i++)
+            for (int i = 0; i < minColumnNames.size(); i++)
             {
                 AbstractType<?> t = types.get(i);
+                ByteBuffer s = i < start.length ? start[i] : ByteBufferUtil.EMPTY_BYTE_BUFFER;
+                ByteBuffer f = i < finish.length ? finish[i] : ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
                 // we already know the first component falls within its min/max range (otherwise we wouldn't get here)
-                if (i > 0 && !t.intersects(minColumnNames.get(i), maxColumnNames.get(i), start[i], finish[i]))
+                if (i > 0 && !t.intersects(minColumnNames.get(i), maxColumnNames.get(i), s, f))
                     continue outer;
 
                 // if this component isn't equal in the start and finish, we don't need to check any more
-                if (t.compare(start[i], finish[i]) != 0)
+                if (i >= start.length || i >= finish.length || t.compare(s, f) != 0)
                     break;
             }
             return true;
