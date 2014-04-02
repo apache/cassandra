@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.tools;
 
+import static org.apache.cassandra.Util.column;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
@@ -32,6 +33,7 @@ import java.io.PrintStream;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -40,6 +42,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.UUIDGen;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
@@ -329,5 +332,37 @@ public class SSTableExportTest extends SchemaLoader
         assertEquals("column name did not match", ByteBufferUtil.bytes("colName1"), hexToBytes((String) col2.get(0)));
         assertEquals("column value did not match", ByteBufferUtil.bytes("val1"), hexToBytes((String) col2.get(1)));
 
+    }
+
+    /**
+     * Tests CASSANDRA-6892 (key aliases being used improperly for validation)
+     */
+    @Test
+    public void testColumnNameEqualToDefaultKeyAlias() throws IOException, ParseException
+    {
+        File tempSS = tempSSTableFile("Keyspace1", "UUIDKeys");
+        ColumnFamily cfamily = ArrayBackedSortedColumns.factory.create("Keyspace1", "UUIDKeys");
+        SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, ActiveRepairService.UNREPAIRED_SSTABLE);
+
+        // Add a row
+        cfamily.addColumn(column(CFMetaData.DEFAULT_KEY_ALIAS, "not a uuid", 1L));
+        writer.append(Util.dk(ByteBufferUtil.bytes(UUIDGen.getTimeUUID())), cfamily);
+
+        SSTableReader reader = writer.closeAndOpenReader();
+        // Export to JSON and verify
+        File tempJson = File.createTempFile("CFWithColumnNameEqualToDefaultKeyAlias", ".json");
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0]);
+
+        JSONArray json = (JSONArray)JSONValue.parseWithException(new FileReader(tempJson));
+        assertEquals(1, json.size());
+
+        JSONObject row = (JSONObject)json.get(0);
+        JSONArray cols = (JSONArray) row.get("columns");
+        assertEquals(1, cols.size());
+
+        // check column name and value
+        JSONArray col = (JSONArray) cols.get(0);
+        assertEquals(CFMetaData.DEFAULT_KEY_ALIAS, ByteBufferUtil.string(hexToBytes((String) col.get(0))));
+        assertEquals("not a uuid", ByteBufferUtil.string(hexToBytes((String) col.get(1))));
     }
 }

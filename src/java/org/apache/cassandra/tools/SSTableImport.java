@@ -162,7 +162,7 @@ public class SSTableImport
                 }
                 else
                 {
-                    value = stringAsType((String) fields.get(1), meta.getValueValidatorForFullCellName(name));
+                    value = stringAsType((String) fields.get(1), meta.getValueValidator(meta.comparator.cellFromByteBuffer(name)));
                 }
             }
         }

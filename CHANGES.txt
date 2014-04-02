@@ -83,6 +83,7 @@ Merged from 2.0:
  * Track liveRatio per-memtable, not per-CF (CASSANDRA-6945)
  * Make sure upgradesstables keeps sstable level (CASSANDRA-6958)
  * Fix LIMT with static columns (CASSANDRA-6956)
+ * Fix clash with CQL column name in thrift validation (CASSANDRA-6892)
 Merged from 1.2:
  * Add UNLOGGED, COUNTER options to BATCH documentation (CASSANDRA-6816)
  * add extra SSL cipher suites (CASSANDRA-6613)

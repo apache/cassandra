@@ -442,10 +442,9 @@ public class ThriftValidation
         CellName cn = scName == null
                     ? metadata.comparator.cellFromByteBuffer(column.name)
                     : metadata.comparator.makeCellName(scName, column.name);
-        ColumnDefinition columnDef = metadata.getColumnDefinition(cn);
         try
         {
-            AbstractType<?> validator = metadata.getValueValidator(columnDef);
+            AbstractType<?> validator = metadata.getValueValidator(cn);
             if (validator != null)
                 validator.validate(column.value);
         }
@@ -465,7 +464,7 @@ public class ThriftValidation
         if (!Keyspace.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validate(asDBColumn(cn, column)))
                     throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Can't index column value of size %d for index %s in CF %s of KS %s",
                                                                               column.value.remaining(),
-                                                                              columnDef.getIndexName(),
+                                                                              metadata.getColumnDefinition(cn).getIndexName(),
                                                                               metadata.cfName,
                                                                               metadata.ksName));
     }

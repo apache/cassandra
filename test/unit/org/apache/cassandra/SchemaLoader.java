@@ -148,6 +148,7 @@ public class SchemaLoader
                                            indexCFMD(ks1, "Indexed1", true),
                                            indexCFMD(ks1, "Indexed2", false),
                                            CFMetaData.denseCFMetaData(ks1, "StandardInteger1", IntegerType.instance),
+                                           CFMetaData.denseCFMetaData(ks1, "StandardLong3", IntegerType.instance),
                                            CFMetaData.denseCFMetaData(ks1, "Counter1", bytes).defaultValidator(CounterColumnType.instance),
                                            CFMetaData.denseCFMetaData(ks1, "SuperCounter1", bytes, bytes).defaultValidator(CounterColumnType.instance),
                                            superCFMD(ks1, "SuperDirectGC", BytesType.instance).gcGraceSeconds(0),
@@ -167,8 +168,12 @@ public class SchemaLoader
                                                                                .compactionStrategyOptions(leveledOptions),
                                            standardCFMD(ks1, "StandardLowIndexInterval").minIndexInterval(8)
                                                                                         .maxIndexInterval(256)
-                                                                                        .caching(CachingOptions.NONE)));
+                                                                                        .caching(CachingOptions.NONE),
 
+                                           standardCFMD(ks1, "UUIDKeys").keyValidator(UUIDType.instance),
+                                           CFMetaData.denseCFMetaData(ks1, "MixedTypes", LongType.instance).keyValidator(UUIDType.instance).defaultValidator(BooleanType.instance),
+                                           CFMetaData.denseCFMetaData(ks1, "MixedTypesComposite", composite).keyValidator(composite).defaultValidator(BooleanType.instance)
+        ));
 
         // Keyspace 2
         schema.add(KSMetaData.testMetadata(ks2,
