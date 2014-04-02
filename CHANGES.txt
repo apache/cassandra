@@ -1,4 +1,5 @@
 2.0.7
+ * Don't shut ExpiringMap down (CASSANDRA-6948)
  * Restrict Windows to parallel repairs (CASSANDRA-6907)
  * (Hadoop) Allow manually specifying start/end tokens in CFIF (CASSANDRA-6436)
  * Fix NPE in MeteredFlusher (CASSANDRA-6820)
