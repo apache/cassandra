@@ -166,7 +166,7 @@ public class CQL3CasConditions implements CASConditions
 
     private static class ColumnsConditions extends RowCondition
     {
-        private final Map<ColumnIdentifier, ColumnCondition> conditions = new HashMap<>();
+        private final Map<ColumnIdentifier, ColumnCondition.WithVariables> conditions = new HashMap<>();
 
         private ColumnsConditions(ColumnNameBuilder rowPrefix, long now)
         {
@@ -178,10 +178,11 @@ public class CQL3CasConditions implements CASConditions
             for (ColumnCondition condition : conds)
             {
                 // We will need the variables in appliesTo but with protocol batches, each condition in this object can have a
-                // different list of variables. So attach them to the condition directly, it's not particulary elegant but its simpler
-                ColumnCondition previous = conditions.put(condition.column.name, condition.attach(variables));
+                // different list of variables.
+                ColumnCondition.WithVariables current = condition.with(variables);
+                ColumnCondition.WithVariables previous = conditions.put(condition.column.name, current);
                 // If 2 conditions are actually equal, let it slide
-                if (previous != null && !previous.equalsTo(condition))
+                if (previous != null && !previous.equalsTo(current))
                     throw new InvalidRequestException("Duplicate and incompatible conditions for column " + condition.column.name);
             }
         }
@@ -191,7 +192,7 @@ public class CQL3CasConditions implements CASConditions
             if (current == null)
                 return conditions.isEmpty();
 
-            for (ColumnCondition condition : conditions.values())
+            for (ColumnCondition.WithVariables condition : conditions.values())
                 if (!condition.appliesTo(rowPrefix, current, now))
                     return false;
             return true;
