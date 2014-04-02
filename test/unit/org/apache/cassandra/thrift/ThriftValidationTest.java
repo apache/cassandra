@@ -101,7 +101,7 @@ public class ThriftValidationTest extends SchemaLoader
         CFMetaData metaData = Schema.instance.getCFMetaData("Keyspace1", "UUIDKeys");
         ColumnDefinition definition = metaData.getColumnDefinition(ByteBufferUtil.bytes(CFMetaData.DEFAULT_KEY_ALIAS));
         assertNotNull(definition);
-        assertEquals(ColumnDefinition.Kind.PARTITION_KEY, definition.type);
+        assertEquals(ColumnDefinition.Kind.PARTITION_KEY, definition.kind);
 
         // make sure the key alias does not affect validation of columns with the same name (CASSANDRA-6892)
         Column column = new Column(ByteBufferUtil.bytes(CFMetaData.DEFAULT_KEY_ALIAS));
