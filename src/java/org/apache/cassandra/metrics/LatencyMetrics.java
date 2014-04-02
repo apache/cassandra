@@ -90,8 +90,11 @@ public class LatencyMetrics
 
     public void addMicro(long micros)
     {
-        latency.update(micros, TimeUnit.MICROSECONDS);
-        totalLatency.inc(micros);
+        synchronized (this)
+        {
+            latency.update(micros, TimeUnit.MICROSECONDS);
+            totalLatency.inc(micros);
+        }
         totalLatencyHistogram.add(micros);
         recentLatencyHistogram.add(micros);
     }
@@ -105,8 +108,13 @@ public class LatencyMetrics
     @Deprecated
     public double getRecentLatency()
     {
-        long ops = latency.count();
-        long n = totalLatency.count();
+        long ops = 0;
+        long n = 0;
+        synchronized (this)
+        {
+            ops = latency.count();
+            n = totalLatency.count();
+        }
         try
         {
             return ((double) n - lastLatency) / (ops - lastOpCount);
