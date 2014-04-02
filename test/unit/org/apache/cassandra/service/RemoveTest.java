@@ -92,7 +92,6 @@ public class RemoveTest
     public void tearDown()
     {
         SinkManager.clear();
-        MessagingService.instance().clearCallbacksUnsafe();
         MessagingService.instance().shutdown();
     }
 
