@@ -168,7 +168,6 @@ public class SuperColumns
         return CellNames.compositeDense(scName).end();
     }
 
-
     public static IDiskAtomFilter fromSCFilter(CellNameType type, ByteBuffer scName, IDiskAtomFilter filter)
     {
         if (filter instanceof NamesQueryFilter)
