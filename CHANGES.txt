@@ -85,6 +85,8 @@ Merged from 2.0:
  * Fix bad skip of sstables on slice query with composite start/finish (CASSANDRA-6825)
  * Fix unintended update with conditional statement (CASSANDRA-6893)
  * Fix map element access in IF (CASSANDRA-6914)
+ * Avoid costly range calculations for range queries on system keyspaces
+   (CASSANDRA-6906)
 Merged from 1.2:
  * Add UNLOGGED, COUNTER options to BATCH documentation (CASSANDRA-6816)
  * add extra SSL cipher suites (CASSANDRA-6613)
