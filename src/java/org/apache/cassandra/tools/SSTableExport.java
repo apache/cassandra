@@ -187,7 +187,7 @@ public class SSTableExport
         }
         else
         {
-            AbstractType<?> validator = cfMetaData.getValueValidator(cfMetaData.getColumnDefinitionFromColumnName(name));
+            AbstractType<?> validator = cfMetaData.getValueValidatorFromColumnName(name);
             serializedColumn.add(validator.getString(value));
         }
         serializedColumn.add(column.timestamp());

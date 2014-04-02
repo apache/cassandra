@@ -443,10 +443,9 @@ public class ThriftValidation
         if (!column.isSetTimestamp())
             throw new org.apache.cassandra.exceptions.InvalidRequestException("Column timestamp is required");
 
-        ColumnDefinition columnDef = metadata.getColumnDefinitionFromColumnName(column.name);
         try
         {
-            AbstractType<?> validator = metadata.getValueValidator(columnDef);
+            AbstractType<?> validator = metadata.getValueValidatorFromColumnName(column.name);
             if (validator != null)
                 validator.validate(column.value);
         }
@@ -466,7 +465,7 @@ public class ThriftValidation
         if (!Keyspace.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validate(asDBColumn(column)))
                     throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Can't index column value of size %d for index %s in CF %s of KS %s",
                                                                               column.value.remaining(),
-                                                                              columnDef.getIndexName(),
+                                                                              metadata.getColumnDefinitionFromColumnName(column.name).getIndexName(),
                                                                               metadata.cfName,
                                                                               metadata.ksName));
     }
@@ -597,7 +596,7 @@ public class ThriftValidation
             if (expression.value.remaining() > 0xFFFF)
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("Index expression values may not be larger than 64K");
 
-            AbstractType<?> valueValidator = Schema.instance.getValueValidator(metadata.ksName, metadata.cfName, expression.column_name);
+            AbstractType<?> valueValidator = metadata.getValueValidatorFromColumnName(expression.column_name);
             try
             {
                 valueValidator.validate(expression.value);

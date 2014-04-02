@@ -173,6 +173,11 @@ public class SchemaLoader
                                                           IntegerType.instance,
                                                           null),
                                            new CFMetaData(ks1,
+                                                          "StandardLong3",
+                                                          st,
+                                                          LongType.instance,
+                                                          null),
+                                           new CFMetaData(ks1,
                                                           "Counter1",
                                                           st,
                                                           bytes,
@@ -210,7 +215,18 @@ public class SchemaLoader
                                                                                .compactionStrategyOptions(leveledOptions),
                                            standardCFMD(ks1, "legacyleveled")
                                                                                .compactionStrategyClass(LeveledCompactionStrategy.class)
-                                                                               .compactionStrategyOptions(leveledOptions)));
+                                                                               .compactionStrategyOptions(leveledOptions),
+                                           standardCFMD(ks1, "UUIDKeys").keyValidator(UUIDType.instance),
+                                           new CFMetaData(ks1,
+                                                          "MixedTypes",
+                                                          st,
+                                                          LongType.instance,
+                                                          null).keyValidator(UUIDType.instance).defaultValidator(BooleanType.instance),
+                                           new CFMetaData(ks1,
+                                                          "MixedTypesComposite",
+                                                          st,
+                                                          composite,
+                                                          null).keyValidator(composite).defaultValidator(BooleanType.instance)));
 
         // Keyspace 2
         schema.add(KSMetaData.testMetadata(ks2,

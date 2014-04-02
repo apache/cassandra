@@ -193,7 +193,7 @@ public class UpdateStatement extends AbstractModification
                 if (hasCounterColumn)
                     throw new InvalidRequestException("Mix of commutative and non-commutative operations is not allowed.");
 
-                ByteBuffer colValue = op.a.getByteBuffer(getValueValidator(keyspace, colName),variables);
+                ByteBuffer colValue = op.a.getByteBuffer(metadata.getValueValidatorFromColumnName(colName),variables);
 
                 validateColumn(metadata, colName, colValue);
                 rm.add(columnFamily,
@@ -280,11 +280,6 @@ public class UpdateStatement extends AbstractModification
     public AbstractType<?> getComparator(String keyspace)
     {
         return Schema.instance.getComparator(keyspace, columnFamily);
-    }
-
-    public AbstractType<?> getValueValidator(String keyspace, ByteBuffer column)
-    {
-        return Schema.instance.getValueValidator(keyspace, columnFamily, column);
     }
 
     public List<Term> getColumnNames()

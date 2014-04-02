@@ -20,16 +20,21 @@ package org.apache.cassandra.thrift;
  *
  */
 
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.exceptions.*;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import java.util.Arrays;
+
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertEquals;
 
 public class ThriftValidationTest extends SchemaLoader
 {
@@ -46,7 +51,7 @@ public class ThriftValidationTest extends SchemaLoader
     }
 
     @Test
-    public void testColumnNameEqualToKeyAlias()
+    public void testColumnNameEqualToKeyAlias() throws org.apache.cassandra.exceptions.InvalidRequestException
     {
         CFMetaData metaData = Schema.instance.getCFMetaData("Keyspace1", "Standard1");
         CFMetaData newMetadata = metaData.clone();
@@ -57,7 +62,7 @@ public class ThriftValidationTest extends SchemaLoader
         // should not throw IRE here
         try
         {
-            newMetadata.addColumnDefinition(ColumnDefinition.partitionKeyDef(AsciiType.instance.decompose("id"), UTF8Type.instance, null));
+            newMetadata.addColumnDefinition(ColumnDefinition.partitionKeyDef(AsciiType.instance.decompose("id"), LongType.instance, null));
             newMetadata.validate();
         }
         catch (ConfigurationException e)
@@ -73,7 +78,7 @@ public class ThriftValidationTest extends SchemaLoader
         // add a column with name = "id"
         try
         {
-            newMetadata.addColumnDefinition(ColumnDefinition.regularDef(ByteBufferUtil.bytes("id"), UTF8Type.instance, null));
+            newMetadata.addColumnDefinition(ColumnDefinition.regularDef(ByteBufferUtil.bytes("id"), LongType.instance, null));
             newMetadata.validate();
         }
         catch (ConfigurationException e)
@@ -82,6 +87,44 @@ public class ThriftValidationTest extends SchemaLoader
         }
 
         assert gotException : "expected ConfigurationException but not received.";
+
+        // make sure the key alias does not affect validation of columns with the same name (CASSANDRA-6892)
+        Column column = new Column(ByteBufferUtil.bytes("id"));
+        column.setValue(ByteBufferUtil.bytes("not a long"));
+        column.setTimestamp(1234);
+        ThriftValidation.validateColumnData(newMetadata, column, false);
+    }
+
+    @Test
+    public void testColumnNameEqualToDefaultKeyAlias() throws org.apache.cassandra.exceptions.InvalidRequestException
+    {
+        CFMetaData metaData = Schema.instance.getCFMetaData("Keyspace1", "UUIDKeys");
+        ColumnDefinition definition = metaData.getColumnDefinition(ByteBufferUtil.bytes(CFMetaData.DEFAULT_KEY_ALIAS));
+        assertNotNull(definition);
+        assertEquals(ColumnDefinition.Type.PARTITION_KEY, definition.type);
+
+        // make sure the key alias does not affect validation of columns with the same name (CASSANDRA-6892)
+        Column column = new Column(ByteBufferUtil.bytes(CFMetaData.DEFAULT_KEY_ALIAS));
+        column.setValue(ByteBufferUtil.bytes("not a uuid"));
+        column.setTimestamp(1234);
+        ThriftValidation.validateColumnData(metaData, column, false);
+
+        IndexExpression expression = new IndexExpression(ByteBufferUtil.bytes(CFMetaData.DEFAULT_KEY_ALIAS), IndexOperator.EQ, ByteBufferUtil.bytes("a"));
+        ThriftValidation.validateFilterClauses(metaData, Arrays.asList(expression));
+    }
+
+    @Test
+    public void testColumnNameEqualToDefaultColumnAlias() throws org.apache.cassandra.exceptions.InvalidRequestException
+    {
+        CFMetaData metaData = Schema.instance.getCFMetaData("Keyspace1", "StandardLong3");
+        ColumnDefinition definition = metaData.getColumnDefinition(ByteBufferUtil.bytes(CFMetaData.DEFAULT_COLUMN_ALIAS + 1));
+        assertNotNull(definition);
+
+        // make sure the column alias does not affect validation of columns with the same name (CASSANDRA-6892)
+        Column column = new Column(ByteBufferUtil.bytes(CFMetaData.DEFAULT_COLUMN_ALIAS + 1));
+        column.setValue(ByteBufferUtil.bytes("not a long"));
+        column.setTimestamp(1234);
+        ThriftValidation.validateColumnData(metaData, column, false);
     }
 
     @Test

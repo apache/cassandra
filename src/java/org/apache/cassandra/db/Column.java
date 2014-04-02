@@ -298,15 +298,7 @@ public class Column implements OnDiskAtom
     public void validateFields(CFMetaData metadata) throws MarshalException
     {
         validateName(metadata);
-        CFDefinition cfdef = metadata.getCfDef();
-
-        // If this is a CQL table, we need to pull out the CQL column name to look up the correct column type.
-        // (Note that COMPACT composites are handled by validateName, above.)
-        ByteBuffer internalName = (cfdef.isComposite && !cfdef.isCompact)
-                                ? ((CompositeType) metadata.comparator).extractLastComponent(name)
-                                : name;
-
-        AbstractType<?> valueValidator = metadata.getValueValidator(internalName);
+        AbstractType<?> valueValidator = metadata.getValueValidatorFromColumnName(name);
         if (valueValidator != null)
             valueValidator.validate(value());
     }

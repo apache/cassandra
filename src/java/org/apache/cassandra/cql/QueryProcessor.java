@@ -190,7 +190,7 @@ public class QueryProcessor
         {
             // Left and right side of relational expression encoded according to comparator/validator.
             ByteBuffer entity = columnRelation.getEntity().getByteBuffer(metadata.comparator, variables);
-            ByteBuffer value = columnRelation.getValue().getByteBuffer(select.getValueValidator(metadata.ksName, entity), variables);
+            ByteBuffer value = columnRelation.getValue().getByteBuffer(metadata.getValueValidatorFromColumnName(entity), variables);
 
             expressions.add(new IndexExpression(entity,
                                                 IndexOperator.valueOf(columnRelation.operator().toString()),
@@ -326,7 +326,7 @@ public class QueryProcessor
     throws InvalidRequestException
     {
         validateColumnName(name);
-        AbstractType<?> validator = metadata.getValueValidator(name);
+        AbstractType<?> validator = metadata.getValueValidatorFromColumnName(name);
 
         try
         {

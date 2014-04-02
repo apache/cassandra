@@ -853,16 +853,13 @@ public final class CFMetaData
             .toHashCode();
     }
 
-    public AbstractType<?> getValueValidator(ByteBuffer column)
+    /**
+     * Like getColumnDefinitionFromColumnName, the argument must be an internal column/cell name.
+     */
+    public AbstractType<?> getValueValidatorFromColumnName(ByteBuffer columnName)
     {
-        return getValueValidator(getColumnDefinition(column));
-    }
-
-    public AbstractType<?> getValueValidator(ColumnDefinition columnDefinition)
-    {
-        return columnDefinition == null
-               ? defaultValidator
-               : columnDefinition.getValidator();
+        ColumnDefinition def = getColumnDefinitionFromColumnName(columnName);
+        return def == null ? defaultValidator : def.getValidator();
     }
 
     /** applies implicit defaults to cf definition. useful in updates */
@@ -1212,7 +1209,7 @@ public final class CFMetaData
         {
             CompositeType composite = (CompositeType)comparator;
             ByteBuffer[] components = composite.split(columnName);
-            for (ColumnDefinition def : column_metadata.values())
+            for (ColumnDefinition def : regularAndStaticColumns())
             {
                 ByteBuffer toCompare;
                 if (def.componentIndex == null)
@@ -1233,11 +1230,18 @@ public final class CFMetaData
         }
         else
         {
-            return column_metadata.get(columnName);
+            ColumnDefinition def = column_metadata.get(columnName);
+            // It's possible that the def is a PRIMARY KEY or COMPACT_VALUE one in case a concrete cell
+            // name conflicts with a CQL column name, which can happen in 2 cases:
+            // 1) because the user inserted a cell through Thrift that conflicts with a default "alias" used
+            //    by CQL for thrift tables (see #6892).
+            // 2) for COMPACT STORAGE tables with a single utf8 clustering column, the cell name can be anything,
+            //    including a CQL column name (without this being a problem).
+            // In any case, this is fine, this just mean that columnDefinition is not the ColumnDefinition we are
+            // looking for.
+            return def != null && def.isPartOfCellName() ? def : null;
         }
     }
-
-
 
     public ColumnDefinition getColumnDefinitionForIndex(String indexName)
     {
@@ -1855,7 +1859,7 @@ public final class CFMetaData
         if (column_metadata.get(to) != null)
             throw new InvalidRequestException(String.format("Cannot rename column %s to %s in keyspace %s; another column of that name already exist", strFrom, strTo, cfName));
 
-        if (def.type == ColumnDefinition.Type.REGULAR || def.type == ColumnDefinition.Type.STATIC)
+        if (def.isPartOfCellName())
         {
             throw new InvalidRequestException(String.format("Cannot rename non PRIMARY KEY part %s", strFrom));
         }

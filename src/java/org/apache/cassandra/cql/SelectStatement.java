@@ -177,11 +177,6 @@ public class SelectStatement
         return Schema.instance.getComparator(keyspace, columnFamily);
     }
 
-    public AbstractType<?> getValueValidator(String keyspace, ByteBuffer column)
-    {
-        return Schema.instance.getValueValidator(keyspace, columnFamily, column);
-    }
-
     public List<Relation> getClauseRelations()
     {
         return clause.getClauseRelations();
