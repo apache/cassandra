@@ -26,9 +26,7 @@ import com.google.common.collect.Iterators;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.CounterColumnType;
-import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
@@ -140,9 +138,9 @@ public class ColumnCondition
 
             switch (type.kind)
             {
-                case LIST: return listAppliesTo(current.metadata(), iter, ((Lists.Value)v).elements);
-                case SET: return setAppliesTo(current.metadata(), iter, ((Sets.Value)v).elements);
-                case MAP: return mapAppliesTo(current.metadata(), iter, ((Maps.Value)v).map);
+                case LIST: return listAppliesTo((ListType)type, current.metadata(), iter, ((Lists.Value)v).elements);
+                case SET: return setAppliesTo((SetType)type, current.metadata(), iter, ((Sets.Value)v).elements);
+                case MAP: return mapAppliesTo((MapType)type, current.metadata(), iter, ((Maps.Value)v).map);
             }
             throw new AssertionError();
         }
@@ -153,18 +151,19 @@ public class ColumnCondition
             return bbs[bbs.length - 1];
         }
 
-        private boolean listAppliesTo(CFMetaData cfm, Iterator<Column> iter, List<ByteBuffer> elements)
+        private boolean listAppliesTo(ListType type, CFMetaData cfm, Iterator<Column> iter, List<ByteBuffer> elements)
         {
             for (ByteBuffer e : elements)
-                if (!iter.hasNext() || !iter.next().value().equals(e))
+                if (!iter.hasNext() || type.elements.compare(iter.next().value(), e) != 0)
                     return false;
             // We must not have more elements than expected
             return !iter.hasNext();
         }
 
-        private boolean setAppliesTo(CFMetaData cfm, Iterator<Column> iter, Set<ByteBuffer> elements)
+        private boolean setAppliesTo(SetType type, CFMetaData cfm, Iterator<Column> iter, Set<ByteBuffer> elements)
         {
-            Set<ByteBuffer> remaining = new HashSet<>(elements);
+            Set<ByteBuffer> remaining = new TreeSet<>(type.elements);
+            remaining.addAll(elements);
             while (iter.hasNext())
             {
                 if (remaining.isEmpty())
@@ -176,16 +175,18 @@ public class ColumnCondition
             return remaining.isEmpty();
         }
 
-        private boolean mapAppliesTo(CFMetaData cfm, Iterator<Column> iter, Map<ByteBuffer, ByteBuffer> elements)
+        private boolean mapAppliesTo(MapType type, CFMetaData cfm, Iterator<Column> iter, Map<ByteBuffer, ByteBuffer> elements)
         {
-            Map<ByteBuffer, ByteBuffer> remaining = new HashMap<>(elements);
+            Map<ByteBuffer, ByteBuffer> remaining = new TreeMap<>(type.keys);
+            remaining.putAll(elements);
             while (iter.hasNext())
             {
                 if (remaining.isEmpty())
                     return false;
 
                 Column c = iter.next();
-                if (!remaining.remove(collectionKey(cfm, c)).equals(c.value()))
+                ByteBuffer previous = remaining.remove(collectionKey(cfm, c));
+                if (previous == null || type.values.compare(previous, c.value()) != 0)
                     return false;
             }
             return remaining.isEmpty();
