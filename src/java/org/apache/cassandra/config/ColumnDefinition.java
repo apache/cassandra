@@ -243,6 +243,15 @@ public class ColumnDefinition extends ColumnSpecification
         return thriftDefs;
     }
 
+    /**
+     * Whether the name of this definition is serialized in the cell nane, i.e. whether
+     * it's not just a non-stored CQL metadata.
+     */
+    public boolean isPartOfCellName()
+    {
+        return kind == Kind.REGULAR || kind == Kind.STATIC;
+    }
+
     public ColumnDef toThrift()
     {
         ColumnDef cd = new ColumnDef();

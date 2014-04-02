@@ -190,7 +190,7 @@ public class QueryProcessor
         {
             // Left and right side of relational expression encoded according to comparator/validator.
             ByteBuffer entity = columnRelation.getEntity().getByteBuffer(metadata.comparator.asAbstractType(), variables);
-            ByteBuffer value = columnRelation.getValue().getByteBuffer(metadata.getValueValidatorForFullCellName(entity), variables);
+            ByteBuffer value = columnRelation.getValue().getByteBuffer(metadata.getValueValidator(metadata.comparator.cellFromByteBuffer(entity)), variables);
 
             expressions.add(new IndexExpression(entity,
                                                 IndexExpression.Operator.valueOf(columnRelation.operator().toString()),
