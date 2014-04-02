@@ -934,7 +934,9 @@ columnOperation[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations]
     ;
 
 columnCondition[List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions]
-    : key=cident '=' t=term { conditions.add(Pair.create(key, new ColumnCondition.Raw(t))); } // Note: we'll reject duplicates later
+    // Note: we'll reject duplicates later
+    : key=cident '=' t=term { conditions.add(Pair.create(key, ColumnCondition.Raw.simpleEqual(t))); }
+    | key=cident '[' element=term ']' '=' t=term { conditions.add(Pair.create(key, ColumnCondition.Raw.collectionEqual(t, element))); } 
     ;
 
 properties[PropertyDefinitions props]
