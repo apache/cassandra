@@ -652,6 +652,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                     SystemTable.bootstrapInProgress(),
                                     SystemTable.bootstrapComplete(),
                                     DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress())});
+        if (DatabaseDescriptor.isAutoBootstrap() && !SystemTable.bootstrapComplete() && DatabaseDescriptor.getSeeds().contains(FBUtilities.getLocalAddress()))
+            logger.info("This node will not auto bootstrap because it is configured to be a seed node.");
         if (DatabaseDescriptor.isAutoBootstrap()
             && !SystemTable.bootstrapComplete()
             && !DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()))
