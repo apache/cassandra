@@ -35,6 +35,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.thrift.ThriftClientState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MD5Digest;
@@ -237,7 +238,8 @@ public class QueryProcessor implements QueryHandler
     public ResultMessage.Prepared prepare(String queryString, QueryState queryState)
     throws RequestValidationException
     {
-        return prepare(queryString, queryState.getClientState(), false);
+        ClientState cState = queryState.getClientState();
+        return prepare(queryString, cState, cState instanceof ThriftClientState);
     }
 
     public static ResultMessage.Prepared prepare(String queryString, ClientState clientState, boolean forThrift)
