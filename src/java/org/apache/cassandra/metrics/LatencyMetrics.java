@@ -85,8 +85,11 @@ public class LatencyMetrics
     public void addNano(long nanos)
     {
         // convert to microseconds. 1 millionth
-        latency.update(nanos, TimeUnit.NANOSECONDS);
-        totalLatency.inc(nanos / 1000);
+        synchronized (this)
+        {
+            latency.update(nanos, TimeUnit.NANOSECONDS);
+            totalLatency.inc(nanos / 1000);
+        }
         totalLatencyHistogram.add(nanos / 1000);
         recentLatencyHistogram.add(nanos / 1000);
     }
@@ -100,8 +103,13 @@ public class LatencyMetrics
     @Deprecated
     public double getRecentLatency()
     {
-        long ops = latency.count();
-        long n = totalLatency.count();
+        long ops = 0;
+        long n = 0;
+        synchronized (this)
+        {
+            ops = latency.count();
+            n = totalLatency.count();
+        }
         try
         {
             return ((double) n - lastLatency) / (ops - lastOpCount);
