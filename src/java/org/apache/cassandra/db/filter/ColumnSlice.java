@@ -75,14 +75,40 @@ public class ColumnSlice
         Composite sStart = reversed ? finish : start;
         Composite sEnd = reversed ? start : finish;
 
-        for (int i = 0; i < minCellNames.size(); i++)
+        if (compare(sStart, maxCellNames, comparator, true) > 0 || compare(sEnd, minCellNames, comparator, false) < 0)
+            return false;
+
+        // We could safely return true here, but there's a minor optimization: if the first component is restricted
+        // to a single value, we can check that the second component falls within the min/max for that component
+        // (and repeat for all components).
+        for (int i = 0; i < Math.min(Math.min(sStart.size(), sEnd.size()), minCellNames.size()); i++)
         {
             AbstractType<?> t = comparator.subtype(i);
-            if (  (i < sEnd.size() && t.compare(sEnd.get(i), minCellNames.get(i)) < 0)
-               || (i < sStart.size() && t.compare(sStart.get(i), maxCellNames.get(i)) > 0))
+            // we already know the first component falls within its min/max range (otherwise we wouldn't get here)
+            if (i > 0 && (t.compare(sEnd.get(i), minCellNames.get(i)) < 0 || t.compare(sStart.get(i), maxCellNames.get(i)) > 0))
                 return false;
+
+            // if this component isn't equal in the start and finish, we don't need to check any more
+            if (t.compare(sStart.get(i), sEnd.get(i)) != 0)
+                break;
         }
+
         return true;
+    }
+
+    /** Helper method for intersects() */
+    private int compare(Composite sliceBounds, List<ByteBuffer> sstableBounds, CellNameType comparator, boolean isSliceStart)
+    {
+        for (int i = 0; i < sstableBounds.size(); i++)
+        {
+            if (i >= sliceBounds.size())
+                return isSliceStart ? -1 : 1;
+
+            int comparison = comparator.subtype(i).compare(sliceBounds.get(i), sstableBounds.get(i));
+            if (comparison != 0)
+                return comparison;
+        }
+        return 0;
     }
 
     @Override

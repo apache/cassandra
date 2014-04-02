@@ -25,6 +25,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+
 import org.github.jamm.MemoryMeter;
 
 import org.apache.cassandra.auth.Permission;
@@ -38,7 +39,6 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
@@ -49,6 +49,8 @@ import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Encapsulates a completely parsed SELECT query, including the target
@@ -57,6 +59,8 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 {
+    private static final Logger logger = LoggerFactory.getLogger(SelectStatement.class);
+
     private static final int DEFAULT_COUNT_PAGE_SIZE = 10000;
 
     private final int boundTerms;
@@ -253,6 +257,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         while (!pager.isExhausted())
         {
             int maxLimit = pager.maxRemaining();
+            logger.debug("New maxLimit for paged count query is {}", maxLimit);
             ResultSet rset = process(pager.fetchPage(pageSize), variables, maxLimit, now);
             count += rset.rows.size();
         }
