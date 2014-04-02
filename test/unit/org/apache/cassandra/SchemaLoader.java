@@ -21,19 +21,19 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.cache.CachingOptions;
-import org.apache.cassandra.db.index.PerRowSecondaryIndexTest;
-import org.apache.cassandra.db.index.SecondaryIndex;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
+import org.apache.cassandra.db.index.PerRowSecondaryIndexTest;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
@@ -65,6 +65,7 @@ public class SchemaLoader
             }
         });
 
+        Keyspace.setInitialized();
         // Migrations aren't happy if gossiper is not started.  Even if we don't use migrations though,
         // some tests now expect us to start gossip for them.
         startGossiper();

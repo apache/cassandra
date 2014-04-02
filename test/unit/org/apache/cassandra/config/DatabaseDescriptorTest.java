@@ -18,18 +18,21 @@
 */
 package org.apache.cassandra.config;
 
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.MigrationManager;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class DatabaseDescriptorTest
@@ -70,6 +73,7 @@ public class DatabaseDescriptorTest
         assertEquals(0, Schema.instance.getNonSystemKeyspaces().size());
 
         Gossiper.instance.start((int)(System.currentTimeMillis() / 1000));
+        Keyspace.setInitialized();
 
         try
         {
@@ -103,6 +107,7 @@ public class DatabaseDescriptorTest
         // By default, we should load from the yaml
         Config config = DatabaseDescriptor.loadConfig();
         assertEquals("Test Cluster", config.cluster_name);
+        Keyspace.setInitialized();
 
         // Now try custom loader
         ConfigurationLoader testLoader = new TestLoader();
