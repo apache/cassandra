@@ -34,8 +34,6 @@ import javax.management.Notification;
 import javax.management.NotificationBroadcasterSupport;
 import javax.management.ObjectName;
 
-import static java.nio.charset.StandardCharsets.ISO_8859_1;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
@@ -87,6 +85,8 @@ import org.apache.cassandra.thrift.TokenRange;
 import org.apache.cassandra.thrift.cassandraConstants;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
+
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -2048,7 +2048,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         double bytes = 0;
         for (String keyspaceName : Schema.instance.getKeyspaces())
         {
-            Keyspace keyspace = Keyspace.open(keyspaceName);
+            Keyspace keyspace = Schema.instance.getKeyspaceInstance(keyspaceName);
+            if (keyspace == null)
+                continue;
             for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
                 bytes += cfs.getLiveDiskSpaceUsed();
         }
