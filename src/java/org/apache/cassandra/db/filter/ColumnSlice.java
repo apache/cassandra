@@ -81,15 +81,18 @@ public class ColumnSlice
         // We could safely return true here, but there's a minor optimization: if the first component is restricted
         // to a single value, we can check that the second component falls within the min/max for that component
         // (and repeat for all components).
-        for (int i = 0; i < Math.min(Math.min(sStart.size(), sEnd.size()), minCellNames.size()); i++)
+        for (int i = 0; i < minCellNames.size(); i++)
         {
             AbstractType<?> t = comparator.subtype(i);
+            ByteBuffer s = i < sStart.size() ? sStart.get(i) : ByteBufferUtil.EMPTY_BYTE_BUFFER;
+            ByteBuffer f = i < sEnd.size() ? sEnd.get(i) : ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
             // we already know the first component falls within its min/max range (otherwise we wouldn't get here)
-            if (i > 0 && (t.compare(sEnd.get(i), minCellNames.get(i)) < 0 || t.compare(sStart.get(i), maxCellNames.get(i)) > 0))
+            if (i > 0 && (t.compare(f, minCellNames.get(i)) < 0 || t.compare(s, maxCellNames.get(i)) > 0))
                 return false;
 
             // if this component isn't equal in the start and finish, we don't need to check any more
-            if (t.compare(sStart.get(i), sEnd.get(i)) != 0)
+            if (i >= sStart.size() || i >= sEnd.size() || t.compare(s, f) != 0)
                 break;
         }
 

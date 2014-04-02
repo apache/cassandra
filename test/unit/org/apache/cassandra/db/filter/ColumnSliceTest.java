@@ -237,6 +237,10 @@ public class ColumnSliceTest
         slice = new ColumnSlice(composite(1, 2), composite(1, 3));
         assertFalse(slice.intersects(columnNames(1, 0, 0), columnNames(2, 1, 0), nameType, false));
 
+        // same case, but with missing start and end components and different lengths for start and end
+        slice = new ColumnSlice(composite(1, 2), composite(1));
+        assertFalse(slice.intersects(columnNames(1, 0, 0), columnNames(2, 1, 0), nameType, false));
+
 
         // same as the previous set of tests, but the second component is equal in the slice start and end
         slice = new ColumnSlice(composite(1, 2, 0), composite(1, 2, 0));
