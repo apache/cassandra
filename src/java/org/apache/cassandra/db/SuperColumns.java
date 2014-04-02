@@ -260,21 +260,13 @@ public class SuperColumns
 
     public static SCFilter namesFilterToSC(CompositeType type, NamesQueryFilter filter)
     {
-        ByteBuffer scName = null;
-        SortedSet<ByteBuffer> newColumns = new TreeSet<ByteBuffer>(filter.columns.comparator());
+        SortedSet<ByteBuffer> newColumns = new TreeSet<>(type.types.get(1));
+        ByteBuffer scName = scName(filter.columns.first());
         for (ByteBuffer name : filter.columns)
         {
-            ByteBuffer newScName = scName(name);
-
-            if (scName == null)
-            {
-                scName = newScName;
-            }
-            else if (type.types.get(0).compare(scName, newScName) != 0)
-            {
-                // If we're selecting column across multiple SC, it's not something we can translate for an old node
+            // If we're selecting column across multiple SC, it's not something we can translate for an old node
+            if (type.types.get(0).compare(scName, scName(name)) != 0)
                 throw new RuntimeException("Cannot convert filter to old super column format. Update all nodes to Cassandra 2.0 first.");
-            }
 
             newColumns.add(subName(name));
         }
@@ -331,10 +323,14 @@ public class SuperColumns
                     return new SCFilter(null, new SliceQueryFilter(scName(start), scName(finish), reversed, filter.count));
                 }
             }
-            else if (filter.compositesToGroup == 0 && type.types.get(0).compare(scName(start), scName(finish)) == 0)
+            else if (filter.compositesToGroup == -1 && type.types.get(0).compare(scName(start), scName(finish)) == 0)
             {
                 // A slice of subcolumns
-                return new SCFilter(scName(start), filter.withUpdatedSlice(subName(start), subName(finish)));
+                ByteBuffer newStart = subName(start);
+                ByteBuffer newFinish = subName(finish);
+                return new SCFilter(scName(start),
+                                    filter.withUpdatedSlice(newStart  == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : newStart,
+                                                            newFinish == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : newFinish));
             }
         }
         else if (!reversed)
