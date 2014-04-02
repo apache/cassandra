@@ -26,12 +26,16 @@ import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.StorageProxy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Pager over a SliceFromReadCommand.
  */
 public class SliceQueryPager extends AbstractQueryPager implements SinglePartitionPager
 {
+    private static final Logger logger = LoggerFactory.getLogger(SliceQueryPager.class);
+
     private final SliceFromReadCommand command;
 
     private volatile ByteBuffer lastReturned;
@@ -73,6 +77,7 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
         if (lastReturned != null)
             filter = filter.withUpdatedStart(lastReturned, cfm.comparator);
 
+        logger.debug("Querying next page of slice query; new filter: {}", filter);
         ReadCommand pageCmd = command.withUpdatedFilter(filter);
         return localQuery
              ? Collections.singletonList(pageCmd.getRow(Keyspace.open(command.ksName)))

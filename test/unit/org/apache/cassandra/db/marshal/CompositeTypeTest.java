@@ -24,10 +24,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 
+import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.serializers.MarshalException;
 import org.junit.Test;
 import static org.junit.Assert.fail;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -253,6 +257,296 @@ public class CompositeTypeTest extends SchemaLoader
             for (int i = 0; i < splitted.length; i++)
                 assertEquals(input[i], UTF8Type.instance.getString(splitted[i]));
         }
+    }
+
+    @Test
+    public void testIntersectsSingleSlice()
+    {
+        CompositeType comparator = CompositeType.getInstance(Int32Type.instance, Int32Type.instance, Int32Type.instance);
+
+        // filter falls entirely before sstable
+        SliceQueryFilter filter = new SliceQueryFilter(composite(0, 0, 0), composite(1, 0, 0), false, 1);
+        assertFalse(comparator.intersects(columnNames(2, 0, 0), columnNames(3, 0, 0), filter));
+
+        // same case, but with empty start
+        filter = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, composite(1, 0, 0), false, 1);
+        assertFalse(comparator.intersects(columnNames(2, 0, 0), columnNames(3, 0, 0), filter));
+
+        // same case, but with missing components for start
+        filter = new SliceQueryFilter(composite(0), composite(1, 0, 0), false, 1);
+        assertFalse(comparator.intersects(columnNames(2, 0, 0), columnNames(3, 0, 0), filter));
+
+        // same case, but with missing components for start and end
+        filter = new SliceQueryFilter(composite(0), composite(1, 0), false, 1);
+        assertFalse(comparator.intersects(columnNames(2, 0, 0), columnNames(3, 0, 0), filter));
+
+
+        // end of slice matches start of sstable for the first component, but not the second component
+        filter = new SliceQueryFilter(composite(0, 0, 0), composite(1, 0, 0), false, 1);
+        assertFalse(comparator.intersects(columnNames(1, 1, 0), columnNames(3, 0, 0), filter));
+
+        // same case, but with missing components for start
+        filter = new SliceQueryFilter(composite(0), composite(1, 0, 0), false, 1);
+        assertFalse(comparator.intersects(columnNames(1, 1, 0), columnNames(3, 0, 0), filter));
+
+        // same case, but with missing components for start and end
+        filter = new SliceQueryFilter(composite(0), composite(1, 0), false, 1);
+        assertFalse(comparator.intersects(columnNames(1, 1, 0), columnNames(3, 0, 0), filter));
+
+        // first two components match, but not the last
+        filter = new SliceQueryFilter(composite(0, 0, 0), composite(1, 1, 0), false, 1);
+        assertFalse(comparator.intersects(columnNames(1, 1, 1), columnNames(3, 1, 1), filter));
+
+        // all three components in slice end match the start of the sstable
+        filter = new SliceQueryFilter(composite(0, 0, 0), composite(1, 1, 1), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 1, 1), columnNames(3, 1, 1), filter));
+
+
+        // filter falls entirely after sstable
+        filter = new SliceQueryFilter(composite(4, 0, 0), composite(4, 0, 0), false, 1);
+        assertFalse(comparator.intersects(columnNames(2, 0, 0), columnNames(3, 0, 0), filter));
+
+        // same case, but with empty end
+        filter = new SliceQueryFilter(composite(4, 0, 0), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+        assertFalse(comparator.intersects(columnNames(2, 0, 0), columnNames(3, 0, 0), filter));
+
+        // same case, but with missing components for end
+        filter = new SliceQueryFilter(composite(4, 0, 0), composite(1), false, 1);
+        assertFalse(comparator.intersects(columnNames(2, 0, 0), columnNames(3, 0, 0), filter));
+
+        // same case, but with missing components for start and end
+        filter = new SliceQueryFilter(composite(4, 0), composite(1), false, 1);
+        assertFalse(comparator.intersects(columnNames(2, 0, 0), columnNames(3, 0, 0), filter));
+
+
+        // start of slice matches end of sstable for the first component, but not the second component
+        filter = new SliceQueryFilter(composite(1, 1, 1), composite(2, 0, 0), false, 1);
+        assertFalse(comparator.intersects(columnNames(0, 0, 0), columnNames(1, 0, 0), filter));
+
+        // start of slice matches end of sstable for the first two components, but not the last component
+        filter = new SliceQueryFilter(composite(1, 1, 1), composite(2, 0, 0), false, 1);
+        assertFalse(comparator.intersects(columnNames(0, 0, 0), columnNames(1, 1, 0), filter));
+
+        // all three components in the slice start match the end of the sstable
+        filter = new SliceQueryFilter(composite(1, 1, 1), composite(2, 0, 0), false, 1);
+        assertTrue(comparator.intersects(columnNames(0, 0, 0), columnNames(1, 1, 1), filter));
+
+
+        // slice covers entire sstable (with no matching edges)
+        filter = new SliceQueryFilter(composite(0, 0, 0), composite(2, 0, 0), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(1, 1, 1), filter));
+
+        // same case, but with empty ends
+        filter = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(1, 1, 1), filter));
+
+        // same case, but with missing components
+        filter = new SliceQueryFilter(composite(0), composite(2, 0), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(1, 1, 1), filter));
+
+        // slice covers entire sstable (with matching start)
+        filter = new SliceQueryFilter(composite(1, 0, 0), composite(2, 0, 0), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(1, 1, 1), filter));
+
+        // slice covers entire sstable (with matching end)
+        filter = new SliceQueryFilter(composite(0, 0, 0), composite(1, 1, 1), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(1, 1, 1), filter));
+
+        // slice covers entire sstable (with matching start and end)
+        filter = new SliceQueryFilter(composite(1, 0, 0), composite(1, 1, 1), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(1, 1, 1), filter));
+
+
+        // slice falls entirely within sstable (with matching start)
+        filter = new SliceQueryFilter(composite(1, 0, 0), composite(1, 1, 0), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(1, 1, 1), filter));
+
+        // same case, but with a missing end component
+        filter = new SliceQueryFilter(composite(1, 0, 0), composite(1, 1), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(1, 1, 1), filter));
+
+        // slice falls entirely within sstable (with matching end)
+        filter = new SliceQueryFilter(composite(1, 1, 0), composite(1, 1, 1), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(1, 1, 1), filter));
+
+        // same case, but with a missing start component
+        filter = new SliceQueryFilter(composite(1, 1), composite(1, 1, 1), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(1, 1, 1), filter));
+
+
+        // slice falls entirely within sstable
+        filter = new SliceQueryFilter(composite(1, 1, 0), composite(1, 1, 1), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 2, 2), filter));
+
+        // same case, but with a missing start component
+        filter = new SliceQueryFilter(composite(1, 1), composite(1, 1, 1), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 2, 2), filter));
+
+        // same case, but with a missing start and end components
+        filter = new SliceQueryFilter(composite(1), composite(1, 2), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 2, 2), filter));
+
+        // slice falls entirely within sstable (slice start and end are the same)
+        filter = new SliceQueryFilter(composite(1, 1, 1), composite(1, 1, 1), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 2, 2), filter));
+
+
+        // slice starts within sstable, empty end
+        filter = new SliceQueryFilter(composite(1, 1, 1), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 0, 0), filter));
+
+        // same case, but with missing end components
+        filter = new SliceQueryFilter(composite(1, 1, 1), composite(3), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 0, 0), filter));
+
+        // slice starts within sstable (matching sstable start), empty end
+        filter = new SliceQueryFilter(composite(1, 0, 0), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 0, 0), filter));
+
+        // same case, but with missing end components
+        filter = new SliceQueryFilter(composite(1, 0, 0), composite(3), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 0, 0), filter));
+
+        // slice starts within sstable (matching sstable end), empty end
+        filter = new SliceQueryFilter(composite(2, 0, 0), ByteBufferUtil.EMPTY_BYTE_BUFFER, false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 0, 0), filter));
+
+        // same case, but with missing end components
+        filter = new SliceQueryFilter(composite(2, 0, 0), composite(3), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 0, 0), filter));
+
+
+        // slice ends within sstable, empty end
+        filter = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, composite(1, 1, 1), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 0, 0), filter));
+
+        // same case, but with missing start components
+        filter = new SliceQueryFilter(composite(0), composite(1, 1, 1), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 0, 0), filter));
+
+        // slice ends within sstable (matching sstable start), empty start
+        filter = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, composite(1, 0, 0), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 0, 0), filter));
+
+        // same case, but with missing start components
+        filter = new SliceQueryFilter(composite(0), composite(1, 0, 0), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 0, 0), filter));
+
+        // slice ends within sstable (matching sstable end), empty start
+        filter = new SliceQueryFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER, composite(2, 0, 0), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 0, 0), filter));
+
+        // same case, but with missing start components
+        filter = new SliceQueryFilter(composite(0), composite(2, 0, 0), false, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 0, 0), filter));
+
+
+        // the slice technically falls within the sstable range, but since the first component is restricted to
+        // a single value, we can check that the second component does not fall within its min/max
+        filter = new SliceQueryFilter(composite(1, 2, 0), composite(1, 3, 0), false, 1);
+        assertFalse(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 1, 0), filter));
+
+        // same case, but with a missing start component
+        filter = new SliceQueryFilter(composite(1, 2), composite(1, 3, 0), false, 1);
+        assertFalse(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 1, 0), filter));
+
+        // same case, but with a missing end component
+        filter = new SliceQueryFilter(composite(1, 2, 0), composite(1, 3), false, 1);
+        assertFalse(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 1, 0), filter));
+
+        // same case, but with a missing start and end components
+        filter = new SliceQueryFilter(composite(1, 2), composite(1, 3), false, 1);
+        assertFalse(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 1, 0), filter));
+
+
+        // same as the previous set of tests, but the second component is equal in the slice start and end
+        filter = new SliceQueryFilter(composite(1, 2, 0), composite(1, 2, 0), false, 1);
+        assertFalse(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 1, 0), filter));
+
+        // same case, but with a missing start component
+        filter = new SliceQueryFilter(composite(1, 2), composite(1, 2, 0), false, 1);
+        assertFalse(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 1, 0), filter));
+
+        // same case, but with a missing end component
+        filter = new SliceQueryFilter(composite(1, 2, 0), composite(1, 2), false, 1);
+        assertFalse(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 1, 0), filter));
+
+        // same case, but with a missing start and end components
+        filter = new SliceQueryFilter(composite(1, 2), composite(1, 2), false, 1);
+        assertFalse(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 1, 0), filter));
+
+        // same as the previous tests, but it's the third component that doesn't fit in its range this time
+        filter = new SliceQueryFilter(composite(1, 1, 2), composite(1, 1, 3), false, 1);
+        assertFalse(comparator.intersects(columnNames(1, 1, 0), columnNames(2, 2, 1), filter));
+
+
+        // basic check on reversed slices
+        filter = new SliceQueryFilter(composite(1, 0, 0), composite(0, 0, 0), true, 1);
+        assertFalse(comparator.intersects(columnNames(2, 0, 0), columnNames(3, 0, 0), filter));
+
+        filter = new SliceQueryFilter(composite(1, 0, 0), composite(0, 0, 0), true, 1);
+        assertFalse(comparator.intersects(columnNames(1, 1, 0), columnNames(3, 0, 0), filter));
+
+        filter = new SliceQueryFilter(composite(1, 1, 1), composite(1, 1, 0), true, 1);
+        assertTrue(comparator.intersects(columnNames(1, 0, 0), columnNames(2, 2, 2), filter));
+    }
+
+    @Test
+    public void testIntersectsMultipleSlices()
+    {
+        CompositeType comparator = CompositeType.getInstance(Int32Type.instance, Int32Type.instance, Int32Type.instance);
+
+        // all slices intersect
+        SliceQueryFilter filter = new SliceQueryFilter(new ColumnSlice[]{
+            new ColumnSlice(composite(1, 0, 0), composite(2, 0, 0)),
+            new ColumnSlice(composite(3, 0, 0), composite(4, 0, 0)),
+            new ColumnSlice(composite(5, 0, 0), composite(6, 0, 0)),
+        }, false, 1);
+
+        // first slice doesn't intersect
+        assertTrue(comparator.intersects(columnNames(0, 0, 0), columnNames(7, 0, 0), filter));
+        filter = new SliceQueryFilter(new ColumnSlice[]{
+                new ColumnSlice(composite(1, 0, 0), composite(2, 0, 0)),
+                new ColumnSlice(composite(3, 0, 0), composite(4, 0, 0)),
+                new ColumnSlice(composite(5, 0, 0), composite(6, 0, 0)),
+        }, false, 1);
+        assertTrue(comparator.intersects(columnNames(3, 0, 0), columnNames(7, 0, 0), filter));
+
+        // first two slices don't intersect
+        assertTrue(comparator.intersects(columnNames(0, 0, 0), columnNames(7, 0, 0), filter));
+        filter = new SliceQueryFilter(new ColumnSlice[]{
+                new ColumnSlice(composite(1, 0, 0), composite(2, 0, 0)),
+                new ColumnSlice(composite(3, 0, 0), composite(4, 0, 0)),
+                new ColumnSlice(composite(5, 0, 0), composite(6, 0, 0)),
+        }, false, 1);
+        assertTrue(comparator.intersects(columnNames(5, 0, 0), columnNames(7, 0, 0), filter));
+
+        // none of the slices intersect
+        assertTrue(comparator.intersects(columnNames(0, 0, 0), columnNames(7, 0, 0), filter));
+        filter = new SliceQueryFilter(new ColumnSlice[]{
+                new ColumnSlice(composite(1, 0, 0), composite(2, 0, 0)),
+                new ColumnSlice(composite(3, 0, 0), composite(4, 0, 0)),
+                new ColumnSlice(composite(5, 0, 0), composite(6, 0, 0)),
+        }, false, 1);
+        assertFalse(comparator.intersects(columnNames(7, 0, 0), columnNames(8, 0, 0), filter));
+    }
+
+
+    private static ByteBuffer composite(Integer ... components)
+    {
+        CompositeType comparator = CompositeType.getInstance(Int32Type.instance, Int32Type.instance, Int32Type.instance);
+        CompositeType.Builder builder = comparator.builder();
+        for (int component : components)
+            builder.add(ByteBufferUtil.bytes(component));
+        return builder.build();
+    }
+
+    private static List<ByteBuffer> columnNames(Integer ... components)
+    {
+        List<ByteBuffer> names = new ArrayList<>(components.length);
+        for (int component : components)
+            names.add(ByteBufferUtil.bytes(component));
+        return names;
     }
 
     private void addColumn(RowMutation rm, ByteBuffer cname)
