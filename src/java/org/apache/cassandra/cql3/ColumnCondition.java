@@ -30,6 +30,7 @@ import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * A CQL3 condition.
@@ -37,18 +38,27 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 public class ColumnCondition
 {
     public final ColumnDefinition column;
+
+    // For collection, when testing the equality of a specific element, null otherwise.
+    private final Term collectionElement;
+
     private final Term value;
 
-    private ColumnCondition(ColumnDefinition column, Term value)
+    private ColumnCondition(ColumnDefinition column, Term collectionElement, Term value)
     {
         this.column = column;
+        this.collectionElement = collectionElement;
         this.value = value;
     }
 
-    // The only ones we support so far
     public static ColumnCondition equal(ColumnDefinition column, Term value)
     {
-        return new ColumnCondition(column, value);
+        return new ColumnCondition(column, null, value);
+    }
+
+    public static ColumnCondition equal(ColumnDefinition column, Term collectionElement, Term value)
+    {
+        return new ColumnCondition(column, collectionElement, value);
     }
 
     /**
@@ -59,6 +69,8 @@ public class ColumnCondition
      */
     public void collectMarkerSpecification(VariableSpecifications boundNames)
     {
+        if (collectionElement != null)
+            collectionElement.collectMarkerSpecification(boundNames);
         value.collectMarkerSpecification(boundNames);
     }
 
@@ -76,12 +88,26 @@ public class ColumnCondition
             this.variables = variables;
         }
 
-        // Not overriding equals() because we need the variables to have been attached when this is
-        // called and so having a non standard method name might help avoid mistakes
         public boolean equalsTo(WithVariables other) throws InvalidRequestException
         {
-            return column.equals(other.column())
-                && value.bindAndGet(variables).equals(other.value().bindAndGet(other.variables));
+            if (!column().equals(other.column()))
+                return false;
+
+            if ((collectionElement() == null) != (other.collectionElement() == null))
+                return false;
+
+            if (collectionElement() != null)
+            {
+                assert column.type instanceof ListType || column.type instanceof MapType;
+                AbstractType<?> comparator = column.type instanceof ListType
+                                           ? Int32Type.instance
+                                           : ((MapType)column.type).keys;
+
+                if (comparator.compare(collectionElement().bindAndGet(variables), other.collectionElement().bindAndGet(variables)) != 0)
+                    return false;
+            }
+
+            return value().bindAndGet(variables).equals(other.value().bindAndGet(other.variables));
         }
 
         private ColumnDefinition column()
@@ -89,9 +115,19 @@ public class ColumnCondition
             return column;
         }
 
+        private Term collectionElement()
+        {
+            return collectionElement;
+        }
+
         private Term value()
         {
             return value;
+        }
+
+        public ByteBuffer getCollectionElementValue() throws InvalidRequestException
+        {
+            return collectionElement == null ? null : collectionElement.bindAndGet(variables);
         }
 
         /**
@@ -102,6 +138,7 @@ public class ColumnCondition
             if (column.type instanceof CollectionType)
                 return collectionAppliesTo((CollectionType)column.type, rowPrefix, current, now);
 
+            assert collectionElement == null;
             Cell c = current.getColumn(current.metadata().comparator.create(rowPrefix, column));
             ByteBuffer v = value.bindAndGet(variables);
             return v == null
@@ -111,6 +148,17 @@ public class ColumnCondition
 
         private boolean collectionAppliesTo(CollectionType type, Composite rowPrefix, ColumnFamily current, final long now) throws InvalidRequestException
         {
+            Term.Terminal v = value.bind(variables);
+
+            // For map element access, we won't iterate over the collection, so deal with that first. In other case, we do.
+            if (collectionElement != null && type instanceof MapType)
+            {
+                ByteBuffer e = collectionElement.bindAndGet(variables);
+                if (e == null)
+                    throw new InvalidRequestException("Invalid null value for map access");
+                return mapElementAppliesTo((MapType)type, current, rowPrefix, e, v.get(), now);
+            }
+
             CellName name = current.metadata().comparator.create(rowPrefix, column);
             // We are testing for collection equality, so we need to have the expected values *and* only those.
             ColumnSlice[] collectionSlice = new ColumnSlice[]{ name.slice() };
@@ -124,9 +172,18 @@ public class ColumnCondition
                 }
             });
 
-            Term.Terminal v = value.bind(variables);
             if (v == null)
                 return !iter.hasNext();
+
+            if (collectionElement != null)
+            {
+                assert type instanceof ListType;
+                ByteBuffer e = collectionElement.bindAndGet(variables);
+                if (e == null)
+                    throw new InvalidRequestException("Invalid null value for list access");
+
+                return listElementAppliesTo((ListType)type, iter, e, v.get());
+            }
 
             switch (type.kind)
             {
@@ -144,6 +201,19 @@ public class ColumnCondition
                     return false;
             // We must not have more elements than expected
             return !iter.hasNext();
+        }
+
+        private boolean listElementAppliesTo(ListType type, Iterator<Cell> iter, ByteBuffer element, ByteBuffer value) throws InvalidRequestException
+        {
+            int idx = ByteBufferUtil.toInt(element);
+            if (idx < 0)
+                throw new InvalidRequestException(String.format("Invalid negative list index %d", idx));
+
+            int adv = Iterators.advance(iter, idx);
+            if (adv != idx || !iter.hasNext())
+                throw new InvalidRequestException(String.format("List index %d out of bound, list has size %d", idx, adv));
+
+            return type.elements.compare(iter.next().value(), value) == 0;
         }
 
         private boolean setAppliesTo(SetType type, Iterator<Cell> iter, Set<ByteBuffer> elements)
@@ -177,15 +247,36 @@ public class ColumnCondition
             }
             return remaining.isEmpty();
         }
+
+        private boolean mapElementAppliesTo(MapType type, ColumnFamily current, Composite rowPrefix, ByteBuffer element, ByteBuffer value, long now)
+        {
+            CellName name = current.getComparator().create(rowPrefix, column, element);
+            Cell c = current.getColumn(name);
+            return c != null && c.isLive(now) && type.values.compare(c.value(), value) == 0;
+        }
     }
 
     public static class Raw
     {
         private final Term.Raw value;
 
-        public Raw(Term.Raw value)
+        // Can be null, only used with the syntax "IF m[e] = ..." (in which case it's 'e')
+        private final Term.Raw collectionElement;
+
+        private Raw(Term.Raw value, Term.Raw collectionElement)
         {
             this.value = value;
+            this.collectionElement = collectionElement;
+        }
+
+        public static Raw simpleEqual(Term.Raw value)
+        {
+            return new Raw(value, null);
+        }
+
+        public static Raw collectionEqual(Term.Raw value, Term.Raw collectionElement)
+        {
+            return new Raw(value, collectionElement);
         }
 
         public ColumnCondition prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
@@ -193,7 +284,22 @@ public class ColumnCondition
             if (receiver.type instanceof CounterColumnType)
                 throw new InvalidRequestException("Condtions on counters are not supported");
 
-            return ColumnCondition.equal(receiver, value.prepare(keyspace, receiver));
+            if (collectionElement == null)
+                return ColumnCondition.equal(receiver, value.prepare(keyspace, receiver));
+
+            if (!(receiver.type.isCollection()))
+                throw new InvalidRequestException(String.format("Invalid element access syntax for non-collection column %s", receiver.name));
+
+            switch (((CollectionType)receiver.type).kind)
+            {
+                case LIST:
+                    return ColumnCondition.equal(receiver, collectionElement.prepare(keyspace, Lists.indexSpecOf(receiver)), value.prepare(keyspace, Lists.valueSpecOf(receiver)));
+                case SET:
+                    throw new InvalidRequestException(String.format("Invalid element access syntax for set column %s", receiver.name));
+                case MAP:
+                    return ColumnCondition.equal(receiver, collectionElement.prepare(keyspace, Maps.keySpecOf(receiver)), value.prepare(keyspace, Maps.valueSpecOf(receiver)));
+            }
+            throw new AssertionError();
         }
     }
 }
