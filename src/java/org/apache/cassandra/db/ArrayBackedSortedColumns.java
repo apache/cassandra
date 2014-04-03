@@ -441,6 +441,7 @@ public class ArrayBackedSortedColumns extends ColumnFamily
     public SearchIterator<CellName, Cell> searchIterator()
     {
         maybeSortCells();
+
         return new SearchIterator<CellName, Cell>()
         {
             // the first index that we could find the next key at, i.e. one larger
@@ -459,8 +460,8 @@ public class ArrayBackedSortedColumns extends ColumnFamily
 
             public Cell next(CellName name)
             {
-                assert sortedSize == size;
-                assert hasNext();
+                if (!isSorted || !hasNext())
+                    throw new IllegalStateException();
 
                 // optimize for runs of sequential matches, as in CollationController
                 // checking to see if we've found the desired cells yet (CASSANDRA-6933)
