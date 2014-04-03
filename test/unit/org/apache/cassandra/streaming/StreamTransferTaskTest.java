@@ -59,7 +59,7 @@ public class StreamTransferTaskTest extends SchemaLoader
         {
             List<Range<Token>> ranges = new ArrayList<>();
             ranges.add(new Range<>(sstable.first.getToken(), sstable.last.getToken()));
-            task.addTransferFile(sstable, 1, sstable.getPositionsForRanges(ranges));
+            task.addTransferFile(sstable, 1, sstable.getPositionsForRanges(ranges), 0);
         }
         assertEquals(2, task.getTotalNumberOfFiles());
 
