@@ -29,9 +29,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Future;
+import java.util.concurrent.locks.Lock;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.Striped;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,6 +62,8 @@ public class Keyspace
     private static final int DEFAULT_PAGE_SIZE = 10000;
 
     private static final Logger logger = LoggerFactory.getLogger(Keyspace.class);
+
+    private static final Striped<Lock> counterLocks = Striped.lazyWeakLock(DatabaseDescriptor.getConcurrentCounterWriters() * 1024);
 
     // It is possible to call Keyspace.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
@@ -181,6 +185,15 @@ public class Keyspace
         if (cfs == null)
             throw new IllegalArgumentException("Unknown CF " + id);
         return cfs;
+    }
+
+    /**
+     * @param keys the keys to grab the locks for
+     * @return the striped lock instances
+     */
+    public static Iterable<Lock> counterLocksFor(Iterable<Object> keys)
+    {
+        return counterLocks.bulkGet(keys);
     }
 
     /**
