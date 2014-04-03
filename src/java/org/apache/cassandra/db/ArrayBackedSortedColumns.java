@@ -35,6 +35,7 @@ import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.SearchIterator;
 
 /**
  * A ColumnFamily backed by an array.
@@ -435,6 +436,57 @@ public class ArrayBackedSortedColumns extends ColumnFamily
     {
         maybeSortCells();
         return new SlicesIterator(Arrays.asList(cells).subList(0, size), getComparator(), slices, !reversed);
+    }
+
+    public SearchIterator<CellName, Cell> searchIterator()
+    {
+        maybeSortCells();
+        return new SearchIterator<CellName, Cell>()
+        {
+            // the first index that we could find the next key at, i.e. one larger
+            // than the last key's location
+            private int i = 0;
+
+            // We assume a uniform distribution of keys,
+            // so we keep track of how many keys were skipped to satisfy last lookup, and only look at twice that
+            // many keys for next lookup initially, extending to whole range only if we couldn't find it in that subrange
+            private int range = size / 2;
+
+            public boolean hasNext()
+            {
+                return i < size;
+            }
+
+            public Cell next(CellName name)
+            {
+                assert sortedSize == size;
+                assert hasNext();
+
+                // optimize for runs of sequential matches, as in CollationController
+                // checking to see if we've found the desired cells yet (CASSANDRA-6933)
+                if (metadata.comparator.compare(name, cells[i].name()) == 0)
+                    return cells[i++];
+
+                // use range to manually force a better bsearch "pivot" by breaking it into two calls:
+                // first for i..i+range, then i+range..size if necessary.
+                // https://issues.apache.org/jira/browse/CASSANDRA-6933?focusedCommentId=13958264&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13958264
+                int limit = Math.min(size, i + range);
+                int i2 = binarySearch(i + 1, limit, name, internalComparator());
+                if (-1 - i2 == limit)
+                    i2 = binarySearch(limit, size, name, internalComparator());
+                // i2 can't be zero since we already checked cells[i] above
+                if (i2 > 0)
+                {
+                    range = i2 - i;
+                    i = i2 + 1;
+                    return cells[i2];
+                }
+                i2 = -1 - i2;
+                range = i2 - i;
+                i = i2;
+                return null;
+            }
+        };
     }
 
     private static class SlicesIterator extends AbstractIterator<Cell>

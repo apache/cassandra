@@ -34,6 +34,7 @@ import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 
 public class CollationController
@@ -171,10 +172,11 @@ public class CollationController
         if (container == null)
             return;
 
-        for (Iterator<CellName> iterator = ((NamesQueryFilter) filter.filter).columns.iterator(); iterator.hasNext(); )
+        SearchIterator<CellName, Cell> searchIter = container.searchIterator();
+        for (Iterator<CellName> iterator = ((NamesQueryFilter) filter.filter).columns.iterator(); iterator.hasNext() && searchIter.hasNext(); )
         {
             CellName filterColumn = iterator.next();
-            Cell cell = container.getColumn(filterColumn);
+            Cell cell = searchIter.next(filterColumn);
             if (cell != null && cell.timestamp() > sstableTimestamp)
                 iterator.remove();
         }

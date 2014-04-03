@@ -36,7 +36,9 @@ import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
+import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 
@@ -117,6 +119,11 @@ public class AtomicBTreeColumns extends ColumnFamily
     protected void delete(RangeTombstone tombstone)
     {
         delete(new DeletionInfo(tombstone, getComparator()));
+    }
+
+    public SearchIterator<CellName, Cell> searchIterator()
+    {
+        return new BTreeSearchIterator<>(ref.tree, asymmetricComparator());
     }
 
     public void delete(DeletionInfo info)

@@ -189,6 +189,8 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
     public abstract void delete(DeletionTime deletionTime);
     protected abstract void delete(RangeTombstone tombstone);
 
+    public abstract SearchIterator<CellName, Cell> searchIterator();
+
     /**
      * Purges top-level and range tombstones whose localDeletionTime is older than gcBefore.
      * @param gcBefore a timestamp (in seconds) before which tombstones should be purged

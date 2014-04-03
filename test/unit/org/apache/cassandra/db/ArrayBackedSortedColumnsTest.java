@@ -32,6 +32,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.utils.SearchIterator;
 
 public class ArrayBackedSortedColumnsTest extends SchemaLoader
 {
@@ -213,6 +214,43 @@ public class ArrayBackedSortedColumnsTest extends SchemaLoader
         assertSame(map.iterator(), map.iterator(ColumnSlice.ALL_COLUMNS_ARRAY));
     }
 
+    @Test
+    public void testSearchIterator()
+    {
+        CellNameType type = new SimpleDenseCellNameType(Int32Type.instance);
+        ColumnFamily map = ArrayBackedSortedColumns.factory.create(metadata(), false);
+
+        int[] values = new int[]{ 1, 2, 3, 5, 9, 15, 21, 22 };
+
+        for (int i = 0; i < values.length; ++i)
+            map.addColumn(new Cell(type.makeCellName(values[i])));
+
+        SearchIterator<CellName, Cell> iter = map.searchIterator();
+        for (int i = 0 ; i < values.length ; i++)
+            assertSame(values[i], iter.next(type.makeCellName(values[i])));
+
+        iter = map.searchIterator();
+        for (int i = 0 ; i < values.length ; i+=2)
+            assertSame(values[i], iter.next(type.makeCellName(values[i])));
+
+        iter = map.searchIterator();
+        for (int i = 0 ; i < values.length ; i+=4)
+            assertSame(values[i], iter.next(type.makeCellName(values[i])));
+
+        iter = map.searchIterator();
+        for (int i = 0 ; i < values.length ; i+=1)
+        {
+            if (i % 2 == 0)
+            {
+                Cell cell = iter.next(type.makeCellName(values[i] - 1));
+                if (i > 0 && values[i - 1] == values[i] - 1)
+                    assertSame(values[i - 1], cell);
+                else
+                    assertNull(cell);
+            }
+        }
+    }
+
     private <T> void assertSame(Iterable<T> c1, Iterable<T> c2)
     {
         assertSame(c1.iterator(), c2.iterator());
@@ -226,6 +264,11 @@ public class ArrayBackedSortedColumnsTest extends SchemaLoader
             fail("The collection don't have the same size");
     }
 
+    private void assertSame(int name, Cell cell)
+    {
+        int value = ByteBufferUtil.toInt(cell.name().toByteBuffer());
+        assert name == value : "Expected " + name + " but got " + value;
+    }
     private void assertSame(int[] names, Iterator<Cell> iter)
     {
         for (int name : names)

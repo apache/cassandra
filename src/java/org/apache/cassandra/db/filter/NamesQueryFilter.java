@@ -39,6 +39,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.utils.SearchIterator;
 
 public class NamesQueryFilter implements IDiskAtomFilter
 {
@@ -183,13 +184,15 @@ public class NamesQueryFilter implements IDiskAtomFilter
     {
         private final ColumnFamily cf;
         private final DecoratedKey key;
-        private final Iterator<CellName> iter;
+        private final Iterator<CellName> names;
+        private final SearchIterator<CellName, Cell> cells;
 
-        public ByNameColumnIterator(Iterator<CellName> iter, ColumnFamily cf, DecoratedKey key)
+        public ByNameColumnIterator(Iterator<CellName> names, ColumnFamily cf, DecoratedKey key)
         {
-            this.iter = iter;
+            this.names = names;
             this.cf = cf;
             this.key = key;
+            this.cells = cf.searchIterator();
         }
 
         public ColumnFamily getColumnFamily()
@@ -204,10 +207,10 @@ public class NamesQueryFilter implements IDiskAtomFilter
 
         protected OnDiskAtom computeNext()
         {
-            while (iter.hasNext())
+            while (names.hasNext() && cells.hasNext())
             {
-                CellName current = iter.next();
-                Cell cell = cf.getColumn(current);
+                CellName current = names.next();
+                Cell cell = cells.next(current);
                 if (cell != null)
                     return cell;
             }
