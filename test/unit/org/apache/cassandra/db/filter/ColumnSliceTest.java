@@ -165,6 +165,10 @@ public class ColumnSliceTest
         slice = new ColumnSlice(composite(1), composite(1, 2));
         assertTrue(slice.intersects(columnNames(1, 0, 0), columnNames(2, 2, 2), nameType, false));
 
+        // same case, but with an equal first component and missing start and end components
+        slice = new ColumnSlice(composite(1), composite(1));
+        assertTrue(slice.intersects(columnNames(1, 0, 0), columnNames(2, 2, 2), nameType, false));
+
         // slice falls entirely within sstable (slice start and end are the same)
         slice = new ColumnSlice(composite(1, 1, 1), composite(1, 1, 1));
         assertTrue(slice.intersects(columnNames(1, 0, 0), columnNames(2, 2, 2), nameType, false));
@@ -281,7 +285,7 @@ public class ColumnSliceTest
         types.add(Int32Type.instance);
         types.add(Int32Type.instance);
         CompoundDenseCellNameType nameType = new CompoundDenseCellNameType(types);
-        return nameType.make(components);
+        return nameType.make((Object[]) components);
     }
 
     private static List<ByteBuffer> columnNames(Integer ... components)

@@ -88,7 +88,8 @@ public class ColumnSlice
             ByteBuffer f = i < sEnd.size() ? sEnd.get(i) : ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
             // we already know the first component falls within its min/max range (otherwise we wouldn't get here)
-            if (i > 0 && (t.compare(f, minCellNames.get(i)) < 0 || t.compare(s, maxCellNames.get(i)) > 0))
+            if (i > 0 && (i < sEnd.size() && t.compare(f, minCellNames.get(i)) < 0 ||
+                          i < sStart.size() && t.compare(s, maxCellNames.get(i)) > 0))
                 return false;
 
             // if this component isn't equal in the start and finish, we don't need to check any more
