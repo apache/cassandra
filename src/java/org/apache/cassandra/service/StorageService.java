@@ -3242,7 +3242,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         if (tokens.size() < 1)
+        {
             logger.warn("no valid token arguments specified; nothing to relocate");
+            return;
+        }
 
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.relocating(tokens));
         setMode(Mode.RELOCATING, String.format("relocating %s to %s", tokens, localAddress.getHostAddress()), true);
