@@ -83,8 +83,6 @@ public class CompressedStreamWriter extends StreamWriter
             // no matter what happens close file
             FileUtils.closeQuietly(file);
         }
-
-        sstable.releaseReference();
     }
 
     @Override

@@ -18,6 +18,7 @@
 package org.apache.cassandra.streaming;
 
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -29,9 +30,13 @@ import org.apache.cassandra.utils.Pair;
  */
 public class StreamTransferTask extends StreamTask
 {
+    private final ScheduledExecutorService timeoutExecutor = Executors.newSingleThreadScheduledExecutor();
+
     private final AtomicInteger sequenceNumber = new AtomicInteger(0);
 
-    private final Map<Integer, OutgoingFileMessage> files = new HashMap<>();
+    private final Map<Integer, OutgoingFileMessage> files = new ConcurrentHashMap<>();
+
+    private final Map<Integer, ScheduledFuture> timeoutTasks = new ConcurrentHashMap<>();
 
     private long totalSize;
 
@@ -55,10 +60,26 @@ public class StreamTransferTask extends StreamTask
      */
     public void complete(int sequenceNumber)
     {
-        files.remove(sequenceNumber);
-        // all file sent, notify session this task is complete.
-        if (files.isEmpty())
-            session.taskCompleted(this);
+        OutgoingFileMessage file = files.remove(sequenceNumber);
+        if (file != null)
+        {
+            file.sstable.releaseReference();
+            // all file sent, notify session this task is complete.
+            if (files.isEmpty())
+            {
+                timeoutExecutor.shutdownNow();
+                session.taskCompleted(this);
+            }
+        }
+    }
+
+    public void abort()
+    {
+        for (OutgoingFileMessage file : files.values())
+        {
+            file.sstable.releaseReference();
+        }
+        timeoutExecutor.shutdownNow();
     }
 
     public int getTotalNumberOfFiles()
@@ -80,6 +101,36 @@ public class StreamTransferTask extends StreamTask
 
     public OutgoingFileMessage createMessageForRetry(int sequenceNumber)
     {
+        // remove previous time out task to be rescheduled later
+        ScheduledFuture future = timeoutTasks.get(sequenceNumber);
+        future.cancel(false);
         return files.get(sequenceNumber);
+    }
+
+    /**
+     * Schedule timeout task to release reference for file sent.
+     * When not receiving ACK after sending to receiver in given time,
+     * the task will release reference.
+     *
+     * @param sequenceNumber sequence number of file sent.
+     * @param time time to timeout
+     * @param unit unit of given time
+     * @return scheduled future for timeout task
+     */
+    public ScheduledFuture scheduleTimeout(final int sequenceNumber, long time, TimeUnit unit)
+    {
+        if (timeoutExecutor.isShutdown())
+            return null;
+
+        ScheduledFuture future = timeoutExecutor.schedule(new Runnable()
+        {
+            public void run()
+            {
+                StreamTransferTask.this.complete(sequenceNumber);
+                timeoutTasks.remove(sequenceNumber);
+            }
+        }, time, unit);
+        timeoutTasks.put(sequenceNumber, future);
+        return future;
     }
 }
