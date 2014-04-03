@@ -69,17 +69,25 @@ final class NodeBuilder
     void clear()
     {
         NodeBuilder current = this;
-        while (current != null)
+        while (current != null && current.upperBound != null)
         {
-            if (current.upperBound != null)
-            {
-                current.reset(null, null, null, null);
-                Arrays.fill(current.buildKeys, 0, current.maxBuildKeyPosition, null);
-                Arrays.fill(current.buildChildren, 0, current.maxBuildKeyPosition + 1, null);
-                current.maxBuildKeyPosition = 0;
-            }
+            current.clearSelf();
             current = current.child;
         }
+        current = parent;
+        while (current != null && current.upperBound != null)
+        {
+            current.clearSelf();
+            current = current.parent;
+        }
+    }
+
+    void clearSelf()
+    {
+        reset(null, null, null, null);
+        Arrays.fill(buildKeys, 0, maxBuildKeyPosition, null);
+        Arrays.fill(buildChildren, 0, maxBuildKeyPosition + 1, null);
+        maxBuildKeyPosition = 0;
     }
 
     // reset counters/setup to copy from provided node
