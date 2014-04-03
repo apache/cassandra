@@ -25,6 +25,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Test;
 
+import junit.framework.Assert;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.btree.UpdateFunction;
@@ -119,7 +120,65 @@ public class BTreeTest
         assert vs.size() == count;
         int i = 0;
         for (Integer j : vs)
-            assert j == ints[i++];
+            Assert.assertEquals(j, ints[i++]);
     }
 
+    @Test
+    public void testClearOnAbort()
+    {
+        final Comparator<String> cmp = new Comparator<String>()
+        {
+            public int compare(String o1, String o2)
+            {
+                return o1.compareTo(o2);
+            }
+        };
+
+        Object[] btree = BTree.build(ranges(range(0, 8)), cmp, true, UpdateFunction.NoOp.<String>instance());
+        BTree.update(btree, cmp, ranges(range(0, 94)), false, new AbortAfterX(90));
+        btree = BTree.update(btree, cmp, ranges(range(0, 94)), false, UpdateFunction.NoOp.<String>instance());
+        Assert.assertTrue(BTree.isWellFormed(btree, cmp));
+    }
+
+    private static final class AbortAfterX implements UpdateFunction<String>
+    {
+        int counter;
+        final int abortAfter;
+        private AbortAfterX(int abortAfter)
+        {
+            this.abortAfter = abortAfter;
+        }
+        public String apply(String replacing, String update)
+        {
+            return update;
+        }
+        public boolean abortEarly()
+        {
+            return counter++ > abortAfter;
+        }
+        public void allocated(long heapSize)
+        {
+        }
+        public String apply(String v)
+        {
+            return v;
+        }
+    }
+
+    private static int[] range(int lb, int ub)
+    {
+        return new int[] { lb, ub };
+    }
+
+    private static List<String> ranges(int[] ... ranges)
+    {
+
+        List<String> r = new ArrayList<>();
+        for (int[] range : ranges)
+        {
+            for (int i = range[0] ; i < range[1] ; i+=1)
+                r.add(Integer.toString(i));
+        }
+        return r;
+    }
 }

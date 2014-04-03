@@ -25,6 +25,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nullable;
+
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
@@ -38,6 +40,7 @@ import com.yammer.metrics.stats.Snapshot;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
+import org.apache.cassandra.utils.btree.UpdateFunction;
 
 // TODO : should probably lower fan-factor for tests to make them more intensive
 public class LongBTreeTest
@@ -47,6 +50,7 @@ public class LongBTreeTest
     private static final Timer TREE_TIMER = Metrics.newTimer(BTree.class, "TREE", TimeUnit.NANOSECONDS, TimeUnit.NANOSECONDS);
     private static final ExecutorService MODIFY = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), new NamedThreadFactory("MODIFY"));
     private static final ExecutorService COMPARE = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), new NamedThreadFactory("COMPARE"));
+    private static final RandomAbort<Integer> SPORADIC_ABORT = new RandomAbort<>(new Random(), 0.0001f);
 
     static
     {
@@ -94,7 +98,7 @@ public class LongBTreeTest
     @Test
     public void testLargeBatchesLargeRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(10000000, 5000, 3, 100, true);
+        testInsertions(100000000, 5000, 3, 100, true);
     }
 
     @Test
@@ -178,16 +182,21 @@ public class LongBTreeTest
                     canon.putAll(buffer);
                     ctxt.stop();
                     ctxt = BTREE_TIMER.time();
-                    btree = BTree.update(btree, ICMP, buffer.keySet(), true, null);
+                    Object[] next = null;
+                    while (next == null)
+                        next = BTree.update(btree, ICMP, buffer.keySet(), true, SPORADIC_ABORT);
+                    btree = next;
                     ctxt.stop();
 
+                    if (!BTree.isWellFormed(btree, ICMP))
+                    {
+                        System.out.println("ERROR: Not well formed");
+                        throw new AssertionError("Not well formed!");
+                    }
                     if (quickEquality)
                         testEqual("", BTree.<Integer>slice(btree, true), canon.keySet().iterator());
                     else
                         r.addAll(testAllSlices("RND", btree, new TreeSet<>(canon.keySet())));
-
-                    if (!BTree.isWellFormed(btree))
-                        System.out.println("ERROR: Not well formed");
                 }
                 return r;
             }
@@ -207,7 +216,10 @@ public class LongBTreeTest
             String id = String.format("[0..%d)", canon.size());
             System.out.println("Testing " + id);
             Futures.allAsList(testAllSlices(id, cur, canon)).get();
-            cur = BTree.update(cur, ICMP, Arrays.asList(i), true, null);
+            Object[] next = null;
+            while (next == null)
+                next = BTree.update(cur, ICMP, Arrays.asList(i), true, SPORADIC_ABORT);
+            cur = next;
             canon.add(i);
         }
     }
@@ -277,7 +289,7 @@ public class LongBTreeTest
         }
     }
 
-    private static <V> boolean testEqual(String id, Iterator<V> btree, Iterator<V> canon)
+    private static <V> void testEqual(String id, Iterator<V> btree, Iterator<V> canon)
     {
         boolean equal = true;
         while (btree.hasNext() && canon.hasNext())
@@ -300,7 +312,8 @@ public class LongBTreeTest
             System.out.println(String.format("%s: Expected %d, Got Nil", id, canon.next()));
             equal = false;
         }
-        return equal;
+        if (!equal)
+            throw new AssertionError("Not equal");
     }
 
     // should only be called on sets that range from 0->N or N->0
@@ -352,6 +365,37 @@ public class LongBTreeTest
                 };
             }
         };
+    }
+
+    private static final class RandomAbort<V> implements UpdateFunction<V>
+    {
+        final Random rnd;
+        final float chance;
+        private RandomAbort(Random rnd, float chance)
+        {
+            this.rnd = rnd;
+            this.chance = chance;
+        }
+
+        public V apply(V replacing, V update)
+        {
+            return update;
+        }
+
+        public boolean abortEarly()
+        {
+            return rnd.nextFloat() < chance;
+        }
+
+        public void allocated(long heapSize)
+        {
+
+        }
+
+        public V apply(V v)
+        {
+            return v;
+        }
     }
 
 }

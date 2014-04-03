@@ -1,4 +1,5 @@
 2.1.0-beta2
+ * Fix BTree.clear for large updates (CASSANDRA-6943)
  * Fail write instead of logging a warning when unable to append to CL
    (CASSANDRA-6764)
  * Eliminate possibility of CL segment appearing twice in active list 

@@ -26,6 +26,8 @@ import java.util.Queue;
 
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static org.apache.cassandra.utils.btree.UpdateFunction.NoOp;
+
 public class BTree
 {
     /**
@@ -141,7 +143,7 @@ public class BTree
      */
     public static <V> Object[] update(Object[] btree, Comparator<V> comparator, Collection<V> updateWith, boolean updateWithIsSorted)
     {
-        return update(btree, comparator, updateWith, updateWithIsSorted, UpdateFunction.NoOp.<V>instance());
+        return update(btree, comparator, updateWith, updateWithIsSorted, NoOp.<V>instance());
     }
 
     public static <V> Object[] update(Object[] btree,
