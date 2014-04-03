@@ -98,6 +98,7 @@ Merged from 1.2:
  * fix nodetool getsstables for blob PK (CASSANDRA-6803)
  * Fix BatchlogManager#deleteBatch() use of millisecond timsestamps
    (CASSANDRA-6822)
+ * Continue assassinating even if the endpoint vanishes (CASSANDRA-6787)
 
 
 2.0.6
