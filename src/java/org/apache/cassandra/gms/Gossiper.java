@@ -503,8 +503,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY, endpoint);
             Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
             // make sure it did not change
-            epState = endpointStateMap.get(endpoint);
-            if (epState.getHeartBeatState().getGeneration() != generation)
+            EndpointState newState = endpointStateMap.get(endpoint);
+            if (newState == null)
+                logger.warn("Endpoint {} disappeared while trying to assassinate, continuing anyway", endpoint);
+            else if (newState.getHeartBeatState().getGeneration() != generation)
                 throw new RuntimeException("Endpoint " + endpoint + " generation changed while trying to remove it");
             epState.updateTimestamp(); // make sure we don't evict it too soon
             epState.getHeartBeatState().forceNewerGenerationUnsafe();
