@@ -18,12 +18,15 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
+
+import com.google.common.base.Function;
+import com.google.common.base.Objects;
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.composites.CellName;
@@ -34,9 +37,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
-import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
@@ -92,7 +92,7 @@ public class CounterMutation implements IMutation
     /**
      * Applies the counter mutation, returns the result Mutation (for replication to other nodes).
      *
-     * 1. Grabs the striped CF-level lock(s)
+     * 1. Grabs the striped cell-level locks in the proper order
      * 2. Gets the current values of the counters-to-be-modified from the counter cache
      * 3. Reads the rest of the current values (cache misses) from the CF
      * 4. Writes the updated counter values
@@ -105,33 +105,23 @@ public class CounterMutation implements IMutation
      */
     public Mutation apply() throws WriteTimeoutException
     {
-        Mutation result = new Mutation(getKeyspaceName(), ByteBufferUtil.clone(key()));
+        Mutation result = new Mutation(getKeyspaceName(), key());
         Keyspace keyspace = Keyspace.open(getKeyspaceName());
 
-        ArrayList<UUID> cfIds = new ArrayList<>(getColumnFamilyIds());
-        Collections.sort(cfIds); // will lock in the sorted order, to avoid a potential deadlock.
-        ArrayList<Lock> locks = new ArrayList<>(cfIds.size());
+        int count = 0;
+        for (ColumnFamily cf : getColumnFamilies())
+            count += cf.getColumnCount();
+
+        List<Lock> locks = new ArrayList<>(count);
+        Tracing.trace("Acquiring {} counter locks", count);
         try
         {
-            Tracing.trace("Acquiring {} counter locks", cfIds.size());
-            for (UUID cfId : cfIds)
-            {
-                Lock lock = keyspace.getColumnFamilyStore(cfId).counterLockFor(key());
-                if (!lock.tryLock(getTimeout(), TimeUnit.MILLISECONDS))
-                    throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(keyspace));
-                locks.add(lock);
-            }
-
+            grabCounterLocks(keyspace, locks);
             for (ColumnFamily cf : getColumnFamilies())
                 result.add(processModifications(cf));
-
             result.apply();
             updateCounterCache(result, keyspace);
             return result;
-        }
-        catch (InterruptedException e)
-        {
-            throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(keyspace));
         }
         finally
         {
@@ -140,10 +130,51 @@ public class CounterMutation implements IMutation
         }
     }
 
+    private void grabCounterLocks(Keyspace keyspace, List<Lock> locks) throws WriteTimeoutException
+    {
+        long startTime = System.nanoTime();
+
+        for (Lock lock : Keyspace.counterLocksFor(getCounterLockKeys()))
+        {
+            long timeout = TimeUnit.MILLISECONDS.toNanos(getTimeout()) - (System.nanoTime() - startTime);
+            try
+            {
+                if (!lock.tryLock(timeout, TimeUnit.NANOSECONDS))
+                    throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(keyspace));
+                locks.add(lock);
+            }
+            catch (InterruptedException e)
+            {
+                throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(keyspace));
+            }
+        }
+    }
+
+    /**
+     * Returns a wrapper for the Striped#bulkGet() call (via Keyspace#counterLocksFor())
+     * Striped#bulkGet() depends on Object#hashCode(), so here we make sure that the cf id and the partition key
+     * all get to be part of the hashCode() calculation, not just the cell name.
+     */
+    private Iterable<Object> getCounterLockKeys()
+    {
+        return Iterables.concat(Iterables.transform(getColumnFamilies(), new Function<ColumnFamily, Iterable<Object>>()
+        {
+            public Iterable<Object> apply(final ColumnFamily cf)
+            {
+                return Iterables.transform(cf, new Function<Cell, Object>()
+                {
+                    public Object apply(Cell cell)
+                    {
+                        return Objects.hashCode(cf.id(), key(), cell.name());
+                    }
+                });
+            }
+        }));
+    }
+
     // Replaces all the CounterUpdateCell-s with updated regular CounterCell-s
     private ColumnFamily processModifications(ColumnFamily changesCF)
     {
-        AbstractAllocator allocator = HeapAllocator.instance;
         ColumnFamilyStore cfs = Keyspace.open(getKeyspaceName()).getColumnFamilyStore(changesCF.id());
 
         ColumnFamily resultCF = changesCF.cloneMeShallow();
@@ -154,7 +185,7 @@ public class CounterMutation implements IMutation
             if (cell instanceof CounterUpdateCell)
                 counterUpdateCells.add((CounterUpdateCell)cell);
             else
-                resultCF.addColumn(cell.localCopy(allocator));
+                resultCF.addColumn(cell);
         }
 
         if (counterUpdateCells.isEmpty())
@@ -169,7 +200,7 @@ public class CounterMutation implements IMutation
             long clock = currentValue.clock + 1L;
             long count = currentValue.count + update.delta();
 
-            resultCF.addColumn(new CounterCell(update.name().copy(allocator),
+            resultCF.addColumn(new CounterCell(update.name(),
                                                CounterContext.instance().createGlobal(CounterId.getLocalId(), clock, count),
                                                update.timestamp()));
         }

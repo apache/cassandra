@@ -38,6 +38,7 @@
    (CASSANDRA-6931)
  * Optimize CounterColumn#reconcile() (CASSANDRA-6953)
  * Properly remove 1.2 sstable support in 2.1 (CASSANDRA-6869)
+ * Lock counter cells, not partitions (CASSANDRA-6880)
 Merged from 2.0:
  * Allow compaction of system tables during startup (CASSANDRA-6913)
  * Restrict Windows to parallel repairs (CASSANDRA-6907)

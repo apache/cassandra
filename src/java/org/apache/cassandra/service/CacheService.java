@@ -29,7 +29,6 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.locks.Lock;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -399,27 +398,18 @@ public class CacheService implements CacheServiceMBean
                 public Pair<CounterCacheKey, ClockAndCount> call() throws Exception
                 {
                     DecoratedKey key = cfs.partitioner.decorateKey(partitionKey);
-                    Lock lock = cfs.counterLockFor(partitionKey);
-                    lock.lock();
-                    try
-                    {
-                        QueryFilter filter = QueryFilter.getNamesFilter(key,
-                                                                        cfs.metadata.cfName,
-                                                                        FBUtilities.singleton(cellName, cfs.metadata.comparator),
-                                                                        Long.MIN_VALUE);
-                        ColumnFamily cf = cfs.getTopLevelColumns(filter, Integer.MIN_VALUE);
-                        if (cf == null)
-                            return null;
-                        Cell cell = cf.getColumn(cellName);
-                        if (cell == null || cell.isMarkedForDelete(Long.MIN_VALUE))
-                            return null;
-                        ClockAndCount clockAndCount = CounterContext.instance().getLocalClockAndCount(cell.value());
-                        return Pair.create(CounterCacheKey.create(cfs.metadata.cfId, partitionKey, cellName), clockAndCount);
-                    }
-                    finally
-                    {
-                        lock.unlock();
-                    }
+                    QueryFilter filter = QueryFilter.getNamesFilter(key,
+                                                                    cfs.metadata.cfName,
+                                                                    FBUtilities.singleton(cellName, cfs.metadata.comparator),
+                                                                    Long.MIN_VALUE);
+                    ColumnFamily cf = cfs.getTopLevelColumns(filter, Integer.MIN_VALUE);
+                    if (cf == null)
+                        return null;
+                    Cell cell = cf.getColumn(cellName);
+                    if (cell == null || cell.isMarkedForDelete(Long.MIN_VALUE))
+                        return null;
+                    ClockAndCount clockAndCount = CounterContext.instance().getLocalClockAndCount(cell.value());
+                    return Pair.create(CounterCacheKey.create(cfs.metadata.cfId, partitionKey, cellName), clockAndCount);
                 }
             });
         }

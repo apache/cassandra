@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
 import java.util.regex.Pattern;
 import javax.management.*;
 
@@ -34,7 +33,6 @@ import com.google.common.base.Function;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.Striped;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -134,8 +132,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public final ColumnFamilyMetrics metric;
     public volatile long sampleLatencyNanos;
-
-    private final Striped<Lock> counterLocks = Striped.lazyWeakLock(DatabaseDescriptor.getConcurrentCounterWriters() * 128);
 
     public void reload()
     {
@@ -376,17 +372,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         indexManager.invalidate();
 
         CacheService.instance.invalidateRowCacheForCf(metadata.cfId);
-    }
-
-    /**
-     * Obtain a lock for this CF's part of a counter mutation
-     * @param key the key for the CounterMutation
-     * @return the striped lock instance
-     */
-    public Lock counterLockFor(ByteBuffer key)
-    {
-        assert metadata.isCounter();
-        return counterLocks.get(key);
     }
 
     /**
