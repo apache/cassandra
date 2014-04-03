@@ -98,10 +98,12 @@ public class LatencyMetrics
     }
 
     @Deprecated
-    public double getRecentLatency()
+    public synchronized double getRecentLatency()
     {
         long ops = latency.count();
         long n = totalLatency.count();
+        if (ops == lastOpCount)
+            return 0;
         try
         {
             return ((double) n - lastLatency) / (ops - lastOpCount);
