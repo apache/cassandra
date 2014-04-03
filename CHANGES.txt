@@ -1,6 +1,7 @@
 1.2.17
  * Fix BatchlogManager#deleteBatch() use of millisecond timsestamps
    (CASSANDRA-6822)
+ * Continue assassinating even if the endpoint vanishes (CASSANDRA-6787)
 
 
 1.2.16
