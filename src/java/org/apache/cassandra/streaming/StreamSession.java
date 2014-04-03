@@ -21,7 +21,9 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -342,8 +344,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
 
         if (finalState == State.FAILED)
         {
-            for (StreamReceiveTask srt : receivers.values())
-                srt.abort();
+            for (StreamTask task : Iterables.concat(receivers.values(), transfers.values()))
+                task.abort();
         }
 
         // Note that we shouldn't block on this close because this method is called on the handler
@@ -485,6 +487,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
         long headerSize = header.size();
         StreamingMetrics.totalOutgoingBytes.inc(headerSize);
         metrics.outgoingBytes.inc(headerSize);
+        // schedule timeout for receiving ACK
+        transfers.get(header.cfId).scheduleTimeout(header.sequenceNumber, 12, TimeUnit.HOURS);
     }
 
     /**

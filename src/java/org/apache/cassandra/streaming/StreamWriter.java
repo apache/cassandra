@@ -116,9 +116,6 @@ public class StreamWriter
             FileUtils.closeQuietly(file);
             FileUtils.closeQuietly(validator);
         }
-
-        // release reference only when completed successfully
-        sstable.releaseReference();
     }
 
     protected long totalSize()

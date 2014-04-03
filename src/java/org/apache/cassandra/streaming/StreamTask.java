@@ -46,6 +46,12 @@ public abstract class StreamTask
     public abstract long getTotalSize();
 
     /**
+     * Abort the task.
+     * Subclass should implement cleaning up resources.
+     */
+    public abstract void abort();
+
+    /**
      * @return StreamSummary that describes this task
      */
     public StreamSummary getSummary()
