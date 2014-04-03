@@ -1,6 +1,7 @@
 3.0
  * Remove CQL2 (CASSANDRA-5918)
- * add Thrift get_multi_slice call (CASSANDRA-6757)
+ * Add Thrift get_multi_slice call (CASSANDRA-6757)
+ * Optimize fetching multiple cells by name (CASSANDRA-6933)
 
 
 2.1.0-beta2
