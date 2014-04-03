@@ -330,8 +330,8 @@
           <dependency groupId="com.googlecode.concurrentlinkedhashmap" artifactId="concurrentlinkedhashmap-lru" version="1.3"/>
           <dependency groupId="org.antlr" artifactId="antlr" version="3.2"/>
           <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.7.2"/>
-          <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.0.13"/>
-          <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.0.13"/>
+          <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.1.12"/>
+          <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.1.12"/>
           <dependency groupId="org.codehaus.jackson" artifactId="jackson-core-asl" version="1.9.2"/>
           <dependency groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl" version="1.9.2"/>
           <dependency groupId="jline" artifactId="jline" version="1.0">
@@ -1092,8 +1092,8 @@
         <pathelement location="${build.dir}/${ant.project.name}-thrift-${version}.jar" />
         <pathelement location="${build.lib}/libthrift-0.9.0.jar" />
         <pathelement location="${build.lib}/slf4j-api-1.7.2.jar" />
-        <pathelement location="${build.lib}/logback-core-1.0.13.jar" />
-        <pathelement location="${build.lib}/logback-classic-1.0.13.jar" />
+        <pathelement location="${build.lib}/logback-core-1.1.12.jar" />
+        <pathelement location="${build.lib}/logback-classic-1.1.12.jar" />
         <pathelement location="${build.lib}/jackson-core-asl-1.9.2.jar" />
         <pathelement location="${build.lib}/jackson-mapper-asl-1.9.2.jar" />
         <fileset dir="${build.dir.lib}">
@@ -1204,7 +1204,7 @@
         <exclude name="**/test/*.class"/>
         <!-- cobertura modifies the serialVersionUID of classes. Some of our unit tests rely on backward
         wire compatability of these classes.  It was easier to exlude them from instrumentation than to
-        force their serialVersinUIDs. -->
+        force their serialVersionUIDs. -->
         <exclude name="**/*Token.class"/>
         <exclude name="${cobertura.excludes}"/>
       </fileset>
