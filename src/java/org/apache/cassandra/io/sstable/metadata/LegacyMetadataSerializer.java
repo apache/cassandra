@@ -133,6 +133,7 @@ public class LegacyMetadataSerializer extends MetadataSerializer
                                                      sstableLevel,
                                                      minColumnNames,
                                                      maxColumnNames,
+                                                     true,
                                                      ActiveRepairService.UNREPAIRED_SSTABLE));
                 if (types.contains(MetadataType.COMPACTION))
                     components.put(MetadataType.COMPACTION,

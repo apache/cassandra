@@ -546,6 +546,24 @@ public class CounterContext
     }
 
     /**
+     * Detects whether or not the context has any legacy (local or remote) shards in it.
+     */
+    public boolean hasLegacyShards(ByteBuffer context)
+    {
+        int totalCount = (context.remaining() - headerLength(context)) / STEP_LENGTH;
+        int localAndGlobalCount = Math.abs(context.getShort(context.position()));
+
+        if (localAndGlobalCount < totalCount)
+            return true; // remote shard(s) present
+
+        for (int i = 0; i < localAndGlobalCount; i++)
+            if (context.getShort(context.position() + HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH) >= 0)
+                return true; // found a local shard
+
+        return false;
+    }
+
+    /**
      * Mark context to delete local references afterward.
      * Marking is done by multiply #elt by -1 to preserve header length
      * and #elt count in order to clear all local refs later.

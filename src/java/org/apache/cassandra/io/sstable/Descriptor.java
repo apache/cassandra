@@ -62,6 +62,7 @@ public class Descriptor
         // ka (2.1.0): new Statistics.db file format
         //             index summaries can be downsampled and the sampling level is persisted
         //             switch uncompressed checksums to adler32
+        //             tracks presense of legacy (local and remote) counter shards
 
         public static final Version CURRENT = new Version(current_version);
 
@@ -73,6 +74,7 @@ public class Descriptor
         public final boolean newStatsFile;
         public final boolean hasAllAdlerChecksums;
         public final boolean hasRepairedAt;
+        public final boolean tracksLegacyCounterShards;
 
         public Version(String version)
         {
@@ -83,6 +85,7 @@ public class Descriptor
             newStatsFile = version.compareTo("ka") >= 0;
             hasAllAdlerChecksums = version.compareTo("ka") >= 0;
             hasRepairedAt = version.compareTo("ka") >= 0;
+            tracksLegacyCounterShards = version.compareTo("ka") >= 0;
         }
 
         /**

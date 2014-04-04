@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -125,8 +124,8 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                                       reducer.maxLocalDeletionTimeSeen,
                                       reducer.tombstones,
                                       reducer.minColumnNameSeen,
-                                      reducer.maxColumnNameSeen
-        );
+                                      reducer.maxColumnNameSeen,
+                                      reducer.hasLegacyCounterShards);
 
         // in case no columns were ever written, we may still need to write an empty header with a top-level tombstone
         indexBuilder.maybeWriteEmptyRowHeader();
@@ -202,6 +201,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         StreamingHistogram tombstones = new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE);
         List<ByteBuffer> minColumnNameSeen = Collections.emptyList();
         List<ByteBuffer> maxColumnNameSeen = Collections.emptyList();
+        boolean hasLegacyCounterShards = false;
 
         /**
          * Called once per version of a cell that we need to merge, after which getReduced() is called.  In other words,
@@ -293,9 +293,11 @@ public class LazilyCompactedRow extends AbstractCompactedRow
 
                 int deletionTime = reduced.getLocalDeletionTime();
                 if (deletionTime < Integer.MAX_VALUE)
-                {
                     tombstones.update(deletionTime);
-                }
+
+                if (reduced instanceof CounterCell)
+                    hasLegacyCounterShards = hasLegacyCounterShards || ((CounterCell) reduced).hasLegacyShards();
+
                 return reduced;
             }
         }

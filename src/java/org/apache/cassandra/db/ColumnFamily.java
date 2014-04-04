@@ -402,6 +402,7 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
         int maxLocalDeletionTime = Integer.MIN_VALUE;
         List<ByteBuffer> minColumnNamesSeen = Collections.emptyList();
         List<ByteBuffer> maxColumnNamesSeen = Collections.emptyList();
+        boolean hasLegacyCounterShards = false;
         for (Cell cell : this)
         {
             if (deletionInfo().getTopLevelDeletion().localDeletionTime < Integer.MAX_VALUE)
@@ -420,8 +421,17 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
                 tombstones.update(deletionTime);
             minColumnNamesSeen = ColumnNameHelper.minComponents(minColumnNamesSeen, cell.name, metadata.comparator);
             maxColumnNamesSeen = ColumnNameHelper.maxComponents(maxColumnNamesSeen, cell.name, metadata.comparator);
+            if (cell instanceof CounterCell)
+                hasLegacyCounterShards = hasLegacyCounterShards || ((CounterCell) cell).hasLegacyShards();
         }
-        return new ColumnStats(getColumnCount(), minTimestampSeen, maxTimestampSeen, maxLocalDeletionTime, tombstones, minColumnNamesSeen, maxColumnNamesSeen);
+        return new ColumnStats(getColumnCount(),
+                               minTimestampSeen,
+                               maxTimestampSeen,
+                               maxLocalDeletionTime,
+                               tombstones,
+                               minColumnNamesSeen,
+                               maxColumnNamesSeen,
+                               hasLegacyCounterShards);
     }
 
     public boolean isMarkedForDelete()

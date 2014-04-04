@@ -52,6 +52,7 @@ public class StatsMetadata extends MetadataComponent
     public final int sstableLevel;
     public final List<ByteBuffer> maxColumnNames;
     public final List<ByteBuffer> minColumnNames;
+    public final boolean hasLegacyCounterShards;
     public final long repairedAt;
 
     public StatsMetadata(EstimatedHistogram estimatedRowSize,
@@ -65,6 +66,7 @@ public class StatsMetadata extends MetadataComponent
                          int sstableLevel,
                          List<ByteBuffer> minColumnNames,
                          List<ByteBuffer> maxColumnNames,
+                         boolean hasLegacyCounterShards,
                          long repairedAt)
     {
         this.estimatedRowSize = estimatedRowSize;
@@ -78,6 +80,7 @@ public class StatsMetadata extends MetadataComponent
         this.sstableLevel = sstableLevel;
         this.minColumnNames = minColumnNames;
         this.maxColumnNames = maxColumnNames;
+        this.hasLegacyCounterShards = hasLegacyCounterShards;
         this.repairedAt = repairedAt;
     }
 
@@ -123,6 +126,7 @@ public class StatsMetadata extends MetadataComponent
                                  newLevel,
                                  maxColumnNames,
                                  minColumnNames,
+                                 hasLegacyCounterShards,
                                  repairedAt);
     }
 
@@ -139,6 +143,7 @@ public class StatsMetadata extends MetadataComponent
                                  sstableLevel,
                                  maxColumnNames,
                                  minColumnNames,
+                                 hasLegacyCounterShards,
                                  newRepairedAt);
     }
 
@@ -162,6 +167,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(repairedAt, that.repairedAt)
                        .append(maxColumnNames, that.maxColumnNames)
                        .append(minColumnNames, that.minColumnNames)
+                       .append(hasLegacyCounterShards, that.hasLegacyCounterShards)
                        .build();
     }
 
@@ -181,6 +187,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(repairedAt)
                        .append(maxColumnNames)
                        .append(minColumnNames)
+                       .append(hasLegacyCounterShards)
                        .build();
     }
 
@@ -203,6 +210,7 @@ public class StatsMetadata extends MetadataComponent
             size += 4;
             for (ByteBuffer columnName : component.maxColumnNames)
                 size += 2 + columnName.remaining(); // with short length
+            size += TypeSizes.NATIVE.sizeof(component.hasLegacyCounterShards);
             return size;
         }
 
@@ -224,6 +232,7 @@ public class StatsMetadata extends MetadataComponent
             out.writeInt(component.maxColumnNames.size());
             for (ByteBuffer columnName : component.maxColumnNames)
                 ByteBufferUtil.writeWithShortLength(columnName, out);
+            out.writeBoolean(component.hasLegacyCounterShards);
         }
 
         public StatsMetadata deserialize(Descriptor.Version version, DataInput in) throws IOException
@@ -251,6 +260,10 @@ public class StatsMetadata extends MetadataComponent
             for (int i = 0; i < colCount; i++)
                 maxColumnNames.add(ByteBufferUtil.readWithShortLength(in));
 
+            boolean hasLegacyCounterShards = true;
+            if (version.tracksLegacyCounterShards)
+                hasLegacyCounterShards = in.readBoolean();
+
             return new StatsMetadata(rowSizes,
                                      columnCounts,
                                      replayPosition,
@@ -262,6 +275,7 @@ public class StatsMetadata extends MetadataComponent
                                      sstableLevel,
                                      minColumnNames,
                                      maxColumnNames,
+                                     hasLegacyCounterShards,
                                      repairedAt);
         }
     }
