@@ -122,10 +122,9 @@ public class DeletionTime implements Comparable<DeletionTime>
         {
             int ldt = in.readInt();
             long mfda = in.readLong();
-            if (mfda == Long.MIN_VALUE && ldt == Integer.MAX_VALUE)
-                return LIVE;
-            else
-                return new DeletionTime(mfda, ldt);
+            return mfda == Long.MIN_VALUE && ldt == Integer.MAX_VALUE
+                 ? LIVE
+                 : new DeletionTime(mfda, ldt);
         }
 
         public long serializedSize(DeletionTime delTime, TypeSizes typeSizes)
