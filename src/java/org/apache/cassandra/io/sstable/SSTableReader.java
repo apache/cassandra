@@ -17,16 +17,34 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.Closeable;
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
-import com.clearspring.analytics.stream.cardinality.ICardinality;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterators;
@@ -36,28 +54,62 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
+import com.clearspring.analytics.stream.cardinality.ICardinality;
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.DataTracker;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.db.RowPosition;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.ICompactionScanner;
 import org.apache.cassandra.db.index.SecondaryIndex;
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.apache.cassandra.io.compress.CompressedThrottledReader;
 import org.apache.cassandra.io.compress.CompressionMetadata;
-import org.apache.cassandra.io.sstable.metadata.*;
-import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
+import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
+import org.apache.cassandra.io.sstable.metadata.MetadataType;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
+import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
+import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.ICompressedFile;
+import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.io.util.SegmentedFile;
+import org.apache.cassandra.io.util.ThrottledReader;
 import org.apache.cassandra.metrics.RestorableMeter;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CLibrary;
+import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.FilterFactory;
+import org.apache.cassandra.utils.IFilter;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR;
 
@@ -122,14 +174,23 @@ public class SSTableReader extends SSTable implements Closeable
     // but it seems like a good extra layer of protection against reference counting bugs to not delete data based on that alone
     private final AtomicBoolean isCompacted = new AtomicBoolean(false);
     private final AtomicBoolean isSuspect = new AtomicBoolean(false);
-    private final AtomicBoolean isReplaced = new AtomicBoolean(false);
 
-    private final SSTableDeletingTask deletingTask;
     // not final since we need to be able to change level on a file.
     private volatile StatsMetadata sstableMetadata;
 
     private final AtomicLong keyCacheHit = new AtomicLong(0);
     private final AtomicLong keyCacheRequest = new AtomicLong(0);
+
+    /**
+     * To support replacing this sstablereader with another object that represents that same underlying sstable, but with different associated resources,
+     * we build a linked-list chain of replacement, which we synchronise using a shared object to make maintenance of the list across multiple threads simple.
+     * On close we check if any of the closeable resources differ between any chains either side of us; any that are in neither of the adjacent links (if any) are closed.
+     * Once we've made this decision we remove ourselves from the linked list, so that anybody behind/ahead will compare against only other still opened resources.
+     */
+    private Object replaceLock = new Object();
+    private SSTableReader replacedBy;
+    private SSTableReader replaces;
+    private SSTableDeletingTask deletingTask;
 
     @VisibleForTesting
     public RestorableMeter readMeter;
@@ -275,10 +336,10 @@ public class SSTableReader extends SSTable implements Closeable
                                                   statsMetadata);
 
         // special implementation of load to use non-pooled SegmentedFile builders
-        SegmentedFile.Builder ibuilder = new BufferedSegmentedFile.Builder();
+        SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
         SegmentedFile.Builder dbuilder = sstable.compression
-                                       ? new CompressedSegmentedFile.Builder()
-                                       : new BufferedSegmentedFile.Builder();
+                                       ? SegmentedFile.getCompressedBuilder()
+                                       : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
         if (!sstable.loadSummary(ibuilder, dbuilder))
             sstable.buildSummary(false, ibuilder, dbuilder, false, Downsampling.BASE_SAMPLING_LEVEL);
         sstable.ifile = ibuilder.complete(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX));
@@ -480,27 +541,95 @@ public class SSTableReader extends SSTable implements Closeable
         return sum;
     }
 
-    /**
-     * Clean up all opened resources.
-     *
-     * @throws IOException
-     */
-    public void close() throws IOException
+    private void tidy(boolean release)
     {
         if (readMeterSyncFuture != null)
             readMeterSyncFuture.cancel(false);
 
-        // if this SSTR was replaced by a new SSTR with a different index summary, the two instances will share
-        // resources, so don't force unmapping, clear the FileCacheService entry, or close the BF
-        if (!isReplaced.get())
+        assert references.get() == 0;
+
+        synchronized (replaceLock)
         {
-            // Force finalizing mmapping if necessary
-            ifile.cleanup();
-            dfile.cleanup();
-            // close the BF so it can be opened later.
-            bf.close();
+            boolean closeBf = true, closeSummary = true, closeFiles = true;
+
+            if (replacedBy != null)
+            {
+                closeBf = replacedBy.bf != bf;
+                closeSummary = replacedBy.indexSummary != indexSummary;
+                closeFiles = replacedBy.dfile != dfile;
+            }
+
+            if (replaces != null)
+            {
+                closeBf &= replaces.bf != bf;
+                closeSummary &= replaces.indexSummary != indexSummary;
+                closeFiles &= replaces.dfile != dfile;
+            }
+
+            boolean deleteAll = false;
+            if (release && isCompacted.get())
+            {
+                assert replacedBy == null;
+                if (replaces != null)
+                {
+                    replaces.replacedBy = null;
+                    replaces.deletingTask = deletingTask;
+                    replaces.markObsolete();
+                }
+                else
+                {
+                    deleteAll = true;
+                }
+            }
+            else
+            {
+                if (replaces != null)
+                    replaces.replacedBy = replacedBy;
+                if (replacedBy != null)
+                    replacedBy.replaces = replaces;
+            }
+
+            assert references.get() == 0;
+            if (closeBf)
+                bf.close();
+            if (closeSummary)
+                indexSummary.close();
+            if (closeFiles)
+            {
+                ifile.cleanup();
+                dfile.cleanup();
+            }
+            if (deleteAll)
+            {
+                /**
+                 * Do the OS a favour and suggest (using fadvice call) that we
+                 * don't want to see pages of this SSTable in memory anymore.
+                 *
+                 * NOTE: We can't use madvice in java because it requires the address of
+                 * the mapping, so instead we always open a file and run fadvice(fd, 0, 0) on it
+                 */
+                dropPageCache();
+                deletingTask.schedule();
+            }
         }
-        indexSummary.close();
+    }
+
+    /**
+     * Schedule clean-up of resources
+     */
+    public void close()
+    {
+        tidy(false);
+    }
+
+    public String getFilename()
+    {
+        return dfile.path;
+    }
+
+    public String getIndexFilename()
+    {
+        return ifile.path;
     }
 
     public void setTrackedBy(DataTracker tracker)
@@ -726,6 +855,17 @@ public class SSTableReader extends SSTable implements Closeable
         }
     }
 
+    public void setReplacedBy(SSTableReader replacement)
+    {
+        synchronized (replaceLock)
+        {
+            assert replacedBy == null;
+            replacedBy = replacement;
+            replacement.replaces = this;
+            replacement.replaceLock = replaceLock;
+        }
+    }
+
     /**
      * Returns a new SSTableReader with the same properties as this SSTableReader except that a new IndexSummary will
      * be built at the target samplingLevel.  This (original) SSTableReader instance will be marked as replaced, have
@@ -734,49 +874,59 @@ public class SSTableReader extends SSTable implements Closeable
      * @return a new SSTableReader
      * @throws IOException
      */
-    public SSTableReader cloneWithNewSummarySamplingLevel(int samplingLevel) throws IOException
+    public SSTableReader cloneWithNewSummarySamplingLevel(ColumnFamilyStore parent, int samplingLevel) throws IOException
     {
-        int minIndexInterval = metadata.getMinIndexInterval();
-        int maxIndexInterval = metadata.getMaxIndexInterval();
-        double effectiveInterval = indexSummary.getEffectiveIndexInterval();
-
-        IndexSummary newSummary;
-
-         // We have to rebuild the summary from the on-disk primary index in three cases:
-         // 1. The sampling level went up, so we need to read more entries off disk
-         // 2. The min_index_interval changed (in either direction); this changes what entries would be in the summary
-         //    at full sampling (and consequently at any other sampling level)
-         // 3. The max_index_interval was lowered, forcing us to raise the sampling level
-        if (samplingLevel > indexSummary.getSamplingLevel() || indexSummary.getMinIndexInterval() != minIndexInterval || effectiveInterval > maxIndexInterval)
+        synchronized (replaceLock)
         {
-            newSummary = buildSummaryAtLevel(samplingLevel);
-        }
-        else if (samplingLevel < indexSummary.getSamplingLevel())
-        {
-            // we can use the existing index summary to make a smaller one
-            newSummary = IndexSummaryBuilder.downsample(indexSummary, samplingLevel, minIndexInterval, partitioner);
+            assert replacedBy == null;
 
-            SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
-            SegmentedFile.Builder dbuilder = compression
-                                           ? SegmentedFile.getCompressedBuilder()
-                                           : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
-            saveSummary(ibuilder, dbuilder, newSummary);
-        }
-        else
-        {
-            throw new AssertionError("Attempted to clone SSTableReader with the same index summary sampling level and " +
-                                     "no adjustments to min/max_index_interval");
-        }
+            int minIndexInterval = metadata.getMinIndexInterval();
+            int maxIndexInterval = metadata.getMaxIndexInterval();
+            double effectiveInterval = indexSummary.getEffectiveIndexInterval();
 
-        markReplaced();
-        if (readMeterSyncFuture != null)
-            readMeterSyncFuture.cancel(false);
+            IndexSummary newSummary;
+            long oldSize = bytesOnDisk();
 
-        SSTableReader replacement = new SSTableReader(descriptor, components, metadata, partitioner, ifile, dfile, newSummary, bf, maxDataAge, sstableMetadata);
-        replacement.readMeter = this.readMeter;
-        replacement.first = this.first;
-        replacement.last = this.last;
-        return replacement;
+            // We have to rebuild the summary from the on-disk primary index in three cases:
+            // 1. The sampling level went up, so we need to read more entries off disk
+            // 2. The min_index_interval changed (in either direction); this changes what entries would be in the summary
+            //    at full sampling (and consequently at any other sampling level)
+            // 3. The max_index_interval was lowered, forcing us to raise the sampling level
+            if (samplingLevel > indexSummary.getSamplingLevel() || indexSummary.getMinIndexInterval() != minIndexInterval || effectiveInterval > maxIndexInterval)
+            {
+                newSummary = buildSummaryAtLevel(samplingLevel);
+            }
+            else if (samplingLevel < indexSummary.getSamplingLevel())
+            {
+                // we can use the existing index summary to make a smaller one
+                newSummary = IndexSummaryBuilder.downsample(indexSummary, samplingLevel, minIndexInterval, partitioner);
+
+                SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
+                SegmentedFile.Builder dbuilder = compression
+                                                 ? SegmentedFile.getCompressedBuilder()
+                                                 : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
+                saveSummary(ibuilder, dbuilder, newSummary);
+            }
+            else
+            {
+                throw new AssertionError("Attempted to clone SSTableReader with the same index summary sampling level and " +
+                                         "no adjustments to min/max_index_interval");
+            }
+
+            long newSize = bytesOnDisk();
+            StorageMetrics.load.inc(newSize - oldSize);
+            parent.metric.liveDiskSpaceUsed.inc(newSize - oldSize);
+
+            if (readMeterSyncFuture != null)
+                readMeterSyncFuture.cancel(false);
+
+            SSTableReader replacement = new SSTableReader(descriptor, components, metadata, partitioner, ifile, dfile, newSummary, bf, maxDataAge, sstableMetadata);
+            replacement.readMeter = this.readMeter;
+            replacement.first = this.first;
+            replacement.last = this.last;
+            setReplacedBy(replacement);
+            return replacement;
+        }
     }
 
     private IndexSummary buildSummaryAtLevel(int newSamplingLevel) throws IOException
@@ -1342,12 +1492,6 @@ public class SSTableReader extends SSTable implements Closeable
         return dfile.onDiskLength;
     }
 
-    public void markReplaced()
-    {
-        boolean success = isReplaced.compareAndSet(false, true);
-        assert success : "Attempted to mark an SSTableReader as replaced more than once";
-    }
-
     public boolean acquireReference()
     {
         while (true)
@@ -1368,27 +1512,7 @@ public class SSTableReader extends SSTable implements Closeable
     public void releaseReference()
     {
         if (references.decrementAndGet() == 0)
-        {
-            FileUtils.closeQuietly(this);
-
-            // if this SSTR instance was replaced by another with a different index summary, let the new instance
-            // handle clearing the page cache and deleting the files
-            if (isCompacted.get())
-            {
-                assert !isReplaced.get();
-
-                /**
-                 * Do the OS a favour and suggest (using fadvice call) that we
-                 * don't want to see pages of this SSTable in memory anymore.
-                 *
-                 * NOTE: We can't use madvice in java because it requires the address of
-                 * the mapping, so instead we always open a file and run fadvice(fd, 0, 0) on it
-                 */
-                dropPageCache();
-
-                deletingTask.schedule();
-            }
-        }
+            tidy(true);
         assert references.get() >= 0 : "Reference counter " +  references.get() + " for " + dfile.path;
     }
 
@@ -1406,6 +1530,10 @@ public class SSTableReader extends SSTable implements Closeable
         if (logger.isDebugEnabled())
             logger.debug("Marking {} compacted", getFilename());
 
+        synchronized (replaceLock)
+        {
+            assert replacedBy == null;
+        }
         return !isCompacted.getAndSet(true);
     }
 

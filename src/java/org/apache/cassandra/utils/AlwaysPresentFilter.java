@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 
 public class AlwaysPresentFilter implements IFilter
@@ -31,7 +30,7 @@ public class AlwaysPresentFilter implements IFilter
 
     public void clear() { }
 
-    public void close() throws IOException { }
+    public void close() { }
 
     public long serializedSize() { return 0; }
 }

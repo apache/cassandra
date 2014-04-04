@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -112,7 +111,7 @@ public abstract class BloomFilter implements IFilter
         bitset.clear();
     }
 
-    public void close() throws IOException
+    public void close()
     {
         bitset.close();
     }
