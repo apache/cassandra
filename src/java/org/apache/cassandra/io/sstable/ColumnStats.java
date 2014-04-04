@@ -41,7 +41,16 @@ public class ColumnStats
     public final List<ByteBuffer> minColumnNames;
     public final List<ByteBuffer> maxColumnNames;
 
-    public ColumnStats(int columnCount, long minTimestamp, long maxTimestamp, int maxLocalDeletionTime, StreamingHistogram tombstoneHistogram, List<ByteBuffer> minColumnNames, List<ByteBuffer> maxColumnNames)
+    public final boolean hasLegacyCounterShards;
+
+    public ColumnStats(int columnCount,
+                       long minTimestamp,
+                       long maxTimestamp,
+                       int maxLocalDeletionTime,
+                       StreamingHistogram tombstoneHistogram,
+                       List<ByteBuffer> minColumnNames,
+                       List<ByteBuffer> maxColumnNames,
+                       boolean hasLegacyCounterShards)
     {
         this.minTimestamp = minTimestamp;
         this.maxTimestamp = maxTimestamp;
@@ -50,5 +59,6 @@ public class ColumnStats
         this.tombstoneHistogram = tombstoneHistogram;
         this.minColumnNames = minColumnNames;
         this.maxColumnNames = maxColumnNames;
+        this.hasLegacyCounterShards = hasLegacyCounterShards;
     }
 }

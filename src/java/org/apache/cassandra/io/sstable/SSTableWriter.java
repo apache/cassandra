@@ -227,8 +227,9 @@ public class SSTableWriter extends SSTable
         List<ByteBuffer> minColumnNames = Collections.emptyList();
         List<ByteBuffer> maxColumnNames = Collections.emptyList();
         StreamingHistogram tombstones = new StreamingHistogram(TOMBSTONE_HISTOGRAM_BIN_SIZE);
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(metadata);
+        boolean hasLegacyCounterShards = false;
 
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(metadata);
         cf.delete(DeletionTime.serializer.deserialize(in));
 
         ColumnIndex.Builder columnIndexer = new ColumnIndex.Builder(cf, key.key, dataFile.stream);
@@ -253,14 +254,16 @@ public class SSTableWriter extends SSTable
                 OnDiskAtom atom = iter.next();
                 if (atom == null)
                     break;
+
                 if (atom instanceof CounterCell)
+                {
                     atom = ((CounterCell) atom).markLocalToBeCleared();
+                    hasLegacyCounterShards = hasLegacyCounterShards || ((CounterCell) atom).hasLegacyShards();
+                }
 
                 int deletionTime = atom.getLocalDeletionTime();
                 if (deletionTime < Integer.MAX_VALUE)
-                {
                     tombstones.update(deletionTime);
-                }
                 minTimestamp = Math.min(minTimestamp, atom.timestamp());
                 maxTimestamp = Math.max(maxTimestamp, atom.timestamp());
                 minColumnNames = ColumnNameHelper.minComponents(minColumnNames, atom.name(), metadata.comparator);
@@ -278,14 +281,15 @@ public class SSTableWriter extends SSTable
             throw new FSWriteError(e, dataFile.getPath());
         }
 
-        sstableMetadataCollector.updateMinTimestamp(minTimestamp);
-        sstableMetadataCollector.updateMaxTimestamp(maxTimestamp);
-        sstableMetadataCollector.updateMaxLocalDeletionTime(maxLocalDeletionTime);
-        sstableMetadataCollector.addRowSize(dataFile.getFilePointer() - currentPosition);
-        sstableMetadataCollector.addColumnCount(columnIndexer.writtenAtomCount());
-        sstableMetadataCollector.mergeTombstoneHistogram(tombstones);
-        sstableMetadataCollector.updateMinColumnNames(minColumnNames);
-        sstableMetadataCollector.updateMaxColumnNames(maxColumnNames);
+        sstableMetadataCollector.updateMinTimestamp(minTimestamp)
+                                .updateMaxTimestamp(maxTimestamp)
+                                .updateMaxLocalDeletionTime(maxLocalDeletionTime)
+                                .addRowSize(dataFile.getFilePointer() - currentPosition)
+                                .addColumnCount(columnIndexer.writtenAtomCount())
+                                .mergeTombstoneHistogram(tombstones)
+                                .updateMinColumnNames(minColumnNames)
+                                .updateMaxColumnNames(maxColumnNames)
+                                .updateHasLegacyCounterShards(hasLegacyCounterShards);
         afterAppend(key, currentPosition, RowIndexEntry.create(currentPosition, cf.deletionInfo().getTopLevelDeletion(), columnIndexer.build()));
         return currentPosition;
     }

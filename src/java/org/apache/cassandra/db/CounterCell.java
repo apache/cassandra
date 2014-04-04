@@ -182,6 +182,11 @@ public class CounterCell extends Cell
                                    Math.max(timestampOfLastDelete(), ((CounterCell) cell).timestampOfLastDelete()));
     }
 
+    public boolean hasLegacyShards()
+    {
+        return contextManager.hasLegacyShards(value);
+    }
+
     @Override
     public boolean equals(Object o)
     {
