@@ -49,4 +49,6 @@ public interface IBitSet extends Closeable
     public long serializedSize(TypeSizes type);
 
     public void clear();
+
+    public void close();
 }

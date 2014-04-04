@@ -192,14 +192,17 @@ public class DataTracker
     public boolean markCompacting(Iterable<SSTableReader> sstables)
     {
         assert sstables != null && !Iterables.isEmpty(sstables);
+        while (true)
+        {
+            View currentView = view.get();
+            Set<SSTableReader> inactive = Sets.difference(ImmutableSet.copyOf(sstables), currentView.compacting);
+            if (inactive.size() < Iterables.size(sstables))
+                return false;
 
-        View currentView = view.get();
-        Set<SSTableReader> inactive = Sets.difference(ImmutableSet.copyOf(sstables), currentView.compacting);
-        if (inactive.size() < Iterables.size(sstables))
-            return false;
-
-        View newView = currentView.markCompacting(inactive);
-        return view.compareAndSet(currentView, newView);
+            View newView = currentView.markCompacting(inactive);
+            if (view.compareAndSet(currentView, newView))
+                return true;
+        }
     }
 
     /**
@@ -333,14 +336,6 @@ public class DataTracker
      */
     public void replaceReaders(Collection<SSTableReader> oldSSTables, Collection<SSTableReader> newSSTables)
     {
-        // data component will be unchanged but the index summary will be a different size
-        // (since we save that to make restart fast)
-        long sizeIncrease = 0;
-        for (SSTableReader sstable : oldSSTables)
-            sizeIncrease -= sstable.bytesOnDisk();
-        for (SSTableReader sstable : newSSTables)
-            sizeIncrease += sstable.bytesOnDisk();
-
         View currentView, newView;
         do
         {
@@ -348,9 +343,6 @@ public class DataTracker
             newView = currentView.replace(oldSSTables, newSSTables);
         }
         while (!view.compareAndSet(currentView, newView));
-
-        StorageMetrics.load.inc(sizeIncrease);
-        cfstore.metric.liveDiskSpaceUsed.inc(sizeIncrease);
 
         for (SSTableReader sstable : newSSTables)
             sstable.setTrackedBy(this);

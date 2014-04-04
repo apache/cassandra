@@ -258,7 +258,7 @@ public class IndexSummary implements Closeable
     }
 
     @Override
-    public void close() throws IOException
+    public void close()
     {
         bytes.free();
     }

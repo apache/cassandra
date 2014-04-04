@@ -29,4 +29,6 @@ public interface IFilter extends Closeable
     void clear();
 
     long serializedSize();
+
+    void close();
 }
