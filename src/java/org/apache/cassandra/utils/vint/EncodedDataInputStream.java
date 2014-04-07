@@ -25,10 +25,10 @@ import org.apache.cassandra.io.util.AbstractDataInput;
 /**
  * Borrows idea from
  * https://developers.google.com/protocol-buffers/docs/encoding#varints
- * 
+ *
  * Should be used with EncodedDataOutputStream
  */
-public class EncodedDataInputStream extends AbstractDataInput
+public class EncodedDataInputStream extends AbstractDataInput implements DataInput
 {
     private DataInput input;
 
@@ -47,12 +47,22 @@ public class EncodedDataInputStream extends AbstractDataInput
         return input.readByte() & 0xFF;
     }
 
-    protected void seekInternal(int position)
+    protected void seek(long position)
     {
         throw new UnsupportedOperationException();
     }
 
-    protected int getPosition()
+    protected long getPosition()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    protected long getPositionLimit()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    protected long length()
     {
         throw new UnsupportedOperationException();
     }

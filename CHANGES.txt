@@ -1,4 +1,6 @@
 3.0
+ * Move sstable RandomAccessReader to nio2, which allows using the
+   FILE_SHARE_DELETE flag on Windows (CASSANDRA-4050)
  * Remove CQL2 (CASSANDRA-5918)
  * Add Thrift get_multi_slice call (CASSANDRA-6757)
  * Optimize fetching multiple cells by name (CASSANDRA-6933)

@@ -273,6 +273,15 @@ public class ByteBufferUtil
         FastByteOperations.copy(src, srcPos, dst, dstPos, length);
     }
 
+    public static int put(ByteBuffer src, ByteBuffer trg)
+    {
+        int length = Math.min(src.remaining(), trg.remaining());
+        arrayCopy(src, src.position(), trg, trg.position(), length);
+        trg.position(trg.position() + length);
+        src.position(src.position() + length);
+        return length;
+    }
+
     public static void writeWithLength(ByteBuffer bytes, DataOutputPlus out) throws IOException
     {
         out.writeInt(bytes.remaining());
