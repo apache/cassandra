@@ -162,14 +162,12 @@ public class LeveledManifest
      */
     private void rebuildManifestAfterFirstRepair()
     {
-        for (int i = 1; i < getAllLevelSize().length; i++)
+        for (int i = 0; i < getAllLevelSize().length; i++)
         {
-
-            for (SSTableReader sstable : getLevel(i))
-            {
-                generations[i] = new ArrayList<>();
+            List<SSTableReader> oldLevel = generations[i];
+            generations[i] = new ArrayList<>();
+            for (SSTableReader sstable : oldLevel)
                 add(sstable);
-            }
         }
     }
 
