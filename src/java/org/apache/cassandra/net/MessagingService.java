@@ -476,6 +476,11 @@ public final class MessagingService implements MessagingServiceMBean
         }
     }
 
+    public boolean isListening()
+    {
+        return listenGate.isSignaled();
+    }
+
     public void destroyConnectionPool(InetAddress to)
     {
         OutboundTcpConnectionPool cp = connectionManagers.get(to);

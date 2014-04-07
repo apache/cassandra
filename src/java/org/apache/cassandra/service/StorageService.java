@@ -408,7 +408,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public synchronized Collection<Token> prepareReplacementInfo() throws ConfigurationException
     {
         logger.info("Gathering node replacement information for {}", DatabaseDescriptor.getReplaceAddress());
-        MessagingService.instance().listen(FBUtilities.getLocalAddress());
+        if (!MessagingService.instance().isListening())
+            MessagingService.instance().listen(FBUtilities.getLocalAddress());
 
         // make magic happen
         Gossiper.instance.doShadowRound();
@@ -425,7 +426,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Collection<Token> tokens = TokenSerializer.deserialize(getPartitioner(), new DataInputStream(new ByteArrayInputStream(getApplicationStateValue(DatabaseDescriptor.getReplaceAddress(), ApplicationState.TOKENS))));
             
             SystemKeyspace.setLocalHostId(hostId); // use the replacee's host Id as our own so we receive hints, etc
-            MessagingService.instance().shutdown();
             Gossiper.instance.resetEndpointStateMap(); // clean up since we have what we need
             return tokens;        
         }
@@ -438,7 +438,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public synchronized void checkForEndpointCollision() throws ConfigurationException
     {
         logger.debug("Starting shadow gossip round to check for endpoint collision");
-        MessagingService.instance().listen(FBUtilities.getLocalAddress());
+        if (!MessagingService.instance().isListening())
+            MessagingService.instance().listen(FBUtilities.getLocalAddress());
         Gossiper.instance.doShadowRound();
         EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(FBUtilities.getBroadcastAddress());
         if (epState != null && !Gossiper.instance.isDeadState(epState))
@@ -447,7 +448,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                      "Use cassandra.replace_address if you want to replace this node.",
                                                      FBUtilities.getBroadcastAddress()));
         }
-        MessagingService.instance().shutdown();
         Gossiper.instance.resetEndpointStateMap();
     }
 
@@ -491,7 +491,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Gossiper.instance.start((int) (System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
         Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
 
-        MessagingService.instance().listen(FBUtilities.getLocalAddress());
+        if (!MessagingService.instance().isListening())
+            MessagingService.instance().listen(FBUtilities.getLocalAddress());
         Uninterruptibles.sleepUninterruptibly(ringDelay, TimeUnit.MILLISECONDS);
     }
 
@@ -669,7 +670,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Schema.instance.updateVersionAndAnnounce(); // Ensure we know our own actual Schema UUID in preparation for updates
 
 
-        MessagingService.instance().listen(FBUtilities.getLocalAddress());
+        if (!MessagingService.instance().isListening())
+            MessagingService.instance().listen(FBUtilities.getLocalAddress());
         LoadBroadcaster.instance.startBroadcasting();
 
         HintedHandOffManager.instance.start();
