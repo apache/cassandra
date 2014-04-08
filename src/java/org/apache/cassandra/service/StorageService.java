@@ -1373,12 +1373,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     break;
                 case SCHEMA:
                     SystemTable.updatePeerInfo(endpoint, "schema_version", value.value);
+                    MigrationManager.instance.scheduleSchemaPull(endpoint, epState);
                     break;
                 case HOST_ID:
                     SystemTable.updatePeerInfo(endpoint, "host_id", value.value);
                     break;
-                case SCHEMA:
-                    MigrationManager.instance.scheduleSchemaPull(endpoint, epState);
             }
         }
     }
