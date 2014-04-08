@@ -1377,6 +1377,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 case HOST_ID:
                     SystemTable.updatePeerInfo(endpoint, "host_id", value.value);
                     break;
+                case SCHEMA:
+                    MigrationManager.instance.scheduleSchemaPull(endpoint, epState);
             }
         }
     }
