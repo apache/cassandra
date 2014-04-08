@@ -3,6 +3,7 @@
    (CASSANDRA-6822)
  * Continue assassinating even if the endpoint vanishes (CASSANDRA-6787)
  * Schedule schema pulls on change (CASSANDRA-6971)
+ * Non-droppable verbs shouldn't be dropped from OTC (CASSANDRA-6980)
 
 
 1.2.16
