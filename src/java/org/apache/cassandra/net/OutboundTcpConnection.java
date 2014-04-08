@@ -145,7 +145,7 @@ public class OutboundTcpConnection extends Thread
                     break;
                 continue;
             }
-            if (qm.timestamp < System.currentTimeMillis() - m.getTimeout())
+            if (qm.isTimedOut(m.getTimeout()))
                 dropped.incrementAndGet();
             else if (socket != null || connect())
                 writeConnected(qm);
@@ -442,17 +442,25 @@ public class OutboundTcpConnection extends Thread
         final MessageOut<?> message;
         final int id;
         final long timestamp;
+        final boolean droppable;
 
         QueuedMessage(MessageOut<?> message, int id)
         {
             this.message = message;
             this.id = id;
             this.timestamp = System.currentTimeMillis();
+            this.droppable = MessagingService.DROPPABLE_VERBS.contains(message.verb);
+        }
+
+        /** don't drop a non-droppable message just because it's timestamp is expired */
+        boolean isTimedOut(long maxTime)
+        {
+            return droppable && timestamp < System.currentTimeMillis() - maxTime;
         }
 
         boolean shouldRetry()
         {
-            return !MessagingService.DROPPABLE_VERBS.contains(message.verb);
+            return !droppable;
         }
     }
 
