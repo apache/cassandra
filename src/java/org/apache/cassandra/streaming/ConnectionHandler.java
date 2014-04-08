@@ -366,7 +366,7 @@ public class ConnectionHandler
             {
                 throw new AssertionError(e);
             }
-            catch (IOException e)
+            catch (Throwable e)
             {
                 session.onError(e);
             }
