@@ -230,6 +230,8 @@
             classpath="${build.lib}/antlr-3.2.jar"
             fork="true"
             failonerror="true">
+         <arg value="-Xconversiontimeout" />
+         <arg value="10000" />
          <arg value="${build.src.java}/org/apache/cassandra/cql3/Cql.g" />
          <arg value="-fo" />
          <arg value="${build.src.gen-java}/org/apache/cassandra/cql3/" />
