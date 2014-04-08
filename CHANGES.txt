@@ -1,4 +1,5 @@
 2.0.7
+ * Put nodes in hibernate when join_ring is false (CASSANDRA-6961)
  * Allow compaction of system tables during startup (CASSANDRA-6913)
  * Restrict Windows to parallel repairs (CASSANDRA-6907)
  * (Hadoop) Allow manually specifying start/end tokens in CFIF (CASSANDRA-6436)
