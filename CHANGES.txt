@@ -47,6 +47,7 @@
  * Avoid costly range calculations for range queries on system keyspaces
    (CASSANDRA-6906)
  * Fix SSTable not released if stream session fails (CASSANDRA-6818)
+ * Avoid build failure due to ANTLR timeout (CASSANDRA-6991)
 Merged from 1.2:
  * Add UNLOGGED, COUNTER options to BATCH documentation (CASSANDRA-6816)
  * add extra SSL cipher suites (CASSANDRA-6613)
