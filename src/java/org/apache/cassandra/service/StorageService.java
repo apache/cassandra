@@ -645,39 +645,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void prepareToJoin() throws ConfigurationException
     {
-        joined = true;
-
-        Collection<Token> tokens = null;
-        Map<ApplicationState, VersionedValue> appStates = new HashMap<>();
-
-        if (DatabaseDescriptor.getReplaceTokens().size() > 0 || DatabaseDescriptor.getReplaceNode() != null)
-            throw new RuntimeException("Replace method removed; use cassandra.replace_address instead");
-        if (DatabaseDescriptor.isReplacing())
+        if (!joined)
         {
-            if (!DatabaseDescriptor.isAutoBootstrap())
-                throw new RuntimeException("Trying to replace_address with auto_bootstrap disabled will not work, check your configuration");
-            tokens = prepareReplacementInfo();
-            appStates.put(ApplicationState.STATUS, valueFactory.hibernate(true));
-            appStates.put(ApplicationState.TOKENS, valueFactory.tokens(tokens));
-        }
-        else if (shouldBootstrap() && !joined)
-        {
-            // have to start the gossip service before we can see any info on other nodes.  this is necessary
-            // for bootstrap to get the load info it needs.
-            // (we won't be part of the storage ring though until we add a counterId to our state, below.)
-            // Seed the host ID-to-endpoint map with our own ID.
-            getTokenMetadata().updateHostId(SystemKeyspace.getLocalHostId(), FBUtilities.getBroadcastAddress());
-            appStates.put(ApplicationState.NET_VERSION, valueFactory.networkVersion());
-            appStates.put(ApplicationState.HOST_ID, valueFactory.hostId(SystemKeyspace.getLocalHostId()));
-            appStates.put(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(DatabaseDescriptor.getBroadcastRpcAddress()));
-            appStates.put(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
-            logger.info("Starting up server gossip");
-            Gossiper.instance.register(this);
-            Gossiper.instance.start(SystemKeyspace.incrementAndGetGeneration(), appStates); // needed for node-ring gathering.
-            // gossip snitch infos (local DC and rack)
-            gossipSnitchInfo();
-            // gossip Schema.emptyVersion forcing immediate check for schema updates (see MigrationManager#maybeScheduleSchemaPull)
-            Schema.instance.updateVersionAndAnnounce(); // Ensure we know our own actual Schema UUID in preparation for updates
+            Map<ApplicationState, VersionedValue> appStates = new HashMap<>();
+
             if (DatabaseDescriptor.isReplacing() && !(Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true"))))
                 throw new ConfigurationException("Cannot set both join_ring=false and attempt to replace a node");
             if (DatabaseDescriptor.getReplaceTokens().size() > 0 || DatabaseDescriptor.getReplaceNode() != null)
@@ -694,6 +665,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 checkForEndpointCollision();
             }
+
             // have to start the gossip service before we can see any info on other nodes.  this is necessary
             // for bootstrap to get the load info it needs.
             // (we won't be part of the storage ring though until we add a counterId to our state, below.)
@@ -701,7 +673,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             getTokenMetadata().updateHostId(SystemKeyspace.getLocalHostId(), FBUtilities.getBroadcastAddress());
             appStates.put(ApplicationState.NET_VERSION, valueFactory.networkVersion());
             appStates.put(ApplicationState.HOST_ID, valueFactory.hostId(SystemKeyspace.getLocalHostId()));
-            appStates.put(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(DatabaseDescriptor.getRpcAddress()));
+            appStates.put(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(DatabaseDescriptor.getBroadcastRpcAddress()));
             appStates.put(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
             logger.info("Starting up server gossip");
             Gossiper.instance.register(this);
@@ -710,7 +682,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             gossipSnitchInfo();
             // gossip Schema.emptyVersion forcing immediate check for schema updates (see MigrationManager#maybeScheduleSchemaPull)
             Schema.instance.updateVersionAndAnnounce(); // Ensure we know our own actual Schema UUID in preparation for updates
-
 
             if (!MessagingService.instance().isListening())
                 MessagingService.instance().listen(FBUtilities.getLocalAddress());
