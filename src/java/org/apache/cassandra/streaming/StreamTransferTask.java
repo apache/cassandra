@@ -58,7 +58,7 @@ public class StreamTransferTask extends StreamTask
      *
      * @param sequenceNumber sequence number of file
      */
-    public void complete(int sequenceNumber)
+    public synchronized void complete(int sequenceNumber)
     {
         OutgoingFileMessage file = files.remove(sequenceNumber);
         if (file != null)
@@ -117,7 +117,7 @@ public class StreamTransferTask extends StreamTask
      * @param unit unit of given time
      * @return scheduled future for timeout task
      */
-    public ScheduledFuture scheduleTimeout(final int sequenceNumber, long time, TimeUnit unit)
+    public synchronized ScheduledFuture scheduleTimeout(final int sequenceNumber, long time, TimeUnit unit)
     {
         if (timeoutExecutor.isShutdown())
             return null;
