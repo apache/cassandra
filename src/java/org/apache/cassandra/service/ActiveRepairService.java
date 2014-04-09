@@ -23,6 +23,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
@@ -43,7 +44,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.net.IAsyncCallback;
+import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -249,18 +250,23 @@ public class ActiveRepairService
         UUID parentRepairSession = UUIDGen.getTimeUUID();
         registerParentRepairSession(parentRepairSession, columnFamilyStores, ranges);
         final CountDownLatch prepareLatch = new CountDownLatch(endpoints.size());
-        IAsyncCallback callback = new IAsyncCallback()
+        final AtomicBoolean status = new AtomicBoolean(true);
+        IAsyncCallbackWithFailure callback = new IAsyncCallbackWithFailure()
         {
-            @Override
             public void response(MessageIn msg)
             {
                 prepareLatch.countDown();
             }
 
-            @Override
             public boolean isLatencyForSnitch()
             {
                 return false;
+            }
+
+            public void onFailure(InetAddress from)
+            {
+                status.set(false);
+                prepareLatch.countDown();
             }
         };
 
@@ -272,7 +278,7 @@ public class ActiveRepairService
         {
             PrepareMessage message = new PrepareMessage(parentRepairSession, cfIds, ranges);
             MessageOut<RepairMessage> msg = message.createMessage();
-            MessagingService.instance().sendRR(msg, neighbour, callback);
+            MessagingService.instance().sendRRWithFailure(msg, neighbour, callback);
         }
         try
         {
@@ -283,6 +289,13 @@ public class ActiveRepairService
             parentRepairSessions.remove(parentRepairSession);
             throw new RuntimeException("Did not get replies from all endpoints.", e);
         }
+
+        if (!status.get())
+        {
+            parentRepairSessions.remove(parentRepairSession);
+            throw new RuntimeException("Did not get positive replies from all endpoints.");
+        }
+
         return parentRepairSession;
     }
 
