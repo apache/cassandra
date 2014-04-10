@@ -465,8 +465,9 @@ public class ArrayBackedSortedColumns extends ColumnFamily
 
                 // optimize for runs of sequential matches, as in CollationController
                 // checking to see if we've found the desired cells yet (CASSANDRA-6933)
-                if (metadata.comparator.compare(name, cells[i].name()) == 0)
-                    return cells[i++];
+                int c = metadata.comparator.compare(name, cells[i].name());
+                if (c <= 0)
+                    return c < 0 ? null : cells[i++];
 
                 // use range to manually force a better bsearch "pivot" by breaking it into two calls:
                 // first for i..i+range, then i+range..size if necessary.
