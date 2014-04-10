@@ -92,7 +92,7 @@ public class RowDataResolver extends AbstractRowResolver
         }
         else
         {
-            resolved = replies.iterator().next().payload.row().cf;
+            resolved = replies.get(0).payload.row().cf;
         }
 
         if (logger.isDebugEnabled())
@@ -161,7 +161,7 @@ public class RowDataResolver extends AbstractRowResolver
 
     public Row getData()
     {
-        return replies.iterator().next().payload.row();
+        return replies.get(0).payload.row();
     }
 
     public boolean isDataPresent()
