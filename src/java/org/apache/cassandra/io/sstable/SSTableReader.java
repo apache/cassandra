@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.BufferedInputStream;
-import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -117,7 +116,7 @@ import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR
  * SSTableReaders are open()ed by Keyspace.onStart; after that they are created by SSTableWriter.renameAndOpen.
  * Do not re-call open() on existing SSTable files; use the references kept by ColumnFamilyStore post-start instead.
  */
-public class SSTableReader extends SSTable implements Closeable
+public class SSTableReader extends SSTable
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
@@ -618,14 +617,6 @@ public class SSTableReader extends SSTable implements Closeable
                 deletingTask.schedule();
             }
         }
-    }
-
-    /**
-     * Schedule clean-up of resources
-     */
-    public void close()
-    {
-        tidy(false);
     }
 
     public String getFilename()
