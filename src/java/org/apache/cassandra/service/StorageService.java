@@ -3461,6 +3461,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         FBUtilities.waitOnFutures(flushes);
 
+        BatchlogManager.batchlogTasks.shutdown();
+        BatchlogManager.batchlogTasks.awaitTermination(60, TimeUnit.SECONDS);
+
         ColumnFamilyStore.postFlushExecutor.shutdown();
         ColumnFamilyStore.postFlushExecutor.awaitTermination(60, TimeUnit.SECONDS);
 
