@@ -4,6 +4,7 @@
  * Continue assassinating even if the endpoint vanishes (CASSANDRA-6787)
  * Schedule schema pulls on change (CASSANDRA-6971)
  * Non-droppable verbs shouldn't be dropped from OTC (CASSANDRA-6980)
+ * Shutdown batchlog executor in SS#drain() (CASSANDRA-7025)
 
 
 1.2.16
