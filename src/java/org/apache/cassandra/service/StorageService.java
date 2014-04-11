@@ -3543,6 +3543,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         FBUtilities.waitOnFutures(flushes);
 
+        BatchlogManager.batchlogTasks.shutdown();
+        BatchlogManager.batchlogTasks.awaitTermination(60, TimeUnit.SECONDS);
+
         // whilst we've flushed all the CFs, which will have recycled all completed segments, we want to ensure
         // there are no segments to replay, so we force the recycling of any remaining (should be at most one)
         CommitLog.instance.forceRecycleAllSegments();
