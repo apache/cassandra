@@ -546,7 +546,10 @@ public class SSTableReader extends SSTable implements Closeable
         if (readMeterSyncFuture != null)
             readMeterSyncFuture.cancel(false);
 
-        assert references.get() == 0;
+        if (references.get() != 0)
+        {
+            throw new IllegalStateException("SSTable is not fully released (" + references.get() + " references)");
+        }
 
         synchronized (replaceLock)
         {
@@ -589,7 +592,10 @@ public class SSTableReader extends SSTable implements Closeable
                     replacedBy.replaces = replaces;
             }
 
-            assert references.get() == 0;
+            if (references.get() != 0)
+            {
+                throw new IllegalStateException("SSTable is not fully released (" + references.get() + " references)");
+            }
             if (closeBf)
                 bf.close();
             if (closeSummary)

@@ -2326,22 +2326,37 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Iterable<DecoratedKey> keySamples(Range<Token> range)
     {
-        Collection<SSTableReader> sstables = getSSTables();
-        Iterable<DecoratedKey>[] samples = new Iterable[sstables.size()];
-        int i = 0;
-        for (SSTableReader sstable: sstables)
+        Collection<SSTableReader> sstables = markCurrentSSTablesReferenced();
+        try
         {
-            samples[i++] = sstable.getKeySamples(range);
+            Iterable<DecoratedKey>[] samples = new Iterable[sstables.size()];
+            int i = 0;
+            for (SSTableReader sstable: sstables)
+            {
+                samples[i++] = sstable.getKeySamples(range);
+            }
+            return Iterables.concat(samples);
         }
-        return Iterables.concat(samples);
+        finally
+        {
+            SSTableReader.releaseReferences(sstables);
+        }
     }
 
     public long estimatedKeysForRange(Range<Token> range)
     {
-        long count = 0;
-        for (SSTableReader sstable : getSSTables())
-            count += sstable.estimatedKeysForRanges(Collections.singleton(range));
-        return count;
+        Collection<SSTableReader> sstables = markCurrentSSTablesReferenced();
+        try
+        {
+            long count = 0;
+            for (SSTableReader sstable : sstables)
+                count += sstable.estimatedKeysForRanges(Collections.singleton(range));
+            return count;
+        }
+        finally
+        {
+            SSTableReader.releaseReferences(sstables);
+        }
     }
 
     /**

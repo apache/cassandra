@@ -51,6 +51,7 @@
  * Track presence of legacy counter shards in sstables (CASSANDRA-6888)
  * Ensure safe resource cleanup when replacing sstables (CASSANDRA-6912)
  * Add failure handler to async callback (CASSANDRA-6747)
+ * Fix AE when closing SSTable without releasing reference (CASSANDRA-7000)
 Merged from 2.0:
  * Put nodes in hibernate when join_ring is false (CASSANDRA-6961)
  * Allow compaction of system tables during startup (CASSANDRA-6913)
