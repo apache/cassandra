@@ -950,15 +950,10 @@ public class CompactionManager implements CompactionManagerMBean
         finally
         {
             iter.close();
+            SSTableReader.releaseReferences(sstables);
             if (isSnapshotValidation)
             {
-                for (SSTableReader sstable : sstables)
-                    FileUtils.closeQuietly(sstable);
                 cfs.clearSnapshot(snapshotName);
-            }
-            else
-            {
-                SSTableReader.releaseReferences(sstables);
             }
 
             metrics.finishCompaction(ci);
