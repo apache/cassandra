@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.*;
+import org.apache.cassandra.db.BufferCell;
 import org.apache.cassandra.db.Cell;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -304,14 +305,14 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
 
         protected Cell unthriftifySimple(org.apache.cassandra.thrift.Column column)
         {
-            return new Cell(comparator.cellFromByteBuffer(column.name), column.value, column.timestamp);
+            return new BufferCell(comparator.cellFromByteBuffer(column.name), column.value, column.timestamp);
         }
 
         private Cell unthriftifyCounter(CounterColumn column)
         {
             //CounterColumns read the counterID from the System keyspace, so need the StorageService running and access
             //to cassandra.yaml. To avoid a Hadoop needing access to yaml return a regular Cell.
-            return new Cell(comparator.cellFromByteBuffer(column.name), ByteBufferUtil.bytes(column.value), 0);
+            return new BufferCell(comparator.cellFromByteBuffer(column.name), ByteBufferUtil.bytes(column.value), 0);
         }
 
         private List<Cell> unthriftifySuperCounter(CounterSuperColumn super_column)

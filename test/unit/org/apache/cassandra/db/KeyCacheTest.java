@@ -120,10 +120,10 @@ public class KeyCacheTest extends SchemaLoader
         Mutation rm;
 
         // inserts
-        rm = new Mutation(KEYSPACE1, key1.key);
+        rm = new Mutation(KEYSPACE1, key1.getKey());
         rm.add(COLUMN_FAMILY1, Util.cellname("1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
-        rm = new Mutation(KEYSPACE1, key2.key);
+        rm = new Mutation(KEYSPACE1, key2.getKey());
         rm.add(COLUMN_FAMILY1, Util.cellname("2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         rm.apply();
 

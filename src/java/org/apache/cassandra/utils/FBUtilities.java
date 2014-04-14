@@ -313,8 +313,8 @@ public class FBUtilities
             {
                 public int compare(DecoratedKey o1, DecoratedKey o2)
                 {
-                    if ((right.compareTo(o1.token) < 0 && right.compareTo(o2.token) < 0)
-                        || (right.compareTo(o1.token) > 0 && right.compareTo(o2.token) > 0))
+                    if ((right.compareTo(o1.getToken()) < 0 && right.compareTo(o2.getToken()) < 0)
+                        || (right.compareTo(o1.getToken()) > 0 && right.compareTo(o2.getToken()) > 0))
                     {
                         // both tokens are on the same side of the wrap point
                         return o1.compareTo(o2);
@@ -692,5 +692,36 @@ public class FBUtilities
     public static boolean isUnix()
     {
         return OPERATING_SYSTEM.contains("nix") || OPERATING_SYSTEM.contains("nux") || OPERATING_SYSTEM.contains("aix");
+    }
+
+    public static void updateWithShort(MessageDigest digest, int val)
+    {
+        digest.update((byte) ((val >> 8) & 0xFF));
+        digest.update((byte) (val & 0xFF));
+    }
+
+    public static void updateWithByte(MessageDigest digest, int val)
+    {
+        digest.update((byte) (val & 0xFF));
+    }
+
+    public static void updateWithInt(MessageDigest digest, int val)
+    {
+        digest.update((byte) ((val >>> 24) & 0xFF));
+        digest.update((byte) ((val >>> 16) & 0xFF));
+        digest.update((byte) ((val >>>  8) & 0xFF));
+        digest.update((byte) ((val >>> 0) & 0xFF));
+    }
+
+    public static void updateWithLong(MessageDigest digest, long val)
+    {
+        digest.update((byte) ((val >>> 56) & 0xFF));
+        digest.update((byte) ((val >>> 48) & 0xFF));
+        digest.update((byte) ((val >>> 40) & 0xFF));
+        digest.update((byte) ((val >>> 32) & 0xFF));
+        digest.update((byte) ((val >>> 24) & 0xFF));
+        digest.update((byte) ((val >>> 16) & 0xFF));
+        digest.update((byte) ((val >>>  8) & 0xFF));
+        digest.update((byte)  ((val >>> 0) & 0xFF));
     }
 }

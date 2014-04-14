@@ -29,9 +29,6 @@ import org.apache.cassandra.db.ClockAndCount;
 import org.apache.cassandra.db.context.CounterContext.Relationship;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
-import org.apache.cassandra.utils.memory.Pool;
-import org.apache.cassandra.utils.memory.SlabPool;
 
 import static org.apache.cassandra.db.context.CounterContext.ContextState;
 import static org.junit.Assert.assertEquals;
@@ -50,16 +47,6 @@ public class CounterContextTest
     private static final int clockLength = 8;
     private static final int countLength = 8;
     private static final int stepLength = idLength + clockLength + countLength;
-
-    private static final Pool POOL = new SlabPool(Integer.MAX_VALUE, 0, 1f, null);
-
-    /** Allocates 1 byte from a new SlabAllocator and returns it. */
-    private AbstractAllocator bumpedSlab()
-    {
-        AbstractAllocator allocator = POOL.newAllocator();
-        allocator.allocate(1);
-        return allocator;
-    }
 
     @Test
     public void testAllocate()

@@ -25,11 +25,11 @@ import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 /**
  * Represents an amount of memory used for a given purpose, that can be allocated to specific tasks through
- * child PoolAllocator objects.
+ * child MemtableAllocator objects.
  */
-public abstract class Pool
+public abstract class MemtablePool
 {
-    final PoolCleanerThread<?> cleaner;
+    final MemtableCleanerThread<?> cleaner;
 
     // the total memory used by this pool
     public final SubPool onHeap;
@@ -37,7 +37,7 @@ public abstract class Pool
 
     final WaitQueue hasRoom = new WaitQueue();
 
-    Pool(long maxOnHeapMemory, long maxOffHeapMemory, float cleanThreshold, Runnable cleaner)
+    MemtablePool(long maxOnHeapMemory, long maxOffHeapMemory, float cleanThreshold, Runnable cleaner)
     {
         this.onHeap = getSubPool(maxOnHeapMemory, cleanThreshold);
         this.offHeap = getSubPool(maxOffHeapMemory, cleanThreshold);
@@ -51,13 +51,13 @@ public abstract class Pool
         return new SubPool(limit, cleanThreshold);
     }
 
-    PoolCleanerThread<?> getCleaner(Runnable cleaner)
+    MemtableCleanerThread<?> getCleaner(Runnable cleaner)
     {
-        return cleaner == null ? null : new PoolCleanerThread<>(this, cleaner);
+        return cleaner == null ? null : new MemtableCleanerThread<>(this, cleaner);
     }
 
     public abstract boolean needToCopyOnHeap();
-    public abstract PoolAllocator newAllocator();
+    public abstract MemtableAllocator newAllocator();
 
     /**
      * Note the difference between acquire() and allocate(); allocate() makes more resources available to all owners,
@@ -181,9 +181,9 @@ public abstract class Pool
             return allocated;
         }
 
-        public PoolAllocator.SubAllocator newAllocator()
+        public MemtableAllocator.SubAllocator newAllocator()
         {
-            return new PoolAllocator.SubAllocator(this);
+            return new MemtableAllocator.SubAllocator(this);
         }
 
         public WaitQueue hasRoom()

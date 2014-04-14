@@ -21,10 +21,10 @@ package org.apache.cassandra.utils.memory;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 /**
- * A thread that reclaims memory from a Pool on demand.  The actual reclaiming work is delegated to the
+ * A thread that reclaims memory from a MemtablePool on demand.  The actual reclaiming work is delegated to the
  * cleaner Runnable, e.g., FlushLargestColumnFamily
  */
-class PoolCleanerThread<P extends Pool> extends Thread
+class MemtableCleanerThread<P extends MemtablePool> extends Thread
 {
     /** The pool we're cleaning */
     final P pool;
@@ -35,7 +35,7 @@ class PoolCleanerThread<P extends Pool> extends Thread
     /** signalled whenever needsCleaning() may return true */
     final WaitQueue wait = new WaitQueue();
 
-    PoolCleanerThread(P pool, Runnable cleaner)
+    MemtableCleanerThread(P pool, Runnable cleaner)
     {
         super(pool.getClass().getSimpleName() + "Cleaner");
         this.pool = pool;

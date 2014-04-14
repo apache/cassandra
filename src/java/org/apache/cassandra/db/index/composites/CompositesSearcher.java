@@ -111,8 +111,8 @@ public class CompositesSearcher extends SecondaryIndexSearcher
          * indexed row.
          */
         final AbstractBounds<RowPosition> range = filter.dataRange.keyRange();
-        ByteBuffer startKey = range.left instanceof DecoratedKey ? ((DecoratedKey)range.left).key : ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        ByteBuffer endKey = range.right instanceof DecoratedKey ? ((DecoratedKey)range.right).key : ByteBufferUtil.EMPTY_BYTE_BUFFER;
+        ByteBuffer startKey = range.left instanceof DecoratedKey ? ((DecoratedKey)range.left).getKey() : ByteBufferUtil.EMPTY_BYTE_BUFFER;
+        ByteBuffer endKey = range.right instanceof DecoratedKey ? ((DecoratedKey)range.right).getKey() : ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
         final CellNameType baseComparator = baseCfs.getComparator();
         final CellNameType indexComparator = index.getIndexCfs().getComparator();
@@ -243,14 +243,14 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                             }
                             else
                             {
-                                logger.debug("Skipping entry {} before assigned scan range", dk.token);
+                                logger.debug("Skipping entry {} before assigned scan range", dk.getToken());
                                 continue;
                             }
                         }
 
                         // Check if this entry cannot be a hit due to the original cell filter
                         Composite start = entry.indexedEntryPrefix;
-                        if (!filter.columnFilter(dk.key).maySelectPrefix(baseComparator, start))
+                        if (!filter.columnFilter(dk.getKey()).maySelectPrefix(baseComparator, start))
                             continue;
 
                         // If we've record the previous prefix, it means we're dealing with an index on the collection value. In

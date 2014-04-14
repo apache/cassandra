@@ -64,7 +64,7 @@ public class CounterCellTest extends SchemaLoader
     public void testCreate()
     {
         long delta = 3L;
-        CounterCell cell = new CounterCell(Util.cellname("x"),
+        CounterCell cell = new BufferCounterCell(Util.cellname("x"),
                                            CounterContext.instance().createLocal(delta),
                                            1L,
                                            Long.MIN_VALUE);
@@ -87,33 +87,33 @@ public class CounterCellTest extends SchemaLoader
         ByteBuffer context;
 
         // tombstone + tombstone
-        left  = new DeletedCell(cellname("x"), 1, 1L);
-        right = new DeletedCell(cellname("x"), 2, 2L);
+        left  = new BufferDeletedCell(cellname("x"), 1, 1L);
+        right = new BufferDeletedCell(cellname("x"), 2, 2L);
 
         assert left.reconcile(right).getMarkedForDeleteAt() == right.getMarkedForDeleteAt();
         assert right.reconcile(left).getMarkedForDeleteAt() == right.getMarkedForDeleteAt();
 
         // tombstone > live
-        left  = new DeletedCell(cellname("x"), 1, 2L);
-        right = CounterCell.createLocal(cellname("x"), 0L, 1L, Long.MIN_VALUE);
+        left  = new BufferDeletedCell(cellname("x"), 1, 2L);
+        right = BufferCounterCell.createLocal(cellname("x"), 0L, 1L, Long.MIN_VALUE);
 
         assert left.reconcile(right) == left;
 
         // tombstone < live last delete
-        left  = new DeletedCell(cellname("x"), 1, 1L);
-        right = CounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
+        left  = new BufferDeletedCell(cellname("x"), 1, 1L);
+        right = BufferCounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
 
         assert left.reconcile(right) == right;
 
         // tombstone == live last delete
-        left  = new DeletedCell(cellname("x"), 1, 2L);
-        right = CounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
+        left  = new BufferDeletedCell(cellname("x"), 1, 2L);
+        right = BufferCounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
 
         assert left.reconcile(right) == right;
 
         // tombstone > live last delete
-        left  = new DeletedCell(cellname("x"), 1, 4L);
-        right = CounterCell.createLocal(cellname("x"), 0L, 9L, 1L);
+        left  = new BufferDeletedCell(cellname("x"), 1, 4L);
+        right = BufferCounterCell.createLocal(cellname("x"), 0L, 9L, 1L);
 
         reconciled = left.reconcile(right);
         assert reconciled.name() == right.name();
@@ -122,26 +122,26 @@ public class CounterCellTest extends SchemaLoader
         assert ((CounterCell)reconciled).timestampOfLastDelete() == left.getMarkedForDeleteAt();
 
         // live < tombstone
-        left  = CounterCell.createLocal(cellname("x"), 0L, 1L, Long.MIN_VALUE);
-        right = new DeletedCell(cellname("x"), 1, 2L);
+        left  = BufferCounterCell.createLocal(cellname("x"), 0L, 1L, Long.MIN_VALUE);
+        right = new BufferDeletedCell(cellname("x"), 1, 2L);
 
         assert left.reconcile(right) == right;
 
         // live last delete > tombstone
-        left  = CounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
-        right = new DeletedCell(cellname("x"), 1, 1L);
+        left  = BufferCounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
+        right = new BufferDeletedCell(cellname("x"), 1, 1L);
 
         assert left.reconcile(right) == left;
 
         // live last delete == tombstone
-        left  = CounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
-        right = new DeletedCell(cellname("x"), 1, 2L);
+        left  = BufferCounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
+        right = new BufferDeletedCell(cellname("x"), 1, 2L);
 
         assert left.reconcile(right) == left;
 
         // live last delete < tombstone
-        left  = CounterCell.createLocal(cellname("x"), 0L, 9L, 1L);
-        right = new DeletedCell(cellname("x"), 1, 4L);
+        left  = BufferCounterCell.createLocal(cellname("x"), 0L, 9L, 1L);
+        right = new BufferDeletedCell(cellname("x"), 1, 4L);
 
         reconciled = left.reconcile(right);
         assert reconciled.name() == left.name();
@@ -150,20 +150,20 @@ public class CounterCellTest extends SchemaLoader
         assert ((CounterCell)reconciled).timestampOfLastDelete() == right.getMarkedForDeleteAt();
 
         // live < live last delete
-        left  = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L), 1L, Long.MIN_VALUE);
-        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 1L, 1L), 4L, 3L);
+        left  = new BufferCounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L), 1L, Long.MIN_VALUE);
+        right = new BufferCounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 1L, 1L), 4L, 3L);
 
         assert left.reconcile(right) == right;
 
         // live last delete > live
-        left  = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L), 6L, 5L);
-        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 1L, 1L), 4L, 3L);
+        left  = new BufferCounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L), 6L, 5L);
+        right = new BufferCounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 1L, 1L), 4L, 3L);
 
         assert left.reconcile(right) == left;
 
         // live + live
-        left = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 1L, 1L), 4L, Long.MIN_VALUE);
-        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L), 1L, Long.MIN_VALUE);
+        left = new BufferCounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 1L, 1L), 4L, Long.MIN_VALUE);
+        right = new BufferCounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L), 1L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
         assert reconciled.name().equals(left.name());
@@ -171,7 +171,7 @@ public class CounterCellTest extends SchemaLoader
         assert reconciled.timestamp() == 4L;
 
         left = reconciled;
-        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(2), 1L, 5L), 2L, Long.MIN_VALUE);
+        right = new BufferCounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(2), 1L, 5L), 2L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
         assert reconciled.name().equals(left.name());
@@ -179,7 +179,7 @@ public class CounterCellTest extends SchemaLoader
         assert reconciled.timestamp() == 4L;
 
         left = reconciled;
-        right = new CounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(2), 2L, 2L), 6L, Long.MIN_VALUE);
+        right = new BufferCounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(2), 2L, 2L), 6L, Long.MIN_VALUE);
 
         reconciled = left.reconcile(right);
         assert reconciled.name().equals(left.name());
@@ -211,15 +211,15 @@ public class CounterCellTest extends SchemaLoader
         CounterCell rightCell;
 
         // timestamp
-        leftCell = CounterCell.createLocal(cellname("x"), 0, 1L, Long.MIN_VALUE);
-        rightCell = CounterCell.createLocal(cellname("x"), 0, 2L, Long.MIN_VALUE);
+        leftCell = BufferCounterCell.createLocal(cellname("x"), 0, 1L, Long.MIN_VALUE);
+        rightCell = BufferCounterCell.createLocal(cellname("x"), 0, 2L, Long.MIN_VALUE);
 
         assert rightCell == leftCell.diff(rightCell);
         assert null      == rightCell.diff(leftCell);
 
         // timestampOfLastDelete
-        leftCell = CounterCell.createLocal(cellname("x"), 0, 1L, 1L);
-        rightCell = CounterCell.createLocal(cellname("x"), 0, 1L, 2L);
+        leftCell = BufferCounterCell.createLocal(cellname("x"), 0, 1L, 1L);
+        rightCell = BufferCounterCell.createLocal(cellname("x"), 0, 1L, 2L);
 
         assert rightCell == leftCell.diff(rightCell);
         assert null      == rightCell.diff(leftCell);
@@ -231,8 +231,8 @@ public class CounterCellTest extends SchemaLoader
         left.writeRemote(CounterId.fromInt(9), 1L, 0L);
         right = ContextState.wrap(ByteBufferUtil.clone(left.context));
 
-        leftCell  = new CounterCell(cellname("x"), left.context,  1L);
-        rightCell = new CounterCell(cellname("x"), right.context, 1L);
+        leftCell  = new BufferCounterCell(cellname("x"), left.context,  1L);
+        rightCell = new BufferCounterCell(cellname("x"), right.context, 1L);
         assert leftCell.diff(rightCell) == null;
 
         // greater than: left has superset of nodes (counts equal)
@@ -247,8 +247,8 @@ public class CounterCellTest extends SchemaLoader
         right.writeRemote(CounterId.fromInt(6), 2L, 0L);
         right.writeRemote(CounterId.fromInt(9), 1L, 0L);
 
-        leftCell  = new CounterCell(cellname("x"), left.context,  1L);
-        rightCell = new CounterCell(cellname("x"), right.context, 1L);
+        leftCell  = new BufferCounterCell(cellname("x"), left.context,  1L);
+        rightCell = new BufferCounterCell(cellname("x"), right.context, 1L);
         assert leftCell.diff(rightCell) == null;
 
         // less than: right has subset of nodes (counts equal)
@@ -265,8 +265,8 @@ public class CounterCellTest extends SchemaLoader
         right.writeRemote(CounterId.fromInt(6), 1L, 0L);
         right.writeRemote(CounterId.fromInt(9), 1L, 0L);
 
-        leftCell  = new CounterCell(cellname("x"), left.context,  1L);
-        rightCell = new CounterCell(cellname("x"), right.context, 1L);
+        leftCell  = new BufferCounterCell(cellname("x"), left.context,  1L);
+        rightCell = new BufferCounterCell(cellname("x"), right.context, 1L);
         assert rightCell == leftCell.diff(rightCell);
         assert leftCell  == rightCell.diff(leftCell);
     }
@@ -281,7 +281,7 @@ public class CounterCellTest extends SchemaLoader
         state.writeLocal(CounterId.fromInt(4), 4L, 4L);
 
         CellNameType type = new SimpleDenseCellNameType(UTF8Type.instance);
-        CounterCell original = new CounterCell(cellname("x"), state.context, 1L);
+        CounterCell original = new BufferCounterCell(cellname("x"), state.context, 1L);
         byte[] serialized;
         try (DataOutputBuffer bufOut = new DataOutputBuffer())
         {
@@ -315,8 +315,8 @@ public class CounterCellTest extends SchemaLoader
         state.writeRemote(CounterId.fromInt(3), 4L, 4L);
         state.writeLocal(CounterId.fromInt(4), 4L, 4L);
 
-        CounterCell original = new CounterCell(cellname("x"), state.context, 1L);
-        CounterCell cleared = new CounterCell(cellname("x"), cc.clearAllLocal(state.context), 1L);
+        CounterCell original = new BufferCounterCell(cellname("x"), state.context, 1L);
+        CounterCell cleared = new BufferCounterCell(cellname("x"), cc.clearAllLocal(state.context), 1L);
 
         original.updateDigest(digest1);
         cleared.updateDigest(digest2);

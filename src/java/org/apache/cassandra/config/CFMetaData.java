@@ -55,6 +55,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.CFStatement;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
+import org.apache.cassandra.db.AbstractCell;
 import org.apache.cassandra.db.AtomDeserializer;
 import org.apache.cassandra.db.CFRowAdder;
 import org.apache.cassandra.db.Cell;
@@ -1328,7 +1329,7 @@ public final class CFMetaData
      */
     public ColumnDefinition getColumnDefinition(CellName cellName)
     {
-        ColumnIdentifier id = cellName.cql3ColumnName();
+        ColumnIdentifier id = cellName.cql3ColumnName(this);
         ColumnDefinition def = id == null
                              ? getColumnDefinition(cellName.toByteBuffer())  // Means a dense layout, try the full column name
                              : getColumnDefinition(id);
@@ -1409,7 +1410,7 @@ public final class CFMetaData
 
     public Iterator<OnDiskAtom> getOnDiskIterator(DataInput in, ColumnSerializer.Flag flag, int expireBefore, Descriptor.Version version)
     {
-        return Cell.onDiskIterator(in, flag, expireBefore, version, comparator);
+        return AbstractCell.onDiskIterator(in, flag, expireBefore, version, comparator);
     }
 
     public AtomDeserializer getOnDiskDeserializer(DataInput in, Descriptor.Version version)

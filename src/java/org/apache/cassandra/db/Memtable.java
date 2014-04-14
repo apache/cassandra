@@ -46,19 +46,16 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.ContextAllocator;
-import org.apache.cassandra.utils.memory.HeapAllocator;
-import org.apache.cassandra.utils.memory.Pool;
-import org.apache.cassandra.utils.memory.PoolAllocator;
+import org.apache.cassandra.utils.memory.*;
 
 public class Memtable
 {
     private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
 
-    static final Pool memoryPool = DatabaseDescriptor.getMemtableAllocatorPool();
+    static final MemtablePool MEMORY_POOL = DatabaseDescriptor.getMemtableAllocatorPool();
     private static final int ROW_OVERHEAD_HEAP_SIZE;
 
-    private final PoolAllocator allocator;
+    private final MemtableAllocator allocator;
     private final AtomicLong liveDataSize = new AtomicLong(0);
     private final AtomicLong currentOperations = new AtomicLong(0);
 
@@ -85,12 +82,12 @@ public class Memtable
     public Memtable(ColumnFamilyStore cfs)
     {
         this.cfs = cfs;
-        this.allocator = memoryPool.newAllocator();
+        this.allocator = MEMORY_POOL.newAllocator();
         this.initialComparator = cfs.metadata.comparator;
         this.cfs.scheduleFlush();
     }
 
-    public PoolAllocator getAllocator()
+    public MemtableAllocator getAllocator()
     {
         return allocator;
     }
@@ -177,7 +174,7 @@ public class Memtable
         if (previous == null)
         {
             AtomicBTreeColumns empty = cf.cloneMeShallow(AtomicBTreeColumns.factory, false);
-            final DecoratedKey cloneKey = new DecoratedKey(key.token, allocator.clone(key.key, opGroup));
+            final DecoratedKey cloneKey = allocator.clone(key, opGroup);
             // We'll add the columns later. This avoids wasting works if we get beaten in the putIfAbsent
             previous = rows.putIfAbsent(cloneKey, empty);
             if (previous == null)
@@ -185,27 +182,17 @@ public class Memtable
                 previous = empty;
                 // allocate the row overhead after the fact; this saves over allocating and having to free after, but
                 // means we can overshoot our declared limit.
-                int overhead = (int) (cfs.partitioner.getHeapSizeOf(key.token) + ROW_OVERHEAD_HEAP_SIZE);
-                allocator.allocate(overhead, opGroup);
+                int overhead = (int) (cfs.partitioner.getHeapSizeOf(key.getToken()) + ROW_OVERHEAD_HEAP_SIZE);
+                allocator.onHeap().allocate(overhead, opGroup);
             }
             else
             {
-                allocator.free(cloneKey.key);
+                allocator.reclaimer().reclaimImmediately(cloneKey);
             }
         }
 
-        ContextAllocator contextAllocator = allocator.wrap(opGroup);
-        AtomicBTreeColumns.Delta delta = previous.addAllWithSizeDelta(cf, contextAllocator, indexer, new AtomicBTreeColumns.Delta());
-        liveDataSize.addAndGet(delta.dataSize());
+        liveDataSize.addAndGet(previous.addAllWithSizeDelta(cf, allocator, opGroup, indexer));
         currentOperations.addAndGet(cf.getColumnCount() + (cf.isMarkedForDelete() ? 1 : 0) + cf.deletionInfo().rangeCount());
-
-        // allocate or free the delta in column overhead after the fact
-        for (Cell cell : delta.reclaimed())
-        {
-            cell.name.free(allocator);
-            allocator.free(cell.value);
-        }
-        allocator.allocate((int) delta.excessHeapSize(), opGroup);
     }
 
     // for debugging
@@ -256,10 +243,10 @@ public class Memtable
                 Map.Entry<? extends RowPosition, ? extends ColumnFamily> entry = iter.next();
                 // Actual stored key should be true DecoratedKey
                 assert entry.getKey() instanceof DecoratedKey;
-                if (memoryPool.needToCopyOnHeap())
+                if (MEMORY_POOL.needToCopyOnHeap())
                 {
                     DecoratedKey key = (DecoratedKey) entry.getKey();
-                    key = new DecoratedKey(key.token, HeapAllocator.instance.clone(key.key));
+                    key = new BufferDecoratedKey(key.getToken(), HeapAllocator.instance.clone(key.getKey()));
                     ColumnFamily cells = ArrayBackedSortedColumns.localCopy(entry.getValue(), HeapAllocator.instance);
                     entry = new AbstractMap.SimpleImmutableEntry<>(key, cells);
                 }
@@ -307,7 +294,7 @@ public class Memtable
             {
                 //  make sure we don't write non-sensical keys
                 assert key instanceof DecoratedKey;
-                keySize += ((DecoratedKey)key).key.remaining();
+                keySize += ((DecoratedKey)key).getKey().remaining();
             }
             estimatedSize = (long) ((keySize // index entries
                                     + keySize // keys in data file
@@ -410,16 +397,20 @@ public class Memtable
     static
     {
         // calculate row overhead
+        final OpOrder.Group group = new OpOrder().start();
         int rowOverhead;
+        MemtableAllocator allocator = MEMORY_POOL.newAllocator();
         ConcurrentNavigableMap<RowPosition, Object> rows = new ConcurrentSkipListMap<>();
         final int count = 100000;
         final Object val = new Object();
         for (int i = 0 ; i < count ; i++)
-            rows.put(new DecoratedKey(new LongToken((long) i), ByteBufferUtil.EMPTY_BYTE_BUFFER), val);
+            rows.put(allocator.clone(new BufferDecoratedKey(new LongToken((long) i), ByteBufferUtil.EMPTY_BYTE_BUFFER), group), val);
         double avgSize = ObjectSizes.measureDeep(rows) / (double) count;
         rowOverhead = (int) ((avgSize - Math.floor(avgSize)) < 0.05 ? Math.floor(avgSize) : Math.ceil(avgSize));
         rowOverhead -= ObjectSizes.measureDeep(new LongToken((long) 0));
-        rowOverhead += AtomicBTreeColumns.HEAP_SIZE;
+        rowOverhead += AtomicBTreeColumns.EMPTY_SIZE;
+        allocator.setDiscarding();
+        allocator.setDiscarded();
         ROW_OVERHEAD_HEAP_SIZE = rowOverhead;
     }
 }

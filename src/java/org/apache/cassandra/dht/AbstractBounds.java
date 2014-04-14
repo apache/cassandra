@@ -18,7 +18,6 @@
 package org.apache.cassandra.dht;
 
 import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
@@ -100,7 +99,7 @@ public abstract class AbstractBounds<T extends RingPosition> implements Serializ
     {
         if (value instanceof DecoratedKey)
         {
-            return keyValidator.getString(((DecoratedKey)value).key);
+            return keyValidator.getString(((DecoratedKey)value).getKey());
         }
         else
         {

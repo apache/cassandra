@@ -44,12 +44,12 @@ public class TimeSortTest extends SchemaLoader
         Mutation rm;
         DecoratedKey key = Util.dk("key0");
 
-        rm = new Mutation("Keyspace1", key.key);
+        rm = new Mutation("Keyspace1", key.getKey());
         rm.add("StandardLong1", cellname(100), ByteBufferUtil.bytes("a"), 100);
         rm.apply();
         cfStore.forceBlockingFlush();
 
-        rm = new Mutation("Keyspace1", key.key);
+        rm = new Mutation("Keyspace1", key.getKey());
         rm.add("StandardLong1", cellname(0), ByteBufferUtil.bytes("b"), 0);
         rm.apply();
 
@@ -81,14 +81,14 @@ public class TimeSortTest extends SchemaLoader
 
         // interleave some new data to test memtable + sstable
         DecoratedKey key = Util.dk("900");
-        Mutation rm = new Mutation("Keyspace1", key.key);
+        Mutation rm = new Mutation("Keyspace1", key.getKey());
         for (int j = 0; j < 4; ++j)
         {
             rm.add("StandardLong1", cellname(j * 2 + 1), ByteBufferUtil.bytes("b"), j * 2 + 1);
         }
         rm.apply();
         // and some overwrites
-        rm = new Mutation("Keyspace1", key.key);
+        rm = new Mutation("Keyspace1", key.getKey());
         rm.add("StandardLong1", cellname(0), ByteBufferUtil.bytes("c"), 100);
         rm.add("StandardLong1", cellname(10), ByteBufferUtil.bytes("c"), 100);
         rm.apply();

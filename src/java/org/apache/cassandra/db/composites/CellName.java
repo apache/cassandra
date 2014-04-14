@@ -19,6 +19,7 @@ package org.apache.cassandra.db.composites;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
@@ -52,8 +53,9 @@ public interface CellName extends Composite
      * The name of the CQL3 column this cell represents.
      *
      * Will be null for cells of "dense" tables.
+     * @param metadata
      */
-    public ColumnIdentifier cql3ColumnName();
+    public ColumnIdentifier cql3ColumnName(CFMetaData metadata);
 
     /**
      * The value of the collection element, or null if the cell is not part
@@ -70,7 +72,7 @@ public interface CellName extends Composite
     // If cellnames were sharing some prefix components, this will break it, so
     // we might want to try to do better.
     @Override
-    public CellName copy(AbstractAllocator allocator);
+    public CellName copy(CFMetaData cfm, AbstractAllocator allocator);
 
     public long excessHeapSizeExcludingData();
 }

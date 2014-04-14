@@ -19,10 +19,14 @@
 package org.apache.cassandra.utils.memory;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
+import org.apache.cassandra.db.Cell;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
-public class HeapPool extends Pool
+public class HeapPool extends MemtablePool
 {
     public HeapPool(long maxOnHeapMemory, float cleanupThreshold, Runnable cleaner)
     {
@@ -34,33 +38,65 @@ public class HeapPool extends Pool
         return false;
     }
 
-    public Allocator newAllocator()
+    public MemtableAllocator newAllocator()
     {
         return new Allocator(this);
     }
 
-    public final class Allocator extends PoolAllocator
+    public class Allocator extends MemtableBufferAllocator
     {
         Allocator(HeapPool pool)
         {
             super(pool.onHeap.newAllocator(), pool.offHeap.newAllocator());
         }
 
-        public ByteBuffer allocate(int size)
-        {
-            return allocate(size, null);
-        }
-
         public ByteBuffer allocate(int size, OpOrder.Group opGroup)
         {
-            onHeap().allocate(size, opGroup);
-            // must loop trying to acquire
+            super.onHeap().allocate(size, opGroup);
             return ByteBuffer.allocate(size);
         }
 
-        public void free(ByteBuffer buffer)
+        public DataReclaimer reclaimer()
         {
-            onHeap().release(buffer.remaining());
+            return new Reclaimer();
+        }
+
+        private class Reclaimer implements DataReclaimer
+        {
+            List<Cell> delayed;
+
+            public Reclaimer reclaim(Cell cell)
+            {
+                if (delayed == null)
+                    delayed = new ArrayList<>();
+                delayed.add(cell);
+                return this;
+            }
+
+            public Reclaimer reclaimImmediately(Cell cell)
+            {
+                onHeap().release(cell.name().dataSize() + cell.value().remaining());
+                return this;
+            }
+
+            public Reclaimer reclaimImmediately(DecoratedKey key)
+            {
+                onHeap().release(key.getKey().remaining());
+                return this;
+            }
+
+            public void cancel()
+            {
+                if (delayed != null)
+                    delayed.clear();
+            }
+
+            public void commit()
+            {
+                if (delayed != null)
+                    for (Cell cell : delayed)
+                        reclaimImmediately(cell);
+            }
         }
     }
 }

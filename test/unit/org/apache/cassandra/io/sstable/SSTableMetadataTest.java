@@ -52,7 +52,7 @@ public class SSTableMetadataTest extends SchemaLoader
         for(int i = 0; i < 10; i++)
         {
             DecoratedKey key = Util.dk(Integer.toString(i));
-            Mutation rm = new Mutation("Keyspace1", key.key);
+            Mutation rm = new Mutation("Keyspace1", key.getKey());
             for (int j = 0; j < 10; j++)
                 rm.add("Standard1", cellname(Integer.toString(j)),
                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
@@ -60,7 +60,7 @@ public class SSTableMetadataTest extends SchemaLoader
                        10 + j);
             rm.apply();
         }
-        Mutation rm = new Mutation("Keyspace1", Util.dk("longttl").key);
+        Mutation rm = new Mutation("Keyspace1", Util.dk("longttl").getKey());
         rm.add("Standard1", cellname("col"),
                ByteBufferUtil.EMPTY_BYTE_BUFFER,
                timestamp,
@@ -76,7 +76,7 @@ public class SSTableMetadataTest extends SchemaLoader
             assertEquals(ttltimestamp + 10000, firstDelTime, 10);
 
         }
-        rm = new Mutation("Keyspace1", Util.dk("longttl2").key);
+        rm = new Mutation("Keyspace1", Util.dk("longttl2").getKey());
         rm.add("Standard1", cellname("col"),
                ByteBufferUtil.EMPTY_BYTE_BUFFER,
                timestamp,
@@ -123,7 +123,7 @@ public class SSTableMetadataTest extends SchemaLoader
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
         long timestamp = System.currentTimeMillis();
         DecoratedKey key = Util.dk("deletetest");
-        Mutation rm = new Mutation("Keyspace1", key.key);
+        Mutation rm = new Mutation("Keyspace1", key.getKey());
         for (int i = 0; i<5; i++)
             rm.add("Standard2", cellname("deletecolumn" + i),
                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
@@ -143,7 +143,7 @@ public class SSTableMetadataTest extends SchemaLoader
             firstMaxDelTime = sstable.getSSTableMetadata().maxLocalDeletionTime;
             assertEquals(ttltimestamp + 1000, firstMaxDelTime, 10);
         }
-        rm = new Mutation("Keyspace1", key.key);
+        rm = new Mutation("Keyspace1", key.getKey());
         rm.delete("Standard2", cellname("todelete"), timestamp + 1);
         rm.apply();
         store.forceBlockingFlush();
@@ -175,7 +175,7 @@ public class SSTableMetadataTest extends SchemaLoader
         for (int j = 0; j < 8; j++)
         {
             DecoratedKey key = Util.dk("row"+j);
-            Mutation rm = new Mutation("Keyspace1", key.key);
+            Mutation rm = new Mutation("Keyspace1", key.getKey());
             for (int i = 100; i<150; i++)
             {
                 rm.add("Standard3", cellname(j + "col" + i), ByteBufferUtil.EMPTY_BYTE_BUFFER, System.currentTimeMillis());
@@ -190,7 +190,7 @@ public class SSTableMetadataTest extends SchemaLoader
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().maxColumnNames.get(0)), "7col149");
         }
         DecoratedKey key = Util.dk("row2");
-        Mutation rm = new Mutation("Keyspace1", key.key);
+        Mutation rm = new Mutation("Keyspace1", key.getKey());
         for (int i = 101; i<299; i++)
         {
             rm.add("Standard3", cellname(9 + "col" + i), ByteBufferUtil.EMPTY_BYTE_BUFFER, System.currentTimeMillis());
@@ -268,8 +268,8 @@ public class SSTableMetadataTest extends SchemaLoader
         state.writeLocal(CounterId.fromInt(2), 1L, 1L);
         state.writeRemote(CounterId.fromInt(3), 1L, 1L);
         ColumnFamily cells = ArrayBackedSortedColumns.factory.create(cfs.metadata);
-        cells.addColumn(new CounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
-        new Mutation(Util.dk("k").key, cells).apply();
+        cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
+        new Mutation(Util.dk("k").getKey(), cells).apply();
         cfs.forceBlockingFlush();
         assertTrue(cfs.getSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();
@@ -279,8 +279,8 @@ public class SSTableMetadataTest extends SchemaLoader
         state.writeLocal(CounterId.fromInt(2), 1L, 1L);
         state.writeRemote(CounterId.fromInt(3), 1L, 1L);
         cells = ArrayBackedSortedColumns.factory.create(cfs.metadata);
-        cells.addColumn(new CounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
-        new Mutation(Util.dk("k").key, cells).apply();
+        cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
+        new Mutation(Util.dk("k").getKey(), cells).apply();
         cfs.forceBlockingFlush();
         assertTrue(cfs.getSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();
@@ -290,8 +290,8 @@ public class SSTableMetadataTest extends SchemaLoader
         state.writeGlobal(CounterId.fromInt(1), 1L, 1L);
         state.writeLocal(CounterId.fromInt(2), 1L, 1L);
         cells = ArrayBackedSortedColumns.factory.create(cfs.metadata);
-        cells.addColumn(new CounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
-        new Mutation(Util.dk("k").key, cells).apply();
+        cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
+        new Mutation(Util.dk("k").getKey(), cells).apply();
         cfs.forceBlockingFlush();
         assertTrue(cfs.getSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();
@@ -300,8 +300,8 @@ public class SSTableMetadataTest extends SchemaLoader
         state = CounterContext.ContextState.allocate(1, 0, 0);
         state.writeGlobal(CounterId.fromInt(1), 1L, 1L);
         cells = ArrayBackedSortedColumns.factory.create(cfs.metadata);
-        cells.addColumn(new CounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
-        new Mutation(Util.dk("k").key, cells).apply();
+        cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
+        new Mutation(Util.dk("k").getKey(), cells).apply();
         cfs.forceBlockingFlush();
         assertFalse(cfs.getSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();

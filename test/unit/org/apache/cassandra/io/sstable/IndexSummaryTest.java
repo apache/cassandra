@@ -18,9 +18,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -50,7 +48,7 @@ public class IndexSummaryTest
     {
         Pair<List<DecoratedKey>, IndexSummary> random = generateRandomIndex(100, 1);
         for (int i = 0; i < 100; i++)
-            assertEquals(random.left.get(i).key, ByteBuffer.wrap(random.right.getKey(i)));
+            assertEquals(random.left.get(i).getKey(), ByteBuffer.wrap(random.right.getKey(i)));
     }
 
     @Test
@@ -163,7 +161,7 @@ public class IndexSummaryTest
 
         // sanity check on the original index summary
         for (int i = 0; i < ORIGINAL_NUM_ENTRIES; i++)
-            assertEquals(keys.get(i * INDEX_INTERVAL).key, ByteBuffer.wrap(original.getKey(i)));
+            assertEquals(keys.get(i * INDEX_INTERVAL).getKey(), ByteBuffer.wrap(original.getKey(i)));
 
         List<Integer> samplePattern = Downsampling.getSamplingPattern(BASE_SAMPLING_LEVEL);
 
@@ -180,7 +178,7 @@ public class IndexSummaryTest
             {
                 if (!shouldSkip(i, skipStartPoints))
                 {
-                    assertEquals(keys.get(i * INDEX_INTERVAL).key, ByteBuffer.wrap(downsampled.getKey(sampledCount)));
+                    assertEquals(keys.get(i * INDEX_INTERVAL).getKey(), ByteBuffer.wrap(downsampled.getKey(sampledCount)));
                     sampledCount++;
                 }
             }
@@ -201,7 +199,7 @@ public class IndexSummaryTest
             {
                 if (!shouldSkip(i, skipStartPoints))
                 {
-                    assertEquals(keys.get(i * INDEX_INTERVAL).key, ByteBuffer.wrap(downsampled.getKey(sampledCount)));
+                    assertEquals(keys.get(i * INDEX_INTERVAL).getKey(), ByteBuffer.wrap(downsampled.getKey(sampledCount)));
                     sampledCount++;
                 }
             }

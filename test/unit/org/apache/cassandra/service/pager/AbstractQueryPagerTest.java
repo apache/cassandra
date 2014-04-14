@@ -105,7 +105,7 @@ public class AbstractQueryPagerTest
 
     private void assertRow(Row row, String name, int... values)
     {
-        assertEquals(row.key.key, ByteBufferUtil.bytes(name));
+        assertEquals(row.key.getKey(), ByteBufferUtil.bytes(name));
         assertEquals(values.length, row.cf.getColumnCount());
 
         int i = 0;

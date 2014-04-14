@@ -22,13 +22,7 @@ import java.util.concurrent.Future;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.ArrayBackedSortedColumns;
-import org.apache.cassandra.db.Cell;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.ExpiringCell;
-import org.apache.cassandra.db.IndexExpression;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -37,7 +31,7 @@ import org.apache.cassandra.dht.LocalToken;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.PoolAllocator;
+import org.apache.cassandra.utils.memory.MemtableAllocator;
 
 /**
  * Implements a secondary index for a column family using a second column family
@@ -75,7 +69,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
     @Override
     public DecoratedKey getIndexKeyFor(ByteBuffer value)
     {
-        return new DecoratedKey(new LocalToken(getIndexKeyComparator(), value), value);
+        return new BufferDecoratedKey(new LocalToken(getIndexKeyComparator(), value), value);
     }
 
     protected abstract CellName makeIndexColumnName(ByteBuffer rowKey, Cell cell);
@@ -115,14 +109,14 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         if (cell instanceof ExpiringCell)
         {
             ExpiringCell ec = (ExpiringCell) cell;
-            cfi.addColumn(new ExpiringCell(name, ByteBufferUtil.EMPTY_BYTE_BUFFER, ec.timestamp(), ec.getTimeToLive(), ec.getLocalDeletionTime()));
+            cfi.addColumn(new BufferExpiringCell(name, ByteBufferUtil.EMPTY_BYTE_BUFFER, ec.timestamp(), ec.getTimeToLive(), ec.getLocalDeletionTime()));
         }
         else
         {
-            cfi.addColumn(new Cell(name, ByteBufferUtil.EMPTY_BYTE_BUFFER, cell.timestamp()));
+            cfi.addColumn(new BufferCell(name, ByteBufferUtil.EMPTY_BYTE_BUFFER, cell.timestamp()));
         }
         if (logger.isDebugEnabled())
-            logger.debug("applying index row {} in {}", indexCfs.metadata.getKeyValidator().getString(valueKey.key), cfi);
+            logger.debug("applying index row {} in {}", indexCfs.metadata.getKeyValidator().getString(valueKey.getKey()), cfi);
 
         indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
     }
@@ -169,11 +163,6 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
     public String getIndexName()
     {
         return indexCfs.name;
-    }
-
-    public PoolAllocator getAllocator()
-    {
-        return indexCfs.getDataTracker().getView().getCurrentMemtable().getAllocator();
     }
 
     public void reload()

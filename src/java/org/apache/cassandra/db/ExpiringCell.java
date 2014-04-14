@@ -17,16 +17,10 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.CellNameType;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.MemtableAllocator;
 
 /**
  * Alternative to Cell that have an expiring time.
@@ -38,154 +32,13 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  * we can't mix it with the timestamp field, which is client-supplied and whose resolution we
  * can't assume anything about.)
  */
-public class ExpiringCell extends Cell
+public interface ExpiringCell extends Cell
 {
     public static final int MAX_TTL = 20 * 365 * 24 * 60 * 60; // 20 years in seconds
 
-    private final int localExpirationTime;
-    private final int timeToLive;
+    public int getTimeToLive();
 
-    public ExpiringCell(CellName name, ByteBuffer value, long timestamp, int timeToLive)
-    {
-      this(name, value, timestamp, timeToLive, (int) (System.currentTimeMillis() / 1000) + timeToLive);
-    }
+    ExpiringCell localCopy(CFMetaData metadata, AbstractAllocator allocator);
 
-    public ExpiringCell(CellName name, ByteBuffer value, long timestamp, int timeToLive, int localExpirationTime)
-    {
-        super(name, value, timestamp);
-        assert timeToLive > 0 : timeToLive;
-        assert localExpirationTime > 0 : localExpirationTime;
-        this.timeToLive = timeToLive;
-        this.localExpirationTime = localExpirationTime;
-    }
-
-    /** @return Either a DeletedCell, or an ExpiringCell. */
-    public static Cell create(CellName name, ByteBuffer value, long timestamp, int timeToLive, int localExpirationTime, int expireBefore, ColumnSerializer.Flag flag)
-    {
-        if (localExpirationTime >= expireBefore || flag == ColumnSerializer.Flag.PRESERVE_SIZE)
-            return new ExpiringCell(name, value, timestamp, timeToLive, localExpirationTime);
-        // The column is now expired, we can safely return a simple tombstone. Note that
-        // as long as the expiring column and the tombstone put together live longer than GC grace seconds,
-        // we'll fulfil our responsibility to repair.  See discussion at
-        // http://cassandra-user-incubator-apache-org.3065146.n2.nabble.com/repair-compaction-and-tombstone-rows-td7583481.html
-        return new DeletedCell(name, localExpirationTime - timeToLive, timestamp);
-    }
-
-    public int getTimeToLive()
-    {
-        return timeToLive;
-    }
-
-    @Override
-    public Cell withUpdatedName(CellName newName)
-    {
-        return new ExpiringCell(newName, value, timestamp, timeToLive, localExpirationTime);
-    }
-
-    @Override
-    public Cell withUpdatedTimestamp(long newTimestamp)
-    {
-        return new ExpiringCell(name, value, newTimestamp, timeToLive, localExpirationTime);
-    }
-
-    @Override
-    public int dataSize()
-    {
-        return super.dataSize() + TypeSizes.NATIVE.sizeof(localExpirationTime) + TypeSizes.NATIVE.sizeof(timeToLive);
-    }
-
-    @Override
-    public int serializedSize(CellNameType type, TypeSizes typeSizes)
-    {
-        /*
-         * An expired column adds to a Cell :
-         *    4 bytes for the localExpirationTime
-         *  + 4 bytes for the timeToLive
-        */
-        return super.serializedSize(type, typeSizes) + typeSizes.sizeof(localExpirationTime) + typeSizes.sizeof(timeToLive);
-    }
-
-    @Override
-    public void updateDigest(MessageDigest digest)
-    {
-        digest.update(name.toByteBuffer().duplicate());
-        digest.update(value.duplicate());
-
-        DataOutputBuffer buffer = new DataOutputBuffer();
-        try
-        {
-            buffer.writeLong(timestamp);
-            buffer.writeByte(serializationFlags());
-            buffer.writeInt(timeToLive);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-        digest.update(buffer.getData(), 0, buffer.getLength());
-    }
-
-    @Override
-    public int getLocalDeletionTime()
-    {
-        return localExpirationTime;
-    }
-
-    @Override
-    public Cell localCopy(AbstractAllocator allocator)
-    {
-        return new ExpiringCell(name.copy(allocator), allocator.clone(value), timestamp, timeToLive, localExpirationTime);
-    }
-
-    @Override
-    public String getString(CellNameType comparator)
-    {
-        return String.format("%s!%d", super.getString(comparator), timeToLive);
-    }
-
-    @Override
-    public boolean isMarkedForDelete(long now)
-    {
-        return (int) (now / 1000) >= getLocalDeletionTime();
-    }
-
-    @Override
-    public long getMarkedForDeleteAt()
-    {
-        return timestamp;
-    }
-
-    @Override
-    public int serializationFlags()
-    {
-        return ColumnSerializer.EXPIRATION_MASK;
-    }
-
-    @Override
-    public void validateFields(CFMetaData metadata) throws MarshalException
-    {
-        super.validateFields(metadata);
-        if (timeToLive <= 0)
-            throw new MarshalException("A column TTL should be > 0");
-        if (localExpirationTime < 0)
-            throw new MarshalException("The local expiration time should not be negative");
-    }
-
-    @Override
-    public boolean equals(Object o)
-    {
-        // super.equals() returns false if o is not a CounterCell
-        return super.equals(o)
-            && localExpirationTime == ((ExpiringCell)o).localExpirationTime
-            && timeToLive == ((ExpiringCell)o).timeToLive;
-    }
-
-    @Override
-    public int hashCode()
-    {
-        int result = super.hashCode();
-        result = 31 * result + localExpirationTime;
-        result = 31 * result + timeToLive;
-        return result;
-    }
+    ExpiringCell localCopy(CFMetaData metaData, MemtableAllocator allocator, OpOrder.Group opGroup);
 }

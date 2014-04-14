@@ -7,27 +7,26 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package org.apache.cassandra.utils.memory;
 
-import java.nio.ByteBuffer;
-
-import org.apache.cassandra.utils.concurrent.OpOrder;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
-public abstract class PoolAllocator extends AbstractAllocator
+public abstract class MemtableAllocator
 {
-
     private final SubAllocator onHeap;
     private final SubAllocator offHeap;
     volatile LifeCycle state = LifeCycle.LIVE;
@@ -42,19 +41,29 @@ public abstract class PoolAllocator extends AbstractAllocator
                 case DISCARDING:
                     assert this == LifeCycle.LIVE;
                     return LifeCycle.DISCARDING;
+
                 case DISCARDED:
                     assert this == LifeCycle.DISCARDING;
                     return LifeCycle.DISCARDED;
+
+                default:
+                    throw new IllegalStateException();
             }
-            throw new IllegalStateException();
         }
     }
 
-    PoolAllocator(SubAllocator onHeap, SubAllocator offHeap)
+    MemtableAllocator(SubAllocator onHeap, SubAllocator offHeap)
     {
         this.onHeap = onHeap;
         this.offHeap = offHeap;
     }
+
+    public abstract Cell clone(Cell cell, CFMetaData cfm, OpOrder.Group writeOp);
+    public abstract CounterCell clone(CounterCell cell, CFMetaData cfm, OpOrder.Group writeOp);
+    public abstract DeletedCell clone(DeletedCell cell, CFMetaData cfm, OpOrder.Group writeOp);
+    public abstract ExpiringCell clone(ExpiringCell cell, CFMetaData cfm, OpOrder.Group writeOp);
+    public abstract DecoratedKey clone(DecoratedKey key, OpOrder.Group opGroup);
+    public abstract DataReclaimer reclaimer();
 
     public SubAllocator onHeap()
     {
@@ -95,35 +104,46 @@ public abstract class PoolAllocator extends AbstractAllocator
         return state == LifeCycle.LIVE;
     }
 
-    public abstract ByteBuffer allocate(int size, OpOrder.Group opGroup);
-    public abstract void free(ByteBuffer name);
-
-    /**
-     * Allocate a slice of the given length.
-     */
-    public ByteBuffer clone(ByteBuffer buffer, OpOrder.Group opGroup)
+    public static interface DataReclaimer
     {
-        assert buffer != null;
-        if (buffer.remaining() == 0)
-            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        ByteBuffer cloned = allocate(buffer.remaining(), opGroup);
-
-        cloned.mark();
-        cloned.put(buffer.duplicate());
-        cloned.reset();
-        return cloned;
+        public DataReclaimer reclaim(Cell cell);
+        public DataReclaimer reclaimImmediately(Cell cell);
+        public DataReclaimer reclaimImmediately(DecoratedKey key);
+        public void cancel();
+        public void commit();
     }
 
-    public ContextAllocator wrap(OpOrder.Group opGroup)
+    public static final DataReclaimer NO_OP = new DataReclaimer()
     {
-        return new ContextAllocator(opGroup, this);
-    }
+        public DataReclaimer reclaim(Cell cell)
+        {
+            return this;
+        }
+
+        public DataReclaimer reclaimImmediately(Cell cell)
+        {
+            return this;
+        }
+
+        public DataReclaimer reclaimImmediately(DecoratedKey key)
+        {
+            return this;
+        }
+
+        @Override
+        public void cancel()
+        {}
+
+        @Override
+        public void commit()
+        {}
+    };
 
     /** Mark the BB as unused, permitting it to be reclaimed */
     public static final class SubAllocator
     {
         // the tracker we are owning memory from
-        private final Pool.SubPool parent;
+        private final MemtablePool.SubPool parent;
 
         // the amount of memory/resource owned by this object
         private volatile long owns;
@@ -131,7 +151,7 @@ public abstract class PoolAllocator extends AbstractAllocator
         // and is used only to ensure that once we have reclaimed we mark the tracker with the same amount
         private volatile long reclaiming;
 
-        SubAllocator(Pool.SubPool parent)
+        SubAllocator(MemtablePool.SubPool parent)
         {
             this.parent = parent;
         }

@@ -40,26 +40,26 @@ public class CollationControllerTest extends SchemaLoader
         DecoratedKey dk = Util.dk("key1");
         
         // add data
-        rm = new Mutation(keyspace.getName(), dk.key);
+        rm = new Mutation(keyspace.getName(), dk.getKey());
         rm.add(cfs.name, Util.cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);
         rm.apply();
         cfs.forceBlockingFlush();
         
         // remove
-        rm = new Mutation(keyspace.getName(), dk.key);
+        rm = new Mutation(keyspace.getName(), dk.getKey());
         rm.delete(cfs.name, 10);
         rm.apply();
         
         // add another mutation because sstable maxtimestamp isn't set
         // correctly during flush if the most recent mutation is a row delete
-        rm = new Mutation(keyspace.getName(), Util.dk("key2").key);
+        rm = new Mutation(keyspace.getName(), Util.dk("key2").getKey());
         rm.add(cfs.name, Util.cellname("Column1"), ByteBufferUtil.bytes("zxcv"), 20);
         rm.apply();
         
         cfs.forceBlockingFlush();
 
         // add yet one more mutation
-        rm = new Mutation(keyspace.getName(), dk.key);
+        rm = new Mutation(keyspace.getName(), dk.getKey());
         rm.add(cfs.name, Util.cellname("Column1"), ByteBufferUtil.bytes("foobar"), 30);
         rm.apply();
         cfs.forceBlockingFlush();
@@ -92,13 +92,13 @@ public class CollationControllerTest extends SchemaLoader
         CellName cellName = Util.cellname("Column1");
 
         // add data
-        rm = new Mutation(keyspace.getName(), dk.key);
+        rm = new Mutation(keyspace.getName(), dk.getKey());
         rm.add(cfs.name, cellName, ByteBufferUtil.bytes("asdf"), 0);
         rm.apply();
         cfs.forceBlockingFlush();
 
         // remove
-        rm = new Mutation(keyspace.getName(), dk.key);
+        rm = new Mutation(keyspace.getName(), dk.getKey());
         rm.delete(cfs.name, cellName, 0);
         rm.apply();
         cfs.forceBlockingFlush();

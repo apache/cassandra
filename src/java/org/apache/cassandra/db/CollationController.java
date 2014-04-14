@@ -86,7 +86,7 @@ public class CollationController
                     {
                         OnDiskAtom atom = iter.next();
                         if (copyOnHeap)
-                            atom = ((Cell) atom).localCopy(HeapAllocator.instance);
+                            atom = ((Cell) atom).localCopy(cfs.metadata, HeapAllocator.instance);
                         container.addAtom(atom);
                     }
                 }
@@ -147,7 +147,7 @@ public class CollationController
                 && cfs.getCompactionStrategy() instanceof SizeTieredCompactionStrategy)
             {
                 Tracing.trace("Defragmenting requested data");
-                Mutation mutation = new Mutation(cfs.keyspace.getName(), filter.key.key, returnCF.cloneMe());
+                Mutation mutation = new Mutation(cfs.keyspace.getName(), filter.key.getKey(), returnCF.cloneMe());
                 // skipping commitlog and index updates is fine since we're just de-fragmenting existing data
                 Keyspace.open(mutation.getKeyspaceName()).apply(mutation, false, false);
             }
@@ -204,7 +204,7 @@ public class CollationController
                         ColumnFamily newCf = cf.cloneMeShallow(ArrayBackedSortedColumns.factory, false);
                         for (Cell cell : cf)
                         {
-                            newCf.addColumn(cell.localCopy(HeapAllocator.instance));
+                            newCf.addColumn(cell.localCopy(cfs.metadata, HeapAllocator.instance));
                         }
                         cf = newCf;
                         iter = filter.getColumnFamilyIterator(cf);

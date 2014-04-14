@@ -19,9 +19,9 @@ package org.apache.cassandra.db.composites;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.PoolAllocator;
 
 /**
  * A "simple" (not-truly-composite) Composite.
@@ -72,14 +72,8 @@ public class SimpleComposite extends AbstractComposite
         return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(element);
     }
 
-    public Composite copy(AbstractAllocator allocator)
+    public Composite copy(CFMetaData cfm, AbstractAllocator allocator)
     {
         return new SimpleComposite(allocator.clone(element));
-    }
-
-    @Override
-    public void free(PoolAllocator allocator)
-    {
-        allocator.free(element);
     }
 }

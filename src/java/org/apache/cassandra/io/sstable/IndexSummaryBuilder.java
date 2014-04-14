@@ -30,6 +30,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
+import static org.apache.cassandra.io.sstable.SSTable.getMinimalKey;
 
 public class IndexSummaryBuilder
 {
@@ -109,8 +110,8 @@ public class IndexSummaryBuilder
 
             if (!shouldSkip)
             {
-                keys.add(decoratedKey);
-                offheapSize += decoratedKey.key.remaining();
+                keys.add(getMinimalKey(decoratedKey));
+                offheapSize += decoratedKey.getKey().remaining();
                 positions.add(indexPosition);
                 offheapSize += TypeSizes.NATIVE.sizeof(indexPosition);
             }
@@ -143,7 +144,7 @@ public class IndexSummaryBuilder
         long offheapSize = this.offheapSize;
         if (length < keys.size())
             for (int i = length ; i < keys.size() ; i++)
-                offheapSize -= keys.get(i).key.remaining() + TypeSizes.NATIVE.sizeof(positions.get(i));
+                offheapSize -= keys.get(i).getKey().remaining() + TypeSizes.NATIVE.sizeof(positions.get(i));
 
         // first we write out the position in the *summary* for each key in the summary,
         // then we write out (key, actual index position) pairs
@@ -157,7 +158,7 @@ public class IndexSummaryBuilder
             idxPosition += TypeSizes.NATIVE.sizeof(keyPosition);
 
             // write the key
-            ByteBuffer keyBytes = keys.get(i).key;
+            ByteBuffer keyBytes = keys.get(i).getKey();
             memory.setBytes(keyPosition, keyBytes);
             keyPosition += keyBytes.remaining();
 

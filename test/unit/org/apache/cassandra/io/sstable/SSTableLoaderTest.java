@@ -61,7 +61,7 @@ public class SSTableLoaderTest extends SchemaLoader
                                                                              StorageService.getPartitioner(),
                                                                              1);
         DecoratedKey key = Util.dk("key1");
-        writer.newRow(key.key);
+        writer.newRow(key.getKey());
         writer.addColumn(ByteBufferUtil.bytes("col1"), ByteBufferUtil.bytes(100), 1);
         writer.close();
 

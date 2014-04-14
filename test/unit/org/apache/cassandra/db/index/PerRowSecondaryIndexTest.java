@@ -38,7 +38,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.PoolAllocator;
+import org.apache.cassandra.utils.memory.MemtableAllocator;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -176,12 +176,6 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         @Override
         public void forceBlockingFlush()
         {
-        }
-
-        @Override
-        public PoolAllocator getAllocator()
-        {
-            return null;
         }
 
         @Override

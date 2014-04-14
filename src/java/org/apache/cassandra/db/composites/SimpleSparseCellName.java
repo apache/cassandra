@@ -19,10 +19,10 @@ package org.apache.cassandra.db.composites;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.PoolAllocator;
 
 public class SimpleSparseCellName extends AbstractComposite implements CellName
 {
@@ -67,7 +67,7 @@ public class SimpleSparseCellName extends AbstractComposite implements CellName
         return 0;
     }
 
-    public ColumnIdentifier cql3ColumnName()
+    public ColumnIdentifier cql3ColumnName(CFMetaData metadata)
     {
         return columnName;
     }
@@ -97,13 +97,8 @@ public class SimpleSparseCellName extends AbstractComposite implements CellName
         return EMPTY_SIZE + columnName.unsharedHeapSize();
     }
 
-    public CellName copy(AbstractAllocator allocator)
+    public CellName copy(CFMetaData cfm, AbstractAllocator allocator)
     {
         return new SimpleSparseCellName(columnName.clone(allocator));
-    }
-
-    public void free(PoolAllocator allocator)
-    {
-        allocator.free(columnName.bytes);
     }
 }

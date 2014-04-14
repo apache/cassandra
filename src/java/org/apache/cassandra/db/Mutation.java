@@ -64,7 +64,7 @@ public class Mutation implements IMutation
 
     public Mutation(String keyspaceName, Row row)
     {
-        this(keyspaceName, row.key.key, row.cf);
+        this(keyspaceName, row.key.getKey(), row.cf);
     }
 
     protected Mutation(String keyspaceName, ByteBuffer key, Map<UUID, ColumnFamily> modifications)

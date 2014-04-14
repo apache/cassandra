@@ -97,7 +97,7 @@ public class Validator implements Runnable
             List<DecoratedKey> keys = new ArrayList<>();
             for (DecoratedKey sample : cfs.keySamples(desc.range))
             {
-                assert desc.range.contains(sample.token): "Token " + sample.token + " is not within range " + desc.range;
+                assert desc.range.contains(sample.getToken()): "Token " + sample.getToken() + " is not within range " + desc.range;
                 keys.add(sample);
             }
 
@@ -114,7 +114,7 @@ public class Validator implements Runnable
                 while (true)
                 {
                     DecoratedKey dk = keys.get(random.nextInt(numkeys));
-                    if (!tree.split(dk.token))
+                    if (!tree.split(dk.getToken()))
                         break;
                 }
             }
@@ -131,7 +131,7 @@ public class Validator implements Runnable
      */
     public void add(AbstractCompactedRow row)
     {
-        assert desc.range.contains(row.key.token) : row.key.token + " is not contained in " + desc.range;
+        assert desc.range.contains(row.key.getToken()) : row.key.getToken() + " is not contained in " + desc.range;
         assert lastKey == null || lastKey.compareTo(row.key) < 0
                : "row " + row.key + " received out of order wrt " + lastKey;
         lastKey = row.key;
@@ -140,7 +140,7 @@ public class Validator implements Runnable
             range = ranges.next();
 
         // generate new ranges as long as case 1 is true
-        while (!range.contains(row.key.token))
+        while (!range.contains(row.key.getToken()))
         {
             // add the empty hash, and move to the next range
             range.ensureHashInitialised();
@@ -196,7 +196,7 @@ public class Validator implements Runnable
         // MerkleTree uses XOR internally, so we want lots of output bits here
         CountingDigest digest = new CountingDigest(FBUtilities.newMessageDigest("SHA-256"));
         row.update(digest);
-        return new MerkleTree.RowHash(row.key.token, digest.digest(), digest.count);
+        return new MerkleTree.RowHash(row.key.getToken(), digest.digest(), digest.count);
     }
 
     /**

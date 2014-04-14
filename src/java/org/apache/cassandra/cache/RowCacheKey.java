@@ -37,7 +37,7 @@ public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
 
     public RowCacheKey(UUID cfId, DecoratedKey key)
     {
-        this(cfId, key.key);
+        this(cfId, key.getKey());
     }
 
     public RowCacheKey(UUID cfId, ByteBuffer key)

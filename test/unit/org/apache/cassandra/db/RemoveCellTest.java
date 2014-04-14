@@ -41,13 +41,13 @@ public class RemoveCellTest extends SchemaLoader
         DecoratedKey dk = Util.dk("key1");
 
         // add data
-        rm = new Mutation("Keyspace1", dk.key);
+        rm = new Mutation("Keyspace1", dk.getKey());
         rm.add("Standard1", Util.cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);
         rm.apply();
         store.forceBlockingFlush();
 
         // remove
-        rm = new Mutation("Keyspace1", dk.key);
+        rm = new Mutation("Keyspace1", dk.getKey());
         rm.delete("Standard1", Util.cellname("Column1"), 1);
         rm.apply();
 
@@ -60,9 +60,9 @@ public class RemoveCellTest extends SchemaLoader
                                               Integer.MAX_VALUE));
     }
 
-    private static DeletedCell dc(String name, int ldt, long timestamp)
+    private static BufferDeletedCell dc(String name, int ldt, long timestamp)
     {
-        return new DeletedCell(Util.cellname(name), ldt, timestamp);
+        return new BufferDeletedCell(Util.cellname(name), ldt, timestamp);
     }
 
     @Test

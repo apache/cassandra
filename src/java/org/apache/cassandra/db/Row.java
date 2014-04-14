@@ -64,7 +64,7 @@ public class Row
     {
         public void serialize(Row row, DataOutputPlus out, int version) throws IOException
         {
-            ByteBufferUtil.writeWithShortLength(row.key.key, out);
+            ByteBufferUtil.writeWithShortLength(row.key.getKey(), out);
             ColumnFamily.serializer.serialize(row.cf, out, version);
         }
 
@@ -81,7 +81,7 @@ public class Row
 
         public long serializedSize(Row row, int version)
         {
-            int keySize = row.key.key.remaining();
+            int keySize = row.key.getKey().remaining();
             return TypeSizes.NATIVE.sizeof((short) keySize) + keySize + ColumnFamily.serializer.serializedSize(row.cf, TypeSizes.NATIVE, version);
         }
     }

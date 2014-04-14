@@ -116,7 +116,7 @@ public class RowDataResolver extends AbstractRowResolver
                 continue;
 
             // create and send the mutation message based on the diff
-            Mutation mutation = new Mutation(keyspaceName, key.key, diffCf);
+            Mutation mutation = new Mutation(keyspaceName, key.getKey(), diffCf);
             // use a separate verb here because we don't want these to be get the white glove hint-
             // on-timeout behavior that a "real" mutation gets
             results.add(MessagingService.instance().sendRR(mutation.createMessage(MessagingService.Verb.READ_REPAIR),

@@ -410,13 +410,13 @@ public class Keyspace
     public static void indexRow(DecoratedKey key, ColumnFamilyStore cfs, Set<String> idxNames)
     {
         if (logger.isDebugEnabled())
-            logger.debug("Indexing row {} ", cfs.metadata.getKeyValidator().getString(key.key));
+            logger.debug("Indexing row {} ", cfs.metadata.getKeyValidator().getString(key.getKey()));
 
         try (OpOrder.Group opGroup = cfs.keyspace.writeOrder.start())
         {
             Set<SecondaryIndex> indexes = cfs.indexManager.getIndexesByNames(idxNames);
 
-            Iterator<ColumnFamily> pager = QueryPagers.pageRowLocally(cfs, key.key, DEFAULT_PAGE_SIZE);
+            Iterator<ColumnFamily> pager = QueryPagers.pageRowLocally(cfs, key.getKey(), DEFAULT_PAGE_SIZE);
             while (pager.hasNext())
             {
                 ColumnFamily cf = pager.next();
@@ -426,7 +426,7 @@ public class Keyspace
                     if (cfs.indexManager.indexes(cell.name(), indexes))
                         cf2.addColumn(cell);
                 }
-                cfs.indexManager.indexRow(key.key, cf2, opGroup);
+                cfs.indexManager.indexRow(key.getKey(), cf2, opGroup);
             }
         }
     }

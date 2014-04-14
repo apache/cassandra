@@ -31,7 +31,7 @@ import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.PoolAllocator;
+import org.apache.cassandra.utils.memory.MemtableAllocator;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -51,7 +51,7 @@ public class SecondaryIndexCellSizeTest
 
         // for read
         buffer.flip();
-        Cell cell = new Cell(CellNames.simpleDense(ByteBufferUtil.bytes("test")), buffer, 0);
+        Cell cell = new BufferCell(CellNames.simpleDense(ByteBufferUtil.bytes("test")), buffer, 0);
 
         SecondaryIndexCellSizeTest.MockRowIndex mockRowIndex = new SecondaryIndexCellSizeTest.MockRowIndex();
         SecondaryIndexCellSizeTest.MockColumnIndex mockColumnIndex = new SecondaryIndexCellSizeTest.MockColumnIndex();
@@ -91,11 +91,6 @@ public class SecondaryIndexCellSizeTest
 
         public void forceBlockingFlush()
         {
-        }
-
-        public PoolAllocator getAllocator()
-        {
-            return null;
         }
 
         public ColumnFamilyStore getIndexCfs()
@@ -170,12 +165,6 @@ public class SecondaryIndexCellSizeTest
         @Override
         public void forceBlockingFlush()
         {
-        }
-
-        @Override
-        public PoolAllocator getAllocator()
-        {
-            return null;
         }
 
         @Override

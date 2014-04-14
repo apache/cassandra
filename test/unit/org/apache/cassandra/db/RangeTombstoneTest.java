@@ -52,7 +52,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.PoolAllocator;
+import org.apache.cassandra.utils.memory.MemtableAllocator;
 
 import static org.apache.cassandra.Util.dk;
 import static org.junit.Assert.assertEquals;
@@ -533,13 +533,6 @@ public class RangeTombstoneTest extends SchemaLoader
         protected SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns){ return null; }
 
         public void forceBlockingFlush(){}
-
-        @Override
-        public PoolAllocator getAllocator()
-        {
-            return null;
-        }
-
 
         public ColumnFamilyStore getIndexCfs(){ return null; }
 

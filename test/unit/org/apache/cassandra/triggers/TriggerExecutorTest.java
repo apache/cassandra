@@ -243,10 +243,10 @@ public class TriggerExecutorTest
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(metadata);
 
         if (columnValue1 != null)
-            cf.addColumn(new Cell(getColumnName(metadata, "c1"), bytes(columnValue1)));
+            cf.addColumn(new BufferCell(getColumnName(metadata, "c1"), bytes(columnValue1)));
 
         if (columnValue2 != null)
-            cf.addColumn(new Cell(getColumnName(metadata, "c2"), bytes(columnValue2)));
+            cf.addColumn(new BufferCell(getColumnName(metadata, "c2"), bytes(columnValue2)));
 
         return cf;
     }
@@ -269,7 +269,7 @@ public class TriggerExecutorTest
         public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
         {
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create(update.metadata());
-            cf.addColumn(new Cell(getColumnName(update.metadata(), "c2"), bytes("trigger")));
+            cf.addColumn(new BufferCell(getColumnName(update.metadata(), "c2"), bytes("trigger")));
             return Collections.singletonList(new Mutation(update.metadata().ksName, key, cf));
         }
     }
@@ -282,7 +282,7 @@ public class TriggerExecutorTest
                 return null;
 
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create(update.metadata());
-            cf.addColumn(new Cell(getColumnName(update.metadata(), "c2"), bytes("trigger")));
+            cf.addColumn(new BufferCell(getColumnName(update.metadata(), "c2"), bytes("trigger")));
             return Collections.singletonList(new Mutation(update.metadata().ksName, key, cf));
         }
     }
@@ -292,7 +292,7 @@ public class TriggerExecutorTest
         public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
         {
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create(makeCfMetaData(update.metadata().ksName, "otherCf", null));
-            cf.addColumn(new Cell(getColumnName(update.metadata(), "c2"), bytes("trigger")));
+            cf.addColumn(new BufferCell(getColumnName(update.metadata(), "c2"), bytes("trigger")));
             return Collections.singletonList(new Mutation(cf.metadata().ksName, key, cf));
         }
     }
@@ -302,7 +302,7 @@ public class TriggerExecutorTest
         public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
         {
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create(makeCfMetaData("otherKs", "otherCf", null));
-            cf.addColumn(new Cell(getColumnName(update.metadata(), "c2"), bytes("trigger")));
+            cf.addColumn(new BufferCell(getColumnName(update.metadata(), "c2"), bytes("trigger")));
             return Collections.singletonList(new Mutation(cf.metadata().ksName, key, cf));
         }
     }
@@ -312,7 +312,7 @@ public class TriggerExecutorTest
         public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
         {
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create(update.metadata());
-            cf.addColumn(new Cell(getColumnName(update.metadata(), "c2"), bytes("trigger")));
+            cf.addColumn(new BufferCell(getColumnName(update.metadata(), "c2"), bytes("trigger")));
             return Collections.singletonList(new Mutation(cf.metadata().ksName, bytes("otherKey"), cf));
         }
     }

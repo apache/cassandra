@@ -171,7 +171,7 @@ public class QueryProcessor
                                     ? select.getKeyFinish().getByteBuffer(keyType,variables)
                                     : null;
 
-        RowPosition startKey = RowPosition.forKey(startKeyBytes, p), finishKey = RowPosition.forKey(finishKeyBytes, p);
+        RowPosition startKey = RowPosition.ForKey.get(startKeyBytes, p), finishKey = RowPosition.ForKey.get(finishKeyBytes, p);
         if (startKey.compareTo(finishKey) > 0 && !finishKey.isMinimum(p))
         {
             if (p instanceof RandomPartitioner)
@@ -213,7 +213,7 @@ public class QueryProcessor
         // if start key was set and relation was "greater than"
         if (select.getKeyStart() != null && !select.includeStartKey() && !rows.isEmpty())
         {
-            if (rows.get(0).key.key.equals(startKeyBytes))
+            if (rows.get(0).key.getKey().equals(startKeyBytes))
                 rows.remove(0);
         }
 
@@ -221,7 +221,7 @@ public class QueryProcessor
         if (select.getKeyFinish() != null && !select.includeFinishKey() && !rows.isEmpty())
         {
             int lastIndex = rows.size() - 1;
-            if (rows.get(lastIndex).key.key.equals(finishKeyBytes))
+            if (rows.get(lastIndex).key.getKey().equals(finishKeyBytes))
                 rows.remove(lastIndex);
         }
 
@@ -459,7 +459,7 @@ public class QueryProcessor
                         {
                             // prepend key
                             ByteBuffer keyName = ByteBufferUtil.bytes(metadata.getCQL2KeyName());
-                            thriftColumns.add(new Column(keyName).setValue(row.key.key).setTimestamp(-1));
+                            thriftColumns.add(new Column(keyName).setValue(row.key.getKey()).setTimestamp(-1));
                             result.schema.name_types.put(keyName, TypeParser.getShortName(AsciiType.instance));
                             result.schema.value_types.put(keyName, TypeParser.getShortName(metadata.getKeyValidator()));
                         }
@@ -491,7 +491,7 @@ public class QueryProcessor
                             {
                                 // preserve case of key as it was requested
                                 ByteBuffer requestedKey = ByteBufferUtil.bytes(term.getText());
-                                thriftColumns.add(new Column(requestedKey).setValue(row.key.key).setTimestamp(-1));
+                                thriftColumns.add(new Column(requestedKey).setValue(row.key.getKey()).setTimestamp(-1));
                                 result.schema.name_types.put(requestedKey, TypeParser.getShortName(AsciiType.instance));
                                 result.schema.value_types.put(requestedKey, TypeParser.getShortName(metadata.getKeyValidator()));
                                 continue;
@@ -524,7 +524,7 @@ public class QueryProcessor
 
                     // Create a new row, add the columns to it, and then add it to the list of rows
                     CqlRow cqlRow = new CqlRow();
-                    cqlRow.key = row.key.key;
+                    cqlRow.key = row.key.getKey();
                     cqlRow.columns = thriftColumns;
                     if (select.isColumnsReversed())
                         Collections.reverse(cqlRow.columns);

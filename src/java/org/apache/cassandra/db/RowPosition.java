@@ -27,7 +27,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public abstract class RowPosition implements RingPosition<RowPosition>
+public interface RowPosition extends RingPosition<RowPosition>
 {
     public static enum Kind
     {
@@ -43,20 +43,18 @@ public abstract class RowPosition implements RingPosition<RowPosition>
         }
     }
 
+    public static final class ForKey
+    {
+        public static RowPosition get(ByteBuffer key, IPartitioner p)
+        {
+            return key == null || key.remaining() == 0 ? p.getMinimumToken().minKeyBound() : p.decorateKey(key);
+        }
+    }
+
     public static final RowPositionSerializer serializer = new RowPositionSerializer();
 
-    public static RowPosition forKey(ByteBuffer key, IPartitioner p)
-    {
-        return key == null || key.remaining() == 0 ? p.getMinimumToken().minKeyBound() : p.decorateKey(key);
-    }
-
-    public abstract Token getToken();
-    public abstract Kind kind();
-
-    public boolean isMinimum()
-    {
-        return isMinimum(StorageService.getPartitioner());
-    }
+    public Kind kind();
+    public boolean isMinimum();
 
     public static class RowPositionSerializer implements ISerializer<RowPosition>
     {
@@ -76,7 +74,7 @@ public abstract class RowPosition implements RingPosition<RowPosition>
             Kind kind = pos.kind();
             out.writeByte(kind.ordinal());
             if (kind == Kind.ROW_KEY)
-                ByteBufferUtil.writeWithShortLength(((DecoratedKey)pos).key, out);
+                ByteBufferUtil.writeWithShortLength(((DecoratedKey)pos).getKey(), out);
             else
                 Token.serializer.serialize(pos.getToken(), out);
         }
@@ -102,7 +100,7 @@ public abstract class RowPosition implements RingPosition<RowPosition>
             int size = 1; // 1 byte for enum
             if (kind == Kind.ROW_KEY)
             {
-                int keySize = ((DecoratedKey)pos).key.remaining();
+                int keySize = ((DecoratedKey)pos).getKey().remaining();
                 size += typeSizes.sizeof((short) keySize) + keySize;
             }
             else

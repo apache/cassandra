@@ -116,7 +116,7 @@ public class ColumnSerializer implements ISerializer<Cell>
             long timestampOfLastDelete = in.readLong();
             long ts = in.readLong();
             ByteBuffer value = ByteBufferUtil.readWithLength(in);
-            return CounterCell.create(name, value, ts, timestampOfLastDelete, flag);
+            return BufferCounterCell.create(name, value, ts, timestampOfLastDelete, flag);
         }
         else if ((mask & EXPIRATION_MASK) != 0)
         {
@@ -124,17 +124,17 @@ public class ColumnSerializer implements ISerializer<Cell>
             int expiration = in.readInt();
             long ts = in.readLong();
             ByteBuffer value = ByteBufferUtil.readWithLength(in);
-            return ExpiringCell.create(name, value, ts, ttl, expiration, expireBefore, flag);
+            return BufferExpiringCell.create(name, value, ts, ttl, expiration, expireBefore, flag);
         }
         else
         {
             long ts = in.readLong();
             ByteBuffer value = ByteBufferUtil.readWithLength(in);
             return (mask & COUNTER_UPDATE_MASK) != 0
-                   ? new CounterUpdateCell(name, value, ts)
+                   ? new BufferCounterUpdateCell(name, value, ts)
                    : ((mask & DELETION_MASK) == 0
-                      ? new Cell(name, value, ts)
-                      : new DeletedCell(name, value, ts));
+                      ? new BufferCell(name, value, ts)
+                      : new BufferDeletedCell(name, value, ts));
         }
     }
 

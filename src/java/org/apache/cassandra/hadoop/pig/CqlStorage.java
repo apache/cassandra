@@ -24,6 +24,7 @@ import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.BufferCell;
 import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.marshal.*;
@@ -112,7 +113,7 @@ public class CqlStorage extends AbstractCassandraStorage
                 ByteBuffer columnValue = columns.get(ByteBufferUtil.string(cdef.name.duplicate()));
                 if (columnValue != null)
                 {
-                    Cell cell = new Cell(CellNames.simpleDense(cdef.name), columnValue);
+                    Cell cell = new BufferCell(CellNames.simpleDense(cdef.name), columnValue);
                     AbstractType<?> validator = getValidatorMap(cfDef).get(cdef.name);
                     setTupleValue(tuple, i, cqlColumnToObj(cell, cfDef), validator);
                 }

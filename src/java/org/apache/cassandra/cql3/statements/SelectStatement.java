@@ -400,8 +400,8 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             ByteBuffer startKeyBytes = getKeyBound(Bound.START, variables);
             ByteBuffer finishKeyBytes = getKeyBound(Bound.END, variables);
 
-            RowPosition startKey = RowPosition.forKey(startKeyBytes, p);
-            RowPosition finishKey = RowPosition.forKey(finishKeyBytes, p);
+            RowPosition startKey = RowPosition.ForKey.get(startKeyBytes, p);
+            RowPosition finishKey = RowPosition.ForKey.get(finishKeyBytes, p);
 
             if (startKey.compareTo(finishKey) > 0 && !finishKey.isMinimum(p))
                 return null;
@@ -1007,7 +1007,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             if (row.cf == null)
                 continue;
 
-            processColumnFamily(row.key.key, row.cf, variables, now, result);
+            processColumnFamily(row.key.getKey(), row.cf, variables, now, result);
         }
 
         ResultSet cqlRows = result.build();
@@ -1042,7 +1042,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         if (sliceRestriction != null)
             cells = applySliceRestriction(cells, variables);
 
-        CQL3Row.RowIterator iter = cfm.comparator.CQL3RowBuilder(now).group(cells);
+        CQL3Row.RowIterator iter = cfm.comparator.CQL3RowBuilder(cfm, now).group(cells);
 
         // If there is static columns but there is no non-static row, then provided the select was a full
         // partition selection (i.e. not a 2ndary index search and there was no condition on clustering columns)

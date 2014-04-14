@@ -96,7 +96,7 @@ public class RowIteratorFactory
             {
                 // First check if this row is in the rowCache. If it is and it covers our filter, we can skip the rest
                 ColumnFamily cached = cfs.getRawCachedRow(key);
-                IDiskAtomFilter filter = range.columnFilter(key.key);
+                IDiskAtomFilter filter = range.columnFilter(key.getKey());
 
                 if (cached == null || !cfs.isFilterFullyCoveredBy(filter, cached, now))
                 {
@@ -150,7 +150,7 @@ public class RowIteratorFactory
             {
                 public OnDiskAtomIterator create()
                 {
-                    return range.columnFilter(entry.getKey().key).getColumnFamilyIterator(entry.getKey(), entry.getValue());
+                    return range.columnFilter(entry.getKey().getKey()).getColumnFamilyIterator(entry.getKey(), entry.getValue());
                 }
             });
         }

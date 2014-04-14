@@ -100,7 +100,7 @@ public class QueryPagerTest extends SchemaLoader
     {
         StringBuilder sb = new StringBuilder();
         for (Row row : rows)
-            sb.append(string(row.key.key)).append(":").append(toString(row.cf)).append("\n");
+            sb.append(string(row.key.getKey())).append(":").append(toString(row.cf)).append("\n");
         return sb.toString();
     }
 
@@ -159,7 +159,7 @@ public class QueryPagerTest extends SchemaLoader
 
     private static void assertRow(Row r, String key, ByteBuffer... names)
     {
-        assertEquals(key, string(r.key.key));
+        assertEquals(key, string(r.key.getKey()));
         assertNotNull(r.cf);
         int i = 0;
         for (Cell c : r.cf)

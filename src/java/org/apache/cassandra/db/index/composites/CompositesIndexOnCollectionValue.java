@@ -103,6 +103,6 @@ public class CompositesIndexOnCollectionValue extends CompositesIndex
             return true;
 
         ByteBuffer liveValue = liveCell.value();
-        return ((CollectionType)columnDef.type).valueComparator().compare(entry.indexValue.key, liveValue) != 0;
+        return ((CollectionType)columnDef.type).valueComparator().compare(entry.indexValue.getKey(), liveValue) != 0;
     }
 }

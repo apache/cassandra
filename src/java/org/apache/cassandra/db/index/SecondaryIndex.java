@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -51,7 +52,7 @@ import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.memory.PoolAllocator;
+import org.apache.cassandra.utils.memory.MemtableAllocator;
 
 /**
  * Abstract base class for different types of secondary indexes.
@@ -148,11 +149,6 @@ public abstract class SecondaryIndex
      * Forces this indexes' in memory data to disk
      */
     public abstract void forceBlockingFlush();
-
-    /**
-     * Get current amount of memory this index is consuming (in bytes)
-     */
-    public abstract PoolAllocator getAllocator();
 
     /**
      * Allow access to the underlying column family store if there is one
@@ -284,7 +280,7 @@ public abstract class SecondaryIndex
     {
         // FIXME: this imply one column definition per index
         ByteBuffer name = columnDefs.iterator().next().name.bytes;
-        return new DecoratedKey(new LocalToken(baseCfs.metadata.getColumnDefinition(name).type, value), value);
+        return new BufferDecoratedKey(new LocalToken(baseCfs.metadata.getColumnDefinition(name).type, value), value);
     }
 
     /**

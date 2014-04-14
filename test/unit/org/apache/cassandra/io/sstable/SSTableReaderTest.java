@@ -44,6 +44,7 @@ import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -257,9 +258,9 @@ public class SSTableReaderTest extends SchemaLoader
                 firstKey = key;
             if (lastKey == null)
                 lastKey = key;
-            if (store.metadata.getKeyValidator().compare(lastKey.key, key.key) < 0)
+            if (store.metadata.getKeyValidator().compare(lastKey.getKey(), key.getKey()) < 0)
                 lastKey = key;
-            Mutation rm = new Mutation(ks, key.key);
+            Mutation rm = new Mutation(ks, key.getKey());
             rm.add(cf, cellname("col"),
                    ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp);
             rm.apply();
@@ -272,7 +273,7 @@ public class SSTableReaderTest extends SchemaLoader
         // test to see if sstable can be opened as expected
         SSTableReader target = SSTableReader.open(desc);
         Assert.assertEquals(target.getIndexSummarySize(), 1);
-        Assert.assertArrayEquals(ByteBufferUtil.getArray(firstKey.key), target.getIndexSummaryKey(0));
+        Assert.assertArrayEquals(ByteBufferUtil.getArray(firstKey.getKey()), target.getIndexSummaryKey(0));
         assert target.first.equals(firstKey);
         assert target.last.equals(lastKey);
     }
@@ -291,7 +292,7 @@ public class SSTableReaderTest extends SchemaLoader
         ColumnFamilyStore indexCfs = store.indexManager.getIndexForColumn(ByteBufferUtil.bytes("birthdate")).getIndexCfs();
         assert indexCfs.partitioner instanceof LocalPartitioner;
         SSTableReader sstable = indexCfs.getSSTables().iterator().next();
-        assert sstable.first.token instanceof LocalToken;
+        assert sstable.first.getToken() instanceof LocalToken;
 
         SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
         SegmentedFile.Builder dbuilder = sstable.compression
@@ -300,7 +301,7 @@ public class SSTableReaderTest extends SchemaLoader
         sstable.saveSummary(ibuilder, dbuilder);
 
         SSTableReader reopened = SSTableReader.open(sstable.descriptor);
-        assert reopened.first.token instanceof LocalToken;
+        assert reopened.first.getToken() instanceof LocalToken;
     }
 
     /** see CASSANDRA-5407 */
@@ -441,6 +442,6 @@ public class SSTableReaderTest extends SchemaLoader
 
     private DecoratedKey k(int i)
     {
-        return new DecoratedKey(t(i), ByteBufferUtil.bytes(String.valueOf(i)));
+        return new BufferDecoratedKey(t(i), ByteBufferUtil.bytes(String.valueOf(i)));
     }
 }
