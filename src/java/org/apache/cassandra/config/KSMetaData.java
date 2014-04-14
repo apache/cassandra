@@ -242,6 +242,7 @@ public final class KSMetaData
         mutation.delete(SystemKeyspace.SCHEMA_COLUMNS_CF, timestamp);
         mutation.delete(SystemKeyspace.SCHEMA_TRIGGERS_CF, timestamp);
         mutation.delete(SystemKeyspace.SCHEMA_USER_TYPES_CF, timestamp);
+        mutation.delete(SystemKeyspace.INDEX_CF, timestamp);
 
         return mutation;
     }
