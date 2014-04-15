@@ -2,6 +2,7 @@
  * Log a warning for large batches (CASSANDRA-6487)
  * Queries on compact tables can return more rows that requested (CASSANDRA-7052)
  * USING TIMESTAMP for batches does not work (CASSANDRA-7053)
+ * Fix performance regression from CASSANDRA-5614 (CASSANDRA-6949)
 Merged from 1.2:
  * Fix batchlog to account for CF truncation records (CASSANDRA-6999)
  * Fix CQLSH parsing of functions and BLOB literals (CASSANDRA-7018)

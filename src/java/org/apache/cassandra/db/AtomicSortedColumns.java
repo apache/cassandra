@@ -186,15 +186,6 @@ public class AtomicSortedColumns extends ColumnFamily
             }
             modified = new Holder(current.map.clone(), newDelInfo);
 
-            if (cm.deletionInfo().hasRanges())
-            {
-                for (Column currentColumn : Iterables.concat(current.map.values(), cm))
-                {
-                    if (cm.deletionInfo().isDeleted(currentColumn))
-                        indexer.remove(currentColumn);
-                }
-            }
-
             for (Column column : cm)
             {
                 sizeDelta += modified.addColumn(transformation.apply(column), allocator, indexer);
