@@ -18,29 +18,31 @@
 package org.apache.cassandra.repair;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Future;
+
+import com.google.common.base.Predicate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.messages.AnticompactionRequest;
-import org.apache.cassandra.repair.messages.PrepareMessage;
-import org.apache.cassandra.repair.messages.RepairMessage;
-import org.apache.cassandra.repair.messages.SyncRequest;
-import org.apache.cassandra.repair.messages.ValidationRequest;
+import org.apache.cassandra.repair.messages.*;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Handles all repair related message.
@@ -68,6 +70,21 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 ActiveRepairService.instance.registerParentRepairSession(prepareMessage.parentRepairSession,
                                                                          columnFamilyStores,
                                                                          prepareMessage.ranges);
+                MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
+                break;
+
+            case SNAPSHOT:
+                ColumnFamilyStore cfs = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily);
+                final Range<Token> repairingRange = desc.range;
+                cfs.snapshot(desc.sessionId.toString(), new Predicate<SSTableReader>()
+                {
+                    public boolean apply(SSTableReader sstable)
+                    {
+                        return sstable != null && new Bounds<>(sstable.first.token, sstable.last.token).intersects(Collections.singleton(repairingRange));
+                    }
+                });
+
+                logger.debug("Enqueuing response to snapshot request {} to {}", desc.sessionId, message.from);
                 MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
                 break;
 
