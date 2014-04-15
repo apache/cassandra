@@ -1574,6 +1574,12 @@ public final class CFMetaData
         for (TriggerDefinition td : triggers.values())
             td.deleteFromSchema(mutation, cfName, timestamp);
 
+        for (String indexName : Keyspace.open(this.ksName).getColumnFamilyStore(this.cfName).getBuiltIndexes())
+        {
+            ColumnFamily indexCf = mutation.addOrGet(IndexCf);
+            indexCf.addTombstone(indexCf.getComparator().makeCellName(indexName), ldt, timestamp);
+        }
+
         return mutation;
     }
 
