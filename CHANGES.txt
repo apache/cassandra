@@ -4,6 +4,7 @@
  * Remove CQL2 (CASSANDRA-5918)
  * Add Thrift get_multi_slice call (CASSANDRA-6757)
  * Optimize fetching multiple cells by name (CASSANDRA-6933)
+ * Allow compilation in java 8 (CASSANDRA-7208)
 
 
 2.1.0-beta2
