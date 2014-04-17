@@ -462,7 +462,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
         StreamingMetrics.totalOutgoingBytes.inc(headerSize);
         metrics.outgoingBytes.inc(headerSize);
         // schedule timeout for receiving ACK
-        transfers.get(header.cfId).scheduleTimeout(header.sequenceNumber, 12, TimeUnit.HOURS);
+        StreamTransferTask task = transfers.get(header.cfId);
+        if (task != null)
+        {
+            task.scheduleTimeout(header.sequenceNumber, 12, TimeUnit.HOURS);
+        }
     }
 
     /**
