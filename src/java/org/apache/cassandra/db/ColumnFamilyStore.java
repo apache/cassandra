@@ -2416,12 +2416,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getDataTracker().getDroppableTombstoneRatio();
     }
 
-    public long getTruncationTime()
-    {
-        Pair<ReplayPosition, Long> truncationRecord = SystemKeyspace.getTruncationRecords().get(metadata.cfId);
-        return truncationRecord == null ? Long.MIN_VALUE : truncationRecord.right;
-    }
-
     @VisibleForTesting
     void resetFileIndexGenerator()
     {
