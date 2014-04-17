@@ -80,6 +80,8 @@ public class SystemTable
     private static final String LOCAL_KEY = "local";
     private static final ByteBuffer ALL_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("Local");
 
+    private static volatile Map<UUID, Pair<ReplayPosition, Long>> truncationRecords;
+
     public enum BootstrapState
     {
         NEEDS_BOOTSTRAP,
@@ -237,20 +239,22 @@ public class SystemTable
         }
     }
 
-    public static void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, ReplayPosition position)
+    public static synchronized void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, ReplayPosition position)
     {
         String req = "UPDATE system.%s SET truncated_at = truncated_at + %s WHERE key = '%s'";
         processInternal(String.format(req, LOCAL_CF, truncationAsMapEntry(cfs, truncatedAt, position), LOCAL_KEY));
+        truncationRecords = null;
         forceBlockingFlush(LOCAL_CF);
     }
 
     /**
      * This method is used to remove information about truncation time for specified column family
      */
-    public static void removeTruncationRecord(UUID cfId)
+    public static synchronized void removeTruncationRecord(UUID cfId)
     {
         String req = "DELETE truncated_at[%s] from system.%s WHERE key = '%s'";
         processInternal(String.format(req, cfId, LOCAL_CF, LOCAL_KEY));
+        truncationRecords = null;
         forceBlockingFlush(LOCAL_CF);
     }
 
@@ -271,22 +275,41 @@ public class SystemTable
                              ByteBufferUtil.bytesToHex(ByteBuffer.wrap(out.getData(), 0, out.getLength())));
     }
 
-    public static Map<UUID, Pair<ReplayPosition, Long>> getTruncationRecords()
+    public static ReplayPosition getTruncatedPosition(UUID cfId)
     {
-        String req = "SELECT truncated_at FROM system.%s WHERE key = '%s'";
-        UntypedResultSet rows = processInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
-        if (rows.isEmpty())
-            return Collections.emptyMap();
+        Pair<ReplayPosition, Long> record = getTruncationRecord(cfId);
+        return record == null ? null : record.left;
+    }
 
-        UntypedResultSet.Row row = rows.one();
-        Map<UUID, ByteBuffer> rawMap = row.getMap("truncated_at", UUIDType.instance, BytesType.instance);
-        if (rawMap == null)
-            return Collections.emptyMap();
+    public static long getTruncatedAt(UUID cfId)
+    {
+        Pair<ReplayPosition, Long> record = getTruncationRecord(cfId);
+        return record == null ? Long.MIN_VALUE : record.right;
+    }
 
-        Map<UUID, Pair<ReplayPosition, Long>> positions = new HashMap<UUID, Pair<ReplayPosition, Long>>();
-        for (Map.Entry<UUID, ByteBuffer> entry : rawMap.entrySet())
-            positions.put(entry.getKey(), truncationRecordFromBlob(entry.getValue()));
-        return positions;
+    private static synchronized Pair<ReplayPosition, Long> getTruncationRecord(UUID cfId)
+    {
+        if (truncationRecords == null)
+            truncationRecords = readTruncationRecords();
+        return truncationRecords.get(cfId);
+    }
+
+    private static Map<UUID, Pair<ReplayPosition, Long>> readTruncationRecords()
+    {
+        UntypedResultSet rows = processInternal(String.format("SELECT truncated_at FROM system.%s WHERE key = '%s'",
+                                                              LOCAL_CF,
+                                                              LOCAL_KEY));
+
+        Map<UUID, Pair<ReplayPosition, Long>> records = new HashMap<UUID, Pair<ReplayPosition, Long>>();
+
+        if (!rows.isEmpty() && rows.one().has("truncated_at"))
+        {
+            Map<UUID, ByteBuffer> map = rows.one().getMap("truncated_at", UUIDType.instance, BytesType.instance);
+            for (Map.Entry<UUID, ByteBuffer> entry : map.entrySet())
+                records.put(entry.getKey(), truncationRecordFromBlob(entry.getValue()));
+        }
+
+        return records;
     }
 
     private static Pair<ReplayPosition, Long> truncationRecordFromBlob(ByteBuffer bytes)

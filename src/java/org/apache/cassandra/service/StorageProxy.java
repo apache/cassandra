@@ -560,7 +560,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (ttl > 0)
                 {
                     logger.debug("Adding hint for {}", target);
-                    writeHintForMutation(mutation, ttl, target);
+                    writeHintForMutation(mutation, System.currentTimeMillis(), ttl, target);
                     // Notify the handler only for CL == ANY
                     if (responseHandler != null && consistencyLevel == ConsistencyLevel.ANY)
                         responseHandler.response(null);
@@ -582,7 +582,10 @@ public class StorageProxy implements StorageProxyMBean
         return (Future<Void>) StageManager.getStage(Stage.MUTATION).submit(runnable);
     }
 
-    public static void writeHintForMutation(RowMutation mutation, int ttl, InetAddress target) throws IOException
+    /**
+     * @param now current time in milliseconds - relevant for hint replay handling of truncated CFs
+     */
+    public static void writeHintForMutation(RowMutation mutation, long now, int ttl, InetAddress target) throws IOException
     {
         assert ttl > 0;
         UUID hostId = StorageService.instance.getTokenMetadata().getHostId(target);
@@ -592,7 +595,7 @@ public class StorageProxy implements StorageProxyMBean
             return;
         }
         assert hostId != null : "Missing host ID for " + target.getHostAddress();
-        mutation.toHint(ttl, hostId).apply();
+        mutation.toHint(now, ttl, hostId).apply();
         StorageMetrics.totalHints.inc();
     }
 

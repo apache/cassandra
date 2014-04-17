@@ -103,8 +103,10 @@ public class RowMutation implements IMutation
     /**
      * Returns mutation representing a Hint to be sent to <code>targetId</code>
      * as soon as it becomes available. See HintedHandoffManager for more details.
+     *
+     * @param now current time in milliseconds - relevant for hint replay handling of truncated CFs
      */
-    public RowMutation toHint(int ttl, UUID targetId) throws IOException
+    public RowMutation toHint(long now, int ttl, UUID targetId) throws IOException
     {
         assert ttl > 0;
 
@@ -116,7 +118,7 @@ public class RowMutation implements IMutation
                                        HintedHandOffManager.comparator.decompose(hintId, MessagingService.current_version));
         rm.add(path,
                ByteBuffer.wrap(FBUtilities.serialize(this, serializer, MessagingService.current_version)),
-               System.currentTimeMillis(),
+               now,
                ttl);
 
         return rm;
