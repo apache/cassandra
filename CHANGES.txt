@@ -117,6 +117,7 @@ Merged from 1.2:
  * Schedule schema pulls on change (CASSANDRA-6971)
  * Non-droppable verbs shouldn't be dropped from OTC (CASSANDRA-6980)
  * Shutdown batchlog executor in SS#drain() (CASSANDRA-7025)
+ * Fix batchlog to account for CF truncation records (CASSANDRA-6999)
 
 
 2.0.6

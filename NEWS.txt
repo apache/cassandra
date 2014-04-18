@@ -62,6 +62,15 @@ Upgrading
      has been deprecated.
 
 
+2.0.7
+=====
+
+Upgrading
+---------
+    - Nothing specific to this release, but please see 2.0.6 if you are upgrading
+      from a previous version.
+
+
 2.0.6
 =====
 
@@ -77,7 +86,7 @@ New features
 
 Upgrading
 ---------
-    - Nothing specific to this release, but please see 2.0.6 if you are upgrading
+    - Nothing specific to this release, but please see 2.0.5 if you are upgrading
       from a previous version.
 
 
