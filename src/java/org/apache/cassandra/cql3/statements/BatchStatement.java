@@ -117,7 +117,8 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
         {
             ModificationStatement statement = statements.get(i);
             List<ByteBuffer> statementVariables = variables.getVariablesForStatement(i);
-            addStatementMutations(statement, statementVariables, local, cl, now, mutations);
+            long timestamp = attrs.getTimestamp(now, statementVariables);
+            addStatementMutations(statement, statementVariables, local, cl, timestamp, mutations);
         }
         return unzipMutations(mutations);
     }
