@@ -30,7 +30,6 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.RateLimiter;
@@ -121,7 +120,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
      * Returns a mutation representing a Hint to be sent to <code>targetId</code>
      * as soon as it becomes available again.
      */
-    public Mutation hintFor(Mutation mutation, int ttl, UUID targetId)
+    public Mutation hintFor(Mutation mutation, long now, int ttl, UUID targetId)
     {
         assert ttl > 0;
 
@@ -137,7 +136,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         CellName name = CFMetaData.HintsCf.comparator.makeCellName(hintId, MessagingService.current_version);
         ByteBuffer value = ByteBuffer.wrap(FBUtilities.serialize(mutation, Mutation.serializer, MessagingService.current_version));
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Schema.instance.getCFMetaData(Keyspace.SYSTEM_KS, SystemKeyspace.HINTS_CF));
-        cf.addColumn(name, value, System.currentTimeMillis(), ttl);
+        cf.addColumn(name, value, now, ttl);
         return new Mutation(Keyspace.SYSTEM_KS, UUIDType.instance.decompose(targetId), cf);
     }
 
@@ -389,7 +388,6 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             }
 
             List<WriteResponseHandler> responseHandlers = Lists.newArrayList();
-            Map<UUID, Long> truncationTimesCache = new HashMap<UUID, Long>();
             for (final Cell hint : hintsPage)
             {
                 // check if hints delivery has been paused during the process
@@ -427,18 +425,9 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                     throw new AssertionError(e);
                 }
 
-                truncationTimesCache.clear();
-                for (UUID cfId : ImmutableSet.copyOf((mutation.getColumnFamilyIds())))
+                for (UUID cfId : mutation.getColumnFamilyIds())
                 {
-                    Long truncatedAt = truncationTimesCache.get(cfId);
-                    if (truncatedAt == null)
-                    {
-                        ColumnFamilyStore cfs = Keyspace.open(mutation.getKeyspaceName()).getColumnFamilyStore(cfId);
-                        truncatedAt = cfs.getTruncationTime();
-                        truncationTimesCache.put(cfId, truncatedAt);
-                    }
-
-                    if (hint.timestamp() < truncatedAt)
+                    if (hint.timestamp() <= SystemKeyspace.getTruncatedAt(cfId))
                     {
                         logger.debug("Skipping delivery of hint for truncated columnfamily {}", cfId);
                         mutation = mutation.without(cfId);
