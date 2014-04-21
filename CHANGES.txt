@@ -1,4 +1,5 @@
 2.0.8
+ * Queries on compact tables can return more rows that requested (CASSANDRA-7052)
 Merged from 1.2:
  * Fix batchlog to account for CF truncation records (CASSANDRA-6999)
  * Fix CQLSH parsing of functions and BLOB literals (CASSANDRA-7018)

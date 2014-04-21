@@ -39,7 +39,7 @@ import org.apache.cassandra.exceptions.RequestValidationException;
  * Also, there is no guarantee that fetchPage() won't return an empty list,
  * even if isExhausted() return false (but it is guaranteed to return an empty
  * list *if* isExhausted() return true). Indeed, isExhausted() does *not*
- * trigger a query so in some (failry rare) case we might not know the paging
+ * trigger a query so in some (fairly rare) case we might not know the paging
  * is done even though it is.
  */
 public interface QueryPager
