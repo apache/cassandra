@@ -65,6 +65,7 @@ Merged from 1.2:
  * Schedule schema pulls on change (CASSANDRA-6971)
  * Non-droppable verbs shouldn't be dropped from OTC (CASSANDRA-6980)
  * Shutdown batchlog executor in SS#drain() (CASSANDRA-7025)
+ * Properly load trustore in the native protocol (CASSANDRA-6847)
 
 
 2.0.6
