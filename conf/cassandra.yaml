@@ -102,8 +102,9 @@ commitlog_directory: /var/lib/cassandra/commitlog
 
 # location to write flushing sstables to.  Ideally, this will also be
 # a separate spindle in HDD deployments.  If you only have two spindles,
-# have it share with the data spindle.
-flush_directory: /var/lib/cassandra/flush
+# have it share with the data spindle.  By default, this will point at the data
+# directory.
+# flush_directory: /var/lib/cassandra/flush
 
 # policy for data disk failures:
 # stop_paranoid: shut down gossip and Thrift even for single-sstable errors.
