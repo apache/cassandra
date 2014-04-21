@@ -35,6 +35,7 @@
  * Fix bootstrapping when there is no schema (CASSANDRA-6685)
  * Fix truncating compression metadata (CASSANDRA-6791)
  * Fix SSTable not released if stream session fails before starts (CASSANDRA-6818)
+ * Properly load trustore in the native protocol (CASSANDRA-6847)
 
 
 1.2.15
