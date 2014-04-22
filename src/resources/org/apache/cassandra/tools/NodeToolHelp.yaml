@@ -181,7 +181,7 @@ commands:
       Load newly placed SSTables to the system without restart.
   - name: rebuild_index <keyspace> <cf-name> <idx1,idx1>
     help: |
-      a full rebuilds of native secondry index for a given column family. IndexNameExample: Standard3.IdxName,Standard3.IdxName1
+      a full rebuild of native secondary indexes for a given column family. IndexNameExample: Standard3.IdxName,Standard3.IdxName1
   - name: setcachecapacity <key-cache-capacity> <row-cache-capacity>
     help: |
       Set global key and row cache capacities (in MB units).

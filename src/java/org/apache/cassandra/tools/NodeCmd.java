@@ -1370,11 +1370,8 @@ public class NodeCmd
                     break;
 
                 case REBUILD_INDEX:
-                    if (arguments.length < 2) { badUse("rebuild_index requires ks and cf args"); }
-                    if (arguments.length >= 3)
+                    if (arguments.length <= 2) { badUse("rebuild_index requires ks, cf and idx args"); }
                         probe.rebuildIndex(arguments[0], arguments[1], arguments[2].split(","));
-                    else
-                        probe.rebuildIndex(arguments[0], arguments[1]);
 
                     break;
 

@@ -7,6 +7,7 @@
  * Shutdown batchlog executor in SS#drain() (CASSANDRA-7025)
  * Fix batchlog to account for CF truncation records (CASSANDRA-6999)
  * Fix CQLSH parsing of functions and BLOB literals (CASSANDRA-7018)
+ * Require nodetool rebuild_index to specify index names (CASSANDRA-7038)
 
 
 1.2.16
