@@ -464,6 +464,7 @@ public class DefsTables
                     cfs.snapshot(snapshotName);
                 Keyspace.open(ksm.name).dropCf(cfm.cfId);
             }
+            CommitLog.instance.discardColumnFamily(cfm.cfId);
         }
 
         // remove the keyspace from the static instances.
@@ -494,6 +495,7 @@ public class DefsTables
 
         CompactionManager.instance.interruptCompactionFor(Arrays.asList(cfm), true);
 
+        CommitLog.instance.discardColumnFamily(cfm.cfId);
         CommitLog.instance.forceRecycleAllSegments();
 
         if (!StorageService.instance.isClientMode())

@@ -237,6 +237,13 @@ public class CommitLog implements CommitLogMBean
         return alloc;
     }
 
+    public void discardColumnFamily(final UUID cfId)
+    {
+        ReplayPosition context = getContext();
+        for (CommitLogSegment cls : allocator.getActiveSegments())
+            cls.markClean(cfId, context);
+    }
+
     /**
      * Modifies the per-CF dirty cursors of any commit log segments for the column family according to the position
      * given. Discards any commit log segments that are no longer used.
