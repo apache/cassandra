@@ -51,7 +51,7 @@ public class CommitLogArchiver
     }
 
     public final Map<String, Future<?>> archivePending = new ConcurrentHashMap<String, Future<?>>();
-    public final ExecutorService executor = new JMXEnabledThreadPoolExecutor("commitlog_archiver");
+    public final ExecutorService executor = new JMXEnabledThreadPoolExecutor("CommitLogArchiver");
     private final String archiveCommand;
     private final String restoreCommand;
     private final String restoreDirectories;
