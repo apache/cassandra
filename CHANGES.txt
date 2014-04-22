@@ -1,3 +1,12 @@
+2.0.8
+ * Queries on compact tables can return more rows that requested (CASSANDRA-7052)
+ * USING TIMESTAMP for batches does not work (CASSANDRA-7053)
+Merged from 1.2:
+ * Fix batchlog to account for CF truncation records (CASSANDRA-6999)
+ * Fix CQLSH parsing of functions and BLOB literals (CASSANDRA-7018)
+ * Require nodetool rebuild_index to specify index names (CASSANDRA-7038)
+
+
 2.0.7
  * Put nodes in hibernate when join_ring is false (CASSANDRA-6961)
  * Avoid early loading of non-system keyspaces before compaction-leftovers 
@@ -40,7 +49,7 @@
  * Add QueryHandler interface (CASSANDRA-6659)
  * Track liveRatio per-memtable, not per-CF (CASSANDRA-6945)
  * Make sure upgradesstables keeps sstable level (CASSANDRA-6958)
- * Fix LIMT with static columns (CASSANDRA-6956)
+ * Fix LIMIT with static columns (CASSANDRA-6956)
  * Fix clash with CQL column name in thrift validation (CASSANDRA-6892)
  * Fix error with super columns in mixed 1.2-2.0 clusters (CASSANDRA-6966)
  * Fix bad skip of sstables on slice query with composite start/finish (CASSANDRA-6825)
@@ -54,12 +63,13 @@ Merged from 1.2:
  * Add UNLOGGED, COUNTER options to BATCH documentation (CASSANDRA-6816)
  * add extra SSL cipher suites (CASSANDRA-6613)
  * fix nodetool getsstables for blob PK (CASSANDRA-6803)
- * Fix BatchlogManager#deleteBatch() use of millisecond timsestamps
+ * Fix BatchlogManager#deleteBatch() use of millisecond timestamps
    (CASSANDRA-6822)
  * Continue assassinating even if the endpoint vanishes (CASSANDRA-6787)
  * Schedule schema pulls on change (CASSANDRA-6971)
  * Non-droppable verbs shouldn't be dropped from OTC (CASSANDRA-6980)
  * Shutdown batchlog executor in SS#drain() (CASSANDRA-7025)
+ * Properly load trustore in the native protocol (CASSANDRA-6847)
 
 
 2.0.6

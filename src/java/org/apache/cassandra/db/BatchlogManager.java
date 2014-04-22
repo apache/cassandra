@@ -24,10 +24,7 @@ import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.management.MBeanServer;
@@ -35,7 +32,6 @@ import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -251,45 +247,72 @@ public class BatchlogManager implements BatchlogManagerMBean
     {
         DataInputStream in = new DataInputStream(ByteBufferUtil.inputStream(data));
         int size = in.readInt();
+        List<RowMutation> mutations = new ArrayList<>(size);
+
         for (int i = 0; i < size; i++)
-            replaySerializedMutation(RowMutation.serializer.deserialize(in, version), writtenAt, version, rateLimiter);
+        {
+            RowMutation mutation = RowMutation.serializer.deserialize(in, version);
+
+            // Remove CFs that have been truncated since. writtenAt and SystemTable#getTruncatedAt() both return millis.
+            // We don't abort the replay entirely b/c this can be considered a succes (truncated is same as delivered then
+            // truncated.
+            for (UUID cfId : mutation.getColumnFamilyIds())
+                if (writtenAt <= SystemKeyspace.getTruncatedAt(cfId))
+                    mutation = mutation.without(cfId);
+
+            if (!mutation.isEmpty())
+                mutations.add(mutation);
+        }
+
+        if (!mutations.isEmpty())
+            replayMutations(mutations, writtenAt, version, rateLimiter);
     }
 
     /*
      * We try to deliver the mutations to the replicas ourselves if they are alive and only resort to writing hints
      * when a replica is down or a write request times out.
      */
-    private void replaySerializedMutation(RowMutation mutation, long writtenAt, int version, RateLimiter rateLimiter)
+    private void replayMutations(List<RowMutation> mutations, long writtenAt, int version, RateLimiter rateLimiter) throws IOException
     {
-        int ttl = calculateHintTTL(mutation, writtenAt);
+        int ttl = calculateHintTTL(mutations, writtenAt);
         if (ttl <= 0)
-            return; // the mutation isn't safe to replay.
+            return; // this batchlog entry has 'expired'
 
-        Set<InetAddress> liveEndpoints = new HashSet<>();
-        String ks = mutation.getKeyspaceName();
-        Token<?> tk = StorageService.getPartitioner().getToken(mutation.key());
-        int mutationSize = (int) RowMutation.serializer.serializedSize(mutation, version);
-
-        for (InetAddress endpoint : Iterables.concat(StorageService.instance.getNaturalEndpoints(ks, tk),
-                                                     StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, ks)))
+        for (RowMutation mutation : mutations)
         {
-            rateLimiter.acquire(mutationSize);
-            if (endpoint.equals(FBUtilities.getBroadcastAddress()))
-                mutation.apply();
-            else if (FailureDetector.instance.isAlive(endpoint))
-                liveEndpoints.add(endpoint); // will try delivering directly instead of writing a hint.
-            else
-                StorageProxy.writeHintForMutation(mutation, ttl, endpoint);
-        }
+            List<InetAddress> liveEndpoints = new ArrayList<>();
+            List<InetAddress> hintEndpoints = new ArrayList<>();
 
-        if (!liveEndpoints.isEmpty())
-            attemptDirectDelivery(mutation, writtenAt, liveEndpoints);
+            String ks = mutation.getKeyspaceName();
+            Token tk = StorageService.getPartitioner().getToken(mutation.key());
+            int mutationSize = (int) RowMutation.serializer.serializedSize(mutation, version);
+
+            for (InetAddress endpoint : Iterables.concat(StorageService.instance.getNaturalEndpoints(ks, tk),
+                                                         StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, ks)))
+            {
+                rateLimiter.acquire(mutationSize);
+                if (endpoint.equals(FBUtilities.getBroadcastAddress()))
+                    mutation.apply();
+                else if (FailureDetector.instance.isAlive(endpoint))
+                    liveEndpoints.add(endpoint); // will try delivering directly instead of writing a hint.
+                else
+                    hintEndpoints.add(endpoint);
+            }
+
+            if (!liveEndpoints.isEmpty())
+                hintEndpoints.addAll(attemptDirectDelivery(mutation, liveEndpoints));
+
+            for (InetAddress endpoint : hintEndpoints)
+                StorageProxy.writeHintForMutation(mutation, writtenAt, ttl, endpoint);
+        }
     }
 
-    private void attemptDirectDelivery(RowMutation mutation, long writtenAt, Set<InetAddress> endpoints)
+    // Returns the endpoints we failed to deliver to.
+    private Set<InetAddress> attemptDirectDelivery(RowMutation mutation, List<InetAddress> endpoints) throws IOException
     {
-        List<WriteResponseHandler> handlers = Lists.newArrayList();
-        final CopyOnWriteArraySet<InetAddress> undelivered = new CopyOnWriteArraySet<>(endpoints);
+        final List<WriteResponseHandler> handlers = new ArrayList<>();
+        final Set<InetAddress> undelivered = Collections.synchronizedSet(new HashSet<InetAddress>());
+
         for (final InetAddress ep : endpoints)
         {
             Runnable callback = new Runnable()
@@ -317,20 +340,19 @@ public class BatchlogManager implements BatchlogManagerMBean
             }
         }
 
-        if (!undelivered.isEmpty())
-        {
-            int ttl = calculateHintTTL(mutation, writtenAt); // recalculate ttl
-            if (ttl > 0)
-                for (InetAddress endpoint : undelivered)
-                    StorageProxy.writeHintForMutation(mutation, ttl, endpoint);
-        }
+        return undelivered;
     }
 
-    // calculate ttl for the mutation's hint (and reduce ttl by the time the mutation spent in the batchlog).
-    // this ensures that deletes aren't "undone" by an old batch replay.
-    private int calculateHintTTL(RowMutation mutation, long writtenAt)
+    /*
+     * Calculate ttl for the mutations' hints (and reduce ttl by the time the mutations spent in the batchlog).
+     * This ensures that deletes aren't "undone" by an old batch replay.
+     */
+    private int calculateHintTTL(List<RowMutation> mutations, long writtenAt)
     {
-        return (int) ((HintedHandOffManager.calculateHintTTL(mutation) * 1000 - (System.currentTimeMillis() - writtenAt)) / 1000);
+        int unadjustedTTL = Integer.MAX_VALUE;
+        for (RowMutation mutation : mutations)
+            unadjustedTTL = Math.min(unadjustedTTL, HintedHandOffManager.calculateHintTTL(mutation));
+        return unadjustedTTL - (int) TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - writtenAt);
     }
 
     private static ByteBuffer columnName(String name)

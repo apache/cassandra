@@ -194,15 +194,16 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         cl.validateForRead(keyspace());
 
         int limit = getLimit(variables);
+        int limitForQuery = updateLimitForQuery(limit);
         long now = System.currentTimeMillis();
         Pageable command;
         if (isKeyRange || usesSecondaryIndexing)
         {
-            command = getRangeCommand(variables, limit, now);
+            command = getRangeCommand(variables, limitForQuery, now);
         }
         else
         {
-            List<ReadCommand> commands = getSliceCommands(variables, limit, now);
+            List<ReadCommand> commands = getSliceCommands(variables, limitForQuery, now);
             command = commands == null ? null : new Pageable.ReadCommands(commands);
         }
 
@@ -221,7 +222,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         {
             QueryPager pager = QueryPagers.pager(command, cl, options.getPagingState());
             if (parameters.isCount)
-                return pageCountQuery(pager, variables, pageSize, now);
+                return pageCountQuery(pager, variables, pageSize, now, limit);
 
             // We can't properly do post-query ordering if we page (see #6722)
             if (needsPostQueryOrdering())
@@ -253,7 +254,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return processResults(rows, variables, limit, now);
     }
 
-    private ResultMessage.Rows pageCountQuery(QueryPager pager, List<ByteBuffer> variables, int pageSize, long now) throws RequestValidationException, RequestExecutionException
+    private ResultMessage.Rows pageCountQuery(QueryPager pager, List<ByteBuffer> variables, int pageSize, long now, int limit) throws RequestValidationException, RequestExecutionException
     {
         int count = 0;
         while (!pager.isExhausted())
@@ -264,7 +265,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             count += rset.rows.size();
         }
 
-        ResultSet result = ResultSet.makeCountResult(keyspace(), columnFamily(), count, parameters.countAlias);
+        // We sometimes query one more result than the user limit asks to handle exclusive bounds with compact tables (see updateLimitForQuery).
+        // So do make sure the count is not greater than what the user asked for.
+        ResultSet result = ResultSet.makeCountResult(keyspace(), columnFamily(), Math.min(count, limit), parameters.countAlias);
         return new ResultMessage.Rows(result);
     }
 
@@ -289,16 +292,17 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     {
         List<ByteBuffer> variables = Collections.emptyList();
         int limit = getLimit(variables);
+        int limitForQuery = updateLimitForQuery(limit);
         long now = System.currentTimeMillis();
         List<Row> rows;
         if (isKeyRange || usesSecondaryIndexing)
         {
-            RangeSliceCommand command = getRangeCommand(variables, limit, now);
+            RangeSliceCommand command = getRangeCommand(variables, limitForQuery, now);
             rows = command == null ? Collections.<Row>emptyList() : command.executeLocally();
         }
         else
         {
-            List<ReadCommand> commands = getSliceCommands(variables, limit, now);
+            List<ReadCommand> commands = getSliceCommands(variables, limitForQuery, now);
             rows = commands == null ? Collections.<Row>emptyList() : readLocally(keyspace(), commands);
         }
 
@@ -561,12 +565,16 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         if (l <= 0)
             throw new InvalidRequestException("LIMIT must be strictly positive");
 
-        // Internally, we don't support exclusive bounds for slices. Instead,
-        // we query one more element if necessary and exclude
-        if (sliceRestriction != null && (!sliceRestriction.isInclusive(Bound.START) || !sliceRestriction.isInclusive(Bound.END)) && l != Integer.MAX_VALUE)
-            l += 1;
-
         return l;
+    }
+
+    private int updateLimitForQuery(int limit)
+    {
+        // Internally, we don't support exclusive bounds for slices. Instead, we query one more element if necessary
+        // and exclude it later (in processColumnFamily)
+        return sliceRestriction != null && (!sliceRestriction.isInclusive(Bound.START) || !sliceRestriction.isInclusive(Bound.END)) && limit != Integer.MAX_VALUE
+             ? limit + 1
+             : limit;
     }
 
     private Collection<ByteBuffer> getKeys(final List<ByteBuffer> variables) throws InvalidRequestException
@@ -961,7 +969,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         if (isReversed)
             cqlRows.reverse();
 
-        // Trim result if needed to respect the limit
+        // Trim result if needed to respect the user limit
         cqlRows.trim(limit);
         return cqlRows;
     }

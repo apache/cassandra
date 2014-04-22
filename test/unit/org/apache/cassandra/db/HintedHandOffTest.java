@@ -1,4 +1,3 @@
-package org.apache.cassandra.db;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,7 +18,7 @@ package org.apache.cassandra.db;
  * under the License.
  * 
  */
-
+package org.apache.cassandra.db;
 
 import java.net.InetAddress;
 import java.util.Map;
@@ -27,6 +26,8 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
+
+import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -36,8 +37,6 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-
-import com.google.common.collect.Iterators;
 
 import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
@@ -65,7 +64,11 @@ public class HintedHandOffTest extends SchemaLoader
         RowMutation rm = new RowMutation(KEYSPACE4, ByteBufferUtil.bytes(1));
         rm.add(STANDARD1_CF, ByteBufferUtil.bytes(String.valueOf(COLUMN1)), ByteBufferUtil.EMPTY_BYTE_BUFFER, System.currentTimeMillis());
 
-        HintedHandOffManager.instance.hintFor(rm, HintedHandOffManager.calculateHintTTL(rm), UUID.randomUUID()).apply();
+        HintedHandOffManager.instance.hintFor(rm,
+                                              System.currentTimeMillis(),
+                                              HintedHandOffManager.calculateHintTTL(rm),
+                                              UUID.randomUUID())
+                                     .apply();
 
         // flush data to disk
         hintStore.forceBlockingFlush();
@@ -104,7 +107,11 @@ public class HintedHandOffTest extends SchemaLoader
         RowMutation rm = new RowMutation(KEYSPACE4, ByteBufferUtil.bytes(1));
         rm.add(STANDARD1_CF, ByteBufferUtil.bytes(String.valueOf(COLUMN1)), ByteBufferUtil.EMPTY_BYTE_BUFFER, System.currentTimeMillis());
 
-        HintedHandOffManager.instance.hintFor(rm, HintedHandOffManager.calculateHintTTL(rm), UUID.randomUUID()).apply();
+        HintedHandOffManager.instance.hintFor(rm,
+                                              System.currentTimeMillis(),
+                                              HintedHandOffManager.calculateHintTTL(rm),
+                                              UUID.randomUUID())
+                                     .apply();
 
         assert getNoOfHints() == 1;
 
