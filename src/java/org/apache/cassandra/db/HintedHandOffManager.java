@@ -55,7 +55,6 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.metrics.HintedHandoffMetrics;
-import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.*;
@@ -391,8 +390,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                     continue;
                 }
 
-                MessageOut<RowMutation> message = rm.createMessage();
-                rateLimiter.acquire(message.serializedSize(MessagingService.current_version));
+                rateLimiter.acquire((int) RowMutation.serializer.serializedSize(rm, MessagingService.current_version));
                 Runnable callback = new Runnable()
                 {
                     public void run()
@@ -401,8 +399,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                         deleteHint(hostIdBytes, hint.name(), hint.maxTimestamp());
                     }
                 };
-                WriteResponseHandler responseHandler = new WriteResponseHandler(endpoint, WriteType.UNLOGGED_BATCH, callback);
-                MessagingService.instance().sendRR(message, endpoint, responseHandler);
+                WriteResponseHandler responseHandler = new WriteResponseHandler(endpoint, WriteType.SIMPLE, callback);
+                MessagingService.instance().sendUnhintableMutation(rm, endpoint, responseHandler);
                 responseHandlers.add(responseHandler);
             }
 
