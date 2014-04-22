@@ -22,10 +22,13 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Checksum;
 
@@ -59,7 +62,7 @@ public class CommitLogSegment
     static final int ENTRY_OVERHEAD_SIZE = 4 + 8 + 8;
 
     // cache which cf is dirty in this segment to avoid having to lookup all ReplayPositions to decide if we can delete this segment
-    private final HashMap<UUID, Integer> cfLastWrite = new HashMap<UUID, Integer>();
+    private final Map<UUID, Integer> cfLastWrite = new HashMap<UUID, Integer>();
 
     public final long id;
 
@@ -316,7 +319,7 @@ public class CommitLogSegment
      * @param cfId    the column family ID that is now clean
      * @param context the optional clean offset
      */
-    public void markClean(UUID cfId, ReplayPosition context)
+    public synchronized void markClean(UUID cfId, ReplayPosition context)
     {
         Integer lastWritten = cfLastWrite.get(cfId);
 
@@ -329,15 +332,15 @@ public class CommitLogSegment
     /**
      * @return a collection of dirty CFIDs for this segment file.
      */
-    public Collection<UUID> getDirtyCFIDs()
+    public synchronized Collection<UUID> getDirtyCFIDs()
     {
-        return cfLastWrite.keySet();
+        return new ArrayList<UUID>(cfLastWrite.keySet());
     }
 
     /**
      * @return true if this segment is unused and safe to recycle or delete
      */
-    public boolean isUnused()
+    public synchronized boolean isUnused()
     {
         return cfLastWrite.isEmpty();
     }
@@ -357,7 +360,7 @@ public class CommitLogSegment
     public String dirtyString()
     {
         StringBuilder sb = new StringBuilder();
-        for (UUID cfId : cfLastWrite.keySet())
+        for (UUID cfId : getDirtyCFIDs())
         {
             CFMetaData m = Schema.instance.getCFMetaData(cfId);
             sb.append(m == null ? "<deleted>" : m.cfName).append(" (").append(cfId).append("), ");

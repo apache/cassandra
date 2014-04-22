@@ -1,4 +1,5 @@
 1.2.17
+ * Fix schema concurrency exceptions (CASSANDRA-6841)
  * Fix BatchlogManager#deleteBatch() use of millisecond timsestamps
    (CASSANDRA-6822)
  * Continue assassinating even if the endpoint vanishes (CASSANDRA-6787)
