@@ -1401,7 +1401,7 @@ public class NodeTool
         }
     }
 
-    @Command(name = "taketoken", description = "Move the token(s) from the existing owner(s) to this node.  For vnodes only.  Use \\\\ to escape negative tokens.")
+    @Command(name = "taketoken", description = "Move the token(s) from the existing owner(s) to this node.  For vnodes only.")
     public static class TakeToken extends NodeToolCmd
     {
         @Arguments(usage = "<token, ...>", description = "Token(s) to take", required = true)
@@ -1442,7 +1442,7 @@ public class NodeTool
     @Command(name = "move", description = "Move node on the token ring to a new token")
     public static class Move extends NodeToolCmd
     {
-        @Arguments(usage = "<new token>", description = "The new token. (for negative tokens)", required = true)
+        @Arguments(usage = "<new token>", description = "The new token.", required = true)
         private String newToken = EMPTY;
 
         @Override
