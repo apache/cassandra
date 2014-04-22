@@ -47,10 +47,13 @@ public class CqlIndexedRangeSlicer extends CqlOperation<byte[][]>
     @Override
     protected String buildQuery()
     {
-        final String indexColumn = (state.settings.columns.namestrs.get(1));
-        StringBuilder query = new StringBuilder("SELECT * FROM ");
+        StringBuilder query = new StringBuilder("SELECT");
+        query.append(wrapInQuotes("key"));
+        query.append(" FROM ");
         query.append(wrapInQuotes(state.type.table));
-        query.append(" WHERE ").append(indexColumn).append("=?")
+
+        final String columnName = (state.settings.columns.namestrs.get(1));
+        query.append(" WHERE ").append(columnName).append("=?")
                 .append(" AND KEY > ? LIMIT ").append(state.settings.command.keysAtOnce);
         return query.toString();
     }

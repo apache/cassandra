@@ -145,7 +145,7 @@ public abstract class CqlOperation<V> extends Operation
         @Override
         public boolean validate(Integer result)
         {
-            return true;
+            return result > 0;
         }
 
         @Override
@@ -195,12 +195,8 @@ public abstract class CqlOperation<V> extends Operation
             if (result.length != expect.size())
                 return false;
             for (int i = 0 ; i < result.length ; i++)
-            {
-                List<ByteBuffer> resultRow = Arrays.asList(result[i]);
-                resultRow = resultRow.subList(1, resultRow.size());
-                if (expect.get(i) != null && !expect.get(i).equals(resultRow))
+                if (expect.get(i) != null && !expect.get(i).equals(Arrays.asList(result[i])))
                     return false;
-            }
             return true;
         }
     }
@@ -473,9 +469,9 @@ public abstract class CqlOperation<V> extends Operation
                     for (int i = 0 ; i < r.length ; i++)
                     {
                         Row row = rows.get(i);
-                        r[i] = new ByteBuffer[row.getColumnDefinitions().size() - 1];
-                        for (int j = 1 ; j < row.getColumnDefinitions().size() ; j++)
-                            r[i][j - 1] = row.getBytes(j);
+                        r[i] = new ByteBuffer[row.getColumnDefinitions().size()];
+                        for (int j = 0 ; j < row.getColumnDefinitions().size() ; j++)
+                            r[i][j] = row.getBytes(j);
                     }
                     return r;
                 }
