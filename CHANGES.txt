@@ -1,4 +1,5 @@
 2.0.8
+ * Use LOCAL_QUORUM for data reads at LOCAL_SERIAL (CASSANDRA-6939)
  * Log a warning for large batches (CASSANDRA-6487)
  * Queries on compact tables can return more rows that requested (CASSANDRA-7052)
  * USING TIMESTAMP for batches does not work (CASSANDRA-7053)

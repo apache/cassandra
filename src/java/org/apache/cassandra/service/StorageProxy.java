@@ -1141,7 +1141,7 @@ public class StorageProxy implements StorageProxyMBean
                     throw new ReadTimeoutException(consistency_level, 0, consistency_level.blockFor(Keyspace.open(command.ksName)), false);
                 }
 
-                rows = fetchRows(commands, ConsistencyLevel.QUORUM);
+                rows = fetchRows(commands, consistency_level == ConsistencyLevel.LOCAL_SERIAL ? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM);
             }
             else
             {
