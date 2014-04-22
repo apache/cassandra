@@ -22,10 +22,13 @@ package org.apache.cassandra.stress.operations;
 
 
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class CqlReader extends CqlOperation<ByteBuffer[][]>
 {
@@ -49,11 +52,18 @@ public class CqlReader extends CqlOperation<ByteBuffer[][]>
         }
         else
         {
-            for (int i = 0; i < state.settings.columns.names.size() ; i++)
+            try
             {
-                if (i > 0)
-                    query.append(",");
-                query.append('?');
+                for (int i = 0; i < state.settings.columns.names.size() ; i++)
+                {
+                    if (i > 0)
+                        query.append(",");
+                    query.append(wrapInQuotesIfRequired(ByteBufferUtil.string(state.settings.columns.names.get(i))));
+                }
+            }
+            catch (CharacterCodingException e)
+            {
+                throw new IllegalStateException(e);
             }
         }
 
@@ -68,14 +78,6 @@ public class CqlReader extends CqlOperation<ByteBuffer[][]>
     @Override
     protected List<Object> getQueryParameters(byte[] key)
     {
-        if (state.settings.columns.names != null)
-        {
-            final List<Object> queryParams = new ArrayList<>();
-            for (ByteBuffer name : state.settings.columns.names)
-                queryParams.add(name);
-            queryParams.add(ByteBuffer.wrap(key));
-            return queryParams;
-        }
         return Collections.<Object>singletonList(ByteBuffer.wrap(key));
     }
 
