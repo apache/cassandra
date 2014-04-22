@@ -323,7 +323,7 @@ public class BatchlogManager implements BatchlogManagerMBean
                 }
             };
             WriteResponseHandler handler = new WriteResponseHandler(ep, WriteType.UNLOGGED_BATCH, callback);
-            MessagingService.instance().sendRR(mutation.createMessage(), ep, handler);
+            MessagingService.instance().sendRR(mutation.createMessage(), ep, handler, false);
             handlers.add(handler);
         }
 

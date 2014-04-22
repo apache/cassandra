@@ -28,19 +28,27 @@ public class WriteCallbackInfo extends CallbackInfo
 {
     public final MessageOut sentMessage;
     private final ConsistencyLevel consistencyLevel;
+    private final boolean allowHints;
 
-    public WriteCallbackInfo(InetAddress target, IAsyncCallback callback, MessageOut message, IVersionedSerializer<?> serializer, ConsistencyLevel consistencyLevel)
+    public WriteCallbackInfo(InetAddress target,
+                             IAsyncCallback callback,
+                             MessageOut message,
+                             IVersionedSerializer<?> serializer,
+                             ConsistencyLevel consistencyLevel,
+                             boolean allowHints)
     {
         super(target, callback, serializer);
         assert message != null;
         this.sentMessage = message;
         this.consistencyLevel = consistencyLevel;
+        this.allowHints = allowHints;
     }
 
     public boolean shouldHint()
     {
-        return sentMessage.verb != MessagingService.Verb.COUNTER_MUTATION
-               && consistencyLevel != ConsistencyLevel.ANY
-               && StorageProxy.shouldHint(target);
+        return allowHints
+            && sentMessage.verb != MessagingService.Verb.COUNTER_MUTATION
+            && consistencyLevel != ConsistencyLevel.ANY
+            && StorageProxy.shouldHint(target);
     }
 }
