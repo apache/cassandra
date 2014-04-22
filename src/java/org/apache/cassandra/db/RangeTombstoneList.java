@@ -19,12 +19,16 @@ package org.apache.cassandra.db;
 
 import java.io.DataInput;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterators;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.composites.CType;
@@ -32,10 +36,7 @@ import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
-
 import org.apache.cassandra.utils.ObjectSizes;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Data structure holding the range tombstones of a ColumnFamily.
@@ -384,6 +385,64 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             }
         };
     }
+    
+    /**
+     * Evaluates a diff between superset (known to be all merged tombstones) and this list for read repair
+     *
+     * @return null if there is no difference
+     */
+    public RangeTombstoneList diff(RangeTombstoneList superset)
+    {
+        if (isEmpty())
+            return superset;
+
+        assert size <= superset.size;
+
+        RangeTombstoneList diff = null;
+
+        int j = 0; // index to iterate through our own list
+        for (int i = 0; i < superset.size; i++)
+        {
+            boolean sameStart = j < size && starts[j].equals(superset.starts[i]);
+            // don't care about local deletion time here. for RR it doesn't makes sense
+            if (!sameStart
+                || !ends[j].equals(superset.ends[i])
+                || markedAts[j] != superset.markedAts[i])
+            {
+                if (diff == null)
+                    diff = new RangeTombstoneList(comparator, Math.min(8, superset.size - i));
+                diff.add(superset.starts[i], superset.ends[i], superset.markedAts[i], superset.delTimes[i]);
+
+                if (sameStart)
+                    j++;
+            }
+            else
+            {
+                j++;
+            }
+        }
+
+        return diff;
+    }
+    
+    /**
+     * Calculates digest for triggering read repair on mismatch
+     */
+    public void updateDigest(MessageDigest digest)
+    {
+        ByteBuffer longBuffer = ByteBuffer.allocate(8);
+        for (int i = 0; i < size; i++)
+        {
+            for (int j = 0; j < starts[i].size(); j++)
+                digest.update(starts[i].get(j).duplicate());
+            for (int j = 0; j < ends[i].size(); j++)
+                digest.update(ends[i].get(j).duplicate());
+
+            longBuffer.putLong(0, markedAts[i]);
+            digest.update(longBuffer.array(), 0, 8);
+        }
+    }
+
 
     @Override
     public boolean equals(Object o)
@@ -393,7 +452,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         RangeTombstoneList that = (RangeTombstoneList)o;
         if (size != that.size)
             return false;
-
+        
         for (int i = 0; i < size; i++)
         {
             if (!starts[i].equals(that.starts[i]))
@@ -779,4 +838,5 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             return false;
         }
     }
+
 }

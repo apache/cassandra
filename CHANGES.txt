@@ -8,6 +8,7 @@
 
 
 2.1.0-beta2
+ * Add range tombstones to read repair digests (CASSANDRA-6863)
  * Fix BTree.clear for large updates (CASSANDRA-6943)
  * Fail write instead of logging a warning when unable to append to CL
    (CASSANDRA-6764)
@@ -58,7 +59,8 @@
  * Require nodetool rebuild_index to specify index names (CASSANDRA-7038)
 Merged from 2.0:
  * Put nodes in hibernate when join_ring is false (CASSANDRA-6961)
- * Allow compaction of system tables during startup (CASSANDRA-6913)
+ * Avoid early loading of non-system keyspaces before compaction-leftovers 
+   cleanup at startup (CASSANDRA-6913)
  * Restrict Windows to parallel repairs (CASSANDRA-6907)
  * (Hadoop) Allow manually specifying start/end tokens in CFIF (CASSANDRA-6436)
  * Fix NPE in MeteredFlusher (CASSANDRA-6820)

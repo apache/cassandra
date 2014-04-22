@@ -99,9 +99,9 @@ public class Keyspace
         return open(keyspaceName, Schema.instance, true);
     }
 
+    // to only be used by org.apache.cassandra.tools.Standalone* classes
     public static Keyspace openWithoutSSTables(String keyspaceName)
     {
-        assert initialized || keyspaceName.equals(SYSTEM_KS);
         return open(keyspaceName, Schema.instance, false);
     }
 

@@ -315,8 +315,11 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
             }
         }
 
+        cfDiff.setDeletionInfo(deletionInfo().diff(cfComposite.deletionInfo()));
+
         if (!cfDiff.isEmpty())
             return cfDiff;
+        
         return null;
     }
 
@@ -387,6 +390,8 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
     {
         for (Cell cell : this)
             cell.updateDigest(digest);
+        if (MessagingService.instance().areAllNodesAtLeast21())
+            deletionInfo().updateDigest(digest);
     }
 
     public static ColumnFamily diff(ColumnFamily cf1, ColumnFamily cf2)
