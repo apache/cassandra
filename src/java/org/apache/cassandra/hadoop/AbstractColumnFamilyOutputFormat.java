@@ -124,7 +124,7 @@ public abstract class AbstractColumnFamilyOutputFormat<K, Y> extends OutputForma
         TProtocol binaryProtocol = new TBinaryProtocol(transport, true, true);
         Cassandra.Client client = new Cassandra.Client(binaryProtocol);
         client.set_keyspace(ConfigHelper.getOutputKeyspace(conf));
-        if (ConfigHelper.getOutputKeyspaceUserName(conf) != null)
+        if ((ConfigHelper.getOutputKeyspaceUserName(conf) != null) && (ConfigHelper.getOutputKeyspacePassword(conf) != null))
         {
             Map<String, String> creds = new HashMap<String, String>();
             creds.put(IAuthenticator.USERNAME_KEY, ConfigHelper.getOutputKeyspaceUserName(conf));

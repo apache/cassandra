@@ -103,7 +103,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
 
         // log in
         client.set_keyspace(ConfigHelper.getInputKeyspace(conf));
-        if (ConfigHelper.getInputKeyspaceUserName(conf) != null)
+        if ((ConfigHelper.getInputKeyspaceUserName(conf) != null) && (ConfigHelper.getInputKeyspacePassword(conf) != null))
         {
             Map<String, String> creds = new HashMap<String, String>();
             creds.put(IAuthenticator.USERNAME_KEY, ConfigHelper.getInputKeyspaceUserName(conf));
