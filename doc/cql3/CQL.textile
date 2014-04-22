@@ -497,12 +497,15 @@ bc(syntax)..
                   ( USING <option> ( AND <option> )* )?
                   SET <assignment> ( ',' <assignment> )*
                   WHERE <where-clause>
-                  ( IF <identifier> '=' <term> ( AND <identifier> '=' <term> )* )?
+                  ( IF <condition> ( AND condition )* )?
 
 <assignment> ::= <identifier> '=' <term>
                | <identifier> '=' <identifier> ('+' | '-') (<int-term> | <set-literal> | <list-literal>)
                | <identifier> '=' <identifier> '+' <map-literal>
                | <identifier> '[' <term> ']' '=' <term>
+
+<condition> ::= <identifier> '=' <term>
+              | <identifier> '[' <term> ']' '=' <term>
 
 <where-clause> ::= <relation> ( AND <relation> )*
 
@@ -552,6 +555,7 @@ bc(syntax)..
                   FROM <tablename>
                   ( USING TIMESTAMP <integer>)?
                   WHERE <where-clause>
+                  ( IF ( EXISTS | ( <condition> ( AND <condition> )*) ) )?
 
 <selection> ::= <identifier> ( '[' <term> ']' )?
 
@@ -560,6 +564,9 @@ bc(syntax)..
 <relation> ::= <identifier> '=' <term>
              | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
              | <identifier> IN '?'
+
+<condition> ::= <identifier> '=' <term>
+              | <identifier> '[' <term> ']' '=' <term>
 p. 
 __Sample:__
 
@@ -574,6 +581,7 @@ The @DELETE@ statement deletes columns and rows. If column names are provided di
 
 In a @DELETE@ statement, all deletions within the same partition key are applied atomically and in isolation.
 
+A @DELETE@ operation application can be conditioned using @IF@ like for @UPDATE@ and @INSERT@. But please not that as for the later, this will incur a non negligible performance cost (internally, Paxos will be used) and so should be used sparingly.
 
 
 h3(#batchStmt). BATCH
@@ -1148,6 +1156,12 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 h2(#changes). Changes
 
 The following describes the addition/changes brought for each version of CQL.
+
+h3. 3.1.6
+
+* A new "@uuid@ method":#uuidFun has been added.
+* Support for @DELETE ... IF EXISTS@ syntax.
+
 
 h3. 3.1.5
 
