@@ -368,4 +368,11 @@ public class Util
             throw new RuntimeException(e);
         }
     }
+
+    public static RangeTombstone tombstone(String start, String finish, long timestamp, int localtime)
+    {
+        Composite startName = CellNames.simpleDense(ByteBufferUtil.bytes(start));
+        Composite endName = CellNames.simpleDense(ByteBufferUtil.bytes(finish));
+        return new RangeTombstone(startName, endName, timestamp , localtime);
+    }
 }
