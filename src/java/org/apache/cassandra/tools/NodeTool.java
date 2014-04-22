@@ -2130,24 +2130,17 @@ public class NodeTool
         }
     }
 
-    @Command(name = "rebuild_index", description = "A full rebuilds of native secondry index for a given column family")
+    @Command(name = "rebuild_index", description = "A full rebuild of native secondary indexes for a given column family")
     public static class RebuildIndex extends NodeToolCmd
     {
-        @Arguments(usage = "<keyspace> <cfname> [<indexName...>]", description = "The keyspace and column family name followed by an optional list of index names (IndexNameExample: Standard3.IdxName Standard3.IdxName1)")
+        @Arguments(usage = "<keyspace> <cfname> <indexName...>", description = "The keyspace and column family name followed by a list of index names (IndexNameExample: Standard3.IdxName Standard3.IdxName1)")
         List<String> args = new ArrayList<>();
 
         @Override
         public void execute(NodeProbe probe)
         {
-            checkArgument(args.size() >= 2, "rebuild_index requires ks and cf args");
-
-            List<String> indexNames = new ArrayList<>();
-            if (args.size() > 2)
-            {
-                indexNames.addAll(args.subList(2, args.size()));
-            }
-
-            probe.rebuildIndex(args.get(0), args.get(1), toArray(indexNames, String.class));
+            checkArgument(args.size() >= 3, "rebuild_index requires ks, cf and idx args");
+            probe.rebuildIndex(args.get(0), args.get(1), toArray(args.subList(2, args.size()), String.class));
         }
     }
 
