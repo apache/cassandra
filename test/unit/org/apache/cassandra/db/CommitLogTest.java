@@ -30,9 +30,11 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogDescriptor;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.net.MessagingService;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -166,15 +168,47 @@ public class CommitLogTest extends SchemaLoader
         assert CommitLog.instance.activeSegments() == 1 : "Expecting 1 segment, got " + CommitLog.instance.activeSegments();
     }
 
+    private static int getMaxRecordDataSize(String keyspace, ByteBuffer key, String table, CellName column)
+    {
+        Mutation rm = new Mutation("Keyspace1", bytes("k"));
+        rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate(0), 0);
+
+        int max = (DatabaseDescriptor.getCommitLogSegmentSize() / 2);
+        max -= (4 + 8 + 8); // log entry overhead
+        return max - (int) Mutation.serializer.serializedSize(rm, MessagingService.current_version);
+    }
+
+    private static int getMaxRecordDataSize()
+    {
+        return getMaxRecordDataSize("Keyspace1", bytes("k"), "Standard1", Util.cellname("c1"));
+    }
+
     // CASSANDRA-3615
     @Test
-    public void testExceedSegmentSizeWithOverhead() throws Exception
+    public void testEqualRecordLimit() throws Exception
     {
         CommitLog.instance.resetUnsafe();
 
         Mutation rm = new Mutation("Keyspace1", bytes("k"));
-        rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()) - 83), 0);
+        rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate(getMaxRecordDataSize()), 0);
         CommitLog.instance.add(rm);
+    }
+
+    @Test
+    public void testExceedRecordLimit() throws Exception
+    {
+        CommitLog.instance.resetUnsafe();
+        try
+        {
+            Mutation rm = new Mutation("Keyspace1", bytes("k"));
+            rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate(1 + getMaxRecordDataSize()), 0);
+            CommitLog.instance.add(rm);
+            throw new AssertionError("mutation larger than limit was accepted");
+        }
+        catch (IllegalArgumentException e)
+        {
+            // IAE is thrown on too-large mutations
+        }
     }
 
     protected void testRecoveryWithBadSizeArgument(int size, int dataSize) throws Exception
