@@ -376,46 +376,6 @@ public class RangeTombstoneTest extends SchemaLoader
     }
 
     @Test
-    public void testMemtableUpdateWithRangeTombstonesUpdatesSecondaryIndex() throws Exception
-    {
-        Keyspace table = Keyspace.open(KSNAME);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);
-        ByteBuffer key = ByteBufferUtil.bytes("k5");
-        ByteBuffer indexedColumnName = ByteBufferUtil.bytes(1);
-
-        cfs.truncateBlocking();
-        cfs.disableAutoCompaction();
-        cfs.setCompactionStrategyClass(SizeTieredCompactionStrategy.class.getCanonicalName());
-        if (cfs.indexManager.getIndexForColumn(indexedColumnName) == null)
-        {
-            ColumnDefinition cd = ColumnDefinition.regularDef(cfs.metadata, indexedColumnName, cfs.getComparator().asAbstractType(), 0)
-                                                  .setIndex("test_index", IndexType.CUSTOM, ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, TestIndex.class.getName()));
-            cfs.indexManager.addIndexedColumn(cd);
-        }
-
-        TestIndex index = ((TestIndex)cfs.indexManager.getIndexForColumn(indexedColumnName));
-        index.resetCounts();
-
-        Mutation rm = new Mutation(KSNAME, key);
-        for (int i = 0; i < 10; i++)
-            add(rm, i, 0);
-        rm.apply();
-
-        // We should have indexed 1 column
-        assertEquals(1, index.inserts.size());
-
-        rm = new Mutation(KSNAME, key);
-        ColumnFamily cf = rm.addOrGet(CFNAME);
-        for (int i = 0; i < 10; i += 2)
-            delete(cf, 0, 7, 0);
-        rm.apply();
-
-        // verify that the 1 indexed column was removed from the index
-        assertEquals(1, index.deletes.size());
-        assertEquals(index.deletes.get(0), index.inserts.get(0));
-    }
-
-    @Test
     public void testOverwritesToDeletedColumns() throws Exception
     {
         Keyspace table = Keyspace.open(KSNAME);
@@ -457,12 +417,6 @@ public class RangeTombstoneTest extends SchemaLoader
         // CASSANDRA-6640 changed index update to just update, not insert then delete
         assertEquals(1, index.inserts.size());
         assertEquals(1, index.updates.size());
-
-        CompactionManager.instance.performMaximal(cfs);
-
-        // verify that the "1" indexed column removed from the index
-        // After CASSANDRA-6640, deletion only happens once
-        assertEquals(1, index.deletes.size());
     }
 
     private void runCompactionWithRangeTombstoneAndCheckSecondaryIndex() throws Exception

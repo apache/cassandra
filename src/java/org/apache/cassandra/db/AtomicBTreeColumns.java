@@ -234,21 +234,6 @@ public class AtomicBTreeColumns extends ColumnFamily
             DeletionInfo deletionInfo;
             if (cm.deletionInfo().mayModify(current.deletionInfo))
             {
-                if (indexer != SecondaryIndexManager.nullUpdater && cm.deletionInfo().hasRanges())
-                {
-                    for (Iterator<RangeTombstone> rangeIterator = cm.deletionInfo().rangeIterator(); rangeIterator.hasNext(); )
-                    {
-                        RangeTombstone rt = rangeIterator.next();
-                        long deleteAt = rt.timestamp();
-                        for (Iterator<Cell> iter = current.cellRange(getComparator().columnComparator(), rt.min, rt.max); iter.hasNext(); )
-                        {
-                            Cell c = iter.next();
-                            if (deleteAt >= c.timestamp())
-                                indexer.remove(c);
-                        }
-                    }
-                }
-
                 deletionInfo = current.deletionInfo.copy().add(cm.deletionInfo());
                 delta.addHeapSize(deletionInfo.unsharedHeapSize() - current.deletionInfo.unsharedHeapSize());
             }
