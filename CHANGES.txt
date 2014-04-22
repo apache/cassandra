@@ -58,6 +58,7 @@
  * Only snapshot relative SSTables when sequential repair (CASSANDRA-7024)
  * Require nodetool rebuild_index to specify index names (CASSANDRA-7038)
 Merged from 2.0:
+ * Use LOCAL_QUORUM for data reads at LOCAL_SERIAL (CASSANDRA-6939)
  * Log a warning for large batches (CASSANDRA-6487)
  * Put nodes in hibernate when join_ring is false (CASSANDRA-6961)
  * Avoid early loading of non-system keyspaces before compaction-leftovers 
