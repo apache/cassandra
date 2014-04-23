@@ -316,11 +316,8 @@ public class TriggersTest extends SchemaLoader
         public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
         {
             ColumnFamily extraUpdate = update.cloneMeShallow(ArrayBackedSortedColumns.factory, false);
-            extraUpdate.addColumn(new Cell(update.metadata().comparator.makeCellName(bytes("v2")),
-                                           bytes(999)));
-            Mutation mutation = new Mutation(ksName, key);
-            mutation.add(extraUpdate);
-            return Collections.singletonList(mutation);
+            extraUpdate.addColumn(new Cell(update.metadata().comparator.makeCellName(bytes("v2")), bytes(999)));
+            return Collections.singletonList(new Mutation(ksName, key, extraUpdate));
         }
     }
 
@@ -329,13 +326,10 @@ public class TriggersTest extends SchemaLoader
         public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
         {
             ColumnFamily extraUpdate = update.cloneMeShallow(ArrayBackedSortedColumns.factory, false);
-            extraUpdate.addColumn(new Cell(update.metadata().comparator.makeCellName(bytes("v2")),
-                                           bytes(999)));
+            extraUpdate.addColumn(new Cell(update.metadata().comparator.makeCellName(bytes("v2")), bytes(999)));
 
             int newKey = toInt(key) + 1000;
-            Mutation mutation = new Mutation(ksName, bytes(newKey));
-            mutation.add(extraUpdate);
-            return Collections.singletonList(mutation);
+            return Collections.singletonList(new Mutation(ksName, bytes(newKey), extraUpdate));
         }
     }
 
@@ -344,12 +338,8 @@ public class TriggersTest extends SchemaLoader
         public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
         {
             ColumnFamily extraUpdate = ArrayBackedSortedColumns.factory.create(ksName, otherCf);
-            extraUpdate.addColumn(new Cell(extraUpdate.metadata().comparator.makeCellName(bytes("v2")),
-                                           bytes(999)));
-
-            Mutation mutation = new Mutation(ksName, key);
-            mutation.add(extraUpdate);
-            return Collections.singletonList(mutation);
+            extraUpdate.addColumn(new Cell(extraUpdate.metadata().comparator.makeCellName(bytes("v2")), bytes(999)));
+            return Collections.singletonList(new Mutation(ksName, key, extraUpdate));
         }
     }
 }
