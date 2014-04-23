@@ -129,6 +129,17 @@ public class Schema
         return keyspaceInstances.get(keyspaceName);
     }
 
+    public ColumnFamilyStore getColumnFamilyStoreInstance(UUID cfId)
+    {
+        Pair<String, String> pair = cfIdMap.inverse().get(cfId);
+        if (pair == null)
+            return null;
+        Keyspace instance = getKeyspaceInstance(pair.left);
+        if (instance == null)
+            return null;
+        return instance.getColumnFamilyStore(cfId);
+    }
+
     /**
      * Store given Keyspace instance to the schema
      *

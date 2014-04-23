@@ -111,6 +111,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR;
 
@@ -554,13 +555,15 @@ public class SSTableReader extends SSTable
 
         synchronized (replaceLock)
         {
-            boolean closeBf = true, closeSummary = true, closeFiles = true;
+            boolean closeBf = true, closeSummary = true, closeFiles = true, deleteFile = false;
 
             if (replacedBy != null)
             {
                 closeBf = replacedBy.bf != bf;
                 closeSummary = replacedBy.indexSummary != indexSummary;
                 closeFiles = replacedBy.dfile != dfile;
+                // if the replacement sstablereader uses a different path, clean up our paths
+                deleteFile = !dfile.path.equals(replacedBy.dfile.path);
             }
 
             if (replaces != null)
@@ -568,6 +571,7 @@ public class SSTableReader extends SSTable
                 closeBf &= replaces.bf != bf;
                 closeSummary &= replaces.indexSummary != indexSummary;
                 closeFiles &= replaces.dfile != dfile;
+                deleteFile &= !dfile.path.equals(replaces.dfile.path);
             }
 
             boolean deleteAll = false;
@@ -593,32 +597,57 @@ public class SSTableReader extends SSTable
                     replacedBy.replaces = replaces;
             }
 
-            if (references.get() != 0)
-            {
-                throw new IllegalStateException("SSTable is not fully released (" + references.get() + " references)");
-            }
-            if (closeBf)
-                bf.close();
-            if (closeSummary)
-                indexSummary.close();
-            if (closeFiles)
-            {
-                ifile.cleanup();
-                dfile.cleanup();
-            }
-            if (deleteAll)
-            {
-                /**
-                 * Do the OS a favour and suggest (using fadvice call) that we
-                 * don't want to see pages of this SSTable in memory anymore.
-                 *
-                 * NOTE: We can't use madvice in java because it requires the address of
-                 * the mapping, so instead we always open a file and run fadvice(fd, 0, 0) on it
-                 */
-                dropPageCache();
-                deletingTask.schedule();
-            }
+            scheduleTidy(closeBf, closeSummary, closeFiles, deleteFile, deleteAll);
         }
+    }
+
+    private void scheduleTidy(final boolean closeBf, final boolean closeSummary, final boolean closeFiles, final boolean deleteFiles, final boolean deleteAll)
+    {
+        final ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.cfId);
+        final OpOrder.Barrier barrier;
+        if (cfs != null)
+        {
+            barrier = cfs.readOrdering.newBarrier();
+            barrier.issue();
+        }
+        else
+            barrier = null;
+
+        StorageService.tasks.execute(new Runnable()
+        {
+            public void run()
+            {
+                if (barrier != null)
+                    barrier.await();
+                assert references.get() == 0;
+                if (closeBf)
+                    bf.close();
+                if (closeSummary)
+                    indexSummary.close();
+                if (closeFiles)
+                {
+                    ifile.cleanup();
+                    dfile.cleanup();
+                }
+                if (deleteAll)
+                {
+                    /**
+                     * Do the OS a favour and suggest (using fadvice call) that we
+                     * don't want to see pages of this SSTable in memory anymore.
+                     *
+                     * NOTE: We can't use madvice in java because it requires the address of
+                     * the mapping, so instead we always open a file and run fadvice(fd, 0, 0) on it
+                     */
+                    dropPageCache();
+                    deletingTask.run();
+                }
+                else if (deleteFiles)
+                {
+                    FileUtils.deleteWithConfirm(new File(dfile.path));
+                    FileUtils.deleteWithConfirm(new File(ifile.path));
+                }
+            }
+        });
     }
 
     public String getFilename()

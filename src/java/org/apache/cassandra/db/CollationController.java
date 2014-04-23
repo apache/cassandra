@@ -70,7 +70,7 @@ public class CollationController
         final ColumnFamily container = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());
         List<OnDiskAtomIterator> iterators = new ArrayList<>();
         Tracing.trace("Acquiring sstable references");
-        ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
+        ColumnFamilyStore.ViewFragment view = cfs.select(cfs.viewFilter(filter.key));
 
         try
         {
@@ -160,7 +160,6 @@ public class CollationController
         {
             for (OnDiskAtomIterator iter : iterators)
                 FileUtils.closeQuietly(iter);
-            SSTableReader.releaseReferences(view.sstables);
         }
     }
 
@@ -189,7 +188,7 @@ public class CollationController
     private ColumnFamily collectAllData(boolean copyOnHeap)
     {
         Tracing.trace("Acquiring sstable references");
-        ColumnFamilyStore.ViewFragment view = cfs.markReferenced(filter.key);
+        ColumnFamilyStore.ViewFragment view = cfs.select(cfs.viewFilter(filter.key));
         List<OnDiskAtomIterator> iterators = new ArrayList<>(Iterables.size(view.memtables) + view.sstables.size());
         ColumnFamily returnCF = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());
         DeletionInfo returnDeletionInfo = returnCF.deletionInfo();
@@ -313,7 +312,6 @@ public class CollationController
         {
             for (OnDiskAtomIterator iter : iterators)
                 FileUtils.closeQuietly(iter);
-            SSTableReader.releaseReferences(view.sstables);
         }
     }
 
