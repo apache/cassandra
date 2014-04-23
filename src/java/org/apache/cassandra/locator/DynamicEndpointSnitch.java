@@ -300,7 +300,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
 
     public void setSeverity(double severity)
     {
-        StorageService.instance.reportSeverity(severity);
+        StorageService.instance.reportManualSeverity(severity);
     }
 
     public double getSeverity()
