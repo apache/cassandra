@@ -56,6 +56,7 @@ public class BackgroundActivityMonitor
     private static final String PROC_STAT_PATH = "/proc/stat";
 
     private final AtomicDouble compaction_severity = new AtomicDouble();
+    private final AtomicDouble manual_severity = new AtomicDouble();
     private final ScheduledExecutorService reportThread = new DebuggableScheduledThreadPoolExecutor("Background_Reporter");
 
     private RandomAccessFile statsFile;
@@ -112,6 +113,11 @@ public class BackgroundActivityMonitor
         compaction_severity.addAndGet(sev);
     }
 
+    public void incrManualSeverity(double sev)
+    {
+        manual_severity.addAndGet(sev);
+    }
+
     public double getIOWait() throws IOException
     {
         if (statsFile == null)
@@ -157,6 +163,7 @@ public class BackgroundActivityMonitor
 
             if (!Gossiper.instance.isEnabled())
                 return;
+            report += manual_severity.get(); // add manual severity setting.
             VersionedValue updated = StorageService.instance.valueFactory.severity(report);
             Gossiper.instance.addLocalApplicationState(ApplicationState.SEVERITY, updated);
         }

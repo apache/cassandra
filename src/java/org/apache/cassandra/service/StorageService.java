@@ -1054,6 +1054,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         bgMonitor.incrCompactionSeverity(incr);
     }
 
+    public void reportManualSeverity(double incr)
+    {
+        bgMonitor.incrManualSeverity(incr);
+    }
+
     public double getSeverity(InetAddress endpoint)
     {
         return bgMonitor.getSeverity(endpoint);
