@@ -187,7 +187,7 @@ public class DatabaseDescriptor
         }
 
         if (conf.commitlog_total_space_in_mb == null)
-            conf.commitlog_total_space_in_mb = hasLargeAddressSpace() ? 1024 : 32;
+            conf.commitlog_total_space_in_mb = hasLargeAddressSpace() ? 8192 : 32;
 
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
         if (conf.disk_access_mode == Config.DiskAccessMode.auto)
