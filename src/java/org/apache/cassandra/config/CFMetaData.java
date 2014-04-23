@@ -1219,7 +1219,7 @@ public final class CFMetaData
                 else
                 {
                     if (def.componentIndex >= components.length)
-                        break;
+                        continue;
 
                     toCompare = components[def.componentIndex];
                 }

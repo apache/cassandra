@@ -5,6 +5,7 @@
  * USING TIMESTAMP for batches does not work (CASSANDRA-7053)
  * Fix performance regression from CASSANDRA-5614 (CASSANDRA-6949)
  * Merge groupable mutations in TriggerExecutor#execute() (CASSANDRA-7047)
+ * Fix CFMetaData#getColumnDefinitionFromColumnName() (CASSANDRA-7074)
 Merged from 1.2:
  * Fix batchlog to account for CF truncation records (CASSANDRA-6999)
  * Fix CQLSH parsing of functions and BLOB literals (CASSANDRA-7018)
