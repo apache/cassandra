@@ -675,7 +675,6 @@ public class CompactionManager implements CompactionManagerMBean
         {
             if (!hasIndexes && !new Bounds<>(sstable.first.token, sstable.last.token).intersects(ranges))
             {
-                cfs.getDataTracker().replaceReaders(Arrays.asList(sstable), Collections.<SSTableReader>emptyList());
                 cfs.getDataTracker().markCompactedSSTablesReplaced(Arrays.asList(sstable), Collections.<SSTableReader>emptyList(), OperationType.CLEANUP);
                 continue;
             }
