@@ -1342,11 +1342,6 @@ public class DatabaseDescriptor
         return conf.max_hints_delivery_threads;
     }
 
-    public static boolean getPreheatKeyCache()
-    {
-        return conf.compaction_preheat_key_cache;
-    }
-
     public static boolean isIncrementalBackupsEnabled()
     {
         return conf.incremental_backups;
@@ -1365,6 +1360,11 @@ public class DatabaseDescriptor
     public static long getTotalCommitlogSpaceInMB()
     {
         return conf.commitlog_total_space_in_mb;
+    }
+
+    public static int getSSTablePreempiveOpenIntervalInMB()
+    {
+        return conf.sstable_preemptive_open_interval_in_mb;
     }
 
     public static boolean getTrickleFsync()
@@ -1485,11 +1485,6 @@ public class DatabaseDescriptor
     public static boolean getInterDCTcpNoDelay()
     {
         return conf.inter_dc_tcp_nodelay;
-    }
-
-    public static boolean shouldPreheatPageCache()
-    {
-        return conf.preheat_kernel_page_cache;
     }
 
     public static Pool getMemtableAllocatorPool()

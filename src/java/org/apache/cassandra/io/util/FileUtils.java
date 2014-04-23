@@ -74,6 +74,11 @@ public class FileUtils
         canCleanDirectBuffers = canClean;
     }
 
+    public static void createHardLink(String from, String to)
+    {
+        createHardLink(new File(from), new File(to));
+    }
+
     public static void createHardLink(File from, File to)
     {
         if (to.exists())

@@ -195,11 +195,12 @@ public class DataTracker
         while (true)
         {
             View currentView = view.get();
-            Set<SSTableReader> inactive = Sets.difference(ImmutableSet.copyOf(sstables), currentView.compacting);
-            if (inactive.size() < Iterables.size(sstables))
+            Set<SSTableReader> set = ImmutableSet.copyOf(sstables);
+            Set<SSTableReader> inactive = Sets.difference(set, currentView.compacting);
+            if (inactive.size() < set.size())
                 return false;
 
-            View newView = currentView.markCompacting(inactive);
+            View newView = currentView.markCompacting(set);
             if (view.compareAndSet(currentView, newView))
                 return true;
         }
@@ -245,10 +246,12 @@ public class DataTracker
         notifySSTablesChanged(sstables, Collections.<SSTableReader>emptyList(), compactionType);
     }
 
-    public void replaceCompactedSSTables(Collection<SSTableReader> sstables, Collection<SSTableReader> replacements, OperationType compactionType)
+    // note that this DOES NOT insert the replacement sstables, it only removes the old sstables and notifies any listeners
+    // that they have been replaced by the provided sstables, which must have been performed by an earlier replaceReaders() call
+    public void markCompactedSSTablesReplaced(Collection<SSTableReader> sstables, Collection<SSTableReader> allReplacements, OperationType compactionType)
     {
-        replace(sstables, replacements);
-        notifySSTablesChanged(sstables, replacements, compactionType);
+        replace(sstables, Collections.<SSTableReader>emptyList());
+        notifySSTablesChanged(sstables, allReplacements, compactionType);
     }
 
     public void addInitialSSTables(Collection<SSTableReader> sstables)

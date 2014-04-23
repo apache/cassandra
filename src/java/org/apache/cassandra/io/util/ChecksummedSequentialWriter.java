@@ -9,10 +9,10 @@ public class ChecksummedSequentialWriter extends SequentialWriter
     private final SequentialWriter crcWriter;
     private final DataIntegrityMetadata.ChecksumWriter crcMetadata;
 
-    public ChecksummedSequentialWriter(File file, int bufferSize, boolean skipIOCache, File crcPath)
+    public ChecksummedSequentialWriter(File file, int bufferSize, File crcPath)
     {
-        super(file, bufferSize, skipIOCache);
-        crcWriter = new SequentialWriter(crcPath, 8 * 1024, true);
+        super(file, bufferSize);
+        crcWriter = new SequentialWriter(crcPath, 8 * 1024);
         crcMetadata = new DataIntegrityMetadata.ChecksumWriter(crcWriter.stream);
         crcMetadata.writeChunkSize(buffer.length);
     }

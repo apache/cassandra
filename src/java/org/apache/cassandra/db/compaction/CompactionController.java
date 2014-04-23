@@ -127,7 +127,7 @@ public class CompactionController implements AutoCloseable
                         candidate, candidate.getSSTableMetadata().maxLocalDeletionTime, gcBefore);
             }
         }
-        return new HashSet<SSTableReader>(candidates);
+        return new HashSet<>(candidates);
     }
 
     public String getKeyspace()

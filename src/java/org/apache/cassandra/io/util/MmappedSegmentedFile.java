@@ -161,27 +161,35 @@ public class MmappedSegmentedFile extends SegmentedFile
         public SegmentedFile complete(String path)
         {
             long length = new File(path).length();
-            // add a sentinel value == length
-            if (length != boundaries.get(boundaries.size() - 1))
-                boundaries.add(length);
             // create the segments
             return new MmappedSegmentedFile(path, length, createSegments(path));
         }
 
+        public SegmentedFile openEarly(String path)
+        {
+            return complete(path);
+        }
+
         private Segment[] createSegments(String path)
         {
-            int segcount = boundaries.size() - 1;
-            Segment[] segments = new Segment[segcount];
             RandomAccessFile raf;
-
+            long length;
             try
             {
                 raf = new RandomAccessFile(path, "r");
+                length = raf.length();
             }
-            catch (FileNotFoundException e)
+            catch (IOException e)
             {
                 throw new RuntimeException(e);
             }
+
+            // add a sentinel value == length
+            List<Long> boundaries = new ArrayList<>(this.boundaries);
+            if (length != boundaries.get(boundaries.size() - 1))
+                boundaries.add(length);
+            int segcount = boundaries.size() - 1;
+            Segment[] segments = new Segment[segcount];
 
             try
             {
@@ -221,7 +229,7 @@ public class MmappedSegmentedFile extends SegmentedFile
             super.deserializeBounds(in);
 
             int size = in.readInt();
-            List<Long> temp = new ArrayList<Long>(size);
+            List<Long> temp = new ArrayList<>(size);
             
             for (int i = 0; i < size; i++)
                 temp.add(in.readLong());

@@ -57,7 +57,7 @@ public class SSTableSplitter {
 
         public SplittingCompactionTask(ColumnFamilyStore cfs, SSTableReader sstable, int sstableSizeInMB)
         {
-            super(cfs, Collections.singletonList(sstable), CompactionManager.NO_GC);
+            super(cfs, Collections.singletonList(sstable), CompactionManager.NO_GC, true);
             this.sstableSizeInMB = sstableSizeInMB;
 
             if (sstableSizeInMB <= 0)
@@ -68,11 +68,6 @@ public class SSTableSplitter {
         protected CompactionController getCompactionController(Set<SSTableReader> toCompact)
         {
             return new SplitController(cfs, toCompact);
-        }
-
-        @Override
-        protected void replaceCompactedSSTables(Collection<SSTableReader> compacted, Collection<SSTableReader> replacements)
-        {
         }
 
         @Override

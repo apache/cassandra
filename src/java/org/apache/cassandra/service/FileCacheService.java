@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.cache.*;
 import org.slf4j.Logger;
@@ -41,36 +42,66 @@ public class FileCacheService
 
     public static FileCacheService instance = new FileCacheService();
 
-    private static final Callable<Queue<RandomAccessReader>> cacheForPathCreator = new Callable<Queue<RandomAccessReader>>()
+    private static final AtomicLong cacheKeyIdCounter = new AtomicLong();
+    public static final class CacheKey
+    {
+        final long id;
+        public CacheKey()
+        {
+            this.id = cacheKeyIdCounter.incrementAndGet();
+        }
+        public boolean equals(Object that)
+        {
+            return that instanceof CacheKey && ((CacheKey) that).id == this.id;
+        }
+        public int hashCode()
+        {
+            return (int) id;
+        }
+    }
+
+    private static final Callable<CacheBucket> cacheForPathCreator = new Callable<CacheBucket>()
     {
         @Override
-        public Queue<RandomAccessReader> call()
+        public CacheBucket call()
         {
-            return new ConcurrentLinkedQueue<RandomAccessReader>();
+            return new CacheBucket();
         }
     };
 
     private static final AtomicInteger memoryUsage = new AtomicInteger();
 
-    private final Cache<String, Queue<RandomAccessReader>> cache;
+    private final Cache<CacheKey, CacheBucket> cache;
     private final FileCacheMetrics metrics = new FileCacheMetrics();
+
+    private static final class CacheBucket
+    {
+        final ConcurrentLinkedQueue<RandomAccessReader> queue = new ConcurrentLinkedQueue<>();
+        volatile boolean discarded = false;
+    }
 
     protected FileCacheService()
     {
-        RemovalListener<String, Queue<RandomAccessReader>> onRemove = new RemovalListener<String, Queue<RandomAccessReader>>()
+        RemovalListener<CacheKey, CacheBucket> onRemove = new RemovalListener<CacheKey, CacheBucket>()
         {
             @Override
-            public void onRemoval(RemovalNotification<String, Queue<RandomAccessReader>> notification)
+            public void onRemoval(RemovalNotification<CacheKey, CacheBucket> notification)
             {
-                Queue<RandomAccessReader> cachedInstances = notification.getValue();
-                if (cachedInstances == null)
+                CacheBucket bucket = notification.getValue();
+                if (bucket == null)
                     return;
 
-                if (cachedInstances.size() > 0)
-                    logger.debug("Evicting cold readers for {}", cachedInstances.peek().getPath());
-
-                for (RandomAccessReader reader : cachedInstances)
+                // set discarded before deallocating the readers, to ensure we don't leak any
+                bucket.discarded = true;
+                Queue<RandomAccessReader> q = bucket.queue;
+                boolean first = true;
+                for (RandomAccessReader reader = q.poll() ; reader != null ; reader = q.poll())
                 {
+                    if (logger.isDebugEnabled() && first)
+                    {
+                        logger.debug("Evicting cold readers for {}", reader.getPath());
+                        first = false;
+                    }
                     memoryUsage.addAndGet(-1 * reader.getTotalBufferSize());
                     reader.deallocate();
                 }
@@ -81,15 +112,16 @@ public class FileCacheService
                 .expireAfterAccess(AFTER_ACCESS_EXPIRATION, TimeUnit.MILLISECONDS)
                 .concurrencyLevel(DatabaseDescriptor.getConcurrentReaders())
                 .removalListener(onRemove)
+                .initialCapacity(16 << 10)
                 .build();
     }
 
-    public RandomAccessReader get(String path)
+    public RandomAccessReader get(CacheKey key)
     {
         metrics.requests.mark();
 
-        Queue<RandomAccessReader> instances = getCacheFor(path);
-        RandomAccessReader result = instances.poll();
+        CacheBucket bucket = getCacheFor(key);
+        RandomAccessReader result = bucket.queue.poll();
         if (result != null)
         {
             metrics.hits.mark();
@@ -99,11 +131,11 @@ public class FileCacheService
         return result;
     }
 
-    private Queue<RandomAccessReader> getCacheFor(String path)
+    private CacheBucket getCacheFor(CacheKey key)
     {
         try
         {
-            return cache.get(path, cacheForPathCreator);
+            return cache.get(key, cacheForPathCreator);
         }
         catch (ExecutionException e)
         {
@@ -111,34 +143,46 @@ public class FileCacheService
         }
     }
 
-    public void put(RandomAccessReader instance)
+    public void put(CacheKey cacheKey, RandomAccessReader instance)
     {
         int memoryUsed = memoryUsage.get();
         if (logger.isDebugEnabled())
             logger.debug("Estimated memory usage is {} compared to actual usage {}", memoryUsed, sizeInBytes());
 
-        if (memoryUsed >= MEMORY_USAGE_THRESHOLD)
+        CacheBucket bucket = cache.getIfPresent(cacheKey);
+        if (memoryUsed >= MEMORY_USAGE_THRESHOLD || bucket == null)
         {
             instance.deallocate();
         }
         else
         {
             memoryUsage.addAndGet(instance.getTotalBufferSize());
-            getCacheFor(instance.getPath()).add(instance);
+            bucket.queue.add(instance);
+            if (bucket.discarded)
+            {
+                RandomAccessReader reader = bucket.queue.poll();
+                if (reader != null)
+                {
+                    memoryUsage.addAndGet(-1 * reader.getTotalBufferSize());
+                    reader.deallocate();
+                }
+            }
         }
     }
 
-    public void invalidate(String path)
+    public void invalidate(CacheKey cacheKey, String path)
     {
-        logger.debug("Invalidating cache for {}", path);
-        cache.invalidate(path);
+        if (logger.isDebugEnabled())
+            logger.debug("Invalidating cache for {}", path);
+        cache.invalidate(cacheKey);
     }
 
+    // TODO: this method is unsafe, as it calls getTotalBufferSize() on items that can have been discarded
     public long sizeInBytes()
     {
         long n = 0;
-        for (Queue<RandomAccessReader> queue : cache.asMap().values())
-            for (RandomAccessReader reader : queue)
+        for (CacheBucket bucket : cache.asMap().values())
+            for (RandomAccessReader reader : bucket.queue)
                 n += reader.getTotalBufferSize();
         return n;
     }

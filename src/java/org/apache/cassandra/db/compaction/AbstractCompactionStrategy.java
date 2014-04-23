@@ -169,7 +169,7 @@ public abstract class AbstractCompactionStrategy
 
     public AbstractCompactionTask getCompactionTask(Collection<SSTableReader> sstables, final int gcBefore, long maxSSTableBytes)
     {
-        return new CompactionTask(cfs, sstables, gcBefore);
+        return new CompactionTask(cfs, sstables, gcBefore, false);
     }
 
     /**

@@ -18,6 +18,9 @@
 package org.apache.cassandra.utils;
 
 import java.io.FileDescriptor;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 
 import org.slf4j.Logger;
@@ -136,6 +139,25 @@ public final class CLibrary
                 // OS X allows mlockall to be called, but always returns an error
                 logger.warn("Unknown mlockall error {}", errno(e));
             }
+        }
+    }
+
+    public static void trySkipCache(String path, long offset, long len)
+    {
+        trySkipCache(getfd(path), offset, len);
+    }
+
+    public static void trySkipCache(int fd, long offset, long len)
+    {
+        if (len == 0)
+            trySkipCache(fd, 0, 0);
+
+        while (len > 0)
+        {
+            int sublen = (int) Math.min(Integer.MAX_VALUE, len);
+            trySkipCache(fd, offset, sublen);
+            len -= sublen;
+            offset -= sublen;
         }
     }
 
@@ -280,33 +302,30 @@ public final class CLibrary
         return -1;
     }
 
-    /**
-     * Suggest kernel to preheat one page for the given file.
-     *
-     * @param fd The file descriptor of file to preheat.
-     * @param position The offset of the block.
-     *
-     * @return On success, zero is returned. On error, an error number is returned.
-     */
-    public static int preheatPage(int fd, long position)
+    public static int getfd(String path)
     {
+        RandomAccessFile file = null;
         try
         {
-            // 4096 is good for SSD because they operate on "Pages" 4KB in size
-            return posix_fadvise(fd, position, 4096, POSIX_FADV_WILLNEED);
+            file = new RandomAccessFile(path, "r");
+            return getfd(file.getFD());
         }
-        catch (UnsatisfiedLinkError e)
+        catch (Throwable t)
         {
-            // JNA is unavailable just skipping
+            // ignore
+            return -1;
         }
-        catch (RuntimeException e)
+        finally
         {
-            if (!(e instanceof LastErrorException))
-                throw e;
-
-            logger.warn(String.format("posix_fadvise(%d, %d) failed, errno (%d).", fd, position, errno(e)));
+            try
+            {
+                if (file != null)
+                    file.close();
+            }
+            catch (Throwable t)
+            {
+                // ignore
+            }
         }
-
-        return -1;
     }
 }
