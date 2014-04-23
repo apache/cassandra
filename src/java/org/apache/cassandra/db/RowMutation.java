@@ -75,6 +75,11 @@ public class RowMutation implements IMutation
         this(cf.metadata().ksName, key, cf);
     }
 
+    public RowMutation copy()
+    {
+        return new RowMutation(keyspaceName, key, new HashMap<>(modifications));
+    }
+
     public String getKeyspaceName()
     {
         return keyspaceName;

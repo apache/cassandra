@@ -50,6 +50,8 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+
 public class TriggersTest extends SchemaLoader
 {
     private static boolean triggerCreated = false;
@@ -126,7 +128,7 @@ public class TriggersTest extends SchemaLoader
                                             new TFramedTransportFactory().openTransport(
                                                 InetAddress.getLocalHost().getHostName(), 9170)));
         client.set_keyspace(ksName);
-        client.insert(ByteBufferUtil.bytes(2),
+        client.insert(bytes(2),
                       new ColumnParent(cfName),
                       getColumnForInsert("v1", 2),
                       org.apache.cassandra.thrift.ConsistencyLevel.ONE);
@@ -147,7 +149,7 @@ public class TriggersTest extends SchemaLoader
         cosc.setColumn(getColumnForInsert("v1", 3));
         mutation.setColumn_or_supercolumn(cosc);
         client.batch_mutate(
-            Collections.singletonMap(ByteBufferUtil.bytes(3),
+            Collections.singletonMap(bytes(3),
                                      Collections.singletonMap(cfName,
                                                               Collections.singletonList(mutation))),
             org.apache.cassandra.thrift.ConsistencyLevel.ONE);
@@ -183,9 +185,9 @@ public class TriggersTest extends SchemaLoader
                         new TFramedTransportFactory().openTransport(
                                 InetAddress.getLocalHost().getHostName(), 9170)));
         client.set_keyspace(ksName);
-        client.cas(ByteBufferUtil.bytes(6),
+        client.cas(bytes(6),
                    cfName,
-                   Collections.EMPTY_LIST,
+                   Collections.<org.apache.cassandra.thrift.Column>emptyList(),
                    Collections.singletonList(getColumnForInsert("v1", 6)),
                    org.apache.cassandra.thrift.ConsistencyLevel.LOCAL_SERIAL,
                    org.apache.cassandra.thrift.ConsistencyLevel.ONE);
@@ -241,9 +243,9 @@ public class TriggersTest extends SchemaLoader
                             new TFramedTransportFactory().openTransport(
                                     InetAddress.getLocalHost().getHostName(), 9170)));
             client.set_keyspace(ksName);
-            client.cas(ByteBufferUtil.bytes(9),
+            client.cas(bytes(9),
                        cf,
-                       Collections.EMPTY_LIST,
+                       Collections.<org.apache.cassandra.thrift.Column>emptyList(),
                        Collections.singletonList(getColumnForInsert("v1", 9)),
                        org.apache.cassandra.thrift.ConsistencyLevel.LOCAL_SERIAL,
                        org.apache.cassandra.thrift.ConsistencyLevel.ONE);
@@ -266,9 +268,9 @@ public class TriggersTest extends SchemaLoader
                             new TFramedTransportFactory().openTransport(
                                     InetAddress.getLocalHost().getHostName(), 9170)));
             client.set_keyspace(ksName);
-            client.cas(ByteBufferUtil.bytes(10),
+            client.cas(bytes(10),
                        cf,
-                       Collections.EMPTY_LIST,
+                       Collections.<org.apache.cassandra.thrift.Column>emptyList(),
                        Collections.singletonList(getColumnForInsert("v1", 10)),
                        org.apache.cassandra.thrift.ConsistencyLevel.LOCAL_SERIAL,
                        org.apache.cassandra.thrift.ConsistencyLevel.ONE);
@@ -310,7 +312,7 @@ public class TriggersTest extends SchemaLoader
     {
         org.apache.cassandra.thrift.Column column = new org.apache.cassandra.thrift.Column();
         column.setName(Schema.instance.getCFMetaData(ksName, cfName).comparator.fromString(columnName));
-        column.setValue(ByteBufferUtil.bytes(value));
+        column.setValue(bytes(value));
         column.setTimestamp(System.currentTimeMillis());
         return column;
     }
@@ -321,10 +323,8 @@ public class TriggersTest extends SchemaLoader
         {
             ColumnFamily extraUpdate = update.cloneMeShallow(ArrayBackedSortedColumns.factory, false);
             extraUpdate.addColumn(new Column(update.metadata().comparator.fromString("v2"),
-                                             ByteBufferUtil.bytes(999)));
-            RowMutation rm = new RowMutation(ksName, key);
-            rm.add(extraUpdate);
-            return Collections.singletonList(rm);
+                                             bytes(999)));
+            return Collections.singletonList(new RowMutation(ksName, key, extraUpdate));
         }
     }
 
@@ -334,12 +334,10 @@ public class TriggersTest extends SchemaLoader
         {
             ColumnFamily extraUpdate = update.cloneMeShallow(ArrayBackedSortedColumns.factory, false);
             extraUpdate.addColumn(new Column(update.metadata().comparator.fromString("v2"),
-                                             ByteBufferUtil.bytes(999)));
+                                             bytes(999)));
 
             int newKey = ByteBufferUtil.toInt(key) + 1000;
-            RowMutation rm = new RowMutation(ksName, ByteBufferUtil.bytes(newKey));
-            rm.add(extraUpdate);
-            return Collections.singletonList(rm);
+            return Collections.singletonList(new RowMutation(ksName, bytes(newKey), extraUpdate));
         }
     }
 
@@ -349,11 +347,8 @@ public class TriggersTest extends SchemaLoader
         {
             ColumnFamily extraUpdate = ArrayBackedSortedColumns.factory.create(ksName, otherCf);
             extraUpdate.addColumn(new Column(extraUpdate.metadata().comparator.fromString("v2"),
-                                             ByteBufferUtil.bytes(999)));
-
-            RowMutation rm = new RowMutation(ksName, key);
-            rm.add(extraUpdate);
-            return Collections.singletonList(rm);
+                                             bytes(999)));
+            return Collections.singletonList(new RowMutation(ksName, key, extraUpdate));
         }
     }
 }
