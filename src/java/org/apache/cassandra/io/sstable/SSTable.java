@@ -56,8 +56,6 @@ public abstract class SSTable
 {
     static final Logger logger = LoggerFactory.getLogger(SSTable.class);
 
-    public static final String TEMPFILE_MARKER = "tmp";
-
     public static final int TOMBSTONE_HISTOGRAM_BIN_SIZE = 100;
 
     public final Descriptor descriptor;

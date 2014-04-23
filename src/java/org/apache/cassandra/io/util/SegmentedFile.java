@@ -28,6 +28,7 @@ import java.util.NoSuchElementException;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -75,7 +76,12 @@ public abstract class SegmentedFile
 
     public static Builder getCompressedBuilder()
     {
-        return new CompressedPoolingSegmentedFile.Builder();
+        return getCompressedBuilder(null);
+    }
+
+    public static Builder getCompressedBuilder(CompressedSequentialWriter writer)
+    {
+        return new CompressedPoolingSegmentedFile.Builder(writer);
     }
 
     public abstract FileDataInput getSegment(long position);
@@ -110,6 +116,12 @@ public abstract class SegmentedFile
          * @param path The file on disk.
          */
         public abstract SegmentedFile complete(String path);
+
+        /**
+         * Called after all potential boundaries have been added to apply this Builder to a concrete file on disk.
+         * @param path The file on disk.
+         */
+        public abstract SegmentedFile openEarly(String path);
 
         public void serializeBounds(DataOutput out) throws IOException
         {

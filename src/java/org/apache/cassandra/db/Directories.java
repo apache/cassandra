@@ -501,7 +501,7 @@ public class Directories
                     if (pair == null)
                         return false;
 
-                    if (skipTemporary && pair.left.temporary)
+                    if (skipTemporary && pair.left.type.isTemporary)
                         return false;
 
                     Set<Component> previous = components.get(pair.left);

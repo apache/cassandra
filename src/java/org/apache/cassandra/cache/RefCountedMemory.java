@@ -51,6 +51,19 @@ public class RefCountedMemory extends Memory
     public void unreference()
     {
         if (UPDATER.decrementAndGet(this) == 0)
-            free();
+            super.free();
     }
+
+    public RefCountedMemory copy(long newSize)
+    {
+        RefCountedMemory copy = new RefCountedMemory(newSize);
+        copy.put(0, this, 0, Math.min(size(), newSize));
+        return copy;
+    }
+
+    public void free()
+    {
+        throw new AssertionError();
+    }
+
 }

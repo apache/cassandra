@@ -117,17 +117,6 @@ public class StandaloneScrubber
                             scrubber.close();
                         }
 
-                        if (manifest != null)
-                        {
-                            if (scrubber.getNewInOrderSSTable() != null)
-                                manifest.add(scrubber.getNewInOrderSSTable());
-
-                            List<SSTableReader> added = scrubber.getNewSSTable() == null
-                                ? Collections.<SSTableReader>emptyList()
-                                : Collections.singletonList(scrubber.getNewSSTable());
-                            manifest.replace(Collections.singletonList(sstable), added);
-                        }
-
                         // Remove the sstable (it's been copied by scrub and snapshotted)
                         sstable.markObsolete();
                         sstable.releaseReference();

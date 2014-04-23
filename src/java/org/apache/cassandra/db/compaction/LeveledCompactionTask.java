@@ -30,7 +30,7 @@ public class LeveledCompactionTask extends CompactionTask
 
     public LeveledCompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int level, final int gcBefore, long maxSSTableBytes)
     {
-        super(cfs, sstables, gcBefore);
+        super(cfs, sstables, gcBefore, false);
         this.level = level;
         this.maxSSTableBytes = maxSSTableBytes;
     }

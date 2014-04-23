@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.util;
 
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
+import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 
 public class CompressedPoolingSegmentedFile extends PoolingSegmentedFile implements ICompressedFile
@@ -30,8 +31,13 @@ public class CompressedPoolingSegmentedFile extends PoolingSegmentedFile impleme
         this.metadata = metadata;
     }
 
-    public static class Builder extends SegmentedFile.Builder
+    public static class Builder extends CompressedSegmentedFile.Builder
     {
+        public Builder(CompressedSequentialWriter writer)
+        {
+            super(writer);
+        }
+
         public void addPotentialBoundary(long boundary)
         {
             // only one segment in a standard-io file
@@ -39,7 +45,12 @@ public class CompressedPoolingSegmentedFile extends PoolingSegmentedFile impleme
 
         public SegmentedFile complete(String path)
         {
-            return new CompressedPoolingSegmentedFile(path, CompressionMetadata.create(path));
+            return new CompressedPoolingSegmentedFile(path, metadata(path, false));
+        }
+
+        public SegmentedFile openEarly(String path)
+        {
+            return new CompressedPoolingSegmentedFile(path, metadata(path, true));
         }
     }
 

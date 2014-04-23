@@ -38,6 +38,11 @@ public class BufferedPoolingSegmentedFile extends PoolingSegmentedFile
             long length = new File(path).length();
             return new BufferedPoolingSegmentedFile(path, length);
         }
+
+        public SegmentedFile openEarly(String path)
+        {
+            return complete(path);
+        }
     }
 
     protected RandomAccessReader createReader(String path)

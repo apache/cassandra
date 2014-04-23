@@ -38,6 +38,11 @@ public class BufferedSegmentedFile extends SegmentedFile
             long length = new File(path).length();
             return new BufferedSegmentedFile(path, length);
         }
+
+        public SegmentedFile openEarly(String path)
+        {
+            return complete(path);
+        }
     }
 
     public FileDataInput getSegment(long position)

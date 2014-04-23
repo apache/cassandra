@@ -45,7 +45,6 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
     private final String filePath;
 
     protected byte[] buffer;
-    private final boolean skipIOCache;
     private final int fd;
     private final int directoryFD;
     // directory should be synced only after first file sync, in other words, only once per file
@@ -56,9 +55,6 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
 
     protected final RandomAccessFile out;
 
-    // used if skip I/O cache was enabled
-    private long ioCacheStartOffset = 0, bytesSinceCacheFlush = 0;
-
     // whether to do trickling fsync() to avoid sudden bursts of dirty buffer flushing by kernel causing read
     // latency spikes
     private boolean trickleFsync;
@@ -66,8 +62,9 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
     private int bytesSinceTrickleFsync = 0;
 
     public final DataOutputPlus stream;
+    protected long lastFlushOffset;
 
-    public SequentialWriter(File file, int bufferSize, boolean skipIOCache)
+    public SequentialWriter(File file, int bufferSize)
     {
         try
         {
@@ -81,7 +78,6 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
         filePath = file.getAbsolutePath();
 
         buffer = new byte[bufferSize];
-        this.skipIOCache = skipIOCache;
         this.trickleFsync = DatabaseDescriptor.getTrickleFsync();
         this.trickleFsyncByteInterval = DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024;
 
@@ -100,31 +96,25 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
 
     public static SequentialWriter open(File file)
     {
-        return open(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, false);
+        return open(file, RandomAccessReader.DEFAULT_BUFFER_SIZE);
     }
 
-    public static SequentialWriter open(File file, boolean skipIOCache)
+    public static SequentialWriter open(File file, int bufferSize)
     {
-        return open(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, skipIOCache);
+        return new SequentialWriter(file, bufferSize);
     }
 
-    public static SequentialWriter open(File file, int bufferSize, boolean skipIOCache)
+    public static ChecksummedSequentialWriter open(File file, File crcPath)
     {
-        return new SequentialWriter(file, bufferSize, skipIOCache);
-    }
-
-    public static ChecksummedSequentialWriter open(File file, boolean skipIOCache, File crcPath)
-    {
-        return new ChecksummedSequentialWriter(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, skipIOCache, crcPath);
+        return new ChecksummedSequentialWriter(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, crcPath);
     }
 
     public static CompressedSequentialWriter open(String dataFilePath,
                                                   String offsetsPath,
-                                                  boolean skipIOCache,
                                                   CompressionParameters parameters,
                                                   MetadataCollector sstableMetadataCollector)
     {
-        return new CompressedSequentialWriter(new File(dataFilePath), offsetsPath, skipIOCache, parameters, sstableMetadataCollector);
+        return new CompressedSequentialWriter(new File(dataFilePath), offsetsPath, parameters, sstableMetadataCollector);
     }
 
     public void write(int value) throws ClosedChannelException
@@ -302,23 +292,6 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
                 }
             }
 
-            if (skipIOCache)
-            {
-                // we don't know when the data reaches disk since we aren't
-                // calling flush
-                // so we continue to clear pages we don't need from the first
-                // offset we see
-                // periodically we update this starting offset
-                bytesSinceCacheFlush += validBufferBytes;
-
-                if (bytesSinceCacheFlush >= RandomAccessReader.CACHE_FLUSH_INTERVAL_IN_BYTES)
-                {
-                    CLibrary.trySkipCache(this.fd, ioCacheStartOffset, 0);
-                    ioCacheStartOffset = bufferOffset;
-                    bytesSinceCacheFlush = 0;
-                }
-            }
-
             // Remember that we wrote, so we don't write it again on next flush().
             resetBuffer();
 
@@ -335,6 +308,7 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
         try
         {
             out.write(buffer, 0, validBufferBytes);
+            lastFlushOffset += validBufferBytes;
         }
         catch (IOException e)
         {
@@ -431,6 +405,11 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
         resetBuffer();
     }
 
+    public long getLastFlushOffset()
+    {
+        return lastFlushOffset;
+    }
+
     public void truncate(long toSize)
     {
         try
@@ -457,9 +436,6 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
         syncInternal();
 
         buffer = null;
-
-        if (skipIOCache && bytesSinceCacheFlush > 0)
-            CLibrary.trySkipCache(fd, 0, 0);
 
         try
         {

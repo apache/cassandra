@@ -25,11 +25,11 @@ import java.nio.ByteBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.RefCountedMemory;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.MemoryOutputStream;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -60,7 +60,7 @@ public class IndexSummary implements Closeable
     private final IPartitioner partitioner;
     private final int summarySize;
     private final int sizeAtFullSampling;
-    private final Memory bytes;
+    private final RefCountedMemory bytes;
 
     /**
      * A value between 1 and BASE_SAMPLING_LEVEL that represents how many of the original
@@ -70,7 +70,7 @@ public class IndexSummary implements Closeable
      */
     private final int samplingLevel;
 
-    public IndexSummary(IPartitioner partitioner, Memory memory, int summarySize, int sizeAtFullSampling,
+    public IndexSummary(IPartitioner partitioner, RefCountedMemory memory, int summarySize, int sizeAtFullSampling,
                         int minIndexInterval, int samplingLevel)
     {
         this.partitioner = partitioner;
@@ -251,7 +251,7 @@ public class IndexSummary implements Closeable
                                                     " the current max index interval (%d)", effectiveIndexInterval, maxIndexInterval));
             }
 
-            Memory memory = Memory.allocate(offheapSize);
+            RefCountedMemory memory = new RefCountedMemory(offheapSize);
             FBUtilities.copy(in, new MemoryOutputStream(memory), offheapSize);
             return new IndexSummary(partitioner, memory, summarySize, fullSamplingSummarySize, minIndexInterval, samplingLevel);
         }
@@ -260,6 +260,12 @@ public class IndexSummary implements Closeable
     @Override
     public void close()
     {
-        bytes.free();
+        bytes.unreference();
+    }
+
+    public IndexSummary readOnlyClone()
+    {
+        bytes.reference();
+        return this;
     }
 }

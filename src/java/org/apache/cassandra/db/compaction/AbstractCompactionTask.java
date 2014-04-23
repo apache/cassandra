@@ -28,7 +28,7 @@ import org.apache.cassandra.io.util.DiskAwareRunnable;
 public abstract class AbstractCompactionTask extends DiskAwareRunnable
 {
     protected final ColumnFamilyStore cfs;
-    protected Iterable<SSTableReader> sstables;
+    protected Set<SSTableReader> sstables;
     protected boolean isUserDefined;
     protected OperationType compactionType;
 
@@ -36,7 +36,7 @@ public abstract class AbstractCompactionTask extends DiskAwareRunnable
      * @param cfs
      * @param sstables must be marked compacting
      */
-    public AbstractCompactionTask(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables)
+    public AbstractCompactionTask(ColumnFamilyStore cfs, Set<SSTableReader> sstables)
     {
         this.cfs = cfs;
         this.sstables = sstables;

@@ -177,7 +177,7 @@ public class Config
     public int hinted_handoff_throttle_in_kb = 1024;
     public int batchlog_replay_throttle_in_kb = 1024;
     public int max_hints_delivery_threads = 1;
-    public boolean compaction_preheat_key_cache = true;
+    public int sstable_preemptive_open_interval_in_mb = 50;
 
     public volatile boolean incremental_backups = false;
     public boolean trickle_fsync = false;
@@ -198,8 +198,6 @@ public class Config
     public String memory_allocator = NativeAllocator.class.getSimpleName();
 
     private static boolean isClientMode = false;
-
-    public boolean preheat_kernel_page_cache = false;
 
     public Integer file_cache_size_in_mb;
 

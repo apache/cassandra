@@ -122,29 +122,41 @@ public class Descriptor
         }
     }
 
+    public static enum Type
+    {
+        TEMP("tmp", true), TEMPLINK("tmplink", true), FINAL(null, false);
+        public final boolean isTemporary;
+        public final String marker;
+        Type(String marker, boolean isTemporary)
+        {
+            this.isTemporary = isTemporary;
+            this.marker = marker;
+        }
+    }
+
     public final File directory;
     /** version has the following format: <code>[a-z]+</code> */
     public final Version version;
     public final String ksname;
     public final String cfname;
     public final int generation;
-    public final boolean temporary;
+    public final Type type;
     private final int hashCode;
 
     /**
      * A descriptor that assumes CURRENT_VERSION.
      */
-    public Descriptor(File directory, String ksname, String cfname, int generation, boolean temp)
+    public Descriptor(File directory, String ksname, String cfname, int generation, Type temp)
     {
         this(Version.CURRENT, directory, ksname, cfname, generation, temp);
     }
 
-    public Descriptor(String version, File directory, String ksname, String cfname, int generation, boolean temp)
+    public Descriptor(String version, File directory, String ksname, String cfname, int generation, Type temp)
     {
         this(new Version(version), directory, ksname, cfname, generation, temp);
     }
 
-    public Descriptor(Version version, File directory, String ksname, String cfname, int generation, boolean temp)
+    public Descriptor(Version version, File directory, String ksname, String cfname, int generation, Type temp)
     {
         assert version != null && directory != null && ksname != null && cfname != null;
         this.version = version;
@@ -152,13 +164,13 @@ public class Descriptor
         this.ksname = ksname;
         this.cfname = cfname;
         this.generation = generation;
-        temporary = temp;
+        type = temp;
         hashCode = Objects.hashCode(directory, generation, ksname, cfname, temp);
     }
 
     public Descriptor withGeneration(int newGeneration)
     {
-        return new Descriptor(version, directory, ksname, cfname, newGeneration, temporary);
+        return new Descriptor(version, directory, ksname, cfname, newGeneration, type);
     }
 
     public String filenameFor(Component component)
@@ -172,8 +184,8 @@ public class Descriptor
         buff.append(directory).append(File.separatorChar);
         buff.append(ksname).append(separator);
         buff.append(cfname).append(separator);
-        if (temporary)
-            buff.append(SSTable.TEMPFILE_MARKER).append(separator);
+        if (type.isTemporary)
+            buff.append(type.marker).append(separator);
         buff.append(version).append(separator);
         buff.append(generation);
         return buff.toString();
@@ -231,10 +243,15 @@ public class Descriptor
 
         // optional temporary marker
         nexttok = st.nextToken();
-        boolean temporary = false;
-        if (nexttok.equals(SSTable.TEMPFILE_MARKER))
+        Type type = Type.FINAL;
+        if (nexttok.equals(Type.TEMP.marker))
         {
-            temporary = true;
+            type = Type.TEMP;
+            nexttok = st.nextToken();
+        }
+        else if (nexttok.equals(Type.TEMPLINK.marker))
+        {
+            type = Type.TEMPLINK;
             nexttok = st.nextToken();
         }
 
@@ -250,16 +267,16 @@ public class Descriptor
         if (!skipComponent)
             component = st.nextToken();
         directory = directory != null ? directory : new File(".");
-        return Pair.create(new Descriptor(version, directory, ksname, cfname, generation, temporary), component);
+        return Pair.create(new Descriptor(version, directory, ksname, cfname, generation, type), component);
     }
 
     /**
-     * @param temporary temporary flag
+     * @param type temporary flag
      * @return A clone of this descriptor with the given 'temporary' status.
      */
-    public Descriptor asTemporary(boolean temporary)
+    public Descriptor asType(Type type)
     {
-        return new Descriptor(version, directory, ksname, cfname, generation, temporary);
+        return new Descriptor(version, directory, ksname, cfname, generation, type);
     }
 
     public IMetadataSerializer getMetadataSerializer()
@@ -296,7 +313,7 @@ public class Descriptor
                        && that.generation == this.generation
                        && that.ksname.equals(this.ksname)
                        && that.cfname.equals(this.cfname)
-                       && that.temporary == this.temporary;
+                       && that.type == this.type;
     }
 
     @Override
