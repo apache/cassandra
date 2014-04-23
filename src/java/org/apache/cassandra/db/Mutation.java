@@ -79,6 +79,11 @@ public class Mutation implements IMutation
         this(cf.metadata().ksName, key, cf);
     }
 
+    public Mutation copy()
+    {
+        return new Mutation(keyspaceName, key, new HashMap<>(modifications));
+    }
+
     public String getKeyspaceName()
     {
         return keyspaceName;
