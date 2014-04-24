@@ -10,6 +10,7 @@
  * Fix CQLSH parsing of functions and BLOB literals (CASSANDRA-7018)
  * Require nodetool rebuild_index to specify index names (CASSANDRA-7038)
  * Ensure that batchlog and hint timeouts do not produce hints (CASSANDRA-7058)
+ * Don't shut MessagingService down when replacing a node (CASSANDRA-6476)
 
 
 1.2.16
