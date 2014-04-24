@@ -62,6 +62,8 @@
  * Use OpOrder to guard sstable references for reads (CASSANDRA-6919)
  * Preemptive opening of compaction result (CASSANDRA-6916)
 Merged from 2.0:
+2.0.8
+ * Set JMX RMI port to 7199 (CASSANDRA-7087)
  * Use LOCAL_QUORUM for data reads at LOCAL_SERIAL (CASSANDRA-6939)
  * Log a warning for large batches (CASSANDRA-6487)
  * Put nodes in hibernate when join_ring is false (CASSANDRA-6961)
