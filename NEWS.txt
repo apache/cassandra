@@ -48,9 +48,10 @@ Upgrading
      to change your data model to accomodate the new implementation.
      (See https://issues.apache.org/jira/browse/CASSANDRA-6504 and the dev
      blog post at http://www.datastax.com/dev/blog/<PLACEHOLDER> for details).
-    - (per-table) index_interval parameter has been replaced with
+   - (per-table) index_interval parameter has been replaced with
      min_index_interval and max_index_interval paratemeters. index_interval
      has been deprecated.
+   - support for supercolumns has been removed from json2sstable
 
 
 2.0.7
