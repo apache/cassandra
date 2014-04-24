@@ -254,6 +254,7 @@ JVM_OPTS="$JVM_OPTS -Djava.net.preferIPv4Stack=true"
 # for more on configuring JMX through firewalls, etc. (Short version:
 # get it working with no firewall first.)
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.port=$JMX_PORT"
+JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.rmi.port=$JMX_PORT"
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl=false"
 JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=false"
 #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.password.file=/etc/cassandra/jmxremote.password"
