@@ -20,7 +20,6 @@ package org.apache.cassandra.tools;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.commons.cli.*;
@@ -98,53 +97,6 @@ public class SSTableExport
         out.print(": ");
     }
 
-    /**
-     * JSON ColumnFamily metadata serializer.</br> Serializes:
-     * <ul>
-     * <li>column family deletion info (if present)</li>
-     * </ul>
-     *
-     * @param out The output steam to write data
-     * @param deletionInfo
-     */
-    private static void writeMeta(PrintStream out, DeletionInfo deletionInfo)
-    {
-        if (!deletionInfo.isLive())
-        {
-            // begin meta
-            writeKey(out, "metadata");
-            writeDeletionInfo(out, deletionInfo.getTopLevelDeletion());
-            out.print(",");
-        }
-    }
-
-    private static void writeDeletionInfo(PrintStream out, DeletionTime deletionTime)
-    {
-        out.print("{");
-        writeKey(out, "deletionInfo");
-        // only store topLevelDeletion (serializeForSSTable only uses this)
-        writeJSON(out, deletionTime);
-        out.print("}");
-    }
-
-    /**
-     * Serialize columns using given column iterator
-     *
-     * @param atoms      column iterator
-     * @param out        output stream
-     * @param cfMetaData Column Family metadata (to get validator)
-     */
-    private static void serializeAtoms(Iterator<OnDiskAtom> atoms, PrintStream out, CFMetaData cfMetaData)
-    {
-        while (atoms.hasNext())
-        {
-            writeJSON(out, serializeAtom(atoms.next(), cfMetaData));
-
-            if (atoms.hasNext())
-                out.print(", ");
-        }
-    }
-
     private static List<Object> serializeAtom(OnDiskAtom atom, CFMetaData cfMetaData)
     {
         if (atom instanceof Cell)
@@ -166,7 +118,17 @@ public class SSTableExport
     }
 
     /**
-     * Serialize a given cell to the JSON format
+     * Serialize a given cell to a List of Objects that jsonMapper knows how to turn into strings.  Format is
+     *
+     * human_readable_name, value, timestamp, [flag, [options]]
+     *
+     * Value is normally the human readable value as rendered by the validator, but for deleted cells we
+     * give the local deletion time instead.
+     *
+     * Flag may be exactly one of {d,e,c} for deleted, expiring, or counter:
+     *  - No options for deleted cells
+     *  - If expiring, options will include the TTL and local deletion time.
+     *  - If counter, options will include timestamp of last delete
      *
      * @param cell     cell presentation
      * @param cfMetaData Column Family metadata (to get validator)
@@ -177,18 +139,18 @@ public class SSTableExport
         CellNameType comparator = cfMetaData.comparator;
         ArrayList<Object> serializedColumn = new ArrayList<Object>();
 
-        ByteBuffer value = cell.value();
-
         serializedColumn.add(comparator.getString(cell.name()));
+
         if (cell instanceof DeletedCell)
         {
-            serializedColumn.add(ByteBufferUtil.bytesToHex(value));
+            serializedColumn.add(cell.getLocalDeletionTime());
         }
         else
         {
             AbstractType<?> validator = cfMetaData.getValueValidator(cell.name());
-            serializedColumn.add(validator.getString(value));
+            serializedColumn.add(validator.getString(cell.value()));
         }
+
         serializedColumn.add(cell.timestamp());
 
         if (cell instanceof DeletedCell)
@@ -227,16 +189,31 @@ public class SSTableExport
         out.print("{");
         writeKey(out, "key");
         writeJSON(out, bytesToHex(key.key));
-        out.print(",");
+        out.print(",\n");
 
-        writeMeta(out, deletionInfo);
+        if (!deletionInfo.isLive())
+        {
+            out.print(" ");
+            writeKey(out, "metadata");
+            out.print("{");
+            writeKey(out, "deletionInfo");
+            writeJSON(out, deletionInfo.getTopLevelDeletion());
+            out.print("}");
+            out.print(",\n");
+        }
 
-        writeKey(out, "columns");
+        out.print(" ");
+        writeKey(out, "cells");
         out.print("[");
+        while (atoms.hasNext())
+        {
+            writeJSON(out, serializeAtom(atoms.next(), metadata));
 
-        serializeAtoms(atoms, out, metadata);
-
+            if (atoms.hasNext())
+                out.print(",\n           ");
+        }
         out.print("]");
+
         out.print("}");
     }
 

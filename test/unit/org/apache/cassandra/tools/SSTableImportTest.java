@@ -75,57 +75,6 @@ public class SSTableImportTest extends SchemaLoader
     }
 
     @Test
-    public void testImportSimpleCfOldFormat() throws IOException, URISyntaxException
-    {
-        // Import JSON to temp SSTable file
-        String jsonUrl = resourcePath("SimpleCF.oldformat.json");
-        File tempSS = tempSSTableFile("Keyspace1", "Standard1");
-        new SSTableImport(true).importJson(jsonUrl, "Keyspace1", "Standard1", tempSS.getPath());
-
-        // Verify results
-        SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
-        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "Standard1", System.currentTimeMillis());
-        OnDiskAtomIterator iter = qf.getSSTableColumnIterator(reader);
-        ColumnFamily cf = cloneForAdditions(iter);
-        while (iter.hasNext()) cf.addAtom(iter.next());
-        assert cf.getColumn(Util.cellname("colAA")).value().equals(hexToBytes("76616c4141"));
-        assert !(cf.getColumn(Util.cellname("colAA")) instanceof DeletedCell);
-        Cell expCol = cf.getColumn(Util.cellname("colAC"));
-        assert expCol.value().equals(hexToBytes("76616c4143"));
-        assert expCol instanceof ExpiringCell;
-        assert ((ExpiringCell)expCol).getTimeToLive() == 42 && expCol.getLocalDeletionTime() == 2000000000;
-    }
-
-    @Test
-    public void testImportSuperCf() throws IOException, URISyntaxException
-    {
-        String jsonUrl = resourcePath("SuperCF.json");
-        File tempSS = tempSSTableFile("Keyspace1", "Super4");
-        new SSTableImport(true, true).importJson(jsonUrl, "Keyspace1", "Super4", tempSS.getPath());
-
-        // Verify results
-        SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
-        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "Super4", System.currentTimeMillis());
-        ColumnFamily cf = cloneForAdditions(qf.getSSTableColumnIterator(reader));
-        qf.collateOnDiskAtom(cf, qf.getSSTableColumnIterator(reader), Integer.MIN_VALUE);
-
-        DeletionTime delTime = cf.deletionInfo().deletionTimeFor(cf.getComparator().make(ByteBufferUtil.bytes("superA")));
-        assertEquals("supercolumn deletion time did not match the expected time", new DeletionInfo(0, 0), new DeletionInfo(delTime));
-        Cell subCell = cf.getColumn(Util.cellname("superA", "636f6c4141"));
-        assert subCell.value().equals(hexToBytes("76616c75654141"));
-    }
-
-    @Test
-    public void testImportUnsortedDataWithSortedOptionFails() throws IOException, URISyntaxException
-    {
-        String jsonUrl = resourcePath("UnsortedSuperCF.json");
-        File tempSS = tempSSTableFile("Keyspace1", "Super4");
-
-        int result = new SSTableImport(3,true, true).importJson(jsonUrl, "Keyspace1","Super4", tempSS.getPath());
-        assert result == -1;
-    }
-
-    @Test
     public void testImportUnsortedMode() throws IOException, URISyntaxException
     {
         String jsonUrl = resourcePath("UnsortedCF.json");
