@@ -44,7 +44,7 @@ public class ColumnIdentifier implements Selectable, IMeasurableMemory
         this.bytes = ByteBufferUtil.bytes(this.text);
     }
 
-    public ColumnIdentifier(ByteBuffer bytes, AbstractType type)
+    public ColumnIdentifier(ByteBuffer bytes, AbstractType<?> type)
     {
         this.bytes = bytes;
         this.text = type.getString(bytes);
