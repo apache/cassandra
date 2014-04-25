@@ -162,6 +162,8 @@ public class KeyCacheTest extends SchemaLoader
         for (SSTableReader reader : readers)
             reader.releaseReference();
 
+        while (StorageService.tasks.getActiveCount() > 0);
+
         // after releasing the reference this should drop to 2
         assertKeyCacheSize(2, KEYSPACE1, COLUMN_FAMILY1);
 
