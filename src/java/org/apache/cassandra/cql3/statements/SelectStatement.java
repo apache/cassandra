@@ -1451,8 +1451,6 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     //   1) we're in the special case of the 'tuple' notation from #4851 which we expand as multiple
                     //      consecutive slices: in which case we're good with this restriction and we continue
                     //   2) we have a 2ndary index, in which case we have to use it but can skip more validation
-                    boolean hasTuple = false;
-                    boolean hasRestrictedNotTuple = false;
                     if (!(previousIsSlice && restriction.isSlice() && ((Restriction.Slice)restriction).isPartOfTuple()))
                     {
                         if (hasQueriableIndex)
