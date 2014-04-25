@@ -70,7 +70,7 @@ public interface Composite extends IMeasurableMemory
 
     public boolean isStatic();
 
-    public boolean isPrefixOf(Composite other);
+    public boolean isPrefixOf(CType type, Composite other);
 
     public ByteBuffer toByteBuffer();
 
