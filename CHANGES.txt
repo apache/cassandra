@@ -11,6 +11,7 @@
  * Require nodetool rebuild_index to specify index names (CASSANDRA-7038)
  * Ensure that batchlog and hint timeouts do not produce hints (CASSANDRA-7058)
  * Don't shut MessagingService down when replacing a node (CASSANDRA-6476)
+ * Always clean up references in SerializingCache (CASSANDRA-6994)
 
 
 1.2.16
