@@ -8,6 +8,14 @@
  * Merge groupable mutations in TriggerExecutor#execute() (CASSANDRA-7047)
  * Fix CFMetaData#getColumnDefinitionFromColumnName() (CASSANDRA-7074)
 Merged from 1.2:
+ * Fix nodetool display with vnodes (CASSANDRA-7082)
+ * Fix schema concurrency exceptions (CASSANDRA-6841)
+ * Fix BatchlogManager#deleteBatch() use of millisecond timsestamps
+   (CASSANDRA-6822)
+ * Continue assassinating even if the endpoint vanishes (CASSANDRA-6787)
+ * Schedule schema pulls on change (CASSANDRA-6971)
+ * Non-droppable verbs shouldn't be dropped from OTC (CASSANDRA-6980)
+ * Shutdown batchlog executor in SS#drain() (CASSANDRA-7025)
  * Fix batchlog to account for CF truncation records (CASSANDRA-6999)
  * Fix CQLSH parsing of functions and BLOB literals (CASSANDRA-7018)
  * Require nodetool rebuild_index to specify index names (CASSANDRA-7038)
