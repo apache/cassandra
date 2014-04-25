@@ -34,14 +34,6 @@ public class BytesType extends AbstractType<ByteBuffer>
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
-        return BytesType.bytesCompare(o1, o2);
-    }
-
-    public static int bytesCompare(ByteBuffer o1, ByteBuffer o2)
-    {
-        if (o1 == null)
-            return o2 == null ? 0 : -1;
-
         return ByteBufferUtil.compareUnsigned(o1, o2);
     }
 
@@ -69,6 +61,11 @@ public class BytesType extends AbstractType<ByteBuffer>
     public boolean isValueCompatibleWith(AbstractType<?> previous)
     {
         // BytesType can read anything
+        return true;
+    }
+
+    public boolean isByteOrderComparable()
+    {
         return true;
     }
 

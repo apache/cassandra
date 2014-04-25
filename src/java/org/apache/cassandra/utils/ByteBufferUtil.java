@@ -80,8 +80,6 @@ public class ByteBufferUtil
 
     public static int compareUnsigned(ByteBuffer o1, ByteBuffer o2)
     {
-        assert o1 != null;
-        assert o2 != null;
         return FastByteOperations.compareUnsigned(o1, o2);
     }
 

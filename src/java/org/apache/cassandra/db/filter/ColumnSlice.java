@@ -219,7 +219,7 @@ public class ColumnSlice
 
     private static Cell fakeCell(Composite name)
     {
-        return new BufferCell(new FakeCellName(name), ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        return new BufferCell(name instanceof CellName ? (CellName) name : new FakeCellName(name), ByteBufferUtil.EMPTY_BYTE_BUFFER);
     }
 
     /*
@@ -258,6 +258,11 @@ public class ColumnSlice
         public Composite.EOC eoc()
         {
             return prefix.eoc();
+        }
+
+        public ByteBuffer toByteBuffer()
+        {
+            return prefix.toByteBuffer();
         }
 
         public int clusteringSize()

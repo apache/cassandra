@@ -37,10 +37,8 @@ public class BooleanType extends AbstractType<Boolean>
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
-        if ((o1 == null) || (o1.remaining() != 1))
-            return ((o2 == null) || (o2.remaining() != 1)) ? 0 : -1;
-        if ((o2 == null) || (o2.remaining() != 1))
-            return 1;
+        if (!o1.hasRemaining() || !o2.hasRemaining())
+            return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
 
         // False is 0, True is anything else, makes False sort before True.
         byte b1 = o1.get(o1.position());

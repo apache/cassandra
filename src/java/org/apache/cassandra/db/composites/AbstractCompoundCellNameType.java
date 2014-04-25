@@ -34,6 +34,7 @@ public abstract class AbstractCompoundCellNameType extends AbstractCellNameType
 
     protected AbstractCompoundCellNameType(CompoundCType clusteringType, CompoundCType fullType)
     {
+        super(isByteOrderComparable(fullType.types));
         this.clusteringType = clusteringType;
         this.fullType = fullType;
 

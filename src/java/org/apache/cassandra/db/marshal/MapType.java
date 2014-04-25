@@ -80,10 +80,8 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         // Note that this is only used if the collection is inside an UDT
-        if (o1 == null || !o1.hasRemaining())
-            return o2 == null || !o2.hasRemaining() ? 0 : -1;
-        if (o2 == null || !o2.hasRemaining())
-            return 1;
+        if (!o1.hasRemaining() || !o2.hasRemaining())
+            return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
 
         ByteBuffer bb1 = o1.duplicate();
         ByteBuffer bb2 = o2.duplicate();
@@ -113,6 +111,11 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     public TypeSerializer<Map<K, V>> getSerializer()
     {
         return serializer;
+    }
+
+    public boolean isByteOrderComparable()
+    {
+        return keys.isByteOrderComparable();
     }
 
     protected void appendToStringBuilder(StringBuilder sb)

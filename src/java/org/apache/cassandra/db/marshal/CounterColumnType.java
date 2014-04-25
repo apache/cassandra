@@ -36,6 +36,11 @@ public class CounterColumnType extends AbstractType<Long>
         return true;
     }
 
+    public boolean isByteOrderComparable()
+    {
+        throw new AssertionError();
+    }
+
     @Override
     public Long compose(ByteBuffer bytes)
     {
@@ -50,9 +55,6 @@ public class CounterColumnType extends AbstractType<Long>
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
-        if (o1 == null)
-            return o2 == null ?  0 : -1;
-
         return ByteBufferUtil.compareUnsigned(o1, o2);
     }
 

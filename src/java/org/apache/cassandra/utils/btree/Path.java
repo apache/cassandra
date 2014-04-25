@@ -20,6 +20,8 @@ package org.apache.cassandra.utils.btree;
 
 import java.util.Comparator;
 
+import static org.apache.cassandra.utils.btree.BTree.NEGATIVE_INFINITY;
+import static org.apache.cassandra.utils.btree.BTree.POSITIVE_INFINITY;
 import static org.apache.cassandra.utils.btree.BTree.getBranchKeyEnd;
 import static org.apache.cassandra.utils.btree.BTree.getKeyEnd;
 import static org.apache.cassandra.utils.btree.BTree.getLeafKeyEnd;
@@ -50,7 +52,7 @@ class Path
     // the index within the node of our path at a given depth
     byte[] indexes;
     // current depth.  nothing in path[i] for i > depth is valid.
-    byte depth = -1;
+    byte depth;
 
     Path() { }
     Path(int depth)
@@ -67,6 +69,20 @@ class Path
             path = new Object[depth][];
             indexes = new byte[depth];
         }
+    }
+
+    void moveEnd(Object[] node, boolean forwards)
+    {
+        push(node, getKeyEnd(node));
+        if (!forwards)
+            predecessor();
+    }
+
+    void moveStart(Object[] node, boolean forwards)
+    {
+        push(node, -1);
+        if (forwards)
+            successor();
     }
 
     /**
@@ -87,6 +103,17 @@ class Path
         // search
 
         depth = -1;
+        if (target instanceof BTree.Special)
+        {
+            if (target == POSITIVE_INFINITY)
+                moveEnd(node, forwards);
+            else if (target == NEGATIVE_INFINITY)
+                moveStart(node, forwards);
+            else
+                throw new AssertionError();
+            return;
+        }
+
         while (true)
         {
             int keyEnd = getKeyEnd(node);
@@ -107,18 +134,17 @@ class Path
                 }
                 return;
             }
+            i = -i - 1;
 
             // traverse into the appropriate child
             if (!isLeaf(node))
             {
-                i = -i - 1;
                 push(node, forwards ? i - 1 : i);
                 node = (Object[]) node[keyEnd + i];
                 continue;
             }
 
             // bottom of the tree and still not found.  pick the right index to satisfy Op
-            i = -i - 1;
             switch (mode)
             {
                 case FLOOR:

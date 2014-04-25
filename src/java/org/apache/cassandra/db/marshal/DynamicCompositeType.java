@@ -391,5 +391,10 @@ public class DynamicCompositeType extends AbstractCompositeType
         {
             throw new UnsupportedOperationException();
         }
+
+        public boolean isByteOrderComparable()
+        {
+            return false;
+        }
     }
 }

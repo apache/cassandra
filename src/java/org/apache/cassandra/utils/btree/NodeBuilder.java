@@ -104,6 +104,21 @@ final class NodeBuilder
         copyFromChildPosition = 0;
     }
 
+    NodeBuilder finish()
+    {
+        assert copyFrom != null;
+        int copyFromKeyEnd = getKeyEnd(copyFrom);
+
+        if (buildKeyPosition + buildChildPosition > 0)
+        {
+            // only want to copy if we've already changed something, otherwise we'll return the original
+            copyKeys(copyFromKeyEnd);
+            if (!isLeaf(copyFrom))
+                copyChildren(copyFromKeyEnd + 1);
+        }
+        return isRoot() ? null : ascend();
+    }
+
     /**
      * Inserts or replaces the provided key, copying all not-yet-visited keys prior to it into our buffer.
      *
@@ -117,9 +132,33 @@ final class NodeBuilder
         assert copyFrom != null;
         int copyFromKeyEnd = getKeyEnd(copyFrom);
 
-        int i = find(comparator, key, copyFrom, copyFromKeyPosition, copyFromKeyEnd);
-        boolean found = i >= 0; // exact key match?
+        int i = copyFromKeyPosition;
+        boolean found; // exact key match?
         boolean owns = true; // true iff this node (or a child) should contain the key
+        if (i == copyFromKeyEnd)
+        {
+            found = false;
+        }
+        else
+        {
+            // this optimisation is for the common scenario of updating an existing row with the same columns/keys
+            // and simply avoids performing a binary search until we've checked the proceeding key;
+            // possibly we should disable this check if we determine that it fails more than a handful of times
+            // during any given builder use to get the best of both worlds
+            int c = comparator.compare(copyFrom[i], key);
+            if (c >= 0)
+            {
+                found = c == 0;
+            }
+            else
+            {
+                i = find(comparator, key, copyFrom, i + 1, copyFromKeyEnd);
+                found = i >= 0;
+                if (!found)
+                    i = -i - 1;
+            }
+        }
+
         if (found)
         {
             Object prev = copyFrom[i];
@@ -129,12 +168,8 @@ final class NodeBuilder
                 return null;
             key = next;
         }
-        else
-        {
-            i = -i - 1;
-            if (i == copyFromKeyEnd && compare(comparator, upperBound, key) <= 0)
-                owns = false;
-        }
+        else if (i == copyFromKeyEnd && compare(comparator, upperBound, key) <= 0)
+            owns = false;
 
         if (isLeaf(copyFrom))
         {
@@ -202,9 +237,6 @@ final class NodeBuilder
                 copyChildren(copyFromKeyEnd + 1); // since we know that there are exactly 1 more child nodes, than keys
             }
         }
-
-        if (key == POSITIVE_INFINITY && isRoot())
-            return null;
 
         return ascend();
     }

@@ -35,6 +35,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.hadoop.ColumnFamilySplit;
 import org.apache.cassandra.hadoop.ConfigHelper;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -252,7 +253,8 @@ public class CqlRecordReader extends RecordReader<Long, Row>
             {
                 for (String column : partitionBoundColumns.keySet())
                 {
-                    if (BytesType.bytesCompare(keyColumns.get(column), previousRowKey.get(column)) != 0)
+                    // this is not correct - but we don't seem to have easy access to better type information here
+                    if (ByteBufferUtil.compareUnsigned(keyColumns.get(column), previousRowKey.get(column)) != 0)
                     {
                         previousRowKey = keyColumns;
                         totalRead++;

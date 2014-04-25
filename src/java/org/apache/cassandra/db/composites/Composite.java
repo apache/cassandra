@@ -39,22 +39,21 @@ public interface Composite extends IMeasurableMemory
 {
     public enum EOC
     {
-        START, NONE, END;
+        START(-1), NONE(-1), END(1);
+
+        // If composite p has this EOC and is a strict prefix of composite c, then this
+        // the result of the comparison of p and c. Basically, p sorts before c unless
+        // it's EOC is END.
+        public final int prefixComparisonResult;
+
+        private EOC(int prefixComparisonResult)
+        {
+            this.prefixComparisonResult = prefixComparisonResult;
+        }
 
         public static EOC from(int eoc)
         {
             return eoc == 0 ? NONE : (eoc < 0 ? START : END);
-        }
-
-        public byte toByte()
-        {
-            switch (this)
-            {
-                case START: return (byte)-1;
-                case NONE:  return (byte) 0;
-                case END:   return (byte) 1;
-                default: throw new AssertionError();
-            }
         }
     }
 

@@ -53,6 +53,7 @@
  * Use OpOrder to guard sstable references for reads (CASSANDRA-6919)
  * Preemptive opening of compaction result (CASSANDRA-6916)
  * Multi-threaded scrub/cleanup/upgradesstables (CASSANDRA-5547)
+ * Optimize cellname comparison (CASSANDRA-6934)
 Merged from 2.0:
  * Set JMX RMI port to 7199 (CASSANDRA-7087)
  * Use LOCAL_QUORUM for data reads at LOCAL_SERIAL (CASSANDRA-6939)
