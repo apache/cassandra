@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.io.util.Memory;
 
-public class RefCountedMemory extends Memory
+public class RefCountedMemory extends Memory implements AutoCloseable
 {
     private final AtomicInteger references = new AtomicInteger(1);
 
@@ -51,5 +51,10 @@ public class RefCountedMemory extends Memory
     {
         if (references.decrementAndGet() == 0)
             free();
+    }
+
+    public void close()
+    {
+        unreference();
     }
 }
