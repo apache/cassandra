@@ -23,6 +23,7 @@ import org.apache.cassandra.io.util.Memory;
 
 public class RefCountedMemory extends Memory implements AutoCloseable
 {
+    private volatile int references = 1;
     private static final AtomicIntegerFieldUpdater<RefCountedMemory> UPDATER = AtomicIntegerFieldUpdater.newUpdater(RefCountedMemory.class, "references");
 
     public RefCountedMemory(long size)
