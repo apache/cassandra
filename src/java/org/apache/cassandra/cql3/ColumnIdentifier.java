@@ -27,7 +27,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 /**
  * Represents an identifer for a CQL column definition.
  */
-public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier>
+public class ColumnIdentifier implements Selectable
 {
     public final ByteBuffer key;
     private final String text;
@@ -38,7 +38,7 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
         this.key = ByteBufferUtil.bytes(this.text);
     }
 
-    public ColumnIdentifier(ByteBuffer key, AbstractType type)
+    public ColumnIdentifier(ByteBuffer key, AbstractType<?> type)
     {
         this.key = key;
         this.text = type.getString(key);
@@ -63,10 +63,5 @@ public class ColumnIdentifier implements Selectable, Comparable<ColumnIdentifier
     public String toString()
     {
         return text;
-    }
-
-    public int compareTo(ColumnIdentifier other)
-    {
-        return key.compareTo(other.key);
     }
 }
