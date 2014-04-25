@@ -134,7 +134,7 @@ public final class CFMetaData
     {
         public int compare(ColumnDefinition def1, ColumnDefinition def2)
         {
-            return def1.name.compareTo(def2.name);
+            return ByteBufferUtil.compareUnsigned(def1.name.bytes, def2.name.bytes);
         }
     };
 

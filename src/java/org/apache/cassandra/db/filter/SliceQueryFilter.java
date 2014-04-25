@@ -334,10 +334,10 @@ public class SliceQueryFilter implements IDiskAtomFilter
         count = newLimit;
     }
 
-    public boolean maySelectPrefix(Comparator<Composite> cmp, Composite prefix)
+    public boolean maySelectPrefix(CType type, Composite prefix)
     {
         for (ColumnSlice slice : slices)
-            if (slice.includes(cmp, prefix))
+            if (slice.includes(type, prefix))
                 return true;
         return false;
     }

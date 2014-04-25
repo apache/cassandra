@@ -103,7 +103,7 @@ public abstract class Composites
             return 0;
         }
 
-        public boolean isPrefixOf(Composite c)
+        public boolean isPrefixOf(CType type, Composite c)
         {
             return true;
         }
