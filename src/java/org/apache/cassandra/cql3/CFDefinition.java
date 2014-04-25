@@ -49,7 +49,13 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
     public final LinkedHashMap<ColumnIdentifier, Name> columns = new LinkedHashMap<ColumnIdentifier, Name>();
     public final Name value;
     // Keep metadata lexicographically ordered so that wildcard expansion have a deterministic order
-    public final Map<ColumnIdentifier, Name> metadata = new TreeMap<ColumnIdentifier, Name>();
+    public final Map<ColumnIdentifier, Name> metadata = new TreeMap<ColumnIdentifier, Name>(new Comparator<ColumnIdentifier>()
+    {
+        public int compare(ColumnIdentifier id1, ColumnIdentifier id2)
+        {
+            return ByteBufferUtil.compareUnsigned(id1.key, id2.key);
+        }
+    });;
 
     public final boolean isComposite;
     public final boolean hasCompositeKey;
