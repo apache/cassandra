@@ -1833,11 +1833,11 @@ public class NodeTool
                 System.out.printf("Note: Ownership information does not include topology; for complete information, specify a keyspace%n");
             }
 
-            // More tokens then nodes (aka vnodes)?
-            if (tokensToEndpoints.values().size() < tokensToEndpoints.keySet().size())
-                isTokenPerNode = false;
-
             Map<String, SetHostStat> dcs = getOwnershipByDc(probe, resolveIp, tokensToEndpoints, ownerships);
+
+            // More tokens than nodes (aka vnodes)?
+            if (dcs.values().size() < tokensToEndpoints.keySet().size())
+                isTokenPerNode = false;
 
             findMaxAddressLength(dcs);
 
