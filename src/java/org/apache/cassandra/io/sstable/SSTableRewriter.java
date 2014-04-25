@@ -37,6 +37,21 @@ import org.apache.cassandra.db.compaction.AbstractCompactedRow;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.utils.CLibrary;
 
+/**
+ * Wraps one or more writers as output for rewriting one or more readers: every sstable_preemptive_open_interval_in_mb
+ * we look in the summary we're collecting for the latest writer for the penultimate key that we know to have been fully
+ * flushed to the index file, and then double check that the key is fully present in the flushed data file.
+ * Then we move the starts of each reader forwards to that point, replace them in the datatracker, and attach a runnable
+ * for on-close (i.e. when all references expire) that drops the page cache prior to that key position
+ *
+ * hard-links are created for each partially written sstable so that readers opened against them continue to work past
+ * the rename of the temporary file, which is deleted once all readers against the hard-link have been closed.
+ * If for any reason the writer is rolled over, we immediately rename and fully expose the completed file in the DataTracker.
+ *
+ * On abort we restore the original lower bounds to the existing readers and delete any temporary files we had in progress,
+ * but leave any hard-links in place for the readers we opened to cleanup when they're finished as we would had we finished
+ * successfully.
+ */
 public class SSTableRewriter
 {
 
