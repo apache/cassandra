@@ -67,7 +67,7 @@ public class SSTableSplitter {
         @Override
         protected CompactionController getCompactionController(Set<SSTableReader> toCompact)
         {
-            return new SplitController(cfs, toCompact);
+            return new SplitController(cfs);
         }
 
         @Override
@@ -85,7 +85,7 @@ public class SSTableSplitter {
 
     public static class SplitController extends CompactionController
     {
-        public SplitController(ColumnFamilyStore cfs, Collection<SSTableReader> toCompact)
+        public SplitController(ColumnFamilyStore cfs)
         {
             super(cfs, CompactionManager.NO_GC);
         }

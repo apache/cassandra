@@ -218,7 +218,8 @@ public class CompactionTask extends AbstractCompactionTask
 
         Collection<SSTableReader> oldSStables = this.sstables;
         List<SSTableReader> newSStables = writer.finished();
-        cfs.getDataTracker().markCompactedSSTablesReplaced(oldSStables, newSStables, compactionType);
+        if (!offline)
+            cfs.getDataTracker().markCompactedSSTablesReplaced(oldSStables, newSStables, compactionType);
 
         // log a bunch of statistics about the result and save to system table compaction_history
         long dTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
