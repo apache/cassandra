@@ -39,6 +39,14 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
 {
     public static final AbstractType<?> definitionType = UTF8Type.instance;
 
+    // Keep static and regular columns lexicographically ordered so that wildcard expansion have a deterministic order
+    private static final Comparator<ColumnIdentifier> identifierComparator = new Comparator<ColumnIdentifier>()
+    {
+        public int compare(ColumnIdentifier id1, ColumnIdentifier id2)
+        {
+            return ByteBufferUtil.compareUnsigned(id1.key, id2.key);
+        }
+    };
 
     public final CFMetaData cfm;
     // LinkedHashMap because the order does matter (it is the order in the composite type)
@@ -46,8 +54,8 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
     private final LinkedHashMap<ColumnIdentifier, Name> clusteringColumns = new LinkedHashMap<ColumnIdentifier, Name>();
     private final Name compactValue;
     // Keep metadata lexicographically ordered so that wildcard expansion have a deterministic order
-    private final Map<ColumnIdentifier, Name> staticColumns = new TreeMap<ColumnIdentifier, Name>();
-    private final Map<ColumnIdentifier, Name> regularColumns = new TreeMap<ColumnIdentifier, Name>();
+    private final Map<ColumnIdentifier, Name> staticColumns = new TreeMap<ColumnIdentifier, Name>(identifierComparator);
+    private final Map<ColumnIdentifier, Name> regularColumns = new TreeMap<ColumnIdentifier, Name>(identifierComparator);
 
     public final boolean isComposite;
     public final boolean hasCompositeKey;
