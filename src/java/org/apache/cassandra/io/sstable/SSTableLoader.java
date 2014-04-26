@@ -168,13 +168,26 @@ public class SSTableLoader implements StreamEventHandler
             if (toIgnore.contains(remote))
                 continue;
 
-            Collection<StreamSession.SSTableStreamingSections> endpointDetails = streamingDetails.get(remote);
+            List<StreamSession.SSTableStreamingSections> endpointDetails = new LinkedList<>();
 
-            // transferSSTables assumes references have been acquired
-            for (StreamSession.SSTableStreamingSections details : endpointDetails)
-                details.sstable.acquireReference();
+            try
+            {
+                // transferSSTables assumes references have been acquired
+                for (StreamSession.SSTableStreamingSections details : streamingDetails.get(remote))
+                {
+                    if (!details.sstable.acquireReference())
+                        throw new IllegalStateException();
 
-            plan.transferFiles(remote, streamingDetails.get(remote));
+                    endpointDetails.add(details);
+                }
+
+                plan.transferFiles(remote, endpointDetails);
+            }
+            finally
+            {
+                for (StreamSession.SSTableStreamingSections details : endpointDetails)
+                    details.sstable.releaseReference();
+            }
         }
         plan.listeners(this, listeners);
         return plan.execute();
