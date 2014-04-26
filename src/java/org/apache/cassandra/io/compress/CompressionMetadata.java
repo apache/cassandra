@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.compress;
 
+import java.io.BufferedOutputStream;
 import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutput;
@@ -49,6 +50,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -329,7 +331,7 @@ public class CompressionMetadata
          */
         public long chunkOffsetBy(int chunkIndex)
         {
-            return offsets.getLong(chunkIndex * 8);
+            return offsets.getLong(chunkIndex * 8L);
         }
 
         /**
@@ -343,12 +345,19 @@ public class CompressionMetadata
 
         public void close(long dataLength, int chunks) throws IOException
         {
-            final DataOutputStream out = new DataOutputStream(new FileOutputStream(filePath));
-            assert chunks == count;
-            writeHeader(out, dataLength, chunks);
-            for (int i = 0 ; i < count ; i++)
-                out.writeLong(offsets.getLong(i * 8));
-            out.close();
+            DataOutputStream out = null;
+            try
+            {
+            	out = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(filePath)));
+	            assert chunks == count;
+	            writeHeader(out, dataLength, chunks);
+	            for (int i = 0 ; i < count ; i++)
+	                out.writeLong(offsets.getLong(i * 8));
+            }
+            finally
+            {
+                FileUtils.closeQuietly(out);
+            }
         }
     }
 
