@@ -20,14 +20,8 @@ package org.apache.cassandra.db.filter;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
-import java.util.NavigableSet;
 
-import com.google.common.collect.AbstractIterator;
-
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -35,7 +29,6 @@ import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 public class ColumnSlice
 {
@@ -165,145 +158,6 @@ public class ColumnSlice
         {
             ISerializer<Composite> serializer = type.serializer();
             return serializer.serializedSize(cs.start, TypeSizes.NATIVE) + serializer.serializedSize(cs.finish, TypeSizes.NATIVE);
-        }
-    }
-
-    public static class NavigableSetIterator extends AbstractIterator<Cell>
-    {
-        private final NavigableSet<Cell> set;
-        private final ColumnSlice[] slices;
-
-        private int idx = 0;
-        private Iterator<Cell> currentSlice;
-
-        public NavigableSetIterator(NavigableSet<Cell> set, ColumnSlice[] slices)
-        {
-            this.set = set;
-            this.slices = slices;
-        }
-
-        protected Cell computeNext()
-        {
-            if (currentSlice == null)
-            {
-                if (idx >= slices.length)
-                    return endOfData();
-
-                ColumnSlice slice = slices[idx++];
-                // We specialize the case of start == "" and finish = "" because it is slightly more efficient,
-                // but also they have a specific meaning (namely, they always extend to the beginning/end of the range).
-                if (slice.start.isEmpty())
-                {
-                    if (slice.finish.isEmpty())
-                        currentSlice = set.iterator();
-                    else
-                        currentSlice = set.headSet(fakeCell(slice.finish), true).iterator();
-                }
-                else if (slice.finish.isEmpty())
-                {
-                    currentSlice = set.tailSet(fakeCell(slice.start), true).iterator();
-                }
-                else
-                {
-                    currentSlice = set.subSet(fakeCell(slice.start), true, fakeCell(slice.finish), true).iterator();
-                }
-            }
-
-            if (currentSlice.hasNext())
-                return currentSlice.next();
-
-            currentSlice = null;
-            return computeNext();
-        }
-    }
-
-    private static Cell fakeCell(Composite name)
-    {
-        return new BufferCell(name instanceof CellName ? (CellName) name : new FakeCellName(name), ByteBufferUtil.EMPTY_BYTE_BUFFER);
-    }
-
-    /*
-    * We need to take a slice (headMap/tailMap/subMap) of a CellName map
-    * based on a Composite. While CellName and Composite are comparable
-    * and so this should work, I haven't found how to generify it properly.
-    * So instead we create a "fake" CellName object that just encapsulate
-    * the prefix. I might not be a valid CellName with respect to the CF
-    * CellNameType, but this doesn't matter here (since we only care about
-    * comparison). This is arguably a bit of a hack.
-    */
-    private static class FakeCellName extends AbstractComposite implements CellName
-    {
-        private final Composite prefix;
-
-        private FakeCellName(Composite prefix)
-        {
-            this.prefix = prefix;
-        }
-
-        public int size()
-        {
-            return prefix.size();
-        }
-
-        public boolean isStatic()
-        {
-            return prefix.isStatic();
-        }
-
-        public ByteBuffer get(int i)
-        {
-            return prefix.get(i);
-        }
-
-        public Composite.EOC eoc()
-        {
-            return prefix.eoc();
-        }
-
-        public ByteBuffer toByteBuffer()
-        {
-            return prefix.toByteBuffer();
-        }
-
-        public int clusteringSize()
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public ColumnIdentifier cql3ColumnName(CFMetaData metadata)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public ByteBuffer collectionElement()
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public boolean isCollectionCell()
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public boolean isSameCQL3RowAs(CellNameType type, CellName other)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public CellName copy(CFMetaData cfm, AbstractAllocator allocator)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long excessHeapSizeExcludingData()
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public long unsharedHeapSize()
-        {
-            throw new UnsupportedOperationException();
         }
     }
 }

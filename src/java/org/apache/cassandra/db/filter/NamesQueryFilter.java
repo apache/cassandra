@@ -71,10 +71,17 @@ public class NamesQueryFilter implements IDiskAtomFilter
        return new NamesQueryFilter(newColumns, countCQL3Rows);
     }
 
-    public OnDiskAtomIterator getColumnFamilyIterator(DecoratedKey key, ColumnFamily cf)
+    @SuppressWarnings("unchecked")
+    public Iterator<Cell> getColumnIterator(ColumnFamily cf)
     {
         assert cf != null;
-        return new ByNameColumnIterator(columns.iterator(), cf, key);
+        return (Iterator<Cell>) (Iterator<?>) new ByNameColumnIterator(columns.iterator(), null, cf);
+    }
+
+    public OnDiskAtomIterator getColumnIterator(DecoratedKey key, ColumnFamily cf)
+    {
+        assert cf != null;
+        return new ByNameColumnIterator(columns.iterator(), key, cf);
     }
 
     public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key)
@@ -91,7 +98,7 @@ public class NamesQueryFilter implements IDiskAtomFilter
     {
         DeletionInfo.InOrderTester tester = container.inOrderDeletionTester();
         while (reducedColumns.hasNext())
-            container.addIfRelevant(reducedColumns.next(), tester, gcBefore);
+            container.maybeAppendColumn(reducedColumns.next(), tester, gcBefore);
     }
 
     public Comparator<Cell> getColumnComparator(CellNameType comparator)
@@ -186,21 +193,11 @@ public class NamesQueryFilter implements IDiskAtomFilter
         private final DecoratedKey key;
         private final Iterator<CellName> iter;
 
-        public ByNameColumnIterator(Iterator<CellName> iter, ColumnFamily cf, DecoratedKey key)
+        public ByNameColumnIterator(Iterator<CellName> iter, DecoratedKey key, ColumnFamily cf)
         {
             this.iter = iter;
             this.cf = cf;
             this.key = key;
-        }
-
-        public ColumnFamily getColumnFamily()
-        {
-            return cf;
-        }
-
-        public DecoratedKey getKey()
-        {
-            return key;
         }
 
         protected OnDiskAtom computeNext()
@@ -213,6 +210,16 @@ public class NamesQueryFilter implements IDiskAtomFilter
                     return cell;
             }
             return endOfData();
+        }
+
+        public ColumnFamily getColumnFamily()
+        {
+            return cf;
+        }
+
+        public DecoratedKey getKey()
+        {
+            return key;
         }
 
         public void close() throws IOException { }

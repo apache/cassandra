@@ -145,16 +145,13 @@ public class RowDataResolver extends AbstractRowResolver
             return null;
 
         // mimic the collectCollatedColumn + removeDeleted path that getColumnFamily takes.
-        // this will handle removing columns and subcolumns that are supressed by a row or
+        // this will handle removing columns and subcolumns that are suppressed by a row or
         // supercolumn tombstone.
         QueryFilter filter = new QueryFilter(null, resolved.metadata().cfName, new IdentityQueryFilter(), now);
-        List<CloseableIterator<Cell>> iters = new ArrayList<CloseableIterator<Cell>>();
+        List<CloseableIterator<Cell>> iters = new ArrayList<>(Iterables.size(versions));
         for (ColumnFamily version : versions)
-        {
-            if (version == null)
-                continue;
-            iters.add(FBUtilities.closeableIterator(version.iterator()));
-        }
+            if (version != null)
+                iters.add(FBUtilities.closeableIterator(version.iterator()));
         filter.collateColumns(resolved, iters, Integer.MIN_VALUE);
         return ColumnFamilyStore.removeDeleted(resolved, Integer.MIN_VALUE);
     }

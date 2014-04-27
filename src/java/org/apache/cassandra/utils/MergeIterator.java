@@ -35,15 +35,17 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
         this.reducer = reducer;
     }
 
-    public static <In, Out> IMergeIterator<In, Out> get(final List<? extends Iterator<In>> sources,
-                                                    Comparator<In> comparator,
-                                                    final Reducer<In, Out> reducer)
+    public static <In, Out> IMergeIterator<In, Out> get(List<? extends Iterator<In>> sources,
+                                                        Comparator<In> comparator,
+                                                        Reducer<In, Out> reducer)
     {
         if (sources.size() == 1)
+        {
             return reducer.trivialReduceIsTrivial()
-                   ? new TrivialOneToOne<In, Out>(sources, reducer)
-                   : new OneToOne<In, Out>(sources, reducer);
-        return new ManyToOne<In, Out>(sources, comparator, reducer);
+                 ? new TrivialOneToOne<>(sources, reducer)
+                 : new OneToOne<>(sources, reducer);
+        }
+        return new ManyToOne<>(sources, comparator, reducer);
     }
 
     public Iterable<? extends Iterator<In>> iterators()
@@ -80,16 +82,16 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
         public ManyToOne(List<? extends Iterator<In>> iters, Comparator<In> comp, Reducer<In, Out> reducer)
         {
             super(iters, reducer);
-            this.queue = new PriorityQueue<Candidate<In>>(Math.max(1, iters.size()));
+            this.queue = new PriorityQueue<>(Math.max(1, iters.size()));
             for (Iterator<In> iter : iters)
             {
-                Candidate<In> candidate = new Candidate<In>(iter, comp);
+                Candidate<In> candidate = new Candidate<>(iter, comp);
                 if (!candidate.advance())
                     // was empty
                     continue;
                 this.queue.add(candidate);
             }
-            this.candidates = new ArrayDeque<Candidate<In>>(queue.size());
+            this.candidates = new ArrayDeque<>(queue.size());
         }
 
         protected final Out computeNext()
@@ -174,8 +176,8 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
         protected abstract Out getReduced();
 
         /**
-         * Called at the begining of each new key, before any reduce is called.
-         * To be overriden by implementing classes.
+         * Called at the beginning of each new key, before any reduce is called.
+         * To be overridden by implementing classes.
          */
         protected void onKeyChange() {}
 
@@ -215,6 +217,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
             source = sources.get(0);
         }
 
+        @SuppressWarnings("unchecked")
         protected Out computeNext()
         {
             if (!source.hasNext())

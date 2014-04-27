@@ -44,7 +44,6 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.config.CFMetaData.SpeculativeRetry;
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.*;
@@ -1714,10 +1713,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return null;
 
         ColumnFamily cf = cached.cloneMeShallow(ArrayBackedSortedColumns.factory, filter.filter.isReversed());
-        OnDiskAtomIterator ci = filter.getColumnFamilyIterator(cached);
-
         int gcBefore = gcBefore(filter.timestamp);
-        filter.collateOnDiskAtom(cf, ci, gcBefore);
+        filter.collateOnDiskAtom(cf, filter.getIterator(cached), gcBefore);
         return removeDeletedCF(cf, gcBefore);
     }
 

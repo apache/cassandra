@@ -35,7 +35,6 @@ import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -110,19 +109,17 @@ public class SliceQueryFilter implements IDiskAtomFilter
     {
         Comparator<Composite> cmp = reversed ? comparator.reverseComparator() : comparator;
 
-        List<ColumnSlice> newSlices = new ArrayList<ColumnSlice>();
+        List<ColumnSlice> newSlices = new ArrayList<>(slices.length);
         boolean pastNewStart = false;
-        for (int i = 0; i < slices.length; i++)
+        for (ColumnSlice slice : slices)
         {
-            ColumnSlice slice = slices[i];
-
             if (pastNewStart)
             {
                 newSlices.add(slice);
                 continue;
             }
 
-            if (slices[i].isBefore(cmp, newStart))
+            if (slice.isBefore(cmp, newStart))
                 continue;
 
             if (slice.includes(cmp, newStart))
@@ -135,15 +132,16 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return withUpdatedSlices(newSlices.toArray(new ColumnSlice[newSlices.size()]));
     }
 
-    public SliceQueryFilter withUpdatedSlice(Composite start, Composite finish)
-    {
-        return new SliceQueryFilter(new ColumnSlice[]{ new ColumnSlice(start, finish) }, reversed, count, compositesToGroup);
-    }
-
-    public OnDiskAtomIterator getColumnFamilyIterator(final DecoratedKey key, final ColumnFamily cf)
+    public Iterator<Cell> getColumnIterator(ColumnFamily cf)
     {
         assert cf != null;
-        final Iterator<Cell> filteredIter = reversed ? cf.reverseIterator(slices) : cf.iterator(slices);
+        return reversed ? cf.reverseIterator(slices) : cf.iterator(slices);
+    }
+
+    public OnDiskAtomIterator getColumnIterator(final DecoratedKey key, final ColumnFamily cf)
+    {
+        assert cf != null;
+        final Iterator<Cell> iter = getColumnIterator(cf);
 
         return new OnDiskAtomIterator()
         {
@@ -159,12 +157,12 @@ public class SliceQueryFilter implements IDiskAtomFilter
 
             public boolean hasNext()
             {
-                return filteredIter.hasNext();
+                return iter.hasNext();
             }
 
             public OnDiskAtom next()
             {
-                return filteredIter.next();
+                return iter.next();
             }
 
             public void close() throws IOException { }
@@ -216,7 +214,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
                 throw new TombstoneOverwhelmingException();
             }
 
-            container.addIfRelevant(cell, tester, gcBefore);
+            container.maybeAppendColumn(cell, tester, gcBefore);
         }
 
         Tracing.trace("Read {} live and {} tombstoned cells", columnCounter.live(), columnCounter.ignored());
