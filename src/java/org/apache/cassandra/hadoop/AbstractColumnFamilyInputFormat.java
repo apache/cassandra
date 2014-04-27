@@ -17,21 +17,8 @@
  */
 package org.apache.cassandra.hadoop;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -56,6 +43,24 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 
 public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<K, Y> implements org.apache.hadoop.mapred.InputFormat<K, Y>
@@ -69,6 +74,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
     // override it in your jobConf with this setting.
     public static final String CASSANDRA_HADOOP_MAX_KEY_SIZE = "cassandra.hadoop.max_key_size";
     public static final int    CASSANDRA_HADOOP_MAX_KEY_SIZE_DEFAULT = 8192;
+    private static final int MAX_RETRIES = 5;
 
     private String keyspace;
     private String cfName;
@@ -76,13 +82,14 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
 
     protected void validateConfiguration(Configuration conf)
     {
-        if (ConfigHelper.getInputKeyspace(conf) == null || ConfigHelper.getInputColumnFamily(conf) == null)
+        if (org.apache.cassandra.hadoop.ConfigHelper.getInputKeyspace(conf) == null || org.apache.cassandra.hadoop.ConfigHelper
+                .getInputColumnFamily(conf) == null)
         {
             throw new UnsupportedOperationException("you must set the keyspace and columnfamily with setInputColumnFamily()");
         }
-        if (ConfigHelper.getInputInitialAddress(conf) == null)
+        if (org.apache.cassandra.hadoop.ConfigHelper.getInputInitialAddress(conf) == null)
             throw new UnsupportedOperationException("You must set the initial output address to a Cassandra node with setInputInitialAddress");
-        if (ConfigHelper.getInputPartitioner(conf) == null)
+        if (org.apache.cassandra.hadoop.ConfigHelper.getInputPartitioner(conf) == null)
             throw new UnsupportedOperationException("You must set the Cassandra partitioner class with setInputPartitioner");
     }
 
@@ -92,7 +99,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
         TTransport transport;
         try
         {
-            transport = ConfigHelper.getClientTransportFactory(conf).openTransport(location, port);
+            transport = org.apache.cassandra.hadoop.ConfigHelper.getClientTransportFactory(conf).openTransport(location, port);
         }
         catch (Exception e)
         {
@@ -102,12 +109,15 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
         Cassandra.Client client = new Cassandra.Client(binaryProtocol);
 
         // log in
-        client.set_keyspace(ConfigHelper.getInputKeyspace(conf));
-        if ((ConfigHelper.getInputKeyspaceUserName(conf) != null) && (ConfigHelper.getInputKeyspacePassword(conf) != null))
+        client.set_keyspace(org.apache.cassandra.hadoop.ConfigHelper.getInputKeyspace(conf));
+        if ((org.apache.cassandra.hadoop.ConfigHelper.getInputKeyspaceUserName(conf) != null) && (
+                org.apache.cassandra.hadoop.ConfigHelper.getInputKeyspacePassword(conf) != null))
         {
             Map<String, String> creds = new HashMap<String, String>();
-            creds.put(IAuthenticator.USERNAME_KEY, ConfigHelper.getInputKeyspaceUserName(conf));
-            creds.put(IAuthenticator.PASSWORD_KEY, ConfigHelper.getInputKeyspacePassword(conf));
+            creds.put(IAuthenticator.USERNAME_KEY, org.apache.cassandra.hadoop.ConfigHelper
+                    .getInputKeyspaceUserName(conf));
+            creds.put(IAuthenticator.PASSWORD_KEY, org.apache.cassandra.hadoop.ConfigHelper
+                    .getInputKeyspacePassword(conf));
             AuthenticationRequest authRequest = new AuthenticationRequest(creds);
             client.login(authRequest);
         }
@@ -117,16 +127,16 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
 
     public List<InputSplit> getSplits(JobContext context) throws IOException
     {
-        Configuration conf = HadoopCompat.getConfiguration(context);;
+        Configuration conf = org.apache.cassandra.hadoop.HadoopCompat.getConfiguration(context);;
 
         validateConfiguration(conf);
 
         // cannonical ranges and nodes holding replicas
         List<TokenRange> masterRangeNodes = getRangeMap(conf);
 
-        keyspace = ConfigHelper.getInputKeyspace(conf);
-        cfName = ConfigHelper.getInputColumnFamily(conf);
-        partitioner = ConfigHelper.getInputPartitioner(conf);
+        keyspace = org.apache.cassandra.hadoop.ConfigHelper.getInputKeyspace(conf);
+        cfName = org.apache.cassandra.hadoop.ConfigHelper.getInputColumnFamily(conf);
+        partitioner = org.apache.cassandra.hadoop.ConfigHelper.getInputPartitioner(conf);
         logger.debug("partitioner is {}", partitioner);
 
 
@@ -136,8 +146,8 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
 
         try
         {
-            List<Future<List<InputSplit>>> splitfutures = new ArrayList<Future<List<InputSplit>>>();
-            KeyRange jobKeyRange = ConfigHelper.getInputKeyRange(conf);
+            Map<Future<List<InputSplit>>, SplitCallable> futures = new HashMap<Future<List<InputSplit>>, SplitCallable>();
+            KeyRange jobKeyRange = org.apache.cassandra.hadoop.ConfigHelper.getInputKeyRange(conf);
             Range<Token> jobRange = null;
             if (jobKeyRange != null)
             {
@@ -170,7 +180,9 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
                 if (jobRange == null)
                 {
                     // for each range, pick a live owner and ask it to compute bite-sized splits
-                    splitfutures.add(executor.submit(new SplitCallable(range, conf)));
+                    SplitCallable callable = new SplitCallable(range, conf);
+                    Future<List<InputSplit>> future = executor.submit(callable);
+                    futures.put(future, callable);
                 }
                 else
                 {
@@ -185,22 +197,32 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
                             range.start_token = partitioner.getTokenFactory().toString(intersection.left);
                             range.end_token = partitioner.getTokenFactory().toString(intersection.right);
                             // for each range, pick a live owner and ask it to compute bite-sized splits
-                            splitfutures.add(executor.submit(new SplitCallable(range, conf)));
+                            SplitCallable callable = new SplitCallable(range, conf);
+                            Future<List<InputSplit>> future = executor.submit(callable);
+                            futures.put(future, callable);
                         }
                     }
                 }
             }
 
             // wait until we have all the results back
-            for (Future<List<InputSplit>> futureInputSplits : splitfutures)
-            {
-                try
-                {
-                    splits.addAll(futureInputSplits.get());
-                }
-                catch (Exception e)
-                {
-                    throw new IOException("Could not get input splits", e);
+            int retries = 0;
+            while (retries < MAX_RETRIES) {
+                Iterator<Future<List<InputSplit>>> iterator = futures.keySet().iterator();
+                //noinspection WhileLoopReplaceableByForEach
+                while (iterator.hasNext()) {
+                    Future<List<InputSplit>> split = iterator.next();
+                    try {
+                        splits.addAll(split.get());
+                        futures.remove(split);
+                    } catch (Exception e) {
+                        if (retries >= MAX_RETRIES) {
+                            throw new IOException("Failed to fetch all splits", e);
+                        }
+                        logger.error("Failed to fetch split, resubmitting.", e);
+                        executor.submit(futures.get(split));
+                        retries += 1;
+                    }
                 }
             }
         }
@@ -256,8 +278,8 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
                 List<Range<Token>> ranges = range.isWrapAround() ? range.unwrap() : ImmutableList.of(range);
                 for (Range<Token> subrange : ranges)
                 {
-                    ColumnFamilySplit split =
-                            new ColumnFamilySplit(
+                    org.apache.cassandra.hadoop.ColumnFamilySplit split =
+                            new org.apache.cassandra.hadoop.ColumnFamilySplit(
                                     factory.toString(subrange.left),
                                     factory.toString(subrange.right),
                                     subSplit.getRow_count(),
@@ -273,7 +295,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
 
     private List<CfSplit> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf) throws IOException
     {
-        int splitsize = ConfigHelper.getInputSplitSize(conf);
+        int splitsize = org.apache.cassandra.hadoop.ConfigHelper.getInputSplitSize(conf);
         for (int i = 0; i < range.rpc_endpoints.size(); i++)
         {
             String host = range.rpc_endpoints.get(i);
@@ -283,7 +305,8 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
 
             try
             {
-                Cassandra.Client client = ConfigHelper.createConnection(conf, host, ConfigHelper.getInputRpcPort(conf));
+                Cassandra.Client client = org.apache.cassandra.hadoop.ConfigHelper
+                        .createConnection(conf, host, org.apache.cassandra.hadoop.ConfigHelper.getInputRpcPort(conf));
                 client.set_keyspace(keyspace);
 
                 try
@@ -327,12 +350,12 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
 
     private List<TokenRange> getRangeMap(Configuration conf) throws IOException
     {
-        Cassandra.Client client = ConfigHelper.getClientFromInputAddressList(conf);
+        Cassandra.Client client = org.apache.cassandra.hadoop.ConfigHelper.getClientFromInputAddressList(conf);
 
         List<TokenRange> map;
         try
         {
-            map = client.describe_local_ring(ConfigHelper.getInputKeyspace(conf));
+            map = client.describe_local_ring(org.apache.cassandra.hadoop.ConfigHelper.getInputKeyspace(conf));
         }
         catch (InvalidRequestException e)
         {
@@ -350,11 +373,12 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
     //
     public org.apache.hadoop.mapred.InputSplit[] getSplits(JobConf jobConf, int numSplits) throws IOException
     {
-        TaskAttemptContext tac = HadoopCompat.newTaskAttemptContext(jobConf, new TaskAttemptID());
+        TaskAttemptContext tac = org.apache.cassandra.hadoop.HadoopCompat
+                .newTaskAttemptContext(jobConf, new TaskAttemptID());
         List<org.apache.hadoop.mapreduce.InputSplit> newInputSplits = this.getSplits(tac);
         org.apache.hadoop.mapred.InputSplit[] oldInputSplits = new org.apache.hadoop.mapred.InputSplit[newInputSplits.size()];
         for (int i = 0; i < newInputSplits.size(); i++)
-            oldInputSplits[i] = (ColumnFamilySplit)newInputSplits.get(i);
+            oldInputSplits[i] = (org.apache.cassandra.hadoop.ColumnFamilySplit)newInputSplits.get(i);
         return oldInputSplits;
     }
 }
