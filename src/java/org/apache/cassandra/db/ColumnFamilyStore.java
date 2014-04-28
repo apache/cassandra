@@ -468,7 +468,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (File dir : directories.getCFDirectories())
         {
             File[] lockfiles = dir.listFiles(filter);
-            if (lockfiles.length == 0)
+            // lock files can be null if I/O error happens
+            if (lockfiles == null || lockfiles.length == 0)
                 continue;
             logger.info("Removing SSTables from failed streaming session. Found {} files to cleanup.", lockfiles.length);
 
