@@ -214,7 +214,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
                     Future<List<InputSplit>> split = iterator.next();
                     try {
                         splits.addAll(split.get());
-                        futures.remove(split);
+                        iterator.remove();
                     } catch (Exception e) {
                         if (retries >= MAX_RETRIES) {
                             throw new IOException("Failed to fetch all splits", e);
