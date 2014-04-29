@@ -91,7 +91,7 @@ public class ArrayBackedSortedColumns extends ColumnFamily
     {
         ArrayBackedSortedColumns copy = new ArrayBackedSortedColumns(original.metadata, false, new Cell[original.getColumnCount()], 0, 0);
         for (Cell cell : original)
-            copy.internalAdd(cell.localCopy(allocator));
+            copy.internalAdd(cell.localCopy(original.metadata, allocator));
         copy.sortedSize = copy.size; // internalAdd doesn't update sortedSize.
         copy.delete(original);
         return copy;
@@ -139,7 +139,7 @@ public class ArrayBackedSortedColumns extends ColumnFamily
         Arrays.sort(cells, sortedSize, size, comparator);
 
         // Determine the merge start position for that segment
-        int pos = binarySearch(0, sortedSize, cells[sortedSize].name, internalComparator());
+        int pos = binarySearch(0, sortedSize, cells[sortedSize].name(), internalComparator());
         if (pos < 0)
             pos = -pos - 1;
 
@@ -421,7 +421,7 @@ public class ArrayBackedSortedColumns extends ColumnFamily
         {
             public CellName apply(Cell cell)
             {
-                return cell.name;
+                return cell.name();
             }
         });
     }

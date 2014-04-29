@@ -63,7 +63,7 @@ public class RangeNamesQueryPager extends AbstractQueryPager
     {
         return lastReturnedKey == null
              ? null
-             : new PagingState(lastReturnedKey.key, null, maxRemaining());
+             : new PagingState(lastReturnedKey.getKey(), null, maxRemaining());
     }
 
     protected List<Row> queryNextPage(int pageSize, ConsistencyLevel consistencyLevel, boolean localQuery)

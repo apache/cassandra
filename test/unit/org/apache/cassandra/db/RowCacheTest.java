@@ -226,7 +226,7 @@ public class RowCacheTest extends SchemaLoader
         int i = 0;
         for(Cell c : cachedCf)
         {
-            assertEquals(c.name, Util.cellname(i++));
+            assertEquals(c.name(), Util.cellname(i++));
         }
     }
 

@@ -256,7 +256,7 @@ public abstract class ExtendedFilter
             assert !(cfs.getComparator().isCompound()) : "Sequential scan with filters is not supported (if you just created an index, you "
                                                          + "need to wait for the creation to be propagated to all nodes before querying it)";
 
-            if (!needsExtraQuery(rowKey.key, data))
+            if (!needsExtraQuery(rowKey.getKey(), data))
                 return null;
 
             // Note: for counters we must be careful to not add a column that was already there (to avoid overcount). That is
@@ -278,7 +278,7 @@ public abstract class ExtendedFilter
                 return data;
 
             ColumnFamily pruned = data.cloneMeShallow();
-            IDiskAtomFilter filter = dataRange.columnFilter(rowKey.key);
+            IDiskAtomFilter filter = dataRange.columnFilter(rowKey.getKey());
             OnDiskAtomIterator iter = filter.getColumnFamilyIterator(rowKey, data);
             filter.collectReducedColumns(pruned, QueryFilter.gatherTombstones(pruned, iter), cfs.gcBefore(timestamp), timestamp);
             return pruned;
@@ -311,7 +311,7 @@ public abstract class ExtendedFilter
                         continue;
                     }
 
-                    dataValue = extractDataValue(def, rowKey.key, data, prefix);
+                    dataValue = extractDataValue(def, rowKey.getKey(), data, prefix);
                     validator = def.type;
                 }
 

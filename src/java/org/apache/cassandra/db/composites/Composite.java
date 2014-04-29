@@ -20,9 +20,9 @@ package org.apache.cassandra.db.composites;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
-import org.apache.cassandra.utils.memory.PoolAllocator;
 
 /**
  * A composite value.
@@ -75,6 +75,5 @@ public interface Composite extends IMeasurableMemory
     public ByteBuffer toByteBuffer();
 
     public int dataSize();
-    public Composite copy(AbstractAllocator allocator);
-    public void free(PoolAllocator allocator);
+    public Composite copy(CFMetaData cfm, AbstractAllocator allocator);
 }

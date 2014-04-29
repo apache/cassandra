@@ -26,6 +26,7 @@ import java.util.NavigableSet;
 
 import com.google.common.collect.AbstractIterator;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.*;
@@ -35,7 +36,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
-import org.apache.cassandra.utils.memory.PoolAllocator;
 
 public class ColumnSlice
 {
@@ -219,7 +219,7 @@ public class ColumnSlice
 
     private static Cell fakeCell(Composite name)
     {
-        return new Cell(new FakeCellName(name), ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        return new BufferCell(new FakeCellName(name), ByteBufferUtil.EMPTY_BYTE_BUFFER);
     }
 
     /*
@@ -265,7 +265,7 @@ public class ColumnSlice
             throw new UnsupportedOperationException();
         }
 
-        public ColumnIdentifier cql3ColumnName()
+        public ColumnIdentifier cql3ColumnName(CFMetaData metadata)
         {
             throw new UnsupportedOperationException();
         }
@@ -285,19 +285,13 @@ public class ColumnSlice
             throw new UnsupportedOperationException();
         }
 
-        public CellName copy(AbstractAllocator allocator)
+        public CellName copy(CFMetaData cfm, AbstractAllocator allocator)
         {
             throw new UnsupportedOperationException();
         }
 
         @Override
         public long excessHeapSizeExcludingData()
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void free(PoolAllocator allocator)
         {
             throw new UnsupportedOperationException();
         }

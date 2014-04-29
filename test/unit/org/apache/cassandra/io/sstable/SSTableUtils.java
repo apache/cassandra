@@ -164,7 +164,7 @@ public class SSTableUtils
             for (String key : keys)
             {
                 ColumnFamily cf = ArrayBackedSortedColumns.factory.create(ksname, cfname);
-                cf.addColumn(new Cell(Util.cellname(key), ByteBufferUtil.bytes(key), 0));
+                cf.addColumn(new BufferCell(Util.cellname(key), ByteBufferUtil.bytes(key), 0));
                 map.put(key, cf);
             }
             return write(map);

@@ -86,7 +86,7 @@ public class CompositesIndexOnClusteringKey extends CompositesIndex
         for (int i = 0; i < columnDef.position(); i++)
             builder.add(indexEntry.name().get(i + 1));
 
-        builder.add(indexedValue.key);
+        builder.add(indexedValue.getKey());
 
         for (int i = columnDef.position() + 1; i < ckCount; i++)
             builder.add(indexEntry.name().get(i));

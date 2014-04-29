@@ -19,9 +19,9 @@ package org.apache.cassandra.db.composites;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.PoolAllocator;
 
 public class BoundedComposite extends AbstractComposite
 {
@@ -94,14 +94,8 @@ public class BoundedComposite extends AbstractComposite
         return EMPTY_SIZE + wrapped.unsharedHeapSize();
     }
 
-    public Composite copy(AbstractAllocator allocator)
+    public Composite copy(CFMetaData cfm, AbstractAllocator allocator)
     {
-        return new BoundedComposite(wrapped.copy(allocator), isStart);
-    }
-
-    @Override
-    public void free(PoolAllocator allocator)
-    {
-        wrapped.free(allocator);
+        return new BoundedComposite(wrapped.copy(cfm, allocator), isStart);
     }
 }

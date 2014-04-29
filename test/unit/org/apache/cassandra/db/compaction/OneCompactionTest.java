@@ -46,7 +46,7 @@ public class OneCompactionTest extends SchemaLoader
         Set<DecoratedKey> inserted = new HashSet<DecoratedKey>();
         for (int j = 0; j < insertsPerTable; j++) {
             DecoratedKey key = Util.dk(String.valueOf(j));
-            Mutation rm = new Mutation("Keyspace1", key.key);
+            Mutation rm = new Mutation("Keyspace1", key.getKey());
             rm.add(columnFamilyName, Util.cellname("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
             inserted.add(key);

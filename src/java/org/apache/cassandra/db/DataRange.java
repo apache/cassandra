@@ -163,7 +163,7 @@ public class DataRange
 
         private boolean equals(RowPosition pos, ByteBuffer rowKey)
         {
-            return pos instanceof DecoratedKey && ((DecoratedKey)pos).key.equals(rowKey);
+            return pos instanceof DecoratedKey && ((DecoratedKey)pos).getKey().equals(rowKey);
         }
 
         @Override

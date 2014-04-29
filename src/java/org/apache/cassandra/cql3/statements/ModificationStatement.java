@@ -32,12 +32,9 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CBuilder;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
-import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.service.CASConditions;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
@@ -449,10 +446,10 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
             if (row.cf == null || row.cf.isEmpty())
                 continue;
 
-            Iterator<CQL3Row> iter = cfm.comparator.CQL3RowBuilder(now).group(row.cf.getSortedColumns().iterator());
+            Iterator<CQL3Row> iter = cfm.comparator.CQL3RowBuilder(cfm, now).group(row.cf.getSortedColumns().iterator());
             if (iter.hasNext())
             {
-                map.put(row.key.key, iter.next());
+                map.put(row.key.getKey(), iter.next());
                 // We can only update one CQ3Row per partition key at a time (we don't allow IN for clustering key)
                 assert !iter.hasNext();
             }

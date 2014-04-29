@@ -75,6 +75,7 @@ import org.apache.cassandra.streaming.StreamLockfile;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.MemtableAllocator;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -843,12 +844,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         for (SecondaryIndex index : indexManager.getIndexes())
         {
-            if (index.getAllocator() != null)
+            if (index.getIndexCfs() != null)
             {
-                onHeapRatio += index.getAllocator().onHeap().ownershipRatio();
-                offHeapRatio += index.getAllocator().offHeap().ownershipRatio();
-                onHeapTotal += index.getAllocator().onHeap().owns();
-                offHeapTotal += index.getAllocator().offHeap().owns();
+                MemtableAllocator allocator = index.getIndexCfs().getDataTracker().getView().getCurrentMemtable().getAllocator();
+                onHeapRatio += allocator.onHeap().ownershipRatio();
+                offHeapRatio += allocator.offHeap().ownershipRatio();
+                onHeapTotal += allocator.onHeap().owns();
+                offHeapTotal += allocator.offHeap().owns();
             }
         }
 
@@ -1095,10 +1097,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 for (SecondaryIndex index : cfs.indexManager.getIndexes())
                 {
-                    if (index.getAllocator() != null)
+                    if (index.getIndexCfs() != null)
                     {
-                        onHeap += index.getAllocator().onHeap().ownershipRatio();
-                        offHeap += index.getAllocator().offHeap().ownershipRatio();
+                        MemtableAllocator allocator = index.getIndexCfs().getDataTracker().getView().getCurrentMemtable().getAllocator();
+                        onHeap += allocator.onHeap().ownershipRatio();
+                        offHeap += allocator.offHeap().ownershipRatio();
                     }
                 }
 
@@ -1213,7 +1216,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     // 2. if it has been re-added since then, this particular column was inserted before the last drop
     private static boolean isDroppedColumn(Cell c, CFMetaData meta)
     {
-        Long droppedAt = meta.getDroppedColumns().get(c.name().cql3ColumnName());
+        Long droppedAt = meta.getDroppedColumns().get(c.name().cql3ColumnName(meta));
         return droppedAt != null && c.timestamp() <= droppedAt;
     }
 
@@ -1869,7 +1872,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         ColumnFamily columns;
         try (OpOrder.Group op = readOrdering.start())
         {
-            columns = controller.getTopLevelColumns(Memtable.memoryPool.needToCopyOnHeap());
+            columns = controller.getTopLevelColumns(Memtable.MEMORY_POOL.needToCopyOnHeap());
         }
         metric.updateSSTableIterated(controller.getSstablesIterated());
         return columns;
@@ -1882,7 +1885,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
         {
             DecoratedKey dk = partitioner.decorateKey(ByteBuffer.wrap(key.key));
-            if (key.cfId == metadata.cfId && !Range.isInRanges(dk.token, ranges))
+            if (key.cfId == metadata.cfId && !Range.isInRanges(dk.getToken(), ranges))
                 invalidateCachedRow(dk);
         }
 
@@ -1891,7 +1894,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             for (CounterCacheKey key : CacheService.instance.counterCache.getKeySet())
             {
                 DecoratedKey dk = partitioner.decorateKey(ByteBuffer.wrap(key.partitionKey));
-                if (key.cfId == metadata.cfId && !Range.isInRanges(dk.token, ranges))
+                if (key.cfId == metadata.cfId && !Range.isInRanges(dk.getToken(), ranges))
                     CacheService.instance.counterCache.remove(key);
             }
         }
@@ -1939,7 +1942,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     return computeNext();
 
                 if (logger.isTraceEnabled())
-                    logger.trace("scanned {}", metadata.getKeyValidator().getString(key.key));
+                    logger.trace("scanned {}", metadata.getKeyValidator().getString(key.getKey()));
 
                 return current;
             }

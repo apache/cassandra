@@ -55,7 +55,7 @@ public class SSTableImportTest extends SchemaLoader
         ColumnFamily cf = cloneForAdditions(iter);
         while (iter.hasNext()) cf.addAtom(iter.next());
         assert cf.getColumn(Util.cellname("colAA")).value().equals(hexToBytes("76616c4141"));
-        assert !(cf.getColumn(Util.cellname("colAA")) instanceof DeletedCell);
+        assert !(cf.getColumn(Util.cellname("colAA")) instanceof BufferDeletedCell);
         Cell expCol = cf.getColumn(Util.cellname("colAC"));
         assert expCol.value().equals(hexToBytes("76616c4143"));
         assert expCol instanceof ExpiringCell;
@@ -89,7 +89,7 @@ public class SSTableImportTest extends SchemaLoader
         while (iter.hasNext())
             cf.addAtom(iter.next());
         assert cf.getColumn(Util.cellname("colAA")).value().equals(hexToBytes("76616c4141"));
-        assert !(cf.getColumn(Util.cellname("colAA")) instanceof DeletedCell);
+        assert !(cf.getColumn(Util.cellname("colAA")) instanceof BufferDeletedCell);
         Cell expCol = cf.getColumn(Util.cellname("colAC"));
         assert expCol.value().equals(hexToBytes("76616c4143"));
         assert expCol instanceof ExpiringCell;
@@ -113,7 +113,7 @@ public class SSTableImportTest extends SchemaLoader
         while (iter.hasNext())
             cf.addAtom(iter.next());
         assert cf.getColumn(Util.cellname("colAA")).value().equals(hexToBytes("76616c4141"));
-        assert !(cf.getColumn(Util.cellname("colAA")) instanceof DeletedCell);
+        assert !(cf.getColumn(Util.cellname("colAA")) instanceof BufferDeletedCell);
         Cell expCol = cf.getColumn(Util.cellname("colAC"));
         assert expCol.value().equals(hexToBytes("76616c4143"));
         assert expCol instanceof ExpiringCell;

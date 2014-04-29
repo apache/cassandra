@@ -63,7 +63,7 @@ public class LocalByPartionerType<T extends Token> extends AbstractType<ByteBuff
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         // o1 and o2 can be empty so we need to use RowPosition, not DecoratedKey
-        return RowPosition.forKey(o1, partitioner).compareTo(RowPosition.forKey(o2, partitioner));
+        return RowPosition.ForKey.get(o1, partitioner).compareTo(RowPosition.ForKey.get(o2, partitioner));
     }
 
     @Override

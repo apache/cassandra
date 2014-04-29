@@ -95,7 +95,38 @@ public class PureJavaCrc32 implements Checksum {
     crc = localCrc;
   }
 
-    public void update(ByteBuffer b, int off, int len) {
+  private static final ThreadLocal<byte[]> BUFFER = new ThreadLocal<byte[]>()
+  {
+      protected byte[] initialValue()
+      {
+          return new byte[256];
+      }
+  };
+
+    public void update(ByteBuffer b, int off, int len)
+    {
+        if (b.hasArray())
+        {
+            update(b.array(), b.arrayOffset() + off, len);
+        }
+        else if (len < 16)
+        {
+            doUpdate(b, off, len);
+        }
+        else
+        {
+            byte[] buf = BUFFER.get();
+            while (len > 0)
+            {
+                int l = Math.min(len, buf.length);
+                ByteBufferUtil.arrayCopy(b, off, buf, 0, l);
+                update(buf, 0, l);
+                len -= l;
+            }
+        }
+    }
+
+    private void doUpdate(ByteBuffer b, int off, int len) {
         int localCrc = crc;
 
         while(len > 7) {

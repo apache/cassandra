@@ -173,7 +173,7 @@ public abstract class Token<T> implements RingPosition<Token<T>>, Serializable
             return (R)maxKeyBound();
     }
 
-    public static class KeyBound extends RowPosition
+    public static class KeyBound implements RowPosition
     {
         private final Token token;
         public final boolean isMinimumBound;
@@ -207,6 +207,11 @@ public abstract class Token<T> implements RingPosition<Token<T>>, Serializable
         public boolean isMinimum(IPartitioner partitioner)
         {
             return getToken().isMinimum(partitioner);
+        }
+
+        public boolean isMinimum()
+        {
+            return isMinimum(StorageService.getPartitioner());
         }
 
         public RowPosition.Kind kind()

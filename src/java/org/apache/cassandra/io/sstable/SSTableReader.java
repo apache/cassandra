@@ -791,7 +791,7 @@ public class SSTableReader extends SSTable
                 last = decoratedKey;
 
                 if (recreateBloomFilter)
-                    bf.add(decoratedKey.key);
+                    bf.add(decoratedKey.getKey());
 
                 // if summary was already read from disk we don't want to re-populate it using primary index
                 if (!summaryLoaded)
@@ -879,8 +879,8 @@ public class SSTableReader extends SSTable
         {
             oStream = new DataOutputStreamAndChannel(new FileOutputStream(summariesFile));
             IndexSummary.serializer.serialize(summary, oStream, descriptor.version.hasSamplingLevel);
-            ByteBufferUtil.writeWithLength(first.key, oStream);
-            ByteBufferUtil.writeWithLength(last.key, oStream);
+            ByteBufferUtil.writeWithLength(first.getKey(), oStream);
+            ByteBufferUtil.writeWithLength(last.getKey(), oStream);
             ibuilder.serializeBounds(oStream);
             dbuilder.serializeBounds(oStream);
         }
@@ -1309,7 +1309,7 @@ public class SSTableReader extends SSTable
 
     public void invalidateCacheKey(DecoratedKey key)
     {
-        KeyCacheKey cacheKey = new KeyCacheKey(metadata.cfId, descriptor, key.key);
+        KeyCacheKey cacheKey = new KeyCacheKey(metadata.cfId, descriptor, key.getKey());
         keyCache.remove(cacheKey);
     }
 
@@ -1324,14 +1324,14 @@ public class SSTableReader extends SSTable
             return;
         }
 
-        KeyCacheKey cacheKey = new KeyCacheKey(metadata.cfId, descriptor, key.key);
+        KeyCacheKey cacheKey = new KeyCacheKey(metadata.cfId, descriptor, key.getKey());
         logger.trace("Adding cache entry for {} -> {}", cacheKey, info);
         keyCache.put(cacheKey, info);
     }
 
     public RowIndexEntry getCachedPosition(DecoratedKey key, boolean updateStats)
     {
-        return getCachedPosition(new KeyCacheKey(metadata.cfId, descriptor, key.key), updateStats);
+        return getCachedPosition(new KeyCacheKey(metadata.cfId, descriptor, key.getKey()), updateStats);
     }
 
     private RowIndexEntry getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
@@ -1375,7 +1375,7 @@ public class SSTableReader extends SSTable
         if (op == Operator.EQ)
         {
             assert key instanceof DecoratedKey; // EQ only make sense if the key is a valid row key
-            if (!bf.isPresent(((DecoratedKey)key).key))
+            if (!bf.isPresent(((DecoratedKey)key).getKey()))
             {
                 Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.generation);
                 return null;
@@ -1386,7 +1386,7 @@ public class SSTableReader extends SSTable
         if ((op == Operator.EQ || op == Operator.GE) && (key instanceof DecoratedKey))
         {
             DecoratedKey decoratedKey = (DecoratedKey)key;
-            KeyCacheKey cacheKey = new KeyCacheKey(metadata.cfId, descriptor, decoratedKey.key);
+            KeyCacheKey cacheKey = new KeyCacheKey(metadata.cfId, descriptor, decoratedKey.getKey());
             RowIndexEntry cachedPosition = getCachedPosition(cacheKey, updateCacheAndStats);
             if (cachedPosition != null)
             {
@@ -1442,7 +1442,7 @@ public class SSTableReader extends SSTable
                     // Compare raw keys if possible for performance, otherwise compare decorated keys.
                     if (op == Operator.EQ)
                     {
-                        opSatisfied = exactMatch = indexKey.equals(((DecoratedKey) key).key);
+                        opSatisfied = exactMatch = indexKey.equals(((DecoratedKey) key).getKey());
                     }
                     else
                     {

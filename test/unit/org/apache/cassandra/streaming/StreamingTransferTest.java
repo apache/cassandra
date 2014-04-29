@@ -167,7 +167,7 @@ public class StreamingTransferTest extends SchemaLoader
             String key = "key" + offs[i];
             String col = "col" + offs[i];
             assert cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk(key), cfs.name, System.currentTimeMillis())) != null;
-            assert rows.get(i).key.key.equals(ByteBufferUtil.bytes(key));
+            assert rows.get(i).key.getKey().equals(ByteBufferUtil.bytes(key));
             assert rows.get(i).cf.getColumn(cellname(col)) != null;
         }
 
@@ -229,7 +229,7 @@ public class StreamingTransferTest extends SchemaLoader
                 long val = key.hashCode();
                 ColumnFamily cf = ArrayBackedSortedColumns.factory.create(keyspace.getName(), cfs.name);
                 cf.addColumn(column(col, "v", timestamp));
-                cf.addColumn(new Cell(cellname("birthdate"), ByteBufferUtil.bytes(val), timestamp));
+                cf.addColumn(new BufferCell(cellname("birthdate"), ByteBufferUtil.bytes(val), timestamp));
                 Mutation rm = new Mutation("Keyspace1", ByteBufferUtil.bytes(key), cf);
                 logger.debug("Applying row to transfer {}", rm);
                 rm.apply();
@@ -248,7 +248,7 @@ public class StreamingTransferTest extends SchemaLoader
             Range<RowPosition> range = Util.range("", "");
             List<Row> rows = cfs.search(range, clause, filter, 100);
             assertEquals(1, rows.size());
-            assert rows.get(0).key.key.equals(ByteBufferUtil.bytes(key));
+            assert rows.get(0).key.getKey().equals(ByteBufferUtil.bytes(key));
         }
     }
 
@@ -320,8 +320,8 @@ public class StreamingTransferTest extends SchemaLoader
                 state.writeRemote(CounterId.fromInt(4), 4L, 2L);
                 state.writeRemote(CounterId.fromInt(6), 3L, 3L);
                 state.writeRemote(CounterId.fromInt(8), 2L, 4L);
-                cf.addColumn(new CounterCell(cellname(col), state.context, timestamp));
-                cfCleaned.addColumn(new CounterCell(cellname(col), cc.clearAllLocal(state.context), timestamp));
+                cf.addColumn(new BufferCounterCell(cellname(col), state.context, timestamp));
+                cfCleaned.addColumn(new BufferCounterCell(cellname(col), cc.clearAllLocal(state.context), timestamp));
 
                 entries.put(key, cf);
                 cleanedEntries.put(key, cfCleaned);
@@ -382,8 +382,8 @@ public class StreamingTransferTest extends SchemaLoader
         ColumnFamilyStore cfstore = Keyspace.open(keyspaceName).getColumnFamilyStore(cfname);
         List<Row> rows = Util.getRangeSlice(cfstore);
         assertEquals(2, rows.size());
-        assert rows.get(0).key.key.equals(ByteBufferUtil.bytes("test"));
-        assert rows.get(1).key.key.equals(ByteBufferUtil.bytes("transfer3"));
+        assert rows.get(0).key.getKey().equals(ByteBufferUtil.bytes("test"));
+        assert rows.get(1).key.getKey().equals(ByteBufferUtil.bytes("transfer3"));
         assert rows.get(0).cf.getColumnCount() == 1;
         assert rows.get(1).cf.getColumnCount() == 1;
 
@@ -422,9 +422,9 @@ public class StreamingTransferTest extends SchemaLoader
         Map.Entry<DecoratedKey,String> last = keys.lastEntry();
         Map.Entry<DecoratedKey,String> secondtolast = keys.lowerEntry(last.getKey());
         List<Range<Token>> ranges = new ArrayList<>();
-        ranges.add(new Range<>(p.getMinimumToken(), first.getKey().token));
+        ranges.add(new Range<>(p.getMinimumToken(), first.getKey().getToken()));
         // the left hand side of the range is exclusive, so we transfer from the second-to-last token
-        ranges.add(new Range<>(secondtolast.getKey().token, p.getMinimumToken()));
+        ranges.add(new Range<>(secondtolast.getKey().getToken(), p.getMinimumToken()));
 
         // Acquiring references, transferSSTables needs it
         if (!SSTableReader.acquireReferences(ssTableReaders))
@@ -453,7 +453,7 @@ public class StreamingTransferTest extends SchemaLoader
             {
                 ColumnFamily cf = ArrayBackedSortedColumns.factory.create(keyspace.getName(), cfs.name);
                 cf.addColumn(column(colName, "value", timestamp));
-                cf.addColumn(new Cell(cellname("birthdate"), ByteBufferUtil.bytes(new Date(timestamp).toString()), timestamp));
+                cf.addColumn(new BufferCell(cellname("birthdate"), ByteBufferUtil.bytes(new Date(timestamp).toString()), timestamp));
                 Mutation rm = new Mutation("Keyspace1", ByteBufferUtil.bytes(key), cf);
                 logger.debug("Applying row to transfer {}", rm);
                 rm.apply();

@@ -93,15 +93,15 @@ public class Tracing
 
     private static void addColumn(ColumnFamily cf, CellName name, ByteBuffer value)
     {
-        cf.addColumn(new ExpiringCell(name, value, System.currentTimeMillis(), TTL));
+        cf.addColumn(new BufferExpiringCell(name, value, System.currentTimeMillis(), TTL));
     }
 
     public void addParameterColumns(ColumnFamily cf, Map<String, String> rawPayload)
     {
         for (Map.Entry<String, String> entry : rawPayload.entrySet())
         {
-            cf.addColumn(new ExpiringCell(buildName(CFMetaData.TraceSessionsCf, "parameters", entry.getKey()),
-                                          bytes(entry.getValue()), System.currentTimeMillis(), TTL));
+            cf.addColumn(new BufferExpiringCell(buildName(CFMetaData.TraceSessionsCf, "parameters", entry.getKey()),
+                                                bytes(entry.getValue()), System.currentTimeMillis(), TTL));
         }
     }
 

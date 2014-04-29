@@ -73,10 +73,10 @@ public class KeyCollisionTest extends SchemaLoader
 
         List<Row> rows = cfs.getRangeSlice(new Bounds<RowPosition>(dk("k2"), dk("key2")), null, new IdentityQueryFilter(), 10000);
         assert rows.size() == 4 : "Expecting 4 keys, got " + rows.size();
-        assert rows.get(0).key.key.equals(ByteBufferUtil.bytes("k2"));
-        assert rows.get(1).key.key.equals(ByteBufferUtil.bytes("k3"));
-        assert rows.get(2).key.key.equals(ByteBufferUtil.bytes("key1"));
-        assert rows.get(3).key.key.equals(ByteBufferUtil.bytes("key2"));
+        assert rows.get(0).key.getKey().equals(ByteBufferUtil.bytes("k2"));
+        assert rows.get(1).key.getKey().equals(ByteBufferUtil.bytes("k3"));
+        assert rows.get(2).key.getKey().equals(ByteBufferUtil.bytes("key1"));
+        assert rows.get(3).key.getKey().equals(ByteBufferUtil.bytes("key2"));
     }
 
     private void insert(String... keys)
@@ -102,7 +102,7 @@ public class KeyCollisionTest extends SchemaLoader
 
         public DecoratedKey decorateKey(ByteBuffer key)
         {
-            return new DecoratedKey(getToken(key), key);
+            return new BufferDecoratedKey(getToken(key), key);
         }
 
         public Token midpoint(Token ltoken, Token rtoken)

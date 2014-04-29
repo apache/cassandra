@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQL3Row;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -92,8 +93,8 @@ public class SimpleSparseCellNameType extends AbstractSimpleCellNameType
         internedNames.remove(id.bytes);
     }
 
-    public CQL3Row.Builder CQL3RowBuilder(long now)
+    public CQL3Row.Builder CQL3RowBuilder(CFMetaData metadata, long now)
     {
-        return makeSparseCQL3RowBuilder(this, now);
+        return makeSparseCQL3RowBuilder(metadata, this, now);
     }
 }

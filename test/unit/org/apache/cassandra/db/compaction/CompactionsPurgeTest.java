@@ -63,7 +63,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         Mutation rm;
 
         // inserts
-        rm = new Mutation(KEYSPACE1, key.key);
+        rm = new Mutation(KEYSPACE1, key.getKey());
         for (int i = 0; i < 10; i++)
         {
             rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
@@ -74,14 +74,14 @@ public class CompactionsPurgeTest extends SchemaLoader
         // deletes
         for (int i = 0; i < 10; i++)
         {
-            rm = new Mutation(KEYSPACE1, key.key);
+            rm = new Mutation(KEYSPACE1, key.getKey());
             rm.delete(cfName, cellname(String.valueOf(i)), 1);
             rm.apply();
         }
         cfs.forceBlockingFlush();
 
         // resurrect one column
-        rm = new Mutation(KEYSPACE1, key.key);
+        rm = new Mutation(KEYSPACE1, key.getKey());
         rm.add(cfName, cellname(String.valueOf(5)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
         rm.apply();
         cfs.forceBlockingFlush();
@@ -108,7 +108,7 @@ public class CompactionsPurgeTest extends SchemaLoader
             DecoratedKey key = Util.dk("key" + k);
 
             // inserts
-            rm = new Mutation(KEYSPACE2, key.key);
+            rm = new Mutation(KEYSPACE2, key.getKey());
             for (int i = 0; i < 10; i++)
             {
                 rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
@@ -119,7 +119,7 @@ public class CompactionsPurgeTest extends SchemaLoader
             // deletes
             for (int i = 0; i < 10; i++)
             {
-                rm = new Mutation(KEYSPACE2, key.key);
+                rm = new Mutation(KEYSPACE2, key.getKey());
                 rm.delete(cfName, cellname(String.valueOf(i)), 1);
                 rm.apply();
             }
@@ -133,7 +133,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         // for first key. Then submit minor compaction on remembered sstables.
         cfs.forceBlockingFlush();
         Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
-        rm = new Mutation(KEYSPACE2, key1.key);
+        rm = new Mutation(KEYSPACE2, key1.getKey());
         rm.add(cfName, cellname(String.valueOf(5)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
         rm.apply();
         cfs.forceBlockingFlush();
@@ -165,20 +165,20 @@ public class CompactionsPurgeTest extends SchemaLoader
         DecoratedKey key3 = Util.dk("key3");
 
         // inserts
-        rm = new Mutation(KEYSPACE2, key3.key);
+        rm = new Mutation(KEYSPACE2, key3.getKey());
         rm.add(cfName, cellname("c1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 8);
         rm.add(cfName, cellname("c2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 8);
         rm.apply();
         cfs.forceBlockingFlush();
         // delete c1
-        rm = new Mutation(KEYSPACE2, key3.key);
+        rm = new Mutation(KEYSPACE2, key3.getKey());
         rm.delete(cfName, cellname("c1"), 10);
         rm.apply();
         cfs.forceBlockingFlush();
         Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
 
         // delete c2 so we have new delete in a diffrent SSTable
-        rm = new Mutation(KEYSPACE2, key3.key);
+        rm = new Mutation(KEYSPACE2, key3.getKey());
         rm.delete(cfName, cellname("c2"), 9);
         rm.apply();
         cfs.forceBlockingFlush();
@@ -206,7 +206,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         Mutation rm;
 
         // inserts
-        rm = new Mutation(KEYSPACE1, key.key);
+        rm = new Mutation(KEYSPACE1, key.getKey());
         for (int i = 0; i < 5; i++)
         {
             rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
@@ -216,7 +216,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         // deletes
         for (int i = 0; i < 5; i++)
         {
-            rm = new Mutation(KEYSPACE1, key.key);
+            rm = new Mutation(KEYSPACE1, key.getKey());
             rm.delete(cfName, cellname(String.valueOf(i)), 1);
             rm.apply();
         }
@@ -244,7 +244,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         Mutation rm;
 
         // inserts
-        rm = new Mutation(keyspaceName, key.key);
+        rm = new Mutation(keyspaceName, key.getKey());
         for (int i = 0; i < 10; i++)
         {
             rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
@@ -255,7 +255,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
 
         // deletes row
-        rm = new Mutation(keyspaceName, key.key);
+        rm = new Mutation(keyspaceName, key.getKey());
         rm.delete(cfName, 1);
         rm.apply();
 
@@ -264,7 +264,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         Util.compactAll(cfs, Integer.MAX_VALUE).get();
 
         // re-inserts with timestamp lower than delete
-        rm = new Mutation(keyspaceName, key.key);
+        rm = new Mutation(keyspaceName, key.getKey());
         for (int i = 0; i < 10; i++)
         {
             rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
@@ -292,13 +292,13 @@ public class CompactionsPurgeTest extends SchemaLoader
         QueryFilter filter = QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis());
 
         // inserts
-        rm = new Mutation(keyspaceName, key.key);
+        rm = new Mutation(keyspaceName, key.getKey());
         for (int i = 0; i < 10; i++)
             rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
         rm.apply();
 
         // deletes row with timestamp such that not all columns are deleted
-        rm = new Mutation(keyspaceName, key.key);
+        rm = new Mutation(keyspaceName, key.getKey());
         rm.delete(cfName, 4);
         rm.apply();
         ColumnFamily cf = cfs.getColumnFamily(filter);
@@ -310,7 +310,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         assertFalse(cfs.getColumnFamily(filter).isMarkedForDelete());
 
         // re-inserts with timestamp lower than delete
-        rm = new Mutation(keyspaceName, key.key);
+        rm = new Mutation(keyspaceName, key.getKey());
         for (int i = 0; i < 5; i++)
             rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
         rm.apply();

@@ -283,6 +283,7 @@ memtable_cleanup_threshold: 0.4
 # Options are:
 #   heap_buffers:    on heap nio buffers
 #   offheap_buffers: off heap (direct) nio buffers
+#   offheap_objects: native memory, eliminating nio buffer heap overhead
 memtable_allocation_type: heap_buffers
 
 # Total space to use for commitlogs.  Since commitlog segments are

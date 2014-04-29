@@ -19,11 +19,11 @@ package org.apache.cassandra.db.composites;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.PoolAllocator;
 
 public class CompoundSparseCellName extends CompoundComposite implements CellName
 {
@@ -65,7 +65,7 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         return size;
     }
 
-    public ColumnIdentifier cql3ColumnName()
+    public ColumnIdentifier cql3ColumnName(CFMetaData metadata)
     {
         return columnName;
     }
@@ -93,7 +93,7 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         return true;
     }
 
-    public CellName copy(AbstractAllocator allocator)
+    public CellName copy(CFMetaData cfm, AbstractAllocator allocator)
     {
         if (elements.length == 0)
             return this;
@@ -147,7 +147,7 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         }
 
         @Override
-        public CellName copy(AbstractAllocator allocator)
+        public CellName copy(CFMetaData cfm, AbstractAllocator allocator)
         {
             // We don't copy columnName because it's interned in SparseCellNameType
             return new CompoundSparseCellName.WithCollection(elements.length == 0 ? elements : elementsCopy(allocator), size, columnName, allocator.clone(collectionElement), isStatic());
@@ -163,13 +163,6 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         public long excessHeapSizeExcludingData()
         {
             return super.excessHeapSizeExcludingData() + ObjectSizes.sizeOnHeapExcludingData(collectionElement);
-        }
-
-        @Override
-        public void free(PoolAllocator allocator)
-        {
-            super.free(allocator);
-            allocator.free(collectionElement);
         }
     }
 }

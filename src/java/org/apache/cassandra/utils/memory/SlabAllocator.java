@@ -44,7 +44,7 @@ import sun.nio.ch.DirectBuffer;
  * interleaved throughout the heap, and the old generation gets progressively
  * more fragmented until a stop-the-world compacting collection occurs.
  */
-public class SlabAllocator extends PoolAllocator
+public class SlabAllocator extends MemtableBufferAllocator
 {
     private static final Logger logger = LoggerFactory.getLogger(SlabAllocator.class);
 
@@ -54,7 +54,7 @@ public class SlabAllocator extends PoolAllocator
     // globally stash any Regions we allocate but are beaten to using, and use these up before allocating any more
     private static final ConcurrentLinkedQueue<Region> RACE_ALLOCATED = new ConcurrentLinkedQueue<>();
 
-    private final AtomicReference<Region> currentRegion = new AtomicReference<Region>();
+    private final AtomicReference<Region> currentRegion = new AtomicReference<>();
     private final AtomicInteger regionCount = new AtomicInteger(0);
 
     // this queue is used to keep references to off-heap allocated regions so that we can free them when we are discarded
@@ -106,9 +106,9 @@ public class SlabAllocator extends PoolAllocator
         }
     }
 
-    public void free(ByteBuffer name)
+    public DataReclaimer reclaimer()
     {
-        // have to assume we cannot free the memory here, and just reclaim it all when we flush
+        return NO_OP;
     }
 
     public void setDiscarded()
@@ -148,6 +148,11 @@ public class SlabAllocator extends PoolAllocator
             // in the next iteration of the loop.
             RACE_ALLOCATED.add(region);
         }
+    }
+
+    protected AbstractAllocator allocator(OpOrder.Group writeOp)
+    {
+        return new ContextAllocator(writeOp, this);
     }
 
     /**

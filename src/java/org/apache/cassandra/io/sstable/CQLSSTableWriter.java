@@ -207,7 +207,7 @@ public class CQLSSTableWriter
 
         for (ByteBuffer key: keys)
         {
-            if (writer.currentKey() == null || !key.equals(writer.currentKey().key))
+            if (writer.currentKey() == null || !key.equals(writer.currentKey().getKey()))
                 writer.newRow(key);
             insert.addUpdateForKey(writer.currentColumnFamily(), key, clusteringPrefix, params);
         }

@@ -175,7 +175,7 @@ public class SSTableWriter extends SSTable
 
     private void afterAppend(DecoratedKey decoratedKey, long dataPosition, RowIndexEntry index)
     {
-        sstableMetadataCollector.addKey(decoratedKey.key);
+        sstableMetadataCollector.addKey(decoratedKey.getKey());
         lastWrittenKey = decoratedKey;
         last = lastWrittenKey;
         if (first == null)
@@ -229,7 +229,7 @@ public class SSTableWriter extends SSTable
     {
         assert cf.hasColumns() || cf.isMarkedForDelete();
 
-        ColumnIndex.Builder builder = new ColumnIndex.Builder(cf, key.key, out);
+        ColumnIndex.Builder builder = new ColumnIndex.Builder(cf, key.getKey(), out);
         ColumnIndex index = builder.build(cf);
 
         out.writeShort(END_OF_ROW);
@@ -256,7 +256,7 @@ public class SSTableWriter extends SSTable
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(metadata);
         cf.delete(DeletionTime.serializer.deserialize(in));
 
-        ColumnIndex.Builder columnIndexer = new ColumnIndex.Builder(cf, key.key, dataFile.stream);
+        ColumnIndex.Builder columnIndexer = new ColumnIndex.Builder(cf, key.getKey(), dataFile.stream);
 
         if (cf.deletionInfo().getTopLevelDeletion().localDeletionTime < Integer.MAX_VALUE)
             tombstones.update(cf.deletionInfo().getTopLevelDeletion().localDeletionTime);
@@ -273,7 +273,7 @@ public class SSTableWriter extends SSTable
         {
             while (iter.hasNext())
             {
-                // deserialize column with PRESERVE_SIZE because we've written the dataSize based on the
+                // deserialize column with PRESERVE_SIZE because we've written the cellDataSize based on the
                 // data size received, so we must reserialize the exact same data
                 OnDiskAtom atom = iter.next();
                 if (atom == null)
@@ -548,11 +548,11 @@ public class SSTableWriter extends SSTable
 
         public void append(DecoratedKey key, RowIndexEntry indexEntry)
         {
-            bf.add(key.key);
+            bf.add(key.getKey());
             long indexPosition = indexFile.getFilePointer();
             try
             {
-                ByteBufferUtil.writeWithShortLength(key.key, indexFile.stream);
+                ByteBufferUtil.writeWithShortLength(key.getKey(), indexFile.stream);
                 metadata.comparator.rowIndexEntrySerializer().serialize(indexEntry, indexFile.stream);
             }
             catch (IOException e)

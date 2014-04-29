@@ -17,13 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.nio.ByteBuffer;
-
-import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.db.composites.CellNameType;
-
 /**
  * A counter update while it hasn't been applied yet by the leader replica.
  *
@@ -31,61 +24,7 @@ import org.apache.cassandra.db.composites.CellNameType;
  * is transformed to a relevant CounterCell. This Cell is a temporary data
  * structure that should never be stored inside a memtable or an sstable.
  */
-public class CounterUpdateCell extends Cell
+public interface CounterUpdateCell extends Cell
 {
-    public CounterUpdateCell(CellName name, long value, long timestamp)
-    {
-        this(name, ByteBufferUtil.bytes(value), timestamp);
-    }
-
-    public CounterUpdateCell(CellName name, ByteBuffer value, long timestamp)
-    {
-        super(name, value, timestamp);
-    }
-
-    public long delta()
-    {
-        return value().getLong(value().position());
-    }
-
-    @Override
-    public Cell diff(Cell cell)
-    {
-        // Diff is used during reads, but we should never read those columns
-        throw new UnsupportedOperationException("This operation is unsupported on CounterUpdateCell.");
-    }
-
-    @Override
-    public Cell reconcile(Cell cell)
-    {
-        // The only time this could happen is if a batchAdd ships two
-        // increment for the same cell. Hence we simply sums the delta.
-
-        // tombstones take precedence
-        if (cell.isMarkedForDelete(Long.MIN_VALUE)) // can't be an expired cell, so the current time is irrelevant
-            return timestamp() > cell.timestamp() ? this : cell;
-
-        // neither is tombstoned
-        assert cell instanceof CounterUpdateCell : "Wrong class type.";
-        CounterUpdateCell c = (CounterUpdateCell) cell;
-        return new CounterUpdateCell(name(), delta() + c.delta(), Math.max(timestamp(), c.timestamp()));
-    }
-
-    @Override
-    public int serializationFlags()
-    {
-        return ColumnSerializer.COUNTER_UPDATE_MASK;
-    }
-
-    @Override
-    public Cell localCopy(AbstractAllocator allocator)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public String getString(CellNameType comparator)
-    {
-        return String.format("%s:%s@%d", comparator.getString(name), ByteBufferUtil.toLong(value), timestamp);
-    }
+    public long delta();
 }

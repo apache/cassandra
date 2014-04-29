@@ -75,8 +75,8 @@ public class CounterCacheTest extends SchemaLoader
         CacheService.instance.invalidateCounterCache();
 
         ColumnFamily cells = ArrayBackedSortedColumns.factory.create(cfs.metadata);
-        cells.addColumn(new CounterUpdateCell(cellname(1), 1L, FBUtilities.timestampMicros()));
-        cells.addColumn(new CounterUpdateCell(cellname(2), 2L, FBUtilities.timestampMicros()));
+        cells.addColumn(new BufferCounterUpdateCell(cellname(1), 1L, FBUtilities.timestampMicros()));
+        cells.addColumn(new BufferCounterUpdateCell(cellname(2), 2L, FBUtilities.timestampMicros()));
         new CounterMutation(new Mutation(KS, bytes(1), cells), ConsistencyLevel.ONE).apply();
         new CounterMutation(new Mutation(KS, bytes(2), cells), ConsistencyLevel.ONE).apply();
 

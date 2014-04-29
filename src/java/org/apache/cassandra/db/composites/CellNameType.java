@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQL3Row;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -152,7 +153,7 @@ public interface CellNameType extends CType
     /**
      * Creates a new CQL3Row builder for this type. See CQL3Row for details.
      */
-    public CQL3Row.Builder CQL3RowBuilder(long now);
+    public CQL3Row.Builder CQL3RowBuilder(CFMetaData metadata, long now);
 
     // The two following methods are used to pass the declared regular column names (in CFMetaData)
     // to the CellNameType. This is only used for optimization sake, see SparseCellNameType.

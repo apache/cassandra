@@ -20,6 +20,7 @@ package org.apache.cassandra.db.composites;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ColumnToCollectionType;
@@ -75,11 +76,26 @@ public abstract class CellNames
         return new SimpleDenseCellName(bb);
     }
 
+    public static CellName simpleSparse(ColumnIdentifier identifier)
+    {
+        return new SimpleSparseCellName(identifier);
+    }
+
     // Mainly for tests and a few cases where we know what we need and didn't wanted to pass the type around
     // Avoid in general, prefer the CellNameType methods.
     public static CellName compositeDense(ByteBuffer... bbs)
     {
         return new CompoundDenseCellName(bbs);
+    }
+
+    public static CellName compositeSparse(ByteBuffer[] bbs, ColumnIdentifier identifier, boolean isStatic)
+    {
+        return new CompoundSparseCellName(bbs, identifier, isStatic);
+    }
+
+    public static CellName compositeSparseWithCollection(ByteBuffer[] bbs, ByteBuffer collectionElement, ColumnIdentifier identifier, boolean isStatic)
+    {
+        return new CompoundSparseCellName.WithCollection(bbs, identifier, collectionElement, isStatic);
     }
 
     public static String getColumnsString(CellNameType type, Iterable<Cell> columns)

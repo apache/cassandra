@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.LongType;
@@ -46,7 +47,7 @@ public class Murmur3Partitioner extends AbstractPartitioner<LongToken>
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
-        return new DecoratedKey(getToken(key), key);
+        return new BufferDecoratedKey(getToken(key), key);
     }
 
     public Token midpoint(Token lToken, Token rToken)

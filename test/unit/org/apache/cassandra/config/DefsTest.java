@@ -20,7 +20,6 @@ package org.apache.cassandra.config;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.*;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
@@ -171,7 +170,7 @@ public class DefsTest extends SchemaLoader
         // now read and write to it.
         CellName col0 = cellname("col0");
         DecoratedKey dk = Util.dk("key0");
-        Mutation rm = new Mutation(ks, dk.key);
+        Mutation rm = new Mutation(ks, dk.getKey());
         rm.add(cf, col0, ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
         ColumnFamilyStore store = Keyspace.open(ks).getColumnFamilyStore(cf);
@@ -195,7 +194,7 @@ public class DefsTest extends SchemaLoader
         Assert.assertNotNull(cfm);
 
         // write some data, force a flush, then verify that files exist on disk.
-        Mutation rm = new Mutation(ks.name, dk.key);
+        Mutation rm = new Mutation(ks.name, dk.getKey());
         for (int i = 0; i < 100; i++)
             rm.add(cfm.cfName, cellname("col" + i), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
@@ -209,7 +208,7 @@ public class DefsTest extends SchemaLoader
         Assert.assertFalse(Schema.instance.getKSMetaData(ks.name).cfMetaData().containsKey(cfm.cfName));
 
         // any write should fail.
-        rm = new Mutation(ks.name, dk.key);
+        rm = new Mutation(ks.name, dk.getKey());
         boolean success = true;
         try
         {
@@ -245,7 +244,7 @@ public class DefsTest extends SchemaLoader
 
         // test reads and writes.
         CellName col0 = cellname("col0");
-        Mutation rm = new Mutation(newCf.ksName, dk.key);
+        Mutation rm = new Mutation(newCf.ksName, dk.getKey());
         rm.add(newCf.cfName, col0, ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
         ColumnFamilyStore store = Keyspace.open(newCf.ksName).getColumnFamilyStore(newCf.cfName);
@@ -269,7 +268,7 @@ public class DefsTest extends SchemaLoader
         Assert.assertNotNull(cfm);
 
         // write some data, force a flush, then verify that files exist on disk.
-        Mutation rm = new Mutation(ks.name, dk.key);
+        Mutation rm = new Mutation(ks.name, dk.getKey());
         for (int i = 0; i < 100; i++)
             rm.add(cfm.cfName, cellname("col" + i), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
@@ -283,7 +282,7 @@ public class DefsTest extends SchemaLoader
         Assert.assertNull(Schema.instance.getKSMetaData(ks.name));
 
         // write should fail.
-        rm = new Mutation(ks.name, dk.key);
+        rm = new Mutation(ks.name, dk.getKey());
         boolean success = true;
         try
         {
@@ -320,7 +319,7 @@ public class DefsTest extends SchemaLoader
         Assert.assertNotNull(cfm);
 
         // write some data
-        Mutation rm = new Mutation(ks.name, dk.key);
+        Mutation rm = new Mutation(ks.name, dk.getKey());
         for (int i = 0; i < 100; i++)
             rm.add(cfm.cfName, cellname("col" + i), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.apply();
@@ -354,7 +353,7 @@ public class DefsTest extends SchemaLoader
         // now read and write to it.
         CellName col0 = cellname("col0");
         DecoratedKey dk = Util.dk("key0");
-        Mutation rm = new Mutation(newKs.name, dk.key);
+        Mutation rm = new Mutation(newKs.name, dk.getKey());
         rm.add(newCf.cfName, col0, ByteBufferUtil.bytes("value0"), 1L);
         rm.apply();
         ColumnFamilyStore store = Keyspace.open(newKs.name).getColumnFamilyStore(newCf.cfName);

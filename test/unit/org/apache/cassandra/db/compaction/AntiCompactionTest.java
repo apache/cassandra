@@ -56,7 +56,7 @@ public class AntiCompactionTest extends SchemaLoader
         for (int i = 0; i < 10; i++)
         {
             DecoratedKey key = Util.dk(Integer.toString(i));
-            Mutation rm = new Mutation(KEYSPACE1, key.key);
+            Mutation rm = new Mutation(KEYSPACE1, key.getKey());
             for (int j = 0; j < 10; j++)
                 rm.add("Standard1", Util.cellname(Integer.toString(j)),
                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
@@ -85,12 +85,12 @@ public class AntiCompactionTest extends SchemaLoader
                 SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
                 if (sstable.isRepaired())
                 {
-                    assertTrue(range.contains(row.getKey().token));
+                    assertTrue(range.contains(row.getKey().getToken()));
                     repairedKeys++;
                 }
                 else
                 {
-                    assertFalse(range.contains(row.getKey().token));
+                    assertFalse(range.contains(row.getKey().getToken()));
                     nonRepairedKeys++;
                 }
             }

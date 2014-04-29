@@ -2962,7 +2962,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         List<Token> tokens = Lists.newArrayListWithExpectedSize(keys.size() + 2);
         tokens.add(range.left);
         for (DecoratedKey key : keys)
-            tokens.add(key.token);
+            tokens.add(key.getToken());
         tokens.add(range.right);
         return tokens;
     }

@@ -64,7 +64,7 @@ public class KeyspaceTest extends SchemaLoader
 
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create("Keyspace2", "Standard3");
         cf.addColumn(column("col1","val1", 1L));
-        Mutation rm = new Mutation("Keyspace2", TEST_KEY.key, cf);
+        Mutation rm = new Mutation("Keyspace2", TEST_KEY.getKey(), cf);
         rm.apply();
 
         Runnable verify = new WrappedRunnable()
@@ -96,7 +96,7 @@ public class KeyspaceTest extends SchemaLoader
         cf.addColumn(column("col1","val1", 1L));
         cf.addColumn(column("col2","val2", 1L));
         cf.addColumn(column("col3","val3", 1L));
-        Mutation rm = new Mutation("Keyspace1", TEST_KEY.key, cf);
+        Mutation rm = new Mutation("Keyspace1", TEST_KEY.getKey(), cf);
         rm.apply();
 
         Runnable verify = new WrappedRunnable()
@@ -126,7 +126,7 @@ public class KeyspaceTest extends SchemaLoader
         cf.addColumn(column("a", "val1", 1L));
         cf.addColumn(column("b", "val2", 1L));
         cf.addColumn(column("c", "val3", 1L));
-        Mutation rm = new Mutation("Keyspace1", key.key, cf);
+        Mutation rm = new Mutation("Keyspace1", key.getKey(), cf);
         rm.apply();
 
         cf = cfStore.getColumnFamily(key, cellname("b"), cellname("c"), false, 100, System.currentTimeMillis());
@@ -172,7 +172,7 @@ public class KeyspaceTest extends SchemaLoader
         // so if we go to 300, we'll get at least 4 blocks, which is plenty for testing.
         for (int i = 0; i < 300; i++)
             cf.addColumn(column("col" + fmt.format(i), "omg!thisisthevalue!"+i, 1L));
-        Mutation rm = new Mutation("Keyspace1", ROW.key, cf);
+        Mutation rm = new Mutation("Keyspace1", ROW.getKey(), cf);
         rm.apply();
 
         Runnable verify = new WrappedRunnable()
@@ -226,8 +226,8 @@ public class KeyspaceTest extends SchemaLoader
         for (int i = 0; i < 10; i++)
         {
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create("Keyspace1", "StandardLong1");
-            cf.addColumn(new Cell(cellname((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
-            Mutation rm = new Mutation("Keyspace1", ROW.key, cf);
+            cf.addColumn(new BufferCell(cellname((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
+            Mutation rm = new Mutation("Keyspace1", ROW.getKey(), cf);
             rm.apply();
         }
 
@@ -236,8 +236,8 @@ public class KeyspaceTest extends SchemaLoader
         for (int i = 10; i < 20; i++)
         {
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create("Keyspace1", "StandardLong1");
-            cf.addColumn(new Cell(cellname((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
-            Mutation rm = new Mutation("Keyspace1", ROW.key, cf);
+            cf.addColumn(new BufferCell(cellname((long)i), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0));
+            Mutation rm = new Mutation("Keyspace1", ROW.getKey(), cf);
             rm.apply();
 
             cf = cfs.getColumnFamily(ROW, Composites.EMPTY, Composites.EMPTY, true, 1, System.currentTimeMillis());
@@ -275,10 +275,10 @@ public class KeyspaceTest extends SchemaLoader
         cf.addColumn(column("col5", "val5", 1L));
         cf.addColumn(column("col7", "val7", 1L));
         cf.addColumn(column("col9", "val9", 1L));
-        Mutation rm = new Mutation("Keyspace1", ROW.key, cf);
+        Mutation rm = new Mutation("Keyspace1", ROW.getKey(), cf);
         rm.apply();
 
-        rm = new Mutation("Keyspace1", ROW.key);
+        rm = new Mutation("Keyspace1", ROW.getKey());
         rm.delete("Standard1", cellname("col4"), 2L);
         rm.apply();
 
@@ -327,7 +327,7 @@ public class KeyspaceTest extends SchemaLoader
         cf.addColumn(column("col1", "val1", 1L));
         cf.addColumn(expiringColumn("col2", "val2", 1L, 60)); // long enough not to be tombstoned
         cf.addColumn(column("col3", "val3", 1L));
-        Mutation rm = new Mutation("Keyspace1", ROW.key, cf);
+        Mutation rm = new Mutation("Keyspace1", ROW.getKey(), cf);
         rm.apply();
 
         Runnable verify = new WrappedRunnable()
@@ -364,7 +364,7 @@ public class KeyspaceTest extends SchemaLoader
         cf.addColumn(column("col4", "val4", 1L));
         cf.addColumn(column("col5", "val5", 1L));
         cf.addColumn(column("col6", "val6", 1L));
-        Mutation rm = new Mutation("Keyspace1", ROW.key, cf);
+        Mutation rm = new Mutation("Keyspace1", ROW.getKey(), cf);
         rm.apply();
         cfStore.forceBlockingFlush();
 
@@ -372,7 +372,7 @@ public class KeyspaceTest extends SchemaLoader
         cf.addColumn(column("col1", "valx", 2L));
         cf.addColumn(column("col2", "valx", 2L));
         cf.addColumn(column("col3", "valx", 2L));
-        rm = new Mutation("Keyspace1", ROW.key, cf);
+        rm = new Mutation("Keyspace1", ROW.getKey(), cf);
         rm.apply();
 
         Runnable verify = new WrappedRunnable()
@@ -408,7 +408,7 @@ public class KeyspaceTest extends SchemaLoader
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create("Keyspace1", "Standard1");
         for (int i = 1000; i < 2000; i++)
             cf.addColumn(column("col" + i, ("v" + i), 1L));
-        Mutation rm = new Mutation("Keyspace1", key.key, cf);
+        Mutation rm = new Mutation("Keyspace1", key.getKey(), cf);
         rm.apply();
         cfStore.forceBlockingFlush();
 
@@ -441,7 +441,7 @@ public class KeyspaceTest extends SchemaLoader
             {
                 cf.addColumn(column("col" + i, ("v" + i), i));
             }
-            Mutation rm = new Mutation("Keyspace1", key.key, cf);
+            Mutation rm = new Mutation("Keyspace1", key.getKey(), cf);
             rm.apply();
             cfStore.forceBlockingFlush();
         }
@@ -451,7 +451,7 @@ public class KeyspaceTest extends SchemaLoader
         int i = 0;
         for (Cell c : cf.getSortedColumns())
         {
-            assertEquals(ByteBufferUtil.string(c.name.toByteBuffer()), "col" + (1000 + i++));
+            assertEquals(ByteBufferUtil.string(c.name().toByteBuffer()), "col" + (1000 + i++));
         }
         assertEquals(i, 500);
         cfStore.metric.sstablesPerReadHistogram.clear();
@@ -460,7 +460,7 @@ public class KeyspaceTest extends SchemaLoader
 
         for (Cell c : cf.getSortedColumns())
         {
-            assertEquals(ByteBufferUtil.string(c.name.toByteBuffer()), "col"+(1000 + i++));
+            assertEquals(ByteBufferUtil.string(c.name().toByteBuffer()), "col"+(1000 + i++));
         }
         assertEquals(i, 1000);
 
@@ -471,7 +471,7 @@ public class KeyspaceTest extends SchemaLoader
         i = 500;
         for (Cell c : cf.getSortedColumns())
         {
-            assertEquals(ByteBufferUtil.string(c.name.toByteBuffer()), "col"+(1000 + i++));
+            assertEquals(ByteBufferUtil.string(c.name().toByteBuffer()), "col"+(1000 + i++));
         }
         assertEquals(i, 1000);
 
@@ -505,7 +505,7 @@ public class KeyspaceTest extends SchemaLoader
         {
             for (int i = 0; i < 10; i++)
             {
-                Mutation rm = new Mutation("Keyspace1", key.key);
+                Mutation rm = new Mutation("Keyspace1", key.getKey());
                 CellName colName = type.makeCellName(ByteBufferUtil.bytes("a" + i), ByteBufferUtil.bytes(j*10 + i));
                 rm.add("StandardComposite2", colName, ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
                 rm.apply();

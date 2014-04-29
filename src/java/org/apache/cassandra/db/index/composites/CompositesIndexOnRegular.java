@@ -95,6 +95,6 @@ public class CompositesIndexOnRegular extends CompositesIndex
             return true;
 
         ByteBuffer liveValue = liveCell.value();
-        return columnDef.type.compare(entry.indexValue.key, liveValue) != 0;
+        return columnDef.type.compare(entry.indexValue.getKey(), liveValue) != 0;
     }
 }

@@ -248,7 +248,7 @@ public class DefsTables
             if (newState.hasColumns())
                 updateKeyspace(KSMetaData.fromSchema(new Row(key, newState), Collections.<CFMetaData>emptyList(), new UTMetaData()));
             else
-                keyspacesToDrop.add(AsciiType.instance.getString(key.key));
+                keyspacesToDrop.add(AsciiType.instance.getString(key.getKey()));
         }
 
         return keyspacesToDrop;
@@ -297,7 +297,7 @@ public class DefsTables
             }
             else // has modifications in the nested ColumnFamilies, need to perform nested diff to determine what was really changed
             {
-                String ksName = AsciiType.instance.getString(keyspace.key);
+                String ksName = AsciiType.instance.getString(keyspace.getKey());
 
                 Map<String, CFMetaData> oldCfDefs = new HashMap<String, CFMetaData>();
                 for (CFMetaData cfm : Schema.instance.getKSMetaData(ksName).cfMetaData().values())

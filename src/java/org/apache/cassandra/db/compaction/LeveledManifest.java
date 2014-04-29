@@ -456,13 +456,13 @@ public class LeveledManifest
          */
         Iterator<SSTableReader> iter = candidates.iterator();
         SSTableReader sstable = iter.next();
-        Token first = sstable.first.token;
-        Token last = sstable.last.token;
+        Token first = sstable.first.getToken();
+        Token last = sstable.last.getToken();
         while (iter.hasNext())
         {
             sstable = iter.next();
-            first = first.compareTo(sstable.first.token) <= 0 ? first : sstable.first.token;
-            last = last.compareTo(sstable.last.token) >= 0 ? last : sstable.last.token;
+            first = first.compareTo(sstable.first.getToken()) <= 0 ? first : sstable.first.getToken();
+            last = last.compareTo(sstable.last.getToken()) >= 0 ? last : sstable.last.getToken();
         }
         return overlapping(first, last, others);
     }
@@ -470,7 +470,7 @@ public class LeveledManifest
     @VisibleForTesting
     static Set<SSTableReader> overlapping(SSTableReader sstable, Iterable<SSTableReader> others)
     {
-        return overlapping(sstable.first.token, sstable.last.token, others);
+        return overlapping(sstable.first.getToken(), sstable.last.getToken(), others);
     }
 
     /**
@@ -483,7 +483,7 @@ public class LeveledManifest
         Bounds<Token> promotedBounds = new Bounds<Token>(start, end);
         for (SSTableReader candidate : sstables)
         {
-            Bounds<Token> candidateBounds = new Bounds<Token>(candidate.first.token, candidate.last.token);
+            Bounds<Token> candidateBounds = new Bounds<Token>(candidate.first.getToken(), candidate.last.getToken());
             if (candidateBounds.intersects(promotedBounds))
                 overlapped.add(candidate);
         }

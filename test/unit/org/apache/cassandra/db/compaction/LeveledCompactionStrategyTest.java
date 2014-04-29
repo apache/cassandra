@@ -83,7 +83,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
         for (int r = 0; r < rows; r++)
         {
             DecoratedKey key = Util.dk(String.valueOf(r));
-            Mutation rm = new Mutation(ksname, key.key);
+            Mutation rm = new Mutation(ksname, key.getKey());
             for (int c = 0; c < columns; c++)
             {
                 rm.add(cfname, Util.cellname("column" + c), value, 0);
@@ -128,7 +128,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
         for (int r = 0; r < rows; r++)
         {
             DecoratedKey key = Util.dk(String.valueOf(r));
-            Mutation rm = new Mutation(ksname, key.key);
+            Mutation rm = new Mutation(ksname, key.getKey());
             for (int c = 0; c < columns; c++)
             {
                 rm.add(cfname, Util.cellname("column" + c), value, 0);
@@ -167,7 +167,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
         for (int r = 0; r < rows; r++)
         {
             DecoratedKey key = Util.dk(String.valueOf(r));
-            Mutation rm = new Mutation(ksname, key.key);
+            Mutation rm = new Mutation(ksname, key.getKey());
             for (int c = 0; c < columns; c++)
             {
                 rm.add(cfname, Util.cellname("column" + c), value, 0);
@@ -213,7 +213,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
         for (int r = 0; r < rows; r++)
         {
             DecoratedKey key = Util.dk(String.valueOf(r));
-            Mutation rm = new Mutation(ksname, key.key);
+            Mutation rm = new Mutation(ksname, key.getKey());
             for (int c = 0; c < columns; c++)
             {
                 rm.add(cfname, Util.cellname("column" + c), value, 0);
