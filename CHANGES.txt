@@ -34,7 +34,7 @@
  * Fix off-by-one error in stress (CASSANDRA-6883)
  * Make OpOrder AutoCloseable (CASSANDRA-6901)
  * Remove sync repair JMX interface (CASSANDRA-6900)
- * Add multiple memory allocation options for memtables (CASSANDRA-6689)
+ * Add multiple memory allocation options for memtables (CASSANDRA-6689, 6694)
  * Remove adjusted op rate from stress output (CASSANDRA-6921)
  * Add optimized CF.hasColumns() implementations (CASSANDRA-6941)
  * Serialize batchlog mutations with the version of the target node
