@@ -916,6 +916,16 @@ public class NodeProbe
     {
         spProxy.reloadTriggerClasses();
     }
+
+    public void setLoggingLevel(String classQualifier, String level)
+    {
+        ssProxy.setLog4jLevel(classQualifier, level);
+    }
+
+    public Map<String, String> getLoggingLevels()
+    {
+         return ssProxy.getLoggingLevels();
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>

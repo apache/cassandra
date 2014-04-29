@@ -341,6 +341,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** set the logging level at runtime */
     public void setLog4jLevel(String classQualifier, String level);
 
+    public Map<String,String>getLoggingLevels();
+
     /** get the operational mode (leaving, joining, normal, decommissioned, client) **/
     public String getOperationMode();
 

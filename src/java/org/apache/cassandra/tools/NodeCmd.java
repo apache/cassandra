@@ -55,6 +55,9 @@ import org.apache.cassandra.streaming.SessionInfo;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+
+
 public class NodeCmd
 {
     private static final String HISTORYFILE = "nodetool.history";
@@ -184,7 +187,9 @@ public class NodeCmd
         ENABLEBACKUP,
         DISABLEBACKUP,
         SETCACHEKEYSTOSAVE,
-        RELOADTRIGGERS
+        RELOADTRIGGERS,
+        SETLOGGINGLEVEL,
+        GETLOGGINGLEVELS
     }
 
 
@@ -1444,6 +1449,20 @@ public class NodeCmd
                     probe.reloadTriggers();
                     break;
 
+                case SETLOGGINGLEVEL:
+                    String classQualifer = EMPTY;
+                    String level = EMPTY;
+                    if (arguments.length >= 1)
+                        classQualifer = arguments[0];
+                    if (arguments.length == 2)
+                        level = arguments[1];
+                    probe.setLoggingLevel(classQualifer, level);
+                    break;
+
+                case GETLOGGINGLEVELS :
+                    nodeCmd.getLoggingLevels(System.out);
+                    break;
+
                 default :
                     throw new RuntimeException("Unreachable code.");
             }
@@ -1463,6 +1482,14 @@ public class NodeCmd
             }
         }
         System.exit(probe.isFailed() ? 1 : 0);
+    }
+
+    private void getLoggingLevels(PrintStream out)
+    {
+        // what if some one set a very long logger name? 50 space may not be enough...
+        System.out.printf("%n%-50s%10s%n", "Logger Name", "Log Level");
+        for (Map.Entry<String, String> entry : this.probe.getLoggingLevels().entrySet())
+            System.out.printf("%-50s%10s%n", entry.getKey(), entry.getValue());
     }
 
     private void printCompactionHistory(PrintStream out)

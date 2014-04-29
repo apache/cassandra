@@ -220,3 +220,9 @@ commands:
   - name: reloadtriggers
     help: |
       reload trigger classes
+  - name: setLoggingLevel
+    help: |
+      Set a log level for a given logger. If both classQualifer and level are empty/null, it will reset to the initial configuration
+  - name: getLoggingLevels
+    help: |
+      Get the runtime logging levels

@@ -45,6 +45,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Level;
+import org.apache.log4j.LogManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,7 +58,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.dht.*;
@@ -2795,9 +2795,44 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setLog4jLevel(String classQualifier, String rawLevel)
     {
+        org.apache.log4j.Logger log4jlogger = org.apache.log4j.Logger.getLogger(classQualifier);
+        // if both classQualifer and rawLevel are empty, reload from configuration
+        if (StringUtils.isBlank(classQualifier) && StringUtils.isBlank(rawLevel))
+        {
+            LogManager.resetConfiguration();
+            CassandraDaemon.initLog4j();
+            return;
+        }
+        // classQualifer is set, but blank level given
+        else if (StringUtils.isNotBlank(classQualifier) && StringUtils.isBlank(rawLevel))
+        {
+            if (log4jlogger.getLevel() != null || log4jlogger.getAllAppenders().hasMoreElements())
+                log4jlogger.setLevel(null);
+            return;
+        }
+
         Level level = Level.toLevel(rawLevel);
-        org.apache.log4j.Logger.getLogger(classQualifier).setLevel(level);
-        logger.info("set log level to " + level + " for classes under '" + classQualifier + "' (if the level doesn't look like '" + rawLevel + "' then log4j couldn't parse '" + rawLevel + "')");
+        log4jlogger.setLevel(level);
+        logger.info("set log level to {} for classes under '{}' (if the level doesn't look like '{}' then the logger couldn't parse '{}')", level, classQualifier, rawLevel, rawLevel);
+    }
+
+    /**
+     * @return the runtime logging levels for all the configured loggers
+     */
+    @Override
+    public Map<String,String> getLoggingLevels()
+    {
+        Map<String, String> logLevelMaps = Maps.newLinkedHashMap();
+        org.apache.log4j.Logger rootLogger = org.apache.log4j.Logger.getRootLogger();
+        logLevelMaps.put(rootLogger.getName(), rootLogger.getLevel().toString());
+        Enumeration<org.apache.log4j.Logger> loggers = LogManager.getCurrentLoggers();
+        while (loggers.hasMoreElements())
+        {
+            org.apache.log4j.Logger logger= loggers.nextElement();
+            if (logger.getLevel() != null)
+                logLevelMaps.put(logger.getName(), logger.getLevel().toString());
+        }
+        return logLevelMaps;
     }
 
     /**
