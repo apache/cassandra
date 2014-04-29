@@ -44,12 +44,12 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 {
+    private static final Logger logger = LoggerFactory.getLogger(FailureDetector.class);
     public static final String MBEAN_NAME = "org.apache.cassandra.net:type=FailureDetector";
     private static final int SAMPLE_SIZE = 1000;
     protected static final long INITIAL_VALUE_NANOS = TimeUnit.NANOSECONDS.convert(getInitialValue(), TimeUnit.MILLISECONDS);
 
     public static final IFailureDetector instance = new FailureDetector();
-    private static final Logger logger = LoggerFactory.getLogger(FailureDetector.class);
 
     // this is useless except to provide backwards compatibility in phi_convict_threshold,
     // because everyone seems pretty accustomed to the default of 8, and users who have
