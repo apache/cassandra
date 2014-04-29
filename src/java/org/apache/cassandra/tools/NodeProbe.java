@@ -1132,6 +1132,23 @@ public class NodeProbe implements AutoCloseable
     {
         spProxy.reloadTriggerClasses();
     }
+
+    public void setLoggingLevel(String classQualifier, String level)
+    {
+        try
+        {
+            ssProxy.setLoggingLevel(classQualifier, level);
+        }
+        catch (Exception e)
+        {
+          throw new RuntimeException("Error setting log for " + classQualifier +" on level " + level +". Please check logback configuration and ensure to have <jmxConfigurator /> set", e); 
+        }
+    }
+
+    public Map<String, String> getLoggingLevels()
+    {
+        return ssProxy.getLoggingLevels();
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
