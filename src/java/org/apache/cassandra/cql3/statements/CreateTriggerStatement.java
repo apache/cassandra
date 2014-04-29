@@ -49,7 +49,7 @@ public class CreateTriggerStatement extends SchemaAlteringStatement
 
     public void checkAccess(ClientState state) throws UnauthorizedException
     {
-        state.ensureIsSuper("Only superusers are allowed to perfrom CREATE TRIGGER queries");
+        state.ensureIsSuper("Only superusers are allowed to perform CREATE TRIGGER queries");
     }
 
     public void validate(ClientState state) throws RequestValidationException
