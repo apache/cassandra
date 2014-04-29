@@ -140,7 +140,9 @@ public class NodeTool
                 Drain.class,
                 TruncateHints.class,
                 TpStats.class,
-                TakeToken.class
+                TakeToken.class,
+                SetLoggingLevel.class,
+                GetLoggingLevels.class
         );
 
         Cli<Runnable> parser = Cli.<Runnable>builder("nodetool")
@@ -2285,6 +2287,34 @@ public class NodeTool
                 probe.truncateHints();
             else
                 probe.truncateHints(endpoint);
+        }
+    }
+    
+    @Command(name = "setlogginglevel", description = "Set a log level for a given logger. If both classQualifer and level are empty/null, it will reset based on the initial configuration")
+    public static class SetLoggingLevel extends NodeToolCmd
+    {
+        @Arguments(usage = "<classQualifer> <level>", description = "The logger classQualifer and the logger level (can be empty)")
+        private List<String> args = new ArrayList<>();
+
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            String classQualifier = args.size() >= 1 ? args.get(0) : EMPTY;
+            String level = args.size() == 2 ? args.get(1) : EMPTY;
+            probe.setLoggingLevel(classQualifier, level);
+        }
+    }
+    
+    @Command(name = "getlogginglevels", description = "Get the runtime logging levels")
+    public static class GetLoggingLevels extends NodeToolCmd
+    {
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            // what if some one set a very long logger name? 50 space may not be enough...
+            System.out.printf("%n%-50s%10s%n", "Logger Name", "Log Level");
+            for (Map.Entry<String, String> entry : probe.getLoggingLevels().entrySet())
+                System.out.printf("%-50s%10s%n", entry.getKey(), entry.getValue());
         }
     }
 

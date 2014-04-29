@@ -329,8 +329,25 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public void forceRemoveCompletion();
 
-    /** set the logging level at runtime */
-    public void setLoggingLevel(String classQualifier, String level);
+    /**
+     * set the logging level at runtime<br>
+     * <br>
+     * If both classQualifer and level are empty/null, it will reload the configuration to reset.<br>
+     * If classQualifer is not empty but level is empty/null, it will set the level to null for the defined classQualifer<br>
+     * If level cannot be parsed, then the level will be defaulted to DEBUG<br>
+     * <br>
+     * The logback configuration should have < jmxConfigurator /> set
+     * 
+     * @param classQualifier The logger's classQualifer
+     * @param level The log level
+     * @throws Exception 
+     * 
+     *  @see ch.qos.logback.classic.Level#toLevel(String)
+     */
+    public void setLoggingLevel(String classQualifier, String level) throws Exception;
+
+    /** get the runtime logging levels */
+    public Map<String,String> getLoggingLevels();
 
     /** get the operational mode (leaving, joining, normal, decommissioned, client) **/
     public String getOperationMode();
