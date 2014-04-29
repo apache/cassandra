@@ -50,8 +50,9 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
     private final IVersionedSerializer<NamesQueryFilter> namesQueryFilterSerializer;
     private final IVersionedSerializer<IDiskAtomFilter> diskAtomFilterSerializer;
 
-    protected AbstractCellNameType()
+    protected AbstractCellNameType(boolean isByteOrderComparable)
     {
+        super(isByteOrderComparable);
         columnComparator = new Comparator<Cell>()
         {
             public int compare(Cell c1, Cell c2)

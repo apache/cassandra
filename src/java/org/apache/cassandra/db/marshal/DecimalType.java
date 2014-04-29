@@ -32,18 +32,12 @@ public class DecimalType extends AbstractType<BigDecimal>
 
     DecimalType() {} // singleton
 
-    public int compare(ByteBuffer bb0, ByteBuffer bb1)
+    public int compare(ByteBuffer o1, ByteBuffer o2)
     {
-        if (bb0.remaining() == 0)
-        {
-            return bb1.remaining() == 0 ? 0 : -1;
-        }
-        if (bb1.remaining() == 0)
-        {
-            return 1;
-        }
+        if (!o1.hasRemaining() || !o2.hasRemaining())
+            return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
 
-        return compose(bb0).compareTo(compose(bb1));
+        return compose(o1).compareTo(compose(o2));
     }
 
     public ByteBuffer fromString(String source) throws MarshalException

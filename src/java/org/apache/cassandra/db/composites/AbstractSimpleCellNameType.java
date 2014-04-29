@@ -30,6 +30,7 @@ public abstract class AbstractSimpleCellNameType extends AbstractCellNameType
 
     protected AbstractSimpleCellNameType(AbstractType<?> type)
     {
+        super(type.isByteOrderComparable());
         this.type = type;
     }
 
@@ -41,6 +42,31 @@ public abstract class AbstractSimpleCellNameType extends AbstractCellNameType
     public int size()
     {
         return 1;
+    }
+
+    public int compare(Composite c1, Composite c2)
+    {
+        // This method assumes that simple composites never have an EOC != NONE. This assumption
+        // stands in particular on the fact that a Composites.EMPTY never has a non-NONE EOC. If
+        // this ever change, we'll need to update this.
+
+        if (isByteOrderComparable)
+        {
+            // toByteBuffer is always cheap for simple types, and we keep virtual method calls to a minimum:
+            // hasRemaining will always be inlined, as will most of the call-stack for BBU.compareUnsigned
+            ByteBuffer b1 = c1.toByteBuffer();
+            ByteBuffer b2 = c2.toByteBuffer();
+            if (!b1.hasRemaining() || !b2.hasRemaining())
+                return b1.hasRemaining() ? 1 : (b2.hasRemaining() ? -1 : 0);
+            return ByteBufferUtil.compareUnsigned(b1, b2);
+        }
+
+        boolean c1isEmpty = c1.isEmpty();
+        boolean c2isEmpty = c2.isEmpty();
+        if (c1isEmpty || c2isEmpty)
+            return c1isEmpty ? 1 : (c2isEmpty ? -1 : 0);
+
+        return type.compare(c1.get(0), c2.get(0));
     }
 
     public AbstractType<?> subtype(int i)

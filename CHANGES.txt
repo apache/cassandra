@@ -43,7 +43,7 @@
  * Fix off-by-one error in stress (CASSANDRA-6883)
  * Make OpOrder AutoCloseable (CASSANDRA-6901)
  * Remove sync repair JMX interface (CASSANDRA-6900)
- * Add multiple memory allocation options for memtables (CASSANDRA-6689)
+ * Add multiple memory allocation options for memtables (CASSANDRA-6689, 6694)
  * Remove adjusted op rate from stress output (CASSANDRA-6921)
  * Add optimized CF.hasColumns() implementations (CASSANDRA-6941)
  * Serialize batchlog mutations with the version of the target node
@@ -62,6 +62,7 @@
  * Use OpOrder to guard sstable references for reads (CASSANDRA-6919)
  * Preemptive opening of compaction result (CASSANDRA-6916)
  * Multi-threaded scrub/cleanup/upgradesstables (CASSANDRA-5547)
+ * Optimize cellname comparison (CASSANDRA-6934)
 Merged from 2.0:
  * Set JMX RMI port to 7199 (CASSANDRA-7087)
  * Use LOCAL_QUORUM for data reads at LOCAL_SERIAL (CASSANDRA-6939)

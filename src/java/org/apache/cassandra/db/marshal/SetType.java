@@ -82,6 +82,11 @@ public class SetType<T> extends CollectionType<Set<T>>
         return serializer;
     }
 
+    public boolean isByteOrderComparable()
+    {
+        return elements.isByteOrderComparable();
+    }
+
     protected void appendToStringBuilder(StringBuilder sb)
     {
         sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Collections.<AbstractType<?>>singletonList(elements)));

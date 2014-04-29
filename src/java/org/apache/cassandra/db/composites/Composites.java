@@ -65,16 +65,25 @@ public abstract class Composites
 
         public Composite start()
         {
+            // Note that SimpleCType/AbstractSimpleCellNameType compare method
+            // indirectly rely on the fact that EMPTY == EMPTY.start() == EMPTY.end()
+            // (or more precisely on the fact that the EOC is NONE for all of those).
             return this;
         }
 
         public Composite end()
         {
+            // Note that SimpleCType/AbstractSimpleCellNameType compare method
+            // indirectly rely on the fact that EMPTY == EMPTY.start() == EMPTY.end()
+            // (or more precisely on the fact that the EOC is NONE for all of those).
             return this;
         }
 
         public Composite withEOC(EOC newEoc)
         {
+            // Note that SimpleCType/AbstractSimpleCellNameType compare method
+            // indirectly rely on the fact that EMPTY == EMPTY.start() == EMPTY.end()
+            // (or more precisely on the fact that the EOC is NONE for all of those).
             return this;
         }
 

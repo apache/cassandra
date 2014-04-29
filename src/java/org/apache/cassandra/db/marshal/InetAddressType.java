@@ -66,4 +66,9 @@ public class InetAddressType extends AbstractType<InetAddress>
     {
         return InetAddressSerializer.instance;
     }
+
+    public boolean isByteOrderComparable()
+    {
+        return true;
+    }
 }

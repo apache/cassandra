@@ -83,7 +83,7 @@ final class Builder
         // finish copying any remaining keys from the original btree
         while (true)
         {
-            NodeBuilder next = current.update(POSITIVE_INFINITY);
+            NodeBuilder next = current.finish();
             if (next == null)
                 break;
             current = next;

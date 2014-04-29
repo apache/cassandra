@@ -35,6 +35,7 @@ public class CompoundCType extends AbstractCType
     // It's up to the caller to pass a list that is effectively immutable
     public CompoundCType(List<AbstractType<?>> types)
     {
+        super(isByteOrderComparable(types));
         this.types = types;
     }
 

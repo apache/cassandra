@@ -20,6 +20,8 @@ package org.apache.cassandra.utils.btree;
 
 import java.util.Comparator;
 
+import static org.apache.cassandra.utils.btree.BTree.NEGATIVE_INFINITY;
+import static org.apache.cassandra.utils.btree.BTree.POSITIVE_INFINITY;
 import static org.apache.cassandra.utils.btree.BTree.getBranchKeyEnd;
 import static org.apache.cassandra.utils.btree.BTree.getKeyEnd;
 import static org.apache.cassandra.utils.btree.BTree.getLeafKeyEnd;
@@ -71,6 +73,20 @@ public class Path<V>
         path[0] = btree;
     }
 
+    void moveEnd(Object[] node, boolean forwards)
+    {
+        push(node, getKeyEnd(node));
+        if (!forwards)
+            predecessor();
+    }
+
+    void moveStart(Object[] node, boolean forwards)
+    {
+        push(node, -1);
+        if (forwards)
+            successor();
+    }
+
     /**
      * Find the provided key in the tree rooted at node, and store the root to it in the path
      *
@@ -91,6 +107,18 @@ public class Path<V>
         int lb = indexes[depth];
         assert lb == 0 || forwards;
         pop();
+
+        if (target instanceof BTree.Special)
+        {
+            if (target == POSITIVE_INFINITY)
+                moveEnd(node, forwards);
+            else if (target == NEGATIVE_INFINITY)
+                moveStart(node, forwards);
+            else
+                throw new AssertionError();
+            return false;
+        }
+
         while (true)
         {
             int keyEnd = getKeyEnd(node);
@@ -112,18 +140,17 @@ public class Path<V>
                 }
                 return true;
             }
+            i = -i - 1;
 
             // traverse into the appropriate child
             if (!isLeaf(node))
             {
-                i = -i - 1;
                 push(node, forwards ? i - 1 : i);
                 node = (Object[]) node[keyEnd + i];
                 continue;
             }
 
             // bottom of the tree and still not found.  pick the right index to satisfy Op
-            i = -i - 1;
             switch (mode)
             {
                 case FLOOR:

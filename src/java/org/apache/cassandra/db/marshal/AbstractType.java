@@ -156,6 +156,15 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     }
 
     /**
+     * @return true IFF the byte representation of this type can be compared unsigned
+     * and always return the same result as calling this object's compare or compareCollectionMembers methods
+     */
+    public boolean isByteOrderComparable()
+    {
+        return false;
+    }
+
+    /**
      * An alternative comparison function used by CollectionsType in conjunction with CompositeType.
      *
      * This comparator is only called to compare components of a CompositeType. It gets the value of the
