@@ -619,14 +619,15 @@ public class StorageProxy implements StorageProxyMBean
             }
             else if (targetVersion == MessagingService.current_version)
             {
-                MessagingService.instance().sendRR(message, target, handler);
+                MessagingService.instance().sendRR(message, target, handler, false);
             }
             else
             {
                 MessagingService.instance().sendRR(BatchlogManager.getBatchlogMutationFor(mutations, uuid, targetVersion)
                                                                   .createMessage(),
                                                    target,
-                                                   handler);
+                                                   handler,
+                                                   false);
             }
         }
 
