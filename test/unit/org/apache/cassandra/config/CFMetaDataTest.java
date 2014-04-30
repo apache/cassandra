@@ -35,10 +35,11 @@ import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
 import org.junit.Test;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
 public class CFMetaDataTest extends SchemaLoader
 {
@@ -122,7 +123,7 @@ public class CFMetaDataTest extends SchemaLoader
 
         // Test thrift conversion
         CFMetaData before = cfm;
-        CFMetaData after = CFMetaData.fromThrift(before.toThrift());
+        CFMetaData after = CFMetaData.fromThriftForUpdate(before.toThrift(), before);
         assert before.equals(after) : String.format("%n%s%n!=%n%s", before, after);
 
         // Test schema conversion

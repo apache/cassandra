@@ -948,7 +948,7 @@ public final class CFMetaData
     }
 
     /** applies implicit defaults to cf definition. useful in updates */
-    public static void applyImplicitDefaults(org.apache.cassandra.thrift.CfDef cf_def)
+    private static void applyImplicitDefaults(org.apache.cassandra.thrift.CfDef cf_def)
     {
         if (!cf_def.isSetComment())
             cf_def.setComment("");
@@ -989,6 +989,44 @@ public final class CFMetaData
     }
 
     public static CFMetaData fromThrift(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException, ConfigurationException
+    {
+        CFMetaData cfm = internalFromThrift(cf_def);
+
+        if (cf_def.isSetKey_alias() && !(cfm.keyValidator instanceof CompositeType))
+            cfm.addOrReplaceColumnDefinition(ColumnDefinition.partitionKeyDef(cfm, cf_def.key_alias, cfm.keyValidator, null));
+
+        return cfm.rebuild();
+    }
+
+    public static CFMetaData fromThriftForUpdate(org.apache.cassandra.thrift.CfDef cf_def, CFMetaData toUpdate) throws InvalidRequestException, ConfigurationException
+    {
+        CFMetaData cfm = internalFromThrift(cf_def);
+
+        // Thrift update can't have CQL metadata, and so we'll copy the ones of the updated metadata (to make
+        // sure we don't override anything existing -- see #6831). One exception (for historical reasons) is
+        // the partition key column name however, which can be provided through thrift. If it is, make sure
+        // we use the one of the update.
+        boolean hasKeyAlias = cf_def.isSetKey_alias() && !(cfm.keyValidator instanceof CompositeType);
+        if (hasKeyAlias)
+            cfm.addOrReplaceColumnDefinition(ColumnDefinition.partitionKeyDef(cfm, cf_def.key_alias, cfm.keyValidator, null));
+
+        for (ColumnDefinition def : toUpdate.allColumns())
+        {
+            // isPartOfCellName basically means 'is not just a CQL metadata'
+            if (def.isPartOfCellName())
+                continue;
+
+            if (def.kind == ColumnDefinition.Kind.PARTITION_KEY && hasKeyAlias)
+                continue;
+
+            cfm.addOrReplaceColumnDefinition(def);
+        }
+
+        return cfm.rebuild();
+    }
+
+    // Do most of the work, but don't handle CQL metadata (i.e. skip key_alias and don't rebuild())
+    private static CFMetaData internalFromThrift(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException, ConfigurationException
     {
         ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
         if (cfType == null)
@@ -1049,14 +1087,11 @@ public final class CFMetaData
             CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
 
             if (cf_def.isSetKey_validation_class()) { newCFMD.keyValidator(TypeParser.parse(cf_def.key_validation_class)); }
-            if (cf_def.isSetKey_alias() && !(newCFMD.keyValidator instanceof CompositeType))
-                newCFMD.addOrReplaceColumnDefinition(ColumnDefinition.partitionKeyDef(newCFMD, cf_def.key_alias, newCFMD.keyValidator, null));
 
             return newCFMD.addAllColumnDefinitions(ColumnDefinition.fromThrift(newCFMD, cf_def.column_metadata))
                           .comment(cf_def.comment)
                           .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
-                          .compressionParameters(cp)
-                          .rebuild();
+                          .compressionParameters(cp);
         }
         catch (SyntaxException | MarshalException e)
         {
