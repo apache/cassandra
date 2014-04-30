@@ -180,7 +180,7 @@ public class NativeCounterCell extends NativeCell implements CounterCell
 
     public boolean equals(Cell cell)
     {
-        return cell instanceof CounterCell && equals((CounterCell) this);
+        return cell instanceof CounterCell && equals((CounterCell) cell);
     }
 
     public boolean equals(CounterCell cell)
