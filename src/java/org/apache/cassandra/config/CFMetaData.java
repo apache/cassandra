@@ -802,17 +802,6 @@ public final class CFMetaData
         minCompactionThreshold = cfm.minCompactionThreshold;
         maxCompactionThreshold = cfm.maxCompactionThreshold;
 
-        /*
-         * Because thrift updates don't know about aliases, we should ignore
-         * the case where the new aliases are empty.
-         */
-        if (!cfm.keyAliases.isEmpty())
-            keyAliases = cfm.keyAliases;
-        if (!cfm.columnAliases.isEmpty())
-            columnAliases = cfm.columnAliases;
-        if (cfm.valueAlias != null)
-            valueAlias = cfm.valueAlias;
-
         bloomFilterFpChance = cfm.bloomFilterFpChance;
         caching = cfm.caching;
         populateIoCacheOnFlush = cfm.populateIoCacheOnFlush;

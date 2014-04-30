@@ -1427,6 +1427,16 @@ public class CassandraServer implements Cassandra.Iface
 
             CFMetaData.applyImplicitDefaults(cf_def);
             CFMetaData cfm = CFMetaData.fromThrift(cf_def);
+
+            /*
+             * CASSANDRA-6831: Because thrift updates don't know about aliases,
+             * we should copy them from the original CFM
+             */
+            if (!cf_def.isSetKey_alias())
+                cfm.keyAliases(oldCfm.getKeyAliases());
+            cfm.columnAliases(oldCfm.getColumnAliases());
+            cfm.valueAlias(oldCfm.getValueAlias());
+
             CFMetaData.validateCompactionOptions(cfm.compactionStrategyClass, cfm.compactionStrategyOptions, false);
             cfm.addDefaultIndexNames();
             MigrationManager.announceColumnFamilyUpdate(cfm);

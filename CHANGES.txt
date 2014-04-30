@@ -14,6 +14,7 @@
  * Don't shut MessagingService down when replacing a node (CASSANDRA-6476)
  * Always clean up references in SerializingCache (CASSANDRA-6994)
  * fix npe when doing -Dcassandra.fd_initial_value_ms (CASSANDRA-6751)
+ * Preserves CQL metadata when updating table from thrift (CASSANDRA-6831)
 
 
 1.2.16
