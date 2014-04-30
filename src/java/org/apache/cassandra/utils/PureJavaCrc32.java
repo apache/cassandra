@@ -122,6 +122,7 @@ public class PureJavaCrc32 implements Checksum {
                 ByteBufferUtil.arrayCopy(b, off, buf, 0, l);
                 update(buf, 0, l);
                 len -= l;
+                off += l;
             }
         }
     }
