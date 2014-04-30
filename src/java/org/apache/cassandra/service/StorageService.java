@@ -822,7 +822,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 {
                     bootstrapTokens = BootStrapper.getRandomTokens(tokenMetadata, DatabaseDescriptor.getNumTokens());
                     if (DatabaseDescriptor.getNumTokens() == 1)
-                        logger.warn("Generated random token " + bootstrapTokens + ". Random tokens will result in an unbalanced ring; see http://wiki.apache.org/cassandra/Operations");
+                        logger.warn("Generated random token {}. Random tokens will result in an unbalanced ring; see http://wiki.apache.org/cassandra/Operations", bootstrapTokens);
                     else
                         logger.info("Generated random tokens. tokens are {}", bootstrapTokens);
                 }
@@ -877,10 +877,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         }
                         bootstrapTokens.add(midpoint);
                     }
-                    logger.info("Split previous range (" + left + ", " + right + "] into " + bootstrapTokens);
+                    logger.info("Split previous range ({}, {}] into {}", left, right, bootstrapTokens);
                 }
                 else
-                    logger.info("Using saved tokens " + bootstrapTokens);
+                    logger.info("Using saved tokens {}", bootstrapTokens);
             }
         }
 
