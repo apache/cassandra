@@ -77,7 +77,7 @@ public class SetType<T> extends CollectionType<Set<T>>
         return ListType.compareListOrSet(elements, o1, o2);
     }
 
-    public TypeSerializer<Set<T>> getSerializer()
+    public SetSerializer<T> getSerializer()
     {
         return serializer;
     }
@@ -92,18 +92,11 @@ public class SetType<T> extends CollectionType<Set<T>>
         sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Collections.<AbstractType<?>>singletonList(elements)));
     }
 
-    public ByteBuffer serialize(List<Cell> cells)
+    public List<ByteBuffer> serializedValues(List<Cell> cells)
     {
-        cells = enforceLimit(cells);
-
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(cells.size());
-        int size = 0;
         for (Cell c : cells)
-        {
-            ByteBuffer key = c.name().collectionElement();
-            bbs.add(key);
-            size += 2 + key.remaining();
-        }
-        return pack(bbs, cells.size(), size);
+            bbs.add(c.name().collectionElement());
+        return bbs;
     }
 }

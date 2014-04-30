@@ -32,9 +32,9 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
     {
         public int getId();
 
-        public Object readValue(ByteBuf cb);
-        public void writeValue(Object value, ByteBuf cb);
-        public int serializedValueSize(Object obj);
+        public Object readValue(ByteBuf cb, int version);
+        public void writeValue(Object value, ByteBuf cb, int version);
+        public int serializedValueSize(Object obj, int version);
     }
 
     private final Class<T> klass;
@@ -66,14 +66,14 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         return opt;
     }
 
-    public Map<T, Object> decode(ByteBuf body)
+    public Map<T, Object> decode(ByteBuf body, int version)
     {
         EnumMap<T, Object> options = new EnumMap<T, Object>(klass);
         int n = body.readUnsignedShort();
         for (int i = 0; i < n; i++)
         {
             T opt = fromId(body.readUnsignedShort());
-            Object value = opt.readValue(body);
+            Object value = opt.readValue(body, version);
             if (options.containsKey(opt))
                 throw new ProtocolException(String.format("Duplicate option %s in message", opt.name()));
             options.put(opt, value);
@@ -81,41 +81,41 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         return options;
     }
 
-    public ByteBuf encode(Map<T, Object> options)
+    public ByteBuf encode(Map<T, Object> options, int version)
     {
         int optLength = 2;
         for (Map.Entry<T, Object> entry : options.entrySet())
-            optLength += 2 + entry.getKey().serializedValueSize(entry.getValue());
+            optLength += 2 + entry.getKey().serializedValueSize(entry.getValue(), version);
         ByteBuf cb = Unpooled.buffer(optLength);
         cb.writeShort(options.size());
         for (Map.Entry<T, Object> entry : options.entrySet())
         {
             T opt = entry.getKey();
             cb.writeShort(opt.getId());
-            opt.writeValue(entry.getValue(), cb);
+            opt.writeValue(entry.getValue(), cb, version);
         }
         return cb;
     }
 
-    public Pair<T, Object> decodeOne(ByteBuf body)
+    public Pair<T, Object> decodeOne(ByteBuf body, int version)
     {
         T opt = fromId(body.readUnsignedShort());
-        Object value = opt.readValue(body);
+        Object value = opt.readValue(body, version);
         return Pair.create(opt, value);
     }
 
-    public void writeOne(Pair<T, Object> option, ByteBuf dest)
+    public void writeOne(Pair<T, Object> option, ByteBuf dest, int version)
     {
         T opt = option.left;
         Object obj = option.right;
         dest.writeShort(opt.getId());
-        opt.writeValue(obj, dest);
+        opt.writeValue(obj, dest, version);
     }
 
-    public int oneSerializedSize(Pair<T, Object> option)
+    public int oneSerializedSize(Pair<T, Object> option, int version)
     {
         T opt = option.left;
         Object obj = option.right;
-        return 2 + opt.serializedValueSize(obj);
+        return 2 + opt.serializedValueSize(obj, version);
     }
 }

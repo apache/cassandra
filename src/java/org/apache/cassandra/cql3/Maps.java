@@ -31,9 +31,9 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -86,7 +86,7 @@ public abstract class Maps
                 values.put(k, v);
             }
             DelayedValue value = new DelayedValue(((MapType)receiver.type).keys, values);
-            return allTerminal ? value.bind(Collections.<ByteBuffer>emptyList()) : value;
+            return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
@@ -142,13 +142,13 @@ public abstract class Maps
             this.map = map;
         }
 
-        public static Value fromSerialized(ByteBuffer value, MapType type) throws InvalidRequestException
+        public static Value fromSerialized(ByteBuffer value, MapType type, int version) throws InvalidRequestException
         {
             try
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but compose does the validation (so we're fine).
-                Map<?, ?> m = (Map<?, ?>)type.compose(value);
+                Map<?, ?> m = (Map<?, ?>)type.getSerializer().deserializeForNativeProtocol(value, version);
                 Map<ByteBuffer, ByteBuffer> map = new LinkedHashMap<ByteBuffer, ByteBuffer>(m.size());
                 for (Map.Entry<?, ?> entry : m.entrySet())
                     map.put(type.keys.decompose(entry.getKey()), type.values.decompose(entry.getValue()));
@@ -160,7 +160,7 @@ public abstract class Maps
             }
         }
 
-        public ByteBuffer get()
+        public ByteBuffer get(QueryOptions options)
         {
             List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(2 * map.size());
             for (Map.Entry<ByteBuffer, ByteBuffer> entry : map.entrySet())
@@ -168,7 +168,7 @@ public abstract class Maps
                 buffers.add(entry.getKey());
                 buffers.add(entry.getValue());
             }
-            return CollectionType.pack(buffers, map.size());
+            return CollectionSerializer.pack(buffers, map.size(), options.getProtocolVersion());
         }
     }
 
@@ -194,13 +194,13 @@ public abstract class Maps
         {
         }
 
-        public Value bind(List<ByteBuffer> values) throws InvalidRequestException
+        public Value bind(QueryOptions options) throws InvalidRequestException
         {
             Map<ByteBuffer, ByteBuffer> buffers = new TreeMap<ByteBuffer, ByteBuffer>(comparator);
             for (Map.Entry<Term, Term> entry : elements.entrySet())
             {
                 // We don't support values > 64K because the serialization format encode the length as an unsigned short.
-                ByteBuffer keyBytes = entry.getKey().bindAndGet(values);
+                ByteBuffer keyBytes = entry.getKey().bindAndGet(options);
                 if (keyBytes == null)
                     throw new InvalidRequestException("null is not supported inside collections");
                 if (keyBytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
@@ -208,7 +208,7 @@ public abstract class Maps
                                                                     FBUtilities.MAX_UNSIGNED_SHORT,
                                                                     keyBytes.remaining()));
 
-                ByteBuffer valueBytes = entry.getValue().bindAndGet(values);
+                ByteBuffer valueBytes = entry.getValue().bindAndGet(options);
                 if (valueBytes == null)
                     throw new InvalidRequestException("null is not supported inside collections");
                 if (valueBytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
@@ -230,10 +230,10 @@ public abstract class Maps
             assert receiver.type instanceof MapType;
         }
 
-        public Value bind(List<ByteBuffer> values) throws InvalidRequestException
+        public Value bind(QueryOptions options) throws InvalidRequestException
         {
-            ByteBuffer value = values.get(bindIndex);
-            return value == null ? null : Value.fromSerialized(value, (MapType)receiver.type);
+            ByteBuffer value = options.getValues().get(bindIndex);
+            return value == null ? null : Value.fromSerialized(value, (MapType)receiver.type, options.getProtocolVersion());
         }
     }
 
@@ -272,8 +272,8 @@ public abstract class Maps
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            ByteBuffer key = k.bindAndGet(params.variables);
-            ByteBuffer value = t.bindAndGet(params.variables);
+            ByteBuffer key = k.bindAndGet(params.options);
+            ByteBuffer value = t.bindAndGet(params.options);
             if (key == null)
                 throw new InvalidRequestException("Invalid null map key");
 
@@ -310,7 +310,7 @@ public abstract class Maps
 
         static void doPut(Term t, ColumnFamily cf, Composite prefix, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
         {
-            Term.Terminal value = t.bind(params.variables);
+            Term.Terminal value = t.bind(params.options);
             if (value == null)
                 return;
             assert value instanceof Maps.Value;
@@ -333,7 +333,7 @@ public abstract class Maps
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            Term.Terminal key = t.bind(params.variables);
+            Term.Terminal key = t.bind(params.options);
             if (key == null)
                 throw new InvalidRequestException("Invalid null map key");
             assert key instanceof Constants.Value;

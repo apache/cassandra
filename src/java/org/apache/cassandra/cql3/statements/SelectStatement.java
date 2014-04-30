@@ -185,23 +185,22 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     public ResultMessage.Rows execute(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
         ConsistencyLevel cl = options.getConsistency();
-        List<ByteBuffer> variables = options.getValues();
         if (cl == null)
             throw new InvalidRequestException("Invalid empty consistency level");
 
         cl.validateForRead(keyspace());
 
-        int limit = getLimit(variables);
+        int limit = getLimit(options);
         int limitForQuery = updateLimitForQuery(limit);
         long now = System.currentTimeMillis();
         Pageable command;
         if (isKeyRange || usesSecondaryIndexing)
         {
-            command = getRangeCommand(variables, limitForQuery, now);
+            command = getRangeCommand(options, limitForQuery, now);
         }
         else
         {
-            List<ReadCommand> commands = getSliceCommands(variables, limitForQuery, now);
+            List<ReadCommand> commands = getSliceCommands(options, limitForQuery, now);
             command = commands == null ? null : new Pageable.ReadCommands(commands);
         }
 
@@ -214,13 +213,13 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
         if (pageSize <= 0 || command == null || !QueryPagers.mayNeedPaging(command, pageSize))
         {
-            return execute(command, cl, variables, limit, now);
+            return execute(command, options, limit, now);
         }
         else
         {
             QueryPager pager = QueryPagers.pager(command, cl, options.getPagingState());
             if (parameters.isCount)
-                return pageCountQuery(pager, variables, pageSize, now, limit);
+                return pageCountQuery(pager, options, pageSize, now, limit);
 
             // We can't properly do post-query ordering if we page (see #6722)
             if (needsPostQueryOrdering())
@@ -228,14 +227,14 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                                                 + "ORDER BY or the IN and sort client side, or disable paging for this query");
 
             List<Row> page = pager.fetchPage(pageSize);
-            ResultMessage.Rows msg = processResults(page, variables, limit, now);
+            ResultMessage.Rows msg = processResults(page, options, limit, now);
             if (!pager.isExhausted())
                 msg.result.metadata.setHasMorePages(pager.state());
             return msg;
         }
     }
 
-    private ResultMessage.Rows execute(Pageable command, ConsistencyLevel cl, List<ByteBuffer> variables, int limit, long now) throws RequestValidationException, RequestExecutionException
+    private ResultMessage.Rows execute(Pageable command, QueryOptions options, int limit, long now) throws RequestValidationException, RequestExecutionException
     {
         List<Row> rows;
         if (command == null)
@@ -245,21 +244,21 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         else
         {
             rows = command instanceof Pageable.ReadCommands
-                 ? StorageProxy.read(((Pageable.ReadCommands)command).commands, cl)
-                 : StorageProxy.getRangeSlice((RangeSliceCommand)command, cl);
+                 ? StorageProxy.read(((Pageable.ReadCommands)command).commands, options.getConsistency())
+                 : StorageProxy.getRangeSlice((RangeSliceCommand)command, options.getConsistency());
         }
 
-        return processResults(rows, variables, limit, now);
+        return processResults(rows, options, limit, now);
     }
 
-    private ResultMessage.Rows pageCountQuery(QueryPager pager, List<ByteBuffer> variables, int pageSize, long now, int limit) throws RequestValidationException, RequestExecutionException
+    private ResultMessage.Rows pageCountQuery(QueryPager pager, QueryOptions options, int pageSize, long now, int limit) throws RequestValidationException, RequestExecutionException
     {
         int count = 0;
         while (!pager.isExhausted())
         {
             int maxLimit = pager.maxRemaining();
             logger.debug("New maxLimit for paged count query is {}", maxLimit);
-            ResultSet rset = process(pager.fetchPage(pageSize), variables, maxLimit, now);
+            ResultSet rset = process(pager.fetchPage(pageSize), options, maxLimit, now);
             count += rset.rows.size();
         }
 
@@ -269,10 +268,10 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return new ResultMessage.Rows(result);
     }
 
-    public ResultMessage.Rows processResults(List<Row> rows, List<ByteBuffer> variables, int limit, long now) throws RequestValidationException
+    public ResultMessage.Rows processResults(List<Row> rows, QueryOptions options, int limit, long now) throws RequestValidationException
     {
         // Even for count, we need to process the result as it'll group some column together in sparse column families
-        ResultSet rset = process(rows, variables, limit, now);
+        ResultSet rset = process(rows, options, limit, now);
         rset = parameters.isCount ? rset.makeCountResult(parameters.countAlias) : rset;
         return new ResultMessage.Rows(rset);
     }
@@ -288,29 +287,30 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
     public ResultMessage.Rows executeInternal(QueryState state) throws RequestExecutionException, RequestValidationException
     {
-        List<ByteBuffer> variables = Collections.emptyList();
-        int limit = getLimit(variables);
+        QueryOptions options = QueryOptions.DEFAULT;
+        int limit = getLimit(options);
         int limitForQuery = updateLimitForQuery(limit);
         long now = System.currentTimeMillis();
         List<Row> rows;
         if (isKeyRange || usesSecondaryIndexing)
         {
-            RangeSliceCommand command = getRangeCommand(variables, limitForQuery, now);
+            RangeSliceCommand command = getRangeCommand(options, limitForQuery, now);
             rows = command == null ? Collections.<Row>emptyList() : command.executeLocally();
         }
         else
         {
-            List<ReadCommand> commands = getSliceCommands(variables, limitForQuery, now);
+            List<ReadCommand> commands = getSliceCommands(options, limitForQuery, now);
             rows = commands == null ? Collections.<Row>emptyList() : readLocally(keyspace(), commands);
         }
 
-        return processResults(rows, variables, limit, now);
+        return processResults(rows, options, limit, now);
     }
 
     public ResultSet process(List<Row> rows) throws InvalidRequestException
     {
         assert !parameters.isCount; // not yet needed
-        return process(rows, Collections.<ByteBuffer>emptyList(), getLimit(Collections.<ByteBuffer>emptyList()), System.currentTimeMillis());
+        QueryOptions options = QueryOptions.DEFAULT;
+        return process(rows, options, getLimit(options), System.currentTimeMillis());
     }
 
     public String keyspace()
@@ -323,15 +323,15 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return cfm.cfName;
     }
 
-    private List<ReadCommand> getSliceCommands(List<ByteBuffer> variables, int limit, long now) throws RequestValidationException
+    private List<ReadCommand> getSliceCommands(QueryOptions options, int limit, long now) throws RequestValidationException
     {
-        Collection<ByteBuffer> keys = getKeys(variables);
+        Collection<ByteBuffer> keys = getKeys(options);
         if (keys.isEmpty()) // in case of IN () for (the last column of) the partition key.
             return null;
 
         List<ReadCommand> commands = new ArrayList<ReadCommand>(keys.size());
 
-        IDiskAtomFilter filter = makeFilter(variables, limit);
+        IDiskAtomFilter filter = makeFilter(options, limit);
         if (filter == null)
             return null;
 
@@ -349,29 +349,29 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return commands;
     }
 
-    private RangeSliceCommand getRangeCommand(List<ByteBuffer> variables, int limit, long now) throws RequestValidationException
+    private RangeSliceCommand getRangeCommand(QueryOptions options, int limit, long now) throws RequestValidationException
     {
-        IDiskAtomFilter filter = makeFilter(variables, limit);
+        IDiskAtomFilter filter = makeFilter(options, limit);
         if (filter == null)
             return null;
 
-        List<IndexExpression> expressions = getIndexExpressions(variables);
+        List<IndexExpression> expressions = getIndexExpressions(options);
         // The LIMIT provided by the user is the number of CQL row he wants returned.
         // We want to have getRangeSlice to count the number of columns, not the number of keys.
-        AbstractBounds<RowPosition> keyBounds = getKeyBounds(variables);
+        AbstractBounds<RowPosition> keyBounds = getKeyBounds(options);
         return keyBounds == null
              ? null
              : new RangeSliceCommand(keyspace(), columnFamily(), now,  filter, keyBounds, expressions, limit, !parameters.isDistinct, false);
     }
 
-    private AbstractBounds<RowPosition> getKeyBounds(List<ByteBuffer> variables) throws InvalidRequestException
+    private AbstractBounds<RowPosition> getKeyBounds(QueryOptions options) throws InvalidRequestException
     {
         IPartitioner<?> p = StorageService.getPartitioner();
 
         if (onToken)
         {
-            Token startToken = getTokenBound(Bound.START, variables, p);
-            Token endToken = getTokenBound(Bound.END, variables, p);
+            Token startToken = getTokenBound(Bound.START, options, p);
+            Token endToken = getTokenBound(Bound.END, options, p);
 
             boolean includeStart = includeKeyBound(Bound.START);
             boolean includeEnd = includeKeyBound(Bound.END);
@@ -397,8 +397,8 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         }
         else
         {
-            ByteBuffer startKeyBytes = getKeyBound(Bound.START, variables);
-            ByteBuffer finishKeyBytes = getKeyBound(Bound.END, variables);
+            ByteBuffer startKeyBytes = getKeyBound(Bound.START, options);
+            ByteBuffer finishKeyBytes = getKeyBound(Bound.END, options);
 
             RowPosition startKey = RowPosition.ForKey.get(startKeyBytes, p);
             RowPosition finishKey = RowPosition.ForKey.get(finishKeyBytes, p);
@@ -421,7 +421,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         }
     }
 
-    private IDiskAtomFilter makeFilter(List<ByteBuffer> variables, int limit)
+    private IDiskAtomFilter makeFilter(QueryOptions options, int limit)
     throws InvalidRequestException
     {
         if (parameters.isDistinct)
@@ -431,8 +431,8 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         else if (isColumnRange())
         {
             int toGroup = cfm.comparator.isDense() ? -1 : cfm.clusteringColumns().size();
-            List<Composite> startBounds = getRequestedBound(Bound.START, variables);
-            List<Composite> endBounds = getRequestedBound(Bound.END, variables);
+            List<Composite> startBounds = getRequestedBound(Bound.START, options);
+            List<Composite> endBounds = getRequestedBound(Bound.END, options);
             assert startBounds.size() == endBounds.size();
 
             // Handles fetching static columns. Note that for 2i, the filter is just used to restrict
@@ -516,7 +516,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         }
         else
         {
-            SortedSet<CellName> cellNames = getRequestedColumns(variables);
+            SortedSet<CellName> cellNames = getRequestedColumns(options);
             if (cellNames == null) // in case of IN () for the last column of the key
                 return null;
             QueryProcessor.validateCellNames(cellNames, cfm.comparator);
@@ -534,12 +534,12 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return new SliceQueryFilter(slices, isReversed, limit, toGroup);
     }
 
-    private int getLimit(List<ByteBuffer> variables) throws InvalidRequestException
+    private int getLimit(QueryOptions options) throws InvalidRequestException
     {
         int l = Integer.MAX_VALUE;
         if (limit != null)
         {
-            ByteBuffer b = limit.bindAndGet(variables);
+            ByteBuffer b = limit.bindAndGet(options);
             if (b == null)
                 throw new InvalidRequestException("Invalid null value of limit");
 
@@ -569,7 +569,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
              : limit;
     }
 
-    private Collection<ByteBuffer> getKeys(final List<ByteBuffer> variables) throws InvalidRequestException
+    private Collection<ByteBuffer> getKeys(final QueryOptions options) throws InvalidRequestException
     {
         List<ByteBuffer> keys = new ArrayList<ByteBuffer>();
         CBuilder builder = cfm.getKeyValidatorAsCType().builder();
@@ -578,7 +578,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             Restriction r = keyRestrictions[def.position()];
             assert r != null && !r.isSlice();
 
-            List<ByteBuffer> values = r.values(variables);
+            List<ByteBuffer> values = r.values(options);
 
             if (builder.remainingCount() == 1)
             {
@@ -603,7 +603,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return keys;
     }
 
-    private ByteBuffer getKeyBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
+    private ByteBuffer getKeyBound(Bound b, QueryOptions options) throws InvalidRequestException
     {
         // Deal with unrestricted partition key components (special-casing is required to deal with 2i queries on the first
         // component of a composite partition key).
@@ -612,10 +612,10 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
         // We deal with IN queries for keys in other places, so we know buildBound will return only one result
-        return buildBound(b, cfm.partitionKeyColumns(), keyRestrictions, false, cfm.getKeyValidatorAsCType(), variables).get(0).toByteBuffer();
+        return buildBound(b, cfm.partitionKeyColumns(), keyRestrictions, false, cfm.getKeyValidatorAsCType(), options).get(0).toByteBuffer();
     }
 
-    private Token getTokenBound(Bound b, List<ByteBuffer> variables, IPartitioner<?> p) throws InvalidRequestException
+    private Token getTokenBound(Bound b, QueryOptions options, IPartitioner<?> p) throws InvalidRequestException
     {
         assert onToken;
 
@@ -623,7 +623,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         ByteBuffer value;
         if (keyRestriction.isEQ())
         {
-            value = keyRestriction.values(variables).get(0);
+            value = keyRestriction.values(options).get(0);
         }
         else
         {
@@ -631,7 +631,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             if (!slice.hasBound(b))
                 return p.getMinimumToken();
 
-            value = slice.bound(b, variables);
+            value = slice.bound(b, options);
         }
 
         if (value == null)
@@ -669,7 +669,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return false;
     }
 
-    private SortedSet<CellName> getRequestedColumns(List<ByteBuffer> variables) throws InvalidRequestException
+    private SortedSet<CellName> getRequestedColumns(QueryOptions options) throws InvalidRequestException
     {
         // Note: getRequestedColumns don't handle static columns, but due to CASSANDRA-5762
         // we always do a slice for CQL3 tables, so it's ok to ignore them here
@@ -682,7 +682,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             ColumnDefinition def = idIter.next();
             assert r != null && !r.isSlice();
 
-            List<ByteBuffer> values = r.values(variables);
+            List<ByteBuffer> values = r.values(options);
             if (values.size() == 1)
             {
                 ByteBuffer val = values.get(0);
@@ -772,7 +772,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                                               Restriction[] restrictions,
                                               boolean isReversed,
                                               CType type,
-                                              List<ByteBuffer> variables) throws InvalidRequestException
+                                              QueryOptions options) throws InvalidRequestException
     {
         CBuilder builder = type.builder();
 
@@ -801,7 +801,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
             if (r.isSlice())
             {
-                builder.add(getSliceValue(def, r, b, variables));
+                builder.add(getSliceValue(def, r, b, options));
                 Relation.Type relType = ((Restriction.Slice)r).getRelation(eocBound, b);
 
                 // We can have more non null restriction if the "scalar" notation was used for the bound (#4851).
@@ -813,13 +813,13 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     if (isNullRestriction(r, b))
                         break;
 
-                    builder.add(getSliceValue(def, r, b, variables));
+                    builder.add(getSliceValue(def, r, b, options));
                 }
                 return Collections.singletonList(builder.build().withEOC(eocForRelation(relType)));
             }
             else
             {
-                List<ByteBuffer> values = r.values(variables);
+                List<ByteBuffer> values = r.values(options);
                 if (values.size() != 1)
                 {
                     // IN query, we only support it on the clustering column
@@ -878,23 +878,23 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return r == null || (r.isSlice() && !((Restriction.Slice)r).hasBound(b));
     }
 
-    private static ByteBuffer getSliceValue(ColumnDefinition def, Restriction r, Bound b, List<ByteBuffer> variables) throws InvalidRequestException
+    private static ByteBuffer getSliceValue(ColumnDefinition def, Restriction r, Bound b, QueryOptions options) throws InvalidRequestException
     {
         Restriction.Slice slice = (Restriction.Slice)r;
         assert slice.hasBound(b);
-        ByteBuffer val = slice.bound(b, variables);
+        ByteBuffer val = slice.bound(b, options);
         if (val == null)
             throw new InvalidRequestException(String.format("Invalid null clustering key part %s", def.name));
         return val;
     }
 
-    private List<Composite> getRequestedBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
+    private List<Composite> getRequestedBound(Bound b, QueryOptions options) throws InvalidRequestException
     {
         assert isColumnRange();
-        return buildBound(b, cfm.clusteringColumns(), columnRestrictions, isReversed, cfm.comparator, variables);
+        return buildBound(b, cfm.clusteringColumns(), columnRestrictions, isReversed, cfm.comparator, options);
     }
 
-    public List<IndexExpression> getIndexExpressions(List<ByteBuffer> variables) throws InvalidRequestException
+    public List<IndexExpression> getIndexExpressions(QueryOptions options) throws InvalidRequestException
     {
         if (!usesSecondaryIndexing || restrictedColumns.isEmpty())
             return Collections.emptyList();
@@ -927,7 +927,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 {
                     if (slice.hasBound(b))
                     {
-                        ByteBuffer value = validateIndexedValue(def, slice.bound(b, variables));
+                        ByteBuffer value = validateIndexedValue(def, slice.bound(b, options));
                         expressions.add(new IndexExpression(def.name.bytes, slice.getIndexOperator(b), value));
                     }
                 }
@@ -935,12 +935,12 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             else if (restriction.isContains())
             {
                 Restriction.Contains contains = (Restriction.Contains)restriction;
-                for (ByteBuffer value : contains.values(variables))
+                for (ByteBuffer value : contains.values(options))
                 {
                     validateIndexedValue(def, value);
                     expressions.add(new IndexExpression(def.name.bytes, IndexExpression.Operator.CONTAINS, value));
                 }
-                for (ByteBuffer key : contains.keys(variables))
+                for (ByteBuffer key : contains.keys(options))
                 {
                     validateIndexedValue(def, key);
                     expressions.add(new IndexExpression(def.name.bytes, IndexExpression.Operator.CONTAINS_KEY, key));
@@ -948,7 +948,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             }
             else
             {
-                List<ByteBuffer> values = restriction.values(variables);
+                List<ByteBuffer> values = restriction.values(options);
 
                 if (values.size() != 1)
                     throw new InvalidRequestException("IN restrictions are not supported on indexed columns");
@@ -969,13 +969,13 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return value;
     }
 
-    private Iterator<Cell> applySliceRestriction(final Iterator<Cell> cells, final List<ByteBuffer> variables) throws InvalidRequestException
+    private Iterator<Cell> applySliceRestriction(final Iterator<Cell> cells, final QueryOptions options) throws InvalidRequestException
     {
         assert sliceRestriction != null;
 
         final CellNameType type = cfm.comparator;
-        final CellName excludedStart = sliceRestriction.isInclusive(Bound.START) ? null : type.makeCellName(sliceRestriction.bound(Bound.START, variables));
-        final CellName excludedEnd = sliceRestriction.isInclusive(Bound.END) ? null : type.makeCellName(sliceRestriction.bound(Bound.END, variables));
+        final CellName excludedStart = sliceRestriction.isInclusive(Bound.START) ? null : type.makeCellName(sliceRestriction.bound(Bound.START, options));
+        final CellName excludedEnd = sliceRestriction.isInclusive(Bound.END) ? null : type.makeCellName(sliceRestriction.bound(Bound.END, options));
 
         return new AbstractIterator<Cell>()
         {
@@ -998,7 +998,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         };
     }
 
-    private ResultSet process(List<Row> rows, List<ByteBuffer> variables, int limit, long now) throws InvalidRequestException
+    private ResultSet process(List<Row> rows, QueryOptions options, int limit, long now) throws InvalidRequestException
     {
         Selection.ResultSetBuilder result = selection.resultSetBuilder(now);
         for (org.apache.cassandra.db.Row row : rows)
@@ -1007,12 +1007,12 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             if (row.cf == null)
                 continue;
 
-            processColumnFamily(row.key.getKey(), row.cf, variables, now, result);
+            processColumnFamily(row.key.getKey(), row.cf, options, now, result);
         }
 
         ResultSet cqlRows = result.build();
 
-        orderResults(cqlRows, variables);
+        orderResults(cqlRows);
 
         // Internal calls always return columns in the comparator order, even when reverse was set
         if (isReversed)
@@ -1024,7 +1024,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     }
 
     // Used by ModificationStatement for CAS operations
-    void processColumnFamily(ByteBuffer key, ColumnFamily cf, List<ByteBuffer> variables, long now, Selection.ResultSetBuilder result)
+    void processColumnFamily(ByteBuffer key, ColumnFamily cf, QueryOptions options, long now, Selection.ResultSetBuilder result)
     throws InvalidRequestException
     {
         CFMetaData cfm = cf.metadata();
@@ -1040,7 +1040,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
         Iterator<Cell> cells = cf.getSortedColumns().iterator();
         if (sliceRestriction != null)
-            cells = applySliceRestriction(cells, variables);
+            cells = applySliceRestriction(cells, options);
 
         CQL3Row.RowIterator iter = cfm.comparator.CQL3RowBuilder(cfm, now).group(cells);
 
@@ -1059,7 +1059,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                         result.add(keyComponents[def.position()]);
                         break;
                     case STATIC:
-                        addValue(result, def, staticRow);
+                        addValue(result, def, staticRow, options);
                         break;
                     default:
                         result.add((ByteBuffer)null);
@@ -1089,17 +1089,17 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                         result.add(cql3Row.getColumn(null));
                         break;
                     case REGULAR:
-                        addValue(result, def, cql3Row);
+                        addValue(result, def, cql3Row, options);
                         break;
                     case STATIC:
-                        addValue(result, def, staticRow);
+                        addValue(result, def, staticRow, options);
                         break;
                 }
             }
         }
     }
 
-    private static void addValue(Selection.ResultSetBuilder result, ColumnDefinition def, CQL3Row row)
+    private static void addValue(Selection.ResultSetBuilder result, ColumnDefinition def, CQL3Row row, QueryOptions options)
     {
         if (row == null)
         {
@@ -1112,7 +1112,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             List<Cell> collection = row.getCollection(def.name);
             ByteBuffer value = collection == null
                              ? null
-                             : ((CollectionType)def.type).serialize(collection);
+                             : ((CollectionType)def.type).serializeForNativeProtocol(collection, options.getProtocolVersion());
             result.add(value);
             return;
         }
@@ -1137,7 +1137,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     /**
      * Orders results when multiple keys are selected (using IN)
      */
-    private void orderResults(ResultSet cqlRows, List<ByteBuffer> variables) throws InvalidRequestException
+    private void orderResults(ResultSet cqlRows) throws InvalidRequestException
     {
         if (cqlRows.size() == 0 || !needsPostQueryOrdering())
             return;

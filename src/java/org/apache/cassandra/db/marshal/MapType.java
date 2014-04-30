@@ -108,7 +108,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     }
 
     @Override
-    public TypeSerializer<Map<K, V>> getSerializer()
+    public MapSerializer<K, V> getSerializer()
     {
         return serializer;
     }
@@ -123,23 +123,14 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Arrays.asList(keys, values)));
     }
 
-    /**
-     * Creates the same output than serialize, but from the internal representation.
-     */
-    public ByteBuffer serialize(List<Cell> cells)
+    public List<ByteBuffer> serializedValues(List<Cell> cells)
     {
-        cells = enforceLimit(cells);
-
-        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(2 * cells.size());
-        int size = 0;
+        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(cells.size() * 2);
         for (Cell c : cells)
         {
-            ByteBuffer key = c.name().collectionElement();
-            ByteBuffer value = c.value();
-            bbs.add(key);
-            bbs.add(value);
-            size += 4 + key.remaining() + value.remaining();
+            bbs.add(c.name().collectionElement());
+            bbs.add(c.value());
         }
-        return pack(bbs, cells.size(), size);
+        return bbs;
     }
 }

@@ -47,16 +47,29 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
         this.elements = elements;
     }
 
-    public Set<T> deserialize(ByteBuffer bytes)
+    public List<ByteBuffer> serializeValues(Set<T> values)
+    {
+        List<ByteBuffer> buffers = new ArrayList<>(values.size());
+        for (T value : values)
+            buffers.add(elements.serialize(value));
+        return buffers;
+    }
+
+    public int getElementCount(Set<T> value)
+    {
+        return value.size();
+    }
+
+    public Set<T> deserializeForNativeProtocol(ByteBuffer bytes, int version)
     {
         try
         {
             ByteBuffer input = bytes.duplicate();
-            int n = ByteBufferUtil.readShortLength(input);
+            int n = readCollectionSize(input, version);
             Set<T> l = new LinkedHashSet<T>(n);
             for (int i = 0; i < n; i++)
             {
-                ByteBuffer databb = ByteBufferUtil.readBytesWithShortLength(input);
+                ByteBuffer databb = readValue(input, version);
                 elements.validate(databb);
                 l.add(elements.deserialize(databb));
             }
@@ -66,26 +79,6 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
         {
             throw new MarshalException("Not enough bytes to read a list");
         }
-    }
-
-    /**
-     * Layout is: {@code <n><s_1><b_1>...<s_n><b_n> }
-     * where:
-     *   n is the number of elements
-     *   s_i is the number of bytes composing the ith element
-     *   b_i is the s_i bytes composing the ith element
-     */
-    public ByteBuffer serialize(Set<T> value)
-    {
-        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(value.size());
-        int size = 0;
-        for (T elt : value)
-        {
-            ByteBuffer bb = elements.serialize(elt);
-            bbs.add(bb);
-            size += 2 + bb.remaining();
-        }
-        return pack(bbs, value.size(), size);
     }
 
     public String toString(Set<T> value)

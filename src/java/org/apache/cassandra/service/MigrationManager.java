@@ -167,6 +167,12 @@ public class MigrationManager
             listener.onCreateColumnFamily(cfm.ksName, cfm.cfName);
     }
 
+    public void notifyCreateUserType(UserType ut)
+    {
+        for (IMigrationListener listener : listeners)
+            listener.onCreateUserType(ut.keyspace, ut.getNameAsString());
+    }
+
     public void notifyUpdateKeyspace(KSMetaData ksm)
     {
         for (IMigrationListener listener : listeners)
@@ -179,6 +185,12 @@ public class MigrationManager
             listener.onUpdateColumnFamily(cfm.ksName, cfm.cfName);
     }
 
+    public void notifyUpdateUserType(UserType ut)
+    {
+        for (IMigrationListener listener : listeners)
+            listener.onUpdateUserType(ut.keyspace, ut.getNameAsString());
+    }
+
     public void notifyDropKeyspace(KSMetaData ksm)
     {
         for (IMigrationListener listener : listeners)
@@ -189,6 +201,12 @@ public class MigrationManager
     {
         for (IMigrationListener listener : listeners)
             listener.onDropColumnFamily(cfm.ksName, cfm.cfName);
+    }
+
+    public void notifyDropUserType(UserType ut)
+    {
+        for (IMigrationListener listener : listeners)
+            listener.onDropUserType(ut.keyspace, ut.getNameAsString());
     }
 
     public static void announceNewKeyspace(KSMetaData ksm) throws ConfigurationException

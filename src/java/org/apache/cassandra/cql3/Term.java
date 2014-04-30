@@ -48,7 +48,7 @@ public interface Term
      * @return the result of binding all the variables of this NonTerminal (or
      * 'this' if the term is terminal).
      */
-    public Terminal bind(List<ByteBuffer> values) throws InvalidRequestException;
+    public Terminal bind(QueryOptions options) throws InvalidRequestException;
 
     /**
      * A shorter for bind(values).get().
@@ -56,7 +56,7 @@ public interface Term
      * object between the bind and the get (note that we still want to be able
      * to separate bind and get for collections).
      */
-    public ByteBuffer bindAndGet(List<ByteBuffer> values) throws InvalidRequestException;
+    public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException;
 
     /**
      * Whether or not that term contains at least one bind marker.
@@ -108,7 +108,7 @@ public interface Term
     public abstract class Terminal implements Term
     {
         public void collectMarkerSpecification(VariableSpecifications boundNames) {}
-        public Terminal bind(List<ByteBuffer> values) { return this; }
+        public Terminal bind(QueryOptions options) { return this; }
 
         // While some NonTerminal may not have bind markers, no Term can be Terminal
         // with a bind marker
@@ -120,11 +120,11 @@ public interface Term
         /**
          * @return the serialized value of this terminal.
          */
-        public abstract ByteBuffer get();
+        public abstract ByteBuffer get(QueryOptions options);
 
-        public ByteBuffer bindAndGet(List<ByteBuffer> values) throws InvalidRequestException
+        public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
         {
-            return get();
+            return get(options);
         }
     }
 
@@ -140,10 +140,10 @@ public interface Term
      */
     public abstract class NonTerminal implements Term
     {
-        public ByteBuffer bindAndGet(List<ByteBuffer> values) throws InvalidRequestException
+        public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
         {
-            Terminal t = bind(values);
-            return t == null ? null : t.get();
+            Terminal t = bind(options);
+            return t == null ? null : t.get(options);
         }
     }
 }

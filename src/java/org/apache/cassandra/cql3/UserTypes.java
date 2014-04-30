@@ -65,7 +65,7 @@ public abstract class UserTypes
                 values.add(value);
             }
             DelayedValue value = new DelayedValue(((UserType)receiver.type), values);
-            return allTerminal ? value.bind(Collections.<ByteBuffer>emptyList()) : value;
+            return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
@@ -144,12 +144,16 @@ public abstract class UserTypes
                 values.get(i).collectMarkerSpecification(boundNames);
         }
 
-        private ByteBuffer[] bindInternal(List<ByteBuffer> variables) throws InvalidRequestException
+        private ByteBuffer[] bindInternal(QueryOptions options) throws InvalidRequestException
         {
+            // Inside UDT values, we must force the serialization of collections whatever the protocol version is in
+            // use since we're going to store directly that serialized value.
+            options = options.withProtocolVersion(3);
+
             ByteBuffer[] buffers = new ByteBuffer[values.size()];
             for (int i = 0; i < type.types.size(); i++)
             {
-                ByteBuffer buffer = values.get(i).bindAndGet(variables);
+                ByteBuffer buffer = values.get(i).bindAndGet(options);
                 if (buffer == null)
                     throw new InvalidRequestException("null is not supported inside user type literals");
                 if (buffer.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
@@ -163,15 +167,15 @@ public abstract class UserTypes
             return buffers;
         }
 
-        public Constants.Value bind(List<ByteBuffer> variables) throws InvalidRequestException
+        public Constants.Value bind(QueryOptions options) throws InvalidRequestException
         {
-            return new Constants.Value(bindAndGet(variables));
+            return new Constants.Value(bindAndGet(options));
         }
 
         @Override
-        public ByteBuffer bindAndGet(List<ByteBuffer> variables) throws InvalidRequestException
+        public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
         {
-            return CompositeType.build(bindInternal(variables));
+            return CompositeType.build(bindInternal(options));
         }
     }
 }

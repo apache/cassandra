@@ -18,38 +18,95 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.pager.PagingState;
 
-/**
- * Options for a batch (at the protocol level) queries.
- */
-public class BatchQueryOptions
+public abstract class BatchQueryOptions
 {
-    private final ConsistencyLevel consistency;
-    private final List<List<ByteBuffer>> values;
+    public static BatchQueryOptions DEFAULT = withoutPerStatementVariables(QueryOptions.DEFAULT);
+
+    protected final QueryOptions wrapped;
     private final List<Object> queryOrIdList;
 
-    public BatchQueryOptions(ConsistencyLevel cl, List<List<ByteBuffer>> values, List<Object> queryOrIdList)
+    protected BatchQueryOptions(QueryOptions wrapped, List<Object> queryOrIdList)
     {
-        this.consistency = cl;
-        this.values = values;
+        this.wrapped = wrapped;
         this.queryOrIdList = queryOrIdList;
     }
 
-    public ConsistencyLevel getConsistency()
+    public static BatchQueryOptions withoutPerStatementVariables(QueryOptions options)
     {
-        return consistency;
+        return new WithoutPerStatementVariables(options, Collections.<Object>emptyList());
     }
 
-    public List<List<ByteBuffer>> getValues()
+    public static BatchQueryOptions withPerStatementVariables(QueryOptions options, List<List<ByteBuffer>> variables, List<Object> queryOrIdList)
     {
-        return values;
+        return new WithPerStatementVariables(options, variables, queryOrIdList);
+    }
+
+    public abstract QueryOptions forStatement(int i);
+
+    public ConsistencyLevel getConsistency()
+    {
+        return wrapped.getConsistency();
+    }
+
+    public ConsistencyLevel getSerialConsistency()
+    {
+        return wrapped.getSerialConsistency();
     }
 
     public List<Object> getQueryOrIdList()
     {
         return queryOrIdList;
+    }
+
+    public long getTimestamp(QueryState state)
+    {
+        return wrapped.getTimestamp(state);
+    }
+
+    private static class WithoutPerStatementVariables extends BatchQueryOptions
+    {
+        private WithoutPerStatementVariables(QueryOptions wrapped, List<Object> queryOrIdList)
+        {
+            super(wrapped, queryOrIdList);
+        }
+
+        public QueryOptions forStatement(int i)
+        {
+            return wrapped;
+        }
+    }
+
+    private static class WithPerStatementVariables extends BatchQueryOptions
+    {
+        private final List<QueryOptions> perStatementOptions;
+
+        private WithPerStatementVariables(QueryOptions wrapped, List<List<ByteBuffer>> variables, List<Object> queryOrIdList)
+        {
+            super(wrapped, queryOrIdList);
+            this.perStatementOptions = new ArrayList<>(variables.size());
+            for (final List<ByteBuffer> vars : variables)
+            {
+                perStatementOptions.add(new QueryOptions.QueryOptionsWrapper(wrapped)
+                {
+                    public List<ByteBuffer> getValues()
+                    {
+                        return vars;
+                    }
+                });
+            }
+        }
+
+        public QueryOptions forStatement(int i)
+        {
+            return perStatementOptions.get(i);
+        }
     }
 }

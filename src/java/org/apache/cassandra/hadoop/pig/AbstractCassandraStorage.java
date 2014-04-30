@@ -35,6 +35,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.AbstractCompositeType.CompositeComponent;
+import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.hadoop.*;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -431,8 +432,10 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         {
             ByteBuffer buffer = objToBB(sub);
             serialized.add(buffer);
-        }      
-        return CollectionType.pack(serialized, objects.size());
+        }
+        // NOTE: using protocol v1 serialization format for collections so as to not break
+        // compatibility. Not sure if that's the right thing.
+        return CollectionSerializer.pack(serialized, objects.size(), 1);
     }
 
     private ByteBuffer objToMapBB(List<Object> objects)
@@ -447,7 +450,9 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
                 serialized.add(buffer);
             }
         } 
-        return CollectionType.pack(serialized, objects.size());
+        // NOTE: using protocol v1 serialization format for collections so as to not break
+        // compatibility. Not sure if that's the right thing.
+        return CollectionSerializer.pack(serialized, objects.size(), 1);
     }
 
     private ByteBuffer objToCompositeBB(List<Object> objects)

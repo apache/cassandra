@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.Cell;
+import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -57,7 +58,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
     protected abstract void appendToStringBuilder(StringBuilder sb);
 
-    public abstract ByteBuffer serialize(List<Cell> cells);
+    public abstract List<ByteBuffer> serializedValues(List<Cell> cells);
 
     @Override
     public String toString()
@@ -110,22 +111,9 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return true;
     }
 
-    // Utilitary method
-    protected static ByteBuffer pack(List<ByteBuffer> buffers, int elements, int size)
+    protected List<Cell> enforceLimit(List<Cell> cells, int version)
     {
-        ByteBuffer result = ByteBuffer.allocate(2 + size);
-        result.putShort((short)elements);
-        for (ByteBuffer bb : buffers)
-        {
-            result.putShort((short)bb.remaining());
-            result.put(bb.duplicate());
-        }
-        return (ByteBuffer)result.flip();
-    }
-
-    protected List<Cell> enforceLimit(List<Cell> cells)
-    {
-        if (cells.size() <= MAX_ELEMENTS)
+        if (version >= 3 || cells.size() <= MAX_ELEMENTS)
             return cells;
 
         logger.error("Detected collection with {} elements, more than the {} limit. Only the first {} elements will be returned to the client. "
@@ -133,12 +121,11 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return cells.subList(0, MAX_ELEMENTS);
     }
 
-    public static ByteBuffer pack(List<ByteBuffer> buffers, int elements)
+    public ByteBuffer serializeForNativeProtocol(List<Cell> cells, int version)
     {
-        int size = 0;
-        for (ByteBuffer bb : buffers)
-            size += 2 + bb.remaining();
-        return pack(buffers, elements, size);
+        cells = enforceLimit(cells, version);
+        List<ByteBuffer> values = serializedValues(cells);
+        return CollectionSerializer.pack(values, cells.size(), version);
     }
 
     public CQL3Type asCQL3Type()

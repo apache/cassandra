@@ -378,7 +378,12 @@ public class Server implements CassandraDaemon.Server
 
         public void onCreateColumnFamily(String ksName, String cfName)
         {
-            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.CREATED, ksName, cfName));
+            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.TABLE, ksName, cfName));
+        }
+
+        public void onCreateUserType(String ksName, String typeName)
+        {
+            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.TYPE, ksName, typeName));
         }
 
         public void onUpdateKeyspace(String ksName)
@@ -388,7 +393,12 @@ public class Server implements CassandraDaemon.Server
 
         public void onUpdateColumnFamily(String ksName, String cfName)
         {
-            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, ksName, cfName));
+            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, ksName, cfName));
+        }
+
+        public void onUpdateUserType(String ksName, String typeName)
+        {
+            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TYPE, ksName, typeName));
         }
 
         public void onDropKeyspace(String ksName)
@@ -398,7 +408,12 @@ public class Server implements CassandraDaemon.Server
 
         public void onDropColumnFamily(String ksName, String cfName)
         {
-            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, ksName, cfName));
+            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TABLE, ksName, cfName));
+        }
+
+        public void onDropUserType(String ksName, String typeName)
+        {
+            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TYPE, ksName, typeName));
         }
     }
 }

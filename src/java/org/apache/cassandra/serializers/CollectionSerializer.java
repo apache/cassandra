@@ -21,6 +21,8 @@ package org.apache.cassandra.serializers;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 public abstract class CollectionSerializer<T> implements TypeSerializer<T>
 {
     public void validate(ByteBuffer bytes) throws MarshalException
@@ -28,24 +30,104 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
         // The collection is not currently being properly validated.
     }
 
-    // Utilitary method
-    protected static ByteBuffer pack(List<ByteBuffer> buffers, int elements, int size)
+    protected abstract List<ByteBuffer> serializeValues(T value);
+    protected abstract int getElementCount(T value);
+
+    public abstract T deserializeForNativeProtocol(ByteBuffer buffer, int version);
+
+    public ByteBuffer serialize(T value)
     {
-        ByteBuffer result = ByteBuffer.allocate(2 + size);
-        result.putShort((short)elements);
-        for (ByteBuffer bb : buffers)
-        {
-            result.putShort((short)bb.remaining());
-            result.put(bb.duplicate());
-        }
-        return (ByteBuffer)result.flip();
+        List<ByteBuffer> values = serializeValues(value);
+        // The only case we serialize/deserialize collections internally (i.e. not for the protocol sake),
+        // is when collections are in UDT values. There, we use the protocol 3 version since it's more flexible.
+        return pack(values, getElementCount(value), 3);
     }
 
-    public static ByteBuffer pack(List<ByteBuffer> buffers, int elements)
+    public T deserialize(ByteBuffer bytes)
+    {
+        // The only case we serialize/deserialize collections internally (i.e. not for the protocol sake),
+        // is when collections are in UDT values. There, we use the protocol 3 version since it's more flexible.
+        return deserializeForNativeProtocol(bytes, 3);
+    }
+
+    public static ByteBuffer pack(List<ByteBuffer> buffers, int elements, int version)
     {
         int size = 0;
         for (ByteBuffer bb : buffers)
-            size += 2 + bb.remaining();
-        return pack(buffers, elements, size);
+            size += sizeOfValue(bb, version);
+
+        ByteBuffer result = ByteBuffer.allocate(sizeOfCollectionSize(elements, version) + size);
+        writeCollectionSize(result, elements, version);
+        for (ByteBuffer bb : buffers)
+            writeValue(result, bb, version);
+        return (ByteBuffer)result.flip();
+    }
+
+    protected static void writeCollectionSize(ByteBuffer output, int elements, int version)
+    {
+        if (version >= 3)
+            output.putInt(elements);
+        else
+            output.putShort((short)elements);
+    }
+
+    protected static int readCollectionSize(ByteBuffer input, int version)
+    {
+        return version >= 3 ? input.getInt() : ByteBufferUtil.readShortLength(input);
+    }
+
+    protected static int sizeOfCollectionSize(int elements, int version)
+    {
+        return version >= 3 ? 4 : 2;
+    }
+
+    protected static void writeValue(ByteBuffer output, ByteBuffer value, int version)
+    {
+        if (version >= 3)
+        {
+            if (value == null)
+            {
+                output.putInt(-1);
+                return;
+            }
+
+            output.putInt(value.remaining());
+            output.put(value.duplicate());
+        }
+        else
+        {
+            assert value != null;
+            output.putShort((short)value.remaining());
+            output.put(value.duplicate());
+        }
+    }
+
+    protected static ByteBuffer readValue(ByteBuffer input, int version)
+    {
+        if (version >= 3)
+        {
+            int size = input.getInt();
+            if (size < 0)
+                return null;
+
+            return ByteBufferUtil.readBytes(input, size);
+        }
+        else
+        {
+            return ByteBufferUtil.readBytesWithShortLength(input);
+        }
+    }
+
+    protected static int sizeOfValue(ByteBuffer value, int version)
+    {
+        if (version >= 3)
+        {
+            return value == null ? 4 : 4 + value.remaining();
+        }
+        else
+        {
+            assert value != null;
+            return 2 + value.remaining();
+        }
     }
 }

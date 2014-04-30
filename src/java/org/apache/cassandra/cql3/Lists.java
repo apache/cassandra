@@ -28,10 +28,10 @@ import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -83,7 +83,7 @@ public abstract class Lists
                 values.add(t);
             }
             DelayedValue value = new DelayedValue(values);
-            return allTerminal ? value.bind(Collections.<ByteBuffer>emptyList()) : value;
+            return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
@@ -128,13 +128,13 @@ public abstract class Lists
             this.elements = elements;
         }
 
-        public static Value fromSerialized(ByteBuffer value, ListType type) throws InvalidRequestException
+        public static Value fromSerialized(ByteBuffer value, ListType type, int version) throws InvalidRequestException
         {
             try
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but compose does the validation (so we're fine).
-                List<?> l = (List<?>)type.compose(value);
+                List<?> l = (List<?>)type.getSerializer().deserializeForNativeProtocol(value, version);
                 List<ByteBuffer> elements = new ArrayList<ByteBuffer>(l.size());
                 for (Object element : l)
                     elements.add(type.elements.decompose(element));
@@ -146,9 +146,9 @@ public abstract class Lists
             }
         }
 
-        public ByteBuffer get()
+        public ByteBuffer get(QueryOptions options)
         {
-            return CollectionType.pack(elements, elements.size());
+            return CollectionSerializer.pack(elements, elements.size(), options.getProtocolVersion());
         }
     }
 
@@ -180,12 +180,12 @@ public abstract class Lists
         {
         }
 
-        public Value bind(List<ByteBuffer> values) throws InvalidRequestException
+        public Value bind(QueryOptions options) throws InvalidRequestException
         {
             List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(elements.size());
             for (Term t : elements)
             {
-                ByteBuffer bytes = t.bindAndGet(values);
+                ByteBuffer bytes = t.bindAndGet(options);
 
                 if (bytes == null)
                     throw new InvalidRequestException("null is not supported inside collections");
@@ -210,10 +210,10 @@ public abstract class Lists
             assert receiver.type instanceof ListType;
         }
 
-        public Value bind(List<ByteBuffer> values) throws InvalidRequestException
+        public Value bind(QueryOptions options) throws InvalidRequestException
         {
-            ByteBuffer value = values.get(bindIndex);
-            return value == null ? null : Value.fromSerialized(value, (ListType)receiver.type);
+            ByteBuffer value = options.getValues().get(bindIndex);
+            return value == null ? null : Value.fromSerialized(value, (ListType)receiver.type, options.getProtocolVersion());
 
         }
     }
@@ -299,8 +299,8 @@ public abstract class Lists
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            ByteBuffer index = idx.bindAndGet(params.variables);
-            ByteBuffer value = t.bindAndGet(params.variables);
+            ByteBuffer index = idx.bindAndGet(params.options);
+            ByteBuffer value = t.bindAndGet(params.options);
 
             if (index == null)
                 throw new InvalidRequestException("Invalid null value for list index");
@@ -342,7 +342,7 @@ public abstract class Lists
 
         static void doAppend(Term t, ColumnFamily cf, Composite prefix, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
         {
-            Term.Terminal value = t.bind(params.variables);
+            Term.Terminal value = t.bind(params.options);
             // If we append null, do nothing. Note that for Setter, we've
             // already removed the previous value so we're good here too
             if (value == null)
@@ -367,7 +367,7 @@ public abstract class Lists
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            Term.Terminal value = t.bind(params.variables);
+            Term.Terminal value = t.bind(params.options);
             if (value == null)
                 return;
 
@@ -403,7 +403,7 @@ public abstract class Lists
             if (existingList.isEmpty())
                 return;
 
-            Term.Terminal value = t.bind(params.variables);
+            Term.Terminal value = t.bind(params.options);
             if (value == null)
                 return;
 
@@ -437,7 +437,7 @@ public abstract class Lists
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            Term.Terminal index = t.bind(params.variables);
+            Term.Terminal index = t.bind(params.options);
             if (index == null)
                 throw new InvalidRequestException("Invalid null value for list index");
 

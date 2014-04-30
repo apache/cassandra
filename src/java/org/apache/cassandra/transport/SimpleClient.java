@@ -157,7 +157,7 @@ public class SimpleClient
 
     public ResultMessage execute(String query, List<ByteBuffer> values, ConsistencyLevel consistencyLevel)
     {
-        Message.Response msg = execute(new QueryMessage(query, new QueryOptions(consistencyLevel, values)));
+        Message.Response msg = execute(new QueryMessage(query, QueryOptions.forInternalCalls(consistencyLevel, values)));
         assert msg instanceof ResultMessage;
         return (ResultMessage)msg;
     }
@@ -171,7 +171,7 @@ public class SimpleClient
 
     public ResultMessage executePrepared(byte[] statementId, List<ByteBuffer> values, ConsistencyLevel consistency)
     {
-        Message.Response msg = execute(new ExecuteMessage(MD5Digest.wrap(statementId), new QueryOptions(consistency, values)));
+        Message.Response msg = execute(new ExecuteMessage(MD5Digest.wrap(statementId), QueryOptions.forInternalCalls(consistency, values)));
         assert msg instanceof ResultMessage;
         return (ResultMessage)msg;
     }

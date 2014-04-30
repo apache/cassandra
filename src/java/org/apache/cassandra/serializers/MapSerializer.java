@@ -51,19 +51,35 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         this.values = values;
     }
 
-    public Map<K, V> deserialize(ByteBuffer bytes)
+    public List<ByteBuffer> serializeValues(Map<K, V> map)
+    {
+        List<ByteBuffer> buffers = new ArrayList<>(map.size() * 2);
+        for (Map.Entry<K, V> entry : map.entrySet())
+        {
+            buffers.add(keys.serialize(entry.getKey()));
+            buffers.add(values.serialize(entry.getValue()));
+        }
+        return buffers;
+    }
+
+    public int getElementCount(Map<K, V> value)
+    {
+        return value.size();
+    }
+
+    public Map<K, V> deserializeForNativeProtocol(ByteBuffer bytes, int version)
     {
         try
         {
             ByteBuffer input = bytes.duplicate();
-            int n = ByteBufferUtil.readShortLength(input);
+            int n = readCollectionSize(input, version);
             Map<K, V> m = new LinkedHashMap<K, V>(n);
             for (int i = 0; i < n; i++)
             {
-                ByteBuffer kbb = ByteBufferUtil.readBytesWithShortLength(input);
+                ByteBuffer kbb = readValue(input, version);
                 keys.validate(kbb);
 
-                ByteBuffer vbb = ByteBufferUtil.readBytesWithShortLength(input);
+                ByteBuffer vbb = readValue(input, version);
                 values.validate(vbb);
 
                 m.put(keys.deserialize(kbb), values.deserialize(vbb));
@@ -74,30 +90,6 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         {
             throw new MarshalException("Not enough bytes to read a map");
         }
-    }
-
-    /**
-     * Layout is: {@code <n><sk_1><k_1><sv_1><v_1>...<sk_n><k_n><sv_n><v_n> }
-     * where:
-     *   n is the number of elements
-     *   sk_i is the number of bytes composing the ith key k_i
-     *   k_i is the sk_i bytes composing the ith key
-     *   sv_i is the number of bytes composing the ith value v_i
-     *   v_i is the sv_i bytes composing the ith value
-     */
-    public ByteBuffer serialize(Map<K, V> value)
-    {
-        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(2 * value.size());
-        int size = 0;
-        for (Map.Entry<K, V> entry : value.entrySet())
-        {
-            ByteBuffer bbk = keys.serialize(entry.getKey());
-            ByteBuffer bbv = values.serialize(entry.getValue());
-            bbs.add(bbk);
-            bbs.add(bbv);
-            size += 4 + bbk.remaining() + bbv.remaining();
-        }
-        return pack(bbs, value.size(), size);
     }
 
     public String toString(Map<K, V> value)

@@ -71,7 +71,7 @@ public class CQL3CasConditions implements CASConditions
             throw new InvalidRequestException("Cannot mix IF EXISTS and IF NOT EXISTS conditions for the same row");
     }
 
-    public void addConditions(Composite prefix, Collection<ColumnCondition> conds, List<ByteBuffer> variables) throws InvalidRequestException
+    public void addConditions(Composite prefix, Collection<ColumnCondition> conds, QueryOptions options) throws InvalidRequestException
     {
         RowCondition condition = conditions.get(prefix);
         if (condition == null)
@@ -83,7 +83,7 @@ public class CQL3CasConditions implements CASConditions
         {
             throw new InvalidRequestException("Cannot mix IF conditions and IF NOT EXISTS for the same row");
         }
-        ((ColumnsConditions)condition).addConditions(conds, variables);
+        ((ColumnsConditions)condition).addConditions(conds, options);
     }
 
     public IDiskAtomFilter readFilter()
@@ -167,21 +167,21 @@ public class CQL3CasConditions implements CASConditions
 
     private static class ColumnsConditions extends RowCondition
     {
-        private final Map<Pair<ColumnIdentifier, ByteBuffer>, ColumnCondition.WithVariables> conditions = new HashMap<>();
+        private final Map<Pair<ColumnIdentifier, ByteBuffer>, ColumnCondition.WithOptions> conditions = new HashMap<>();
 
         private ColumnsConditions(Composite rowPrefix, long now)
         {
             super(rowPrefix, now);
         }
 
-        public void addConditions(Collection<ColumnCondition> conds, List<ByteBuffer> variables) throws InvalidRequestException
+        public void addConditions(Collection<ColumnCondition> conds, QueryOptions options) throws InvalidRequestException
         {
             for (ColumnCondition condition : conds)
             {
                 // We will need the variables in appliesTo but with protocol batches, each condition in this object can have a
                 // different list of variables.
-                ColumnCondition.WithVariables current = condition.with(variables);
-                ColumnCondition.WithVariables previous = conditions.put(Pair.create(condition.column.name, current.getCollectionElementValue()), current);
+                ColumnCondition.WithOptions current = condition.with(options);
+                ColumnCondition.WithOptions previous = conditions.put(Pair.create(condition.column.name, current.getCollectionElementValue()), current);
                 // If 2 conditions are actually equal, let it slide
                 if (previous != null && !previous.equalsTo(current))
                     throw new InvalidRequestException("Duplicate and incompatible conditions for column " + condition.column.name);
@@ -193,7 +193,7 @@ public class CQL3CasConditions implements CASConditions
             if (current == null)
                 return conditions.isEmpty();
 
-            for (ColumnCondition.WithVariables condition : conditions.values())
+            for (ColumnCondition.WithOptions condition : conditions.values())
                 if (!condition.appliesTo(rowPrefix, current, now))
                     return false;
             return true;

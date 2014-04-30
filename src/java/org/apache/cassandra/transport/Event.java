@@ -20,6 +20,7 @@ package org.apache.cassandra.transport;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
+import com.google.common.base.Objects;
 import io.netty.buffer.ByteBuf;
 
 public abstract class Event
@@ -33,33 +34,33 @@ public abstract class Event
         this.type = type;
     }
 
-    public static Event deserialize(ByteBuf cb)
+    public static Event deserialize(ByteBuf cb, int version)
     {
         switch (CBUtil.readEnumValue(Type.class, cb))
         {
             case TOPOLOGY_CHANGE:
-                return TopologyChange.deserializeEvent(cb);
+                return TopologyChange.deserializeEvent(cb, version);
             case STATUS_CHANGE:
-                return StatusChange.deserializeEvent(cb);
+                return StatusChange.deserializeEvent(cb, version);
             case SCHEMA_CHANGE:
-                return SchemaChange.deserializeEvent(cb);
+                return SchemaChange.deserializeEvent(cb, version);
         }
         throw new AssertionError();
     }
 
-    public void serialize(ByteBuf dest)
+    public void serialize(ByteBuf dest, int version)
     {
         CBUtil.writeEnumValue(type, dest);
-        serializeEvent(dest);
+        serializeEvent(dest, version);
     }
 
-    public int serializedSize()
+    public int serializedSize(int version)
     {
-        return CBUtil.sizeOfEnumValue(type) + eventSerializedSize();
+        return CBUtil.sizeOfEnumValue(type) + eventSerializedSize(version);
     }
 
-    protected abstract void serializeEvent(ByteBuf dest);
-    protected abstract int eventSerializedSize();
+    protected abstract void serializeEvent(ByteBuf dest, int version);
+    protected abstract int eventSerializedSize(int version);
 
     public static class TopologyChange extends Event
     {
@@ -91,20 +92,20 @@ public abstract class Event
         }
 
         // Assumes the type has already been deserialized
-        private static TopologyChange deserializeEvent(ByteBuf cb)
+        private static TopologyChange deserializeEvent(ByteBuf cb, int version)
         {
             Change change = CBUtil.readEnumValue(Change.class, cb);
             InetSocketAddress node = CBUtil.readInet(cb);
             return new TopologyChange(change, node);
         }
 
-        protected void serializeEvent(ByteBuf dest)
+        protected void serializeEvent(ByteBuf dest, int version)
         {
             CBUtil.writeEnumValue(change, dest);
             CBUtil.writeInet(node, dest);
         }
 
-        protected int eventSerializedSize()
+        protected int eventSerializedSize(int version)
         {
             return CBUtil.sizeOfEnumValue(change) + CBUtil.sizeOfInet(node);
         }
@@ -113,6 +114,23 @@ public abstract class Event
         public String toString()
         {
             return change + " " + node;
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(change, node);
+        }
+
+        @Override
+        public boolean equals(Object other)
+        {
+            if (!(other instanceof TopologyChange))
+                return false;
+
+            TopologyChange tpc = (TopologyChange)other;
+            return Objects.equal(change, tpc.change)
+                && Objects.equal(node, tpc.node);
         }
     }
 
@@ -141,20 +159,20 @@ public abstract class Event
         }
 
         // Assumes the type has already been deserialized
-        private static StatusChange deserializeEvent(ByteBuf cb)
+        private static StatusChange deserializeEvent(ByteBuf cb, int version)
         {
             Status status = CBUtil.readEnumValue(Status.class, cb);
             InetSocketAddress node = CBUtil.readInet(cb);
             return new StatusChange(status, node);
         }
 
-        protected void serializeEvent(ByteBuf dest)
+        protected void serializeEvent(ByteBuf dest, int version)
         {
             CBUtil.writeEnumValue(status, dest);
             CBUtil.writeInet(node, dest);
         }
 
-        protected int eventSerializedSize()
+        protected int eventSerializedSize(int version)
         {
             return CBUtil.sizeOfEnumValue(status) + CBUtil.sizeOfInet(node);
         }
@@ -164,56 +182,130 @@ public abstract class Event
         {
             return status + " " + node;
         }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(status, node);
+        }
+
+        @Override
+        public boolean equals(Object other)
+        {
+            if (!(other instanceof StatusChange))
+                return false;
+
+            StatusChange stc = (StatusChange)other;
+            return Objects.equal(status, stc.status)
+                && Objects.equal(node, stc.node);
+        }
     }
 
     public static class SchemaChange extends Event
     {
         public enum Change { CREATED, UPDATED, DROPPED }
+        public enum Target { KEYSPACE, TABLE, TYPE }
 
         public final Change change;
+        public final Target target;
         public final String keyspace;
-        public final String table;
+        public final String tableOrType;
 
-        public SchemaChange(Change change, String keyspace, String table)
+        public SchemaChange(Change change, Target target, String keyspace, String tableOrType)
         {
             super(Type.SCHEMA_CHANGE);
             this.change = change;
+            this.target = target;
             this.keyspace = keyspace;
-            this.table = table;
+            this.tableOrType = tableOrType;
         }
 
         public SchemaChange(Change change, String keyspace)
         {
-            this(change, keyspace, "");
+            this(change, Target.KEYSPACE, keyspace, null);
         }
 
         // Assumes the type has already been deserialized
-        private static SchemaChange deserializeEvent(ByteBuf cb)
+        private static SchemaChange deserializeEvent(ByteBuf cb, int version)
         {
             Change change = CBUtil.readEnumValue(Change.class, cb);
-            String keyspace = CBUtil.readString(cb);
-            String table = CBUtil.readString(cb);
-            return new SchemaChange(change, keyspace, table);
+            if (version >= 3)
+            {
+                Target target = CBUtil.readEnumValue(Target.class, cb);
+                String keyspace = CBUtil.readString(cb);
+                String tableOrType = target == Target.KEYSPACE ? null : CBUtil.readString(cb);
+                return new SchemaChange(change, target, keyspace, tableOrType);
+            }
+            else
+            {
+                String keyspace = CBUtil.readString(cb);
+                String table = CBUtil.readString(cb);
+                return new SchemaChange(change, table.isEmpty() ? Target.KEYSPACE : Target.TABLE, keyspace, table.isEmpty() ? null : table);
+            }
         }
 
-        protected void serializeEvent(ByteBuf dest)
+        protected void serializeEvent(ByteBuf dest, int version)
         {
-            CBUtil.writeEnumValue(change, dest);
-            CBUtil.writeString(keyspace, dest);
-            CBUtil.writeString(table, dest);
+            if (version >= 3)
+            {
+                CBUtil.writeEnumValue(change, dest);
+                CBUtil.writeEnumValue(target, dest);
+                CBUtil.writeString(keyspace, dest);
+                if (target != Target.KEYSPACE)
+                    CBUtil.writeString(tableOrType, dest);
+            }
+            else
+            {
+                CBUtil.writeEnumValue(change, dest);
+                CBUtil.writeString(keyspace, dest);
+                CBUtil.writeString(target == Target.KEYSPACE ? "" : tableOrType, dest);
+            }
         }
 
-        protected int eventSerializedSize()
+        protected int eventSerializedSize(int version)
         {
-            return CBUtil.sizeOfEnumValue(change)
-                 + CBUtil.sizeOfString(keyspace)
-                 + CBUtil.sizeOfString(table);
+            if (version >= 3)
+            {
+                int size = CBUtil.sizeOfEnumValue(change)
+                         + CBUtil.sizeOfEnumValue(target)
+                         + CBUtil.sizeOfString(keyspace);
+
+                if (target != Target.KEYSPACE)
+                    size += CBUtil.sizeOfString(tableOrType);
+
+                return size;
+            }
+            else
+            {
+                return CBUtil.sizeOfEnumValue(change)
+                     + CBUtil.sizeOfString(keyspace)
+                     + CBUtil.sizeOfString(target == Target.KEYSPACE ? "" : tableOrType);
+            }
         }
 
         @Override
         public String toString()
         {
-            return change + " " + keyspace + (table.isEmpty() ? "" : "." + table);
+            return change + " " + target + " " + keyspace + (tableOrType == null ? "" : "." + tableOrType);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(change, target, keyspace, tableOrType);
+        }
+
+        @Override
+        public boolean equals(Object other)
+        {
+            if (!(other instanceof SchemaChange))
+                return false;
+
+            SchemaChange scc = (SchemaChange)other;
+            return Objects.equal(change, scc.change)
+                && Objects.equal(target, scc.target)
+                && Objects.equal(keyspace, scc.keyspace)
+                && Objects.equal(tableOrType, scc.tableOrType);
         }
     }
 }
