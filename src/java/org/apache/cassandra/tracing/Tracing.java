@@ -206,16 +206,10 @@ public class Tracing
                 ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfMeta);
                 addColumn(cf, buildName(cfMeta, "coordinator"), FBUtilities.getBroadcastAddress());
                 addParameterColumns(cf, parameters);
-<<<<<<< HEAD
-                addColumn(cf, buildName(cfMeta, "request"), request);
-                addColumn(cf, buildName(cfMeta, "started_at"), started_at);
-                mutateWithCatch(new Mutation(TRACE_KS, sessionIdBytes, cf));
-=======
                 addColumn(cf, buildName(cfMeta, bytes("request")), request);
                 addColumn(cf, buildName(cfMeta, bytes("started_at")), started_at);
                 addParameterColumns(cf, parameters);
-                mutateWithCatch(new RowMutation(TRACE_KS, sessionIdBytes, cf));
->>>>>>> cassandra-2.0
+                mutateWithCatch(new Mutation(TRACE_KS, sessionIdBytes, cf));
             }
         });
     }
