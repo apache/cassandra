@@ -130,7 +130,7 @@ public class NativeExpiringCell extends NativeCell implements ExpiringCell
 
     public boolean equals(Cell cell)
     {
-        return cell instanceof ExpiringCell && equals((ExpiringCell) this);
+        return cell instanceof ExpiringCell && equals((ExpiringCell) cell);
     }
 
     protected boolean equals(ExpiringCell cell)
