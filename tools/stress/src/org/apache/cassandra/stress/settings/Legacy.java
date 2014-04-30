@@ -216,12 +216,12 @@ public class Legacy implements Serializable
             {
                 StringBuilder rep = new StringBuilder();
                 if (cmd.hasOption("R"))
-                    rep.append("strategy=" + cmd.getOptionValue("R"));
+                    rep.append("strategy=").append(cmd.getOptionValue("R"));
                 if (cmd.hasOption("l"))
                 {
                     if (rep.length() > 0)
                         rep.append(",");
-                    rep.append("factor=" + cmd.getOptionValue("l"));
+                    rep.append("factor=").append(cmd.getOptionValue("l"));
                 }
                 if (cmd.hasOption("O"))
                 {
