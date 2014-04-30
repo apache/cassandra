@@ -114,15 +114,15 @@ public class BufferExpiringCell extends BufferCell implements ExpiringCell
     }
 
     @Override
-    public boolean isMarkedForDelete(long now)
+    public boolean isLive()
     {
-        return (int) (now / 1000) >= getLocalDeletionTime();
+        return isLive(System.currentTimeMillis());
     }
 
     @Override
-    public long getMarkedForDeleteAt()
+    public boolean isLive(long now)
     {
-        return timestamp;
+        return (int) (now / 1000) < getLocalDeletionTime();
     }
 
     @Override

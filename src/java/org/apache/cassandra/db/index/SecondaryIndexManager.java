@@ -656,7 +656,7 @@ public class SecondaryIndexManager
 
         public void remove(Cell cell)
         {
-            if (cell.isMarkedForDelete(System.currentTimeMillis()))
+            if (!cell.isLive())
                 return;
 
             for (SecondaryIndex index : indexFor(cell.name()))
@@ -693,7 +693,7 @@ public class SecondaryIndexManager
 
         public void insert(Cell cell)
         {
-            if (cell.isMarkedForDelete(System.currentTimeMillis()))
+            if (!cell.isLive())
                 return;
 
             for (SecondaryIndex index : indexFor(cell.name()))
@@ -710,7 +710,7 @@ public class SecondaryIndexManager
             {
                 if (index instanceof PerColumnSecondaryIndex)
                 {
-                    if (!cell.isMarkedForDelete(System.currentTimeMillis()))
+                    if (cell.isLive())
                         ((PerColumnSecondaryIndex) index).update(key.getKey(), oldCell, cell, opGroup);
                     else
                         ((PerColumnSecondaryIndex) index).delete(key.getKey(), oldCell, opGroup);
@@ -720,7 +720,7 @@ public class SecondaryIndexManager
 
         public void remove(Cell cell)
         {
-            if (cell.isMarkedForDelete(System.currentTimeMillis()))
+            if (!cell.isLive())
                 return;
 
             for (SecondaryIndex index : indexFor(cell.name()))

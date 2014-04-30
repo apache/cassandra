@@ -189,7 +189,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         // We should have both the c1 and c2 tombstones still. Since the min timestamp in the c2 tombstone
         // sstable is older than the c1 tombstone, it is invalid to throw out the c1 tombstone.
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key3, cfName, System.currentTimeMillis()));
-        assertFalse(cf.getColumn(cellname("c2")).isLive(System.currentTimeMillis()));
+        assertFalse(cf.getColumn(cellname("c2")).isLive());
         assertEquals(2, cf.getColumnCount());
     }
 
@@ -275,7 +275,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
         assertEquals(10, cf.getColumnCount());
         for (Cell c : cf)
-            assertFalse(c.isMarkedForDelete(System.currentTimeMillis()));
+            assertTrue(c.isLive());
     }
 
     @Test
@@ -319,7 +319,7 @@ public class CompactionsPurgeTest extends SchemaLoader
         cf = cfs.getColumnFamily(filter);
         assertEquals(10, cf.getColumnCount());
         for (Cell c : cf)
-            assertFalse(c.isMarkedForDelete(System.currentTimeMillis()));
+            assertTrue(c.isLive());
     }
 
     @Test

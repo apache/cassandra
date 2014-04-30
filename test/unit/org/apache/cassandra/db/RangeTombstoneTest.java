@@ -468,7 +468,7 @@ public class RangeTombstoneTest extends SchemaLoader
 
     private static boolean isLive(ColumnFamily cf, Cell c)
     {
-        return c != null && !c.isMarkedForDelete(System.currentTimeMillis()) && !cf.deletionInfo().isDeleted(c);
+        return c != null && c.isLive() && !cf.deletionInfo().isDeleted(c);
     }
 
     private static CellName b(int i)

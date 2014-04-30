@@ -38,6 +38,7 @@ import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.cellname;
 import static org.apache.cassandra.Util.tombstone;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 public class ColumnFamilyTest extends SchemaLoader
 {
@@ -184,9 +185,9 @@ public class ColumnFamilyTest extends SchemaLoader
 
         // check that tombstone wins timestamp ties
         cf_result.addTombstone(cellname("col1"), 0, 3);
-        assert cf_result.getColumn(cellname("col1")).isMarkedForDelete(System.currentTimeMillis());
+        assertFalse(cf_result.getColumn(cellname("col1")).isLive());
         cf_result.addColumn(cellname("col1"), val2, 3);
-        assert cf_result.getColumn(cellname("col1")).isMarkedForDelete(System.currentTimeMillis());
+        assertFalse(cf_result.getColumn(cellname("col1")).isLive());
 
         // check that column value wins timestamp ties in absence of tombstone
         cf_result.addColumn(cellname("col3"), val, 2);

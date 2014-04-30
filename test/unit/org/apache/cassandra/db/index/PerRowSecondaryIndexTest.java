@@ -38,11 +38,8 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.MemtableAllocator;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class PerRowSecondaryIndexTest extends SchemaLoader
 {
@@ -96,9 +93,8 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         assertNotNull(indexedRow);
 
         for (Cell cell : indexedRow.getSortedColumns())
-        {
-            assertTrue(cell.isMarkedForDelete(System.currentTimeMillis()));
-        }
+            assertFalse(cell.isLive());
+
         assertTrue(Arrays.equals("k2".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
     }
 
@@ -114,9 +110,8 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         ColumnFamily indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_ROW;
         assertNotNull(indexedRow);
         for (Cell cell : indexedRow.getSortedColumns())
-        {
-            assertTrue(cell.isMarkedForDelete(System.currentTimeMillis()));
-        }
+            assertFalse(cell.isLive());
+
         assertTrue(Arrays.equals("k3".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
     }
 

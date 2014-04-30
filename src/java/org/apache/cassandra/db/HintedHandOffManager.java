@@ -402,7 +402,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 // in which the local deletion timestamp was generated on the last column in the old page, in which
                 // case the hint will have no columns (since it's deleted) but will still be included in the resultset
                 // since (even with gcgs=0) it's still a "relevant" tombstone.
-                if (!hint.isLive(System.currentTimeMillis()))
+                if (!hint.isLive())
                     continue;
 
                 startColumn = hint.name();

@@ -31,7 +31,6 @@ import org.apache.cassandra.dht.LocalToken;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.MemtableAllocator;
 
 /**
  * Implements a secondary index for a column family using a second column family
@@ -89,7 +88,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
     public void delete(ByteBuffer rowKey, Cell cell, OpOrder.Group opGroup)
     {
-        if (cell.isMarkedForDelete(System.currentTimeMillis()))
+        if (!cell.isLive())
             return;
 
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, cell));

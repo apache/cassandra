@@ -132,7 +132,7 @@ public class CassandraServer implements Cassandra.Iface
         ArrayList<ColumnOrSuperColumn> thriftColumns = new ArrayList<ColumnOrSuperColumn>(cells.size());
         for (Cell cell : cells)
         {
-            if (cell.isMarkedForDelete(now))
+            if (!cell.isLive(now))
                 continue;
 
             thriftColumns.add(thriftifyColumnWithName(cell, cell.name().toByteBuffer()));
@@ -171,7 +171,7 @@ public class CassandraServer implements Cassandra.Iface
         List<Column> thriftColumns = new ArrayList<Column>(cells.size());
         for (Cell cell : cells)
         {
-            if (cell.isMarkedForDelete(now))
+            if (!cell.isLive(now))
                 continue;
 
             thriftColumns.add(thriftifySubColumn(cell));
@@ -196,7 +196,7 @@ public class CassandraServer implements Cassandra.Iface
             ArrayList<ColumnOrSuperColumn> thriftSuperColumns = new ArrayList<ColumnOrSuperColumn>(cells.size());
             for (Cell cell : cells)
             {
-                if (cell.isMarkedForDelete(now))
+                if (!cell.isLive(now))
                     continue;
 
                 thriftSuperColumns.add(thriftifyColumnWithName(cell, SuperColumns.subName(cell.name())));
@@ -220,7 +220,7 @@ public class CassandraServer implements Cassandra.Iface
         SuperColumn current = null;
         for (Cell cell : cells)
         {
-            if (cell.isMarkedForDelete(now))
+            if (!cell.isLive(now))
                 continue;
 
             ByteBuffer scName = SuperColumns.scName(cell.name());
@@ -244,7 +244,7 @@ public class CassandraServer implements Cassandra.Iface
         CounterSuperColumn current = null;
         for (Cell cell : cells)
         {
-            if (cell.isMarkedForDelete(now))
+            if (!cell.isLive(now))
                 continue;
 
             ByteBuffer scName = SuperColumns.scName(cell.name());

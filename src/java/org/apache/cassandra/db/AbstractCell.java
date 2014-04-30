@@ -63,32 +63,21 @@ public abstract class AbstractCell implements Cell
         };
     }
 
-    @Override
-    public boolean isMarkedForDelete(long now)
+    public boolean isLive()
     {
-        return false;
+        return true;
     }
 
-    @Override
     public boolean isLive(long now)
     {
-        return !isMarkedForDelete(now);
+        return true;
     }
 
-    // Don't call unless the column is actually marked for delete.
-    @Override
-    public long getMarkedForDeleteAt()
-    {
-        return Long.MAX_VALUE;
-    }
-
-    @Override
     public int cellDataSize()
     {
         return name().dataSize() + value().remaining() + TypeSizes.NATIVE.sizeof(timestamp());
     }
 
-    @Override
     public int serializedSize(CellNameType type, TypeSizes typeSizes)
     {
         /*
@@ -103,13 +92,11 @@ public abstract class AbstractCell implements Cell
         return ((int)type.cellSerializer().serializedSize(name(), typeSizes)) + 1 + typeSizes.sizeof(timestamp()) + typeSizes.sizeof(valueSize) + valueSize;
     }
 
-    @Override
     public int serializationFlags()
     {
         return 0;
     }
 
-    @Override
     public Cell diff(Cell cell)
     {
         if (timestamp() < cell.timestamp())
@@ -117,7 +104,6 @@ public abstract class AbstractCell implements Cell
         return null;
     }
 
-    @Override
     public void updateDigest(MessageDigest digest)
     {
         digest.update(name().toByteBuffer().duplicate());
@@ -127,19 +113,17 @@ public abstract class AbstractCell implements Cell
         FBUtilities.updateWithByte(digest, serializationFlags());
     }
 
-    @Override
     public int getLocalDeletionTime()
     {
         return Integer.MAX_VALUE;
     }
 
-    @Override
     public Cell reconcile(Cell cell)
     {
         // tombstones take precedence.  (if both are tombstones, then it doesn't matter which one we use.)
-        if (isMarkedForDelete(System.currentTimeMillis()))
+        if (!isLive())
             return timestamp() < cell.timestamp() ? cell : this;
-        if (cell.isMarkedForDelete(System.currentTimeMillis()))
+        if (!cell.isLive())
             return timestamp() > cell.timestamp() ? this : cell;
         // break ties by comparing values.
         if (timestamp() == cell.timestamp())
@@ -164,23 +148,20 @@ public abstract class AbstractCell implements Cell
         throw new UnsupportedOperationException();
     }
 
-    @Override
     public String getString(CellNameType comparator)
     {
         return String.format("%s:%b:%d@%d",
-                comparator.getString(name()),
-                isMarkedForDelete(System.currentTimeMillis()),
-                value().remaining(),
-                timestamp());
+                             comparator.getString(name()),
+                             !isLive(),
+                             value().remaining(),
+                             timestamp());
     }
 
-    @Override
     public void validateName(CFMetaData metadata) throws MarshalException
     {
         metadata.comparator.validate(name());
     }
 
-    @Override
     public void validateFields(CFMetaData metadata) throws MarshalException
     {
         validateName(metadata);
@@ -225,7 +206,7 @@ public abstract class AbstractCell implements Cell
         assert (b instanceof CounterCell) || (b instanceof DeletedCell) : "Wrong class type: " + b.getClass();
 
         // live + tombstone: track last tombstone
-        if (b.isMarkedForDelete(Long.MIN_VALUE)) // cannot be an expired cell, so the current time is irrelevant
+        if (!b.isLive()) // cannot be an expired cell, so the current time is irrelevant
         {
             // live < tombstone
             if (a.timestamp() < b.timestamp())

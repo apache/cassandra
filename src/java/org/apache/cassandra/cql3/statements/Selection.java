@@ -315,7 +315,7 @@ public abstract class Selection
 
         private boolean isDead(Cell c)
         {
-            return c == null || c.isMarkedForDelete(now);
+            return c == null || !c.isLive(now);
         }
 
         public void newRow() throws InvalidRequestException

@@ -48,7 +48,7 @@ public class CompositesIndexOnCollectionValue extends CompositesIndex
     public static CellNameType buildIndexComparator(CFMetaData baseMetadata, ColumnDefinition columnDef)
     {
         int prefixSize = columnDef.position();
-        List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(prefixSize + 2);
+        List<AbstractType<?>> types = new ArrayList<>(prefixSize + 2);
         types.add(SecondaryIndex.keyComparator);
         for (int i = 0; i < prefixSize; i++)
             types.add(baseMetadata.comparator.subtype(i));
@@ -98,11 +98,7 @@ public class CompositesIndexOnCollectionValue extends CompositesIndex
     public boolean isStale(IndexedEntry entry, ColumnFamily data, long now)
     {
         CellName name = data.getComparator().create(entry.indexedEntryPrefix, columnDef, entry.indexedEntryCollectionKey);
-        Cell liveCell = data.getColumn(name);
-        if (liveCell == null || liveCell.isMarkedForDelete(now))
-            return true;
-
-        ByteBuffer liveValue = liveCell.value();
-        return ((CollectionType)columnDef.type).valueComparator().compare(entry.indexValue.getKey(), liveValue) != 0;
+        Cell cell = data.getColumn(name);
+        return cell == null || !cell.isLive(now) || ((CollectionType) columnDef.type).valueComparator().compare(entry.indexValue.getKey(), cell.value()) != 0;
     }
 }

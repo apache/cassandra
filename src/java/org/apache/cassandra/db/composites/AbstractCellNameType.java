@@ -271,7 +271,7 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
             while (cells.hasNext())
             {
                 final Cell cell = cells.next();
-                if (cell.isMarkedForDelete(now))
+                if (!cell.isLive(now))
                     continue;
 
                 return new CQL3Row()
@@ -343,7 +343,7 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
             while (cells.hasNext())
             {
                 Cell cell = cells.next();
-                if (cell.isMarkedForDelete(now))
+                if (!cell.isLive(now))
                     continue;
 
                 nextCell = cell;

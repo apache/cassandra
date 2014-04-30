@@ -165,7 +165,7 @@ public class QueryPagerTest extends SchemaLoader
         for (Cell c : r.cf)
         {
             // Ignore deleted cells if we have them
-            if (!c.isLive(0))
+            if (!c.isLive())
                 continue;
 
             ByteBuffer expected = names[i++];
