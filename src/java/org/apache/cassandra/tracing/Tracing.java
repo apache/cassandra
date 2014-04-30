@@ -211,6 +211,7 @@ public class Tracing
                 addParameterColumns(cf, parameters);
                 addColumn(cf, buildName(cfMeta, bytes("request")), request);
                 addColumn(cf, buildName(cfMeta, bytes("started_at")), started_at);
+                addParameterColumns(cf, parameters);
                 mutateWithCatch(new RowMutation(TRACE_KS, sessionIdBytes, cf));
             }
         });
