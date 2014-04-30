@@ -118,6 +118,7 @@ Merged from 2.0:
  * Merge groupable mutations in TriggerExecutor#execute() (CASSANDRA-7047)
  * Plug holes in resource release when wiring up StreamSession (CASSANDRA-7073)
  * Re-add parameter columns to tracing session (CASSANDRA-6942)
+ * Preserves CQL metadata when updating table from thrift (CASSANDRA-6831)
 Merged from 1.2:
  * Fix nodetool display with vnodes (CASSANDRA-7082)
  * Add UNLOGGED, COUNTER options to BATCH documentation (CASSANDRA-6816)
