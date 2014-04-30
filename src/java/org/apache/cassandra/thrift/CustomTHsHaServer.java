@@ -195,6 +195,11 @@ public class CustomTHsHaServer extends TNonblockingServer
             {
                 try
                 {
+                    //CASSANDRA-6546
+                    for (SelectionKey key: selector.keys())
+                    {
+                        cleanupSelectionkey(key);
+                    }
                     selector.close(); // CASSANDRA-3867
                 }
                 catch (IOException e)
