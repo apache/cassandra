@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
-import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.FBUtilities;
@@ -44,12 +43,9 @@ public interface Cell extends OnDiskAtom
 
     public ByteBuffer value();
 
-    public boolean isMarkedForDelete(long now);
+    public boolean isLive();
 
     public boolean isLive(long now);
-
-    // Don't call unless the column is actually marked for delete.
-    public long getMarkedForDeleteAt();
 
     public int cellDataSize();
 
@@ -58,6 +54,7 @@ public interface Cell extends OnDiskAtom
     public long excessHeapSizeExcludingData();
 
     public int serializedSize(CellNameType type, TypeSizes typeSizes);
+
     public int serializationFlags();
 
     public Cell diff(Cell cell);
@@ -69,6 +66,4 @@ public interface Cell extends OnDiskAtom
     public Cell localCopy(CFMetaData metaData, MemtableAllocator allocator, OpOrder.Group opGroup);
 
     public String getString(CellNameType comparator);
-
-    void validateName(CFMetaData metadata) throws MarshalException;
 }

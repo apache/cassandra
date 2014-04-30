@@ -223,11 +223,8 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                 if (indexer == SecondaryIndexManager.nullUpdater)
                     return;
 
-                if (!cell.isMarkedForDelete(System.currentTimeMillis())
-                    && !container.getColumn(cell.name()).equals(cell))
-                {
+                if (cell.isLive() && !container.getColumn(cell.name()).equals(cell))
                     indexer.remove(cell);
-                }
             }
         }
 

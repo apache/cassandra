@@ -265,7 +265,7 @@ public class CounterMutation implements IMutation
                 continue;
 
             Cell cell = cf == null ? null : cf.getColumn(counterUpdateCells.get(i).name());
-            if (cell == null || cell.isMarkedForDelete(Long.MIN_VALUE)) // absent or a tombstone.
+            if (cell == null || !cell.isLive()) // absent or a tombstone.
                 currentValues[i] = ClockAndCount.BLANK;
             else
                 currentValues[i] = CounterContext.instance().getLocalClockAndCount(cell.value());

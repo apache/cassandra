@@ -154,7 +154,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                     {
                         Cell cell = indexColumns.next();
                         lastSeenKey = cell.name();
-                        if (cell.isMarkedForDelete(filter.timestamp))
+                        if (!cell.isLive(filter.timestamp))
                         {
                             logger.trace("skipping {}", cell.name());
                             continue;

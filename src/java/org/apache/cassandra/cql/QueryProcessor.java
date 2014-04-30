@@ -469,7 +469,7 @@ public class QueryProcessor
                         {
                             for (org.apache.cassandra.db.Cell c : row.cf.getSortedColumns())
                             {
-                                if (c.isMarkedForDelete(now))
+                                if (!c.isLive(now))
                                     continue;
 
                                 ColumnDefinition cd = metadata.getColumnDefinition(c.name());
@@ -515,7 +515,7 @@ public class QueryProcessor
                             if (cd != null)
                                 result.schema.value_types.put(nameBytes, TypeParser.getShortName(cd.type));
                             org.apache.cassandra.db.Cell c = row.cf.getColumn(name);
-                            if (c == null || c.isMarkedForDelete(System.currentTimeMillis()))
+                            if (c == null || !c.isLive())
                                 thriftColumns.add(new Column().setName(nameBytes));
                             else
                                 thriftColumns.add(thriftify(c));

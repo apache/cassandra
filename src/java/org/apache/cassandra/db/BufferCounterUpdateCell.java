@@ -55,16 +55,16 @@ public class BufferCounterUpdateCell extends BufferCell implements CounterUpdate
     public Cell reconcile(Cell cell)
     {
         // The only time this could happen is if a batchAdd ships two
-        // increment for the same cell. Hence we simply sums the delta.
+        // increment for the same cell. Hence we simply sums the delta and the timestamps.
 
         // tombstones take precedence
-        if (cell.isMarkedForDelete(Long.MIN_VALUE)) // can't be an expired cell, so the current time is irrelevant
+        if (!cell.isLive()) // can't be an expired cell, so the current time is irrelevant
             return timestamp > cell.timestamp() ? this : cell;
 
         // neither is tombstoned
         assert cell instanceof CounterUpdateCell : "Wrong class type.";
         CounterUpdateCell c = (CounterUpdateCell) cell;
-        return new BufferCounterUpdateCell(name, delta() + c.delta(), Math.max(timestamp, c.timestamp()));
+        return new BufferCounterUpdateCell(name, delta() + c.delta(), timestamp + c.timestamp());
     }
 
     @Override

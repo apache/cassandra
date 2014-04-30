@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -58,7 +59,7 @@ public class RemoveSubCellTest extends SchemaLoader
         rm.apply();
 
         ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, "Super1", System.currentTimeMillis()));
-        assert retrieved.getColumn(cname).isMarkedForDelete(System.currentTimeMillis());
+        assertFalse(retrieved.getColumn(cname).isLive());
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));
     }
 
@@ -94,7 +95,7 @@ public class RemoveSubCellTest extends SchemaLoader
         rm.apply();
 
         ColumnFamily retrieved = store.getColumnFamily(filter);
-        assert retrieved.getColumn(cname).isMarkedForDelete(System.currentTimeMillis());
+        assertFalse(retrieved.getColumn(cname).isLive());
         assertNull(Util.cloneAndRemoveDeleted(retrieved, Integer.MAX_VALUE));
     }
 }

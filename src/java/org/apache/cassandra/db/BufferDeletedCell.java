@@ -54,15 +54,15 @@ public class BufferDeletedCell extends BufferCell implements DeletedCell
     }
 
     @Override
-    public boolean isMarkedForDelete(long now)
+    public boolean isLive()
     {
-        return true;
+        return false;
     }
 
     @Override
-    public long getMarkedForDeleteAt()
+    public boolean isLive(long now)
     {
-        return timestamp;
+        return false;
     }
 
     @Override

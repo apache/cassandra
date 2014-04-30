@@ -19,11 +19,7 @@ package org.apache.cassandra.db.index.composites;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
-import java.util.Collection;
-import java.util.Deque;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -205,7 +201,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                     {
                         Cell cell = indexCells.poll();
                         lastSeenPrefix = cell.name();
-                        if (cell.isMarkedForDelete(filter.timestamp))
+                        if (!cell.isLive(filter.timestamp))
                         {
                             logger.trace("skipping {}", cell.name());
                             continue;

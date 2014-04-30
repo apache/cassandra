@@ -52,12 +52,8 @@ public class KeysIndex extends AbstractSimplePerColumnSecondaryIndex
 
     public boolean isIndexEntryStale(ByteBuffer indexedValue, ColumnFamily data, long now)
     {
-        Cell liveCell = data.getColumn(data.getComparator().makeCellName(columnDef.name.bytes));
-        if (liveCell == null || liveCell.isMarkedForDelete(now))
-            return true;
-
-        ByteBuffer liveValue = liveCell.value();
-        return columnDef.type.compare(indexedValue, liveValue) != 0;
+        Cell cell = data.getColumn(data.getComparator().makeCellName(columnDef.name.bytes));
+        return cell == null || !cell.isLive(now) || columnDef.type.compare(indexedValue, cell.value()) != 0;
     }
 
     public void validateOptions() throws ConfigurationException

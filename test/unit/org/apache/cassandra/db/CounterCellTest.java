@@ -90,8 +90,8 @@ public class CounterCellTest extends SchemaLoader
         left  = new BufferDeletedCell(cellname("x"), 1, 1L);
         right = new BufferDeletedCell(cellname("x"), 2, 2L);
 
-        assert left.reconcile(right).getMarkedForDeleteAt() == right.getMarkedForDeleteAt();
-        assert right.reconcile(left).getMarkedForDeleteAt() == right.getMarkedForDeleteAt();
+        assert left.reconcile(right).timestamp() == right.timestamp();
+        assert right.reconcile(left).timestamp() == right.timestamp();
 
         // tombstone > live
         left  = new BufferDeletedCell(cellname("x"), 1, 2L);
@@ -119,7 +119,7 @@ public class CounterCellTest extends SchemaLoader
         assert reconciled.name() == right.name();
         assert reconciled.value() == right.value();
         assert reconciled.timestamp() == right.timestamp();
-        assert ((CounterCell)reconciled).timestampOfLastDelete() == left.getMarkedForDeleteAt();
+        assert ((CounterCell)reconciled).timestampOfLastDelete() == left.timestamp();
 
         // live < tombstone
         left  = BufferCounterCell.createLocal(cellname("x"), 0L, 1L, Long.MIN_VALUE);
@@ -147,7 +147,7 @@ public class CounterCellTest extends SchemaLoader
         assert reconciled.name() == left.name();
         assert reconciled.value() == left.value();
         assert reconciled.timestamp() == left.timestamp();
-        assert ((CounterCell)reconciled).timestampOfLastDelete() == right.getMarkedForDeleteAt();
+        assert ((CounterCell)reconciled).timestampOfLastDelete() == right.timestamp();
 
         // live < live last delete
         left  = new BufferCounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L), 1L, Long.MIN_VALUE);

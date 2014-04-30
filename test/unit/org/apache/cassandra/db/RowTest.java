@@ -32,6 +32,7 @@ import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.tombstone;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class RowTest extends SchemaLoader
 {
@@ -101,12 +102,12 @@ public class RowTest extends SchemaLoader
     public void testExpiringColumnExpiration()
     {
         Cell c = new BufferExpiringCell(CellNames.simpleDense(ByteBufferUtil.bytes("one")), ByteBufferUtil.bytes("A"), 0, 1);
-        assert !c.isMarkedForDelete(System.currentTimeMillis());
+        assertTrue(c.isLive());
 
         // Because we keep the local deletion time with a precision of a
         // second, we could have to wait 2 seconds in worst case scenario.
         Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
 
-        assert c.isMarkedForDelete(System.currentTimeMillis()) && c.getMarkedForDeleteAt() == 0;
+        assert !c.isLive() && c.timestamp() == 0;
     }
 }
