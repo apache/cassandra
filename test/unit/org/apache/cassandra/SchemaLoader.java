@@ -323,7 +323,21 @@ public class SchemaLoader
                                                               + "k text,"
                                                               + "c text,"
                                                               + "v text,"
-                                                              + "PRIMARY KEY (k, c))", ks_cql)
+                                                              + "PRIMARY KEY (k, c))", ks_cql),
+                                           CFMetaData.compile("CREATE TABLE foo ("
+                                                   + "bar text, "
+                                                   + "baz text, "
+                                                   + "qux text, "
+                                                   + "PRIMARY KEY(bar, baz) ) "
+                                                   + "WITH COMPACT STORAGE", ks_cql),
+                                           CFMetaData.compile("CREATE TABLE foofoo ("
+                                                   + "bar text, "
+                                                   + "baz text, "
+                                                   + "qux text, "
+                                                   + "quz text, "
+                                                   + "foo text, "
+                                                   + "PRIMARY KEY((bar, baz), qux, quz) ) "
+                                                   + "WITH COMPACT STORAGE", ks_cql)
                                            ));
 
 

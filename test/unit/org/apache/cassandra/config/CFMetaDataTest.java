@@ -19,7 +19,6 @@
 package org.apache.cassandra.config;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.HashMap;
 
@@ -35,10 +34,11 @@ import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
 import org.junit.Test;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
 public class CFMetaDataTest extends SchemaLoader
 {
@@ -103,6 +103,8 @@ public class CFMetaDataTest extends SchemaLoader
             for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
             {
                 CFMetaData cfm = cfs.metadata;
+                if (!cfm.isThriftCompatible())
+                    continue;
                 checkInverses(cfm);
 
                 // Testing with compression to catch #3558
@@ -113,32 +115,14 @@ public class CFMetaDataTest extends SchemaLoader
         }
     }
 
-    private static CFMetaData withoutThriftIncompatible(CFMetaData cfm)
-    {
-        CFMetaData result = cfm.clone();
-
-        // This is a nasty hack to work around the fact that in thrift we exposes:
-        //   - neither definition with a non-nulll componentIndex
-        //   - nor non REGULAR definitions.
-        Iterator<ColumnDefinition> iter = result.allColumns().iterator();
-        while (iter.hasNext())
-        {
-            ColumnDefinition def = iter.next();
-            // Remove what we know is not thrift compatible
-            if (!def.isThriftCompatible())
-                iter.remove();
-        }
-        return result;
-    }
-
     private void checkInverses(CFMetaData cfm) throws Exception
     {
         DecoratedKey k = StorageService.getPartitioner().decorateKey(ByteBufferUtil.bytes(cfm.ksName));
 
         // Test thrift conversion
-        CFMetaData before = withoutThriftIncompatible(cfm);
-        CFMetaData after = withoutThriftIncompatible(CFMetaData.fromThrift(before.toThrift()));
-        assert before.equals(after) : String.format("\n%s\n!=\n%s", before, after);
+        CFMetaData before = cfm;
+        CFMetaData after = CFMetaData.fromThriftForUpdate(before.toThrift(), before);
+        assertThat(after, is(before));
 
         // Test schema conversion
         RowMutation rm = cfm.toSchema(System.currentTimeMillis());
@@ -146,6 +130,6 @@ public class CFMetaDataTest extends SchemaLoader
         ColumnFamily serializedCD = rm.getColumnFamily(Schema.instance.getId(Keyspace.SYSTEM_KS, SystemKeyspace.SCHEMA_COLUMNS_CF));
         UntypedResultSet.Row result = QueryProcessor.resultify("SELECT * FROM system.schema_columnfamilies", new Row(k, serializedCf)).one();
         CFMetaData newCfm = CFMetaData.addColumnDefinitionsFromSchema(CFMetaData.fromSchemaNoColumnsNoTriggers(result), new Row(k, serializedCD));
-        assert cfm.equals(newCfm) : String.format("\n%s\n!=\n%s", cfm, newCfm);
+        assertThat(newCfm, is(cfm));
     }
 }
