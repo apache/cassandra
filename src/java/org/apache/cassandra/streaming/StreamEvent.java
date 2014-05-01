@@ -42,12 +42,14 @@ public abstract class StreamEvent
     {
         public final InetAddress peer;
         public final boolean success;
+        public final int sessionIndex;
 
         public SessionCompleteEvent(StreamSession session)
         {
             super(Type.STREAM_COMPLETE, session.planId());
             this.peer = session.peer;
             this.success = session.isSuccess();
+            this.sessionIndex = session.sessionIndex();
         }
     }
 

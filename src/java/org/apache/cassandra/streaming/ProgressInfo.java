@@ -49,16 +49,18 @@ public class ProgressInfo implements Serializable
     }
 
     public final InetAddress peer;
+    public final int sessionIndex;
     public final String fileName;
     public final Direction direction;
     public final long currentBytes;
     public final long totalBytes;
 
-    public ProgressInfo(InetAddress peer, String fileName, Direction direction, long currentBytes, long totalBytes)
+    public ProgressInfo(InetAddress peer, int sessionIndex, String fileName, Direction direction, long currentBytes, long totalBytes)
     {
         assert totalBytes > 0;
 
         this.peer = peer;
+        this.sessionIndex = sessionIndex;
         this.fileName = fileName;
         this.direction = direction;
         this.currentBytes = currentBytes;
@@ -70,7 +72,7 @@ public class ProgressInfo implements Serializable
      */
     public boolean isCompleted()
     {
-        return currentBytes == totalBytes;
+        return currentBytes >= totalBytes;
     }
 
     /**
@@ -87,13 +89,14 @@ public class ProgressInfo implements Serializable
         if (totalBytes != that.totalBytes) return false;
         if (direction != that.direction) return false;
         if (!fileName.equals(that.fileName)) return false;
+        if (sessionIndex != that.sessionIndex) return false;
         return peer.equals(that.peer);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(peer, fileName, direction, totalBytes);
+        return Objects.hashCode(peer, sessionIndex, fileName, direction, totalBytes);
     }
 
     @Override
@@ -104,6 +107,7 @@ public class ProgressInfo implements Serializable
         sb.append("/").append(totalBytes).append(" bytes");
         sb.append("(").append(currentBytes*100/totalBytes).append("%) ");
         sb.append(direction == Direction.OUT ? "sent to " : "received from ");
+        sb.append("idx:").append(sessionIndex);
         sb.append(peer);
         return sb.toString();
     }

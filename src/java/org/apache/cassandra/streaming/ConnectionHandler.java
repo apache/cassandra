@@ -217,7 +217,12 @@ public class ConnectionHandler
 
         public void sendInitMessage(Socket socket, boolean isForOutgoing) throws IOException
         {
-            StreamInitMessage message = new StreamInitMessage(FBUtilities.getBroadcastAddress(), session.planId(), session.description(), isForOutgoing);
+            StreamInitMessage message = new StreamInitMessage(
+                    FBUtilities.getBroadcastAddress(),
+                    session.sessionIndex(),
+                    session.planId(),
+                    session.description(),
+                    isForOutgoing);
             ByteBuffer messageBuf = message.createMessage(false, protocolVersion);
             getWriteChannel(socket).write(messageBuf);
         }

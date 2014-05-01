@@ -40,15 +40,17 @@ public class StreamInitMessage
     public static IVersionedSerializer<StreamInitMessage> serializer = new StreamInitMessageSerializer();
 
     public final InetAddress from;
+    public final int sessionIndex;
     public final UUID planId;
     public final String description;
 
     // true if this init message is to connect for outgoing message on receiving side
     public final boolean isForOutgoing;
 
-    public StreamInitMessage(InetAddress from, UUID planId, String description, boolean isForOutgoing)
+    public StreamInitMessage(InetAddress from, int sessionIndex, UUID planId, String description, boolean isForOutgoing)
     {
         this.from = from;
+        this.sessionIndex = sessionIndex;
         this.planId = planId;
         this.description = description;
         this.isForOutgoing = isForOutgoing;
@@ -99,6 +101,7 @@ public class StreamInitMessage
         public void serialize(StreamInitMessage message, DataOutputPlus out, int version) throws IOException
         {
             CompactEndpointSerializationHelper.serialize(message.from, out);
+            out.writeInt(message.sessionIndex);
             UUIDSerializer.serializer.serialize(message.planId, out, MessagingService.current_version);
             out.writeUTF(message.description);
             out.writeBoolean(message.isForOutgoing);
@@ -107,15 +110,17 @@ public class StreamInitMessage
         public StreamInitMessage deserialize(DataInput in, int version) throws IOException
         {
             InetAddress from = CompactEndpointSerializationHelper.deserialize(in);
+            int sessionIndex = in.readInt();
             UUID planId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
             String description = in.readUTF();
             boolean sentByInitiator = in.readBoolean();
-            return new StreamInitMessage(from, planId, description, sentByInitiator);
+            return new StreamInitMessage(from, sessionIndex, planId, description, sentByInitiator);
         }
 
         public long serializedSize(StreamInitMessage message, int version)
         {
             long size = CompactEndpointSerializationHelper.serializedSize(message.from);
+            size += TypeSizes.NATIVE.sizeof(message.sessionIndex);
             size += UUIDSerializer.serializer.serializedSize(message.planId, MessagingService.current_version);
             size += TypeSizes.NATIVE.sizeof(message.description);
             size += TypeSizes.NATIVE.sizeof(message.isForOutgoing);

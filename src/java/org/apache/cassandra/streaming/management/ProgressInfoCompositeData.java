@@ -32,18 +32,21 @@ public class ProgressInfoCompositeData
 {
     private static final String[] ITEM_NAMES = new String[]{"planId",
                                                             "peer",
+                                                            "sessionIndex",
                                                             "fileName",
                                                             "direction",
                                                             "currentBytes",
                                                             "totalBytes"};
     private static final String[] ITEM_DESCS = new String[]{"String representation of Plan ID",
                                                             "Session peer",
+                                                            "Index of session",
                                                             "Name of the file",
                                                             "Direction('IN' or 'OUT')",
                                                             "Current bytes transferred",
                                                             "Total bytes to transfer"};
     private static final OpenType<?>[] ITEM_TYPES = new OpenType[]{SimpleType.STRING,
                                                                    SimpleType.STRING,
+                                                                   SimpleType.INTEGER,
                                                                    SimpleType.STRING,
                                                                    SimpleType.STRING,
                                                                    SimpleType.LONG,
@@ -70,10 +73,11 @@ public class ProgressInfoCompositeData
         Map<String, Object> valueMap = new HashMap<>();
         valueMap.put(ITEM_NAMES[0], planId.toString());
         valueMap.put(ITEM_NAMES[1], progressInfo.peer.getHostAddress());
-        valueMap.put(ITEM_NAMES[2], progressInfo.fileName);
-        valueMap.put(ITEM_NAMES[3], progressInfo.direction.name());
-        valueMap.put(ITEM_NAMES[4], progressInfo.currentBytes);
-        valueMap.put(ITEM_NAMES[5], progressInfo.totalBytes);
+        valueMap.put(ITEM_NAMES[2], progressInfo.sessionIndex);
+        valueMap.put(ITEM_NAMES[3], progressInfo.fileName);
+        valueMap.put(ITEM_NAMES[4], progressInfo.direction.name());
+        valueMap.put(ITEM_NAMES[5], progressInfo.currentBytes);
+        valueMap.put(ITEM_NAMES[6], progressInfo.totalBytes);
         try
         {
             return new CompositeDataSupport(COMPOSITE_TYPE, valueMap);
@@ -90,10 +94,11 @@ public class ProgressInfoCompositeData
         try
         {
             return new ProgressInfo(InetAddress.getByName((String) values[1]),
-                                    (String) values[2],
-                                    ProgressInfo.Direction.valueOf((String)values[3]),
-                                    (long) values[4],
-                                    (long) values[5]);
+                                    (int) values[2],
+                                    (String) values[3],
+                                    ProgressInfo.Direction.valueOf((String)values[4]),
+                                    (long) values[5],
+                                    (long) values[6]);
         }
         catch (UnknownHostException e)
         {

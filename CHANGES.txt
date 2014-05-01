@@ -1,4 +1,5 @@
 2.1.0-rc1
+ * Parallel streaming for sstableloader (CASSANDRA-3668)
 Merged from 2.0:
  * Add Google Compute Engine snitch (CASSANDRA-7132)
 
