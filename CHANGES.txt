@@ -6,6 +6,9 @@
  * Optimize fetching multiple cells by name (CASSANDRA-6933)
  * Allow compilation in java 8 (CASSANDRA-7208)
 
+2.1.0-rc1
+Merged from 2.0:
+ * Add Google Compute Engine snitch (CASSANDRA-7132)
 
 2.1.0-beta2
  * Increase default CL space to 8GB (CASSANDRA-7031)
