@@ -21,12 +21,10 @@ import java.io.File;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Joiner;
-import com.google.common.collect.Sets;
-import org.apache.cassandra.config.EncryptionOptions;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import org.apache.commons.cli.*;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
@@ -35,6 +33,7 @@ import org.apache.thrift.transport.TTransport;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -50,7 +49,6 @@ public class BulkLoader
 {
     private static final String TOOL_NAME = "sstableloader";
     private static final String VERBOSE_OPTION  = "verbose";
-    private static final String DEBUG_OPTION  = "debug";
     private static final String HELP_OPTION  = "help";
     private static final String NOPROGRESS_OPTION  = "no-progress";
     private static final String IGNORE_NODES_OPTION  = "ignore";
@@ -68,47 +66,63 @@ public class BulkLoader
     private static final String SSL_ALGORITHM = "ssl-alg";
     private static final String SSL_STORE_TYPE = "store-type";
     private static final String SSL_CIPHER_SUITES = "ssl-ciphers";
+    private static final String CONNECTIONS_PER_HOST = "connections-per-host";
 
     public static void main(String args[])
     {
         LoaderOptions options = LoaderOptions.parseArgs(args);
-        OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
-        SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(options.hosts, options.rpcPort, options.user, options.passwd, options.transportFactory), handler);
+        OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, true);
+        SSTableLoader loader = new SSTableLoader(
+                options.directory,
+                new ExternalClient(
+                        options.hosts,
+                        options.rpcPort,
+                        options.user,
+                        options.passwd,
+                        options.transportFactory),
+                handler,
+                options.connectionsPerHost);
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
         StreamResultFuture future = null;
+
+        ProgressIndicator indicator = new ProgressIndicator();
         try
         {
             if (options.noProgress)
+            {
                 future = loader.stream(options.ignores);
+            }
             else
-                future = loader.stream(options.ignores, new ProgressIndicator());
+            {
+                future = loader.stream(options.ignores, indicator);
+            }
+
         }
         catch (Exception e)
         {
             System.err.println(e.getMessage());
             if (e.getCause() != null)
                 System.err.println(e.getCause());
-            if (options.debug)
-                e.printStackTrace(System.err);
-            else
-                System.err.println("Run with --debug to get full stack trace or --help to get help.");
+            e.printStackTrace(System.err);
             System.exit(1);
         }
-
-        handler.output(String.format("Streaming session ID: %s", future.planId));
 
         try
         {
             future.get();
+
+            if (!options.noProgress)
+                indicator.printSummary(options.connectionsPerHost);
+
+            // Give sockets time to gracefully close
+            Thread.sleep(1000);
             System.exit(0); // We need that to stop non daemonized threads
         }
         catch (Exception e)
         {
             System.err.println("Streaming to the following hosts failed:");
             System.err.println(loader.getFailedHosts());
-            System.err.println(e);
-            if (options.debug)
-                e.printStackTrace(System.err);
+            e.printStackTrace(System.err);
             System.exit(1);
         }
     }
@@ -116,12 +130,14 @@ public class BulkLoader
     // Return true when everything is at 100%
     static class ProgressIndicator implements StreamEventHandler
     {
-        private final Map<InetAddress, SessionInfo> sessionsByHost = new ConcurrentHashMap<>();
-        private final Map<InetAddress, Set<ProgressInfo>> progressByHost = new ConcurrentHashMap<>();
-
         private long start;
         private long lastProgress;
         private long lastTime;
+
+        private int peak = 0;
+        private int totalFiles = 0;
+
+        private final Multimap<InetAddress, SessionInfo> sessionsByHost = HashMultimap.create();
 
         public ProgressIndicator()
         {
@@ -131,70 +147,100 @@ public class BulkLoader
         public void onSuccess(StreamState finalState) {}
         public void onFailure(Throwable t) {}
 
-        public void handleStreamEvent(StreamEvent event)
+        public synchronized void handleStreamEvent(StreamEvent event)
         {
             if (event.eventType == StreamEvent.Type.STREAM_PREPARED)
             {
                 SessionInfo session = ((StreamEvent.SessionPreparedEvent) event).session;
                 sessionsByHost.put(session.peer, session);
             }
-            else if (event.eventType == StreamEvent.Type.FILE_PROGRESS)
+            else if (event.eventType == StreamEvent.Type.FILE_PROGRESS || event.eventType == StreamEvent.Type.STREAM_COMPLETE)
             {
-                ProgressInfo progressInfo = ((StreamEvent.ProgressEvent) event).progress;
-
-                // update progress
-                Set<ProgressInfo> progresses = progressByHost.get(progressInfo.peer);
-                if (progresses == null)
+                ProgressInfo progressInfo = null;
+                if (event.eventType == StreamEvent.Type.FILE_PROGRESS)
                 {
-                    progresses = Sets.newSetFromMap(new ConcurrentHashMap<ProgressInfo, Boolean>());
-                    progressByHost.put(progressInfo.peer, progresses);
+                    progressInfo = ((StreamEvent.ProgressEvent) event).progress;
                 }
-                if (progresses.contains(progressInfo))
-                    progresses.remove(progressInfo);
-                progresses.add(progressInfo);
+
+                long time = System.nanoTime();
+                long deltaTime = time - lastTime;
 
                 StringBuilder sb = new StringBuilder();
                 sb.append("\rprogress: ");
 
                 long totalProgress = 0;
                 long totalSize = 0;
-                for (Map.Entry<InetAddress, Set<ProgressInfo>> entry : progressByHost.entrySet())
-                {
-                    SessionInfo session = sessionsByHost.get(entry.getKey());
 
-                    long size = session.getTotalSizeToSend();
-                    long current = 0;
-                    int completed = 0;
-                    for (ProgressInfo progress : entry.getValue())
+                boolean updateTotalFiles = totalFiles == 0;
+                // recalculate progress across all sessions in all hosts and display
+                for (InetAddress peer : sessionsByHost.keySet())
+                {
+                    sb.append("[").append(peer.toString()).append("]");
+
+                    for (SessionInfo session : sessionsByHost.get(peer))
                     {
-                        if (progress.currentBytes == progress.totalBytes)
-                            completed++;
-                        current += progress.currentBytes;
+                        long size = session.getTotalSizeToSend();
+                        long current = 0;
+                        int completed = 0;
+
+                        if (progressInfo != null && session.peer.equals(progressInfo.peer) && (session.sessionIndex == progressInfo.sessionIndex))
+                        {
+                            session.updateProgress(progressInfo);
+                        }
+                        for (ProgressInfo progress : session.getSendingFiles())
+                        {
+                            if (progress.isCompleted())
+                                completed++;
+                            current += progress.currentBytes;
+                        }
+                        totalProgress += current;
+
+                        totalSize += size;
+
+                        sb.append(session.sessionIndex).append(":");
+                        sb.append(completed).append("/").append(session.getTotalFilesToSend());
+                        sb.append(" ").append(String.format("%-3d", size == 0 ? 100L : current * 100L / size)).append("% ");
+
+                        if (updateTotalFiles)
+                            totalFiles += session.getTotalFilesToSend();
                     }
-                    totalProgress += current;
-                    totalSize += size;
-                    sb.append("[").append(entry.getKey());
-                    sb.append(" ").append(completed).append("/").append(session.getTotalFilesToSend());
-                    sb.append(" (").append(size == 0 ? 100L : current * 100L / size).append("%)] ");
                 }
-                long time = System.nanoTime();
-                long deltaTime = TimeUnit.NANOSECONDS.toMillis(time - lastTime);
+
                 lastTime = time;
                 long deltaProgress = totalProgress - lastProgress;
                 lastProgress = totalProgress;
 
-                sb.append("[total: ").append(totalSize == 0 ? 100L : totalProgress * 100L / totalSize).append("% - ");
-                sb.append(mbPerSec(deltaProgress, deltaTime)).append("MB/s");
-                sb.append(" (avg: ").append(mbPerSec(totalProgress, TimeUnit.NANOSECONDS.toMillis(time - start))).append("MB/s)]");
+                sb.append("total: ").append(totalSize == 0 ? 100L : totalProgress * 100L / totalSize).append("% ");
+                sb.append(String.format("%-3d", mbPerSec(deltaProgress, deltaTime))).append("MB/s");
+                int average = mbPerSec(totalProgress, (time - start));
+                if (average > peak)
+                    peak = average;
+                sb.append("(avg: ").append(average).append(" MB/s)");
 
-                System.out.print(sb.toString());
+                System.err.print(sb.toString());
             }
         }
 
-        private int mbPerSec(long bytes, long timeInMs)
+        private int mbPerSec(long bytes, long timeInNano)
         {
-            double bytesPerMs = ((double)bytes) / timeInMs;
-            return (int)((bytesPerMs * 1000) / (1024 * 2024));
+            double bytesPerNano = ((double)bytes) / timeInNano;
+            return (int)((bytesPerNano * 1000 * 1000 * 1000) / (1024 * 2024));
+        }
+
+        private void printSummary(int connectionsPerHost)
+        {
+            long end = System.nanoTime();
+            long durationMS = ((end - start) / (1000000));
+            int average = mbPerSec(lastProgress, (end - start));
+            StringBuilder sb = new StringBuilder();
+            sb.append("\nSummary statistics: \n");
+            sb.append(String.format("   %-30s: %-10d\n", "Connections per host: ", connectionsPerHost));
+            sb.append(String.format("   %-30s: %-10d\n", "Total files transferred: ", totalFiles));
+            sb.append(String.format("   %-30s: %-10d\n", "Total bytes transferred: ", lastProgress));
+            sb.append(String.format("   %-30s: %-10d\n", "Total duration (ms): ", durationMS));
+            sb.append(String.format("   %-30s: %-10d\n", "Average transfer rate (MB/s): ", + average));
+            sb.append(String.format("   %-30s: %-10d\n", "Peak transfer rate (MB/s): ", + peak));
+            System.err.println(sb.toString());
         }
     }
 
@@ -282,7 +328,7 @@ public class BulkLoader
             Cassandra.Client client = new Cassandra.Client(protocol);
             if (user != null && passwd != null)
             {
-                Map<String, String> credentials = new HashMap<String, String>();
+                Map<String, String> credentials = new HashMap<>();
                 credentials.put(IAuthenticator.USERNAME_KEY, user);
                 credentials.put(IAuthenticator.PASSWORD_KEY, passwd);
                 AuthenticationRequest authenticationRequest = new AuthenticationRequest(credentials);
@@ -305,9 +351,10 @@ public class BulkLoader
         public int throttle = 0;
         public ITransportFactory transportFactory = new TFramedTransportFactory();
         public EncryptionOptions encOptions = new EncryptionOptions.ClientEncryptionOptions();
+        public int connectionsPerHost = 1;
 
-        public final Set<InetAddress> hosts = new HashSet<InetAddress>();
-        public final Set<InetAddress> ignores = new HashSet<InetAddress>();
+        public final Set<InetAddress> hosts = new HashSet<>();
+        public final Set<InetAddress> ignores = new HashSet<>();
 
         LoaderOptions(File directory)
         {
@@ -354,7 +401,6 @@ public class BulkLoader
 
                 LoaderOptions opts = new LoaderOptions(dir);
 
-                opts.debug = cmd.hasOption(DEBUG_OPTION);
                 opts.verbose = cmd.hasOption(VERBOSE_OPTION);
                 opts.noProgress = cmd.hasOption(NOPROGRESS_OPTION);
 
@@ -408,6 +454,9 @@ public class BulkLoader
                         errorMsg("Unknown host: " + e.getMessage(), options);
                     }
                 }
+
+                if (cmd.hasOption(CONNECTIONS_PER_HOST))
+                    opts.connectionsPerHost = Integer.parseInt(cmd.getOptionValue(CONNECTIONS_PER_HOST));
 
                 if(cmd.hasOption(SSL_TRUSTSTORE))
                 {
@@ -520,7 +569,6 @@ public class BulkLoader
         private static CmdLineOptions getCmdLineOptions()
         {
             CmdLineOptions options = new CmdLineOptions();
-            options.addOption(null, DEBUG_OPTION,        "display stack traces");
             options.addOption("v",  VERBOSE_OPTION,      "verbose output");
             options.addOption("h",  HELP_OPTION,         "display this help message");
             options.addOption(null, NOPROGRESS_OPTION,   "don't display progress");
@@ -531,6 +579,7 @@ public class BulkLoader
             options.addOption("u",  USER_OPTION, "username", "username for cassandra authentication");
             options.addOption("pw", PASSWD_OPTION, "password", "password for cassandra authentication");
             options.addOption("tf", TRANSPORT_FACTORY, "transport factory", "Fully-qualified ITransportFactory class name for creating a connection to cassandra");
+            options.addOption("cph", CONNECTIONS_PER_HOST, "connectionsPerHost", "number of concurrent connections-per-host.");
             // ssl connection-related options
             options.addOption("ts", SSL_TRUSTSTORE, "TRUSTSTORE", "SSL: full path to truststore");
             options.addOption("tspw", SSL_TRUSTSTORE_PW, "TRUSTSTORE-PASSWORD", "SSL: password of the truststore");

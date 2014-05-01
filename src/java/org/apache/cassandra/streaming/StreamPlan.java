@@ -35,10 +35,8 @@ public class StreamPlan
     private final UUID planId = UUIDGen.getTimeUUID();
     private final String description;
     private final List<StreamEventHandler> handlers = new ArrayList<>();
-
-    // sessions per InetAddress of the other end.
-    private final Map<InetAddress, StreamSession> sessions = new HashMap<>();
     private final long repairedAt;
+    private final StreamCoordinator coordinator;
 
     private boolean flushBeforeTransfer = true;
 
@@ -49,15 +47,15 @@ public class StreamPlan
      */
     public StreamPlan(String description)
     {
-        this(description, ActiveRepairService.UNREPAIRED_SSTABLE);
+        this(description, ActiveRepairService.UNREPAIRED_SSTABLE, 1);
     }
 
-    public StreamPlan(String description, long repairedAt)
+    public StreamPlan(String description, long repairedAt, int connectionsPerHost)
     {
         this.description = description;
         this.repairedAt = repairedAt;
+        this.coordinator = new StreamCoordinator(connectionsPerHost);
     }
-
 
     /**
      * Request data in {@code keyspace} and {@code ranges} from specific node.
@@ -83,7 +81,7 @@ public class StreamPlan
      */
     public StreamPlan requestRanges(InetAddress from, String keyspace, Collection<Range<Token>> ranges, String... columnFamilies)
     {
-        StreamSession session = getOrCreateSession(from);
+        StreamSession session = coordinator.getOrCreateNextSession(from);
         session.addStreamRequest(keyspace, ranges, Arrays.asList(columnFamilies), repairedAt);
         return this;
     }
@@ -112,7 +110,7 @@ public class StreamPlan
      */
     public StreamPlan transferRanges(InetAddress to, String keyspace, Collection<Range<Token>> ranges, String... columnFamilies)
     {
-        StreamSession session = getOrCreateSession(to);
+        StreamSession session = coordinator.getOrCreateNextSession(to);
         session.addTransferRanges(keyspace, ranges, Arrays.asList(columnFamilies), flushBeforeTransfer, repairedAt);
         return this;
     }
@@ -127,9 +125,9 @@ public class StreamPlan
      */
     public StreamPlan transferFiles(InetAddress to, Collection<StreamSession.SSTableStreamingSections> sstableDetails)
     {
-        StreamSession session = getOrCreateSession(to);
-        session.addTransferFiles(sstableDetails);
+        coordinator.transferFiles(to, sstableDetails);
         return this;
+
     }
 
     public StreamPlan listeners(StreamEventHandler handler, StreamEventHandler... handlers)
@@ -145,7 +143,7 @@ public class StreamPlan
      */
     public boolean isEmpty()
     {
-        return sessions.isEmpty();
+        return coordinator.hasActiveSessions();
     }
 
     /**
@@ -155,7 +153,7 @@ public class StreamPlan
      */
     public StreamResultFuture execute()
     {
-        return StreamResultFuture.init(planId, description, sessions.values(), handlers);
+        return StreamResultFuture.init(planId, description, handlers, coordinator);
     }
 
     /**
@@ -170,16 +168,4 @@ public class StreamPlan
         this.flushBeforeTransfer = flushBeforeTransfer;
         return this;
     }
-
-    private StreamSession getOrCreateSession(InetAddress peer)
-    {
-        StreamSession session = sessions.get(peer);
-        if (session == null)
-        {
-            session = new StreamSession(peer);
-            sessions.put(peer, session);
-        }
-        return session;
-    }
-
 }

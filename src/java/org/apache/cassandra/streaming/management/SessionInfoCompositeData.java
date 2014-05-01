@@ -129,6 +129,7 @@ public class SessionInfoCompositeData
             }
         };
         SessionInfo info = new SessionInfo(peer,
+                                           (int)values[2],
                                            fromArrayOfCompositeData((CompositeData[]) values[2], toStreamSummary),
                                            fromArrayOfCompositeData((CompositeData[]) values[3], toStreamSummary),
                                            StreamSession.State.valueOf((String) values[4]));

@@ -28,7 +28,6 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -113,12 +112,8 @@ import org.apache.cassandra.utils.Pair;
 public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamSession.class);
-
-    // Executor that establish the streaming connection. Once we're connected to the other end, the rest of the streaming
-    // is directly handled by the ConnectionHandler incoming and outgoing threads.
-    private static final DebuggableThreadPoolExecutor streamExecutor = DebuggableThreadPoolExecutor.createWithFixedPoolSize("StreamConnectionEstablisher",
-                                                                                                                            FBUtilities.getAvailableProcessors());
     public final InetAddress peer;
+    private final int index;
 
     // should not be null when session is started
     private StreamResultFuture streamResult;
@@ -153,9 +148,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
      *
      * @param peer Address of streaming peer
      */
-    public StreamSession(InetAddress peer)
+    public StreamSession(InetAddress peer, int index)
     {
         this.peer = peer;
+        this.index = index;
         this.handler = new ConnectionHandler(this);
         this.metrics = StreamingMetrics.get(peer);
     }
@@ -163,6 +159,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
     public UUID planId()
     {
         return streamResult == null ? null : streamResult.planId;
+    }
+
+    public int sessionIndex()
+    {
+        return index;
     }
 
     public String description()
@@ -194,21 +195,16 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
             return;
         }
 
-        streamExecutor.execute(new Runnable()
+        try
         {
-            public void run()
-            {
-                try
-                {
-                    handler.initiate();
-                    onInitializationComplete();
-                }
-                catch (IOException e)
-                {
-                    onError(e);
-                }
-            }
-        });
+            logger.info("[Stream #{}, ID#{}] Beginning stream session with {}", planId(), sessionIndex(), peer);
+            handler.initiate();
+            onInitializationComplete();
+        }
+        catch (Exception e)
+        {
+            onError(e);
+        }
     }
 
     /**
@@ -519,7 +515,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
 
     public void progress(Descriptor desc, ProgressInfo.Direction direction, long bytes, long total)
     {
-        ProgressInfo progress = new ProgressInfo(peer, desc.filenameFor(Component.DATA), direction, bytes, total);
+        ProgressInfo progress = new ProgressInfo(peer, index, desc.filenameFor(Component.DATA), direction, bytes, total);
         streamResult.handleProgress(progress);
     }
 
@@ -590,7 +586,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
         List<StreamSummary> transferSummaries = Lists.newArrayList();
         for (StreamTask transfer : transfers.values())
             transferSummaries.add(transfer.getSummary());
-        return new SessionInfo(peer, receivingSummaries, transferSummaries, state);
+        return new SessionInfo(peer, index, receivingSummaries, transferSummaries, state);
     }
 
     public synchronized void taskCompleted(StreamReceiveTask completedTask)
