@@ -613,7 +613,11 @@ The @BATCH@ statement group multiple modification statements (insertions/updates
 # It saves network round-trips between the client and the server (and sometimes between the server coordinator and the replicas) when batching multiple updates.
 # All updates in a @BATCH@ belonging to a given partition key are performed in isolation.
 # By default, all operations in the batch are performed atomically.  See the notes on "@UNLOGGED@":#unloggedBatch for more details.
-Note however that the @BATCH@ statement only allows @UPDATE@, @INSERT@ and @DELETE@ statements and is _not_ a full analogue for SQL transactions.
+
+Note that:
+* @BATCH@ statements may only contain @UPDATE@, @INSERT@ and @DELETE@ statements.
+* Batches are _not_ a full analogue for SQL transactions.
+* If a timestamp is not specified for each operation, then all operations will be applied with the same timestamp. Due to Cassandra's conflict resolution procedure in the case of "timestamp ties":http://wiki.apache.org/cassandra/FAQ#clocktie, operations may be applied in an order that is different from the order they are listed in the @BATCH@ statement. To force a particular operation ordering, you must specify per-operation timestamps.
 
 h4(#unloggedBatch). @UNLOGGED@
 
