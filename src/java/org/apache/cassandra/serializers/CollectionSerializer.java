@@ -38,15 +38,17 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
     public ByteBuffer serialize(T value)
     {
         List<ByteBuffer> values = serializeValues(value);
-        // The only case we serialize/deserialize collections internally (i.e. not for the protocol sake),
-        // is when collections are in UDT values. There, we use the protocol 3 version since it's more flexible.
+        // See deserialize() for why using the protocol v3 variant is the right thing to do.
         return pack(values, getElementCount(value), 3);
     }
 
     public T deserialize(ByteBuffer bytes)
     {
-        // The only case we serialize/deserialize collections internally (i.e. not for the protocol sake),
-        // is when collections are in UDT values. There, we use the protocol 3 version since it's more flexible.
+        // The only cases we serialize/deserialize collections internally (i.e. not for the protocol sake),
+        // is:
+        //  1) when collections are in UDT values
+        //  2) for internal calls.
+        // In both case, using the protocol 3 version variant is the right thing to do.
         return deserializeForNativeProtocol(bytes, 3);
     }
 
