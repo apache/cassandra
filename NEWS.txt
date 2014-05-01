@@ -30,6 +30,11 @@ New features
      repair session. Use nodetool repair -par -inc to use this feature.
      A tool to manually mark/unmark sstables as repaired is available in
      tools/bin/sstablerepairedset.
+   - Bootstrapping now ensures that range movements are consistent,
+     meaning the data for the new node is taken from the node that is no 
+     longer a responsible for that range of keys.  
+     If you want the old behavior (due to a lost node perhaps)
+     you can set the following property (-Dconsistent.rangemovement=false)
 
 Upgrading
 ---------

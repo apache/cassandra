@@ -23,6 +23,8 @@ import java.util.*;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
+import org.apache.cassandra.gms.EndpointState;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -44,7 +47,8 @@ import org.apache.cassandra.utils.FBUtilities;
 public class RangeStreamer
 {
     private static final Logger logger = LoggerFactory.getLogger(RangeStreamer.class);
-
+    public static final boolean useStrictConsistency = Boolean.valueOf(System.getProperty("consistent.rangemovement","true"));
+    private final Collection<Token> tokens;
     private final TokenMetadata metadata;
     private final InetAddress address;
     private final String description;
@@ -99,9 +103,19 @@ public class RangeStreamer
         }
     }
 
+    public RangeStreamer(TokenMetadata metadata, Collection<Token> tokens, InetAddress address, String description)
+    {
+        this.metadata = metadata;
+        this.tokens = tokens;
+        this.address = address;
+        this.description = description;
+        this.streamPlan = new StreamPlan(description);
+    }
+
     public RangeStreamer(TokenMetadata metadata, InetAddress address, String description)
     {
         this.metadata = metadata;
+        this.tokens = null;
         this.address = address;
         this.description = description;
         this.streamPlan = new StreamPlan(description);
@@ -114,11 +128,12 @@ public class RangeStreamer
 
     public void addRanges(String keyspaceName, Collection<Range<Token>> ranges)
     {
-        Multimap<Range<Token>, InetAddress> rangesForKeyspace = getAllRangesWithSourcesFor(keyspaceName, ranges);
+        Multimap<Range<Token>, InetAddress> rangesForKeyspace = useStrictConsistency && tokens != null
+                ? getAllRangesWithStrictSourcesFor(keyspaceName, ranges) : getAllRangesWithSourcesFor(keyspaceName, ranges);
 
         if (logger.isDebugEnabled())
         {
-            for (Map.Entry<Range<Token>, InetAddress> entry: rangesForKeyspace.entries())
+            for (Map.Entry<Range<Token>, InetAddress> entry : rangesForKeyspace.entries())
                 logger.debug(String.format("%s: range %s exists on %s", description, entry.getKey(), entry.getValue()));
         }
 
@@ -157,6 +172,66 @@ public class RangeStreamer
 
             if (!rangeSources.keySet().contains(desiredRange))
                 throw new IllegalStateException("No sources found for " + desiredRange);
+        }
+
+        return rangeSources;
+    }
+
+    /**
+     * Get a map of all ranges and the source that will be cleaned up once this bootstrapped node is added for the given ranges.
+     * For each range, the list should only contain a single source. This allows us to consistently migrate data without violating
+     * consistency.
+     */
+    private Multimap<Range<Token>, InetAddress> getAllRangesWithStrictSourcesFor(String table, Collection<Range<Token>> desiredRanges)
+    {
+
+        assert tokens != null;
+        AbstractReplicationStrategy strat = Keyspace.open(table).getReplicationStrategy();
+
+        //Active ranges
+        TokenMetadata metadataClone = metadata.cloneOnlyTokenMap();
+        Multimap<Range<Token>,InetAddress> addressRanges = strat.getRangeAddresses(metadataClone);
+
+        //Pending ranges
+        metadataClone.updateNormalTokens(tokens, address);
+        Multimap<Range<Token>,InetAddress> pendingRangeAddresses = strat.getRangeAddresses(metadataClone);
+
+        //Collects the source that will have its range moved to the new node
+        Multimap<Range<Token>, InetAddress> rangeSources = ArrayListMultimap.create();
+
+        for (Range<Token> desiredRange : desiredRanges)
+        {
+            for (Map.Entry<Range<Token>, Collection<InetAddress>> preEntry : addressRanges.asMap().entrySet())
+            {
+                if (preEntry.getKey().contains(desiredRange))
+                {
+                    Set<InetAddress> oldEndpoints = Sets.newHashSet(preEntry.getValue());
+                    Set<InetAddress> newEndpoints = Sets.newHashSet(pendingRangeAddresses.get(desiredRange));
+
+                    //Due to CASSANDRA-5953 we can have a higher RF then we have endpoints.
+                    //So we need to be careful to only be strict when endpoints == RF
+                    if (oldEndpoints.size() == strat.getReplicationFactor())
+                    {
+                        oldEndpoints.removeAll(newEndpoints);
+                        assert oldEndpoints.size() == 1 : "Expected 1 endpoint but found " + oldEndpoints.size();
+                    }
+
+                    rangeSources.put(desiredRange, oldEndpoints.iterator().next());
+                }
+            }
+
+            //Validate
+            Collection<InetAddress> addressList = rangeSources.get(desiredRange);
+            if (addressList == null || addressList.isEmpty())
+                throw new IllegalStateException("No sources found for " + desiredRange);
+
+            if (addressList.size() > 1)
+                throw new IllegalStateException("Multiple endpoints found for " + desiredRange);
+
+            InetAddress sourceIp = addressList.iterator().next();
+            EndpointState sourceState = Gossiper.instance.getEndpointStateForEndpoint(sourceIp);
+            if (Gossiper.instance.isEnabled() && (sourceState == null || !sourceState.isAlive()))
+                throw new RuntimeException("A node required to move the data consistently is down ("+sourceIp+").  If you wish to move the data from a potentially inconsistent replica, restart the node with -Dconsistent.rangemovement=false");
         }
 
         return rangeSources;
