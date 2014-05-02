@@ -35,14 +35,13 @@ public class SnitchProperties
     {
         properties = new Properties();
         InputStream stream = null;
-        String configURL = System.getProperty("cassandra.rackdc.properties");
+        String configURL = System.getProperty(RACKDC_PROPERTY_FILENAME);
         try
         {
             URL url = new URL(configURL);
             if (configURL == null)
-                url = SnitchProperties.class.getClassLoader().getResource(
-                        "cassandra-rackdc.properties");
-            stream = url.openStream();
+                url = SnitchProperties.class.getClassLoader().getResource(RACKDC_PROPERTY_FILENAME);
+            stream = url.openStream(); // catch block handles potential NPE
             properties.load(stream);
         }
         catch (Exception e)
