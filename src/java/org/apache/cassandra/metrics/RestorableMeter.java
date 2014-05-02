@@ -144,7 +144,7 @@ public class RestorableMeter
         }
     }
 
-    class RestorableEWMA {
+    static class RestorableEWMA {
         private volatile boolean initialized = false;
         private volatile double rate = 0.0; // average rate in terms of events per nanosecond
 
