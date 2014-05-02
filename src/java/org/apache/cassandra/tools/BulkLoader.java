@@ -234,12 +234,12 @@ public class BulkLoader
             int average = mbPerSec(lastProgress, (end - start));
             StringBuilder sb = new StringBuilder();
             sb.append("\nSummary statistics: \n");
-            sb.append(String.format("   %-30s: %-10d\n", "Connections per host: ", connectionsPerHost));
-            sb.append(String.format("   %-30s: %-10d\n", "Total files transferred: ", totalFiles));
-            sb.append(String.format("   %-30s: %-10d\n", "Total bytes transferred: ", lastProgress));
-            sb.append(String.format("   %-30s: %-10d\n", "Total duration (ms): ", durationMS));
-            sb.append(String.format("   %-30s: %-10d\n", "Average transfer rate (MB/s): ", + average));
-            sb.append(String.format("   %-30s: %-10d\n", "Peak transfer rate (MB/s): ", + peak));
+            sb.append(String.format("   %-30s: %-10d%n", "Connections per host: ", connectionsPerHost));
+            sb.append(String.format("   %-30s: %-10d%n", "Total files transferred: ", totalFiles));
+            sb.append(String.format("   %-30s: %-10d%n", "Total bytes transferred: ", lastProgress));
+            sb.append(String.format("   %-30s: %-10d%n", "Total duration (ms): ", durationMS));
+            sb.append(String.format("   %-30s: %-10d%n", "Average transfer rate (MB/s): ", + average));
+            sb.append(String.format("   %-30s: %-10d%n", "Peak transfer rate (MB/s): ", + peak));
             System.err.println(sb.toString());
         }
     }
