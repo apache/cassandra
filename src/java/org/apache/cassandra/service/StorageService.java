@@ -1535,8 +1535,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             else if (endpoint.equals(currentOwner))
             {
                 // set state back to normal, since the node may have tried to leave, but failed and is now back up
-                // no need to persist, token/ip did not change
                 tokensToUpdateInMetadata.add(token);
+                if (!isClientMode)
+                    tokensToUpdateInSystemKeyspace.add(token);
             }
             else if (tokenMetadata.isRelocating(token) && tokenMetadata.getRelocatingRanges().get(token).equals(endpoint))
             {
