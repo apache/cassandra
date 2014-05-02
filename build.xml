@@ -192,6 +192,7 @@
             classpath="${build.lib}/antlr-3.2.jar"
             fork="true"
             failonerror="true">
+         <jvmarg value="-Xmx512M" />
          <arg value="${build.src.java}/org/apache/cassandra/cli/Cli.g" />
          <arg value="-fo" />
          <arg value="${build.src.gen-java}/org/apache/cassandra/cli/" />
@@ -229,6 +230,7 @@
             classpath="${build.lib}/antlr-3.2.jar"
             fork="true"
             failonerror="true">
+         <jvmarg value="-Xmx512M" />
          <arg value="-Xconversiontimeout" />
          <arg value="10000" />
          <arg value="${build.src.java}/org/apache/cassandra/cql3/Cql.g" />
