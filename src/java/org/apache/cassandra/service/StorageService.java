@@ -1537,7 +1537,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 // set state back to normal, since the node may have tried to leave, but failed and is now back up
                 tokensToUpdateInMetadata.add(token);
                 if (!isClientMode)
-                    tokensToUpdateInSystemKeyspace.add(token);
+                    tokensToUpdateInSystemTable.add(token);
             }
             else if (tokenMetadata.isRelocating(token) && tokenMetadata.getRelocatingRanges().get(token).equals(endpoint))
             {
