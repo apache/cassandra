@@ -31,6 +31,8 @@ import org.apache.cassandra.utils.Pair;
 
 public class ColumnGroupMap
 {
+    public static ColumnGroupMap EMPTY = new ColumnGroupMap(null, false);
+
     private final ByteBuffer[] fullPath;
     private final Map<ByteBuffer, Value> map = new HashMap<ByteBuffer, Value>();
     public final boolean isStatic; // Whether or not the group correspond to "static" cells
@@ -66,7 +68,7 @@ public class ColumnGroupMap
 
     public ByteBuffer getKeyComponent(int pos)
     {
-        return fullPath[pos];
+        return fullPath == null ? null : fullPath[pos];
     }
 
     public Column getSimple(ByteBuffer key)
@@ -87,6 +89,11 @@ public class ColumnGroupMap
 
         assert v instanceof Collection;
         return (List<Pair<ByteBuffer, Column>>)v;
+    }
+
+    public boolean hasValueFor(ByteBuffer key)
+    {
+        return map.containsKey(key);
     }
 
     private interface Value {};
