@@ -22,7 +22,6 @@ import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.Random;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.management.MBeanServer;
@@ -741,24 +740,14 @@ public class StorageProxy implements StorageProxyMBean
     throws UnavailableException
     {
         TokenMetadata.Topology topology = StorageService.instance.getTokenMetadata().cachedOnlyTokenMap().getTopology();
-        List<InetAddress> localEndpoints = new ArrayList<>(topology.getDatacenterEndpoints().get(localDataCenter));
-
+        Multimap<String, InetAddress> localEndpoints = HashMultimap.create(topology.getDatacenterRacks().get(localDataCenter));
+        
         // special case for single-node datacenters
         if (localEndpoints.size() == 1)
-            return localEndpoints;
+            return localEndpoints.values();
 
-        List<InetAddress> chosenEndpoints = new ArrayList<>(2);
-        int startOffset = new Random().nextInt(localEndpoints.size());
-
-        // starts at some random point in the list, advances forward until the end, then loops
-        // around to the beginning, advancing again until it is back at the starting point again.
-        for (int i = 0; i < localEndpoints.size() && chosenEndpoints.size() < 2; i++)
-        {
-            InetAddress endpoint = localEndpoints.get((i + startOffset) % localEndpoints.size());
-            // skip localhost and non-alive nodes
-            if (!endpoint.equals(FBUtilities.getBroadcastAddress()) && FailureDetector.instance.isAlive(endpoint))
-                chosenEndpoints.add(endpoint);
-        }
+        String localRack = DatabaseDescriptor.getEndpointSnitch().getRack(FBUtilities.getBroadcastAddress());
+        Collection<InetAddress> chosenEndpoints = new BatchlogEndpointSelector(localRack).chooseEndpoints(localEndpoints);
 
         if (chosenEndpoints.isEmpty())
         {
