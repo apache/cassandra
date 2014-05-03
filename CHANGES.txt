@@ -1,5 +1,5 @@
 2.0.8
-=======
+ * Make batchlog replica selection rack-aware (CASSANDRA-6551)
  * Add Google Compute Engine snitch (CASSANDRA-7132)
  * Allow overriding cassandra-rackdc.properties file (CASSANDRA-7072)
  * Set JMX RMI port to 7199 (CASSANDRA-7087)
