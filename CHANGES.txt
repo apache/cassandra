@@ -3,8 +3,8 @@
 Merged from 2.0:
  * Make batchlog replica selection rack-aware (CASSANDRA-6551)
  * Add Google Compute Engine snitch (CASSANDRA-7132)
+Merged from 1.2:
  * Update system.peers correctly when relocating tokens (CASSANDRA-7126)
-
 
 2.1.0-beta2
  * Increase default CL space to 8GB (CASSANDRA-7031)
@@ -70,35 +70,6 @@ Merged from 2.0:
  * Set JMX RMI port to 7199 (CASSANDRA-7087)
  * Use LOCAL_QUORUM for data reads at LOCAL_SERIAL (CASSANDRA-6939)
  * Log a warning for large batches (CASSANDRA-6487)
- * Queries on compact tables can return more rows that requested (CASSANDRA-7052)
- * USING TIMESTAMP for batches does not work (CASSANDRA-7053)
- * Fix performance regression from CASSANDRA-5614 (CASSANDRA-6949)
- * Merge groupable mutations in TriggerExecutor#execute() (CASSANDRA-7047)
- * Fix CFMetaData#getColumnDefinitionFromColumnName() (CASSANDRA-7074)
- * Plug holes in resource release when wiring up StreamSession (CASSANDRA-7073)
- * Re-add parameter columns to tracing session (CASSANDRA-6942)
- * Fix writetime/ttl functions for static columns (CASSANDRA-7081)
-Merged from 1.2:
- * Fix nodetool display with vnodes (CASSANDRA-7082)
- * Fix schema concurrency exceptions (CASSANDRA-6841)
- * Fix BatchlogManager#deleteBatch() use of millisecond timsestamps
-   (CASSANDRA-6822)
- * Continue assassinating even if the endpoint vanishes (CASSANDRA-6787)
- * Schedule schema pulls on change (CASSANDRA-6971)
- * Non-droppable verbs shouldn't be dropped from OTC (CASSANDRA-6980)
- * Shutdown batchlog executor in SS#drain() (CASSANDRA-7025)
- * Fix batchlog to account for CF truncation records (CASSANDRA-6999)
- * Fix CQLSH parsing of functions and BLOB literals (CASSANDRA-7018)
- * Require nodetool rebuild_index to specify index names (CASSANDRA-7038)
- * Ensure that batchlog and hint timeouts do not produce hints (CASSANDRA-7058)
- * Always clean up references in SerializingCache (CASSANDRA-6994)
- * Don't shut MessagingService down when replacing a node (CASSANDRA-6476)
- * fix npe when doing -Dcassandra.fd_initial_value_ms (CASSANDRA-6751)
- * Preserves CQL metadata when updating table from thrift (CASSANDRA-6831)
-
-
-2.0.7
->>>>>>> cassandra-2.0
  * Put nodes in hibernate when join_ring is false (CASSANDRA-6961)
  * Avoid early loading of non-system keyspaces before compaction-leftovers 
    cleanup at startup (CASSANDRA-6913)
@@ -176,7 +147,6 @@ Merged from 1.2:
  * Always clean up references in SerializingCache (CASSANDRA-6994)
  * Don't shut MessagingService down when replacing a node (CASSANDRA-6476)
  * fix npe when doing -Dcassandra.fd_initial_value_ms (CASSANDRA-6751)
-
 
 2.0.6
  * Avoid race-prone second "scrub" of system keyspace (CASSANDRA-6797)
