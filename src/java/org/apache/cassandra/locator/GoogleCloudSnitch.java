@@ -53,15 +53,15 @@ public class GoogleCloudSnitch extends AbstractNetworkTopologySnitch
     public GoogleCloudSnitch() throws IOException, ConfigurationException
     {
         String response = gceApiCall(ZONE_NAME_QUERY_URL);
-	String[] splits = response.split("/");
-	String az = splits[splits.length - 1];
+        String[] splits = response.split("/");
+        String az = splits[splits.length - 1];
 
         // Split "us-central1-a" or "asia-east1-a" into "us-central1"/"a" and "asia-east1"/"a".
         splits = az.split("-");
         gceZone = splits[splits.length - 1];
 
-	int lastRegionIndex = az.lastIndexOf("-");
-	gceRegion = az.substring(0, lastRegionIndex);
+        int lastRegionIndex = az.lastIndexOf("-");
+        gceRegion = az.substring(0, lastRegionIndex);
 
         String datacenterSuffix = (new SnitchProperties()).get("dc_suffix", "");
         gceRegion = gceRegion.concat(datacenterSuffix);
