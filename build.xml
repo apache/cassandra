@@ -343,7 +343,7 @@
           </dependency>
           <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
           <dependency groupId="com.github.stephenc.high-scale-lib" artifactId="high-scale-lib" version="1.1.2"/>
-          <dependency groupId="com.github.stephenc" artifactId="jamm" version="0.2.6"/>
+          <dependency groupId="com.github.jbellis" artifactId="jamm" version="0.2.6"/>
           <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.3">
 	      	<exclusion groupId="org.slf4j" artifactId="slf4j-log4j12"/>
           </dependency>
@@ -479,7 +479,7 @@
         <dependency groupId="net.java.dev.jna" artifactId="jna" version="4.0.0"/>
         
         <!-- don't need jamm unless running a server in which case it needs to be a -javagent to be used anyway -->
-        <dependency groupId="com.github.stephenc" artifactId="jamm"/>
+        <dependency groupId="com.github.jbellis" artifactId="jamm"/>
         <dependency groupId="io.netty" artifactId="netty"/>
       </artifact:pom>
       <artifact:pom id="thrift-pom"
