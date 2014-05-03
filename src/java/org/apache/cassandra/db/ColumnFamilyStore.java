@@ -290,12 +290,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             throw new RuntimeException(e);
         }
+        logger.debug("retryPolicy for {} is {}", name, this.metadata.getSpeculativeRetry());
         StorageService.optionalTasks.scheduleWithFixedDelay(new Runnable()
         {
             public void run()
             {
                 SpeculativeRetry retryPolicy = ColumnFamilyStore.this.metadata.getSpeculativeRetry();
-                logger.debug("retryPolicy for {} is {}", name, retryPolicy.value);
                 switch (retryPolicy.type)
                 {
                     case PERCENTILE:
