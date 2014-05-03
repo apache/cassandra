@@ -273,7 +273,7 @@ public class YamlFileNetworkTopologySnitch
 
                 for (final Node node : rack.nodes)
                 {
-                    if (rack.rack_name == null)
+                    if (node.broadcast_address == null)
                     {
                         throw new ConfigurationException(
                                 String.format(
