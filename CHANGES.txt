@@ -1,4 +1,5 @@
 1.2.17
+ * Add Cloudstack snitch (CASSANDRA-7147)
  * Update system.peers correctly when relocating tokens (CASSANDRA-7126)
  * Add Google Compute Engine snitch (CASSANDRA-7132)
  * Fix nodetool display with vnodes (CASSANDRA-7082)
