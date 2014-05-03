@@ -44,7 +44,7 @@ public interface Term
      * Bind the values in this term to the values contained in {@code values}.
      * This is obviously a no-op if the term is Terminal.
      *
-     * @param values the values to bind markers to.
+     * @param options the values to bind markers to.
      * @return the result of binding all the variables of this NonTerminal (or
      * 'this' if the term is terminal).
      */
