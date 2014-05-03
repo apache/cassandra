@@ -2,9 +2,10 @@
  * Parallel streaming for sstableloader (CASSANDRA-3668)
 Merged from 2.0:
  * Make batchlog replica selection rack-aware (CASSANDRA-6551)
- * Add Google Compute Engine snitch (CASSANDRA-7132)
 Merged from 1.2:
+ * Add Cloudstack snitch (CASSANDRA-7147)
  * Update system.peers correctly when relocating tokens (CASSANDRA-7126)
+ * Add Google Compute Engine snitch (CASSANDRA-7132)
 
 2.1.0-beta2
  * Increase default CL space to 8GB (CASSANDRA-7031)
