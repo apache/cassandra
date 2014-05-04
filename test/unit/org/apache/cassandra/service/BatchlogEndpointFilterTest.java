@@ -17,45 +17,24 @@
  */
 package org.apache.cassandra.service;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collection;
-
 import org.junit.Test;
 import org.junit.matchers.JUnitMatchers;
 
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
 
-public class BatchlogEndpointSelectorTest
+import org.apache.cassandra.db.BatchlogManager;
+
+import static org.junit.Assert.assertThat;
+import static org.hamcrest.CoreMatchers.is;
+
+public class BatchlogEndpointFilterTest
 {
-    private final BatchlogEndpointSelector target;
     private static final String LOCAL = "local";
-    
 
-    public BatchlogEndpointSelectorTest() throws UnknownHostException
-    {
-        target = new BatchlogEndpointSelector(LOCAL)
-        {
-            @Override
-            protected boolean isValid(InetAddress input)
-            {   
-                //we will use always alive non-localhost endpoints
-                return true;
-            }
-
-            @Override
-            protected int getRandomInt(int bound)
-            {
-                //we don't need a random behavior here
-                return bound - 1;
-            }
-        };
-    }
-    
     @Test
     public void shouldSelect2hostsFromNonLocalRacks() throws UnknownHostException
     {
@@ -67,12 +46,12 @@ public class BatchlogEndpointSelectorTest
                 .put("2", InetAddress.getByName("2"))
                 .put("2", InetAddress.getByName("22"))
                 .build();
-        Collection<InetAddress> result = target.chooseEndpoints(endpoints);
+        Collection<InetAddress> result = new TestEndpointFilter(LOCAL, endpoints).filter();
         assertThat(result.size(), is(2));
         assertThat(result, JUnitMatchers.hasItem(InetAddress.getByName("11")));
         assertThat(result, JUnitMatchers.hasItem(InetAddress.getByName("22")));
     }
-    
+
     @Test
     public void shouldSelectHostFromLocal() throws UnknownHostException
     {
@@ -81,23 +60,23 @@ public class BatchlogEndpointSelectorTest
                 .put(LOCAL, InetAddress.getByName("00"))
                 .put("1", InetAddress.getByName("1"))
                 .build();
-        Collection<InetAddress> result = target.chooseEndpoints(endpoints);
+        Collection<InetAddress> result = new TestEndpointFilter(LOCAL, endpoints).filter();
         assertThat(result.size(), is(2));
         assertThat(result, JUnitMatchers.hasItem(InetAddress.getByName("1")));
         assertThat(result, JUnitMatchers.hasItem(InetAddress.getByName("0")));
     }
-    
+
     @Test
     public void shouldReturnAsIsIfNoEnoughEndpoints() throws UnknownHostException
     {
         Multimap<String, InetAddress> endpoints = ImmutableMultimap.<String, InetAddress> builder()
                 .put(LOCAL, InetAddress.getByName("0"))
                 .build();
-        Collection<InetAddress> result = target.chooseEndpoints(endpoints);
+        Collection<InetAddress> result = new TestEndpointFilter(LOCAL, endpoints).filter();
         assertThat(result.size(), is(1));
         assertThat(result, JUnitMatchers.hasItem(InetAddress.getByName("0")));
     }
-    
+
     @Test
     public void shouldSelectTwoFirstHostsFromSingleOtherRack() throws UnknownHostException
     {
@@ -108,9 +87,31 @@ public class BatchlogEndpointSelectorTest
                 .put("1", InetAddress.getByName("11"))
                 .put("1", InetAddress.getByName("111"))
                 .build();
-        Collection<InetAddress> result = target.chooseEndpoints(endpoints);
+        Collection<InetAddress> result = new TestEndpointFilter(LOCAL, endpoints).filter();
         assertThat(result.size(), is(2));
         assertThat(result, JUnitMatchers.hasItem(InetAddress.getByName("1")));
         assertThat(result, JUnitMatchers.hasItem(InetAddress.getByName("11")));
+    }
+
+    private static class TestEndpointFilter extends BatchlogManager.EndpointFilter
+    {
+        public TestEndpointFilter(String localRack, Multimap<String, InetAddress> endpoints)
+        {
+            super(localRack, endpoints);
+        }
+
+        @Override
+        protected boolean isValid(InetAddress input)
+        {
+            // We will use always alive non-localhost endpoints
+            return true;
+        }
+
+        @Override
+        protected int getRandomInt(int bound)
+        {
+            // We don't need random behavior here
+            return bound - 1;
+        }
     }
 }
