@@ -519,6 +519,7 @@ class Shell(cmd.Cmd):
         #Python driver returns BLOBs as string, but we expect them as buffer()
         cassandra.cqltypes.BytesType.deserialize = staticmethod(cassandra.cqltypes.BytesType.validate)
         cassandra.cqltypes.CassandraType.support_empty_values = True
+        self.empty_lines = 0
 
     def set_expanded_cql_version(self, ver):
         ver, vertuple = full_cql_version(ver)
@@ -654,6 +655,7 @@ class Shell(cmd.Cmd):
     def reset_statement(self):
         self.reset_prompt()
         self.statement.truncate(0)
+        self.empty_lines = 0;
 
     def reset_prompt(self):
         if self.current_keyspace is None:
@@ -662,11 +664,16 @@ class Shell(cmd.Cmd):
             self.set_prompt(self.keyspace_prompt % self.current_keyspace)
 
     def set_continue_prompt(self):
+        if self.empty_lines >=3:
+            self.set_prompt("Statements are terminated with a ';'.  You can press CTRL-C to cancel an imcomplete statement.")
+            self.empty_lines = 0
+            return
         if self.current_keyspace is None:
             self.set_prompt(self.continue_prompt)
         else:
             spaces = ' ' * len(str(self.current_keyspace))
             self.set_prompt(self.keyspace_continue_prompt % spaces)
+        self.empty_lines += 1
 
     @contextmanager
     def prepare_loop(self):
