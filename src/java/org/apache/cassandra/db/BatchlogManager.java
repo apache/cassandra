@@ -30,7 +30,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Iterables;
+import com.google.common.collect.*;
 import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -363,5 +363,83 @@ public class BatchlogManager implements BatchlogManagerMBean
     private static UntypedResultSet process(String format, Object... args)
     {
         return QueryProcessor.processInternal(String.format(format, args));
+    }
+
+    public static class EndpointFilter
+    {
+        private final String localRack;
+        private final Multimap<String, InetAddress> endpoints;
+
+        public EndpointFilter(String localRack, Multimap<String, InetAddress> endpoints)
+        {
+            this.localRack = localRack;
+            this.endpoints = endpoints;
+        }
+
+        /**
+         * @return list of candidates for batchlog hosting. If possible these will be two nodes from different racks.
+         */
+        public Collection<InetAddress> filter()
+        {
+            // special case for single-node data centers
+            if (endpoints.values().size() == 1)
+                return endpoints.values();
+
+            // strip out dead endpoints and localhost
+            ListMultimap<String, InetAddress> validated = ArrayListMultimap.create();
+            for (Map.Entry<String, InetAddress> entry : endpoints.entries())
+                if (isValid(entry.getValue()))
+                    validated.put(entry.getKey(), entry.getValue());
+
+            if (validated.size() <= 2)
+                return validated.values();
+
+            if (validated.size() - validated.get(localRack).size() >= 2)
+            {
+                // we have enough endpoints in other racks
+                validated.removeAll(localRack);
+            }
+
+            if (validated.keySet().size() == 1)
+            {
+                // we have only 1 `other` rack
+                Collection<InetAddress> otherRack = Iterables.getOnlyElement(validated.asMap().values());
+                return Lists.newArrayList(Iterables.limit(otherRack, 2));
+            }
+
+            // randomize which racks we pick from if more than 2 remaining
+            Collection<String> racks;
+            if (validated.keySet().size() == 2)
+            {
+                racks = validated.keySet();
+            }
+            else
+            {
+                racks = Lists.newArrayList(validated.keySet());
+                Collections.shuffle((List) racks);
+            }
+
+            // grab a random member of up to two racks
+            List<InetAddress> result = new ArrayList<>(2);
+            for (String rack : Iterables.limit(racks, 2))
+            {
+                List<InetAddress> rackMembers = validated.get(rack);
+                result.add(rackMembers.get(getRandomInt(rackMembers.size())));
+            }
+
+            return result;
+        }
+
+        @VisibleForTesting
+        protected boolean isValid(InetAddress input)
+        {
+            return !input.equals(FBUtilities.getBroadcastAddress()) && FailureDetector.instance.isAlive(input);
+        }
+
+        @VisibleForTesting
+        protected int getRandomInt(int bound)
+        {
+            return FBUtilities.threadLocalRandom().nextInt(bound);
+        }
     }
 }
