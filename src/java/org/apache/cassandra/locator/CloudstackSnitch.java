@@ -17,9 +17,8 @@
  */
 package org.apache.cassandra.locator;
 
-import java.io.InputStream;
+import java.io.DataInputStream;
 import java.io.BufferedInputStream;
-import java.io.FilterInputStream;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -112,7 +111,7 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
     String csQueryMetadata(String url) throws ConfigurationException, IOException
     {
         HttpURLConnection conn = null;
-        BufferedInputStream is = null;
+        DataInputStream is = null;
 
         try {
             conn = (HttpURLConnection) new URL(url).openConnection();
@@ -127,8 +126,8 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
 
             int cl = conn.getContentLength();
             byte[] b = new byte[cl];
-            is = new BufferedInputStream(conn.getInputStream());
-            is.read(b, 0, cl);
+            is = new DataInputStream(new BufferedInputStream(conn.getInputStream()));
+            is.readFully(b);
             return new String(b, StandardCharsets.UTF_8);
         } finally {
             FileUtils.close(is);
