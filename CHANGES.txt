@@ -18,6 +18,7 @@
  * Always clean up references in SerializingCache (CASSANDRA-6994)
  * fix npe when doing -Dcassandra.fd_initial_value_ms (CASSANDRA-6751)
  * Preserves CQL metadata when updating table from thrift (CASSANDRA-6831)
+ * fix time conversion to milliseconds in SimpleCondition.await (CASSANDRA-7149)
 
 
 1.2.16

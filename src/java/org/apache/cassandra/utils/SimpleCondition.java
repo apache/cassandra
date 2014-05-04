@@ -44,7 +44,7 @@ public class SimpleCondition implements Condition
         // micro/nanoseconds not supported
         assert unit == TimeUnit.DAYS || unit == TimeUnit.HOURS || unit == TimeUnit.MINUTES || unit == TimeUnit.SECONDS || unit == TimeUnit.MILLISECONDS;
 
-        long end = System.currentTimeMillis() + unit.convert(time, TimeUnit.MILLISECONDS);
+        long end = System.currentTimeMillis() + TimeUnit.MILLISECONDS.convert(time, unit);
         while (!set && end > System.currentTimeMillis())
         {
             TimeUnit.MILLISECONDS.timedWait(this, end - System.currentTimeMillis());
