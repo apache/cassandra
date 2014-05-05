@@ -8,6 +8,8 @@
 
 2.1.0-rc1
  * Parallel streaming for sstableloader (CASSANDRA-3668)
+ * Fix bugs in supercolumns handling (CASSANDRA-7138)
+ * Fix ClassClassException on composite dense tables (CASSANDRA-7112)
 Merged from 2.0:
  * Make batchlog replica selection rack-aware (CASSANDRA-6551)
  * Suggest CTRL-C or semicolon after three blank lines in cqlsh (CASSANDRA-7142)

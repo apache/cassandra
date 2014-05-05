@@ -467,7 +467,6 @@ struct CfDef {
     33: optional double bloom_filter_fp_chance,
     34: optional string caching="keys_only",
     37: optional double dclocal_read_repair_chance = 0.0,
-    38: optional bool populate_io_cache_on_flush,
     39: optional i32 memtable_flush_period_in_ms,
     40: optional i32 default_time_to_live,
     42: optional string speculative_retry="NONE",
@@ -500,6 +499,8 @@ struct CfDef {
     27: optional string row_cache_provider,
     /** @deprecated */
     31: optional i32 row_cache_keys_to_save,
+    /** @deprecated */
+    38: optional bool populate_io_cache_on_flush,
     /** @deprecated */
     41: optional i32 index_interval,
 }

@@ -98,6 +98,11 @@ public class ColumnDefinition extends ColumnSpecification
         return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.PARTITION_KEY);
     }
 
+    public static ColumnDefinition partitionKeyDef(String ksName, String cfName, ByteBuffer name, AbstractType<?> validator, Integer componentIndex)
+    {
+        return new ColumnDefinition(ksName, cfName, new ColumnIdentifier(name, UTF8Type.instance), validator, null, null, null, componentIndex, Kind.PARTITION_KEY);
+    }
+
     public static ColumnDefinition clusteringKeyDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex)
     {
         return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.CLUSTERING_COLUMN);
@@ -265,11 +270,11 @@ public class ColumnDefinition extends ColumnSpecification
         return cd;
     }
 
-    public static ColumnDefinition fromThrift(CFMetaData cfm, ColumnDef thriftColumnDef) throws SyntaxException, ConfigurationException
+    public static ColumnDefinition fromThrift(String ksName, String cfName, AbstractType<?> thriftComparator, AbstractType<?> thriftSubcomparator, ColumnDef thriftColumnDef) throws SyntaxException, ConfigurationException
     {
         // For super columns, the componentIndex is 1 because the ColumnDefinition applies to the column component.
-        Integer componentIndex = cfm.isSuper() ? 1 : null;
-        AbstractType<?> comparator = cfm.getComponentComparator(componentIndex, Kind.REGULAR);
+        Integer componentIndex = thriftSubcomparator != null ? 1 : null;
+        AbstractType<?> comparator = thriftSubcomparator == null ? thriftComparator : thriftSubcomparator;
         try
         {
             comparator.validate(thriftColumnDef.name);
@@ -279,26 +284,25 @@ public class ColumnDefinition extends ColumnSpecification
             throw new ConfigurationException(String.format("Column name %s is not valid for comparator %s", ByteBufferUtil.bytesToHex(thriftColumnDef.name), comparator));
         }
 
-        ColumnDefinition cd = new ColumnDefinition(cfm,
-                                                   ByteBufferUtil.clone(thriftColumnDef.name),
-                                                   TypeParser.parse(thriftColumnDef.validation_class),
-                                                   componentIndex,
-                                                   Kind.REGULAR);
-
-        cd.setIndex(thriftColumnDef.index_name,
-                    thriftColumnDef.index_type == null ? null : IndexType.valueOf(thriftColumnDef.index_type.name()),
-                    thriftColumnDef.index_options);
-        return cd;
+        return new ColumnDefinition(ksName,
+                                    cfName,
+                                    new ColumnIdentifier(ByteBufferUtil.clone(thriftColumnDef.name), comparator),
+                                    TypeParser.parse(thriftColumnDef.validation_class),
+                                    thriftColumnDef.index_type == null ? null : IndexType.valueOf(thriftColumnDef.index_type.name()),
+                                    thriftColumnDef.index_options,
+                                    thriftColumnDef.index_name,
+                                    componentIndex,
+                                    Kind.REGULAR);
     }
 
-    public static List<ColumnDefinition> fromThrift(CFMetaData cfm, List<ColumnDef> thriftDefs) throws SyntaxException, ConfigurationException
+    public static List<ColumnDefinition> fromThrift(String ksName, String cfName, AbstractType<?> thriftComparator, AbstractType<?> thriftSubcomparator, List<ColumnDef> thriftDefs) throws SyntaxException, ConfigurationException
     {
         if (thriftDefs == null)
             return Collections.emptyList();
 
         List<ColumnDefinition> defs = new ArrayList<>(thriftDefs.size());
         for (ColumnDef thriftColumnDef : thriftDefs)
-            defs.add(fromThrift(cfm, thriftColumnDef));
+            defs.add(fromThrift(ksName, cfName, thriftComparator, thriftSubcomparator, thriftColumnDef));
 
         return defs;
     }
