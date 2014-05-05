@@ -59,7 +59,7 @@ public class ScheduledRangeTransferExecutorService
     {
         if (scheduler == null)
         {
-            LOG.warn("Unabled to shutdown; Scheduler never enabled");
+            LOG.warn("Unable to shutdown; Scheduler never enabled");
             return;
         }
 
@@ -78,7 +78,7 @@ class RangeTransfer implements Runnable
 
         if (res.size() < 1)
         {
-            LOG.debug("No queued ranges to transfer");
+            LOG.info("No queued ranges to transfer, shuffle complete.  Run 'cassandra-shuffle disable' to stop this message.");
             return;
         }
 
@@ -103,7 +103,7 @@ class RangeTransfer implements Runnable
         finally
         {
             LOG.debug("Removing queued entry for transfer of {}", token);
-            processInternal(String.format("DELETE FROM system.%s WHERE token_bytes = '%s'",
+            processInternal(String.format("DELETE FROM system.%s WHERE token_bytes = 0x%s",
                                           SystemKeyspace.RANGE_XFERS_CF,
                                           ByteBufferUtil.bytesToHex(tokenBytes)));
         }
