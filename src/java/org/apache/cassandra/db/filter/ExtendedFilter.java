@@ -19,6 +19,7 @@ package org.apache.cassandra.db.filter;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -34,7 +35,6 @@ import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 
 /**
  * Extends a column filter (IFilter) to include a number of IndexExpression.
@@ -279,7 +279,7 @@ public abstract class ExtendedFilter
 
             ColumnFamily pruned = data.cloneMeShallow();
             IDiskAtomFilter filter = dataRange.columnFilter(rowKey.getKey());
-            OnDiskAtomIterator iter = filter.getColumnFamilyIterator(rowKey, data);
+            Iterator<Cell> iter = filter.getColumnIterator(data);
             filter.collectReducedColumns(pruned, QueryFilter.gatherTombstones(pruned, iter), cfs.gcBefore(timestamp), timestamp);
             return pruned;
         }

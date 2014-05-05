@@ -17,13 +17,16 @@
  */
 package org.apache.cassandra.db;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.TreeSet;
 
+import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
@@ -69,6 +72,7 @@ public class CollationController
     {
         final ColumnFamily container = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());
         List<OnDiskAtomIterator> iterators = new ArrayList<>();
+        boolean isEmpty = true;
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.select(cfs.viewFilter(filter.key));
 
@@ -80,15 +84,15 @@ public class CollationController
                 ColumnFamily cf = memtable.getColumnFamily(filter.key);
                 if (cf != null)
                 {
-                    OnDiskAtomIterator iter = filter.getColumnFamilyIterator(cf);
-                    iterators.add(iter);
-                    filter.delete(container.deletionInfo(), iter.getColumnFamily());
+                    filter.delete(container.deletionInfo(), cf);
+                    isEmpty = false;
+                    Iterator<Cell> iter = filter.getIterator(cf);
                     while (iter.hasNext())
                     {
-                        OnDiskAtom atom = iter.next();
+                        Cell cell = iter.next();
                         if (copyOnHeap)
-                            atom = ((Cell) atom).localCopy(cfs.metadata, HeapAllocator.instance);
-                        container.addAtom(atom);
+                            cell = cell.localCopy(cfs.metadata, HeapAllocator.instance);
+                        container.addColumn(cell);
                     }
                 }
             }
@@ -120,6 +124,7 @@ public class CollationController
                 Tracing.trace("Merging data from sstable {}", sstable.descriptor.generation);
                 OnDiskAtomIterator iter = reducedFilter.getSSTableColumnIterator(sstable);
                 iterators.add(iter);
+                isEmpty = false;
                 if (iter.getColumnFamily() != null)
                 {
                     ColumnFamily cf = iter.getColumnFamily();
@@ -134,7 +139,7 @@ public class CollationController
 
             // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
             // and "there used to be data, but it's gone now" (we should cache the empty CF so we don't need to rebuild that slower)
-            if (iterators.isEmpty())
+            if (isEmpty)
                 return null;
 
             // do a final collate.  toCollate is boilerplate required to provide a CloseableIterator
@@ -189,7 +194,7 @@ public class CollationController
     {
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.select(cfs.viewFilter(filter.key));
-        List<OnDiskAtomIterator> iterators = new ArrayList<>(Iterables.size(view.memtables) + view.sstables.size());
+        List<Iterator<? extends OnDiskAtom>> iterators = new ArrayList<>(Iterables.size(view.memtables) + view.sstables.size());
         ColumnFamily returnCF = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());
         DeletionInfo returnDeletionInfo = returnCF.deletionInfo();
         try
@@ -197,21 +202,21 @@ public class CollationController
             Tracing.trace("Merging memtable tombstones");
             for (Memtable memtable : view.memtables)
             {
-                ColumnFamily cf = memtable.getColumnFamily(filter.key);
+                final ColumnFamily cf = memtable.getColumnFamily(filter.key);
                 if (cf != null)
                 {
-                    OnDiskAtomIterator iter = filter.getColumnFamilyIterator(cf);
+                    filter.delete(returnDeletionInfo, cf);
+                    Iterator<Cell> iter = filter.getIterator(cf);
                     if (copyOnHeap)
                     {
-                        ColumnFamily newCf = cf.cloneMeShallow(ArrayBackedSortedColumns.factory, false);
-                        for (Cell cell : cf)
+                        iter = Iterators.transform(iter, new Function<Cell, Cell>()
                         {
-                            newCf.addColumn(cell.localCopy(cfs.metadata, HeapAllocator.instance));
-                        }
-                        cf = newCf;
-                        iter = filter.getColumnFamilyIterator(cf);
+                            public Cell apply(Cell cell)
+                            {
+                                return cell.localCopy(cf.metadata, HeapAllocator.instance);
+                            }
+                        });
                     }
-                    filter.delete(returnDeletionInfo, cf);
                     iterators.add(iter);
                 }
             }
@@ -225,7 +230,7 @@ public class CollationController
              *   timestamp(tombstone) > maxTimestamp_s0
              * since we necessarily have
              *   timestamp(tombstone) <= maxTimestamp_s1
-             * In othere words, iterating in maxTimestamp order allow to do our mostRecentTombstone elimination
+             * In other words, iterating in maxTimestamp order allow to do our mostRecentTombstone elimination
              * in one pass, and minimize the number of sstables for which we read a rowTombstone.
              */
             Collections.sort(view.sstables, SSTableReader.maxTimestampComparator);
@@ -310,8 +315,9 @@ public class CollationController
         }
         finally
         {
-            for (OnDiskAtomIterator iter : iterators)
-                FileUtils.closeQuietly(iter);
+            for (Object iter : iterators)
+                if (iter instanceof Closeable)
+                    FileUtils.closeQuietly((Closeable) iter);
         }
     }
 

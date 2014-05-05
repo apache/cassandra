@@ -109,17 +109,6 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
         return metadata;
     }
 
-    public void addIfRelevant(Cell cell, DeletionInfo.InOrderTester tester, int gcBefore)
-    {
-        // the cell itself must be not gc-able (it is live, or a still relevant tombstone), (1)
-        // and if its container is deleted, the cell must be changed more recently than the container tombstone (2)
-        if ((cell.getLocalDeletionTime() >= gcBefore) // (1)
-            && (!tester.isDeleted(cell.name(), cell.timestamp())))                                // (2)
-        {
-            addColumn(cell);
-        }
-    }
-
     public void addColumn(CellName name, ByteBuffer value, long timestamp)
     {
         addColumn(name, value, timestamp, 0);
@@ -203,6 +192,12 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
      * be replaced by the newly added cell.
      */
     public abstract void addColumn(Cell cell);
+
+    /**
+     * Adds a cell if it's non-gc-able and isn't shadowed by a partition/range tombstone with a higher timestamp.
+     * Requires that the cell to add is sorted strictly after the last cell in the container.
+     */
+    public abstract void maybeAppendColumn(Cell cell, DeletionInfo.InOrderTester tester, int gcBefore);
 
     /**
      * Adds all the columns of a given column map to this column map.

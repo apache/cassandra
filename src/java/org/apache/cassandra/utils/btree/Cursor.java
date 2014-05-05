@@ -31,7 +31,7 @@ import static org.apache.cassandra.utils.btree.BTree.isLeaf;
  *
  * @param <V>
  */
-public final class Cursor<V> extends Path implements Iterator<V>
+public final class Cursor<K, V extends K> extends Path implements Iterator<V>
 {
     /*
      * Conceptually, a Cursor derives two Paths, one for the first object in the slice requested (inclusive),
@@ -70,7 +70,7 @@ public final class Cursor<V> extends Path implements Iterator<V>
      * @param upperBound the last item to include, exclusive
      * @param forwards   if false, the cursor will start at the end and move backwards
      */
-    public void reset(Object[] btree, Comparator<V> comparator, V lowerBound, V upperBound, boolean forwards)
+    public void reset(Object[] btree, Comparator<K> comparator, K lowerBound, K upperBound, boolean forwards)
     {
         _reset(btree, comparator, lowerBound, true, upperBound, false, forwards);
     }
@@ -86,12 +86,12 @@ public final class Cursor<V> extends Path implements Iterator<V>
      * @param inclusiveUpperBound should include end in the iterator, if present in the tree
      * @param forwards            if false, the cursor will start at the end and move backwards
      */
-    public void reset(Object[] btree, Comparator<V> comparator, V lowerBound, boolean inclusiveLowerBound, V upperBound, boolean inclusiveUpperBound, boolean forwards)
+    public void reset(Object[] btree, Comparator<K> comparator, K lowerBound, boolean inclusiveLowerBound, K upperBound, boolean inclusiveUpperBound, boolean forwards)
     {
         _reset(btree, comparator, lowerBound, inclusiveLowerBound, upperBound, inclusiveUpperBound, forwards);
     }
 
-    private void _reset(Object[] btree, Comparator<V> comparator, Object lowerBound, boolean inclusiveLowerBound, Object upperBound, boolean inclusiveUpperBound, boolean forwards)
+    private void _reset(Object[] btree, Comparator<K> comparator, Object lowerBound, boolean inclusiveLowerBound, Object upperBound, boolean inclusiveUpperBound, boolean forwards)
     {
         init(btree);
         if (lowerBound == null)

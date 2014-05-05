@@ -72,10 +72,17 @@ public class NamesQueryFilter implements IDiskAtomFilter
        return new NamesQueryFilter(newColumns, countCQL3Rows);
     }
 
-    public OnDiskAtomIterator getColumnFamilyIterator(DecoratedKey key, ColumnFamily cf)
+    @SuppressWarnings("unchecked")
+    public Iterator<Cell> getColumnIterator(ColumnFamily cf)
     {
         assert cf != null;
-        return new ByNameColumnIterator(columns.iterator(), cf, key);
+        return (Iterator<Cell>) (Iterator<?>) new ByNameColumnIterator(columns.iterator(), null, cf);
+    }
+
+    public OnDiskAtomIterator getColumnIterator(DecoratedKey key, ColumnFamily cf)
+    {
+        assert cf != null;
+        return new ByNameColumnIterator(columns.iterator(), key, cf);
     }
 
     public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, DecoratedKey key)
@@ -92,7 +99,7 @@ public class NamesQueryFilter implements IDiskAtomFilter
     {
         DeletionInfo.InOrderTester tester = container.inOrderDeletionTester();
         while (reducedColumns.hasNext())
-            container.addIfRelevant(reducedColumns.next(), tester, gcBefore);
+            container.maybeAppendColumn(reducedColumns.next(), tester, gcBefore);
     }
 
     public Comparator<Cell> getColumnComparator(CellNameType comparator)
@@ -188,22 +195,12 @@ public class NamesQueryFilter implements IDiskAtomFilter
         private final Iterator<CellName> names;
         private final SearchIterator<CellName, Cell> cells;
 
-        public ByNameColumnIterator(Iterator<CellName> names, ColumnFamily cf, DecoratedKey key)
+        public ByNameColumnIterator(Iterator<CellName> names, DecoratedKey key, ColumnFamily cf)
         {
             this.names = names;
             this.cf = cf;
             this.key = key;
             this.cells = cf.searchIterator();
-        }
-
-        public ColumnFamily getColumnFamily()
-        {
-            return cf;
-        }
-
-        public DecoratedKey getKey()
-        {
-            return key;
         }
 
         protected OnDiskAtom computeNext()
@@ -216,6 +213,16 @@ public class NamesQueryFilter implements IDiskAtomFilter
                     return cell;
             }
             return endOfData();
+        }
+
+        public ColumnFamily getColumnFamily()
+        {
+            return cf;
+        }
+
+        public DecoratedKey getKey()
+        {
+            return key;
         }
 
         public void close() throws IOException { }
@@ -244,7 +251,7 @@ public class NamesQueryFilter implements IDiskAtomFilter
         public NamesQueryFilter deserialize(DataInput in, int version) throws IOException
         {
             int size = in.readInt();
-            SortedSet<CellName> columns = new TreeSet<CellName>(type);
+            SortedSet<CellName> columns = new TreeSet<>(type);
             ISerializer<CellName> serializer = type.cellSerializer();
             for (int i = 0; i < size; ++i)
                 columns.add(serializer.deserialize(in));
@@ -267,7 +274,7 @@ public class NamesQueryFilter implements IDiskAtomFilter
     public Iterator<RangeTombstone> getRangeTombstoneIterator(final ColumnFamily source)
     {
         if (!source.deletionInfo().hasRanges())
-            return Iterators.<RangeTombstone>emptyIterator();
+            return Iterators.emptyIterator();
 
         return new AbstractIterator<RangeTombstone>()
         {

@@ -45,7 +45,9 @@ public interface IDiskAtomFilter
      * returns an iterator that returns columns from the given columnFamily
      * matching the Filter criteria in sorted order.
      */
-    public OnDiskAtomIterator getColumnFamilyIterator(DecoratedKey key, ColumnFamily cf);
+    public Iterator<Cell> getColumnIterator(ColumnFamily cf);
+
+    public OnDiskAtomIterator getColumnIterator(DecoratedKey key, ColumnFamily cf);
 
     /**
      * Get an iterator that returns columns from the given SSTable using the opened file

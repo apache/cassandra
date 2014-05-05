@@ -27,18 +27,17 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
+import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
-import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
@@ -206,6 +205,11 @@ public class AtomicBTreeColumns extends ColumnFamily
         throw new UnsupportedOperationException();
     }
 
+    public void maybeAppendColumn(Cell cell, DeletionInfo.InOrderTester tester, int gcBefore)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     public void addAll(ColumnFamily cf)
     {
         throw new UnsupportedOperationException();
@@ -223,12 +227,12 @@ public class AtomicBTreeColumns extends ColumnFamily
 
     private Comparator<Object> asymmetricComparator()
     {
-        final Comparator<? super CellName> cmp = metadata.comparator;
+        final Comparator<Composite> cmp = metadata.comparator;
         return new Comparator<Object>()
         {
             public int compare(Object o1, Object o2)
             {
-                return cmp.compare((CellName) o1, ((Cell) o2).name());
+                return cmp.compare((Composite) o1, ((Cell) o2).name());
             }
         };
     }
@@ -277,12 +281,16 @@ public class AtomicBTreeColumns extends ColumnFamily
 
     public Iterator<Cell> iterator(ColumnSlice[] slices)
     {
-        return new ColumnSlice.NavigableSetIterator(new BTreeSet<>(ref.tree, getComparator().columnComparator()), slices);
+        return slices.length == 1
+             ? slice(ref.tree, asymmetricComparator(), slices[0].start, slices[0].finish, true)
+             : new SliceIterator(ref.tree, asymmetricComparator(), true, slices);
     }
 
     public Iterator<Cell> reverseIterator(ColumnSlice[] slices)
     {
-        return new ColumnSlice.NavigableSetIterator(new BTreeSet<>(ref.tree, getComparator().columnComparator()).descendingSet(), slices);
+        return slices.length == 1
+             ? slice(ref.tree, asymmetricComparator(), slices[0].finish, slices[0].start, false)
+             : new SliceIterator(ref.tree, asymmetricComparator(), false, slices);
     }
 
     public boolean isInsertReversed()
@@ -305,11 +313,6 @@ public class AtomicBTreeColumns extends ColumnFamily
         Holder with(DeletionInfo info)
         {
             return new Holder(this.tree, info);
-        }
-
-        private Iterator<Cell> cellRange(Comparator<Cell> comparator, Composite start, Composite finish)
-        {
-            return new ColumnSlice.NavigableSetIterator(new BTreeSet<>(tree, comparator), new ColumnSlice[]{ new ColumnSlice(start, finish) });
         }
     }
 
@@ -404,5 +407,56 @@ public class AtomicBTreeColumns extends ColumnFamily
             allocator.onHeap().allocate(heapSize, writeOp);
             reclaimer.commit();
         }
+    }
+
+    private static class SliceIterator extends AbstractIterator<Cell>
+    {
+        private final Object[] btree;
+        private final boolean forwards;
+        private final Comparator<Object> comparator;
+        private final ColumnSlice[] slices;
+
+        private int idx = 0;
+        private Iterator<Cell> currentSlice;
+
+        SliceIterator(Object[] btree, Comparator<Object> comparator, boolean forwards, ColumnSlice[] slices)
+        {
+            this.btree = btree;
+            this.comparator = comparator;
+            this.slices = slices;
+            this.forwards = forwards;
+        }
+
+        protected Cell computeNext()
+        {
+            if (currentSlice == null)
+            {
+                if (idx >= slices.length)
+                    return endOfData();
+
+                ColumnSlice slice = slices[idx++];
+                if (forwards)
+                    currentSlice = slice(btree, comparator, slice.start, slice.finish, true);
+                else
+                    currentSlice = slice(btree, comparator, slice.finish, slice.start, false);
+            }
+
+            if (currentSlice.hasNext())
+                return currentSlice.next();
+
+            currentSlice = null;
+            return computeNext();
+        }
+    }
+
+    private static Iterator<Cell> slice(Object[] btree, Comparator<Object> comparator, Composite start, Composite finish, boolean forwards)
+    {
+        return BTree.slice(btree,
+                           comparator,
+                           start.isEmpty() ? null : start,
+                           true,
+                           finish.isEmpty() ? null : finish,
+                           true,
+                           forwards);
     }
 }

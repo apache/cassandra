@@ -196,9 +196,9 @@ public class BTree
      * @param <V>
      * @return
      */
-    public static <V> Cursor<V> slice(Object[] btree, boolean forwards)
+    public static <V> Cursor<V, V> slice(Object[] btree, boolean forwards)
     {
-        Cursor<V> r = new Cursor<>();
+        Cursor<V, V> r = new Cursor<>();
         r.reset(btree, forwards);
         return r;
     }
@@ -214,9 +214,9 @@ public class BTree
      * @param <V>
      * @return
      */
-    public static <V> Cursor<V> slice(Object[] btree, Comparator<V> comparator, V start, V end, boolean forwards)
+    public static <K, V extends K> Cursor<K, V> slice(Object[] btree, Comparator<K> comparator, K start, K end, boolean forwards)
     {
-        Cursor<V> r = new Cursor<>();
+        Cursor<K, V> r = new Cursor<>();
         r.reset(btree, comparator, start, end, forwards);
         return r;
     }
@@ -232,9 +232,9 @@ public class BTree
      * @param <V>
      * @return
      */
-    public static <V> Cursor<V> slice(Object[] btree, Comparator<V> comparator, V start, boolean startInclusive, V end, boolean endInclusive, boolean forwards)
+    public static <K, V extends K> Cursor<K, V> slice(Object[] btree, Comparator<K> comparator, K start, boolean startInclusive, K end, boolean endInclusive, boolean forwards)
     {
-        Cursor<V> r = new Cursor<>();
+        Cursor<K, V> r = new Cursor<>();
         r.reset(btree, comparator, start, startInclusive, end, endInclusive, forwards);
         return r;
     }

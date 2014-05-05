@@ -47,9 +47,9 @@ public class BTreeSet<V> implements NavigableSet<V>
         return comparator;
     }
 
-    protected Cursor<V> slice(boolean forwards, boolean permitInversion)
+    protected Cursor<V, V> slice(boolean forwards, boolean permitInversion)
     {
-        return BTree.<V>slice(tree, forwards);
+        return BTree.slice(tree, forwards);
     }
 
     @Override
@@ -313,7 +313,7 @@ public class BTreeSet<V> implements NavigableSet<V>
         }
 
         @Override
-        protected Cursor<V> slice(boolean forwards, boolean permitInversion)
+        protected Cursor<V, V> slice(boolean forwards, boolean permitInversion)
         {
             return BTree.slice(tree, comparator, lowerBound, inclusiveLowerBound, upperBound, inclusiveUpperBound, forwards);
         }
@@ -351,7 +351,7 @@ public class BTreeSet<V> implements NavigableSet<V>
         }
 
         @Override
-        protected Cursor<V> slice(boolean forwards, boolean permitInversion)
+        protected Cursor<V, V> slice(boolean forwards, boolean permitInversion)
         {
             return super.slice(permitInversion ? !forwards : forwards, false);
         }
