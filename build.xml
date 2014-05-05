@@ -283,6 +283,7 @@
       <artifact:remoteRepository id="central"   url="${artifact.remoteRepository.central}"/>
       <artifact:remoteRepository id="java.net2" url="${artifact.remoteRepository.java.net2}"/>
       <artifact:remoteRepository id="apache"    url="${artifact.remoteRepository.apache}"/>
+      <artifact:remoteRepository id="boundary"  url="${artifact.remoteRepository.boundary}"/>
 
       <macrodef name="install">
         <attribute name="pomFile"/>
@@ -361,7 +362,7 @@
             <exclusion groupId="junit" artifactId="junit"/>
           </dependency>
           <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
-          <dependency groupId="com.github.stephenc.high-scale-lib" artifactId="high-scale-lib" version="1.1.2"/>
+          <dependency groupId="com.boundary.high-scale-lib" artifactId="high-scale-lib" version="1.0.5"/>
           <dependency groupId="com.github.jbellis" artifactId="jamm" version="0.2.6"/>
           <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.3">
 	      	<exclusion groupId="org.slf4j" artifactId="slf4j-log4j12"/>
@@ -470,7 +471,7 @@
         <dependency groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
         <dependency groupId="jline" artifactId="jline"/>
         <dependency groupId="com.googlecode.json-simple" artifactId="json-simple"/>
-        <dependency groupId="com.github.stephenc.high-scale-lib" artifactId="high-scale-lib"/>
+        <dependency groupId="com.boundary.high-scale-lib" artifactId="high-scale-lib"/>
         <dependency groupId="org.yaml" artifactId="snakeyaml"/>
         <dependency groupId="org.mindrot" artifactId="jbcrypt"/>
         <dependency groupId="com.yammer.metrics" artifactId="metrics-core"/>
@@ -542,6 +543,7 @@
           <remoteRepository refid="central"/>
           <remoteRepository refid="apache"/>
           <remoteRepository refid="java.net2"/>
+          <remoteRepository refid="boundary"/>
       </artifact:dependencies>
       <artifact:dependencies pomRefId="coverage-deps-pom"
                              pathId="cobertura.classpath">
@@ -567,6 +569,7 @@
         <remoteRepository refid="apache"/>
         <remoteRepository refid="central"/>
         <remoteRepository refid="oauth"/>
+        <remoteRepository refid="boundary"/>
       </artifact:dependencies>
       <copy todir="${test.lib}/jars">
         <fileset refid="test-dependency-jars"/>
@@ -587,6 +590,7 @@
         <remoteRepository refid="apache"/>
         <remoteRepository refid="central"/>
         <remoteRepository refid="java.net2"/>
+        <remoteRepository refid="boundary"/>
       </artifact:dependencies>
       <copy todir="${build.dir.lib}/jars">
         <fileset refid="test-dependency-jars"/>
