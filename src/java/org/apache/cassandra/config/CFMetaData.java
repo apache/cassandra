@@ -58,7 +58,6 @@ import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.db.AbstractCell;
 import org.apache.cassandra.db.AtomDeserializer;
 import org.apache.cassandra.db.CFRowAdder;
-import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ColumnFamilyType;
@@ -69,7 +68,6 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.SuperColumns;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
@@ -97,6 +95,7 @@ import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlRow;
 import org.apache.cassandra.tracing.Tracing;
@@ -999,45 +998,18 @@ public final class CFMetaData
         }
     }
 
-    public static CFMetaData fromThrift(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException, ConfigurationException
+    public static CFMetaData fromThrift(CfDef cf_def) throws InvalidRequestException, ConfigurationException
     {
-        CFMetaData cfm = internalFromThrift(cf_def);
-
-        if (cf_def.isSetKey_alias() && !(cfm.keyValidator instanceof CompositeType))
-            cfm.addOrReplaceColumnDefinition(ColumnDefinition.partitionKeyDef(cfm, cf_def.key_alias, cfm.keyValidator, null));
-
-        return cfm.rebuild();
+        return internalFromThrift(cf_def, Collections.<ColumnDefinition>emptyList());
     }
 
-    public static CFMetaData fromThriftForUpdate(org.apache.cassandra.thrift.CfDef cf_def, CFMetaData toUpdate) throws InvalidRequestException, ConfigurationException
+    public static CFMetaData fromThriftForUpdate(CfDef cf_def, CFMetaData toUpdate) throws InvalidRequestException, ConfigurationException
     {
-        CFMetaData cfm = internalFromThrift(cf_def);
-
-        // Thrift update can't have CQL metadata, and so we'll copy the ones of the updated metadata (to make
-        // sure we don't override anything existing -- see #6831). One exception (for historical reasons) is
-        // the partition key column name however, which can be provided through thrift. If it is, make sure
-        // we use the one of the update.
-        boolean hasKeyAlias = cf_def.isSetKey_alias() && !(cfm.keyValidator instanceof CompositeType);
-        if (hasKeyAlias)
-            cfm.addOrReplaceColumnDefinition(ColumnDefinition.partitionKeyDef(cfm, cf_def.key_alias, cfm.keyValidator, null));
-
-        for (ColumnDefinition def : toUpdate.allColumns())
-        {
-            // isPartOfCellName basically means 'is not just a CQL metadata'
-            if (def.isPartOfCellName())
-                continue;
-
-            if (def.kind == ColumnDefinition.Kind.PARTITION_KEY && hasKeyAlias)
-                continue;
-
-            cfm.addOrReplaceColumnDefinition(def);
-        }
-
-        return cfm.rebuild();
+        return internalFromThrift(cf_def, toUpdate.allColumns());
     }
 
-    // Do most of the work, but don't handle CQL metadata (i.e. skip key_alias and don't rebuild())
-    private static CFMetaData internalFromThrift(org.apache.cassandra.thrift.CfDef cf_def) throws InvalidRequestException, ConfigurationException
+    // Convert a thrift CfDef, given a list of ColumnDefinitions to copy over to the created CFMetadata before the CQL metadata are rebuild
+    private static CFMetaData internalFromThrift(CfDef cf_def, Collection<ColumnDefinition> previousCQLMetadata) throws InvalidRequestException, ConfigurationException
     {
         ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
         if (cfType == null)
@@ -1052,25 +1024,52 @@ public final class CFMetaData
                                           ? null
                                           : cf_def.subcomparator_type == null ? BytesType.instance : TypeParser.parse(cf_def.subcomparator_type);
 
-            // Dense for thrit is simplified as all column metadata are REGULAR
-            boolean isDense = (cf_def.column_metadata == null || cf_def.column_metadata.isEmpty()) && !isCQL3OnlyPKComparator(rawComparator);
-            CellNameType comparator = CellNames.fromAbstractType(makeRawAbstractType(rawComparator, subComparator), isDense);
+            AbstractType<?> fullRawComparator = makeRawAbstractType(rawComparator, subComparator);
+
+            AbstractType<?> keyValidator = cf_def.isSetKey_validation_class() ? TypeParser.parse(cf_def.key_validation_class) : null;
+
+            // Convert the REGULAR definitions from the input CfDef
+            List<ColumnDefinition> defs = ColumnDefinition.fromThrift(cf_def.keyspace, cf_def.name, rawComparator, subComparator, cf_def.column_metadata);
+
+            // Add the keyAlias if there is one, since that's on CQL metadata that thrift can actually change (for
+            // historical reasons)
+            boolean hasKeyAlias = cf_def.isSetKey_alias() && keyValidator != null && !(keyValidator instanceof CompositeType);
+            if (hasKeyAlias)
+                defs.add(ColumnDefinition.partitionKeyDef(cf_def.keyspace, cf_def.name, cf_def.key_alias, keyValidator, null));
+
+            // Now add any CQL metadata that we want to copy, skipping the keyAlias if there was one
+            for (ColumnDefinition def : previousCQLMetadata)
+            {
+                // isPartOfCellName basically means 'is not just a CQL metadata'
+                if (def.isPartOfCellName())
+                    continue;
+
+                if (def.kind == ColumnDefinition.Kind.PARTITION_KEY && hasKeyAlias)
+                    continue;
+
+                defs.add(def);
+            }
+
+            CellNameType comparator = CellNames.fromAbstractType(fullRawComparator, isDense(fullRawComparator, defs));
 
             UUID cfId = Schema.instance.getId(cf_def.keyspace, cf_def.name);
             if (cfId == null)
                 cfId = UUIDGen.getTimeUUID();
 
-            CFMetaData newCFMD = new CFMetaData(cf_def.keyspace,
-                                                cf_def.name,
-                                                cfType,
-                                                comparator,
-                                                cfId);
+            CFMetaData newCFMD = new CFMetaData(cf_def.keyspace, cf_def.name, cfType, comparator, cfId);
 
-            if (cf_def.isSetGc_grace_seconds()) { newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds); }
-            if (cf_def.isSetMin_compaction_threshold()) { newCFMD.minCompactionThreshold(cf_def.min_compaction_threshold); }
-            if (cf_def.isSetMax_compaction_threshold()) { newCFMD.maxCompactionThreshold(cf_def.max_compaction_threshold); }
+            newCFMD.addAllColumnDefinitions(defs);
+
+            if (keyValidator != null)
+                newCFMD.keyValidator(keyValidator);
+            if (cf_def.isSetGc_grace_seconds())
+                newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds);
+            if (cf_def.isSetMin_compaction_threshold())
+                newCFMD.minCompactionThreshold(cf_def.min_compaction_threshold);
+            if (cf_def.isSetMax_compaction_threshold())
+                newCFMD.maxCompactionThreshold(cf_def.max_compaction_threshold);
             if (cf_def.isSetCompaction_strategy())
-                newCFMD.compactionStrategyClass = createCompactionStrategy(cf_def.compaction_strategy);
+                newCFMD.compactionStrategyClass(createCompactionStrategy(cf_def.compaction_strategy));
             if (cf_def.isSetCompaction_strategy_options())
                 newCFMD.compactionStrategyOptions(new HashMap<>(cf_def.compaction_strategy_options));
             if (cf_def.isSetBloom_filter_fp_chance())
@@ -1091,18 +1090,13 @@ public final class CFMetaData
                 newCFMD.maxIndexInterval(cf_def.max_index_interval);
             if (cf_def.isSetSpeculative_retry())
                 newCFMD.speculativeRetry(SpeculativeRetry.fromString(cf_def.speculative_retry));
-            if (cf_def.isSetPopulate_io_cache_on_flush())
             if (cf_def.isSetTriggers())
                 newCFMD.triggers(TriggerDefinition.fromThrift(cf_def.triggers));
 
-            CompressionParameters cp = CompressionParameters.create(cf_def.compression_options);
-
-            if (cf_def.isSetKey_validation_class()) { newCFMD.keyValidator(TypeParser.parse(cf_def.key_validation_class)); }
-
-            return newCFMD.addAllColumnDefinitions(ColumnDefinition.fromThrift(newCFMD, cf_def.column_metadata))
-                          .comment(cf_def.comment)
+            return newCFMD.comment(cf_def.comment)
                           .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
-                          .compressionParameters(cp);
+                          .compressionParameters(CompressionParameters.create(cf_def.compression_options))
+                          .rebuild();
         }
         catch (SyntaxException | MarshalException e)
         {
@@ -1788,7 +1782,6 @@ public final class CFMetaData
                 cfm.minIndexInterval(result.getInt("min_index_interval"));
             else if (result.has("index_interval"))
                 cfm.minIndexInterval(result.getInt("index_interval"));
-
             if (result.has("max_index_interval"))
                 cfm.maxIndexInterval(result.getInt("max_index_interval"));
 
@@ -1803,7 +1796,6 @@ public final class CFMetaData
                 cfm.addColumnMetadataFromAliases(aliasesFromStrings(fromJsonList(result.getString("key_aliases"))), cfm.keyValidator, ColumnDefinition.Kind.PARTITION_KEY);
             if (result.has("column_aliases"))
                 cfm.addColumnMetadataFromAliases(aliasesFromStrings(fromJsonList(result.getString("column_aliases"))), cfm.comparator.asAbstractType(), ColumnDefinition.Kind.CLUSTERING_COLUMN);
-
             if (result.has("value_alias"))
                 cfm.addColumnMetadataFromAliases(Collections.singletonList(result.getBytes("value_alias")), cfm.defaultValidator, ColumnDefinition.Kind.COMPACT_VALUE);
 
@@ -2240,7 +2232,7 @@ public final class CFMetaData
             .append("comparator", comparator)
             .append("comment", comment)
             .append("readRepairChance", readRepairChance)
-            .append("dclocalReadRepairChance", dcLocalReadRepairChance)
+            .append("dcLocalReadRepairChance", dcLocalReadRepairChance)
             .append("gcGraceSeconds", gcGraceSeconds)
             .append("defaultValidator", defaultValidator)
             .append("keyValidator", keyValidator)

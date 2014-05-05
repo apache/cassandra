@@ -45,7 +45,7 @@ public class ColumnDefinitionTest
 
     protected void testSerializeDeserialize(CFMetaData cfm, ColumnDefinition cd) throws Exception
     {
-        ColumnDefinition newCd = ColumnDefinition.fromThrift(cfm, cd.toThrift());
+        ColumnDefinition newCd = ColumnDefinition.fromThrift(cfm.ksName, cfm.cfName, cfm.comparator.asAbstractType(), null, cd.toThrift());
         Assert.assertNotSame(cd, newCd);
         Assert.assertEquals(cd.hashCode(), newCd.hashCode());
         Assert.assertEquals(cd, newCd);
