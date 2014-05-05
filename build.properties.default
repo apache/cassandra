@@ -4,4 +4,5 @@ artifact.remoteRepository.java.net2:   http://download.java.net/maven/2
 artifact.remoteRepository.apache:      https://repository.apache.org/content/repositories/releases
 artifact.remoteRepository.jclouds:     http://jclouds.googlecode.com/svn/repo
 artifact.remoteRepository.oauth:       http://oauth.googlecode.com/svn/code/maven
+artifact.remoteRepository.boundary:	   http://maven.boundary.com/artifactory/external	
 
