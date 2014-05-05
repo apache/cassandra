@@ -67,10 +67,10 @@ public class CompoundDenseCellNameType extends AbstractCompoundCellNameType
     protected Composite makeWith(ByteBuffer[] components, int size, Composite.EOC eoc, boolean isStatic)
     {
         assert !isStatic;
-        if (size < fullSize || eoc != Composite.EOC.NONE)
-            return new CompoundComposite(components, size, false).withEOC(eoc);
-
-        return new CompoundDenseCellName(components, size);
+        // A composite dense table cell name don't have to have all the component set to qualify as a
+        // proper CellName (for backward compatibility reasons mostly), so always return a cellName
+        Composite c = new CompoundDenseCellName(components, size);
+        return eoc != Composite.EOC.NONE ? c.withEOC(eoc) : c;
     }
 
     protected Composite copyAndMakeWith(ByteBuffer[] components, int size, Composite.EOC eoc, boolean isStatic)
