@@ -381,12 +381,18 @@ public class CassandraServer implements Cassandra.Iface
 
     private SliceQueryFilter toInternalFilter(CFMetaData metadata, ColumnParent parent, SliceRange range)
     {
+        if (metadata.isSuper())
+        {
+            CellNameType columnType = new SimpleDenseCellNameType(metadata.comparator.subtype(parent.isSetSuper_column() ? 1 : 0));
+            Composite start = columnType.fromByteBuffer(range.start);
+            Composite finish = columnType.fromByteBuffer(range.finish);
+            SliceQueryFilter filter = new SliceQueryFilter(start, finish, range.reversed, range.count);
+            return SuperColumns.fromSCSliceFilter(metadata.comparator, parent.bufferForSuper_column(), filter);
+        }
+
         Composite start = metadata.comparator.fromByteBuffer(range.start);
         Composite finish = metadata.comparator.fromByteBuffer(range.finish);
-        SliceQueryFilter filter = new SliceQueryFilter(start, finish, range.reversed, range.count);
-        if (metadata.isSuper())
-            filter = SuperColumns.fromSCSliceFilter(metadata.comparator, parent.bufferForSuper_column(), filter);
-        return filter;
+        return new SliceQueryFilter(start, finish, range.reversed, range.count);
     }
 
     private IDiskAtomFilter toInternalFilter(CFMetaData metadata, ColumnParent parent, SlicePredicate predicate)
