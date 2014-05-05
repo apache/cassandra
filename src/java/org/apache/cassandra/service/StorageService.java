@@ -3188,7 +3188,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private class RangeRelocator
     {
-        private final StreamPlan streamPlan = new StreamPlan("Bootstrap");
+        private final StreamPlan streamPlan = new StreamPlan("Relocation");
 
         private RangeRelocator(Collection<Token> tokens, List<String> keyspaceNames)
         {
