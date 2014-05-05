@@ -72,6 +72,12 @@ public class SetType<T> extends CollectionType<Set<T>>
         return EmptyType.instance;
     }
 
+    @Override
+    public int compare(ByteBuffer o1, ByteBuffer o2)
+    {
+        return ListType.compareListOrSet(elements, o1, o2);
+    }
+
     public TypeSerializer<Set<T>> getSerializer()
     {
         return serializer;

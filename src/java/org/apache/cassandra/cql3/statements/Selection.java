@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import org.apache.cassandra.cql3.*;
@@ -36,14 +37,14 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class Selection
 {
-    private final List<CFDefinition.Name> columnsList;
+    private final Collection<CFDefinition.Name> columns;
     private final List<ColumnSpecification> metadata;
     private final boolean collectTimestamps;
     private final boolean collectTTLs;
 
-    protected Selection(List<CFDefinition.Name> columnsList, List<ColumnSpecification> metadata, boolean collectTimestamps, boolean collectTTLs)
+    protected Selection(Collection<CFDefinition.Name> columns, List<ColumnSpecification> metadata, boolean collectTimestamps, boolean collectTTLs)
     {
-        this.columnsList = columnsList;
+        this.columns = columns;
         this.metadata = metadata;
         this.collectTimestamps = collectTimestamps;
         this.collectTTLs = collectTTLs;
@@ -68,9 +69,9 @@ public abstract class Selection
         return new SimpleSelection(all, true);
     }
 
-    public static Selection forColumns(List<CFDefinition.Name> columnsList)
+    public static Selection forColumns(Collection<CFDefinition.Name> columns)
     {
-        return new SimpleSelection(columnsList, false);
+        return new SimpleSelection(columns, false);
     }
 
     private static boolean isUsingFunction(List<RawSelector> rawSelectors)
@@ -213,7 +214,7 @@ public abstract class Selection
     public List<ColumnIdentifier> regularAndStaticColumnsToFetch()
     {
         List<ColumnIdentifier> toFetch = new ArrayList<ColumnIdentifier>();
-        for (CFDefinition.Name name : columnsList)
+        for (CFDefinition.Name name : columns)
         {
             if (name.kind == CFDefinition.Name.Kind.COLUMN_METADATA || name.kind == CFDefinition.Name.Kind.STATIC)
                 toFetch.add(name.name);
@@ -224,9 +225,9 @@ public abstract class Selection
     /**
      * @return the list of CQL3 columns value this SelectionClause needs.
      */
-    public List<CFDefinition.Name> getColumnsList()
+    public Collection<CFDefinition.Name> getColumns()
     {
-        return columnsList;
+        return columns;
     }
 
     public ResultSetBuilder resultSetBuilder(long now)
@@ -261,8 +262,8 @@ public abstract class Selection
         private ResultSetBuilder(long now)
         {
             this.resultSet = new ResultSet(metadata);
-            this.timestamps = collectTimestamps ? new long[columnsList.size()] : null;
-            this.ttls = collectTTLs ? new int[columnsList.size()] : null;
+            this.timestamps = collectTimestamps ? new long[columns.size()] : null;
+            this.ttls = collectTTLs ? new int[columns.size()] : null;
             this.now = now;
         }
 
@@ -296,7 +297,7 @@ public abstract class Selection
         {
             if (current != null)
                 resultSet.addRow(handleRow(this));
-            current = new ArrayList<ByteBuffer>(columnsList.size());
+            current = new ArrayList<ByteBuffer>(columns.size());
         }
 
         public ResultSet build() throws InvalidRequestException
@@ -315,19 +316,19 @@ public abstract class Selection
     {
         private final boolean isWildcard;
 
-        public SimpleSelection(List<CFDefinition.Name> columnsList, boolean isWildcard)
+        public SimpleSelection(Collection<CFDefinition.Name> columns, boolean isWildcard)
         {
-            this(columnsList, new ArrayList<ColumnSpecification>(columnsList), isWildcard);
+            this(columns, new ArrayList<ColumnSpecification>(columns), isWildcard);
         }
 
-        public SimpleSelection(List<CFDefinition.Name> columnsList, List<ColumnSpecification> metadata, boolean isWildcard)
+        public SimpleSelection(Collection<CFDefinition.Name> columns, List<ColumnSpecification> metadata, boolean isWildcard)
         {
             /*
              * In theory, even a simple selection could have multiple time the same column, so we
-             * could filter those duplicate out of columnsList. But since we're very unlikely to
+             * could filter those duplicate out of columns. But since we're very unlikely to
              * get much duplicate in practice, it's more efficient not to bother.
              */
-            super(columnsList, metadata, false, false);
+            super(columns, metadata, false, false);
             this.isWildcard = isWildcard;
         }
 
@@ -459,9 +460,9 @@ public abstract class Selection
     {
         private final List<Selector> selectors;
 
-        public SelectionWithFunctions(List<CFDefinition.Name> columnsList, List<ColumnSpecification> metadata, List<Selector> selectors, boolean collectTimestamps, boolean collectTTLs)
+        public SelectionWithFunctions(Collection<CFDefinition.Name> columns, List<ColumnSpecification> metadata, List<Selector> selectors, boolean collectTimestamps, boolean collectTTLs)
         {
-            super(columnsList, metadata, collectTimestamps, collectTTLs);
+            super(columns, metadata, collectTimestamps, collectTTLs);
             this.selectors = selectors;
         }
 

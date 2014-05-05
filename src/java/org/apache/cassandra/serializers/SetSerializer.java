@@ -22,6 +22,8 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 public class SetSerializer<T> extends CollectionSerializer<Set<T>>
 {
     // interning instances
@@ -50,14 +52,11 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
         try
         {
             ByteBuffer input = bytes.duplicate();
-            int n = getUnsignedShort(input);
+            int n = ByteBufferUtil.readShortLength(input);
             Set<T> l = new LinkedHashSet<T>(n);
             for (int i = 0; i < n; i++)
             {
-                int s = getUnsignedShort(input);
-                byte[] data = new byte[s];
-                input.get(data);
-                ByteBuffer databb = ByteBuffer.wrap(data);
+                ByteBuffer databb = ByteBufferUtil.readBytesWithShortLength(input);
                 elements.validate(databb);
                 l.add(elements.deserialize(databb));
             }

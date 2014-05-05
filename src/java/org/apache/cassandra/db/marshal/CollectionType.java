@@ -68,11 +68,6 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return sb.toString();
     }
 
-    public int compare(ByteBuffer o1, ByteBuffer o2)
-    {
-        throw new UnsupportedOperationException("CollectionType should not be use directly as a comparator");
-    }
-
     public String getString(ByteBuffer bytes)
     {
         return BytesType.instance.getString(bytes);
@@ -129,12 +124,6 @@ public abstract class CollectionType<T> extends AbstractType<T>
         for (ByteBuffer bb : buffers)
             size += 2 + bb.remaining();
         return pack(buffers, elements, size);
-    }
-
-    protected static int getUnsignedShort(ByteBuffer bb)
-    {
-        int length = (bb.get() & 0xFF) << 8;
-        return length | (bb.get() & 0xFF);
     }
 
     public CQL3Type asCQL3Type()

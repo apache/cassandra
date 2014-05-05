@@ -26,6 +26,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.ListSerializer;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ListType<T> extends CollectionType<List<T>>
 {
@@ -75,6 +76,38 @@ public class ListType<T> extends CollectionType<List<T>>
     public TypeSerializer<List<T>> getSerializer()
     {
         return serializer;
+    }
+
+    @Override
+    public int compare(ByteBuffer o1, ByteBuffer o2)
+    {
+        return compareListOrSet(elements, o1, o2);
+    }
+
+    static int compareListOrSet(AbstractType<?> elementsComparator, ByteBuffer o1, ByteBuffer o2)
+    {
+        // Note that this is only used if the collection is inside an UDT
+        if (o1 == null || !o1.hasRemaining())
+            return o2 == null || !o2.hasRemaining() ? 0 : -1;
+        if (o2 == null || !o2.hasRemaining())
+            return 1;
+
+        ByteBuffer bb1 = o1.duplicate();
+        ByteBuffer bb2 = o2.duplicate();
+
+        int size1 = ByteBufferUtil.readShortLength(bb1);
+        int size2 = ByteBufferUtil.readShortLength(bb2);
+
+        for (int i = 0; i < Math.min(size1, size2); i++)
+        {
+            ByteBuffer v1 = ByteBufferUtil.readBytesWithShortLength(bb1);
+            ByteBuffer v2 = ByteBufferUtil.readBytesWithShortLength(bb2);
+            int cmp = elementsComparator.compare(v1, v2);
+            if (cmp != 0)
+                return cmp;
+        }
+
+        return size1 == size2 ? 0 : (size1 < size2 ? -1 : 1);
     }
 
     protected void appendToStringBuilder(StringBuilder sb)
