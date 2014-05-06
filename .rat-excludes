@@ -5,6 +5,7 @@ debian/**
 **/.project
 **/.pydevproject
 CHANGES.txt
+README.asc
 .git/**
 **/*.json
 **/*.patch
