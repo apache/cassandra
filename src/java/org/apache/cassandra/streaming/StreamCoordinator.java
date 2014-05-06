@@ -223,7 +223,7 @@ public class StreamCoordinator
             // get
             else
             {
-                if (lastReturned == streamSessions.size() - 1)
+                if (lastReturned >= streamSessions.size() - 1)
                     lastReturned = 0;
 
                 return streamSessions.get(lastReturned++);
