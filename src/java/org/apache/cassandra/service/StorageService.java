@@ -1451,6 +1451,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
+    private void updatePeerInfo(InetAddress endpoint)
+    {
+        EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+        for (Map.Entry<ApplicationState, VersionedValue> entry : epState.getApplicationStateMap().entrySet())
+        {
+            switch (entry.getKey())
+            {
+                case RELEASE_VERSION:
+                    SystemKeyspace.updatePeerInfo(endpoint, "release_version", quote(entry.getValue().value));
+                    break;
+                case DC:
+                    SystemKeyspace.updatePeerInfo(endpoint, "data_center", quote(entry.getValue().value));
+                    break;
+                case RACK:
+                    SystemKeyspace.updatePeerInfo(endpoint, "rack", quote(entry.getValue().value));
+                    break;
+                case RPC_ADDRESS:
+                    SystemKeyspace.updatePeerInfo(endpoint, "rpc_address", quote(entry.getValue().value));
+                    break;
+                case SCHEMA:
+                    SystemKeyspace.updatePeerInfo(endpoint, "schema_version", entry.getValue().value);
+                    break;
+                case HOST_ID:
+                    SystemKeyspace.updatePeerInfo(endpoint, "host_id", entry.getValue().value);
+                    break;
+            }
+        }
+    }
+
     private String quote(String value)
     {
         return "'" + value + "'";
@@ -1534,6 +1563,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (tokenMetadata.isMember(endpoint))
             logger.info("Node {} state jump to normal", endpoint);
 
+        updatePeerInfo(endpoint);
         // Order Matters, TM.updateHostID() should be called before TM.updateNormalToken(), (see CASSANDRA-4300).
         if (Gossiper.instance.usesHostId(endpoint))
         {
