@@ -22,10 +22,6 @@ Merged from 1.2:
  * Fix schema concurrency exceptions (CASSANDRA-6841)
  * Fix BatchlogManager#deleteBatch() use of millisecond timsestamps
    (CASSANDRA-6822)
- * Continue assassinating even if the endpoint vanishes (CASSANDRA-6787)
- * Schedule schema pulls on change (CASSANDRA-6971)
- * Non-droppable verbs shouldn't be dropped from OTC (CASSANDRA-6980)
- * Shutdown batchlog executor in SS#drain() (CASSANDRA-7025)
  * Fix batchlog to account for CF truncation records (CASSANDRA-6999)
  * Fix CQLSH parsing of functions and BLOB literals (CASSANDRA-7018)
  * Require nodetool rebuild_index to specify index names (CASSANDRA-7038)
@@ -38,6 +34,10 @@ Merged from 1.2:
 
 2.0.7
  * Put nodes in hibernate when join_ring is false (CASSANDRA-6961)
+ * Continue assassinating even if the endpoint vanishes (CASSANDRA-6787)
+ * Non-droppable verbs shouldn't be dropped from OTC (CASSANDRA-6980)
+ * Shutdown batchlog executor in SS#drain() (CASSANDRA-7025)
+ * Schedule schema pulls on change (CASSANDRA-6971)
  * Avoid early loading of non-system keyspaces before compaction-leftovers 
    cleanup at startup (CASSANDRA-6913)
  * Restrict Windows to parallel repairs (CASSANDRA-6907)
