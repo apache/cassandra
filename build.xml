@@ -345,7 +345,7 @@
             <exclusion groupId="junit" artifactId="junit"/>
           </dependency>
           <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
-          <dependency groupId="com.boundary.high-scale-lib" artifactId="high-scale-lib" version="1.0.5"/>
+          <dependency groupId="com.boundary" artifactId="high-scale-lib" version="1.0.5"/>
           <dependency groupId="com.github.jbellis" artifactId="jamm" version="0.2.6"/>
           <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.3">
 	      	<exclusion groupId="org.slf4j" artifactId="slf4j-log4j12"/>
@@ -457,7 +457,7 @@
         <dependency groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
         <dependency groupId="jline" artifactId="jline"/>
         <dependency groupId="com.googlecode.json-simple" artifactId="json-simple"/>
-        <dependency groupId="com.boundary.high-scale-lib" artifactId="high-scale-lib"/>
+        <dependency groupId="com.boundary" artifactId="high-scale-lib"/>
         <dependency groupId="org.yaml" artifactId="snakeyaml"/>
         <dependency groupId="org.mindrot" artifactId="jbcrypt"/>
         <dependency groupId="com.yammer.metrics" artifactId="metrics-core"/>
