@@ -3,6 +3,7 @@
  * Fix bugs in supercolumns handling (CASSANDRA-7138)
  * Fix ClassClassException on composite dense tables (CASSANDRA-7112)
  * Cleanup and optimize collation and slice iterators (CASSANDRA-7107)
+ * Upgrade NBHM lib (CASSANDRA-7128) 
 Merged from 2.0:
  * Correctly delete scheduled range xfers (CASSANDRA-7143)
  * Make batchlog replica selection rack-aware (CASSANDRA-6551)
@@ -11,7 +12,6 @@ Merged from 1.2:
  * Add Cloudstack snitch (CASSANDRA-7147)
  * Update system.peers correctly when relocating tokens (CASSANDRA-7126)
  * Add Google Compute Engine snitch (CASSANDRA-7132)
- * Upgrade NBHM lib (CASSANDRA-7128) 
 
 2.1.0-beta2
  * Increase default CL space to 8GB (CASSANDRA-7031)
@@ -78,6 +78,10 @@ Merged from 2.0:
  * Use LOCAL_QUORUM for data reads at LOCAL_SERIAL (CASSANDRA-6939)
  * Log a warning for large batches (CASSANDRA-6487)
  * Put nodes in hibernate when join_ring is false (CASSANDRA-6961)
+ * Continue assassinating even if the endpoint vanishes (CASSANDRA-6787)
+ * Non-droppable verbs shouldn't be dropped from OTC (CASSANDRA-6980)
+ * Shutdown batchlog executor in SS#drain() (CASSANDRA-7025)
+ * Schedule schema pulls on change (CASSANDRA-6971)
  * Avoid early loading of non-system keyspaces before compaction-leftovers 
    cleanup at startup (CASSANDRA-6913)
  * Restrict Windows to parallel repairs (CASSANDRA-6907)
