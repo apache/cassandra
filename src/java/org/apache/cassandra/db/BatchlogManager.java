@@ -278,11 +278,11 @@ public class BatchlogManager implements BatchlogManagerMBean
         if (ttl <= 0)
             return; // this batchlog entry has 'expired'
 
+        List<InetAddress> liveEndpoints = new ArrayList<>();
+        List<InetAddress> hintEndpoints = new ArrayList<>();
+        
         for (RowMutation mutation : mutations)
         {
-            List<InetAddress> liveEndpoints = new ArrayList<>();
-            List<InetAddress> hintEndpoints = new ArrayList<>();
-
             String ks = mutation.getKeyspaceName();
             Token tk = StorageService.getPartitioner().getToken(mutation.key());
             int mutationSize = (int) RowMutation.serializer.serializedSize(mutation, version);
@@ -304,6 +304,9 @@ public class BatchlogManager implements BatchlogManagerMBean
 
             for (InetAddress endpoint : hintEndpoints)
                 StorageProxy.writeHintForMutation(mutation, writtenAt, ttl, endpoint);
+            
+            liveEndpoints.clear();
+            hintEndpoints.clear();
         }
     }
 
