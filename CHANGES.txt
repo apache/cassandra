@@ -20,6 +20,7 @@
  * fix npe when doing -Dcassandra.fd_initial_value_ms (CASSANDRA-6751)
  * Preserves CQL metadata when updating table from thrift (CASSANDRA-6831)
  * fix time conversion to milliseconds in SimpleCondition.await (CASSANDRA-7149)
+ * remove duplicate query for local tokens (CASSANDRA-7182)
 
 
 1.2.16
