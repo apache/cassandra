@@ -46,15 +46,6 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
         this.request = request;
     }
 
-    /**
-     * Returns true if the task if the task can be executed locally, false if
-     * it has to be forwarded.
-     */
-    public boolean isLocalTask()
-    {
-        return request.initiator.equals(request.src);
-    }
-
     public void run()
     {
         if (request.src.equals(FBUtilities.getBroadcastAddress()))
