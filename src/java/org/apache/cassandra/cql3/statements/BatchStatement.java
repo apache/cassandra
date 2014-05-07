@@ -104,9 +104,18 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
         if (attrs.isTimeToLiveSet())
             throw new InvalidRequestException("Global TTL on the BATCH statement is not supported.");
 
+        boolean timestampSet = attrs.isTimestampSet();
+        if (timestampSet)
+        {
+            if (hasConditions)
+                throw new InvalidRequestException("Cannot provide custom timestamp for conditional BATCH");
+            if (type == Type.COUNTER)
+                throw new InvalidRequestException("Cannot provide custom timestamp for counter BATCH");
+        }
+
         for (ModificationStatement statement : statements)
         {
-            if (attrs.isTimestampSet() && statement.isTimestampSet())
+            if (timestampSet && statement.isTimestampSet())
                 throw new InvalidRequestException("Timestamp must be set either on BATCH or individual statements");
         }
     }

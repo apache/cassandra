@@ -81,10 +81,6 @@ Merged from 2.0:
  * Use LOCAL_QUORUM for data reads at LOCAL_SERIAL (CASSANDRA-6939)
  * Log a warning for large batches (CASSANDRA-6487)
  * Put nodes in hibernate when join_ring is false (CASSANDRA-6961)
- * Continue assassinating even if the endpoint vanishes (CASSANDRA-6787)
- * Non-droppable verbs shouldn't be dropped from OTC (CASSANDRA-6980)
- * Shutdown batchlog executor in SS#drain() (CASSANDRA-7025)
- * Schedule schema pulls on change (CASSANDRA-6971)
  * Avoid early loading of non-system keyspaces before compaction-leftovers 
    cleanup at startup (CASSANDRA-6913)
  * Restrict Windows to parallel repairs (CASSANDRA-6907)
