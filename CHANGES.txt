@@ -21,7 +21,7 @@
  * Preserves CQL metadata when updating table from thrift (CASSANDRA-6831)
  * fix time conversion to milliseconds in SimpleCondition.await (CASSANDRA-7149)
  * remove duplicate query for local tokens (CASSANDRA-7182)
-
+ * raise streaming phi convict threshold level (CASSANDRA-7063)
 
 1.2.16
  * Add UNLOGGED, COUNTER options to BATCH documentation (CASSANDRA-6816)

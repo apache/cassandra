@@ -102,7 +102,7 @@ public abstract class AbstractStreamSession implements IEndpointStateChangeSubsc
             return;
 
         // We want a higher confidence in the failure detection than usual because failing a streaming wrongly has a high cost.
-        if (phi < 2 * DatabaseDescriptor.getPhiConvictThreshold())
+        if (phi < 100 * DatabaseDescriptor.getPhiConvictThreshold())
             return;
 
         logger.error("Stream failed because {} died or was restarted/removed (streams may still be active "
