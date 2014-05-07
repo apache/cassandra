@@ -358,6 +358,11 @@ public class Directories
         return getOrCreate(desc.directory, SNAPSHOT_SUBDIR, snapshotName);
     }
 
+    public File getSnapshotManifestFile(String snapshotName)
+    {
+         return new File(getDirectoryForCompactedSSTables(), join(SNAPSHOT_SUBDIR, snapshotName, "manifest.json"));
+    }
+
     public static File getBackupsDirectory(Descriptor desc)
     {
         return getOrCreate(desc.directory, BACKUPS_SUBDIR);

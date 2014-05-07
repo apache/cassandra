@@ -35,6 +35,8 @@ import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.io.FSWriteError;
+import org.json.simple.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -2139,7 +2141,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (ColumnFamilyStore cfs : concatWithIndexes())
         {
             DataTracker.View currentView = cfs.markCurrentViewReferenced();
-
+            final JSONArray filesJSONArr = new JSONArray();
             try
             {
                 for (SSTableReader ssTable : currentView.sstables)
@@ -2151,14 +2153,33 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
                     ssTable.createLinks(snapshotDirectory.getPath()); // hard links
+                    filesJSONArr.add(ssTable.descriptor.relativeFilenameFor(Component.DATA));
                     if (logger.isDebugEnabled())
                         logger.debug("Snapshot for {} keyspace data file {} created in {}", keyspace, ssTable.getFilename(), snapshotDirectory);
                 }
+
+                writeSnapshotManifest(filesJSONArr, snapshotName);
             }
             finally
             {
                 SSTableReader.releaseReferences(currentView.sstables);
             }
+        }
+    }
+
+    private void writeSnapshotManifest(final JSONArray filesJSONArr, final String snapshotName)
+    {
+        final File manifestFile = directories.getSnapshotManifestFile(snapshotName);
+        final JSONObject manifestJSON = new JSONObject();
+        manifestJSON.put("files", filesJSONArr);
+
+        try
+        {
+            org.apache.commons.io.FileUtils.writeStringToFile(manifestFile, manifestJSON.toJSONString());
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, manifestFile);
         }
     }
 
