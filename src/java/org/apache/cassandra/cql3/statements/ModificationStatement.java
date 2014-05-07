@@ -713,6 +713,9 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                 if (stmt.isCounter())
                     throw new InvalidRequestException("Conditional updates are not supported on counter tables");
 
+                if (attrs.timestamp != null)
+                    throw new InvalidRequestException("Cannot provide custom timestamp for conditional update");
+
                 if (ifNotExists)
                 {
                     // To have both 'IF NOT EXISTS' and some other conditions doesn't make sense.
