@@ -84,7 +84,7 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public static final int PROTOCOL_MAGIC = 0xCA552DFA;
 
-    private boolean allNodesAtLeast21;
+    private boolean allNodesAtLeast21 = true;
 
     /* All verb handler identifiers */
     public enum Verb
