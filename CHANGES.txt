@@ -76,6 +76,7 @@ Merged from 1.2:
  * Optimize Cell liveness checks and clean up Cell (CASSANDRA-7119)
  * Support consistent range movements (CASSANDRA-2434)
 Merged from 2.0:
+ * Starting threads in OutboundTcpConnectionPool constructor causes race conditions (CASSANDRA-7177)
  * Allow overriding cassandra-rackdc.properties file (CASSANDRA-7072)
  * Set JMX RMI port to 7199 (CASSANDRA-7087)
  * Use LOCAL_QUORUM for data reads at LOCAL_SERIAL (CASSANDRA-6939)
