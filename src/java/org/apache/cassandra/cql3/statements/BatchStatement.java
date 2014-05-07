@@ -128,6 +128,8 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
         {
             if (timestampSet && statement.isTimestampSet())
                 throw new InvalidRequestException("Timestamp must be set either on BATCH or individual statements");
+
+            statement.validate(state);
         }
     }
 
