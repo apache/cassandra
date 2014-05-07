@@ -1,3 +1,7 @@
+2.0.9
+ * Warn when 'USING TIMESTAMP' is used on a CAS BATCH (CASSANDRA-7067)
+
+
 2.0.8
  * Correctly delete scheduled range xfers (CASSANDRA-7143)
  * Make batchlog replica selection rack-aware (CASSANDRA-6551)

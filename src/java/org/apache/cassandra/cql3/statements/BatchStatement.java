@@ -41,6 +41,9 @@ import org.apache.cassandra.transport.messages.ResultMessage;
  */
 public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
 {
+    private static boolean loggedCASTimestamp = false;
+    private static boolean loggedCounterTimestamp = false;
+
     public static enum Type
     {
         LOGGED, UNLOGGED, COUNTER
@@ -102,9 +105,28 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
         if (attrs.isTimeToLiveSet())
             throw new InvalidRequestException("Global TTL on the BATCH statement is not supported.");
 
+        boolean timestampSet = attrs.isTimestampSet();
+        if (timestampSet)
+        {
+            if (hasConditions && !loggedCASTimestamp)
+            {
+                logger.warn("Detected use of 'USING TIMESTAMP' on a BATCH with conditions. This is invalid, " +
+                            "custom timestamps are not allowed when conditions are used and the timestamp has been ignored. " +
+                            "Such queries will be rejected in Cassandra 2.1+ - please fix your queries before then.");
+                loggedCASTimestamp = true;
+            }
+            if (type == Type.COUNTER && !loggedCounterTimestamp)
+            {
+                logger.warn("Detected use of 'USING TIMESTAMP' in a counter BATCH. This is invalid " +
+                            "because counters do not use timestamps, and the timestamp has been ignored. " +
+                            "Such queries will be rejected in Cassandra 2.1+ - please fix your queries before then.");
+                loggedCounterTimestamp = true;
+            }
+        }
+
         for (ModificationStatement statement : statements)
         {
-            if (attrs.isTimestampSet() && statement.isTimestampSet())
+            if (timestampSet && statement.isTimestampSet())
                 throw new InvalidRequestException("Timestamp must be set either on BATCH or individual statements");
         }
     }
