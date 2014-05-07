@@ -182,12 +182,25 @@ public class Descriptor
     {
         StringBuilder buff = new StringBuilder();
         buff.append(directory).append(File.separatorChar);
+        appendFileName(buff);
+        return buff.toString();
+    }
+
+    private void appendFileName(StringBuilder buff)
+    {
         buff.append(ksname).append(separator);
         buff.append(cfname).append(separator);
         if (type.isTemporary)
             buff.append(type.marker).append(separator);
         buff.append(version).append(separator);
         buff.append(generation);
+    }
+
+    public String relativeFilenameFor(Component component)
+    {
+        final StringBuilder buff = new StringBuilder();
+        appendFileName(buff);
+        buff.append(separator).append(component.name());
         return buff.toString();
     }
 

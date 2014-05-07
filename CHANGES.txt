@@ -1,4 +1,5 @@
 2.1.0-rc1
+ * Add snapshot "manifest" describing files included (CASSANDRA-6326)
  * Parallel streaming for sstableloader (CASSANDRA-3668)
  * Fix bugs in supercolumns handling (CASSANDRA-7138)
  * Fix ClassClassException on composite dense tables (CASSANDRA-7112)
