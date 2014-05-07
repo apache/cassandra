@@ -22,6 +22,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
@@ -36,6 +38,7 @@ public class OutboundTcpConnectionPool
 {
     // pointer for the real Address.
     private final InetAddress id;
+    private final CountDownLatch started;
     public final OutboundTcpConnection cmdCon;
     public final OutboundTcpConnection ackCon;
     // pointer to the reseted Address.
@@ -46,13 +49,10 @@ public class OutboundTcpConnectionPool
     {
         id = remoteEp;
         resetedEndpoint = SystemKeyspace.getPreferredIP(remoteEp);
+        started = new CountDownLatch(1);
 
         cmdCon = new OutboundTcpConnection(this);
-        cmdCon.start();
         ackCon = new OutboundTcpConnection(this);
-        ackCon.start();
-
-        metrics = new ConnectionMetrics(id, this);
     }
 
     /**
@@ -167,14 +167,45 @@ public class OutboundTcpConnectionPool
         }
         return true;
     }
+    
+    public void start()
+    {
+        cmdCon.start();
+        ackCon.start();
 
-   public void close()
+        metrics = new ConnectionMetrics(id, this);
+        
+        started.countDown();
+    }
+    
+    public void waitForStarted()
+    {
+        if (started.getCount() == 0)
+            return;
+
+        boolean error = false;
+        try
+        {
+            if (!started.await(1, TimeUnit.MINUTES))
+                error = true;
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            error = true;
+        }
+        if (error)
+            throw new IllegalStateException(String.format("Connections to %s are not started!", id.getHostAddress()));
+    }
+
+    public void close()
     {
         // these null guards are simply for tests
         if (ackCon != null)
             ackCon.closeSocket(true);
         if (cmdCon != null)
             cmdCon.closeSocket(true);
+        
         metrics.release();
     }
 }
