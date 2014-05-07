@@ -904,9 +904,14 @@ public final class MessagingService implements MessagingServiceMBean
                 {
                     Socket socket = server.accept();
                     if (authenticate(socket))
+                    {
+                        socket.setKeepAlive(true);
                         new IncomingTcpConnection(socket).start();
+                    }
                     else
+                    {
                         socket.close();
+                    }
                 }
                 catch (AsynchronousCloseException e)
                 {
