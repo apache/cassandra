@@ -3,6 +3,7 @@
  * Starting threads in OutboundTcpConnectionPool constructor causes race conditions (CASSANDRA-7177)
  * return all cpu values from BackgroundActivityMonitor.readAndCompute (CASSANDRA-7183)
  * fix c* launch issues on Russian os's due to output of linux 'free' cmd (CASSANDRA-6162)
+ * Fix disabling autocompaction (CASSANDRA-7187)
 
 2.0.8
  * Correctly delete scheduled range xfers (CASSANDRA-7143)
