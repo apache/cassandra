@@ -18,6 +18,7 @@ Merged from 2.0:
  * Correctly delete scheduled range xfers (CASSANDRA-7143)
  * Make batchlog replica selection rack-aware (CASSANDRA-6551)
  * Suggest CTRL-C or semicolon after three blank lines in cqlsh (CASSANDRA-7142)
+ * return all cpu values from BackgroundActivityMonitor.readAndCompute (CASSANDRA-7183)  
 Merged from 1.2:
  * Add Cloudstack snitch (CASSANDRA-7147)
  * Update system.peers correctly when relocating tokens (CASSANDRA-7126)
