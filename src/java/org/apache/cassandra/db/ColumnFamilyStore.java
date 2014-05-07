@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.File;
-import java.io.FileFilter;
-import java.io.IOException;
+import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -2173,9 +2171,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final JSONObject manifestJSON = new JSONObject();
         manifestJSON.put("files", filesJSONArr);
 
+
         try
         {
-            org.apache.commons.io.FileUtils.writeStringToFile(manifestFile, manifestJSON.toJSONString());
+            PrintStream out = new PrintStream(manifestFile);
+            out.println(manifestJSON.toJSONString());
+            out.close();
         }
         catch (IOException e)
         {
