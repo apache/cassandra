@@ -55,6 +55,11 @@ public class Frame
         this.body = body;
     }
 
+    public void release()
+    {
+        body.release();
+    }
+
     public static Frame create(Message.Type type, int streamId, int version, EnumSet<Header.Flag> flags, ByteBuf body)
     {
         Header header = new Header(version, flags, streamId, type);
@@ -194,8 +199,7 @@ public class Frame
                 return;
 
             // extract body
-            // TODO: do we need unpooled?
-            ByteBuf body = Unpooled.copiedBuffer(buffer.duplicate().slice(idx + Header.LENGTH, (int) bodyLength));
+            ByteBuf body = CBUtil.allocator.buffer((int) bodyLength).writeBytes(buffer.duplicate().slice(idx + Header.LENGTH, (int) bodyLength));
             buffer.readerIndex(idx + frameLengthInt);
 
             Connection connection = ctx.channel().attr(Connection.attributeKey).get();
@@ -238,7 +242,7 @@ public class Frame
         public void encode(ChannelHandlerContext ctx, Frame frame, List results)
         throws IOException
         {
-            ByteBuf header = Unpooled.buffer(Frame.Header.LENGTH);
+            ByteBuf header = CBUtil.allocator.buffer(Frame.Header.LENGTH);
             Message.Type type = frame.header.type;
             header.writeByte(type.direction.addToVersion(frame.header.version));
             header.writeByte(Header.Flag.serialize(frame.header.flags));

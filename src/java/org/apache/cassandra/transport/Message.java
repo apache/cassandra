@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.UUID;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
@@ -120,6 +119,7 @@ public abstract class Message
     public final Type type;
     protected volatile Connection connection;
     private volatile int streamId;
+    private volatile Frame sourceFrame;
 
     protected Message(Type type)
     {
@@ -145,6 +145,16 @@ public abstract class Message
     public int getStreamId()
     {
         return streamId;
+    }
+
+    public void setSourceFrame(Frame sourceFrame)
+    {
+        this.sourceFrame = sourceFrame;
+    }
+
+    public Frame getSourceFrame()
+    {
+        return sourceFrame;
     }
 
     public static abstract class Request extends Message
@@ -210,6 +220,7 @@ public abstract class Message
             {
                 Message message = frame.header.type.codec.decode(frame.body, frame.header.version);
                 message.setStreamId(frame.header.streamId);
+                message.setSourceFrame(frame);
 
                 if (isRequest)
                 {
@@ -229,8 +240,9 @@ public abstract class Message
 
                 results.add(message);
             }
-            catch (Exception ex)
+            catch (Throwable ex)
             {
+                frame.release();
                 // Remember the streamId
                 throw ErrorMessage.wrap(ex, frame.header.streamId);
             }
@@ -256,24 +268,33 @@ public abstract class Message
                 UUID tracingId = ((Response)message).getTracingId();
                 if (tracingId != null)
                 {
-                    body = Unpooled.buffer(CBUtil.sizeOfUUID(tracingId) + messageSize);
+                    body = CBUtil.allocator.buffer(CBUtil.sizeOfUUID(tracingId) + messageSize);
                     CBUtil.writeUUID(tracingId, body);
                     flags.add(Frame.Header.Flag.TRACING);
                 }
                 else
                 {
-                    body = Unpooled.buffer(messageSize);
+                    body = CBUtil.allocator.buffer(messageSize);
                 }
             }
             else
             {
                 assert message instanceof Request;
-                body = Unpooled.buffer(messageSize);
+                body = CBUtil.allocator.buffer(messageSize);
                 if (((Request)message).isTracingRequested())
                     flags.add(Frame.Header.Flag.TRACING);
             }
 
-            codec.encode(message, body, version);
+            try
+            {
+                codec.encode(message, body, version);
+            }
+            catch (Throwable e)
+            {
+                body.release();
+                throw ErrorMessage.wrap(e, message.getStreamId());
+            }
+
             results.add(Frame.create(message.type, message.getStreamId(), version, flags, body));
         }
     }
@@ -281,6 +302,11 @@ public abstract class Message
     @ChannelHandler.Sharable
     public static class Dispatcher extends SimpleChannelInboundHandler<Request>
     {
+        public Dispatcher()
+        {
+            super(false);
+        }
+
         @Override
         public void channelRead0(ChannelHandlerContext ctx, Request request)
         {
@@ -295,16 +321,20 @@ public abstract class Message
                 Response response = request.execute(qstate);
                 response.setStreamId(request.getStreamId());
                 response.attach(connection);
+                response.setSourceFrame(request.getSourceFrame());
                 connection.applyStateTransition(request.type, response.type);
 
                 logger.debug("Responding: {}, v={}", response, connection.getVersion());
 
-                ctx.channel().writeAndFlush(response);
+                ctx.writeAndFlush(response, ctx.voidPromise());
             }
-            catch (Exception ex)
+            catch (Throwable ex)
             {
                 // Don't let the exception propagate to exceptionCaught() if we can help it so that we can assign the right streamID.
-                ctx.channel().writeAndFlush(ErrorMessage.fromException(ex).setStreamId(request.getStreamId()));
+                ctx.writeAndFlush(ErrorMessage.fromException(ex).setStreamId(request.getStreamId()), ctx.voidPromise());
+            }
+            finally {
+                request.getSourceFrame().release();
             }
         }
 
@@ -314,13 +344,13 @@ public abstract class Message
         {
             if (ctx.channel().isOpen())
             {
-                ChannelFuture future = ctx.channel().writeAndFlush(ErrorMessage.fromException(cause));
+                ChannelFuture future = ctx.writeAndFlush(ErrorMessage.fromException(cause));
                 // On protocol exception, close the channel as soon as the message have been sent
                 if (cause instanceof ProtocolException)
                 {
                     future.addListener(new ChannelFutureListener() {
                         public void operationComplete(ChannelFuture future) {
-                            ctx.channel().close();
+                            ctx.close();
                         }
                     });
                 }
