@@ -43,7 +43,6 @@ import java.util.Set;
 import java.util.Collection;
 import java.util.concurrent.*;
 
-
 public class PendingRangeCalculatorService extends PendingRangeCalculatorServiceMBean
 {
     public static final PendingRangeCalculatorService instance = new PendingRangeCalculatorService();
@@ -157,9 +156,10 @@ public class PendingRangeCalculatorService extends PendingRangeCalculatorService
 
         // For each of the bootstrapping nodes, simply add and remove them one by one to
         // allLeftMetadata and check in between what their ranges would be.
-        for (InetAddress endpoint : bootstrapTokens.inverse().keySet())
+        Multimap<InetAddress, Token> bootstrapAddresses = bootstrapTokens.inverse();
+        for (InetAddress endpoint : bootstrapAddresses.keySet())
         {
-            Collection<Token> tokens = bootstrapTokens.inverse().get(endpoint);
+            Collection<Token> tokens = bootstrapAddresses.get(endpoint);
 
             allLeftMetadata.updateNormalTokens(tokens, endpoint);
             for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
