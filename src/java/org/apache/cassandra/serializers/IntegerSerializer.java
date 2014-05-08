@@ -29,12 +29,12 @@ public class IntegerSerializer implements TypeSerializer<BigInteger>
 
     public BigInteger deserialize(ByteBuffer bytes)
     {
-        return new BigInteger(ByteBufferUtil.getArray(bytes));
+        return bytes.hasRemaining() ? new BigInteger(ByteBufferUtil.getArray(bytes)) : null;
     }
 
     public ByteBuffer serialize(BigInteger value)
     {
-        return ByteBuffer.wrap(value.toByteArray());
+        return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBuffer.wrap(value.toByteArray());
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException
@@ -44,7 +44,7 @@ public class IntegerSerializer implements TypeSerializer<BigInteger>
 
     public String toString(BigInteger value)
     {
-        return value.toString(10);
+        return value == null ? "" : value.toString(10);
     }
 
     public Class<BigInteger> getType()
