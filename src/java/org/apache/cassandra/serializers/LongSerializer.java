@@ -44,7 +44,7 @@ public class LongSerializer implements TypeSerializer<Long>
 
     public String toString(Long value)
     {
-        return String.valueOf(value);
+        return value == null ? "" : String.valueOf(value);
     }
 
     public Class<Long> getType()

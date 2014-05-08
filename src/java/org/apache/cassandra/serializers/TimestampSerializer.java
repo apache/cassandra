@@ -72,7 +72,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
 
     public String toString(Date value)
     {
-        return FORMATTER.get().format(value);
+        return value == null ? "" : FORMATTER.get().format(value);
     }
 
     public Class<Date> getType()

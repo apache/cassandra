@@ -77,8 +77,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         TypeSerializer<T> serializer = getSerializer();
         serializer.validate(bytes);
 
-        T value = serializer.deserialize(bytes);
-        return value == null ? "null" : serializer.toString(value);
+        return serializer.toString(serializer.deserialize(bytes));
     }
 
     /** get a byte representation of the given string. */
