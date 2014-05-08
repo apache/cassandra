@@ -92,7 +92,7 @@ class CqlshCompletionCase(BaseTestCase):
         return self.module.CqlRuleSet.replication_strategies
 
 class TestCqlshCompletion(CqlshCompletionCase):
-    cqlver = '3.1.5'
+    cqlver = '3.1.6'
     module = cqlsh.cql3handling
 
     def test_complete_on_empty_string(self):

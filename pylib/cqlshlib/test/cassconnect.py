@@ -26,7 +26,7 @@ test_keyspace_init = os.path.join(rundir, 'test_keyspace_init.cql')
 
 def get_cassandra_connection(cql_version=None):
     if cql_version is None:
-        cql_version = '3.1.5'
+        cql_version = '3.1.6'
     conn = cql((TEST_HOST,), TEST_PORT, cql_version=cql_version)
     # until the cql lib does this for us
     conn.cql_version = cql_version
@@ -73,7 +73,7 @@ def execute_cql_file(cursor, fname):
         return execute_cql_commands(cursor, f.read())
 
 def create_test_db():
-    with cassandra_cursor(ks=None, cql_version='3.1.5') as c:
+    with cassandra_cursor(ks=None, cql_version='3.1.6') as c:
         k = create_test_keyspace(c)
         execute_cql_file(c, test_keyspace_init)
     return k
