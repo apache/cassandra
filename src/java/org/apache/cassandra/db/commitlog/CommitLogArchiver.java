@@ -103,17 +103,18 @@ public class CommitLogArchiver
         }
     }
 
-    public void maybeArchive(final String path, final String name)
+    public void maybeArchive(final CommitLogSegment segment)
     {
         if (Strings.isNullOrEmpty(archiveCommand))
             return;
 
-        archivePending.put(name, executor.submit(new WrappedRunnable()
+        archivePending.put(segment.getName(), executor.submit(new WrappedRunnable()
         {
             protected void runMayThrow() throws IOException
             {
-                String command = archiveCommand.replace("%name", name);
-                command = command.replace("%path", path);
+                segment.waitForFinalSync();
+                String command = archiveCommand.replace("%name", segment.getName());
+                command = command.replace("%path", segment.getPath());
                 exec(command);
             }
         }));
@@ -160,7 +161,26 @@ public class CommitLogArchiver
             }
             for (File fromFile : files)
             {
-                File toFile = new File(DatabaseDescriptor.getCommitLogLocation(), new CommitLogDescriptor(CommitLogSegment.getNextId()).fileName());
+                CommitLogDescriptor fromHeader = CommitLogDescriptor.fromHeader(fromFile);
+                CommitLogDescriptor fromName = CommitLogDescriptor.isValid(fromFile.getName()) ? CommitLogDescriptor.fromFileName(fromFile.getName()) : null;
+                CommitLogDescriptor descriptor;
+                if (fromHeader == null && fromName == null)
+                    throw new IllegalStateException("Cannot safely construct descriptor for segment, either from its name or its header: " + fromFile.getPath());
+                else if (fromHeader != null && fromName != null && !fromHeader.equals(fromName))
+                    throw new IllegalStateException(String.format("Cannot safely construct descriptor for segment, as name and header descriptors do not match (%s vs %s): %s", fromHeader, fromName, fromFile.getPath()));
+                else if (fromName != null && fromHeader == null && fromName.getVersion() >= CommitLogDescriptor.VERSION_21)
+                    throw new IllegalStateException("Cannot safely construct descriptor for segment, as name descriptor implies a version that should contain a header descriptor, but that descriptor could not be read: " + fromFile.getPath());
+                else if (fromHeader != null)
+                    descriptor = fromHeader;
+                else descriptor = fromName;
+
+                if (descriptor.getVersion() > CommitLogDescriptor.VERSION_21)
+                    throw new IllegalStateException("Unsupported commit log version: " + descriptor.getVersion());
+
+                File toFile = new File(DatabaseDescriptor.getCommitLogLocation(), descriptor.fileName());
+                if (toFile.exists())
+                    throw new IllegalStateException("Trying to restore archive " + fromFile.getPath() + ", but the same segment already exists in the restore location: " + toFile.getPath());
+
                 String command = restoreCommand.replace("%from", fromFile.getPath());
                 command = command.replace("%to", toFile.getPath());
                 try
