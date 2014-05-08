@@ -7,6 +7,7 @@
  * Fix disabling autocompaction (CASSANDRA-7187)
  * Fix potential NumberFormatException when deserializing IntegerType (CASSANDRA-7088)
  * cqlsh can't tab-complete disabling compaction (CASSANDRA-7185)
+ * cqlsh: Accept and execute CQL statement(s) from command-line parameter (CASSANDRA-7172)
 
 
 2.0.8
