@@ -46,7 +46,7 @@ public class UUIDSerializer implements TypeSerializer<UUID>
 
     public String toString(UUID value)
     {
-        return value.toString();
+        return value == null ? "" : value.toString();
     }
 
     public Class<UUID> getType()

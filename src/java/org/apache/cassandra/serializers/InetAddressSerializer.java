@@ -65,7 +65,7 @@ public class InetAddressSerializer implements TypeSerializer<InetAddress>
 
     public String toString(InetAddress value)
     {
-        return value.getHostAddress();
+        return value == null ? "" : value.getHostAddress();
     }
 
     public Class<InetAddress> getType()

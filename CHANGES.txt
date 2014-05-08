@@ -4,6 +4,7 @@
  * return all cpu values from BackgroundActivityMonitor.readAndCompute (CASSANDRA-7183)
  * fix c* launch issues on Russian os's due to output of linux 'free' cmd (CASSANDRA-6162)
  * Fix disabling autocompaction (CASSANDRA-7187)
+ * Fix potential NumberFormatException when deserializing IntegerType (CASSANDRA-7088)
 
 2.0.8
  * Correctly delete scheduled range xfers (CASSANDRA-7143)
