@@ -37,6 +37,7 @@ Merged from 1.2:
  * Preserves CQL metadata when updating table from thrift (CASSANDRA-6831)
  * remove duplicate query for local tokens (CASSANDRA-7182)
  * raise streaming phi convict threshold level (CASSANDRA-7063)
+ * reduce garbage creation in calculatePendingRanges (CASSANDRA-7191)
 
 2.0.7
  * Put nodes in hibernate when join_ring is false (CASSANDRA-6961)
