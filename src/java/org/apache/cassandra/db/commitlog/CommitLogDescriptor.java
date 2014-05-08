@@ -53,7 +53,7 @@ public class CommitLogDescriptor
     // [version, id, checksum]
     static final int HEADER_SIZE = 4 + 8 + 4;
 
-    private final int version;
+    final int version;
     public final long id;
 
     public CommitLogDescriptor(int version, long id)
@@ -130,11 +130,6 @@ public class CommitLogDescriptor
             default:
                 throw new IllegalStateException("Unknown commitlog version " + version);
         }
-    }
-
-    public int getVersion()
-    {
-        return version;
     }
 
     public String fileName()

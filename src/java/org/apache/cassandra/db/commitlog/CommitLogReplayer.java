@@ -22,7 +22,6 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.zip.Checksum;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.HashMultimap;
@@ -129,7 +128,7 @@ public class CommitLogReplayer
         crc.updateInt((int) reader.getPosition());
         int end = reader.readInt();
         long filecrc;
-        if (descriptor.getVersion() < CommitLogDescriptor.VERSION_21)
+        if (descriptor.version < CommitLogDescriptor.VERSION_21)
             filecrc = reader.readLong();
         else
             filecrc = reader.readInt() & 0xffffffffL;
@@ -234,14 +233,14 @@ public class CommitLogReplayer
         final long segmentId = desc.id;
         logger.info("Replaying {} (CL version {}, messaging version {})",
                     file.getPath(),
-                    desc.getVersion(),
+                    desc.version,
                     desc.getMessagingVersion());
         RandomAccessReader reader = RandomAccessReader.open(new File(file.getAbsolutePath()));
 
         try
         {
             assert reader.length() <= Integer.MAX_VALUE;
-            int offset = getStartOffset(segmentId, desc.getVersion());
+            int offset = getStartOffset(segmentId, desc.version);
             if (offset < 0)
             {
                 logger.debug("skipping replay of fully-flushed {}", file);
@@ -253,7 +252,7 @@ public class CommitLogReplayer
             {
 
                 int end = prevEnd;
-                if (desc.getVersion() < CommitLogDescriptor.VERSION_21)
+                if (desc.version < CommitLogDescriptor.VERSION_21)
                     end = Integer.MAX_VALUE;
                 else
                 {
@@ -295,12 +294,12 @@ public class CommitLogReplayer
                             break main;
 
                         long claimedSizeChecksum;
-                        if (desc.getVersion() < CommitLogDescriptor.VERSION_21)
+                        if (desc.version < CommitLogDescriptor.VERSION_21)
                             claimedSizeChecksum = reader.readLong();
                         else
                             claimedSizeChecksum = reader.readInt() & 0xffffffffL;
                         checksum.reset();
-                        if (desc.getVersion() < CommitLogDescriptor.VERSION_20)
+                        if (desc.version < CommitLogDescriptor.VERSION_20)
                             checksum.update(serializedSize);
                         else
                             checksum.updateInt(serializedSize);
@@ -312,7 +311,7 @@ public class CommitLogReplayer
                         if (serializedSize > buffer.length)
                             buffer = new byte[(int) (1.2 * serializedSize)];
                         reader.readFully(buffer, 0, serializedSize);
-                        if (desc.getVersion() < CommitLogDescriptor.VERSION_21)
+                        if (desc.version < CommitLogDescriptor.VERSION_21)
                             claimedCRC32 = reader.readLong();
                         else
                             claimedCRC32 = reader.readInt() & 0xffffffffL;
@@ -429,7 +428,7 @@ public class CommitLogReplayer
                     }
                 }
 
-                if (desc.getVersion() < CommitLogDescriptor.VERSION_21)
+                if (desc.version < CommitLogDescriptor.VERSION_21)
                     break;
 
                 offset = end + CommitLogSegment.SYNC_MARKER_SIZE;
