@@ -216,13 +216,13 @@ public class CommitLog implements CommitLogMBean
             // checksummed length
             dos.writeInt((int) size);
             checksum.update(buffer, buffer.position() - 4, 4);
-            buffer.putLong(checksum.getValue());
+            buffer.putInt(checksum.getCrc());
 
             int start = buffer.position();
             // checksummed mutation
             Mutation.serializer.serialize(mutation, dos, MessagingService.current_version);
             checksum.update(buffer, start, (int) size);
-            buffer.putLong(checksum.getValue());
+            buffer.putInt(checksum.getCrc());
         }
         catch (IOException e)
         {

@@ -21,7 +21,6 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +31,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.*;
@@ -222,7 +220,7 @@ public class CommitLogSegmentManager
                 {
                     // Now we can run the user defined command just after switching to the new commit log.
                     // (Do this here instead of in the recycle call so we can get a head start on the archive.)
-                    CommitLog.instance.archiver.maybeArchive(old.getPath(), old.getName());
+                    CommitLog.instance.archiver.maybeArchive(old);
 
                     // ensure we don't continue to use the old file; not strictly necessary, but cleaner to enforce it
                     old.discardUnusedTail();
@@ -314,8 +312,9 @@ public class CommitLogSegmentManager
      */
     void recycleSegment(final CommitLogSegment segment)
     {
+        boolean archiveSuccess = CommitLog.instance.archiver.maybeWaitForArchiving(segment.getName());
         activeSegments.remove(segment);
-        if (!CommitLog.instance.archiver.maybeWaitForArchiving(segment.getName()))
+        if (!archiveSuccess)
         {
             // if archiving (command) was not successful then leave the file alone. don't delete or recycle.
             discardSegment(segment, false);
