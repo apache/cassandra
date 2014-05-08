@@ -24,6 +24,7 @@ Merged from 2.0:
  * fix c* launch issues on Russian os's due to output of linux 'free' cmd (CASSANDRA-6162)
  * Fix disabling autocompaction (CASSANDRA-7187)
  * Fix potential NumberFormatException when deserializing IntegerType (CASSANDRA-7088)
+ * cqlsh can't tab-complete disabling compaction (CASSANDRA-7185)
 Merged from 1.2:
  * Add Cloudstack snitch (CASSANDRA-7147)
  * Update system.peers correctly when relocating tokens (CASSANDRA-7126)
