@@ -1,7 +1,8 @@
 2.0.9
  * Warn when 'USING TIMESTAMP' is used on a CAS BATCH (CASSANDRA-7067)
  * Starting threads in OutboundTcpConnectionPool constructor causes race conditions (CASSANDRA-7177)
- * return all cpu values from BackgroundActivityMonitor.readAndCompute (CASSANDRA-7183) 
+ * return all cpu values from BackgroundActivityMonitor.readAndCompute (CASSANDRA-7183)
+ * fix c* launch issues on Russian os's due to output of linux 'free' cmd (CASSANDRA-6162)
 
 2.0.8
  * Correctly delete scheduled range xfers (CASSANDRA-7143)
