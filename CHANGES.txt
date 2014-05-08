@@ -7,6 +7,7 @@
  * Allow compilation in java 8 (CASSANDRA-7208)
 
 2.1.0-rc1
+ * Fix marking commitlogsegments clean (CASSANDRA-6959)
  * Add snapshot "manifest" describing files included (CASSANDRA-6326)
  * Parallel streaming for sstableloader (CASSANDRA-3668)
  * Fix bugs in supercolumns handling (CASSANDRA-7138)

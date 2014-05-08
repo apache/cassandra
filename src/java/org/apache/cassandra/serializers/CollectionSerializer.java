@@ -73,7 +73,7 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
             output.putShort((short)elements);
     }
 
-    protected static int readCollectionSize(ByteBuffer input, int version)
+    public static int readCollectionSize(ByteBuffer input, int version)
     {
         return version >= 3 ? input.getInt() : ByteBufferUtil.readShortLength(input);
     }
@@ -104,7 +104,7 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
         }
     }
 
-    protected static ByteBuffer readValue(ByteBuffer input, int version)
+    public static ByteBuffer readValue(ByteBuffer input, int version)
     {
         if (version >= 3)
         {

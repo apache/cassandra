@@ -51,8 +51,8 @@ public class CollectionTypeTest
         {
             for (int j = i+1; j < lists.length; j++)
             {
-                assertEquals(lt.compare(lists[i], lists[j]), -1);
-                assertEquals(lt.compare(lists[j], lists[i]), 1);
+                assertEquals(String.format("compare(lists[%d], lists[%d])", i, j), -1, lt.compare(lists[i], lists[j]));
+                assertEquals(String.format("compare(lists[%d], lists[%d])", j, i),  1, lt.compare(lists[j], lists[i]));
             }
         }
     }
@@ -78,8 +78,8 @@ public class CollectionTypeTest
         {
             for (int j = i+1; j < sets.length; j++)
             {
-                assertEquals(st.compare(sets[i], sets[j]), -1);
-                assertEquals(st.compare(sets[j], sets[i]), 1);
+                assertEquals(String.format("compare(sets[%d], sets[%d])", i, j), -1, st.compare(sets[i], sets[j]));
+                assertEquals(String.format("compare(sets[%d], sets[%d])", j, i),  1, st.compare(sets[j], sets[i]));
             }
         }
     }
@@ -107,8 +107,8 @@ public class CollectionTypeTest
         {
             for (int j = i+1; j < maps.length; j++)
             {
-                assertEquals(mt.compare(maps[i], maps[j]), -1);
-                assertEquals(mt.compare(maps[j], maps[i]), 1);
+                assertEquals(String.format("compare(maps[%d], maps[%d])", i, j), mt.compare(maps[i], maps[j]), -1);
+                assertEquals(String.format("compare(maps[%d], maps[%d])", j, i), mt.compare(maps[j], maps[i]), 1);
             }
         }
     }
