@@ -22,6 +22,7 @@ import java.nio.ByteOrder;
 
 import com.sun.jna.Native;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 import sun.misc.Unsafe;
 import sun.nio.ch.DirectBuffer;
 
@@ -329,10 +330,10 @@ public class Memory
         int size = (int) (size() / result.length);
         for (int i = 0 ; i < result.length - 1 ; i++)
         {
-            result[i] = Native.getDirectByteBuffer(peer + offset, size);
+            result[i] = MemoryUtil.getByteBuffer(peer + offset, size);
             offset += size;
         }
-        result[result.length - 1] = Native.getDirectByteBuffer(peer + offset, (int) (size() - offset));
+        result[result.length - 1] = MemoryUtil.getByteBuffer(peer + offset, (int) (size() - offset));
         return result;
     }
 }

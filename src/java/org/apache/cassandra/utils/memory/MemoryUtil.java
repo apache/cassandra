@@ -125,6 +125,7 @@ public abstract class MemoryUtil
         unsafe.putLong(instance, DIRECT_BYTE_BUFFER_ADDRESS_OFFSET, address);
         unsafe.putInt(instance, DIRECT_BYTE_BUFFER_CAPACITY_OFFSET, length);
         unsafe.putInt(instance, DIRECT_BYTE_BUFFER_LIMIT_OFFSET, length);
+        instance.order(ByteOrder.nativeOrder());
         return instance;
     }
 
