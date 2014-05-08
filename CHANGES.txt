@@ -23,6 +23,7 @@
  * remove duplicate query for local tokens (CASSANDRA-7182)
  * raise streaming phi convict threshold level (CASSANDRA-7063)
  * reduce garbage creation in calculatePendingRanges (CASSANDRA-7191)
+ * exit CQLSH with error status code if script fails (CASSANDRA-6344)
 
 1.2.16
  * Add UNLOGGED, COUNTER options to BATCH documentation (CASSANDRA-6816)
