@@ -87,13 +87,8 @@ public abstract class AbstractCompactionStrategy
             tombstoneThreshold = optionValue == null ? DEFAULT_TOMBSTONE_THRESHOLD : Float.parseFloat(optionValue);
             optionValue = options.get(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
             tombstoneCompactionInterval = optionValue == null ? DEFAULT_TOMBSTONE_COMPACTION_INTERVAL : Long.parseLong(optionValue);
-            optionValue = options.get(COMPACTION_ENABLED);
-
-            if (optionValue != null)
-            {
-                if (optionValue.equalsIgnoreCase("false"))
-                    this.enabled = false;
-            }
+            if (!shouldBeEnabled())
+                this.disable();
         }
         catch (ConfigurationException e)
         {
@@ -375,5 +370,12 @@ public abstract class AbstractCompactionStrategy
         uncheckedOptions.remove(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
         uncheckedOptions.remove(COMPACTION_ENABLED);
         return uncheckedOptions;
+    }
+
+    public boolean shouldBeEnabled()
+    {
+        String optionValue = options.get(COMPACTION_ENABLED);
+
+        return optionValue == null || Boolean.parseBoolean(optionValue);
     }
 }
