@@ -469,7 +469,7 @@ public class CommitLogSegment
             UUID cfId = clean.getKey();
             AtomicInteger cleanPos = clean.getValue();
             AtomicInteger dirtyPos = cfDirty.get(cfId);
-            if (dirtyPos != null && dirtyPos.intValue() < cleanPos.intValue())
+            if (dirtyPos != null && dirtyPos.intValue() <= cleanPos.intValue())
             {
                 cfDirty.remove(cfId);
                 iter.remove();
@@ -482,9 +482,9 @@ public class CommitLogSegment
      */
     public synchronized Collection<UUID> getDirtyCFIDs()
     {
-        removeCleanFromDirty();
         if (cfClean.isEmpty() || cfDirty.isEmpty())
             return cfDirty.keySet();
+
         List<UUID> r = new ArrayList<>(cfDirty.size());
         for (Map.Entry<UUID, AtomicInteger> dirty : cfDirty.entrySet())
         {
