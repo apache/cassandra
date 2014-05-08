@@ -67,7 +67,7 @@ public class OptionsMessage extends Message.Request
         // LZ4 is always available since worst case scenario it default to a pure JAVA implem.
         compressions.add("lz4");
 
-        Map<String, List<String>> supported = new HashMap<String, List<String>>();
+        Map<String, List<String>> supported = new HashMap<String, List<String>>(2);
         supported.put(StartupMessage.CQL_VERSION, cqlVersions);
         supported.put(StartupMessage.COMPRESSION, compressions);
 

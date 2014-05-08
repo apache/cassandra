@@ -199,7 +199,7 @@ public class Frame
                 return;
 
             // extract body
-            ByteBuf body = CBUtil.allocator.buffer((int) bodyLength).writeBytes(buffer.duplicate().slice(idx + Header.LENGTH, (int) bodyLength));
+            ByteBuf body = buffer.slice(idx + Header.LENGTH, (int) bodyLength);
             buffer.readerIndex(idx + frameLengthInt);
 
             Connection connection = ctx.channel().attr(Connection.attributeKey).get();
@@ -214,7 +214,8 @@ public class Frame
                 throw new ProtocolException(String.format("Invalid message version. Got %d but previous messages on this connection had version %d", version, connection.getVersion()));
             }
 
-            results.add(new Frame(new Header(version, flags, streamId, type), body));
+            // We need to retain the body as we just slice it out of the input buffer to minimize memory copies
+            results.add(new Frame(new Header(version, flags, streamId, type), body.retain()));
         }
 
         private void fail()

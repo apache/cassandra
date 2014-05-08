@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executors;
 import java.util.concurrent.SynchronousQueue;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -39,7 +38,6 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -121,7 +119,8 @@ public class SimpleClient
         bootstrap = new Bootstrap()
                     .group(new NioEventLoopGroup())
                     .channel(io.netty.channel.socket.nio.NioSocketChannel.class)
-                    .option(ChannelOption.TCP_NODELAY, true);
+                    .option(ChannelOption.TCP_NODELAY, true)
+                    .option(ChannelOption.ALLOCATOR, CBUtil.allocator); // Use the same allocator everywhere
 
         // Configure the pipeline factory.
         if(encryptionOptions.enabled)
@@ -138,7 +137,8 @@ public class SimpleClient
         channel = future.awaitUninterruptibly().channel();
         if (!future.isSuccess())
         {
-            bootstrap.group().shutdownGracefully();
+            // wait until shutdown completes
+            bootstrap.group().shutdownGracefully().awaitUninterruptibly();
             throw new IOException("Connection Error", future.cause());
         }
     }

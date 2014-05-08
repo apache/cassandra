@@ -20,11 +20,9 @@ package org.apache.cassandra.transport;
 import java.io.IOException;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import org.xerial.snappy.Snappy;
 import org.xerial.snappy.SnappyError;
 
-import net.jpountz.lz4.LZ4Exception;
 import net.jpountz.lz4.LZ4Factory;
 
 public interface FrameCompressor
@@ -75,12 +73,14 @@ public interface FrameCompressor
         public Frame compress(Frame frame) throws IOException
         {
             byte[] input = CBUtil.readRawBytes(frame.body);
-            ByteBuf output = CBUtil.onHeapAllocator.buffer(Snappy.maxCompressedLength(input.length));
+            ByteBuf output = CBUtil.allocator.heapBuffer(Snappy.maxCompressedLength(input.length));
 
             try
             {
-                int written = Snappy.compress(input, 0, input.length, output.array(), output.arrayOffset());
-                output.writerIndex(written);
+                // Get the writerIndex first as in theory it is valid to have a ByteBuf start on a writerIndex != 0
+                int writerIndex = output.writerIndex();
+                int written = Snappy.compress(input, 0, input.length, output.array(), output.arrayOffset() + writerIndex);
+                output.writerIndex(written + writerIndex);
             }
             catch (final Throwable e)
             {
@@ -103,12 +103,14 @@ public interface FrameCompressor
             if (!Snappy.isValidCompressedBuffer(input, 0, input.length))
                 throw new ProtocolException("Provided frame does not appear to be Snappy compressed");
 
-            ByteBuf output = CBUtil.onHeapAllocator.buffer(Snappy.uncompressedLength(input));
+            ByteBuf output = CBUtil.allocator.heapBuffer(Snappy.uncompressedLength(input));
 
             try
             {
-                int size = Snappy.uncompress(input, 0, input.length, output.array(), output.arrayOffset());
-                output.writerIndex(size);
+                // Get the writerIndex first as in theory it is valid to have a ByteBuf start on a writerIndex != 0
+                int writerIndex = output.writerIndex();
+                int size = Snappy.uncompress(input, 0, input.length, output.array(), output.arrayOffset() + writerIndex);
+                output.writerIndex(size + writerIndex);
 
                 //release the old frame
                 frame.release();
@@ -156,20 +158,17 @@ public interface FrameCompressor
             byte[] input = CBUtil.readRawBytes(frame.body);
 
             int maxCompressedLength = compressor.maxCompressedLength(input.length);
-            ByteBuf outputBuf = CBUtil.onHeapAllocator.buffer(INTEGER_BYTES + maxCompressedLength);
+            ByteBuf outputBuf = CBUtil.allocator.heapBuffer(INTEGER_BYTES + maxCompressedLength);
 
+            outputBuf.writeInt(input.length);
+            // Get the writerIndex first as in theory it is valid to have a ByteBuf start on a writerIndex != 0
+            int writerIndex = outputBuf.writerIndex();
             byte[] output = outputBuf.array();
-            int outputOffset = outputBuf.arrayOffset();
-
-            output[outputOffset + 0] = (byte) (input.length >>> 24);
-            output[outputOffset + 1] = (byte) (input.length >>> 16);
-            output[outputOffset + 2] = (byte) (input.length >>>  8);
-            output[outputOffset + 3] = (byte) (input.length);
-
+            int outputOffset = outputBuf.arrayOffset() + writerIndex;
             try
             {
-                int written = compressor.compress(input, 0, input.length, output, outputOffset + INTEGER_BYTES, maxCompressedLength);
-                outputBuf.writerIndex(INTEGER_BYTES + written);
+                int written = compressor.compress(input, 0, input.length, output, outputOffset, maxCompressedLength);
+                outputBuf.writerIndex(written + writerIndex);
 
                 return frame.with(outputBuf);
             }
@@ -194,15 +193,17 @@ public interface FrameCompressor
                                    | ((input[2] & 0xFF) <<  8)
                                    | ((input[3] & 0xFF));
 
-            ByteBuf output = CBUtil.onHeapAllocator.buffer(uncompressedLength);
+            ByteBuf output = CBUtil.allocator.heapBuffer(uncompressedLength);
 
             try
             {
-                int read = decompressor.decompress(input, INTEGER_BYTES, output.array(), output.arrayOffset(), uncompressedLength);
+                // Get the writerIndex first as in theory it is valid to have a ByteBuf start on a writerIndex != 0
+                int writerIndex = output.writerIndex();
+                int read = decompressor.decompress(input, INTEGER_BYTES, output.array(), output.arrayOffset() + writerIndex, uncompressedLength);
                 if (read != input.length - INTEGER_BYTES)
                     throw new IOException("Compressed lengths mismatch");
 
-                output.writerIndex(uncompressedLength);
+                output.writerIndex(uncompressedLength + writerIndex);
 
                 return frame.with(output);
             }

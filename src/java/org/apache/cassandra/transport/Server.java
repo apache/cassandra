@@ -183,7 +183,7 @@ public class Server implements CassandraDaemon.Server
     {
         // Close opened connections
         connectionTracker.closeAll();
-        workerGroup.shutdownGracefully();
+        workerGroup.shutdownGracefully().awaitUninterruptibly();
         workerGroup = null;
 
         eventExecutorGroup.shutdown();

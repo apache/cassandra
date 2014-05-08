@@ -23,7 +23,7 @@ import java.util.Map;
 
 import io.netty.buffer.ByteBuf;
 
-import io.netty.buffer.Unpooled;
+import io.netty.buffer.ByteBufAllocator;
 import org.apache.cassandra.utils.Pair;
 
 public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
@@ -81,12 +81,12 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         return options;
     }
 
-    public ByteBuf encode(Map<T, Object> options, int version)
+    public ByteBuf encode(ByteBufAllocator allocator, Map<T, Object> options, int version)
     {
         int optLength = 2;
         for (Map.Entry<T, Object> entry : options.entrySet())
             optLength += 2 + entry.getKey().serializedValueSize(entry.getValue(), version);
-        ByteBuf cb = Unpooled.buffer(optLength);
+        ByteBuf cb = allocator.buffer(optLength);
         cb.writeShort(options.size());
         for (Map.Entry<T, Object> entry : options.entrySet())
         {
