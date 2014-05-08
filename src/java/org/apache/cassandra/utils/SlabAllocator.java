@@ -18,11 +18,11 @@
 package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,6 +46,9 @@ public class SlabAllocator extends Allocator
 
     private final static int REGION_SIZE = 1024 * 1024;
     private final static int MAX_CLONED_SIZE = 128 * 1024; // bigger than this don't go in the region
+
+    // globally stash any Regions we allocate but are beaten to using, and use these up before allocating any more
+    private static final ConcurrentLinkedQueue<Region> RACE_ALLOCATED = new ConcurrentLinkedQueue<>();
 
     private final AtomicReference<Region> currentRegion = new AtomicReference<Region>();
     private final AtomicInteger regionCount = new AtomicInteger(0);
@@ -92,19 +95,20 @@ public class SlabAllocator extends Allocator
                 return region;
 
             // No current region, so we want to allocate one. We race
-            // against other allocators to CAS in an uninitialized region
-            // (which is cheap to allocate)
-            region = new Region(REGION_SIZE);
+            // against other allocators to CAS in a Region, and if we fail we stash the region for re-use
+            region = RACE_ALLOCATED.poll();
+            if (region == null)
+                region = new Region(REGION_SIZE);
             if (currentRegion.compareAndSet(null, region))
             {
-                // we won race - now we need to actually do the expensive allocation step
-                region.init();
                 regionCount.incrementAndGet();
                 logger.trace("{} regions now allocated in {}", regionCount, this);
                 return region;
             }
+
             // someone else won race - that's fine, we'll try to grab theirs
             // in the next iteration of the loop.
+            RACE_ALLOCATED.add(region);
         }
     }
 
@@ -129,24 +133,18 @@ public class SlabAllocator extends Allocator
         /**
          * Actual underlying data
          */
-        private ByteBuffer data;
+        private final ByteBuffer data;
 
-        private static final int UNINITIALIZED = -1;
         /**
          * Offset for the next allocation, or the sentinel value -1
          * which implies that the region is still uninitialized.
          */
-        private AtomicInteger nextFreeOffset = new AtomicInteger(UNINITIALIZED);
+        private final AtomicInteger nextFreeOffset = new AtomicInteger(0);
 
         /**
          * Total number of allocations satisfied from this buffer
          */
-        private AtomicInteger allocCount = new AtomicInteger();
-
-        /**
-         * Size of region in bytes
-         */
-        private final int size;
+        private final AtomicInteger allocCount = new AtomicInteger();
 
         /**
          * Create an uninitialized region. Note that memory is not allocated yet, so
@@ -156,23 +154,7 @@ public class SlabAllocator extends Allocator
          */
         private Region(int size)
         {
-            this.size = size;
-        }
-
-        /**
-         * Actually claim the memory for this region. This should only be called from
-         * the thread that constructed the region. It is thread-safe against other
-         * threads calling alloc(), who will block until the allocation is complete.
-         */
-        public void init()
-        {
-            assert nextFreeOffset.get() == UNINITIALIZED;
             data = ByteBuffer.allocate(size);
-            assert data.remaining() == data.capacity();
-            // Mark that it's ready for use
-            boolean initted = nextFreeOffset.compareAndSet(UNINITIALIZED, 0);
-            // We should always succeed the above CAS since only one thread calls init()!
-            Preconditions.checkState(initted, "Multiple threads tried to init same region");
         }
 
         /**
@@ -185,15 +167,6 @@ public class SlabAllocator extends Allocator
             while (true)
             {
                 int oldOffset = nextFreeOffset.get();
-                if (oldOffset == UNINITIALIZED)
-                {
-                    // The region doesn't have its data allocated yet.
-                    // Since we found this in currentRegion, we know that whoever
-                    // CAS-ed it there is allocating it right now. So spin-loop
-                    // shouldn't spin long!
-                    Thread.yield();
-                    continue;
-                }
 
                 if (oldOffset + size > data.capacity()) // capacity == remaining
                     return null;
