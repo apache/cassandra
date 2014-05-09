@@ -330,8 +330,11 @@ public abstract class CBUtil
             return;
         }
 
-        cb.writeInt(bytes.remaining());
-        cb.writeBytes(bytes.duplicate());
+        int remaining = bytes.remaining();
+        cb.writeInt(remaining);
+
+        if (remaining > 0)
+            cb.writeBytes(bytes.duplicate());
     }
 
     public static int sizeOfValue(byte[] bytes)
