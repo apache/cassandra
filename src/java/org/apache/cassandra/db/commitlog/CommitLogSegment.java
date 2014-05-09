@@ -316,7 +316,7 @@ public class CommitLogSegment
             if (nextMarker < buffer.capacity())
             {
                 buffer.putInt(nextMarker, 0);
-                buffer.putLong(nextMarker + 4, 0);
+                buffer.putInt(nextMarker + 4, 0);
             }
 
             // actually perform the sync and signal those waiting for it
