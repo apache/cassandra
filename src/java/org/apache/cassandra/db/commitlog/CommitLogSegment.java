@@ -74,7 +74,7 @@ public class CommitLogSegment
     }
 
     // The commit log entry overhead in bytes (int: length + int: head checksum + int: tail checksum)
-    static final int ENTRY_OVERHEAD_SIZE = 4 + 4 + 4;
+    public static final int ENTRY_OVERHEAD_SIZE = 4 + 4 + 4;
 
     // The commit log (chained) sync marker/header size in bytes (int: length + int: checksum [segmentId, position])
     static final int SYNC_MARKER_SIZE = 4 + 4;

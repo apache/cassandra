@@ -34,6 +34,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.net.MessagingService;
 
@@ -174,7 +175,7 @@ public class CommitLogTest extends SchemaLoader
         rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate(0), 0);
 
         int max = (DatabaseDescriptor.getCommitLogSegmentSize() / 2);
-        max -= (4 + 8 + 8); // log entry overhead
+        max -= CommitLogSegment.ENTRY_OVERHEAD_SIZE; // log entry overhead
         return max - (int) Mutation.serializer.serializedSize(rm, MessagingService.current_version);
     }
 
