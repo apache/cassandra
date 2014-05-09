@@ -19,6 +19,7 @@ Merged from 2.0:
  * Fix potential NumberFormatException when deserializing IntegerType (CASSANDRA-7088)
  * cqlsh can't tab-complete disabling compaction (CASSANDRA-7185)
  * cqlsh: Accept and execute CQL statement(s) from command-line parameter (CASSANDRA-7172)
+ * Fix IllegalStateException in CqlPagingRecordReader (CASSANDRA-7198)
 Merged from 1.2:
  * Add Cloudstack snitch (CASSANDRA-7147)
  * Update system.peers correctly when relocating tokens (CASSANDRA-7126)
