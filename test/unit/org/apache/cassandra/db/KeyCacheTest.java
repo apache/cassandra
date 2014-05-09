@@ -22,7 +22,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.AfterClass;
 import org.junit.Test;
 
@@ -162,7 +164,8 @@ public class KeyCacheTest extends SchemaLoader
         for (SSTableReader reader : readers)
             reader.releaseReference();
 
-        while (StorageService.tasks.getActiveCount() > 0);
+        Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MILLISECONDS);;
+        while (StorageService.tasks.getActiveCount() + StorageService.tasks.getQueue().size() > 0);
 
         // after releasing the reference this should drop to 2
         assertKeyCacheSize(2, KEYSPACE1, COLUMN_FAMILY1);
