@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
+import com.google.common.base.Optional;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.hadoop.HadoopCompat;
@@ -115,13 +116,14 @@ public class CqlPagingRecordReader extends RecordReader<Map<String, ByteBuffer>,
         columns = CqlConfigHelper.getInputcolumns(conf);
         userDefinedWhereClauses = CqlConfigHelper.getInputWhereClauses(conf);
 
-        try
+        Optional<Integer> pageRowSizeOptional = CqlConfigHelper.getInputPageRowSize(conf);
+        try 
         {
-            pageRowSize = CqlConfigHelper.getInputPageRowSize(conf).get();
-        }
-        catch (NumberFormatException e)
+        	pageRowSize = pageRowSizeOptional.isPresent() ? pageRowSizeOptional.get() : DEFAULT_CQL_PAGE_LIMIT;
+        } 
+        catch(NumberFormatException e) 
         {
-            pageRowSize = DEFAULT_CQL_PAGE_LIMIT;
+        	pageRowSize = DEFAULT_CQL_PAGE_LIMIT;
         }
 
         partitioner = ConfigHelper.getInputPartitioner(HadoopCompat.getConfiguration(context));
