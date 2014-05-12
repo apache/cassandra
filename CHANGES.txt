@@ -9,6 +9,7 @@
  * cqlsh can't tab-complete disabling compaction (CASSANDRA-7185)
  * cqlsh: Accept and execute CQL statement(s) from command-line parameter (CASSANDRA-7172)
  * Fix IllegalStateException in CqlPagingRecordReader (CASSANDRA-7198)
+ * Fix the InvertedIndex trigger example (CASSANDRA-7211)
 
 
 2.0.8

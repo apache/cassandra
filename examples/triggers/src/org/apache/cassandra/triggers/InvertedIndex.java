@@ -40,12 +40,18 @@ public class InvertedIndex implements ITrigger
     public Collection<RowMutation> augment(ByteBuffer key, ColumnFamily update)
     {
         List<RowMutation> mutations = new ArrayList<>();
+
         for (Column cell : update)
         {
-            RowMutation mutation = new RowMutation(properties.getProperty("keyspace"), cell.value());
-            mutation.add(properties.getProperty("columnfamily"), cell.name(), key, System.currentTimeMillis());
-            mutations.add(mutation);
+            // Skip the row marker and other empty values, since they lead to an empty key.
+            if (cell.value().remaining() > 0)
+            {
+                RowMutation mutation = new RowMutation(properties.getProperty("keyspace"), cell.value());
+                mutation.add(properties.getProperty("columnfamily"), cell.name(), key, System.currentTimeMillis());
+                mutations.add(mutation);
+            }
         }
+
         return mutations;
     }
 
@@ -53,7 +59,8 @@ public class InvertedIndex implements ITrigger
     {
         Properties properties = new Properties();
         InputStream stream = InvertedIndex.class.getClassLoader().getResourceAsStream("InvertedIndex.properties");
-        try {
+        try
+        {
             properties.load(stream);
         }
         catch (Exception e)
