@@ -2444,6 +2444,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param autoAddIndexes Automatically add secondary indexes if a CF has them
      * @param keyspaceName keyspace
      * @param cfNames CFs
+     * @throws java.lang.IllegalArgumentException when given CF name does not exist
      */
     public Iterable<ColumnFamilyStore> getValidColumnFamilies(boolean allowIndexes, boolean autoAddIndexes, String keyspaceName, String... cfNames) throws IOException
     {
@@ -2490,12 +2491,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
 
             ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore(baseCfName);
-            if (cfStore == null)
-            {
-                // this means there was a cf passed in that is not recognized in the keyspace. report it and continue.
-                logger.warn(String.format("Invalid column family specified: %s. Proceeding with others.", baseCfName));
-                continue;
-            }
             if (idxName != null)
             {
                 Collection< SecondaryIndex > indexes = cfStore.indexManager.getIndexesByNames(new HashSet<>(Arrays.asList(cfName)));
@@ -2668,14 +2663,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     catch (IllegalArgumentException e)
                     {
                         logger.error("Repair failed:", e);
-                        sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
+                        sendNotification("repair", e.getMessage(), new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
                         return;
                     }
                 }
 
+                // Validate columnfamilies
                 List<ColumnFamilyStore> columnFamilyStores = new ArrayList<>();
-                for (ColumnFamilyStore cfs : getValidColumnFamilies(false, false, keyspace, columnFamilies))
-                    columnFamilyStores.add(cfs);
+                try
+                {
+                    Iterables.addAll(columnFamilyStores, getValidColumnFamilies(false, false, keyspace, columnFamilies));
+                }
+                catch (IllegalArgumentException e)
+                {
+                    sendNotification("repair", e.getMessage(), new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
+                    return;
+                }
 
                 UUID parentSession = null;
                 if (!fullRepair)
@@ -2694,7 +2697,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 List<RepairFuture> futures = new ArrayList<>(ranges.size());
                 for (Range<Token> range : ranges)
                 {
-                    RepairFuture future = forceKeyspaceRepair(parentSession, range, keyspace, isSequential, rangeToNeighbors.get(range), columnFamilies);
+                    RepairFuture future = ActiveRepairService.instance.submitRepairSession(parentSession, range, keyspace, isSequential, rangeToNeighbors.get(range), columnFamilies);
                     if (future == null)
                         continue;
                     futures.add(future);
@@ -2738,29 +2741,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 sendNotification("repair", String.format("Repair command #%d finished", cmd), new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
             }
         }, null);
-    }
-
-
-    public RepairFuture forceKeyspaceRepair(UUID parentRepairSession,
-                                            Range<Token> range,
-                                            String keyspaceName,
-                                            boolean isSequential,
-                                            Set<InetAddress> endpoints,
-                                            String ... columnFamilies) throws IOException
-    {
-        ArrayList<String> names = new ArrayList<>();
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, columnFamilies))
-        {
-            names.add(cfStore.name);
-        }
-
-        if (names.isEmpty())
-        {
-            logger.info("No column family to repair for keyspace {}", keyspaceName);
-            return null;
-        }
-
-        return ActiveRepairService.instance.submitRepairSession(parentRepairSession, range, keyspaceName, isSequential, endpoints, names.toArray(new String[names.size()]));
     }
 
     public void forceTerminateAllRepairSessions() {
