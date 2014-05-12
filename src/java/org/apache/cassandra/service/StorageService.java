@@ -2700,9 +2700,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 }
 
                 List<RepairFuture> futures = new ArrayList<>(ranges.size());
+                String[] cfnames = new String[columnFamilyStores.size()];
+                for (int i = 0; i < columnFamilyStores.size(); i++)
+                {
+                    cfnames[i] = columnFamilyStores.get(i).name;
+                }
                 for (Range<Token> range : ranges)
                 {
-                    RepairFuture future = ActiveRepairService.instance.submitRepairSession(parentSession, range, keyspace, isSequential, rangeToNeighbors.get(range), columnFamilies);
+                    RepairFuture future = ActiveRepairService.instance.submitRepairSession(parentSession, range, keyspace, isSequential, rangeToNeighbors.get(range), cfnames);
                     if (future == null)
                         continue;
                     futures.add(future);
