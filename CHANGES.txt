@@ -8,6 +8,7 @@
  * Cleanup and optimize collation and slice iterators (CASSANDRA-7107)
  * Upgrade NBHM lib (CASSANDRA-7128)
  * Optimize netty server (CASSANDRA-6861)
+ * Fix repair hang when given CF does not exist (CASSANDRA-7189)
 Merged from 2.0:
  * Correctly delete scheduled range xfers (CASSANDRA-7143)
  * Make batchlog replica selection rack-aware (CASSANDRA-6551)
