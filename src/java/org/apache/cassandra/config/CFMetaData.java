@@ -216,8 +216,8 @@ public final class CFMetaData
     public static final CFMetaData SchemaUserTypesCf = compile("CREATE TABLE " + SystemKeyspace.SCHEMA_USER_TYPES_CF + " ("
                                                                + "keyspace_name text,"
                                                                + "type_name text,"
-                                                               + "column_names list<text>,"
-                                                               + "column_types list<text>,"
+                                                               + "field_names list<text>,"
+                                                               + "field_types list<text>,"
                                                                + "PRIMARY KEY (keyspace_name, type_name)"
                                                                + ") WITH COMMENT='Defined user types' AND gc_grace_seconds=8640");
 

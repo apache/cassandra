@@ -91,18 +91,19 @@ public class DropTypeStatement extends SchemaAlteringStatement
 
     private boolean isUsedBy(AbstractType<?> toCheck) throws RequestValidationException
     {
-        if (toCheck instanceof CompositeType)
+        if (toCheck instanceof UserType)
+        {
+            UserType ut = (UserType)toCheck;
+            if (name.getKeyspace().equals(ut.keyspace) && name.getUserTypeName().equals(ut.name))
+                return true;
+
+            for (AbstractType<?> subtype : ut.fieldTypes)
+                if (isUsedBy(subtype))
+                    return true;
+        }
+        else if (toCheck instanceof CompositeType)
         {
             CompositeType ct = (CompositeType)toCheck;
-
-            if ((ct instanceof UserType))
-            {
-                UserType ut = (UserType)ct;
-                if (name.getKeyspace().equals(ut.keyspace) && name.getUserTypeName().equals(ut.name))
-                    return true;
-            }
-
-            // Also reach into subtypes
             for (AbstractType<?> subtype : ct.types)
                 if (isUsedBy(subtype))
                     return true;

@@ -53,8 +53,8 @@ public final class UTMetaData
         {
             String keyspace = row.getString("keyspace_name");
             ByteBuffer name = ByteBufferUtil.bytes(row.getString("type_name"));
-            List<String> rawColumns = row.getList("column_names", UTF8Type.instance);
-            List<String> rawTypes = row.getList("column_types", UTF8Type.instance);
+            List<String> rawColumns = row.getList("field_names", UTF8Type.instance);
+            List<String> rawTypes = row.getList("field_types", UTF8Type.instance);
 
             List<ByteBuffer> columns = new ArrayList<>(rawColumns.size());
             for (String rawColumn : rawColumns)
@@ -97,13 +97,13 @@ public final class UTMetaData
         Composite prefix = CFMetaData.SchemaUserTypesCf.comparator.make(newType.name);
         CFRowAdder adder = new CFRowAdder(cf, prefix, timestamp);
 
-        adder.resetCollection("column_names");
-        adder.resetCollection("column_types");
+        adder.resetCollection("field_names");
+        adder.resetCollection("field_types");
 
-        for (ByteBuffer name : newType.columnNames)
-            adder.addListEntry("column_names", name);
-        for (AbstractType<?> type : newType.types)
-            adder.addListEntry("column_types", type.toString());
+        for (ByteBuffer name : newType.fieldNames)
+            adder.addListEntry("field_names", name);
+        for (AbstractType<?> type : newType.fieldTypes)
+            adder.addListEntry("field_types", type.toString());
 
         return mutation;
     }

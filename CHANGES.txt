@@ -16,6 +16,7 @@
  * remove unused classes (CASSANDRA-7197)
  * Limit user types to the keyspace they are defined in (CASSANDRA-6643)
  * Add validate method to CollectionType (CASSANDRA-7208)
+ * New serialization format for UDT values (CASSANDRA-7209)
 Merged from 2.0:
  * Always reallocate buffers in HSHA (CASSANDRA-6285)
  * (Hadoop) support authentication in CqlRecordReader (CASSANDRA-7221)
