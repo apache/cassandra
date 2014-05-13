@@ -199,7 +199,7 @@ public class SSTableRewriter
             dataTracker.replaceReaders(close, Collections.<SSTableReader>emptyList());
             dataTracker.unmarkCompacting(close);
         }
-        writer.abort();
+        writer.abort(currentlyOpenedEarly == null);
     }
 
     /**
