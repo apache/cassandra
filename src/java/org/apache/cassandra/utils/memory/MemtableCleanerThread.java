@@ -40,6 +40,7 @@ class MemtableCleanerThread<P extends MemtablePool> extends Thread
         super(pool.getClass().getSimpleName() + "Cleaner");
         this.pool = pool;
         this.cleaner = cleaner;
+        setDaemon(true);
     }
 
     boolean needsCleaning()
