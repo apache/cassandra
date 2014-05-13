@@ -109,9 +109,6 @@ public interface FrameCompressor
             {
                 int size = Snappy.uncompress(input, 0, input.length, output.array(), output.arrayOffset());
                 output.writerIndex(size);
-
-                //release the old frame
-                frame.release();
             }
             catch (final Throwable e)
             {

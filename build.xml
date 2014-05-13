@@ -680,6 +680,7 @@
             <src path="${build.src.gen-java}"/>
         	<compilerarg value="-XDignore.symbol.file"/>
             <classpath refid="cassandra.classpath"/>
+            <compilerarg value="-XDignore.symbol.file"/>
         </javac>
         <antcall target="createVersionPropFile"/>
         <copy todir="${build.classes.main}">
