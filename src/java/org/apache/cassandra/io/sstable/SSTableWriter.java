@@ -323,13 +323,20 @@ public class SSTableWriter extends SSTable
      */
     public void abort()
     {
+        abort(true);
+    }
+    public void abort(boolean closeBf)
+    {
         assert descriptor.type.isTemporary;
         if (iwriter == null && dataFile == null)
             return;
         if (iwriter != null)
         {
             FileUtils.closeQuietly(iwriter.indexFile);
-            iwriter.bf.close();
+            if (closeBf)
+            {
+                iwriter.bf.close();
+            }
         }
         if (dataFile!= null)
             FileUtils.closeQuietly(dataFile);
