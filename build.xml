@@ -374,7 +374,9 @@
           <dependency groupId="org.apache.pig" artifactId="pig" version="0.10.0"/>
           <dependency groupId="net.java.dev.jna" artifactId="jna" version="3.2.7"/>
 
-          <dependency groupId="net.sourceforge.cobertura" artifactId="cobertura" version="${cobertura.version}"/>
+          <dependency groupId="net.sourceforge.cobertura" artifactId="cobertura" version="${cobertura.version}">
+            <exclusion groupId="xerces" artifactId="xercesImpl"/>
+          </dependency>
 
           <dependency groupId="log4j" artifactId="log4j" version="1.2.16" />
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
