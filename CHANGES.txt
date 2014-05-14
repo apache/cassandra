@@ -1,4 +1,5 @@
 2.1.0-rc1
+ * Add PowerShell Windows launch scripts (CASSANDRA-7001)
  * Make commitlog archive+restore more robust (CASSANDRA-6974)
  * Fix marking commitlogsegments clean (CASSANDRA-6959)
  * Add snapshot "manifest" describing files included (CASSANDRA-6326)
