@@ -24,8 +24,10 @@ import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
 
+import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.service.pager.QueryPager;
 
 /** a utility for doing internal cql-based queries */
 public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
@@ -38,6 +40,11 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
     public static UntypedResultSet create(List<Map<String, ByteBuffer>> results)
     {
         return new FromResultList(results);
+    }
+
+    public static UntypedResultSet create(SelectStatement select, QueryPager pager, int pageSize)
+    {
+        return new FromPager(select, pager, pageSize);
     }
 
     public boolean isEmpty()
@@ -117,6 +124,55 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                     if (!iter.hasNext())
                         return endOfData();
                     return new Row(iter.next());
+                }
+            };
+        }
+    }
+
+    private static class FromPager extends UntypedResultSet
+    {
+        private final SelectStatement select;
+        private final QueryPager pager;
+        private final int pageSize;
+        private final List<ColumnSpecification> metadata;
+
+        private FromPager(SelectStatement select, QueryPager pager, int pageSize)
+        {
+            this.select = select;
+            this.pager = pager;
+            this.pageSize = pageSize;
+            this.metadata = select.getResultMetadata().names;
+        }
+
+        public int size()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public Row one()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public Iterator<Row> iterator()
+        {
+            return new AbstractIterator<Row>()
+            {
+                private Iterator<List<ByteBuffer>> currentPage;
+
+                protected Row computeNext()
+                {
+                    try {
+                        while (currentPage == null || !currentPage.hasNext())
+                        {
+                            if (pager.isExhausted())
+                                return endOfData();
+                            currentPage = select.process(pager.fetchPage(pageSize)).rows.iterator();
+                        }
+                        return new Row(metadata, currentPage.next());
+                    } catch (RequestValidationException | RequestExecutionException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             };
         }

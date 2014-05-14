@@ -1431,23 +1431,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             switch (state)
             {
                 case RELEASE_VERSION:
-                    SystemKeyspace.updatePeerInfo(endpoint, "release_version", quote(value.value));
+                    SystemKeyspace.updatePeerInfo(endpoint, "release_version", value.value);
                     break;
                 case DC:
-                    SystemKeyspace.updatePeerInfo(endpoint, "data_center", quote(value.value));
+                    SystemKeyspace.updatePeerInfo(endpoint, "data_center", value.value);
                     break;
                 case RACK:
-                    SystemKeyspace.updatePeerInfo(endpoint, "rack", quote(value.value));
+                    SystemKeyspace.updatePeerInfo(endpoint, "rack", value.value);
                     break;
                 case RPC_ADDRESS:
-                    SystemKeyspace.updatePeerInfo(endpoint, "rpc_address", quote(value.value));
+                    try
+                    {
+                        SystemKeyspace.updatePeerInfo(endpoint, "rpc_address", InetAddress.getByName(value.value));
+                    }
+                    catch (UnknownHostException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
                     break;
                 case SCHEMA:
-                    SystemKeyspace.updatePeerInfo(endpoint, "schema_version", value.value);
+                    SystemKeyspace.updatePeerInfo(endpoint, "schema_version", UUID.fromString(value.value));
                     MigrationManager.instance.scheduleSchemaPull(endpoint, epState);
                     break;
                 case HOST_ID:
-                    SystemKeyspace.updatePeerInfo(endpoint, "host_id", value.value);
+                    SystemKeyspace.updatePeerInfo(endpoint, "host_id", UUID.fromString(value.value));
                     break;
             }
         }
@@ -1461,30 +1468,32 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             switch (entry.getKey())
             {
                 case RELEASE_VERSION:
-                    SystemKeyspace.updatePeerInfo(endpoint, "release_version", quote(entry.getValue().value));
+                    SystemKeyspace.updatePeerInfo(endpoint, "release_version", entry.getValue().value);
                     break;
                 case DC:
-                    SystemKeyspace.updatePeerInfo(endpoint, "data_center", quote(entry.getValue().value));
+                    SystemKeyspace.updatePeerInfo(endpoint, "data_center", entry.getValue().value);
                     break;
                 case RACK:
-                    SystemKeyspace.updatePeerInfo(endpoint, "rack", quote(entry.getValue().value));
+                    SystemKeyspace.updatePeerInfo(endpoint, "rack", entry.getValue().value);
                     break;
                 case RPC_ADDRESS:
-                    SystemKeyspace.updatePeerInfo(endpoint, "rpc_address", quote(entry.getValue().value));
+                    try
+                    {
+                        SystemKeyspace.updatePeerInfo(endpoint, "rpc_address", InetAddress.getByName(entry.getValue().value));
+                    }
+                    catch (UnknownHostException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
                     break;
                 case SCHEMA:
-                    SystemKeyspace.updatePeerInfo(endpoint, "schema_version", entry.getValue().value);
+                    SystemKeyspace.updatePeerInfo(endpoint, "schema_version", UUID.fromString(entry.getValue().value));
                     break;
                 case HOST_ID:
-                    SystemKeyspace.updatePeerInfo(endpoint, "host_id", entry.getValue().value);
+                    SystemKeyspace.updatePeerInfo(endpoint, "host_id", UUID.fromString(entry.getValue().value));
                     break;
             }
         }
-    }
-
-    private String quote(String value)
-    {
-        return "'" + value + "'";
     }
 
     private byte[] getApplicationStateValue(InetAddress endpoint, ApplicationState appstate)

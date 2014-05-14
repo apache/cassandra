@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.service;
 
-import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
+import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -74,7 +74,7 @@ class RangeTransfer implements Runnable
 
     public void run()
     {
-        UntypedResultSet res = processInternal("SELECT * FROM system." + SystemKeyspace.RANGE_XFERS_CF);
+        UntypedResultSet res = executeInternal("SELECT * FROM system." + SystemKeyspace.RANGE_XFERS_CF);
 
         if (res.size() < 1)
         {
@@ -103,9 +103,7 @@ class RangeTransfer implements Runnable
         finally
         {
             LOG.debug("Removing queued entry for transfer of {}", token);
-            processInternal(String.format("DELETE FROM system.%s WHERE token_bytes = 0x%s",
-                                          SystemKeyspace.RANGE_XFERS_CF,
-                                          ByteBufferUtil.bytesToHex(tokenBytes)));
+            executeInternal(String.format("DELETE FROM system.%s WHERE token_bytes = ?", SystemKeyspace.RANGE_XFERS_CF), tokenBytes);
         }
     }
 

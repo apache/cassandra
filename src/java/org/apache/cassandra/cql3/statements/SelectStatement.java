@@ -191,18 +191,8 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         cl.validateForRead(keyspace());
 
         int limit = getLimit(options);
-        int limitForQuery = updateLimitForQuery(limit);
         long now = System.currentTimeMillis();
-        Pageable command;
-        if (isKeyRange || usesSecondaryIndexing)
-        {
-            command = getRangeCommand(options, limitForQuery, now);
-        }
-        else
-        {
-            List<ReadCommand> commands = getSliceCommands(options, limitForQuery, now);
-            command = commands == null ? null : new Pageable.ReadCommands(commands);
-        }
+        Pageable command = getPageableCommand(options, limit, now);
 
         int pageSize = options.getPageSize();
         // A count query will never be paged for the user, but we always page it internally to avoid OOM.
@@ -232,6 +222,21 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 msg.result.metadata.setHasMorePages(pager.state());
             return msg;
         }
+    }
+
+    private Pageable getPageableCommand(QueryOptions options, int limit, long now) throws RequestValidationException
+    {
+        int limitForQuery = updateLimitForQuery(limit);
+        if (isKeyRange || usesSecondaryIndexing)
+            return getRangeCommand(options, limitForQuery, now);
+
+        List<ReadCommand> commands = getSliceCommands(options, limitForQuery, now);
+        return commands == null ? null : new Pageable.ReadCommands(commands);
+    }
+
+    public Pageable getPageableCommand(QueryOptions options) throws RequestValidationException
+    {
+        return getPageableCommand(options, getLimit(options), System.currentTimeMillis());
     }
 
     private ResultMessage.Rows execute(Pageable command, QueryOptions options, int limit, long now) throws RequestValidationException, RequestExecutionException
@@ -285,23 +290,16 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return rows;
     }
 
-    public ResultMessage.Rows executeInternal(QueryState state) throws RequestExecutionException, RequestValidationException
+    public ResultMessage.Rows executeInternal(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
-        QueryOptions options = QueryOptions.DEFAULT;
         int limit = getLimit(options);
-        int limitForQuery = updateLimitForQuery(limit);
         long now = System.currentTimeMillis();
-        List<Row> rows;
-        if (isKeyRange || usesSecondaryIndexing)
-        {
-            RangeSliceCommand command = getRangeCommand(options, limitForQuery, now);
-            rows = command == null ? Collections.<Row>emptyList() : command.executeLocally();
-        }
-        else
-        {
-            List<ReadCommand> commands = getSliceCommands(options, limitForQuery, now);
-            rows = commands == null ? Collections.<Row>emptyList() : readLocally(keyspace(), commands);
-        }
+        Pageable command = getPageableCommand(options, limit, now);
+        List<Row> rows = command == null
+                       ? Collections.<Row>emptyList()
+                       : (command instanceof Pageable.ReadCommands
+                          ? readLocally(keyspace(), ((Pageable.ReadCommands)command).commands)
+                          : ((RangeSliceCommand)command).executeLocally());
 
         return processResults(rows, options, limit, now);
     }

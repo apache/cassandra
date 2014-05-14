@@ -58,6 +58,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
+import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
+
 public class BatchlogManager implements BatchlogManagerMBean
 {
     private static final String MBEAN_NAME = "org.apache.cassandra.db:type=BatchlogManager";
@@ -97,7 +99,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     public int countAllBatches()
     {
-        return (int) process("SELECT count(*) FROM %s.%s", Keyspace.SYSTEM_KS, SystemKeyspace.BATCHLOG_CF).one().getLong("count");
+        return (int) executeInternal("SELECT count(*) FROM %s.%s", Keyspace.SYSTEM_KS, SystemKeyspace.BATCHLOG_CF).one().getLong("count");
     }
 
     public long getTotalBatchesReplayed()
@@ -166,10 +168,10 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         try
         {
-            UntypedResultSet page = process("SELECT id, data, written_at, version FROM %s.%s LIMIT %d",
-                                            Keyspace.SYSTEM_KS,
-                                            SystemKeyspace.BATCHLOG_CF,
-                                            PAGE_SIZE);
+            UntypedResultSet page = executeInternal(String.format("SELECT id, data, written_at, version FROM %s.%s LIMIT %d",
+                                                                  Keyspace.SYSTEM_KS,
+                                                                  SystemKeyspace.BATCHLOG_CF,
+                                                                  PAGE_SIZE));
 
             while (!page.isEmpty())
             {
@@ -178,11 +180,11 @@ public class BatchlogManager implements BatchlogManagerMBean
                 if (page.size() < PAGE_SIZE)
                     break; // we've exhausted the batchlog, next query would be empty.
 
-                page = process("SELECT id, data, written_at, version FROM %s.%s WHERE token(id) > token(%s) LIMIT %d",
-                               Keyspace.SYSTEM_KS,
-                               SystemKeyspace.BATCHLOG_CF,
-                               id,
-                               PAGE_SIZE);
+                page = executeInternal(String.format("SELECT id, data, written_at, version FROM %s.%s WHERE token(id) > token(?) LIMIT %d",
+                                                     Keyspace.SYSTEM_KS,
+                                                     SystemKeyspace.BATCHLOG_CF,
+                                                     PAGE_SIZE), 
+                                       id);
             }
 
             cleanup();
@@ -448,11 +450,6 @@ public class BatchlogManager implements BatchlogManagerMBean
             descriptors.add(sstr.descriptor);
         if (!descriptors.isEmpty()) // don't pollute the logs if there is nothing to compact.
             CompactionManager.instance.submitUserDefined(cfs, descriptors, Integer.MAX_VALUE).get();
-    }
-
-    private static UntypedResultSet process(String format, Object... args)
-    {
-        return QueryProcessor.processInternal(String.format(format, args));
     }
 
     public static class EndpointFilter
