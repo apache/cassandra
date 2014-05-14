@@ -19,6 +19,7 @@
  * Optimize netty server (CASSANDRA-6861)
  * Fix repair hang when given CF does not exist (CASSANDRA-7189)
  * Allow c* to be shutdown in an embedded mode (CASSANDRA-5635)
+ * Add server side batching to native transport (CASSANDRA-5663)
 Merged from 2.0:
  * (Hadoop) Close java driver Cluster in CQLRR.close (CASSANDRA-7228)
  * Warn when 'USING TIMESTAMP' is used on a CAS BATCH (CASSANDRA-7067)
