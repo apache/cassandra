@@ -14,6 +14,7 @@
  * Add server side batching to native transport (CASSANDRA-5663)
  * Make batchlog replay asynchronous (CASSANDRA-6134)
 Merged from 2.0:
+ * (Hadoop) support authentication in CqlRecordReader (CASSANDRA-7221)
  * (Hadoop) Close java driver Cluster in CQLRR.close (CASSANDRA-7228)
  * Warn when 'USING TIMESTAMP' is used on a CAS BATCH (CASSANDRA-7067)
  * Starting threads in OutboundTcpConnectionPool constructor causes race conditions (CASSANDRA-7177)

@@ -40,9 +40,11 @@ import javax.net.ssl.TrustManagerFactory;
 
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 
 import com.datastax.driver.core.AuthProvider;
+import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.Host;
 import com.datastax.driver.core.HostDistance;
@@ -63,6 +65,9 @@ public class CqlConfigHelper
     private static final String INPUT_CQL_PAGE_ROW_SIZE_CONFIG = "cassandra.input.page.row.size";
     private static final String INPUT_CQL_WHERE_CLAUSE_CONFIG = "cassandra.input.where.clause";
     private static final String INPUT_CQL = "cassandra.input.cql";
+
+    private static final String USERNAME = "cassandra.username";
+    private static final String PASSWORD = "cassandra.password";
 
     private static final String INPUT_NATIVE_PORT = "cassandra.input.native.port";
     private static final String INPUT_NATIVE_CORE_CONNECTIONS_PER_HOST = "cassandra.input.native.core.connections.per.host";
@@ -150,6 +155,16 @@ public class CqlConfigHelper
             return;
 
         conf.set(INPUT_CQL, cql);
+    }
+
+    public static void setUserNameAndPassword(Configuration conf, String username, String password)
+    {
+        if (StringUtils.isNotBlank(username))
+        {
+            conf.set(INPUT_NATIVE_AUTH_PROVIDER, PlainTextAuthProvider.class.getName());
+            conf.set(USERNAME, username);
+            conf.set(PASSWORD, password);
+        }
     }
 
     public static Optional<Integer> getInputCoreConnections(Configuration conf)
@@ -547,7 +562,7 @@ public class CqlConfigHelper
         if (!authProvider.isPresent())
             return Optional.absent();
 
-        return Optional.of(getClientAuthProvider(authProvider.get()));  
+        return Optional.of(getClientAuthProvider(authProvider.get(), conf));
     }
 
     private static Optional<SSLOptions> getSSLOptions(Configuration conf)
@@ -602,11 +617,22 @@ public class CqlConfigHelper
         return Optional.of(setting);  
     }
 
-    private static AuthProvider getClientAuthProvider(String factoryClassName)
+    private static AuthProvider getClientAuthProvider(String factoryClassName, Configuration conf)
     {
         try
         {
-            return (AuthProvider) Class.forName(factoryClassName).newInstance();
+            Class<?> c = Class.forName(factoryClassName);
+            if (PlainTextAuthProvider.class.equals(c))
+            {
+                String username = getStringSetting(USERNAME, conf).or("");
+                String password = getStringSetting(PASSWORD, conf).or("");
+                return (AuthProvider) c.getConstructor(String.class, String.class)
+                        .newInstance(username, password);
+            }
+            else
+            {
+                return (AuthProvider) c.newInstance();
+            }
         }
         catch (Exception e)
         {
