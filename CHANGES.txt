@@ -20,6 +20,10 @@
  * Fix repair hang when given CF does not exist (CASSANDRA-7189)
  * Allow c* to be shutdown in an embedded mode (CASSANDRA-5635)
 Merged from 2.0:
+ * (Hadoop) Close java driver Cluster in CQLRR.close (CASSANDRA-7228)
+ * Warn when 'USING TIMESTAMP' is used on a CAS BATCH (CASSANDRA-7067)
+ * Starting threads in OutboundTcpConnectionPool constructor causes race conditions (CASSANDRA-7177)
+ * return all cpu values from BackgroundActivityMonitor.readAndCompute (CASSANDRA-7183)
  * Correctly delete scheduled range xfers (CASSANDRA-7143)
  * Make batchlog replica selection rack-aware (CASSANDRA-6551)
  * Suggest CTRL-C or semicolon after three blank lines in cqlsh (CASSANDRA-7142)
