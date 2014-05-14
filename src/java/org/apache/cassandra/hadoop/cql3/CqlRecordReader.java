@@ -134,6 +134,8 @@ public class CqlRecordReader extends RecordReader<Long, Row>
     {
         if (session != null)
             session.close();
+        if (cluster != null)
+            cluster.close();
     }
 
     public Long getCurrentKey()
