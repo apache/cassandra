@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -64,6 +66,11 @@ public class NativeCounterCell extends NativeCell implements CounterCell
     public long timestampOfLastDelete()
     {
         return getLong(internalSize() - 8);
+    }
+
+    public ByteBuffer value()
+    {
+        return super.value().order(ByteOrder.BIG_ENDIAN);
     }
 
     @Override
