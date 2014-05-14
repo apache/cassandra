@@ -1,4 +1,5 @@
 2.0.9
+ * (Hadoop) support authentication in CqlRecordReader (CASSANDRA-7221)
  * (Hadoop) Close java driver Cluster in CQLRR.close (CASSANDRA-7228)
  * Fix potential SlabAllocator yield-starvation (CASSANDRA-7133)
  * Warn when 'USING TIMESTAMP' is used on a CAS BATCH (CASSANDRA-7067)
