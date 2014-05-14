@@ -64,7 +64,7 @@ public abstract class AbstractSimpleCellNameType extends AbstractCellNameType
         boolean c1isEmpty = c1.isEmpty();
         boolean c2isEmpty = c2.isEmpty();
         if (c1isEmpty || c2isEmpty)
-            return c1isEmpty ? 1 : (c2isEmpty ? -1 : 0);
+            return !c1isEmpty ? 1 : (!c2isEmpty ? -1 : 0);
 
         return type.compare(c1.get(0), c2.get(0));
     }

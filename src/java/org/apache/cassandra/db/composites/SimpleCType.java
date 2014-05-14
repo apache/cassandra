@@ -58,14 +58,14 @@ public class SimpleCType extends AbstractCType
             ByteBuffer b1 = c1.toByteBuffer();
             ByteBuffer b2 = c2.toByteBuffer();
             if (!b1.hasRemaining() || !b2.hasRemaining())
-
+                return b1.hasRemaining() ? 1 : (b2.hasRemaining() ? -1 : 0);
             return ByteBufferUtil.compareUnsigned(b1, b2);
         }
 
         boolean c1isEmpty = c1.isEmpty();
         boolean c2isEmpty = c2.isEmpty();
         if (c1isEmpty || c2isEmpty)
-            return c1isEmpty ? 1 : (c2isEmpty ? -1 : 0);
+            return !c1isEmpty ? 1 : (!c2isEmpty ? -1 : 0);
 
         return type.compare(c1.get(0), c2.get(0));
     }
