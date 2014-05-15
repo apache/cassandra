@@ -159,6 +159,7 @@ public class SSTableReader extends SSTable
      * The age is in milliseconds since epoc and is local to this host.
      */
     public final long maxDataAge;
+    public final boolean isOpenEarly;
 
     // indexfile and datafile: might be null before a call to load()
     private SegmentedFile ifile;
@@ -336,7 +337,8 @@ public class SSTableReader extends SSTable
                                                   metadata,
                                                   partitioner,
                                                   System.currentTimeMillis(),
-                                                  statsMetadata);
+                                                  statsMetadata,
+                                                  false);
 
         // special implementation of load to use non-pooled SegmentedFile builders
         SegmentedFile.Builder ibuilder = new BufferedSegmentedFile.Builder();
@@ -384,7 +386,8 @@ public class SSTableReader extends SSTable
                                                   metadata,
                                                   partitioner,
                                                   System.currentTimeMillis(),
-                                                  statsMetadata);
+                                                  statsMetadata,
+                                                  false);
 
         // load index and filter
         long start = System.nanoTime();
@@ -463,7 +466,8 @@ public class SSTableReader extends SSTable
                                       IndexSummary isummary,
                                       IFilter bf,
                                       long maxDataAge,
-                                      StatsMetadata sstableMetadata)
+                                      StatsMetadata sstableMetadata,
+                                      boolean isOpenEarly)
     {
         assert desc != null && partitioner != null && ifile != null && dfile != null && isummary != null && bf != null && sstableMetadata != null;
         return new SSTableReader(desc,
@@ -474,7 +478,8 @@ public class SSTableReader extends SSTable
                                  isummary,
                                  bf,
                                  maxDataAge,
-                                 sstableMetadata);
+                                 sstableMetadata,
+                                 isOpenEarly);
     }
 
 
@@ -483,11 +488,13 @@ public class SSTableReader extends SSTable
                           CFMetaData metadata,
                           IPartitioner partitioner,
                           long maxDataAge,
-                          StatsMetadata sstableMetadata)
+                          StatsMetadata sstableMetadata,
+                          boolean isOpenEarly)
     {
         super(desc, components, metadata, partitioner);
         this.sstableMetadata = sstableMetadata;
         this.maxDataAge = maxDataAge;
+        this.isOpenEarly = isOpenEarly;
 
         deletingTask = new SSTableDeletingTask(this);
 
@@ -524,9 +531,10 @@ public class SSTableReader extends SSTable
                           IndexSummary indexSummary,
                           IFilter bloomFilter,
                           long maxDataAge,
-                          StatsMetadata sstableMetadata)
+                          StatsMetadata sstableMetadata,
+                          boolean isOpenEarly)
     {
-        this(desc, components, metadata, partitioner, maxDataAge, sstableMetadata);
+        this(desc, components, metadata, partitioner, maxDataAge, sstableMetadata, isOpenEarly);
 
         this.ifile = ifile;
         this.dfile = dfile;
@@ -947,7 +955,7 @@ public class SSTableReader extends SSTable
 
             if (readMeterSyncFuture != null)
                 readMeterSyncFuture.cancel(false);
-            SSTableReader replacement = new SSTableReader(descriptor, components, metadata, partitioner, ifile, dfile, indexSummary.readOnlyClone(), bf, maxDataAge, sstableMetadata);
+            SSTableReader replacement = new SSTableReader(descriptor, components, metadata, partitioner, ifile, dfile, indexSummary.readOnlyClone(), bf, maxDataAge, sstableMetadata, isOpenEarly);
             replacement.readMeter = this.readMeter;
             replacement.first = this.last.compareTo(newStart) > 0 ? newStart : this.last;
             replacement.last = this.last;
@@ -1010,7 +1018,7 @@ public class SSTableReader extends SSTable
             if (readMeterSyncFuture != null)
                 readMeterSyncFuture.cancel(false);
 
-            SSTableReader replacement = new SSTableReader(descriptor, components, metadata, partitioner, ifile, dfile, newSummary, bf, maxDataAge, sstableMetadata);
+            SSTableReader replacement = new SSTableReader(descriptor, components, metadata, partitioner, ifile, dfile, newSummary, bf, maxDataAge, sstableMetadata, isOpenEarly);
             replacement.readMeter = this.readMeter;
             replacement.first = this.first;
             replacement.last = this.last;
