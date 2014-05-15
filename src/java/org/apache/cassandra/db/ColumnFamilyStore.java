@@ -2144,7 +2144,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 for (SSTableReader ssTable : currentView.sstables)
                 {
-                    if (predicate != null && !predicate.apply(ssTable))
+                    if (ssTable.isOpenEarly || (predicate != null && !predicate.apply(ssTable)))
                     {
                         continue;
                     }
