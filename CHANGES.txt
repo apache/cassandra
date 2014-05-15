@@ -21,6 +21,7 @@
  * Allow c* to be shutdown in an embedded mode (CASSANDRA-5635)
  * Add server side batching to native transport (CASSANDRA-5663)
  * Make batchlog replay asynchronous (CASSANDRA-6134)
+ * remove unused classes (CASSANDRA-7197)
 Merged from 2.0:
  * (Hadoop) support authentication in CqlRecordReader (CASSANDRA-7221)
  * (Hadoop) Close java driver Cluster in CQLRR.close (CASSANDRA-7228)

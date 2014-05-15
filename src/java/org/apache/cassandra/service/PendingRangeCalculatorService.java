@@ -43,7 +43,7 @@ import java.util.Set;
 import java.util.Collection;
 import java.util.concurrent.*;
 
-public class PendingRangeCalculatorService extends PendingRangeCalculatorServiceMBean
+public class PendingRangeCalculatorService
 {
     public static final PendingRangeCalculatorService instance = new PendingRangeCalculatorService();
 
