@@ -347,7 +347,6 @@ public interface CQL3Type
 
         private static class RawUT extends Raw
         {
-
             private final UTName name;
 
             private RawUT(UTName name)
@@ -357,7 +356,19 @@ public interface CQL3Type
 
             public CQL3Type prepare(String keyspace) throws InvalidRequestException
             {
-                name.setKeyspace(keyspace);
+                if (name.hasKeyspace())
+                {
+                    // The provided keyspace is the one of the current statement this is part of. If it's different from the keyspace of
+                    // the UTName, we reject since we want to limit user types to their own keyspace (see #6643)
+                    if (!keyspace.equals(name.getKeyspace()))
+                        throw new InvalidRequestException(String.format("Statement on keyspace %s cannot refer to a user type in keyspace %s; "
+                                                                        + "user types can only be used in the keyspace they are defined in",
+                                                                        keyspace, name.getKeyspace()));
+                }
+                else
+                {
+                    name.setKeyspace(keyspace);
+                }
 
                 KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
                 if (ksm == null)
@@ -374,6 +385,6 @@ public interface CQL3Type
             {
                 return name.toString();
             }
-    }
+        }
     }
 }
