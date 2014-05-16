@@ -171,7 +171,7 @@ public class CommitLogTest extends SchemaLoader
 
     private static int getMaxRecordDataSize(String keyspace, ByteBuffer key, String table, CellName column)
     {
-        Mutation rm = new Mutation("Keyspace1", bytes("k"));
+        Mutation rm = new Mutation(keyspace, bytes("k"));
         rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate(0), 0);
 
         int max = (DatabaseDescriptor.getCommitLogSegmentSize() / 2);
