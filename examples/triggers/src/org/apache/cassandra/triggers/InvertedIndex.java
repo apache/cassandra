@@ -41,13 +41,15 @@ public class InvertedIndex implements ITrigger
     {
         List<Mutation> mutations = new ArrayList<>(update.getColumnCount());
 
+        String indexKeySpace = properties.getProperty("keyspace");
+        String indexColumnFamily = properties.getProperty("columnfamily")
         for (Cell cell : update)
         {
             // Skip the row marker and other empty values, since they lead to an empty key.
             if (cell.value().remaining() > 0)
             {
-                Mutation mutation = new Mutation(properties.getProperty("keyspace"), cell.value());
-                mutation.add(properties.getProperty("columnfamily"), cell.name(), key, System.currentTimeMillis());
+                Mutation mutation = new Mutation(indexKeySpace, cell.value());
+                mutation.add(indexColumnFamily, cell.name(), key, System.currentTimeMillis());
                 mutations.add(mutation);
             }
         }
