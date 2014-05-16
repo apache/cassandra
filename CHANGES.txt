@@ -5,6 +5,7 @@
  * Add Thrift get_multi_slice call (CASSANDRA-6757)
  * Optimize fetching multiple cells by name (CASSANDRA-6933)
  * Allow compilation in java 8 (CASSANDRA-7208)
+ * Make incremental repair default (CASSANDRA-7250)
 
 2.1.0-rc1
  * Add PowerShell Windows launch scripts (CASSANDRA-7001)
