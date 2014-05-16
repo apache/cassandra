@@ -50,9 +50,6 @@ public class CreateTypeStatement extends SchemaAlteringStatement
     {
         if (!name.hasKeyspace())
             name.setKeyspace(state.getKeyspace());
-
-        if (name.getKeyspace() == null)
-            throw new InvalidRequestException("You need to be logged in a keyspace or use a fully qualified user type name");
     }
 
     public void addDefinition(ColumnIdentifier name, CQL3Type.Raw type)

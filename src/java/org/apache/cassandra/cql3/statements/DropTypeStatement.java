@@ -43,9 +43,6 @@ public class DropTypeStatement extends SchemaAlteringStatement
     {
         if (!name.hasKeyspace())
             name.setKeyspace(state.getKeyspace());
-
-        if (name.getKeyspace() == null)
-            throw new InvalidRequestException("You need to be logged in a keyspace or use a fully qualified user type name");
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
