@@ -80,6 +80,78 @@ public class Directories
             dataFileLocations[i] = new DataDirectory(new File(locations[i]));
     }
 
+    /**
+     * Checks whether Cassandra has RWX permissions to the specified directory.
+     *
+     * @param dir File object of the directory.
+     * @param dataDir String representation of the directory's location
+     * @return status representing Cassandra's RWX permissions to the supplied folder location.
+     */
+    public static boolean hasFullPermissions(File dir, String dataDir)
+    {
+        if (!dir.isDirectory())
+        {
+            logger.error("Not a directory {}", dataDir);
+            return false;
+        }
+        else if (!FileAction.hasPrivilege(dir, FileAction.X))
+        {
+            logger.error("Doesn't have execute permissions for {} directory", dataDir);
+            return false;
+        }
+        else if (!FileAction.hasPrivilege(dir, FileAction.R))
+        {
+            logger.error("Doesn't have read permissions for {} directory", dataDir);
+            return false;
+        }
+        else if (dir.exists() && !FileAction.hasPrivilege(dir, FileAction.W))
+        {
+            logger.error("Doesn't have write permissions for {} directory", dataDir);
+            return false;
+        }
+
+        return true;
+    }
+
+    public enum FileAction
+    {
+        X, W, XW, R, XR, RW, XRW;
+
+        private FileAction()
+        {
+        }
+
+        public static boolean hasPrivilege(File file, FileAction action)
+        {
+            boolean privilege = false;
+
+            switch (action) {
+                case X:
+                    privilege = file.canExecute();
+                    break;
+                case W:
+                    privilege = file.canWrite();
+                    break;
+                case XW:
+                    privilege = file.canExecute() && file.canWrite();
+                    break;
+                case R:
+                    privilege = file.canRead();
+                    break;
+                case XR:
+                    privilege = file.canExecute() && file.canRead();
+                    break;
+                case RW:
+                    privilege = file.canRead() && file.canWrite();
+                    break;
+                case XRW:
+                    privilege = file.canExecute() && file.canRead() && file.canWrite();
+                    break;
+            }
+            return privilege;
+        }
+    }
+
     private final String keyspacename;
     private final String cfname;
     private final File[] sstableDirectories;
