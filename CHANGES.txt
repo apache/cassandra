@@ -12,6 +12,7 @@
  * cqlsh: Accept and execute CQL statement(s) from command-line parameter (CASSANDRA-7172)
  * Fix IllegalStateException in CqlPagingRecordReader (CASSANDRA-7198)
  * Fix the InvertedIndex trigger example (CASSANDRA-7211)
+ * Add --resolve-ip option to 'nodetool ring' (CASSANDRA-7210)
 
 
 2.0.8

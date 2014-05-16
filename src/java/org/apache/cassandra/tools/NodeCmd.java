@@ -250,7 +250,7 @@ public class NodeCmd
      * @param outs
      *            the stream to write to
      */
-    public void printRing(PrintStream outs, String keyspace)
+    public void printRing(PrintStream outs, String keyspace, boolean resolveIp)
     {
         Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap();
         LinkedHashMultimap<String, String> endpointsToTokens = LinkedHashMultimap.create();
@@ -285,7 +285,7 @@ public class NodeCmd
         try
         {
             outs.println();
-            for (Entry<String, SetHostStat> entry : getOwnershipByDc(false, tokensToEndpoints, ownerships).entrySet())
+            for (Entry<String, SetHostStat> entry : getOwnershipByDc(resolveIp, tokensToEndpoints, ownerships).entrySet())
                 printDc(outs, format, entry.getKey(), endpointsToTokens, keyspaceSelected, entry.getValue());
         }
         catch (UnknownHostException e)
@@ -362,7 +362,7 @@ public class NodeCmd
                     ? loadMap.get(endpoint)
                     : "?";
             String owns = stat.owns != null ? new DecimalFormat("##0.00%").format(stat.owns) : "?";
-            outs.printf(format, endpoint, rack, status, state, load, owns, stat.token);
+            outs.printf(format, stat.ipOrDns(), rack, status, state, load, owns, stat.token);
         }
         outs.println();
     }
@@ -1216,8 +1216,9 @@ public class NodeCmd
             switch (command)
             {
                 case RING :
-                    if (arguments.length > 0) { nodeCmd.printRing(System.out, arguments[0]); }
-                    else                      { nodeCmd.printRing(System.out, null); };
+                    boolean resolveIp = cmd.hasOption(RESOLVE_IP.left);
+                    if (arguments.length > 0) { nodeCmd.printRing(System.out, arguments[0], resolveIp); }
+                    else                      { nodeCmd.printRing(System.out, null, resolveIp); };
                     break;
 
                 case INFO            : nodeCmd.printInfo(System.out, cmd); break;
@@ -1257,7 +1258,7 @@ public class NodeCmd
                     break;
 
                 case STATUS :
-                    boolean resolveIp = cmd.hasOption(RESOLVE_IP.left);
+                    resolveIp = cmd.hasOption(RESOLVE_IP.left);
                     if (arguments.length > 0) nodeCmd.printClusterStatus(System.out, arguments[0], resolveIp);
                     else                      nodeCmd.printClusterStatus(System.out, null, resolveIp);
                     break;
