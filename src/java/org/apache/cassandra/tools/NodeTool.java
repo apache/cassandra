@@ -424,6 +424,9 @@ public class NodeTool
         @Arguments(description = "Specify a keyspace for accurate ownership information (topology awareness)")
         private String keyspace = null;
 
+        @Option(title = "resolve_ip", name = {"-r", "--resolve-ip"}, description = "Show node domain names instead of IPs")
+        private boolean resolveIp = false;
+
         @Override
         public void execute(NodeProbe probe)
         {
@@ -455,7 +458,7 @@ public class NodeTool
                 System.out.printf("Note: Ownership information does not include topology; for complete information, specify a keyspace%n");
             }
             System.out.println();
-            for (Entry<String, SetHostStat> entry : getOwnershipByDc(probe, false, tokensToEndpoints, ownerships).entrySet())
+            for (Entry<String, SetHostStat> entry : getOwnershipByDc(probe, resolveIp, tokensToEndpoints, ownerships).entrySet())
                 printDc(probe, format, entry.getKey(), endpointsToTokens, entry.getValue());
 
             if (DatabaseDescriptor.getNumTokens() > 1)
@@ -529,7 +532,7 @@ public class NodeTool
                         ? loadMap.get(endpoint)
                         : "?";
                 String owns = stat.owns != null ? new DecimalFormat("##0.00%").format(stat.owns) : "?";
-                System.out.printf(format, endpoint, rack, status, state, load, owns, stat.token);
+                System.out.printf(format, stat.ipOrDns(), rack, status, state, load, owns, stat.token);
             }
             System.out.println();
         }
