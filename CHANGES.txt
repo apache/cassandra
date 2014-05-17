@@ -14,6 +14,7 @@
  * Fix the InvertedIndex trigger example (CASSANDRA-7211)
  * Add --resolve-ip option to 'nodetool ring' (CASSANDRA-7210)
  * Fix duplicated error messages on directory creation error at startup (CASSANDRA-5818)
+ * reduce garbage on codec flag deserialization (CASSANDRA-7244) 
 
 
 2.0.8
