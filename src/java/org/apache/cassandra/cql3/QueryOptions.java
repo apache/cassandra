@@ -278,14 +278,15 @@ public abstract class QueryOptions
             TIMESTAMP,
             NAMES_FOR_VALUES;
 
+            private static final Flag[] ALL_VALUES = values();
+
             public static EnumSet<Flag> deserialize(int flags)
             {
                 EnumSet<Flag> set = EnumSet.noneOf(Flag.class);
-                Flag[] values = Flag.values();
-                for (int n = 0; n < values.length; n++)
+                for (int n = 0; n < ALL_VALUES.length; n++)
                 {
                     if ((flags & (1 << n)) != 0)
-                        set.add(values[n]);
+                        set.add(ALL_VALUES[n]);
                 }
                 return set;
             }

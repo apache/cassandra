@@ -34,6 +34,7 @@ Merged from 2.0:
  * Fix IllegalStateException in CqlPagingRecordReader (CASSANDRA-7198)
  * Fix the InvertedIndex trigger example (CASSANDRA-7211)
  * Add --resolve-ip option to 'nodetool ring' (CASSANDRA-7210)
+ * reduce garbage on codec flag deserialization (CASSANDRA-7244) 
 Merged from 1.2:
  * Add Cloudstack snitch (CASSANDRA-7147)
  * Update system.peers correctly when relocating tokens (CASSANDRA-7126)
