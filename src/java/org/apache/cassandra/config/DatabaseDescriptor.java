@@ -489,7 +489,9 @@ public class DatabaseDescriptor
             for (String token : tokensFromString(conf.initial_token))
                 partitioner.getTokenFactory().validate(token);
 
-        if (conf.num_tokens > MAX_NUM_TOKENS)
+        if (conf.num_tokens == null)
+        	conf.num_tokens = 1;
+        else if (conf.num_tokens > MAX_NUM_TOKENS)
             throw new ConfigurationException(String.format("A maximum number of %d tokens per node is supported", MAX_NUM_TOKENS));
 
         try
