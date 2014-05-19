@@ -126,9 +126,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         }
 
         // Otherwise, check the selected columns
-        selectsStaticColumns = !Iterables.isEmpty(Iterables.filter(selection.getColumnsList(), isStaticFilter));
+        selectsStaticColumns = !Iterables.isEmpty(Iterables.filter(selection.getColumns(), isStaticFilter));
         selectsOnlyStaticColumns = true;
-        for (ColumnDefinition def : selection.getColumnsList())
+        for (ColumnDefinition def : selection.getColumns())
         {
             if (def.kind != ColumnDefinition.Kind.PARTITION_KEY && def.kind != ColumnDefinition.Kind.STATIC)
             {
@@ -739,7 +739,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 columns.add(cfm.comparator.rowMarker(prefix));
 
                 // selected columns
-                for (ColumnDefinition def : selection.getColumnsList())
+                for (ColumnDefinition def : selection.getColumns())
                     if (def.kind == ColumnDefinition.Kind.REGULAR || def.kind == ColumnDefinition.Kind.STATIC)
                         columns.add(cfm.comparator.create(prefix, def));
             }
@@ -758,7 +758,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         if (!cfm.comparator.hasCollections())
             return false;
 
-        for (ColumnDefinition def : selection.getColumnsList())
+        for (ColumnDefinition def : selection.getColumns())
         {
             if (def.type instanceof CollectionType)
                 return true;
@@ -1051,7 +1051,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         if (staticRow != null && !iter.hasNext() && !usesSecondaryIndexing && hasNoClusteringColumnsRestriction())
         {
             result.newRow();
-            for (ColumnDefinition def : selection.getColumnsList())
+            for (ColumnDefinition def : selection.getColumns())
             {
                 switch (def.kind)
                 {
@@ -1075,7 +1075,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             // Respect requested order
             result.newRow();
             // Respect selection order
-            for (ColumnDefinition def : selection.getColumnsList())
+            for (ColumnDefinition def : selection.getColumns())
             {
                 switch (def.kind)
                 {
@@ -1214,7 +1214,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                                 : Selection.fromSelectors(cfm, selectClause);
 
             if (parameters.isDistinct)
-                validateDistinctSelection(selection.getColumnsList(), cfm.partitionKeyColumns());
+                validateDistinctSelection(selection.getColumns(), cfm.partitionKeyColumns());
 
             Term prepLimit = null;
             if (limit != null)
@@ -1539,7 +1539,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
         private int indexOf(ColumnDefinition def, Selection selection)
         {
-            return indexOf(def, selection.getColumnsList().iterator());
+            return indexOf(def, selection.getColumns().iterator());
         }
 
         private int indexOf(final ColumnDefinition def, Iterator<ColumnDefinition> defs)

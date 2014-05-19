@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -169,6 +170,25 @@ public abstract class Maps
                 buffers.add(entry.getValue());
             }
             return CollectionSerializer.pack(buffers, map.size(), options.getProtocolVersion());
+        }
+
+        public boolean equals(MapType mt, Value v)
+        {
+            if (map.size() != v.map.size())
+                return false;
+
+            // We use the fact that we know the maps iteration will both be in comparator order
+            Iterator<Map.Entry<ByteBuffer, ByteBuffer>> thisIter = map.entrySet().iterator();
+            Iterator<Map.Entry<ByteBuffer, ByteBuffer>> thatIter = v.map.entrySet().iterator();
+            while (thisIter.hasNext())
+            {
+                Map.Entry<ByteBuffer, ByteBuffer> thisEntry = thisIter.next();
+                Map.Entry<ByteBuffer, ByteBuffer> thatEntry = thatIter.next();
+                if (mt.keys.compare(thisEntry.getKey(), thatEntry.getKey()) != 0 || mt.values.compare(thisEntry.getValue(), thatEntry.getValue()) != 0)
+                    return false;
+            }
+
+            return true;
         }
     }
 
