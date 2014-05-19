@@ -63,6 +63,8 @@ public class ColumnFamilyMetrics
     public final LatencyMetrics writeLatency;
     /** Estimated number of tasks pending for this column family */
     public final Counter pendingFlushes;
+    /** Estimate of number of pending compactios for this CF */
+    public final Gauge<Integer> pendingCompactions;
     /** Number of SSTables on disk for this CF */
     public final Gauge<Integer> liveSSTableCount;
     /** Disk space used by SSTables belonging to this CF */
@@ -232,6 +234,13 @@ public class ColumnFamilyMetrics
         readLatency = new LatencyMetrics(factory, "Read");
         writeLatency = new LatencyMetrics(factory, "Write");
         pendingFlushes = Metrics.newCounter(factory.createMetricName("PendingFlushes"));
+        pendingCompactions = Metrics.newGauge(factory.createMetricName("PendingCompactions"), new Gauge<Integer>()
+        {
+            public Integer value()
+            {
+                return cfs.getCompactionStrategy().getEstimatedRemainingTasks();
+            }
+        });
         liveSSTableCount = Metrics.newGauge(factory.createMetricName("LiveSSTableCount"), new Gauge<Integer>()
         {
             public Integer value()
