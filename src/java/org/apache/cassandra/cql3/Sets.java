@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -161,6 +162,20 @@ public abstract class Sets
         public ByteBuffer get(QueryOptions options)
         {
             return CollectionSerializer.pack(new ArrayList<ByteBuffer>(elements), elements.size(), options.getProtocolVersion());
+        }
+
+        public boolean equals(SetType st, Value v)
+        {
+            if (elements.size() != v.elements.size())
+                return false;
+
+            Iterator<ByteBuffer> thisIter = elements.iterator();
+            Iterator<ByteBuffer> thatIter = v.elements.iterator();
+            while (thisIter.hasNext())
+                if (st.elements.compare(thisIter.next(), thatIter.next()) != 0)
+                    return false;
+
+            return true;
         }
     }
 

@@ -599,7 +599,9 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         }
         else
         {
-            List<ColumnDefinition> defs = new ArrayList<>();
+            // We can have multiple conditions on the same columns (for collections) so use a set
+            // to avoid duplicate, but preserve the order just to it follows the order of IF in the query in general
+            Set<ColumnDefinition> defs = new LinkedHashSet<>();
             // Adding the partition key for batches to disambiguate if the conditions span multipe rows (we don't add them outside
             // of batches for compatibility sakes).
             if (isBatch)

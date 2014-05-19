@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -149,6 +150,18 @@ public abstract class Lists
         public ByteBuffer get(QueryOptions options)
         {
             return CollectionSerializer.pack(elements, elements.size(), options.getProtocolVersion());
+        }
+
+        public boolean equals(ListType lt, Value v)
+        {
+            if (elements.size() != v.elements.size())
+                return false;
+
+            for (int i = 0; i < elements.size(); i++)
+                if (lt.elements.compare(elements.get(i), v.elements.get(i)) != 0)
+                    return false;
+
+            return true;
         }
     }
 
