@@ -86,7 +86,8 @@ public class THsHaDisruptorServer extends TDisruptorServer
                                                                                          .inputProtocolFactory(protocolFactory)
                                                                                          .outputProtocolFactory(protocolFactory)
                                                                                          .processor(args.processor)
-                                                                                         .maxFrameSizeInBytes(DatabaseDescriptor.getThriftFramedTransportSize());
+                                                                                         .maxFrameSizeInBytes(DatabaseDescriptor.getThriftFramedTransportSize())
+                                                                                         .alwaysReallocateBuffers(true);
 
             return new THsHaDisruptorServer(serverArgs);
         }
