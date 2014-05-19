@@ -60,6 +60,21 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
         return value.size();
     }
 
+    public void validateForNativeProtocol(ByteBuffer bytes, int version)
+    {
+        try
+        {
+            ByteBuffer input = bytes.duplicate();
+            int n = readCollectionSize(input, version);
+            for (int i = 0; i < n; i++)
+                elements.validate(readValue(input, version));
+        }
+        catch (BufferUnderflowException e)
+        {
+            throw new MarshalException("Not enough bytes to read a list");
+        }
+    }
+
     public List<T> deserializeForNativeProtocol(ByteBuffer bytes, int version)
     {
         try

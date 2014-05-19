@@ -25,15 +25,11 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class CollectionSerializer<T> implements TypeSerializer<T>
 {
-    public void validate(ByteBuffer bytes) throws MarshalException
-    {
-        // The collection is not currently being properly validated.
-    }
-
     protected abstract List<ByteBuffer> serializeValues(T value);
     protected abstract int getElementCount(T value);
 
     public abstract T deserializeForNativeProtocol(ByteBuffer buffer, int version);
+    public abstract void validateForNativeProtocol(ByteBuffer buffer, int version);
 
     public ByteBuffer serialize(T value)
     {
@@ -50,6 +46,12 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
         //  2) for internal calls.
         // In both case, using the protocol 3 version variant is the right thing to do.
         return deserializeForNativeProtocol(bytes, 3);
+    }
+
+    public void validate(ByteBuffer bytes) throws MarshalException
+    {
+        // Same thing than above
+        validateForNativeProtocol(bytes, 3);
     }
 
     public static ByteBuffer pack(List<ByteBuffer> buffers, int elements, int version)

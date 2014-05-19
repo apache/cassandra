@@ -85,11 +85,6 @@ public abstract class CollectionType<T> extends AbstractType<T>
         }
     }
 
-    public void validate(ByteBuffer bytes)
-    {
-        valueComparator().validate(bytes);
-    }
-
     @Override
     public boolean isCompatibleWith(AbstractType<?> previous)
     {
