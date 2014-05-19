@@ -308,7 +308,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
 
         verifyBatchSize(Collections.singleton(updates));
         ColumnFamily result = StorageProxy.cas(ksName, cfName, key, conditions, updates, options.getSerialConsistency(), options.getConsistency());
-        return new ResultMessage.Rows(ModificationStatement.buildCasResultSet(ksName, key, cfName, result, columnsWithConditions, true));
+        return new ResultMessage.Rows(ModificationStatement.buildCasResultSet(ksName, key, cfName, result, columnsWithConditions, true, options.forStatement(0)));
     }
 
     public ResultMessage executeInternal(QueryState queryState) throws RequestValidationException, RequestExecutionException

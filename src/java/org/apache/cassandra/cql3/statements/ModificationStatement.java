@@ -518,7 +518,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                                                updates,
                                                options.getSerialConsistency(),
                                                options.getConsistency());
-        return new ResultMessage.Rows(buildCasResultSet(key, result));
+        return new ResultMessage.Rows(buildCasResultSet(key, result, options));
     }
 
     public void addUpdatesAndConditions(ByteBuffer key, Composite clusteringPrefix, ColumnFamily updates, CQL3CasConditions conditions, QueryOptions options, long now)
@@ -547,12 +547,12 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         }
     }
 
-    private ResultSet buildCasResultSet(ByteBuffer key, ColumnFamily cf) throws InvalidRequestException
+    private ResultSet buildCasResultSet(ByteBuffer key, ColumnFamily cf, QueryOptions options) throws InvalidRequestException
     {
-        return buildCasResultSet(keyspace(), key, columnFamily(), cf, getColumnsWithConditions(), false);
+        return buildCasResultSet(keyspace(), key, columnFamily(), cf, getColumnsWithConditions(), false, options);
     }
 
-    public static ResultSet buildCasResultSet(String ksName, ByteBuffer key, String cfName, ColumnFamily cf, Iterable<ColumnDefinition> columnsWithConditions, boolean isBatch)
+    public static ResultSet buildCasResultSet(String ksName, ByteBuffer key, String cfName, ColumnFamily cf, Iterable<ColumnDefinition> columnsWithConditions, boolean isBatch, QueryOptions options)
     throws InvalidRequestException
     {
         boolean success = cf == null;
@@ -562,7 +562,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         List<List<ByteBuffer>> rows = Collections.singletonList(Collections.singletonList(BooleanType.instance.decompose(success)));
 
         ResultSet rs = new ResultSet(metadata, rows);
-        return success ? rs : merge(rs, buildCasFailureResultSet(key, cf, columnsWithConditions, isBatch));
+        return success ? rs : merge(rs, buildCasFailureResultSet(key, cf, columnsWithConditions, isBatch, options));
     }
 
     private static ResultSet merge(ResultSet left, ResultSet right)
@@ -588,7 +588,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         return new ResultSet(new ResultSet.Metadata(specs), rows);
     }
 
-    private static ResultSet buildCasFailureResultSet(ByteBuffer key, ColumnFamily cf, Iterable<ColumnDefinition> columnsWithConditions, boolean isBatch)
+    private static ResultSet buildCasFailureResultSet(ByteBuffer key, ColumnFamily cf, Iterable<ColumnDefinition> columnsWithConditions, boolean isBatch, QueryOptions options)
     throws InvalidRequestException
     {
         CFMetaData cfm = cf.metadata();
@@ -616,7 +616,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
 
         long now = System.currentTimeMillis();
         Selection.ResultSetBuilder builder = selection.resultSetBuilder(now);
-        SelectStatement.forSelection(cfm, selection).processColumnFamily(key, cf, QueryOptions.DEFAULT, now, builder);
+        SelectStatement.forSelection(cfm, selection).processColumnFamily(key, cf, options, now, builder);
 
         return builder.build();
     }
