@@ -47,6 +47,7 @@ Merged from 2.0:
  * reduce garbage on codec flag deserialization (CASSANDRA-7244) 
  * Fix duplicated error messages on directory creation error at startup (CASSANDRA-5818)
  * Proper null handle for IF with map element access (CASSANDRA-7155)
+ * Improve compaction visibility (CASSANDRA-7242)
 Merged from 1.2:
  * Add Cloudstack snitch (CASSANDRA-7147)
  * Update system.peers correctly when relocating tokens (CASSANDRA-7126)
