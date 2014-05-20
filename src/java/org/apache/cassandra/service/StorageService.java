@@ -104,8 +104,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /* JMX notification serial number counter */
     private final AtomicLong notificationSerialNumber = new AtomicLong();
 
-    private final AtomicDouble severity = new AtomicDouble();
-
     private static int getRingDelay()
     {
         String newdelay = System.getProperty("cassandra.ring_delay_ms");
