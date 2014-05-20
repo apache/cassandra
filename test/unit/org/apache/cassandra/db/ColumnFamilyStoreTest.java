@@ -994,7 +994,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     }
 
     @Test
-    public void testSliceByNamesCommandOldMetatada() throws Throwable
+    public void testSliceByNamesCommandOldMetadata() throws Throwable
     {
         String keyspaceName = "Keyspace1";
         String cfName= "Standard1";
@@ -1025,6 +1025,8 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         ColumnFamily cf = cmd.getRow(keyspace).cf;
         Cell cell = cf.getColumn(cname);
         assert cell.value().equals(ByteBufferUtil.bytes("a")) : "expecting a, got " + ByteBufferUtil.string(cell.value());
+
+        Keyspace.clear("Keyspace1"); // CASSANDRA-7195
     }
 
     private static void assertTotalColCount(Collection<Row> rows, int expectedCount)
