@@ -29,7 +29,6 @@ import com.google.common.collect.Maps;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.dht.IPartitioner;
@@ -124,7 +123,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         }
 
         if (cluster != null)
-            session = cluster.connect(keyspace);
+            session = cluster.connect(quote(keyspace));
         rowIterator = new RowIterator();
         logger.debug("created {}", rowIterator);
     }
@@ -485,5 +484,10 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         {
             return row.getMap(name, keysClass, valuesClass);
         }
+    }
+
+    private String quote(String identifier)
+    {
+        return "\"" + identifier.replaceAll("\"", "\"\"") + "\"";
     }
 }
