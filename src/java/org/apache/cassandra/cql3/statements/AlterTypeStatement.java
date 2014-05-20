@@ -138,8 +138,8 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
 
     private static int getIdxOfField(UserType type, ColumnIdentifier field)
     {
-        for (int i = 0; i < type.types.size(); i++)
-            if (field.bytes.equals(type.columnNames.get(i)))
+        for (int i = 0; i < type.fieldTypes.size(); i++)
+            if (field.bytes.equals(type.fieldNames.get(i)))
                 return i;
         return -1;
     }
@@ -183,8 +183,8 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
                 return updated;
 
             // Otherwise, check for nesting
-            List<AbstractType<?>> updatedTypes = updateTypes(ut.types, keyspace, toReplace, updated);
-            return updatedTypes == null ? null : new UserType(ut.keyspace, ut.name, new ArrayList<>(ut.columnNames), updatedTypes);
+            List<AbstractType<?>> updatedTypes = updateTypes(ut.fieldTypes, keyspace, toReplace, updated);
+            return updatedTypes == null ? null : new UserType(ut.keyspace, ut.name, new ArrayList<>(ut.fieldNames), updatedTypes);
         }
         else if (type instanceof CompositeType)
         {
@@ -275,12 +275,12 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
             if (getIdxOfField(toUpdate, fieldName) >= 0)
                 throw new InvalidRequestException(String.format("Cannot add new field %s to type %s: a field of the same name already exists", fieldName, name));
 
-            List<ByteBuffer> newNames = new ArrayList<>(toUpdate.columnNames.size() + 1);
-            newNames.addAll(toUpdate.columnNames);
+            List<ByteBuffer> newNames = new ArrayList<>(toUpdate.fieldNames.size() + 1);
+            newNames.addAll(toUpdate.fieldNames);
             newNames.add(fieldName.bytes);
 
-            List<AbstractType<?>> newTypes = new ArrayList<>(toUpdate.types.size() + 1);
-            newTypes.addAll(toUpdate.types);
+            List<AbstractType<?>> newTypes = new ArrayList<>(toUpdate.fieldTypes.size() + 1);
+            newTypes.addAll(toUpdate.fieldTypes);
             newTypes.add(type.prepare(keyspace()).getType());
 
             return new UserType(toUpdate.keyspace, toUpdate.name, newNames, newTypes);
@@ -292,12 +292,12 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
             if (idx < 0)
                 throw new InvalidRequestException(String.format("Unknown field %s in type %s", fieldName, name));
 
-            AbstractType<?> previous = toUpdate.types.get(idx);
+            AbstractType<?> previous = toUpdate.fieldTypes.get(idx);
             if (!type.prepare(keyspace()).getType().isCompatibleWith(previous))
                 throw new InvalidRequestException(String.format("Type %s is incompatible with previous type %s of field %s in user type %s", type, previous.asCQL3Type(), fieldName, name));
 
-            List<ByteBuffer> newNames = new ArrayList<>(toUpdate.columnNames);
-            List<AbstractType<?>> newTypes = new ArrayList<>(toUpdate.types);
+            List<ByteBuffer> newNames = new ArrayList<>(toUpdate.fieldNames);
+            List<AbstractType<?>> newTypes = new ArrayList<>(toUpdate.fieldTypes);
             newTypes.set(idx, type.prepare(keyspace()).getType());
 
             return new UserType(toUpdate.keyspace, toUpdate.name, newNames, newTypes);
@@ -321,8 +321,8 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
 
         protected UserType makeUpdatedType(UserType toUpdate) throws InvalidRequestException
         {
-            List<ByteBuffer> newNames = new ArrayList<>(toUpdate.columnNames);
-            List<AbstractType<?>> newTypes = new ArrayList<>(toUpdate.types);
+            List<ByteBuffer> newNames = new ArrayList<>(toUpdate.fieldNames);
+            List<AbstractType<?>> newTypes = new ArrayList<>(toUpdate.fieldTypes);
 
             for (Map.Entry<ColumnIdentifier, ColumnIdentifier> entry : renames.entrySet())
             {

@@ -758,12 +758,13 @@ Table of Contents
 
 7. User defined types
 
-  This section describe the serialization format for User defined types (UDT) values.
+  This section describes the serialization format for User defined types (UDT) values.
   UDT values are the values of the User Defined Types as defined in section 4.2.5.2.
 
-  A UDT value is a [short] n indicating the number of values (field) of UDT values
-  followed by n elements. Each element is a [short bytes] representing the serialized
-  field.
+  A UDT value is composed of successive [bytes] values, one for each field of the UDT
+  value (in the order defined by the type). A UDT value will generally have one value
+  for each field of the type it represents, but it is allowed to have less values than
+  the type has fields.
 
 
 8. Result paging

@@ -35,7 +35,10 @@ public abstract class UserTypes
 
     public static ColumnSpecification fieldSpecOf(ColumnSpecification column, int field)
     {
-        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier(column.name + "." + field, true), ((UserType)column.type).types.get(field));
+        return new ColumnSpecification(column.ksName,
+                                       column.cfName,
+                                       new ColumnIdentifier(column.name + "." + field, true),
+                                       ((UserType)column.type).fieldTypes.get(field));
     }
 
     public static class Literal implements Term.Raw
@@ -54,9 +57,9 @@ public abstract class UserTypes
             UserType ut = (UserType)receiver.type;
             boolean allTerminal = true;
             List<Term> values = new ArrayList<>(entries.size());
-            for (int i = 0; i < ut.types.size(); i++)
+            for (int i = 0; i < ut.fieldTypes.size(); i++)
             {
-                ColumnIdentifier field = new ColumnIdentifier(ut.columnNames.get(i), UTF8Type.instance);
+                ColumnIdentifier field = new ColumnIdentifier(ut.fieldNames.get(i), UTF8Type.instance);
                 Term value = entries.get(field).prepare(keyspace, fieldSpecOf(receiver, i));
 
                 if (value instanceof Term.NonTerminal)
@@ -74,9 +77,9 @@ public abstract class UserTypes
                 throw new InvalidRequestException(String.format("Invalid user type literal for %s of type %s", receiver, receiver.type.asCQL3Type()));
 
             UserType ut = (UserType)receiver.type;
-            for (int i = 0; i < ut.types.size(); i++)
+            for (int i = 0; i < ut.fieldTypes.size(); i++)
             {
-                ColumnIdentifier field = new ColumnIdentifier(ut.columnNames.get(i), UTF8Type.instance);
+                ColumnIdentifier field = new ColumnIdentifier(ut.fieldNames.get(i), UTF8Type.instance);
                 Term.Raw value = entries.get(field);
                 if (value == null)
                     throw new InvalidRequestException(String.format("Invalid user type literal for %s: missing field %s", receiver, field));
@@ -140,7 +143,7 @@ public abstract class UserTypes
 
         public void collectMarkerSpecification(VariableSpecifications boundNames)
         {
-            for (int i = 0; i < type.types.size(); i++)
+            for (int i = 0; i < type.fieldTypes.size(); i++)
                 values.get(i).collectMarkerSpecification(boundNames);
         }
 
@@ -151,14 +154,14 @@ public abstract class UserTypes
             options = options.withProtocolVersion(3);
 
             ByteBuffer[] buffers = new ByteBuffer[values.size()];
-            for (int i = 0; i < type.types.size(); i++)
+            for (int i = 0; i < type.fieldTypes.size(); i++)
             {
                 ByteBuffer buffer = values.get(i).bindAndGet(options);
                 if (buffer == null)
                     throw new InvalidRequestException("null is not supported inside user type literals");
                 if (buffer.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
                     throw new InvalidRequestException(String.format("Value for field %s is too long. User type fields are limited to %d bytes but %d bytes provided",
-                                                                    UTF8Type.instance.getString(type.columnNames.get(i)),
+                                                                    UTF8Type.instance.getString(type.fieldNames.get(i)),
                                                                     FBUtilities.MAX_UNSIGNED_SHORT,
                                                                     buffer.remaining()));
 
@@ -175,7 +178,7 @@ public abstract class UserTypes
         @Override
         public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
         {
-            return CompositeType.build(bindInternal(options));
+            return UserType.buildValue(bindInternal(options));
         }
     }
 }
