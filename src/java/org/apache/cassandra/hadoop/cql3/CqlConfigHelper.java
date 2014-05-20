@@ -370,29 +370,29 @@ public class CqlConfigHelper
         conf.set(INPUT_NATIVE_AUTH_PROVIDER, authProvider);
     }
 
-    public static void setInputNativeSSLTruststorePath(Configuration conf, String authProvider)
+    public static void setInputNativeSSLTruststorePath(Configuration conf, String path)
     {
-        conf.set(INPUT_NATIVE_SSL_TRUST_STORE_PATH, authProvider);
+        conf.set(INPUT_NATIVE_SSL_TRUST_STORE_PATH, path);
     } 
 
-    public static void setInputNativeSSLKeystorePath(Configuration conf, String authProvider)
+    public static void setInputNativeSSLKeystorePath(Configuration conf, String path)
     {
-        conf.set(INPUT_NATIVE_SSL_KEY_STORE_PATH, authProvider);
+        conf.set(INPUT_NATIVE_SSL_KEY_STORE_PATH, path);
     }
 
-    public static void setInputNativeSSLKeystorePassword(Configuration conf, String authProvider)
+    public static void setInputNativeSSLKeystorePassword(Configuration conf, String pass)
     {
-        conf.set(INPUT_NATIVE_SSL_KEY_STORE_PASSWARD, authProvider);
+        conf.set(INPUT_NATIVE_SSL_KEY_STORE_PASSWARD, pass);
     }
 
-    public static void setInputNativeSSLTruststorePassword(Configuration conf, String authProvider)
+    public static void setInputNativeSSLTruststorePassword(Configuration conf, String pass)
     {
-        conf.set(INPUT_NATIVE_SSL_TRUST_STORE_PASSWARD, authProvider);
+        conf.set(INPUT_NATIVE_SSL_TRUST_STORE_PASSWARD, pass);
     }
 
-    public static void setInputNativeSSLCipherSuites(Configuration conf, String authProvider)
+    public static void setInputNativeSSLCipherSuites(Configuration conf, String suites)
     {
-        conf.set(INPUT_NATIVE_SSL_CIPHER_SUITES, authProvider);
+        conf.set(INPUT_NATIVE_SSL_CIPHER_SUITES, suites);
     }
 
     public static void setInputNativeReuseAddress(Configuration conf, String reuseAddress)
