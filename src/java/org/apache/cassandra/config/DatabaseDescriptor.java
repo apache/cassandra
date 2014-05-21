@@ -453,7 +453,7 @@ public class DatabaseDescriptor
         }
 
         if (conf.concurrent_compactors == null)
-            conf.concurrent_compactors = FBUtilities.getAvailableProcessors();
+            conf.concurrent_compactors = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
 
         if (conf.concurrent_compactors <= 0)
             throw new ConfigurationException("concurrent_compactors should be strictly greater than 0");
