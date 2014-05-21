@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,7 +37,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
@@ -343,8 +343,10 @@ public class CommitLogAllocator
     {
         logger.debug("Closing and clearing existing commit log segments...");
 
-        while (!queue.isEmpty())
+        while (StorageService.tasks.getActiveCount() > 0 || !queue.isEmpty())
             Thread.yield();
+
+        Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MILLISECONDS);
 
         for (CommitLogSegment segment : Iterables.concat(activeSegments, availableSegments))
             segment.close();

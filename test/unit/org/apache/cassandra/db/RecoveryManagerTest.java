@@ -23,9 +23,11 @@ import java.util.Date;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.Util;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -35,6 +37,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.db.KeyspaceTest.assertColumns;
 
+@RunWith(OrderedJUnit4ClassRunner.class)
 public class RecoveryManagerTest extends SchemaLoader
 {
     @Test
