@@ -283,6 +283,17 @@ public class CacheService implements CacheServiceMBean
         keyCache.clear();
     }
 
+    public void invalidateKeyCacheForCf(UUID cfId)
+    {
+        Iterator<KeyCacheKey> keyCacheIterator = keyCache.getKeySet().iterator();
+        while (keyCacheIterator.hasNext())
+        {
+            KeyCacheKey key = keyCacheIterator.next();
+            if (key.cfId.equals(cfId))
+                keyCacheIterator.remove();
+        }
+    }
+
     public void invalidateRowCache()
     {
         rowCache.clear();
