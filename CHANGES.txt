@@ -1,4 +1,5 @@
 2.1.0-rc1
+ * Add tab-completion to debian nodetool packaging (CASSANDRA-6421)
  * Change concurrent_compactors defaults (CASSANDRA-7139)
  * Add PowerShell Windows launch scripts (CASSANDRA-7001)
  * Make commitlog archive+restore more robust (CASSANDRA-6974)
