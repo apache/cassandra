@@ -927,7 +927,14 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                             throw new InvalidRequestException(String.format("Unsupported null value for indexed column %s", name));
                         if (value.remaining() > 0xFFFF)
                             throw new InvalidRequestException("Index expression values may not be larger than 64K");
-                        expressions.add(new IndexExpression(name.name.key, slice.getIndexOperator(b), value));
+
+                        IndexOperator op = slice.getIndexOperator(b);
+                        // If the underlying comparator for name is reversed, we need to reverse the IndexOperator: user operation
+                        // always refer to the "forward" sorting even if the clustering order is reversed, but the 2ndary code does
+                        // use the underlying comparator as is.
+                        if (name.type instanceof ReversedType)
+                            op = reverse(op);
+                        expressions.add(new IndexExpression(name.name.key, op, value));
                     }
                 }
             }
@@ -947,6 +954,18 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             }
         }
         return expressions;
+    }
+
+    private static IndexOperator reverse(IndexOperator op)
+    {
+        switch (op)
+        {
+            case LT:  return IndexOperator.GT;
+            case LTE: return IndexOperator.GTE;
+            case GT:  return IndexOperator.LT;
+            case GTE: return IndexOperator.LTE;
+            default: return op;
+        }
     }
 
     private ResultSet process(List<Row> rows, List<ByteBuffer> variables, int limit, long now) throws InvalidRequestException
