@@ -58,6 +58,9 @@ Merged from 2.0:
  * Fix writetime/ttl functions for static columns (CASSANDRA-7081)
  * Suggest CTRL-C or semicolon after three blank lines in cqlsh (CASSANDRA-7142)
  * Fix 2ndary index queries with DESC clustering order (CASSANDRA-6950)
+ * Invalid key cache entries on DROP (CASSANDRA-6525)
+ * Fix flapping RecoveryManagerTest (CASSANDRA-7084)
+ * Add missing iso8601 patterns for date strings (6973)
 Merged from 1.2:
  * Add Cloudstack snitch (CASSANDRA-7147)
  * Update system.peers correctly when relocating tokens (CASSANDRA-7126)

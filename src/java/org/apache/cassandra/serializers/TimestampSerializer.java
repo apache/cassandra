@@ -21,30 +21,49 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
+import java.text.ParseException;
 import java.util.Date;
+import java.util.regex.Pattern;
+
+import org.apache.commons.lang3.time.DateUtils;
 
 public class TimestampSerializer implements TypeSerializer<Date>
 {
-    public static final String[] iso8601Patterns = new String[] {
+    private static final String[] dateStringPatterns = new String[] {
             "yyyy-MM-dd HH:mm",
             "yyyy-MM-dd HH:mm:ss",
-            "yyyy-MM-dd HH:mmZ",
-            "yyyy-MM-dd HH:mm:ssZ",
+            "yyyy-MM-dd HH:mmX",
+            "yyyy-MM-dd HH:mmXX",
+            "yyyy-MM-dd HH:mmXXX",
+            "yyyy-MM-dd HH:mm:ssX",
+            "yyyy-MM-dd HH:mm:ssXX",
+            "yyyy-MM-dd HH:mm:ssXXX",
             "yyyy-MM-dd HH:mm:ss.SSS",
-            "yyyy-MM-dd HH:mm:ss.SSSZ",
+            "yyyy-MM-dd HH:mm:ss.SSSX",
+            "yyyy-MM-dd HH:mm:ss.SSSXX",
+            "yyyy-MM-dd HH:mm:ss.SSSXXX",
             "yyyy-MM-dd'T'HH:mm",
-            "yyyy-MM-dd'T'HH:mmZ",
+            "yyyy-MM-dd'T'HH:mmX",
+            "yyyy-MM-dd'T'HH:mmXX",
+            "yyyy-MM-dd'T'HH:mmXXX",
             "yyyy-MM-dd'T'HH:mm:ss",
-            "yyyy-MM-dd'T'HH:mm:ssZ",
+            "yyyy-MM-dd'T'HH:mm:ssX",
+            "yyyy-MM-dd'T'HH:mm:ssXX",
+            "yyyy-MM-dd'T'HH:mm:ssXXX",
             "yyyy-MM-dd'T'HH:mm:ss.SSS",
-            "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSX",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSXX",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
             "yyyy-MM-dd",
-            "yyyy-MM-ddZ"
+            "yyyy-MM-ddX",
+            "yyyy-MM-ddXX",
+            "yyyy-MM-ddXXX"
     };
 
-    static final String DEFAULT_FORMAT = iso8601Patterns[3];
+    private static final String DEFAULT_FORMAT = dateStringPatterns[3];
+    private static final Pattern timestampPattern = Pattern.compile("^-?\\d+$");
 
-    static final ThreadLocal<SimpleDateFormat> FORMATTER = new ThreadLocal<SimpleDateFormat>()
+    private static final ThreadLocal<SimpleDateFormat> FORMATTER = new ThreadLocal<SimpleDateFormat>()
     {
         protected SimpleDateFormat initialValue()
         {
@@ -62,6 +81,35 @@ public class TimestampSerializer implements TypeSerializer<Date>
     public ByteBuffer serialize(Date value)
     {
         return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value.getTime());
+    }
+
+    public static long dateStringToTimestamp(String source) throws MarshalException
+    {
+        if (source.equalsIgnoreCase("now"))
+            return System.currentTimeMillis();
+
+        // Milliseconds since epoch?
+        if (timestampPattern.matcher(source).matches())
+        {
+            try
+            {
+                return Long.parseLong(source);
+            }
+            catch (NumberFormatException e)
+            {
+                throw new MarshalException(String.format("unable to make long (for date) from: '%s'", source), e);
+            }
+        }
+
+        // Last chance, attempt to parse as date-time string
+        try
+        {
+            return DateUtils.parseDateStrictly(source, dateStringPatterns).getTime();
+        }
+        catch (ParseException e1)
+        {
+            throw new MarshalException(String.format("unable to coerce '%s' to a  formatted date (long)", source), e1);
+        }
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

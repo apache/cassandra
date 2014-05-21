@@ -373,6 +373,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         indexManager.invalidate();
 
         CacheService.instance.invalidateRowCacheForCf(metadata.cfId);
+        CacheService.instance.invalidateKeyCacheForCf(metadata.cfId);
     }
 
     /**
