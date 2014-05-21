@@ -14,13 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cassandra.marshal import uint16_unpack
+from cassandra.marshal import int32_unpack
 from cassandra.cqltypes import CompositeType
 import collections
 from formatting import formatter_for, format_value_utype
 
 class UserType(CompositeType):
     typename = "'org.apache.cassandra.db.marshal.UserType'"
+
+    FIELD_LENGTH = 4
 
     @classmethod
     def apply_parameters(cls, subtypes, names):
@@ -43,12 +45,11 @@ class UserType(CompositeType):
         for col_type in cls.subtypes:
             if p == len(byts):
                 break
-            itemlen = uint16_unpack(byts[p:p + 2])
-            p += 2
+            itemlen = int32_unpack(byts[p:p + cls.FIELD_LENGTH])
+            p += cls.FIELD_LENGTH
             item = byts[p:p + itemlen]
             p += itemlen
             result.append(col_type.from_binary(item))
-            p += 1
 
         if len(result) < len(cls.subtypes):
             nones = [None] * (len(cls.subtypes) - len(result))

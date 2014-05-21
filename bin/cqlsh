@@ -33,7 +33,7 @@ from __future__ import with_statement
 from uuid import UUID
 
 description = "CQL Shell for Apache Cassandra"
-version = "5.0.0"
+version = "5.0.1"
 
 from StringIO import StringIO
 from contextlib import contextmanager, closing
@@ -1000,11 +1000,12 @@ class Shell(cmd.Cmd):
         out.write(ksdef.as_cql_query())
         out.write("\n\n")
 
-        uts = self.get_usertypes_meta().get_usertypes_names(ksname)
+        uts = self.get_usertypes_meta().get_usertypes_names(ksdef.name)
         if uts:
-            out.write("USE %s;\n\n" % ksname)
+            out.write("USE %s;\n" % ksname)
             for ut in uts:
-                self.print_recreate_usertype(ksname, ut, out)
+                out.write('\n')
+                self.print_recreate_usertype(ksdef.name, ut, out)
 
         cfs = self.get_columnfamily_names(ksdef.name)
         if cfs:

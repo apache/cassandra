@@ -821,3 +821,33 @@ class TestCqlshOutput(BaseTestCase):
 
     def test_empty_line(self):
         pass
+
+    def test_user_types_output(self):
+        self.assertCqlverQueriesGiveColoredOutput((
+            ("select addresses from users;", r"""
+             addresses
+             MMMMMMMMM
+            --------------------------------------------------------------------------------------------------------------------------------------------
+
+             {{city: 'Austin', address: '902 East 5th St. #202', zip: '78702'}, {city: 'Sunnyvale', address: '292 Gibraltar Drive #107', zip: '94089'}}
+             BBYYYYBBYYYYYYYYBBYYYYYYYBBYYYYYYYYYYYYYYYYYYYYYYYBBYYYBBYYYYYYYBBBBYYYYBBYYYYYYYYYYYBBYYYYYYYBBYYYYYYYYYYYYYYYYYYYYYYYYYYBBYYYBBYYYYYYYBB
+
+
+            (1 rows)
+            nnnnnnnn
+            """),
+        ), cqlver="3.1.6")
+        self.assertCqlverQueriesGiveColoredOutput((
+            ("select phone_numbers from users;", r"""
+             phone_numbers
+             MMMMMMMMMMMMM
+            -------------------------------------------------------------------------------------
+
+             {{country: '+1', number: '512-537-7809'}, {country: '+44', number: '208 622 3021'}}
+             BBYYYYYYYBBYYYYBBYYYYYYBBYYYYYYYYYYYYYYBBBBYYYYYYYBBYYYYYBBYYYYYYBBYYYYYYYYYYYYYYBB
+
+
+            (1 rows)
+            nnnnnnnn
+            """),
+        ), cqlver="3.1.6")
