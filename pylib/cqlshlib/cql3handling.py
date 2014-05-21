@@ -1149,7 +1149,7 @@ class UserTypesMeta(object):
                 result[ksname] = {}
             utname = row.type_name
 
-            result[ksname][utname] = zip(row.column_names, row.column_types)
+            result[ksname][utname] = zip(row.field_names, row.field_types)
         return cls(meta=result)
 
     def get_usertypes_names(self, keyspace):

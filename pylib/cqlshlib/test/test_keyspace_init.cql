@@ -197,3 +197,29 @@ INSERT INTO twenty_rows_composite_table (a, b, c) VALUES ('A', '17', '17');
 INSERT INTO twenty_rows_composite_table (a, b, c) VALUES ('A', '18', '18');
 INSERT INTO twenty_rows_composite_table (a, b, c) VALUES ('A', '19', '19');
 INSERT INTO twenty_rows_composite_table (a, b, c) VALUES ('A', '20', '20');
+
+CREATE TYPE address (
+    city text,
+    address text,
+    zip text
+);
+
+CREATE TYPE phone_number (
+    country text,
+    number text
+);
+
+CREATE TABLE users (
+    login text PRIMARY KEY,
+    name text,
+    addresses set<address>,
+    phone_numbers set<phone_number>
+);
+
+insert into users (login, name, addresses, phone_numbers)
+values ('jbellis',
+        'jonathan ellis',
+        {{city: 'Austin', address: '902 East 5th St. #202', zip: '78702'},
+         {city: 'Sunnyvale', address: '292 Gibraltar Drive #107', zip: '94089'}},
+        {{country: '+44', number: '208 622 3021'},
+         {country: '+1', number: '512-537-7809'}});
