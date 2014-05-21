@@ -18,9 +18,7 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.text.ParseException;
 import java.util.Date;
-import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +27,6 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TimestampSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.commons.lang3.time.DateUtils;
 
 /**
  * Type for date-time values.
@@ -44,8 +41,6 @@ public class TimestampType extends AbstractType<Date>
 
     public static final TimestampType instance = new TimestampType();
 
-    private static final Pattern timestampPattern = Pattern.compile("^-?\\d+$");
-
     private TimestampType() {} // singleton
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
@@ -59,43 +54,7 @@ public class TimestampType extends AbstractType<Date>
       if (source.isEmpty())
           return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
-      return ByteBufferUtil.bytes(dateStringToTimestamp(source));
-    }
-
-    public static long dateStringToTimestamp(String source) throws MarshalException
-    {
-      long millis;
-
-      if (source.toLowerCase().equals("now"))
-      {
-          millis = System.currentTimeMillis();
-      }
-      // Milliseconds since epoch?
-      else if (timestampPattern.matcher(source).matches())
-      {
-          try
-          {
-              millis = Long.parseLong(source);
-          }
-          catch (NumberFormatException e)
-          {
-              throw new MarshalException(String.format("unable to make long (for date) from: '%s'", source), e);
-          }
-      }
-      // Last chance, attempt to parse as date-time string
-      else
-      {
-          try
-          {
-              millis = DateUtils.parseDateStrictly(source, TimestampSerializer.iso8601Patterns).getTime();
-          }
-          catch (ParseException e1)
-          {
-              throw new MarshalException(String.format("unable to coerce '%s' to a  formatted date (long)", source), e1);
-          }
-      }
-
-      return millis;
+      return ByteBufferUtil.bytes(TimestampSerializer.dateStringToTimestamp(source));
     }
 
     @Override

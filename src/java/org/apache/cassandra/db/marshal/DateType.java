@@ -38,9 +38,6 @@ public class DateType extends AbstractType<Date>
 
     public static final DateType instance = new DateType();
 
-    static final String DEFAULT_FORMAT = TimestampSerializer.iso8601Patterns[3];
-    static final SimpleDateFormat FORMATTER = new SimpleDateFormat(DEFAULT_FORMAT);
-
     DateType() {} // singleton
 
     public int compare(ByteBuffer o1, ByteBuffer o2)
@@ -63,43 +60,7 @@ public class DateType extends AbstractType<Date>
       if (source.isEmpty())
           return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
-      return ByteBufferUtil.bytes(dateStringToTimestamp(source));
-    }
-
-    public static long dateStringToTimestamp(String source) throws MarshalException
-    {
-      long millis;
-
-      if (source.toLowerCase().equals("now"))
-      {
-          millis = System.currentTimeMillis();
-      }
-      // Milliseconds since epoch?
-      else if (source.matches("^-?\\d+$"))
-      {
-          try
-          {
-              millis = Long.parseLong(source);
-          }
-          catch (NumberFormatException e)
-          {
-              throw new MarshalException(String.format("unable to make long (for date) from: '%s'", source), e);
-          }
-      }
-      // Last chance, attempt to parse as date-time string
-      else
-      {
-          try
-          {
-              millis = DateUtils.parseDateStrictly(source, TimestampSerializer.iso8601Patterns).getTime();
-          }
-          catch (ParseException e1)
-          {
-              throw new MarshalException(String.format("unable to coerce '%s' to a  formatted date (long)", source), e1);
-          }
-      }
-
-      return millis;
+      return ByteBufferUtil.bytes(TimestampSerializer.dateStringToTimestamp(source));
     }
 
     @Override

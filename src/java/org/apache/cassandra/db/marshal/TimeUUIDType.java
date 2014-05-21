@@ -25,6 +25,7 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TimeUUIDSerializer;
+import org.apache.cassandra.serializers.TimestampSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -110,9 +111,10 @@ public class TimeUUIDType extends AbstractType<UUID>
 
             if (uuid.version() != 1)
                 throw new MarshalException("TimeUUID supports only version 1 UUIDs");
-        } else
+        }
+        else
         {
-            idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(DateType.dateStringToTimestamp(source)));
+            idBytes = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(TimestampSerializer.dateStringToTimestamp(source)));
         }
 
         return idBytes;

@@ -1,3 +1,7 @@
+2.0.9
+ * Add missing iso8601 patterns for date strings (6973)
+
+
 2.0.8
  * Always reallocate buffers in HSHA (CASSANDRA-6285)
  * (Hadoop) support authentication in CqlRecordReader (CASSANDRA-7221)
