@@ -928,11 +928,11 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     if (slice.hasBound(b))
                     {
                         ByteBuffer value = validateIndexedValue(def, slice.bound(b, options));
-                        IndexOperator op = slice.getIndexOperator(b);
+                        IndexExpression.Operator op = slice.getIndexOperator(b);
                         // If the underlying comparator for name is reversed, we need to reverse the IndexOperator: user operation
                         // always refer to the "forward" sorting even if the clustering order is reversed, but the 2ndary code does
                         // use the underlying comparator as is.
-                        if (name.type instanceof ReversedType)
+                        if (def.type instanceof ReversedType)
                             op = reverse(op);
                         expressions.add(new IndexExpression(def.name.bytes, op, value));
                     }
@@ -1004,14 +1004,14 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         };
     }
 
-    private static IndexOperator reverse(IndexOperator op)
+    private static IndexExpression.Operator reverse(IndexExpression.Operator op)
     {
         switch (op)
         {
-            case LT:  return IndexOperator.GT;
-            case LTE: return IndexOperator.GTE;
-            case GT:  return IndexOperator.LT;
-            case GTE: return IndexOperator.LTE;
+            case LT:  return IndexExpression.Operator.GT;
+            case LTE: return IndexExpression.Operator.GTE;
+            case GT:  return IndexExpression.Operator.LT;
+            case GTE: return IndexExpression.Operator.LTE;
             default: return op;
         }
     }
