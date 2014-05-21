@@ -68,11 +68,6 @@ public class NativeCounterCell extends NativeCell implements CounterCell
         return getLong(internalSize() - 8);
     }
 
-    public ByteBuffer value()
-    {
-        return super.value().order(ByteOrder.BIG_ENDIAN);
-    }
-
     @Override
     public long total()
     {

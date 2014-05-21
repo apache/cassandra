@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -183,7 +184,7 @@ public abstract class AbstractNativeCell extends AbstractCell implements CellNam
     public ByteBuffer value()
     {
         long offset = valueStartOffset();
-        return getByteBuffer(offset, (int) (internalSize() - (postfixSize() + offset)));
+        return getByteBuffer(offset, (int) (internalSize() - (postfixSize() + offset))).order(ByteOrder.BIG_ENDIAN);
     }
 
     private int clusteringSizeDelta()
@@ -291,7 +292,7 @@ public abstract class AbstractNativeCell extends AbstractCell implements CellNam
         int cellNamesOffset = nameDeltaOffset(size);
         int startDelta = i == 0 ? 0 : getShort(nameDeltaOffset(i));
         int endDelta = i < size - 1 ? getShort(nameDeltaOffset(i + 1)) : valueStartOffset() - cellNamesOffset;
-        return getByteBuffer(cellNamesOffset + startDelta, endDelta - startDelta);
+        return getByteBuffer(cellNamesOffset + startDelta, endDelta - startDelta).order(ByteOrder.BIG_ENDIAN);
     }
 
     private static final ThreadLocal<byte[]> BUFFER = new ThreadLocal<byte[]>()
