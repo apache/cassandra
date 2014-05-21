@@ -47,6 +47,7 @@
  * Proper null handle for IF with map element access (CASSANDRA-7155)
  * Improve compaction visibility (CASSANDRA-7242)
  * Fix 2ndary index queries with DESC clustering order (CASSANDRA-6950)
+ * Invalid key cache entries on DROP (CASSANDRA-6525)
 Merged from 1.2:
  * Add Cloudstack snitch (CASSANDRA-7147)
  * Update system.peers correctly when relocating tokens (CASSANDRA-7126)

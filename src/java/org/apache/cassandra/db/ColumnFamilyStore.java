@@ -37,6 +37,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.cache.RowCacheSentinel;
@@ -339,6 +340,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
             if (key.cfId == metadata.cfId)
                 invalidateCachedRow(key);
+
+        String ksname = keyspace.getName();
+        for (KeyCacheKey key : CacheService.instance.keyCache.getKeySet())
+            if (key.getPathInfo().left.equals(ksname) && key.getPathInfo().right.equals(name))
+                CacheService.instance.keyCache.remove(key);
     }
 
     /**
