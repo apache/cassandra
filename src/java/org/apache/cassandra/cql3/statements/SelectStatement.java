@@ -928,7 +928,13 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     if (slice.hasBound(b))
                     {
                         ByteBuffer value = validateIndexedValue(def, slice.bound(b, options));
-                        expressions.add(new IndexExpression(def.name.bytes, slice.getIndexOperator(b), value));
+                        IndexOperator op = slice.getIndexOperator(b);
+                        // If the underlying comparator for name is reversed, we need to reverse the IndexOperator: user operation
+                        // always refer to the "forward" sorting even if the clustering order is reversed, but the 2ndary code does
+                        // use the underlying comparator as is.
+                        if (name.type instanceof ReversedType)
+                            op = reverse(op);
+                        expressions.add(new IndexExpression(def.name.bytes, op, value));
                     }
                 }
             }
@@ -996,6 +1002,18 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 return endOfData();
             }
         };
+    }
+
+    private static IndexOperator reverse(IndexOperator op)
+    {
+        switch (op)
+        {
+            case LT:  return IndexOperator.GT;
+            case LTE: return IndexOperator.GTE;
+            case GT:  return IndexOperator.LT;
+            case GTE: return IndexOperator.LTE;
+            default: return op;
+        }
     }
 
     private ResultSet process(List<Row> rows, QueryOptions options, int limit, long now) throws InvalidRequestException
