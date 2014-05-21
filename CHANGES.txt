@@ -8,6 +8,7 @@
  * Make incremental repair default (CASSANDRA-7250)
 
 2.1.0-rc1
+ * Change concurrent_compactors defaults (CASSANDRA-7139)
  * Add PowerShell Windows launch scripts (CASSANDRA-7001)
  * Make commitlog archive+restore more robust (CASSANDRA-6974)
  * Fix marking commitlogsegments clean (CASSANDRA-6959)

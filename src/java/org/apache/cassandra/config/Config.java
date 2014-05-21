@@ -132,7 +132,7 @@ public class Config
     public Integer column_index_size_in_kb = 64;
     public Integer batch_size_warn_threshold_in_kb = 5;
     public Integer in_memory_compaction_limit_in_mb = 64;
-    public Integer concurrent_compactors = FBUtilities.getAvailableProcessors();
+    public Integer concurrent_compactors;
     public volatile Integer compaction_throughput_mb_per_sec = 16;
 
     public Integer max_streaming_retries = 3;
