@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.*;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,20 +46,25 @@ public abstract class AbstractCompactionStrategy
     protected static final float DEFAULT_TOMBSTONE_THRESHOLD = 0.2f;
     // minimum interval needed to perform tombstone removal compaction in seconds, default 86400 or 1 day.
     protected static final long DEFAULT_TOMBSTONE_COMPACTION_INTERVAL = 86400;
+    protected static final boolean DEFAULT_UNCHECKED_TOMBSTONE_COMPACTION_OPTION = false;
+
     protected static final String TOMBSTONE_THRESHOLD_OPTION = "tombstone_threshold";
     protected static final String TOMBSTONE_COMPACTION_INTERVAL_OPTION = "tombstone_compaction_interval";
+    // disable range overlap check when deciding if an SSTable is candidate for tombstone compaction (CASSANDRA-6563)
+    protected static final String UNCHECKED_TOMBSTONE_COMPACTION_OPTION = "unchecked_tombstone_compaction";
 
     public final Map<String, String> options;
 
     protected final ColumnFamilyStore cfs;
     protected float tombstoneThreshold;
     protected long tombstoneCompactionInterval;
+    protected boolean uncheckedTombstoneCompaction;
 
     protected AbstractCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
         assert cfs != null;
         this.cfs = cfs;
-        this.options = options;
+        this.options = ImmutableMap.copyOf(options);
 
         /* checks must be repeated here, as user supplied strategies might not call validateOptions directly */
 
@@ -69,12 +75,15 @@ public abstract class AbstractCompactionStrategy
             tombstoneThreshold = optionValue == null ? DEFAULT_TOMBSTONE_THRESHOLD : Float.parseFloat(optionValue);
             optionValue = options.get(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
             tombstoneCompactionInterval = optionValue == null ? DEFAULT_TOMBSTONE_COMPACTION_INTERVAL : Long.parseLong(optionValue);
+            optionValue = options.get(UNCHECKED_TOMBSTONE_COMPACTION_OPTION);
+            uncheckedTombstoneCompaction = optionValue == null ? DEFAULT_UNCHECKED_TOMBSTONE_COMPACTION_OPTION : Boolean.parseBoolean(optionValue);
         }
         catch (ConfigurationException e)
         {
             logger.warn("Error setting compaction strategy options ({}), defaults will be used", e.getMessage());
             tombstoneThreshold = DEFAULT_TOMBSTONE_THRESHOLD;
             tombstoneCompactionInterval = DEFAULT_TOMBSTONE_COMPACTION_INTERVAL;
+            uncheckedTombstoneCompaction = DEFAULT_UNCHECKED_TOMBSTONE_COMPACTION_OPTION;
         }
     }
 
@@ -183,6 +192,10 @@ public abstract class AbstractCompactionStrategy
         if (droppableRatio <= tombstoneThreshold)
             return false;
 
+        //sstable range overlap check is disabled. See CASSANDRA-6563.
+        if (uncheckedTombstoneCompaction)
+            return true;
+
         Set<SSTableReader> overlaps = cfs.getOverlappingSSTables(Collections.singleton(sstable));
         if (overlaps.isEmpty())
         {
@@ -248,9 +261,23 @@ public abstract class AbstractCompactionStrategy
             }
         }
 
+        String unchecked = options.get(UNCHECKED_TOMBSTONE_COMPACTION_OPTION);
+        if (unchecked != null)
+        {
+            try
+            {
+                Boolean.parseBoolean(interval);
+            }
+            catch (NumberFormatException e)
+            {
+                throw new ConfigurationException(String.format("%s is not a parsable boolean for %s", interval, UNCHECKED_TOMBSTONE_COMPACTION_OPTION), e);
+            }
+        }
+
         Map<String, String> uncheckedOptions = new HashMap<String, String>(options);
         uncheckedOptions.remove(TOMBSTONE_THRESHOLD_OPTION);
         uncheckedOptions.remove(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
+        uncheckedOptions.remove(UNCHECKED_TOMBSTONE_COMPACTION_OPTION);
         return uncheckedOptions;
     }
 }

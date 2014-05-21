@@ -48,6 +48,7 @@ import static junit.framework.Assert.*;
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class CompactionsTest extends SchemaLoader
 {
+    private static final String STANDARD1 = "Standard1";
     public static final String TABLE1 = "Keyspace1";
 
     @Test
@@ -65,7 +66,7 @@ public class CompactionsTest extends SchemaLoader
     public ColumnFamilyStore testSingleSSTableCompaction(String strategyClassName) throws Exception
     {
         Table table = Table.open(TABLE1);
-        ColumnFamilyStore store = table.getColumnFamilyStore("Standard1");
+        ColumnFamilyStore store = table.getColumnFamilyStore(STANDARD1);
         store.clearUnsafe();
         store.metadata.gcGraceSeconds(1);
         store.setCompactionStrategyClass(strategyClassName);
@@ -73,18 +74,7 @@ public class CompactionsTest extends SchemaLoader
         // disable compaction while flushing
         store.disableAutoCompaction();
 
-        long timestamp = System.currentTimeMillis();
-        for (int i = 0; i < 10; i++)
-        {
-            DecoratedKey key = Util.dk(Integer.toString(i));
-            RowMutation rm = new RowMutation(TABLE1, key.key);
-            for (int j = 0; j < 10; j++)
-                rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(Integer.toString(j))),
-                       ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                       timestamp,
-                       j > 0 ? 3 : 0); // let first column never expire, since deleting all columns does not produce sstable
-            rm.apply();
-        }
+        long timestamp = populate(STANDARD1, TABLE1, 0, 9, 3); //ttl=3s
         store.forceBlockingFlush();
         assertEquals(1, store.getSSTables().size());
         long originalSize = store.getSSTables().iterator().next().uncompressedLength();
@@ -107,6 +97,22 @@ public class CompactionsTest extends SchemaLoader
         assertMaxTimestamp(store, timestamp);
 
         return store;
+    }
+
+    private long populate(String ks, String cf, int startRowKey, int endRowKey, int ttl) {
+        long timestamp = System.currentTimeMillis();
+        for (int i = startRowKey; i <= endRowKey; i++)
+        {
+            DecoratedKey key = Util.dk(Integer.toString(i));
+            RowMutation rm = new RowMutation(cf, key.key);
+            for (int j = 0; j < 10; j++)
+                rm.add(new QueryPath(ks, null, ByteBufferUtil.bytes(Integer.toString(j))),
+                       ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                       timestamp,
+                       j > 0 ? ttl : 0); // let first column never expire, since deleting all columns does not produce sstable
+            rm.apply();
+        }
+        return timestamp;
     }
 
     /**
@@ -162,6 +168,179 @@ public class CompactionsTest extends SchemaLoader
         assertEquals(key, iter.getKey());
         SuperColumn sc = (SuperColumn) iter.next();
         assert sc.getSubColumns().isEmpty();
+    }
+
+    @Test
+    public void testUncheckedTombstoneSizeTieredCompaction() throws Exception
+    {
+        Table table = Table.open(TABLE1);
+        ColumnFamilyStore store = table.getColumnFamilyStore(STANDARD1);
+        store.clearUnsafe();
+        store.metadata.gcGraceSeconds(1);
+        store.metadata.compactionStrategyOptions.put("tombstone_compaction_interval", "1");
+        store.metadata.compactionStrategyOptions.put("unchecked_tombstone_compaction", "false");
+        store.reload();
+        store.setCompactionStrategyClass(SizeTieredCompactionStrategy.class.getName());
+
+        // disable compaction while flushing
+        store.disableAutoCompaction();
+
+        //Populate sstable1 with with keys [0..9]
+        populate(STANDARD1, TABLE1, 0, 9, 3); //ttl=3s
+        store.forceBlockingFlush();
+
+        //Populate sstable2 with with keys [10..19] (keys do not overlap with SSTable1)
+        long timestamp2 = populate(STANDARD1, TABLE1, 10, 19, 3); //ttl=3s
+        store.forceBlockingFlush();
+
+        assertEquals(2, store.getSSTables().size());
+
+        Iterator<SSTableReader> it = store.getSSTables().iterator();
+        long originalSize1 = it.next().uncompressedLength();
+        long originalSize2 = it.next().uncompressedLength();
+
+        // wait enough to force single compaction
+        TimeUnit.SECONDS.sleep(5);
+
+        // enable compaction, submit background and wait for it to complete
+        store.enableAutoCompaction();
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(store));
+        while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0)
+            TimeUnit.SECONDS.sleep(1);
+
+        // even though both sstables were candidate for tombstone compaction
+        // it was not executed because they have an overlapping token range
+        assertEquals(2, store.getSSTables().size());
+        it = store.getSSTables().iterator();
+        long newSize1 = it.next().uncompressedLength();
+        long newSize2 = it.next().uncompressedLength();
+        assertEquals("candidate sstable should not be tombstone-compacted because its key range overlap with other sstable",
+                      originalSize1, newSize1);
+        assertEquals("candidate sstable should not be tombstone-compacted because its key range overlap with other sstable",
+                      originalSize2, newSize2);
+
+        // now let's enable the magic property
+        store.metadata.compactionStrategyOptions.put("unchecked_tombstone_compaction", "true");
+        store.reload();
+
+        //submit background task again and wait for it to complete
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(store));
+        while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0)
+            TimeUnit.SECONDS.sleep(1);
+
+        //we still have 2 sstables, since they were not compacted against each other
+        assertEquals(2, store.getSSTables().size());
+        it = store.getSSTables().iterator();
+        newSize1 = it.next().uncompressedLength();
+        newSize2 = it.next().uncompressedLength();
+        assertTrue("should be less than " + originalSize1 + ", but was " + newSize1, newSize1 < originalSize1);
+        assertTrue("should be less than " + originalSize2 + ", but was " + newSize2, newSize2 < originalSize2);
+
+        // make sure max timestamp of compacted sstables is recorded properly after compaction.
+        assertMaxTimestamp(store, timestamp2);
+    }
+
+    /*
+     * Tombstone compaction only makes sense for L>0 sstables,
+     * because if there are L0 sstables that can be compacted,
+     * they will be preferred instead of tombstone compaction
+     */
+    @Test
+    public void testUncheckedTombstoneCompactionLeveledCompaction() throws Exception
+    {
+        String ksname = "Keyspace1";
+        String cfname = "StandardLeveled";
+        Table table = Table.open(ksname);
+        ColumnFamilyStore store = table.getColumnFamilyStore(cfname);
+        store.clearUnsafe();
+        store.metadata.gcGraceSeconds(1);
+        store.metadata.compactionStrategyOptions.put("tombstone_compaction_interval", "1");
+        store.metadata.compactionStrategyOptions.put("unchecked_tombstone_compaction", "false");
+        store.reload();
+
+        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
+
+        // Enough data to have a level 1 and 2
+        int rows = 20;
+        int columns = 10;
+        long timestamp = System.currentTimeMillis();
+        int TTL = 30; //seconds
+        // Adds enough data to trigger multiple sstable per level (with ttl=30)
+        // We also interleave columns from different rows to make sstables
+        // key ranges from different levels overlap.
+        for (int c = 0; c < columns; c++)
+        {
+            for (int r = 0; r < rows; r++)
+            {
+                DecoratedKey key = Util.dk(String.valueOf(r));
+                RowMutation rm = new RowMutation(ksname, key.key);
+                rm.add(new QueryPath(cfname, null, ByteBufferUtil.bytes("column" + c)), value,
+                                        timestamp, c > 0 ? TTL : 0); // let first column never expire,
+                                        // since deleting all columns does not produce sstable
+                rm.apply();
+            }
+            store.forceBlockingFlush();
+        }
+
+        //make sure all L0 sstables are gone.
+        LeveledCompactionStrategy strat = (LeveledCompactionStrategy)store.getCompactionStrategy();
+        while (strat.getLevelSize(0) > 1)
+        {
+            store.forceMajorCompaction();
+            Thread.sleep(200);
+        }
+        // Checking we're not completely bad at math
+        int level1Size = strat.getLevelSize(1);
+        assertTrue(level1Size > 0);
+        int level2Size = strat.getLevelSize(2);
+        assertTrue(level2Size > 0);
+
+
+        //let's save the original number of sstables and original size to use later
+        int numSStables = store.getSSTables().size();
+        long originalSize = 0;
+        for (SSTableReader sstable : store.getSSTables()) {
+            originalSize += sstable.uncompressedLength();
+        }
+
+        // wait enough time for sstables to expire and force compaction to be executed
+        long elapsedSeconds = (System.currentTimeMillis() - timestamp)/1000;
+        long sleepTime = Math.max(TTL - elapsedSeconds, 0) + 5; //ttl + gc grace seconds + 5 should be enough
+        TimeUnit.SECONDS.sleep(sleepTime);
+        store.forceMajorCompaction();
+        Thread.sleep(200);
+
+        // even though L1 AND L2 sstables were candidate for
+        //tombstone compaction it was not executed because their range overlap
+        assertEquals(numSStables, store.getSSTables().size());
+        long newSize = 0;
+        for (SSTableReader sstable : store.getSSTables()) {
+            newSize += sstable.uncompressedLength();
+        }
+        assertEquals("candidate sstables should not be tombstone-compacted because their key" +
+                      " range overlap with other sstables", originalSize, newSize);
+
+        // now let's enable the magic property
+        store.metadata.compactionStrategyOptions.put("unchecked_tombstone_compaction", "true");
+        store.reload();
+
+        //let's force compaction again...
+        store.forceMajorCompaction();
+        Thread.sleep(200);
+
+        //we still have the same number of sstables, since they were not compacted against each other
+        assertEquals(numSStables, store.getSSTables().size());
+        newSize = 0;
+        for (SSTableReader sstable : store.getSSTables()) {
+            newSize += sstable.uncompressedLength();
+        }
+
+        //but now we store less data, since single sstable tombstone compaction was finally executed! :-)
+        assertTrue("should be less than " + originalSize + ", but was " + newSize, newSize < originalSize);
+
+        //let's make sure tombstone compaction did not screw levels
+        assertEquals("tombstone removal compaction should not promote level", level1Size, strat.getLevelSize(1));
+        assertEquals("tombstone removal compaction should not promote level", level2Size, strat.getLevelSize(2));
     }
 
     public static void assertMaxTimestamp(ColumnFamilyStore cfs, long maxTimestampExpected)
@@ -330,7 +509,7 @@ public class CompactionsTest extends SchemaLoader
     {
         // this test does enough rows to force multiple block indexes to be used
         Table table = Table.open(TABLE1);
-        final ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
+        final ColumnFamilyStore cfs = table.getColumnFamilyStore(STANDARD1);
 
         final int ROWS_PER_SSTABLE = 10;
         final int SSTABLES = DatabaseDescriptor.getIndexInterval() * 2 / ROWS_PER_SSTABLE;
@@ -350,7 +529,7 @@ public class CompactionsTest extends SchemaLoader
                 DecoratedKey key = Util.dk(String.valueOf(i % 2));
                 RowMutation rm = new RowMutation(TABLE1, key.key);
                 long timestamp = j * ROWS_PER_SSTABLE + i;
-                rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(String.valueOf(i / 2))),
+                rm.add(new QueryPath(STANDARD1, null, ByteBufferUtil.bytes(String.valueOf(i / 2))),
                         ByteBufferUtil.EMPTY_BYTE_BUFFER,
                         timestamp);
                 maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
