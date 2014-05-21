@@ -89,8 +89,8 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         totalRowCount = (this.split.getLength() < Long.MAX_VALUE)
                       ? (int) this.split.getLength()
                       : ConfigHelper.getInputSplitSize(conf);
-        cfName = ConfigHelper.getInputColumnFamily(conf);
-        keyspace = ConfigHelper.getInputKeyspace(conf);              
+        cfName = quote(ConfigHelper.getInputColumnFamily(conf));
+        keyspace = quote(ConfigHelper.getInputKeyspace(conf));
         cqlQuery = CqlConfigHelper.getInputCql(conf);
         partitioner = ConfigHelper.getInputPartitioner(context.getConfiguration());
         try
@@ -123,7 +123,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         }
 
         if (cluster != null)
-            session = cluster.connect(quote(keyspace));
+            session = cluster.connect(keyspace);
         rowIterator = new RowIterator();
         logger.debug("created {}", rowIterator);
     }
