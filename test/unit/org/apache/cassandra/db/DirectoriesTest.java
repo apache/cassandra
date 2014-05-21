@@ -199,7 +199,8 @@ public class DirectoriesTest
                 dd.location.setWritable(false);
             }
 
-            CFMetaData cfm = new CFMetaData(KS, "bad", ColumnFamilyType.Standard, null);
+            // nested folders in /tmp is enough to fail on *nix but we need to pass the 255 char limit to get a failure on Windows and blacklist
+            CFMetaData cfm = new CFMetaData(KS, "badbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbad", ColumnFamilyType.Standard, null);
             Directories dir = new Directories(cfm);
 
             for (File file : dir.getCFDirectories())
