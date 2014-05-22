@@ -120,7 +120,7 @@ public abstract class Lists
         }
     }
 
-    public static class Value extends Term.Terminal
+    public static class Value extends Term.MultiItemTerminal
     {
         public final List<ByteBuffer> elements;
 
@@ -163,9 +163,14 @@ public abstract class Lists
 
             return true;
         }
+
+        public List<ByteBuffer> getElements()
+        {
+            return elements;
+        }
     }
 
-    /*
+    /**
      * Basically similar to a Value, but with some non-pure function (that need
      * to be evaluated at execution time) in it.
      *
@@ -215,6 +220,9 @@ public abstract class Lists
         }
     }
 
+    /**
+     * A marker for List values and IN relations
+     */
     public static class Marker extends AbstractMarker
     {
         protected Marker(int bindIndex, ColumnSpecification receiver)
@@ -227,7 +235,6 @@ public abstract class Lists
         {
             ByteBuffer value = options.getValues().get(bindIndex);
             return value == null ? null : Value.fromSerialized(value, (ListType)receiver.type, options.getProtocolVersion());
-
         }
     }
 

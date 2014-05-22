@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.composites;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 
 /**
  * A builder of Composite.
@@ -31,4 +32,5 @@ public interface CBuilder
 
     public Composite build();
     public Composite buildWith(ByteBuffer value);
+    public Composite buildWith(List<ByteBuffer> values);
 }

@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.composites;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.ColumnSlice;
@@ -39,6 +40,7 @@ public abstract class Composites
 
         public Composite build() { return EMPTY; }
         public Composite buildWith(ByteBuffer value) { throw new IllegalStateException(); }
+        public Composite buildWith(List<ByteBuffer> values) { throw new IllegalStateException(); }
     };
 
     private static class EmptyComposite implements Composite

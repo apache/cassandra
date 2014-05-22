@@ -80,6 +80,20 @@ options {
         return marker;
     }
 
+    public Tuples.Raw newTupleBindVariables(ColumnIdentifier name)
+    {
+        Tuples.Raw marker = new Tuples.Raw(bindVariables.size());
+        bindVariables.add(name);
+        return marker;
+    }
+
+    public Tuples.INRaw newTupleINBindVariables(ColumnIdentifier name)
+    {
+        Tuples.INRaw marker = new Tuples.INRaw(bindVariables.size());
+        bindVariables.add(name);
+        return marker;
+    }
+
     public void displayRecognitionError(String[] tokenNames, RecognitionException e)
     {
         String hdr = getErrorHeader(e);
@@ -974,38 +988,79 @@ relationType returns [Relation.Type op]
     ;
 
 relation[List<Relation> clauses]
-    : name=cident type=relationType t=term { $clauses.add(new Relation(name, type, t)); }
-    | K_TOKEN 
-        { List<ColumnIdentifier> l = new ArrayList<ColumnIdentifier>(); }
-          '(' name1=cident { l.add(name1); } ( ',' namen=cident { l.add(namen); })* ')'
-        type=relationType t=term
+    : name=cident type=relationType t=term { $clauses.add(new SingleColumnRelation(name, type, t)); }
+    | K_TOKEN l=tupleOfIdentifiers type=relationType t=term
         {
             for (ColumnIdentifier id : l)
-                $clauses.add(new Relation(id, type, t, true));
+                $clauses.add(new SingleColumnRelation(id, type, t, true));
         }
-    | name=cident K_IN { Term.Raw marker = null; } (QMARK { marker = newINBindVariables(null); } | ':' mid=cident { marker = newINBindVariables(mid); })
-        { $clauses.add(new Relation(name, Relation.Type.IN, marker)); }
-    | name=cident K_IN { Relation rel = Relation.createInRelation($name.id); }
-       '(' ( f1=term { rel.addInValue(f1); } (',' fN=term { rel.addInValue(fN); } )* )? ')' { $clauses.add(rel); }
+    | name=cident K_IN marker=inMarker
+        { $clauses.add(new SingleColumnRelation(name, Relation.Type.IN, marker)); }
+    | name=cident K_IN inValues=singleColumnInValues
+        { $clauses.add(SingleColumnRelation.createInRelation($name.id, inValues)); }
     | name=cident K_CONTAINS { Relation.Type rt = Relation.Type.CONTAINS; } (K_KEY { rt = Relation.Type.CONTAINS_KEY; })?
-        t=term { $clauses.add(new Relation(name, rt, t)); }
-    | {
-         List<ColumnIdentifier> ids = new ArrayList<ColumnIdentifier>();
-         List<Term.Raw> terms = new ArrayList<Term.Raw>();
-      }
-        '(' n1=cident { ids.add(n1); } (',' ni=cident { ids.add(ni); })* ')'
-        type=relationType
-        '(' t1=term { terms.add(t1); } (',' ti=term { terms.add(ti); })* ')'
-      {
-          if (type == Relation.Type.IN)
-              addRecognitionError("Cannot use IN relation with tuple notation");
-          if (ids.size() != terms.size())
-              addRecognitionError(String.format("Number of values (" + terms.size() + ") in tuple notation doesn't match the number of column names (" + ids.size() + ")"));
-          else
-              for (int i = 0; i < ids.size(); i++)
-                  $clauses.add(new Relation(ids.get(i), type, terms.get(i), i == 0 ? null : ids.get(i-1)));
-      }
+        t=term { $clauses.add(new SingleColumnRelation(name, rt, t)); }
+    | ids=tupleOfIdentifiers
+      ( K_IN
+          ( '(' ')'
+              { $clauses.add(MultiColumnRelation.createInRelation(ids, new ArrayList<Tuples.Literal>())); }
+          | tupleInMarker=inMarkerForTuple /* (a, b, c) IN ? */
+              { $clauses.add(MultiColumnRelation.createSingleMarkerInRelation(ids, tupleInMarker)); }
+          | literals=tupleOfTupleLiterals /* (a, b, c) IN ((1, 2, 3), (4, 5, 6), ...) */
+              {
+                  $clauses.add(MultiColumnRelation.createInRelation(ids, literals));
+              }
+          | markers=tupleOfMarkersForTuples /* (a, b, c) IN (?, ?, ...) */
+              { $clauses.add(MultiColumnRelation.createInRelation(ids, markers)); }
+          )
+      | type=relationType literal=tupleLiteral /* (a, b, c) > (1, 2, 3) or (a, b, c) > (?, ?, ?) */
+          {
+              $clauses.add(MultiColumnRelation.createNonInRelation(ids, type, literal));
+          }
+      | type=relationType tupleMarker=markerForTuple /* (a, b, c) >= ? */
+          { $clauses.add(MultiColumnRelation.createNonInRelation(ids, type, tupleMarker)); }
+      )
     | '(' relation[$clauses] ')'
+    ;
+
+inMarker returns [AbstractMarker.INRaw marker]
+    : QMARK { $marker = newINBindVariables(null); }
+    | ':' name=cident { $marker = newINBindVariables(name); }
+    ;
+
+tupleOfIdentifiers returns [List<ColumnIdentifier> ids]
+    @init { $ids = new ArrayList<ColumnIdentifier>(); }
+    : '(' n1=cident { $ids.add(n1); } (',' ni=cident { $ids.add(ni); })* ')'
+    ;
+
+singleColumnInValues returns [List<Term.Raw> terms]
+    @init { $terms = new ArrayList<Term.Raw>(); }
+    : '(' ( t1 = term { $terms.add(t1); } (',' ti=term { $terms.add(ti); })* )? ')'
+    ;
+
+tupleLiteral returns [Tuples.Literal literal]
+    @init { List<Term.Raw> terms = new ArrayList<>(); }
+    : '(' t1=term { terms.add(t1); } (',' ti=term { terms.add(ti); })* ')' { $literal = new Tuples.Literal(terms); }
+    ;
+
+tupleOfTupleLiterals returns [List<Tuples.Literal> literals]
+    @init { $literals = new ArrayList<>(); }
+    : '(' t1=tupleLiteral { $literals.add(t1); } (',' ti=tupleLiteral { $literals.add(ti); })* ')'
+    ;
+
+markerForTuple returns [Tuples.Raw marker]
+    : QMARK { $marker = newTupleBindVariables(null); }
+    | ':' name=cident { $marker = newTupleBindVariables(name); }
+    ;
+
+tupleOfMarkersForTuples returns [List<Tuples.Raw> markers]
+    @init { $markers = new ArrayList<Tuples.Raw>(); }
+    : '(' m1=markerForTuple { $markers.add(m1); } (',' mi=markerForTuple { $markers.add(mi); })* ')'
+    ;
+
+inMarkerForTuple returns [Tuples.INRaw marker]
+    : QMARK { $marker = newTupleINBindVariables(null); }
+    | ':' name=cident { $marker = newTupleINBindVariables(name); }
     ;
 
 comparatorType returns [CQL3Type.Raw t]

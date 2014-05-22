@@ -17,24 +17,10 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.ArrayList;
-import java.util.List;
 
-/**
- * Relations encapsulate the relationship between an entity of some kind, and
- * a value (term). For example, <key> > "start" or "colname1" = "somevalue".
- *
- */
-public class Relation
-{
-    private final ColumnIdentifier entity;
-    private final Type relationType;
-    private final Term.Raw value;
-    private final List<Term.Raw> inValues;
-    public final boolean onToken;
+public abstract class Relation {
 
-    // Will be null unless for tuple notations (#4851)
-    public final ColumnIdentifier previousInTuple;
+    protected Type relationType;
 
     public static enum Type
     {
@@ -52,43 +38,26 @@ public class Relation
                     return false;
             }
         }
-    }
 
-    private Relation(ColumnIdentifier entity, Type type, Term.Raw value, List<Term.Raw> inValues, boolean onToken, ColumnIdentifier previousInTuple)
-    {
-        this.entity = entity;
-        this.relationType = type;
-        this.value = value;
-        this.inValues = inValues;
-        this.onToken = onToken;
-        this.previousInTuple = previousInTuple;
-    }
-
-    /**
-     * Creates a new relation.
-     *
-     * @param entity the kind of relation this is; what the term is being compared to.
-     * @param type the type that describes how this entity relates to the value.
-     * @param value the value being compared.
-     */
-    public Relation(ColumnIdentifier entity, Type type, Term.Raw value)
-    {
-        this(entity, type, value, null, false, null);
-    }
-
-    public Relation(ColumnIdentifier entity, Type type, Term.Raw value, boolean onToken)
-    {
-        this(entity, type, value, null, onToken, null);
-    }
-
-    public Relation(ColumnIdentifier entity, Type type, Term.Raw value, ColumnIdentifier previousInTuple)
-    {
-        this(entity, type, value, null, false, previousInTuple);
-    }
-
-    public static Relation createInRelation(ColumnIdentifier entity)
-    {
-        return new Relation(entity, Type.IN, null, new ArrayList<Term.Raw>(), false, null);
+        @Override
+        public String toString()
+        {
+            switch (this)
+            {
+                case EQ:
+                    return "=";
+                case LT:
+                    return "<";
+                case LTE:
+                    return "<=";
+                case GT:
+                    return ">";
+                case GTE:
+                    return ">=";
+                default:
+                    return this.name();
+            }
+        }
     }
 
     public Type operator()
@@ -96,34 +65,5 @@ public class Relation
         return relationType;
     }
 
-    public ColumnIdentifier getEntity()
-    {
-        return entity;
-    }
-
-    public Term.Raw getValue()
-    {
-        assert relationType != Type.IN || value == null || value instanceof AbstractMarker.INRaw;
-        return value;
-    }
-
-    public List<Term.Raw> getInValues()
-    {
-        assert relationType == Type.IN;
-        return inValues;
-    }
-
-    public void addInValue(Term.Raw t)
-    {
-        inValues.add(t);
-    }
-
-    @Override
-    public String toString()
-    {
-        if (relationType == Type.IN)
-            return String.format("%s IN %s", entity, inValues);
-        else
-            return String.format("%s %s %s", entity, relationType, value);
-    }
+    public abstract boolean isMultiColumn();
 }

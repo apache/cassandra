@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.composites;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -155,6 +156,15 @@ public class SimpleCType extends AbstractCType
                 return new SimpleDenseCellName(value);
 
             return new SimpleComposite(value);
+        }
+
+        public Composite buildWith(List<ByteBuffer> values)
+        {
+            if (values.size() > 1)
+                throw new IllegalStateException();
+            if (values.isEmpty())
+                return Composites.EMPTY;
+            return buildWith(values.get(0));
         }
     }
 }
