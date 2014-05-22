@@ -93,7 +93,7 @@ public class CQLSSTableWriterTest
 
         loader.stream().get();
 
-        UntypedResultSet rs = QueryProcessor.processInternal("SELECT * FROM cql_keyspace.table1;");
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM cql_keyspace.table1;");
         assertEquals(4, rs.size());
 
         Iterator<UntypedResultSet.Row> iter = rs.iterator();
