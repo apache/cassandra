@@ -29,6 +29,7 @@
  * Add validate method to CollectionType (CASSANDRA-7208)
  * New serialization format for UDT values (CASSANDRA-7209, CASSANDRA-7261)
  * Fix nodetool netstats (CASSANDRA-7270)
+ * Fix potential ClassCastException in HintedHandoffManager (CASSANDRA-7284)
 Merged from 2.0:
  * Always reallocate buffers in HSHA (CASSANDRA-6285)
  * (Hadoop) support authentication in CqlRecordReader (CASSANDRA-7221)
