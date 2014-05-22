@@ -459,11 +459,12 @@ public class SSTableWriter extends SSTable
 
     private Pair<Descriptor, StatsMetadata> close(long repairedAt)
     {
-        dataFile.writeFullChecksum(descriptor);
+
         // index and filter
         iwriter.close();
         // main data, close will truncate if necessary
         dataFile.close();
+        dataFile.writeFullChecksum(descriptor);
         // write sstable statistics
         Map<MetadataType, MetadataComponent> metadataComponents = sstableMetadataCollector.finalizeMetadata(
                                                                                     partitioner.getClass().getCanonicalName(),
