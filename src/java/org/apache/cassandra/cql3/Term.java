@@ -91,6 +91,11 @@ public interface Term
         public Term prepare(ColumnSpecification receiver) throws InvalidRequestException;
     }
 
+    public interface MultiColumnRaw extends Raw
+    {
+        public Term prepare(List<? extends ColumnSpecification> receiver) throws InvalidRequestException;
+    }
+
     /**
      * A terminal term, one that can be reduced to a byte buffer directly.
      *
@@ -126,6 +131,11 @@ public interface Term
         {
             return get();
         }
+    }
+
+    public abstract class MultiItemTerminal extends Terminal
+    {
+        public abstract List<ByteBuffer> getElements();
     }
 
     /**

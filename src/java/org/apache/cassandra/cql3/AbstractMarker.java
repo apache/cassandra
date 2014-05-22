@@ -21,7 +21,6 @@ import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
-
 /**
  * A single bind marker.
  */
@@ -84,7 +83,12 @@ public abstract class AbstractMarker extends Term.NonTerminal
         }
     }
 
-    // A raw that stands for multiple values, i.e. when we have 'IN ?'
+    /**
+     * A raw placeholder for multiple values of the same type for a single column.
+     * For example, "SELECT ... WHERE user_id IN ?'.
+     *
+     * Because a single type is used, a List is used to represent the values.
+     */
     public static class INRaw extends Raw
     {
         public INRaw(int bindIndex)
@@ -102,7 +106,7 @@ public abstract class AbstractMarker extends Term.NonTerminal
         public AbstractMarker prepare(ColumnSpecification receiver) throws InvalidRequestException
         {
             if (receiver.type instanceof CollectionType)
-                throw new InvalidRequestException("Invalid IN relation on collection column");
+                throw new InvalidRequestException("Collection columns do not support IN relations");
 
             return new Lists.Marker(bindIndex, makeInReceiver(receiver));
         }

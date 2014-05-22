@@ -1,6 +1,6 @@
 2.0.9
  * Add missing iso8601 patterns for date strings (6973)
-
+ * Support selecting multiple rows in a partition using IN (CASSANDRA-6875)
 
 2.0.8
  * Always reallocate buffers in HSHA (CASSANDRA-6285)

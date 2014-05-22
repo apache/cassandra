@@ -32,14 +32,11 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.service.CASConditions;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
@@ -250,14 +247,21 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
 
     public void addKeyValue(CFDefinition.Name name, Term value) throws InvalidRequestException
     {
-        addKeyValues(name, new Restriction.EQ(value, false));
+        addKeyValues(name, new SingleColumnRestriction.EQ(value, false));
     }
 
     public void processWhereClause(List<Relation> whereClause, VariableSpecifications names) throws InvalidRequestException
     {
         CFDefinition cfDef = cfm.getCfDef();
-        for (Relation rel : whereClause)
+        for (Relation relation : whereClause)
         {
+            if (!(relation instanceof SingleColumnRelation))
+            {
+                throw new InvalidRequestException(
+                        String.format("Multi-column relations cannot be used in WHERE clauses for modification statements: %s", relation));
+            }
+            SingleColumnRelation rel = (SingleColumnRelation) relation;
+
             CFDefinition.Name name = cfDef.get(rel.getEntity());
             if (name == null)
                 throw new InvalidRequestException(String.format("Unknown key identifier %s", rel.getEntity()));
@@ -272,7 +276,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                     {
                         Term t = rel.getValue().prepare(name);
                         t.collectMarkerSpecification(names);
-                        restriction = new Restriction.EQ(t, false);
+                        restriction = new SingleColumnRestriction.EQ(t, false);
                     }
                     else if (name.kind == CFDefinition.Name.Kind.KEY_ALIAS && rel.operator() == Relation.Type.IN)
                     {
@@ -280,7 +284,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                         {
                             Term t = rel.getValue().prepare(name);
                             t.collectMarkerSpecification(names);
-                            restriction = Restriction.IN.create(t);
+                            restriction = new SingleColumnRestriction.InWithMarker((Lists.Marker)t);
                         }
                         else
                         {
@@ -291,7 +295,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                                 t.collectMarkerSpecification(names);
                                 values.add(t);
                             }
-                            restriction = Restriction.IN.create(values);
+                            restriction = new SingleColumnRestriction.InWithValues(values);
                         }
                     }
                     else
@@ -671,12 +675,13 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         return builder.build();
     }
 
-    public ResultMessage executeInternal(QueryState queryState) throws RequestValidationException, RequestExecutionException
+    public ResultMessage executeInternal(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
     {
         if (hasConditions())
             throw new UnsupportedOperationException();
 
-        for (IMutation mutation : getMutations(Collections.<ByteBuffer>emptyList(), true, null, queryState.getTimestamp()))
+        List<ByteBuffer> variables = options.getValues();
+        for (IMutation mutation : getMutations(variables, true, null, queryState.getTimestamp()))
             mutation.apply();
         return null;
     }

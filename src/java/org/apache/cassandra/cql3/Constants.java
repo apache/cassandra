@@ -254,6 +254,12 @@ public abstract class Constants
         {
             return bytes;
         }
+
+        @Override
+        public String toString()
+        {
+            return ByteBufferUtil.bytesToHex(bytes);
+        }
     }
 
     public static class Marker extends AbstractMarker

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.cql;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Set;
 
