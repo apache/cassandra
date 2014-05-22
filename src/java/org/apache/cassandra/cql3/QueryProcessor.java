@@ -81,7 +81,6 @@ public class QueryProcessor implements QueryHandler
     // A map for prepared statements used internally (which we don't want to mix with user statement, in particular we don't
     // bother with expiration on those.
     private static final ConcurrentMap<String, ParsedStatement.Prepared> internalStatements = new ConcurrentHashMap<>();
-    private static final QueryState internalQueryState;
 
     static
     {
@@ -94,16 +93,33 @@ public class QueryProcessor implements QueryHandler
                                    .weigher(thriftMemoryUsageWeigher)
                                    .build();
 
-        ClientState state = ClientState.forInternalCalls();
-        try
+    }
+
+    // Work aound initialization dependency
+    private static enum InternalStateInstance
+    {
+        INSTANCE;
+
+        private final QueryState queryState;
+
+        InternalStateInstance()
         {
-            state.setKeyspace(Keyspace.SYSTEM_KS);
+            ClientState state = ClientState.forInternalCalls();
+            try
+            {
+                state.setKeyspace(Keyspace.SYSTEM_KS);
+            }
+            catch (InvalidRequestException e)
+            {
+                throw new RuntimeException();
+            }
+            this.queryState = new QueryState(state);
         }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException();
-        }
-        internalQueryState = new QueryState(state);
+    }
+
+    private static QueryState internalQueryState()
+    {
+        return InternalStateInstance.INSTANCE.queryState;
     }
 
     private QueryProcessor()
@@ -232,8 +248,8 @@ public class QueryProcessor implements QueryHandler
             return prepared;
 
         // Note: if 2 threads prepare the same query, we'll live so don't bother synchronizing
-        prepared = parseStatement(query, internalQueryState);
-        prepared.statement.validate(internalQueryState.getClientState());
+        prepared = parseStatement(query, internalQueryState());
+        prepared.statement.validate(internalQueryState().getClientState());
         internalStatements.putIfAbsent(query, prepared);
         return prepared;
     }
@@ -243,7 +259,7 @@ public class QueryProcessor implements QueryHandler
         try
         {
             ParsedStatement.Prepared prepared = prepareInternal(query);
-            ResultMessage result = prepared.statement.executeInternal(internalQueryState, makeInternalOptions(prepared, values));
+            ResultMessage result = prepared.statement.executeInternal(internalQueryState(), makeInternalOptions(prepared, values));
             if (result instanceof ResultMessage.Rows)
                 return UntypedResultSet.create(((ResultMessage.Rows)result).result);
             else
@@ -285,9 +301,9 @@ public class QueryProcessor implements QueryHandler
     {
         try
         {
-            ParsedStatement.Prepared prepared = parseStatement(query, internalQueryState);
-            prepared.statement.validate(internalQueryState.getClientState());
-            ResultMessage result = prepared.statement.executeInternal(internalQueryState, makeInternalOptions(prepared, values));
+            ParsedStatement.Prepared prepared = parseStatement(query, internalQueryState());
+            prepared.statement.validate(internalQueryState().getClientState());
+            ResultMessage result = prepared.statement.executeInternal(internalQueryState(), makeInternalOptions(prepared, values));
             if (result instanceof ResultMessage.Rows)
                 return UntypedResultSet.create(((ResultMessage.Rows)result).result);
             else
