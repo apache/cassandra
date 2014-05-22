@@ -163,5 +163,18 @@ public class CompoundCType extends AbstractCType
 
             return new CompoundComposite(newValues, size+1, false);
         }
+
+        public Composite buildWith(List<ByteBuffer> newValues)
+        {
+            ByteBuffer[] buffers = Arrays.copyOf(values, values.length);
+            int newSize = size;
+            for (ByteBuffer value : newValues)
+                buffers[newSize++] = value;
+
+            if (newSize == buffers.length && type instanceof CellNameType && ((CellNameType)type).isDense())
+                return new CompoundDenseCellName(buffers);
+
+            return new CompoundComposite(buffers, newSize, false);
+        }
     }
 }

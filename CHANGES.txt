@@ -65,6 +65,7 @@ Merged from 2.0:
  * Invalid key cache entries on DROP (CASSANDRA-6525)
  * Fix flapping RecoveryManagerTest (CASSANDRA-7084)
  * Add missing iso8601 patterns for date strings (6973)
+ * Support selecting multiple rows in a partition using IN (CASSANDRA-6875)
 Merged from 1.2:
  * Add Cloudstack snitch (CASSANDRA-7147)
  * Update system.peers correctly when relocating tokens (CASSANDRA-7126)
