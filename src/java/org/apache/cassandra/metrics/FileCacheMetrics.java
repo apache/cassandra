@@ -28,6 +28,8 @@ import org.apache.cassandra.service.FileCacheService;
 
 public class FileCacheMetrics
 {
+    private static final MetricNameFactory factory = new DefaultNameFactory("FileCache");
+
     /** Total number of hits */
     public final Meter hits;
     /** Total number of requests */
@@ -39,9 +41,9 @@ public class FileCacheMetrics
 
     public FileCacheMetrics()
     {
-        hits = Metrics.newMeter(new MetricName(FileCacheService.class, "Hits"), "hits", TimeUnit.SECONDS);
-        requests = Metrics.newMeter(new MetricName(FileCacheService.class, "Requests"), "requests", TimeUnit.SECONDS);
-        hitRate = Metrics.newGauge(new MetricName(FileCacheService.class, "HitRate"), new RatioGauge()
+        hits = Metrics.newMeter(factory.createMetricName("Hits"), "hits", TimeUnit.SECONDS);
+        requests = Metrics.newMeter(factory.createMetricName("Requests"), "requests", TimeUnit.SECONDS);
+        hitRate = Metrics.newGauge(factory.createMetricName("HitRate"), new RatioGauge()
         {
             protected double getNumerator()
             {
@@ -53,7 +55,7 @@ public class FileCacheMetrics
                 return requests.count();
             }
         });
-        size = Metrics.newGauge(new MetricName(FileCacheService.class, "Size"), new Gauge<Long>()
+        size = Metrics.newGauge(factory.createMetricName("Size"), new Gauge<Long>()
         {
             public Long value()
             {
