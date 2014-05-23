@@ -24,7 +24,6 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Static helper methods and classes for user types.
@@ -159,11 +158,6 @@ public abstract class UserTypes
                 ByteBuffer buffer = values.get(i).bindAndGet(options);
                 if (buffer == null)
                     throw new InvalidRequestException("null is not supported inside user type literals");
-                if (buffer.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
-                    throw new InvalidRequestException(String.format("Value for field %s is too long. User type fields are limited to %d bytes but %d bytes provided",
-                                                                    UTF8Type.instance.getString(type.fieldNames.get(i)),
-                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
-                                                                    buffer.remaining()));
 
                 buffers[i] = buffer;
             }
