@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
+import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.thrift.CqlPreparedResult;
 import org.apache.cassandra.thrift.CqlResult;
@@ -219,6 +220,11 @@ public abstract class ResultMessage extends Message.Response
             this.result = result;
         }
 
+        public Rows withPagingState(PagingState state)
+        {
+            return new Rows(result.withPagingState(state));
+        }
+
         public CqlResult toThriftResult()
         {
             return result.toThriftResult();
@@ -229,7 +235,6 @@ public abstract class ResultMessage extends Message.Response
         {
             return "ROWS " + result;
         }
-
     }
 
     public static class Prepared extends ResultMessage
@@ -276,7 +281,11 @@ public abstract class ResultMessage extends Message.Response
         };
 
         public final MD5Digest statementId;
+
+        /** Describes the variables to be bound in the prepared statement */
         public final ResultSet.Metadata metadata;
+
+        /** Describes the results of executing this prepared statement */
         public final ResultSet.Metadata resultMetadata;
 
         // statement id for CQL-over-thrift compatibility. The binary protocol ignore that.

@@ -92,6 +92,16 @@ public class ResultSet
         }
     }
 
+    public ResultSet withPagingState(PagingState state)
+    {
+        if (state == null)
+            return this;
+
+        // The metadata is shared by all execution of a given statement. So if there is a paging state
+        // we need to copy the metadata
+        return new ResultSet(metadata.withPagingState(state), rows);
+    }
+
     public ResultSet makeCountResult(ColumnIdentifier alias)
     {
         assert metadata.names != null;
@@ -238,7 +248,7 @@ public class ResultSet
     {
         public static final CBCodec<Metadata> codec = new Codec();
 
-        public static final Metadata EMPTY = new Metadata(EnumSet.of(Flag.NO_METADATA), 0);
+        public static final Metadata EMPTY = new Metadata(EnumSet.of(Flag.NO_METADATA), null, 0, null);
 
         public final EnumSet<Flag> flags;
         // Please note that columnCount can actually be smaller than names, even if names is not null. This is
@@ -247,27 +257,21 @@ public class ResultSet
         // (CASSANDRA-4911). So the serialization code will exclude any columns in name whose index is >= columnCount.
         public final List<ColumnSpecification> names;
         public final int columnCount;
-        public PagingState pagingState;
+        public final PagingState pagingState;
 
         public Metadata(List<ColumnSpecification> names)
         {
-            this(EnumSet.noneOf(Flag.class), names);
+            this(EnumSet.noneOf(Flag.class), names, names.size(), null);
             if (!names.isEmpty() && allInSameCF())
                 flags.add(Flag.GLOBAL_TABLES_SPEC);
         }
 
-        private Metadata(EnumSet<Flag> flags, List<ColumnSpecification> names)
+        private Metadata(EnumSet<Flag> flags, List<ColumnSpecification> names, int columnCount, PagingState pagingState)
         {
             this.flags = flags;
             this.names = names;
-            this.columnCount = names.size();
-        }
-
-        private Metadata(EnumSet<Flag> flags, int columnCount)
-        {
-            this.flags = flags;
-            this.names = null;
             this.columnCount = columnCount;
+            this.pagingState = pagingState;
         }
 
         // The maximum number of values that the ResultSet can hold. This can be bigger than columnCount due to CASSANDRA-4911
@@ -301,14 +305,14 @@ public class ResultSet
             return true;
         }
 
-        public Metadata setHasMorePages(PagingState pagingState)
+        public Metadata withPagingState(PagingState pagingState)
         {
             if (pagingState == null)
                 return this;
 
-            flags.add(Flag.HAS_MORE_PAGES);
-            this.pagingState = pagingState;
-            return this;
+            EnumSet<Flag> newFlags = EnumSet.copyOf(flags);
+            newFlags.add(Flag.HAS_MORE_PAGES);
+            return new Metadata(newFlags, names, columnCount, pagingState);
         }
 
         public void setSkipMetadata()
@@ -354,7 +358,7 @@ public class ResultSet
                     state = PagingState.deserialize(CBUtil.readValue(body));
 
                 if (flags.contains(Flag.NO_METADATA))
-                    return new Metadata(flags, columnCount).setHasMorePages(state);
+                    return new Metadata(flags, null, columnCount, state);
 
                 boolean globalTablesSpec = flags.contains(Flag.GLOBAL_TABLES_SPEC);
 
@@ -376,7 +380,7 @@ public class ResultSet
                     AbstractType type = DataType.toType(DataType.codec.decodeOne(body, version));
                     names.add(new ColumnSpecification(ksName, cfName, colName, type));
                 }
-                return new Metadata(flags, names).setHasMorePages(state);
+                return new Metadata(flags, names, names.size(), state);
             }
 
             public void encode(Metadata m, ByteBuf dest, int version)
