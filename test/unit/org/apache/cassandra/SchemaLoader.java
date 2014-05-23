@@ -52,6 +52,16 @@ public class SchemaLoader
     @BeforeClass
     public static void loadSchema() throws ConfigurationException
     {
+        prepareServer();
+
+        // if you're messing with low-level sstable stuff, it can be useful to inject the schema directly
+        // Schema.instance.load(schemaDefinition());
+        for (KSMetaData ksm : schemaDefinition())
+            MigrationManager.announceNewKeyspace(ksm);
+    }
+
+    public static void prepareServer()
+    {
         // Cleanup first
         cleanupAndLeaveDirs();
 
@@ -69,10 +79,6 @@ public class SchemaLoader
         // Migrations aren't happy if gossiper is not started.  Even if we don't use migrations though,
         // some tests now expect us to start gossip for them.
         startGossiper();
-        // if you're messing with low-level sstable stuff, it can be useful to inject the schema directly
-        // Schema.instance.load(schemaDefinition());
-        for (KSMetaData ksm : schemaDefinition())
-            MigrationManager.announceNewKeyspace(ksm);
     }
 
     public static void startGossiper()

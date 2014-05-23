@@ -120,9 +120,10 @@ public class TupleType extends AbstractType<ByteBuffer>
                 throw new MarshalException(String.format("Not enough bytes to read size of %dth component", i));
 
             int size = input.getInt();
-            // We don't handle null just yet, but we should fix that soon (CASSANDRA-7206)
+
+            // size < 0 means null value
             if (size < 0)
-                throw new MarshalException("Nulls are not yet supported inside tuple values");
+                continue;
 
             if (input.remaining() < size)
                 throw new MarshalException(String.format("Not enough bytes to read %dth component", i));
@@ -158,13 +159,20 @@ public class TupleType extends AbstractType<ByteBuffer>
     {
         int totalLength = 0;
         for (ByteBuffer component : components)
-            totalLength += 4 + component.remaining();
+            totalLength += 4 + (component == null ? 0 : component.remaining());
 
         ByteBuffer result = ByteBuffer.allocate(totalLength);
         for (ByteBuffer component : components)
         {
-            result.putInt(component.remaining());
-            result.put(component.duplicate());
+            if (component == null)
+            {
+                result.putInt(-1);
+            }
+            else
+            {
+                result.putInt(component.remaining());
+                result.put(component.duplicate());
+            }
         }
         result.rewind();
         return result;
@@ -183,12 +191,17 @@ public class TupleType extends AbstractType<ByteBuffer>
             if (i > 0)
                 sb.append(":");
 
+            AbstractType<?> type = type(i);
             int size = input.getInt();
-            assert size >= 0; // We don't support nulls yet, but we will likely do with #7206 and we'll need
-                              // a way to represent it as a string (without it conflicting with a user value)
+            if (size < 0)
+            {
+                sb.append("@");
+                continue;
+            }
+
             ByteBuffer field = ByteBufferUtil.readBytes(input, size);
-            // We use ':' as delimiter so escape it if it's in the generated string
-            sb.append(field == null ? "null" : type(i).getString(value).replaceAll(":", "\\\\:"));
+            // We use ':' as delimiter, and @ to represent null, so escape them in the generated string
+            sb.append(type.getString(field).replaceAll(":", "\\\\:").replaceAll("@", "\\\\@"));
         }
         return sb.toString();
     }
@@ -196,15 +209,19 @@ public class TupleType extends AbstractType<ByteBuffer>
     public ByteBuffer fromString(String source)
     {
         // Split the input on non-escaped ':' characters
-        List<String> strings = AbstractCompositeType.split(source);
-        ByteBuffer[] components = new ByteBuffer[strings.size()];
-        for (int i = 0; i < strings.size(); i++)
+        List<String> fieldStrings = AbstractCompositeType.split(source);
+        ByteBuffer[] fields = new ByteBuffer[fieldStrings.size()];
+        for (int i = 0; i < fieldStrings.size(); i++)
         {
-            // TODO: we'll need to handle null somehow here once we support them
-            String str = strings.get(i).replaceAll("\\\\:", ":");
-            components[i] = type(i).fromString(str);
+            String fieldString = fieldStrings.get(i);
+            // We use @ to represent nulls
+            if (fieldString.equals("@"))
+                continue;
+
+            AbstractType<?> type = type(i);
+            fields[i] = type.fromString(fieldString.replaceAll("\\\\:", ":").replaceAll("\\\\@", "@"));
         }
-        return buildValue(components);
+        return buildValue(fields);
     }
 
     public TypeSerializer<ByteBuffer> getSerializer()
@@ -271,9 +288,14 @@ public class TupleType extends AbstractType<ByteBuffer>
     }
 
     @Override
+    public CQL3Type asCQL3Type()
+    {
+        return CQL3Type.Tuple.create(this);
+    }
+
+    @Override
     public String toString()
     {
         return getClass().getName() + TypeParser.stringifyTypeParameters(types);
     }
 }
-

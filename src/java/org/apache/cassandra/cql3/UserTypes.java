@@ -36,7 +36,7 @@ public abstract class UserTypes
         return new ColumnSpecification(column.ksName,
                                        column.cfName,
                                        new ColumnIdentifier(column.name + "." + field, true),
-                                       ((UserType)column.type).fieldTypes.get(field));
+                                       ((UserType)column.type).fieldType(field));
     }
 
     public static class Literal implements Term.Raw
@@ -55,9 +55,9 @@ public abstract class UserTypes
             UserType ut = (UserType)receiver.type;
             boolean allTerminal = true;
             List<Term> values = new ArrayList<>(entries.size());
-            for (int i = 0; i < ut.fieldTypes.size(); i++)
+            for (int i = 0; i < ut.size(); i++)
             {
-                ColumnIdentifier field = new ColumnIdentifier(ut.fieldNames.get(i), UTF8Type.instance);
+                ColumnIdentifier field = new ColumnIdentifier(ut.fieldName(i), UTF8Type.instance);
                 Term.Raw raw = entries.get(field);
                 if (raw == null)
                     raw = Constants.NULL_LITERAL;
@@ -78,9 +78,9 @@ public abstract class UserTypes
                 throw new InvalidRequestException(String.format("Invalid user type literal for %s of type %s", receiver, receiver.type.asCQL3Type()));
 
             UserType ut = (UserType)receiver.type;
-            for (int i = 0; i < ut.fieldTypes.size(); i++)
+            for (int i = 0; i < ut.size(); i++)
             {
-                ColumnIdentifier field = new ColumnIdentifier(ut.fieldNames.get(i), UTF8Type.instance);
+                ColumnIdentifier field = new ColumnIdentifier(ut.fieldName(i), UTF8Type.instance);
                 Term.Raw value = entries.get(field);
                 if (value == null)
                     continue;
@@ -144,7 +144,7 @@ public abstract class UserTypes
 
         public void collectMarkerSpecification(VariableSpecifications boundNames)
         {
-            for (int i = 0; i < type.fieldTypes.size(); i++)
+            for (int i = 0; i < type.size(); i++)
                 values.get(i).collectMarkerSpecification(boundNames);
         }
 
@@ -155,7 +155,7 @@ public abstract class UserTypes
             options = options.withProtocolVersion(3);
 
             ByteBuffer[] buffers = new ByteBuffer[values.size()];
-            for (int i = 0; i < type.fieldTypes.size(); i++)
+            for (int i = 0; i < type.size(); i++)
                 buffers[i] = values.get(i).bindAndGet(options);
             return buffers;
         }

@@ -17,17 +17,15 @@
  */
 package org.apache.cassandra.cql3;
 
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.ListType;
-import org.apache.cassandra.db.marshal.TupleType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.serializers.MarshalException;
+import java.nio.ByteBuffer;
+import java.util.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.ByteBuffer;
-import java.util.*;
+import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.serializers.MarshalException;
 
 /**
  * Static helper methods and classes for tuples.
@@ -35,6 +33,16 @@ import java.util.*;
 public class Tuples
 {
     private static final Logger logger = LoggerFactory.getLogger(Tuples.class);
+
+    private Tuples() {}
+
+    public static ColumnSpecification componentSpecOf(ColumnSpecification column, int component)
+    {
+        return new ColumnSpecification(column.ksName,
+                                       column.cfName,
+                                       new ColumnIdentifier(String.format("%s[%d]", column.name, component), true),
+                                       ((TupleType)column.type).type(component));
+    }
 
     /**
      * A raw, literal tuple.  When prepared, this will become a Tuples.Value or Tuples.DelayedValue, depending
@@ -47,6 +55,24 @@ public class Tuples
         public Literal(List<Term.Raw> elements)
         {
             this.elements = elements;
+        }
+
+        public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
+        {
+            validateAssignableTo(keyspace, receiver);
+
+            List<Term> values = new ArrayList<>(elements.size());
+            boolean allTerminal = true;
+            for (int i = 0; i < elements.size(); i++)
+            {
+                Term value = elements.get(i).prepare(keyspace, componentSpecOf(receiver, i));
+                if (value instanceof Term.NonTerminal)
+                    allTerminal = false;
+
+                values.add(value);
+            }
+            DelayedValue value = new DelayedValue(values);
+            return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
         public Term prepare(String keyspace, List<? extends ColumnSpecification> receivers) throws InvalidRequestException
@@ -68,15 +94,36 @@ public class Tuples
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
-        public Term prepare(String keyspace, ColumnSpecification receiver)
+        private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            throw new AssertionError("Tuples.Literal instances require a list of receivers for prepare()");
+            if (!(receiver.type instanceof TupleType))
+                throw new InvalidRequestException(String.format("Invalid tuple type literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
+
+            TupleType tt = (TupleType)receiver.type;
+            for (int i = 0; i < elements.size(); i++)
+            {
+                if (i >= tt.size())
+                    throw new InvalidRequestException(String.format("Invalid tuple literal for %s: too many elements. Type %s expects %d but got %d",
+                                                                    receiver.name, tt.asCQL3Type(), tt.size(), elements.size()));
+
+                Term.Raw value = elements.get(i);
+                ColumnSpecification spec = componentSpecOf(receiver, i);
+                if (!value.isAssignableTo(keyspace, spec))
+                    throw new InvalidRequestException(String.format("Invalid tuple literal for %s: component %d is not of type %s", receiver.name, i, spec.type.asCQL3Type()));
+            }
         }
 
         public boolean isAssignableTo(String keyspace, ColumnSpecification receiver)
         {
-            // tuples shouldn't be assignable to anything right now
-            return false;
+            try
+            {
+                validateAssignableTo(keyspace, receiver);
+                return true;
+            }
+            catch (InvalidRequestException e)
+            {
+                return false;
+            }
         }
 
         @Override
@@ -105,7 +152,7 @@ public class Tuples
 
         public ByteBuffer get(QueryOptions options)
         {
-            throw new UnsupportedOperationException();
+            return TupleType.buildValue(elements);
         }
 
         public List<ByteBuffer> getElements()
@@ -141,18 +188,28 @@ public class Tuples
                 term.collectMarkerSpecification(boundNames);
         }
 
+        private ByteBuffer[] bindInternal(QueryOptions options) throws InvalidRequestException
+        {
+            // Inside tuples, we must force the serialization of collections whatever the protocol version is in
+            // use since we're going to store directly that serialized value.
+            options = options.withProtocolVersion(3);
+
+            ByteBuffer[] buffers = new ByteBuffer[elements.size()];
+            for (int i = 0; i < elements.size(); i++)
+                buffers[i] = elements.get(i).bindAndGet(options);
+            return buffers;
+        }
+
         public Value bind(QueryOptions options) throws InvalidRequestException
         {
-            ByteBuffer[] buffers = new ByteBuffer[elements.size()];
-            for (int i=0; i < elements.size(); i++)
-            {
-                ByteBuffer bytes = elements.get(i).bindAndGet(options);
-                if (bytes == null)
-                    throw new InvalidRequestException("Tuples may not contain null values");
+            return new Value(bindInternal(options));
+        }
 
-                buffers[i] = elements.get(i).bindAndGet(options);
-            }
-            return new Value(buffers);
+        @Override
+        public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
+        {
+            // We don't "need" that override but it saves us the allocation of a Value object if used
+            return TupleType.buildValue(bindInternal(options));
         }
 
         @Override
