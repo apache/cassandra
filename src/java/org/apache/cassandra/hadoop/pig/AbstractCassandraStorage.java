@@ -788,8 +788,15 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     {
         if (validator instanceof DecimalType || validator instanceof InetAddressType)
             return validator.getString(value);
-        else
-            return validator.compose(value);
+
+        if (validator instanceof CollectionType)
+        {
+            // For CollectionType, the compose() method assumes the v3 protocol format of collection, which
+            // is not correct here since we query using the CQL-over-thrift interface which use the pre-v3 format
+            return ((CollectionSerializer)validator.getSerializer()).deserializeForNativeProtocol(value, 1);
+        }
+
+        return validator.compose(value);
     }
 
     protected static class CfInfo
