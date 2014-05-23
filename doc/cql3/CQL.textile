@@ -1,6 +1,6 @@
 <link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
-h1. Cassandra Query Language (CQL) v3.1.5
+h1. Cassandra Query Language (CQL) v3.1.7
 
 
  <span id="tableOfContents">
@@ -665,13 +665,15 @@ bc(syntax)..
 <where-clause> ::= <relation> ( AND <relation> )*
 
 <relation> ::= <identifier> <op> <term>
-             | '(' <identifier> (',' <identifier>)* ')' <op> '(' <term> (',' <term>)* ')'
+             | '(' <identifier> (',' <identifier>)* ')' <op> <term-tuple>
              | <identifier> IN '(' ( <term> ( ',' <term>)* )? ')'
+             | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
              | TOKEN '(' <identifier> ( ',' <identifer>)* ')' <op> <term>
 
 <op> ::= '=' | '<' | '>' | '<=' | '>='
 <order-by> ::= <ordering> ( ',' <odering> )*
 <ordering> ::= <identifer> ( ASC | DESC )?
+<term-tuple> ::= '(' <term> (',' <term>)* ')'
 p. 
 __Sample:__
 
@@ -738,7 +740,7 @@ SELECT * FROM posts WHERE token(userid) > token('tom') AND token(userid) < token
 
 Moreover, the @IN@ relation is only allowed on the last column of the partition key and on the last column of the full primary key.
 
-It is also possible to "group" @CLUSTERING COLUMNS@ together in a relation, for instance:
+It is also possible to "group" @CLUSTERING COLUMNS@ together in a relation using the tuple notation. For instance:
 
 bc(sample). 
 SELECT * FROM posts WHERE userid='john doe' AND (blog_title, posted_at) > ('John''s Blog', '2012-01-01')
@@ -747,6 +749,11 @@ will request all rows that sorts after the one having "John's Blog" as @blog_til
 
 bc(sample). 
 SELECT * FROM posts WHERE userid='john doe' AND blog_title > 'John''s Blog' AND posted_at > '2012-01-01'
+
+The tuple notation may also be used for @IN@ clauses on @CLUSTERING COLUMNS@:
+
+bc(sample). 
+SELECT * FROM posts WHERE userid='john doe' AND (blog_title, posted_at) IN (('John''s Blog', '2012-01-01), ('Extreme Chess', '2014-06-01'))
 
 h4(#selectOrderBy). @<order-by>@
 
@@ -1162,15 +1169,18 @@ h2(#changes). Changes
 
 The following describes the addition/changes brought for each version of CQL.
 
+h3. 3.1.7
+
+* @SELECT@ statements now support selecting multiple rows in a single partition using an @IN@ clause on combinations of clustering columns.  See "SELECT WHERE":#selectWhere clauses.
+
 h3. 3.1.6
 
 * A new "@uuid@ method":#uuidFun has been added.
 * Support for @DELETE ... IF EXISTS@ syntax.
 
-
 h3. 3.1.5
 
-* It is now possible to group clustering columns in a relatiion, see "SELECT Where clauses":#selectWhere.
+* It is now possible to group clustering columns in a relatiion, see "SELECT WHERE":#selectWhere clauses.
 * Added support for @STATIC@ columns, see "static in CREATE TABLE":#createTableStatic.
 
 h3. 3.1.4
