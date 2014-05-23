@@ -126,9 +126,10 @@ public class UserType extends AbstractType<ByteBuffer>
                 throw new MarshalException(String.format("Not enough bytes to read size of %dth field %s", i, fieldNames.get(i)));
 
             int size = input.getInt();
-            // We don't handle null just yet, but we should fix that soon (CASSANDRA-7206)
+
+            // size < 0 means null value
             if (size < 0)
-                throw new MarshalException("Nulls are not yet supported inside UDT values");
+                continue;
 
             if (input.remaining() < size)
                 throw new MarshalException(String.format("Not enough bytes to read %dth field %s", i, fieldNames.get(i)));
@@ -164,13 +165,20 @@ public class UserType extends AbstractType<ByteBuffer>
     {
         int totalLength = 0;
         for (ByteBuffer field : fields)
-            totalLength += 4 + field.remaining();
+            totalLength += 4 + (field == null ? 0 : field.remaining());
 
         ByteBuffer result = ByteBuffer.allocate(totalLength);
         for (ByteBuffer field : fields)
         {
-            result.putInt(field.remaining());
-            result.put(field.duplicate());
+            if (field == null)
+            {
+                result.putInt(-1);
+            }
+            else
+            {
+                result.putInt(field.remaining());
+                result.put(field.duplicate());
+            }
         }
         result.rewind();
         return result;
@@ -191,11 +199,15 @@ public class UserType extends AbstractType<ByteBuffer>
 
             AbstractType<?> type = fieldTypes.get(i);
             int size = input.getInt();
-            assert size >= 0; // We don't support nulls yet, but we will likely do with #7206 and we'll need
-                              // a way to represent it as a string (without it conflicting with a user value)
+            if (size < 0)
+            {
+                sb.append("@");
+                continue;
+            }
+
             ByteBuffer field = ByteBufferUtil.readBytes(input, size);
-            // We use ':' as delimiter so escape it if it's in the generated string
-            sb.append(field == null ? "null" : type.getString(value).replaceAll(":", "\\\\:"));
+            // We use ':' as delimiter, and @ to represent null, so escape them in the generated string
+            sb.append(type.getString(field).replaceAll(":", "\\\\:").replaceAll("@", "\\\\@"));
         }
         return sb.toString();
     }
@@ -207,10 +219,13 @@ public class UserType extends AbstractType<ByteBuffer>
         ByteBuffer[] fields = new ByteBuffer[fieldStrings.size()];
         for (int i = 0; i < fieldStrings.size(); i++)
         {
+            String fieldString = fieldStrings.get(i);
+            // We use @ to represent nulls
+            if (fieldString.equals("@"))
+                continue;
+
             AbstractType<?> type = fieldTypes.get(i);
-            // TODO: we'll need to handle null somehow here once we support them
-            String fieldString = fieldStrings.get(i).replaceAll("\\\\:", ":");
-            fields[i] = type.fromString(fieldString);
+            fields[i] = type.fromString(fieldString.replaceAll("\\\\:", ":").replaceAll("\\\\@", "@"));
         }
         return buildValue(fields);
     }

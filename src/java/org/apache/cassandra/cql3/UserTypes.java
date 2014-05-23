@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -59,7 +58,10 @@ public abstract class UserTypes
             for (int i = 0; i < ut.fieldTypes.size(); i++)
             {
                 ColumnIdentifier field = new ColumnIdentifier(ut.fieldNames.get(i), UTF8Type.instance);
-                Term value = entries.get(field).prepare(keyspace, fieldSpecOf(receiver, i));
+                Term.Raw raw = entries.get(field);
+                if (raw == null)
+                    raw = Constants.NULL_LITERAL;
+                Term value = raw.prepare(keyspace, fieldSpecOf(receiver, i));
 
                 if (value instanceof Term.NonTerminal)
                     allTerminal = false;
@@ -81,7 +83,7 @@ public abstract class UserTypes
                 ColumnIdentifier field = new ColumnIdentifier(ut.fieldNames.get(i), UTF8Type.instance);
                 Term.Raw value = entries.get(field);
                 if (value == null)
-                    throw new InvalidRequestException(String.format("Invalid user type literal for %s: missing field %s", receiver, field));
+                    continue;
 
                 ColumnSpecification fieldSpec = fieldSpecOf(receiver, i);
                 if (!value.isAssignableTo(keyspace, fieldSpec))
@@ -154,13 +156,7 @@ public abstract class UserTypes
 
             ByteBuffer[] buffers = new ByteBuffer[values.size()];
             for (int i = 0; i < type.fieldTypes.size(); i++)
-            {
-                ByteBuffer buffer = values.get(i).bindAndGet(options);
-                if (buffer == null)
-                    throw new InvalidRequestException("null is not supported inside user type literals");
-
-                buffers[i] = buffer;
-            }
+                buffers[i] = values.get(i).bindAndGet(options);
             return buffers;
         }
 

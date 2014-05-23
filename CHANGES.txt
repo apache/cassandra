@@ -33,6 +33,7 @@
  * Use prepared statements internally (CASSANDRA-6975)
  * Fix broken paging state with prepared statement (CASSANDRA-7120)
  * Fix IllegalArgumentException in CqlStorage (CASSANDRA-7287)
+ * Allow nulls/non-existant fields in UDT (CASSANDRA-7206)
 Merged from 2.0:
  * Always reallocate buffers in HSHA (CASSANDRA-6285)
  * (Hadoop) support authentication in CqlRecordReader (CASSANDRA-7221)
