@@ -79,4 +79,10 @@ public class PagingState
              + 2 + cellName.remaining()
              + 4;
     }
+
+    @Override
+    public String toString()
+    {
+        return String.format("PagingState(key=%s, cellname=%s, remaining=%d", ByteBufferUtil.bytesToHex(partitionKey), ByteBufferUtil.bytesToHex(cellName), remaining);
+    }
 }

@@ -31,6 +31,7 @@
  * Fix nodetool netstats (CASSANDRA-7270)
  * Fix potential ClassCastException in HintedHandoffManager (CASSANDRA-7284)
  * Use prepared statements internally (CASSANDRA-6975)
+ * Fix broken paging state with prepared statement (CASSANDRA-7120)
 Merged from 2.0:
  * Always reallocate buffers in HSHA (CASSANDRA-6285)
  * (Hadoop) support authentication in CqlRecordReader (CASSANDRA-7221)
