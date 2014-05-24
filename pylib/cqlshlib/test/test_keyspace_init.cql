@@ -223,3 +223,11 @@ values ('jbellis',
          {city: 'Sunnyvale', address: '292 Gibraltar Drive #107', zip: '94089'}},
         {{country: '+44', number: '208 622 3021'},
          {country: '+1', number: '512-537-7809'}});
+
+insert into users (login, name, addresses, phone_numbers)
+values ('vpupkin',
+        'vasya pupkin',
+        {{city: 'Chelyabinsk', address: '3rd street', zip: null},
+         {city: 'Chigirinsk', address: null, zip: '676722'}},
+        {{country: '+7', number: null},
+         {country: null, number: '03'}});

@@ -246,6 +246,8 @@ formatter_for('OrderedDict')(format_value_map)
 
 def format_value_utype(val, encoding, colormap, time_format, float_precision, nullval, **_):
     def format_field_value(v):
+        if v is None:
+            return colorme(nullval, colormap, 'error')
         return format_value(type(v), v, encoding=encoding, colormap=colormap,
                             time_format=time_format, float_precision=float_precision,
                             nullval=nullval, quote=True)
@@ -253,7 +255,7 @@ def format_value_utype(val, encoding, colormap, time_format, float_precision, nu
     def format_field_name(name):
         return format_value_text(name, encoding=encoding, colormap=colormap, quote=False)
 
-    subs = [(format_field_name(k), format_field_value(v)) for (k, v) in val._asdict().items() if v is not None]
+    subs = [(format_field_name(k), format_field_value(v)) for (k, v) in val._asdict().items()]
     bval = '{' + ', '.join(k.strval + ': ' + v.strval for (k, v) in subs) + '}'
     lb, comma, colon, rb = [colormap['collection'] + s + colormap['reset']
                             for s in ('{', ', ', ': ', '}')]
