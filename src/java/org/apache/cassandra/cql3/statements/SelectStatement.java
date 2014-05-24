@@ -1549,7 +1549,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     return stmt.columnRestrictions[def.position()];
                 case REGULAR:
                 case STATIC:
-                    return stmt.metadataRestrictions.get(def);
+                    return stmt.metadataRestrictions.get(def.name);
                 default:
                     throw new AssertionError();
             }
