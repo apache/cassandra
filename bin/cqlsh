@@ -1136,10 +1136,10 @@ class Shell(cmd.Cmd):
 
         out.write("  PRIMARY KEY (")
         partkeynames = self.cql_protect_names(layout.partition_key_columns)
-        if len(partkeynames) > 1:
-            partkey = "(%s)" % ', '.join(partkeynames)
-        else:
-            partkey = partkeynames[0]
+
+        # Changed to put parenthesis around one or more partition keys in CASSANDRA-7274
+        partkey = "(%s)" % ', '.join(partkeynames)
+
         pk_parts = [partkey] + self.cql_protect_names(layout.clustering_key_columns)
         out.write(', '.join(pk_parts) + ')')
 
