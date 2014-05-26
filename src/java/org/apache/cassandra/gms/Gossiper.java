@@ -1267,7 +1267,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public void stop()
     {
-        scheduledGossipTask.cancel(false);
+    	if (scheduledGossipTask != null)
+    		scheduledGossipTask.cancel(false);
         logger.info("Announcing shutdown");
         Uninterruptibles.sleepUninterruptibly(intervalInMillis * 2, TimeUnit.MILLISECONDS);
         MessageOut message = new MessageOut(MessagingService.Verb.GOSSIP_SHUTDOWN);
