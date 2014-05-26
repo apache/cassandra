@@ -47,9 +47,12 @@ class UserType(CompositeType):
                 break
             itemlen = int32_unpack(byts[p:p + cls.FIELD_LENGTH])
             p += cls.FIELD_LENGTH
-            item = byts[p:p + itemlen]
-            p += itemlen
-            result.append(col_type.from_binary(item))
+            if itemlen < 0:
+                result.append(None)
+            else:
+                item = byts[p:p + itemlen]
+                p += itemlen
+                result.append(col_type.from_binary(item))
 
         if len(result) < len(cls.subtypes):
             nones = [None] * (len(cls.subtypes) - len(result))
