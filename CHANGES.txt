@@ -4,6 +4,7 @@
  * cqlsh: always emphasize the partition key in DESC output (CASSANDRA-7274)
  * Copy compaction options to make sure they are reloaded (CASSANDRA-7290)
  * Add option to do more aggressive tombstone compactions (CASSANDRA-6563)
+ * Don't try to compact already-compacting files in HHOM (CASSANDRA-7288)
 
 2.0.8
  * Always reallocate buffers in HSHA (CASSANDRA-6285)

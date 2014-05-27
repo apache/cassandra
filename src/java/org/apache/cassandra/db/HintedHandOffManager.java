@@ -254,7 +254,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     {
         hintStore.forceBlockingFlush();
         ArrayList<Descriptor> descriptors = new ArrayList<Descriptor>();
-        for (SSTable sstable : hintStore.getSSTables())
+        for (SSTable sstable : hintStore.getDataTracker().getUncompactingSSTables())
             descriptors.add(sstable.descriptor);
         return CompactionManager.instance.submitUserDefined(hintStore, descriptors, (int) (System.currentTimeMillis() / 1000));
     }
