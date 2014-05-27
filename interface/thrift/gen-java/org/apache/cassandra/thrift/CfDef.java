@@ -78,7 +78,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField BLOOM_FILTER_FP_CHANCE_FIELD_DESC = new org.apache.thrift.protocol.TField("bloom_filter_fp_chance", org.apache.thrift.protocol.TType.DOUBLE, (short)33);
   private static final org.apache.thrift.protocol.TField CACHING_FIELD_DESC = new org.apache.thrift.protocol.TField("caching", org.apache.thrift.protocol.TType.STRING, (short)34);
   private static final org.apache.thrift.protocol.TField DCLOCAL_READ_REPAIR_CHANCE_FIELD_DESC = new org.apache.thrift.protocol.TField("dclocal_read_repair_chance", org.apache.thrift.protocol.TType.DOUBLE, (short)37);
-  private static final org.apache.thrift.protocol.TField POPULATE_IO_CACHE_ON_FLUSH_FIELD_DESC = new org.apache.thrift.protocol.TField("populate_io_cache_on_flush", org.apache.thrift.protocol.TType.BOOL, (short)38);
   private static final org.apache.thrift.protocol.TField MEMTABLE_FLUSH_PERIOD_IN_MS_FIELD_DESC = new org.apache.thrift.protocol.TField("memtable_flush_period_in_ms", org.apache.thrift.protocol.TType.I32, (short)39);
   private static final org.apache.thrift.protocol.TField DEFAULT_TIME_TO_LIVE_FIELD_DESC = new org.apache.thrift.protocol.TField("default_time_to_live", org.apache.thrift.protocol.TType.I32, (short)40);
   private static final org.apache.thrift.protocol.TField SPECULATIVE_RETRY_FIELD_DESC = new org.apache.thrift.protocol.TField("speculative_retry", org.apache.thrift.protocol.TType.STRING, (short)42);
@@ -97,6 +96,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final org.apache.thrift.protocol.TField MERGE_SHARDS_CHANCE_FIELD_DESC = new org.apache.thrift.protocol.TField("merge_shards_chance", org.apache.thrift.protocol.TType.DOUBLE, (short)25);
   private static final org.apache.thrift.protocol.TField ROW_CACHE_PROVIDER_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_provider", org.apache.thrift.protocol.TType.STRING, (short)27);
   private static final org.apache.thrift.protocol.TField ROW_CACHE_KEYS_TO_SAVE_FIELD_DESC = new org.apache.thrift.protocol.TField("row_cache_keys_to_save", org.apache.thrift.protocol.TType.I32, (short)31);
+  private static final org.apache.thrift.protocol.TField POPULATE_IO_CACHE_ON_FLUSH_FIELD_DESC = new org.apache.thrift.protocol.TField("populate_io_cache_on_flush", org.apache.thrift.protocol.TType.BOOL, (short)38);
   private static final org.apache.thrift.protocol.TField INDEX_INTERVAL_FIELD_DESC = new org.apache.thrift.protocol.TField("index_interval", org.apache.thrift.protocol.TType.I32, (short)41);
 
   private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
@@ -126,7 +126,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   public double bloom_filter_fp_chance; // optional
   public String caching; // optional
   public double dclocal_read_repair_chance; // optional
-  public boolean populate_io_cache_on_flush; // optional
   public int memtable_flush_period_in_ms; // optional
   public int default_time_to_live; // optional
   public String speculative_retry; // optional
@@ -181,6 +180,10 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   /**
    * @deprecated
    */
+  public boolean populate_io_cache_on_flush; // optional
+  /**
+   * @deprecated
+   */
   public int index_interval; // optional
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
@@ -206,7 +209,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     BLOOM_FILTER_FP_CHANCE((short)33, "bloom_filter_fp_chance"),
     CACHING((short)34, "caching"),
     DCLOCAL_READ_REPAIR_CHANCE((short)37, "dclocal_read_repair_chance"),
-    POPULATE_IO_CACHE_ON_FLUSH((short)38, "populate_io_cache_on_flush"),
     MEMTABLE_FLUSH_PERIOD_IN_MS((short)39, "memtable_flush_period_in_ms"),
     DEFAULT_TIME_TO_LIVE((short)40, "default_time_to_live"),
     SPECULATIVE_RETRY((short)42, "speculative_retry"),
@@ -258,6 +260,10 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
      * @deprecated
      */
     ROW_CACHE_KEYS_TO_SAVE((short)31, "row_cache_keys_to_save"),
+    /**
+     * @deprecated
+     */
+    POPULATE_IO_CACHE_ON_FLUSH((short)38, "populate_io_cache_on_flush"),
     /**
      * @deprecated
      */
@@ -318,8 +324,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           return CACHING;
         case 37: // DCLOCAL_READ_REPAIR_CHANCE
           return DCLOCAL_READ_REPAIR_CHANCE;
-        case 38: // POPULATE_IO_CACHE_ON_FLUSH
-          return POPULATE_IO_CACHE_ON_FLUSH;
         case 39: // MEMTABLE_FLUSH_PERIOD_IN_MS
           return MEMTABLE_FLUSH_PERIOD_IN_MS;
         case 40: // DEFAULT_TIME_TO_LIVE
@@ -356,6 +360,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
           return ROW_CACHE_PROVIDER;
         case 31: // ROW_CACHE_KEYS_TO_SAVE
           return ROW_CACHE_KEYS_TO_SAVE;
+        case 38: // POPULATE_IO_CACHE_ON_FLUSH
+          return POPULATE_IO_CACHE_ON_FLUSH;
         case 41: // INDEX_INTERVAL
           return INDEX_INTERVAL;
         default:
@@ -405,24 +411,24 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   private static final int __MAX_COMPACTION_THRESHOLD_ISSET_ID = 4;
   private static final int __BLOOM_FILTER_FP_CHANCE_ISSET_ID = 5;
   private static final int __DCLOCAL_READ_REPAIR_CHANCE_ISSET_ID = 6;
-  private static final int __POPULATE_IO_CACHE_ON_FLUSH_ISSET_ID = 7;
-  private static final int __MEMTABLE_FLUSH_PERIOD_IN_MS_ISSET_ID = 8;
-  private static final int __DEFAULT_TIME_TO_LIVE_ISSET_ID = 9;
-  private static final int __MIN_INDEX_INTERVAL_ISSET_ID = 10;
-  private static final int __MAX_INDEX_INTERVAL_ISSET_ID = 11;
-  private static final int __ROW_CACHE_SIZE_ISSET_ID = 12;
-  private static final int __KEY_CACHE_SIZE_ISSET_ID = 13;
-  private static final int __ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 14;
-  private static final int __KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 15;
-  private static final int __MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID = 16;
-  private static final int __MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID = 17;
-  private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 18;
-  private static final int __REPLICATE_ON_WRITE_ISSET_ID = 19;
-  private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 20;
-  private static final int __ROW_CACHE_KEYS_TO_SAVE_ISSET_ID = 21;
+  private static final int __MEMTABLE_FLUSH_PERIOD_IN_MS_ISSET_ID = 7;
+  private static final int __DEFAULT_TIME_TO_LIVE_ISSET_ID = 8;
+  private static final int __MIN_INDEX_INTERVAL_ISSET_ID = 9;
+  private static final int __MAX_INDEX_INTERVAL_ISSET_ID = 10;
+  private static final int __ROW_CACHE_SIZE_ISSET_ID = 11;
+  private static final int __KEY_CACHE_SIZE_ISSET_ID = 12;
+  private static final int __ROW_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 13;
+  private static final int __KEY_CACHE_SAVE_PERIOD_IN_SECONDS_ISSET_ID = 14;
+  private static final int __MEMTABLE_FLUSH_AFTER_MINS_ISSET_ID = 15;
+  private static final int __MEMTABLE_THROUGHPUT_IN_MB_ISSET_ID = 16;
+  private static final int __MEMTABLE_OPERATIONS_IN_MILLIONS_ISSET_ID = 17;
+  private static final int __REPLICATE_ON_WRITE_ISSET_ID = 18;
+  private static final int __MERGE_SHARDS_CHANCE_ISSET_ID = 19;
+  private static final int __ROW_CACHE_KEYS_TO_SAVE_ISSET_ID = 20;
+  private static final int __POPULATE_IO_CACHE_ON_FLUSH_ISSET_ID = 21;
   private static final int __INDEX_INTERVAL_ISSET_ID = 22;
   private int __isset_bitfield = 0;
-  private _Fields optionals[] = {_Fields.COLUMN_TYPE,_Fields.COMPARATOR_TYPE,_Fields.SUBCOMPARATOR_TYPE,_Fields.COMMENT,_Fields.READ_REPAIR_CHANCE,_Fields.COLUMN_METADATA,_Fields.GC_GRACE_SECONDS,_Fields.DEFAULT_VALIDATION_CLASS,_Fields.ID,_Fields.MIN_COMPACTION_THRESHOLD,_Fields.MAX_COMPACTION_THRESHOLD,_Fields.KEY_VALIDATION_CLASS,_Fields.KEY_ALIAS,_Fields.COMPACTION_STRATEGY,_Fields.COMPACTION_STRATEGY_OPTIONS,_Fields.COMPRESSION_OPTIONS,_Fields.BLOOM_FILTER_FP_CHANCE,_Fields.CACHING,_Fields.DCLOCAL_READ_REPAIR_CHANCE,_Fields.POPULATE_IO_CACHE_ON_FLUSH,_Fields.MEMTABLE_FLUSH_PERIOD_IN_MS,_Fields.DEFAULT_TIME_TO_LIVE,_Fields.SPECULATIVE_RETRY,_Fields.TRIGGERS,_Fields.CELLS_PER_ROW_TO_CACHE,_Fields.MIN_INDEX_INTERVAL,_Fields.MAX_INDEX_INTERVAL,_Fields.ROW_CACHE_SIZE,_Fields.KEY_CACHE_SIZE,_Fields.ROW_CACHE_SAVE_PERIOD_IN_SECONDS,_Fields.KEY_CACHE_SAVE_PERIOD_IN_SECONDS,_Fields.MEMTABLE_FLUSH_AFTER_MINS,_Fields.MEMTABLE_THROUGHPUT_IN_MB,_Fields.MEMTABLE_OPERATIONS_IN_MILLIONS,_Fields.REPLICATE_ON_WRITE,_Fields.MERGE_SHARDS_CHANCE,_Fields.ROW_CACHE_PROVIDER,_Fields.ROW_CACHE_KEYS_TO_SAVE,_Fields.INDEX_INTERVAL};
+  private _Fields optionals[] = {_Fields.COLUMN_TYPE,_Fields.COMPARATOR_TYPE,_Fields.SUBCOMPARATOR_TYPE,_Fields.COMMENT,_Fields.READ_REPAIR_CHANCE,_Fields.COLUMN_METADATA,_Fields.GC_GRACE_SECONDS,_Fields.DEFAULT_VALIDATION_CLASS,_Fields.ID,_Fields.MIN_COMPACTION_THRESHOLD,_Fields.MAX_COMPACTION_THRESHOLD,_Fields.KEY_VALIDATION_CLASS,_Fields.KEY_ALIAS,_Fields.COMPACTION_STRATEGY,_Fields.COMPACTION_STRATEGY_OPTIONS,_Fields.COMPRESSION_OPTIONS,_Fields.BLOOM_FILTER_FP_CHANCE,_Fields.CACHING,_Fields.DCLOCAL_READ_REPAIR_CHANCE,_Fields.MEMTABLE_FLUSH_PERIOD_IN_MS,_Fields.DEFAULT_TIME_TO_LIVE,_Fields.SPECULATIVE_RETRY,_Fields.TRIGGERS,_Fields.CELLS_PER_ROW_TO_CACHE,_Fields.MIN_INDEX_INTERVAL,_Fields.MAX_INDEX_INTERVAL,_Fields.ROW_CACHE_SIZE,_Fields.KEY_CACHE_SIZE,_Fields.ROW_CACHE_SAVE_PERIOD_IN_SECONDS,_Fields.KEY_CACHE_SAVE_PERIOD_IN_SECONDS,_Fields.MEMTABLE_FLUSH_AFTER_MINS,_Fields.MEMTABLE_THROUGHPUT_IN_MB,_Fields.MEMTABLE_OPERATIONS_IN_MILLIONS,_Fields.REPLICATE_ON_WRITE,_Fields.MERGE_SHARDS_CHANCE,_Fields.ROW_CACHE_PROVIDER,_Fields.ROW_CACHE_KEYS_TO_SAVE,_Fields.POPULATE_IO_CACHE_ON_FLUSH,_Fields.INDEX_INTERVAL};
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
     Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
@@ -473,8 +479,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     tmpMap.put(_Fields.DCLOCAL_READ_REPAIR_CHANCE, new org.apache.thrift.meta_data.FieldMetaData("dclocal_read_repair_chance", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
-    tmpMap.put(_Fields.POPULATE_IO_CACHE_ON_FLUSH, new org.apache.thrift.meta_data.FieldMetaData("populate_io_cache_on_flush", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
-        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.BOOL)));
     tmpMap.put(_Fields.MEMTABLE_FLUSH_PERIOD_IN_MS, new org.apache.thrift.meta_data.FieldMetaData("memtable_flush_period_in_ms", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     tmpMap.put(_Fields.DEFAULT_TIME_TO_LIVE, new org.apache.thrift.meta_data.FieldMetaData("default_time_to_live", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
@@ -512,6 +516,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     tmpMap.put(_Fields.ROW_CACHE_KEYS_TO_SAVE, new org.apache.thrift.meta_data.FieldMetaData("row_cache_keys_to_save", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
+    tmpMap.put(_Fields.POPULATE_IO_CACHE_ON_FLUSH, new org.apache.thrift.meta_data.FieldMetaData("populate_io_cache_on_flush", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.BOOL)));
     tmpMap.put(_Fields.INDEX_INTERVAL, new org.apache.thrift.meta_data.FieldMetaData("index_interval", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
@@ -603,7 +609,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       this.caching = other.caching;
     }
     this.dclocal_read_repair_chance = other.dclocal_read_repair_chance;
-    this.populate_io_cache_on_flush = other.populate_io_cache_on_flush;
     this.memtable_flush_period_in_ms = other.memtable_flush_period_in_ms;
     this.default_time_to_live = other.default_time_to_live;
     if (other.isSetSpeculative_retry()) {
@@ -634,6 +639,7 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       this.row_cache_provider = other.row_cache_provider;
     }
     this.row_cache_keys_to_save = other.row_cache_keys_to_save;
+    this.populate_io_cache_on_flush = other.populate_io_cache_on_flush;
     this.index_interval = other.index_interval;
   }
 
@@ -674,8 +680,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
 
     this.dclocal_read_repair_chance = 0;
 
-    setPopulate_io_cache_on_flushIsSet(false);
-    this.populate_io_cache_on_flush = false;
     setMemtable_flush_period_in_msIsSet(false);
     this.memtable_flush_period_in_ms = 0;
     setDefault_time_to_liveIsSet(false);
@@ -710,6 +714,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     this.row_cache_provider = null;
     setRow_cache_keys_to_saveIsSet(false);
     this.row_cache_keys_to_save = 0;
+    setPopulate_io_cache_on_flushIsSet(false);
+    this.populate_io_cache_on_flush = false;
     setIndex_intervalIsSet(false);
     this.index_interval = 0;
   }
@@ -1258,29 +1264,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     __isset_bitfield = EncodingUtils.setBit(__isset_bitfield, __DCLOCAL_READ_REPAIR_CHANCE_ISSET_ID, value);
   }
 
-  public boolean isPopulate_io_cache_on_flush() {
-    return this.populate_io_cache_on_flush;
-  }
-
-  public CfDef setPopulate_io_cache_on_flush(boolean populate_io_cache_on_flush) {
-    this.populate_io_cache_on_flush = populate_io_cache_on_flush;
-    setPopulate_io_cache_on_flushIsSet(true);
-    return this;
-  }
-
-  public void unsetPopulate_io_cache_on_flush() {
-    __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __POPULATE_IO_CACHE_ON_FLUSH_ISSET_ID);
-  }
-
-  /** Returns true if field populate_io_cache_on_flush is set (has been assigned a value) and false otherwise */
-  public boolean isSetPopulate_io_cache_on_flush() {
-    return EncodingUtils.testBit(__isset_bitfield, __POPULATE_IO_CACHE_ON_FLUSH_ISSET_ID);
-  }
-
-  public void setPopulate_io_cache_on_flushIsSet(boolean value) {
-    __isset_bitfield = EncodingUtils.setBit(__isset_bitfield, __POPULATE_IO_CACHE_ON_FLUSH_ISSET_ID, value);
-  }
-
   public int getMemtable_flush_period_in_ms() {
     return this.memtable_flush_period_in_ms;
   }
@@ -1783,6 +1766,35 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
   /**
    * @deprecated
    */
+  public boolean isPopulate_io_cache_on_flush() {
+    return this.populate_io_cache_on_flush;
+  }
+
+  /**
+   * @deprecated
+   */
+  public CfDef setPopulate_io_cache_on_flush(boolean populate_io_cache_on_flush) {
+    this.populate_io_cache_on_flush = populate_io_cache_on_flush;
+    setPopulate_io_cache_on_flushIsSet(true);
+    return this;
+  }
+
+  public void unsetPopulate_io_cache_on_flush() {
+    __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __POPULATE_IO_CACHE_ON_FLUSH_ISSET_ID);
+  }
+
+  /** Returns true if field populate_io_cache_on_flush is set (has been assigned a value) and false otherwise */
+  public boolean isSetPopulate_io_cache_on_flush() {
+    return EncodingUtils.testBit(__isset_bitfield, __POPULATE_IO_CACHE_ON_FLUSH_ISSET_ID);
+  }
+
+  public void setPopulate_io_cache_on_flushIsSet(boolean value) {
+    __isset_bitfield = EncodingUtils.setBit(__isset_bitfield, __POPULATE_IO_CACHE_ON_FLUSH_ISSET_ID, value);
+  }
+
+  /**
+   * @deprecated
+   */
   public int getIndex_interval() {
     return this.index_interval;
   }
@@ -1979,14 +1991,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       break;
 
-    case POPULATE_IO_CACHE_ON_FLUSH:
-      if (value == null) {
-        unsetPopulate_io_cache_on_flush();
-      } else {
-        setPopulate_io_cache_on_flush((Boolean)value);
-      }
-      break;
-
     case MEMTABLE_FLUSH_PERIOD_IN_MS:
       if (value == null) {
         unsetMemtable_flush_period_in_ms();
@@ -2131,6 +2135,14 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       break;
 
+    case POPULATE_IO_CACHE_ON_FLUSH:
+      if (value == null) {
+        unsetPopulate_io_cache_on_flush();
+      } else {
+        setPopulate_io_cache_on_flush((Boolean)value);
+      }
+      break;
+
     case INDEX_INTERVAL:
       if (value == null) {
         unsetIndex_interval();
@@ -2207,9 +2219,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     case DCLOCAL_READ_REPAIR_CHANCE:
       return Double.valueOf(getDclocal_read_repair_chance());
 
-    case POPULATE_IO_CACHE_ON_FLUSH:
-      return Boolean.valueOf(isPopulate_io_cache_on_flush());
-
     case MEMTABLE_FLUSH_PERIOD_IN_MS:
       return Integer.valueOf(getMemtable_flush_period_in_ms());
 
@@ -2263,6 +2272,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
 
     case ROW_CACHE_KEYS_TO_SAVE:
       return Integer.valueOf(getRow_cache_keys_to_save());
+
+    case POPULATE_IO_CACHE_ON_FLUSH:
+      return Boolean.valueOf(isPopulate_io_cache_on_flush());
 
     case INDEX_INTERVAL:
       return Integer.valueOf(getIndex_interval());
@@ -2320,8 +2332,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       return isSetCaching();
     case DCLOCAL_READ_REPAIR_CHANCE:
       return isSetDclocal_read_repair_chance();
-    case POPULATE_IO_CACHE_ON_FLUSH:
-      return isSetPopulate_io_cache_on_flush();
     case MEMTABLE_FLUSH_PERIOD_IN_MS:
       return isSetMemtable_flush_period_in_ms();
     case DEFAULT_TIME_TO_LIVE:
@@ -2358,6 +2368,8 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       return isSetRow_cache_provider();
     case ROW_CACHE_KEYS_TO_SAVE:
       return isSetRow_cache_keys_to_save();
+    case POPULATE_IO_CACHE_ON_FLUSH:
+      return isSetPopulate_io_cache_on_flush();
     case INDEX_INTERVAL:
       return isSetIndex_interval();
     }
@@ -2566,15 +2578,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return false;
     }
 
-    boolean this_present_populate_io_cache_on_flush = true && this.isSetPopulate_io_cache_on_flush();
-    boolean that_present_populate_io_cache_on_flush = true && that.isSetPopulate_io_cache_on_flush();
-    if (this_present_populate_io_cache_on_flush || that_present_populate_io_cache_on_flush) {
-      if (!(this_present_populate_io_cache_on_flush && that_present_populate_io_cache_on_flush))
-        return false;
-      if (this.populate_io_cache_on_flush != that.populate_io_cache_on_flush)
-        return false;
-    }
-
     boolean this_present_memtable_flush_period_in_ms = true && this.isSetMemtable_flush_period_in_ms();
     boolean that_present_memtable_flush_period_in_ms = true && that.isSetMemtable_flush_period_in_ms();
     if (this_present_memtable_flush_period_in_ms || that_present_memtable_flush_period_in_ms) {
@@ -2737,6 +2740,15 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return false;
     }
 
+    boolean this_present_populate_io_cache_on_flush = true && this.isSetPopulate_io_cache_on_flush();
+    boolean that_present_populate_io_cache_on_flush = true && that.isSetPopulate_io_cache_on_flush();
+    if (this_present_populate_io_cache_on_flush || that_present_populate_io_cache_on_flush) {
+      if (!(this_present_populate_io_cache_on_flush && that_present_populate_io_cache_on_flush))
+        return false;
+      if (this.populate_io_cache_on_flush != that.populate_io_cache_on_flush)
+        return false;
+    }
+
     boolean this_present_index_interval = true && this.isSetIndex_interval();
     boolean that_present_index_interval = true && that.isSetIndex_interval();
     if (this_present_index_interval || that_present_index_interval) {
@@ -2858,11 +2870,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     if (present_dclocal_read_repair_chance)
       builder.append(dclocal_read_repair_chance);
 
-    boolean present_populate_io_cache_on_flush = true && (isSetPopulate_io_cache_on_flush());
-    builder.append(present_populate_io_cache_on_flush);
-    if (present_populate_io_cache_on_flush)
-      builder.append(populate_io_cache_on_flush);
-
     boolean present_memtable_flush_period_in_ms = true && (isSetMemtable_flush_period_in_ms());
     builder.append(present_memtable_flush_period_in_ms);
     if (present_memtable_flush_period_in_ms)
@@ -2952,6 +2959,11 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     builder.append(present_row_cache_keys_to_save);
     if (present_row_cache_keys_to_save)
       builder.append(row_cache_keys_to_save);
+
+    boolean present_populate_io_cache_on_flush = true && (isSetPopulate_io_cache_on_flush());
+    builder.append(present_populate_io_cache_on_flush);
+    if (present_populate_io_cache_on_flush)
+      builder.append(populate_io_cache_on_flush);
 
     boolean present_index_interval = true && (isSetIndex_interval());
     builder.append(present_index_interval);
@@ -3179,16 +3191,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         return lastComparison;
       }
     }
-    lastComparison = Boolean.valueOf(isSetPopulate_io_cache_on_flush()).compareTo(other.isSetPopulate_io_cache_on_flush());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (isSetPopulate_io_cache_on_flush()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.populate_io_cache_on_flush, other.populate_io_cache_on_flush);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
     lastComparison = Boolean.valueOf(isSetMemtable_flush_period_in_ms()).compareTo(other.isSetMemtable_flush_period_in_ms());
     if (lastComparison != 0) {
       return lastComparison;
@@ -3365,6 +3367,16 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
     }
     if (isSetRow_cache_keys_to_save()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.row_cache_keys_to_save, other.row_cache_keys_to_save);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetPopulate_io_cache_on_flush()).compareTo(other.isSetPopulate_io_cache_on_flush());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetPopulate_io_cache_on_flush()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.populate_io_cache_on_flush, other.populate_io_cache_on_flush);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -3576,12 +3588,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       sb.append(this.dclocal_read_repair_chance);
       first = false;
     }
-    if (isSetPopulate_io_cache_on_flush()) {
-      if (!first) sb.append(", ");
-      sb.append("populate_io_cache_on_flush:");
-      sb.append(this.populate_io_cache_on_flush);
-      first = false;
-    }
     if (isSetMemtable_flush_period_in_ms()) {
       if (!first) sb.append(", ");
       sb.append("memtable_flush_period_in_ms:");
@@ -3704,6 +3710,12 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (!first) sb.append(", ");
       sb.append("row_cache_keys_to_save:");
       sb.append(this.row_cache_keys_to_save);
+      first = false;
+    }
+    if (isSetPopulate_io_cache_on_flush()) {
+      if (!first) sb.append(", ");
+      sb.append("populate_io_cache_on_flush:");
+      sb.append(this.populate_io_cache_on_flush);
       first = false;
     }
     if (isSetIndex_interval()) {
@@ -3966,14 +3978,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
-          case 38: // POPULATE_IO_CACHE_ON_FLUSH
-            if (schemeField.type == org.apache.thrift.protocol.TType.BOOL) {
-              struct.populate_io_cache_on_flush = iprot.readBool();
-              struct.setPopulate_io_cache_on_flushIsSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
           case 39: // MEMTABLE_FLUSH_PERIOD_IN_MS
             if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
               struct.memtable_flush_period_in_ms = iprot.readI32();
@@ -4125,6 +4129,14 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
             if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
               struct.row_cache_keys_to_save = iprot.readI32();
               struct.setRow_cache_keys_to_saveIsSet(true);
+            } else { 
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+            }
+            break;
+          case 38: // POPULATE_IO_CACHE_ON_FLUSH
+            if (schemeField.type == org.apache.thrift.protocol.TType.BOOL) {
+              struct.populate_io_cache_on_flush = iprot.readBool();
+              struct.setPopulate_io_cache_on_flushIsSet(true);
             } else { 
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
@@ -4496,61 +4508,61 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (struct.isSetDclocal_read_repair_chance()) {
         optionals.set(18);
       }
-      if (struct.isSetPopulate_io_cache_on_flush()) {
+      if (struct.isSetMemtable_flush_period_in_ms()) {
         optionals.set(19);
       }
-      if (struct.isSetMemtable_flush_period_in_ms()) {
+      if (struct.isSetDefault_time_to_live()) {
         optionals.set(20);
       }
-      if (struct.isSetDefault_time_to_live()) {
+      if (struct.isSetSpeculative_retry()) {
         optionals.set(21);
       }
-      if (struct.isSetSpeculative_retry()) {
+      if (struct.isSetTriggers()) {
         optionals.set(22);
       }
-      if (struct.isSetTriggers()) {
+      if (struct.isSetCells_per_row_to_cache()) {
         optionals.set(23);
       }
-      if (struct.isSetCells_per_row_to_cache()) {
+      if (struct.isSetMin_index_interval()) {
         optionals.set(24);
       }
-      if (struct.isSetMin_index_interval()) {
+      if (struct.isSetMax_index_interval()) {
         optionals.set(25);
       }
-      if (struct.isSetMax_index_interval()) {
+      if (struct.isSetRow_cache_size()) {
         optionals.set(26);
       }
-      if (struct.isSetRow_cache_size()) {
+      if (struct.isSetKey_cache_size()) {
         optionals.set(27);
       }
-      if (struct.isSetKey_cache_size()) {
+      if (struct.isSetRow_cache_save_period_in_seconds()) {
         optionals.set(28);
       }
-      if (struct.isSetRow_cache_save_period_in_seconds()) {
+      if (struct.isSetKey_cache_save_period_in_seconds()) {
         optionals.set(29);
       }
-      if (struct.isSetKey_cache_save_period_in_seconds()) {
+      if (struct.isSetMemtable_flush_after_mins()) {
         optionals.set(30);
       }
-      if (struct.isSetMemtable_flush_after_mins()) {
+      if (struct.isSetMemtable_throughput_in_mb()) {
         optionals.set(31);
       }
-      if (struct.isSetMemtable_throughput_in_mb()) {
+      if (struct.isSetMemtable_operations_in_millions()) {
         optionals.set(32);
       }
-      if (struct.isSetMemtable_operations_in_millions()) {
+      if (struct.isSetReplicate_on_write()) {
         optionals.set(33);
       }
-      if (struct.isSetReplicate_on_write()) {
+      if (struct.isSetMerge_shards_chance()) {
         optionals.set(34);
       }
-      if (struct.isSetMerge_shards_chance()) {
+      if (struct.isSetRow_cache_provider()) {
         optionals.set(35);
       }
-      if (struct.isSetRow_cache_provider()) {
+      if (struct.isSetRow_cache_keys_to_save()) {
         optionals.set(36);
       }
-      if (struct.isSetRow_cache_keys_to_save()) {
+      if (struct.isSetPopulate_io_cache_on_flush()) {
         optionals.set(37);
       }
       if (struct.isSetIndex_interval()) {
@@ -4634,9 +4646,6 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       if (struct.isSetDclocal_read_repair_chance()) {
         oprot.writeDouble(struct.dclocal_read_repair_chance);
       }
-      if (struct.isSetPopulate_io_cache_on_flush()) {
-        oprot.writeBool(struct.populate_io_cache_on_flush);
-      }
       if (struct.isSetMemtable_flush_period_in_ms()) {
         oprot.writeI32(struct.memtable_flush_period_in_ms);
       }
@@ -4696,6 +4705,9 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
       }
       if (struct.isSetRow_cache_keys_to_save()) {
         oprot.writeI32(struct.row_cache_keys_to_save);
+      }
+      if (struct.isSetPopulate_io_cache_on_flush()) {
+        oprot.writeBool(struct.populate_io_cache_on_flush);
       }
       if (struct.isSetIndex_interval()) {
         oprot.writeI32(struct.index_interval);
@@ -4819,22 +4831,18 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         struct.setDclocal_read_repair_chanceIsSet(true);
       }
       if (incoming.get(19)) {
-        struct.populate_io_cache_on_flush = iprot.readBool();
-        struct.setPopulate_io_cache_on_flushIsSet(true);
-      }
-      if (incoming.get(20)) {
         struct.memtable_flush_period_in_ms = iprot.readI32();
         struct.setMemtable_flush_period_in_msIsSet(true);
       }
-      if (incoming.get(21)) {
+      if (incoming.get(20)) {
         struct.default_time_to_live = iprot.readI32();
         struct.setDefault_time_to_liveIsSet(true);
       }
-      if (incoming.get(22)) {
+      if (incoming.get(21)) {
         struct.speculative_retry = iprot.readString();
         struct.setSpeculative_retryIsSet(true);
       }
-      if (incoming.get(23)) {
+      if (incoming.get(22)) {
         {
           org.apache.thrift.protocol.TList _list143 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
           struct.triggers = new ArrayList<TriggerDef>(_list143.size);
@@ -4848,61 +4856,65 @@ public class CfDef implements org.apache.thrift.TBase<CfDef, CfDef._Fields>, jav
         }
         struct.setTriggersIsSet(true);
       }
-      if (incoming.get(24)) {
+      if (incoming.get(23)) {
         struct.cells_per_row_to_cache = iprot.readString();
         struct.setCells_per_row_to_cacheIsSet(true);
       }
-      if (incoming.get(25)) {
+      if (incoming.get(24)) {
         struct.min_index_interval = iprot.readI32();
         struct.setMin_index_intervalIsSet(true);
       }
-      if (incoming.get(26)) {
+      if (incoming.get(25)) {
         struct.max_index_interval = iprot.readI32();
         struct.setMax_index_intervalIsSet(true);
       }
-      if (incoming.get(27)) {
+      if (incoming.get(26)) {
         struct.row_cache_size = iprot.readDouble();
         struct.setRow_cache_sizeIsSet(true);
       }
-      if (incoming.get(28)) {
+      if (incoming.get(27)) {
         struct.key_cache_size = iprot.readDouble();
         struct.setKey_cache_sizeIsSet(true);
       }
-      if (incoming.get(29)) {
+      if (incoming.get(28)) {
         struct.row_cache_save_period_in_seconds = iprot.readI32();
         struct.setRow_cache_save_period_in_secondsIsSet(true);
       }
-      if (incoming.get(30)) {
+      if (incoming.get(29)) {
         struct.key_cache_save_period_in_seconds = iprot.readI32();
         struct.setKey_cache_save_period_in_secondsIsSet(true);
       }
-      if (incoming.get(31)) {
+      if (incoming.get(30)) {
         struct.memtable_flush_after_mins = iprot.readI32();
         struct.setMemtable_flush_after_minsIsSet(true);
       }
-      if (incoming.get(32)) {
+      if (incoming.get(31)) {
         struct.memtable_throughput_in_mb = iprot.readI32();
         struct.setMemtable_throughput_in_mbIsSet(true);
       }
-      if (incoming.get(33)) {
+      if (incoming.get(32)) {
         struct.memtable_operations_in_millions = iprot.readDouble();
         struct.setMemtable_operations_in_millionsIsSet(true);
       }
-      if (incoming.get(34)) {
+      if (incoming.get(33)) {
         struct.replicate_on_write = iprot.readBool();
         struct.setReplicate_on_writeIsSet(true);
       }
-      if (incoming.get(35)) {
+      if (incoming.get(34)) {
         struct.merge_shards_chance = iprot.readDouble();
         struct.setMerge_shards_chanceIsSet(true);
       }
-      if (incoming.get(36)) {
+      if (incoming.get(35)) {
         struct.row_cache_provider = iprot.readString();
         struct.setRow_cache_providerIsSet(true);
       }
-      if (incoming.get(37)) {
+      if (incoming.get(36)) {
         struct.row_cache_keys_to_save = iprot.readI32();
         struct.setRow_cache_keys_to_saveIsSet(true);
+      }
+      if (incoming.get(37)) {
+        struct.populate_io_cache_on_flush = iprot.readBool();
+        struct.setPopulate_io_cache_on_flushIsSet(true);
       }
       if (incoming.get(38)) {
         struct.index_interval = iprot.readI32();
