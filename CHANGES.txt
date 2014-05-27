@@ -3,6 +3,7 @@
  * Support selecting multiple rows in a partition using IN (CASSANDRA-6875)
  * cqlsh: always emphasize the partition key in DESC output (CASSANDRA-7274)
  * Copy compaction options to make sure they are reloaded (CASSANDRA-7290)
+ * Add option to do more aggressive tombstone compactions (CASSANDRA-6563)
 
 2.0.8
  * Always reallocate buffers in HSHA (CASSANDRA-6285)

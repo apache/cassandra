@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.*;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -49,8 +50,12 @@ public abstract class AbstractCompactionStrategy
     protected static final float DEFAULT_TOMBSTONE_THRESHOLD = 0.2f;
     // minimum interval needed to perform tombstone removal compaction in seconds, default 86400 or 1 day.
     protected static final long DEFAULT_TOMBSTONE_COMPACTION_INTERVAL = 86400;
+    protected static final boolean DEFAULT_UNCHECKED_TOMBSTONE_COMPACTION_OPTION = false;
+
     protected static final String TOMBSTONE_THRESHOLD_OPTION = "tombstone_threshold";
     protected static final String TOMBSTONE_COMPACTION_INTERVAL_OPTION = "tombstone_compaction_interval";
+    // disable range overlap check when deciding if an SSTable is candidate for tombstone compaction (CASSANDRA-6563)
+    protected static final String UNCHECKED_TOMBSTONE_COMPACTION_OPTION = "unchecked_tombstone_compaction";
     protected static final String COMPACTION_ENABLED = "enabled";
 
     public final Map<String, String> options;
@@ -58,6 +63,7 @@ public abstract class AbstractCompactionStrategy
     protected final ColumnFamilyStore cfs;
     protected float tombstoneThreshold;
     protected long tombstoneCompactionInterval;
+    protected boolean uncheckedTombstoneCompaction;
 
     /**
      * pause/resume/getNextBackgroundTask must synchronize.  This guarantees that after pause completes,
@@ -88,6 +94,8 @@ public abstract class AbstractCompactionStrategy
             tombstoneThreshold = optionValue == null ? DEFAULT_TOMBSTONE_THRESHOLD : Float.parseFloat(optionValue);
             optionValue = options.get(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
             tombstoneCompactionInterval = optionValue == null ? DEFAULT_TOMBSTONE_COMPACTION_INTERVAL : Long.parseLong(optionValue);
+            optionValue = options.get(UNCHECKED_TOMBSTONE_COMPACTION_OPTION);
+            uncheckedTombstoneCompaction = optionValue == null ? DEFAULT_UNCHECKED_TOMBSTONE_COMPACTION_OPTION : Boolean.parseBoolean(optionValue);
             if (!shouldBeEnabled())
                 this.disable();
         }
@@ -96,6 +104,7 @@ public abstract class AbstractCompactionStrategy
             logger.warn("Error setting compaction strategy options ({}), defaults will be used", e.getMessage());
             tombstoneThreshold = DEFAULT_TOMBSTONE_THRESHOLD;
             tombstoneCompactionInterval = DEFAULT_TOMBSTONE_COMPACTION_INTERVAL;
+            uncheckedTombstoneCompaction = DEFAULT_UNCHECKED_TOMBSTONE_COMPACTION_OPTION;
         }
     }
 
@@ -289,6 +298,10 @@ public abstract class AbstractCompactionStrategy
         if (droppableRatio <= tombstoneThreshold)
             return false;
 
+        //sstable range overlap check is disabled. See CASSANDRA-6563.
+        if (uncheckedTombstoneCompaction)
+            return true;
+
         Set<SSTableReader> overlaps = cfs.getOverlappingSSTables(Collections.singleton(sstable));
         if (overlaps.isEmpty())
         {
@@ -358,6 +371,13 @@ public abstract class AbstractCompactionStrategy
             }
         }
 
+        String unchecked = options.get(UNCHECKED_TOMBSTONE_COMPACTION_OPTION);
+        if (unchecked != null)
+        {
+            if (!unchecked.equalsIgnoreCase("true") && !unchecked.equalsIgnoreCase("false"))
+                throw new ConfigurationException(String.format("'%s' should be either 'true' or 'false', not '%s'",UNCHECKED_TOMBSTONE_COMPACTION_OPTION, unchecked));
+        }
+
         String compactionEnabled = options.get(COMPACTION_ENABLED);
         if (compactionEnabled != null)
         {
@@ -369,6 +389,7 @@ public abstract class AbstractCompactionStrategy
         Map<String, String> uncheckedOptions = new HashMap<String, String>(options);
         uncheckedOptions.remove(TOMBSTONE_THRESHOLD_OPTION);
         uncheckedOptions.remove(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
+        uncheckedOptions.remove(UNCHECKED_TOMBSTONE_COMPACTION_OPTION);
         uncheckedOptions.remove(COMPACTION_ENABLED);
         return uncheckedOptions;
     }
