@@ -739,7 +739,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         if (existing != null)
                         {
                             if (Gossiper.instance.getEndpointStateForEndpoint(existing).getUpdateTimestamp() > (System.currentTimeMillis() - delay))
-                                throw new UnsupportedOperationException("Cannnot replace a live node... ");
+                                throw new UnsupportedOperationException("Cannot replace a live node... ");
                             current.add(existing);
                         }
                         else
