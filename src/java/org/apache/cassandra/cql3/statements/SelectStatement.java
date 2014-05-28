@@ -1574,7 +1574,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                         if (restriction == null)
                             restriction = new MultiColumnRestriction.Slice(onToken);
                         else if (!restriction.isMultiColumn())
-                            throw new InvalidRequestException(String.format("Column \"%s\" cannot have both tuple-notation inequalities and single-column inequalities", name, relation));
+                            throw new InvalidRequestException(String.format("Column \"%s\" cannot have both tuple-notation inequalities and single-column inequalities: %s", name, relation));
                         restriction.setBound(relation.operator(), t);
                         stmt.columnRestrictions[name.position] = restriction;
                     }
