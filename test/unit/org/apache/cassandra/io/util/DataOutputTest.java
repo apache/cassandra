@@ -100,8 +100,9 @@ public class DataOutputTest
             DataOutputStreamAndChannel write = new DataOutputStreamAndChannel(new FileOutputStream(file));
             DataInput canon = testWrite(write);
             write.close();
-            DataInput test = new DataInputStream(new FileInputStream(file));
+            DataInputStream test = new DataInputStream(new FileInputStream(file));
             testRead(test, canon);
+            test.close();
         }
         finally
         {
@@ -119,8 +120,9 @@ public class DataOutputTest
             DataOutputStreamAndChannel write = new DataOutputStreamAndChannel(Channels.newOutputStream(raf.getChannel()), raf.getChannel());
             DataInput canon = testWrite(write);
             write.close();
-            DataInput test = new DataInputStream(new FileInputStream(file));
+            DataInputStream test = new DataInputStream(new FileInputStream(file));
             testRead(test, canon);
+            test.close();
         }
         finally
         {
@@ -137,8 +139,9 @@ public class DataOutputTest
         DataInput canon = testWrite(write);
         write.flush();
         write.close();
-        DataInput test = new DataInputStream(new FileInputStream(file));
+        DataInputStream test = new DataInputStream(new FileInputStream(file));
         testRead(test, canon);
+        test.close();
         Assert.assertTrue(file.delete());
     }
 
