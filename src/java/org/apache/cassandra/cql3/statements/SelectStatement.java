@@ -1940,7 +1940,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     isReversed = b;
                     continue;
                 }
-                if (isReversed != b)
+                if (!isReversed.equals(b))
                     throw new InvalidRequestException(String.format("Unsupported order by relation"));
             }
             assert isReversed != null;
