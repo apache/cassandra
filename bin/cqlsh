@@ -119,6 +119,7 @@ from cqlshlib.displaying import (RED, BLUE, ANSI_RESET, COLUMN_NAME_COLORS,
 from cqlshlib.formatting import format_by_type
 from cqlshlib.util import trim_if_present
 from cqlshlib.tracing import print_trace_session
+from cqlshlib.usertypes import deserialize_safe_collection, deserialize_safe_map
 
 HISTORY_DIR = os.path.expanduser(os.path.join('~', '.cassandra'))
 CONFIG_FILE = os.path.join(HISTORY_DIR, 'cqlshrc')
@@ -521,6 +522,10 @@ class Shell(cmd.Cmd):
         #Python driver returns BLOBs as string, but we expect them as buffer()
         cassandra.cqltypes.BytesType.deserialize = staticmethod(cassandra.cqltypes.BytesType.validate)
         cassandra.cqltypes.CassandraType.support_empty_values = True
+        # see CASSANDRA-7267
+        cassandra.cqltypes._SimpleParameterizedType.deserialize_safe = classmethod(deserialize_safe_collection)
+        # see CASSANDRA-7267
+        cassandra.cqltypes.MapType.deserialize_safe = classmethod(deserialize_safe_map)
         self.empty_lines = 0
         self.statement_error = False
         self.single_statement = single_statement

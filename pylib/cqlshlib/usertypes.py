@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cassandra.marshal import int32_unpack
+from cassandra.marshal import int32_unpack, uint16_unpack
 from cassandra.cqltypes import CompositeType
 import collections
 from formatting import formatter_for, format_value_utype
@@ -60,5 +60,58 @@ class UserType(CompositeType):
 
         return Result(*result)
 
+def deserialize_safe_collection(cls, byts):
+    """
+        Temporary work around for CASSANDRA-7267
+    """
+    subtype, = cls.subtypes
+    unpack = uint16_unpack
+    length = 2
+    numelements = unpack(byts[:length])
+    if numelements == 0 and len(byts) > 2 :
+        unpack = int32_unpack
+        length = 4
+        numelements = unpack(byts[:length])
+    p = length
+    result = []
+    for n in xrange(numelements):
+        itemlen = unpack(byts[p:p + length])
+        p += length
+        item = byts[p:p + itemlen]
+        p += itemlen
+        result.append(subtype.from_binary(item))
+    return cls.adapter(result)
 
+try:
+    from collections import OrderedDict
+except ImportError:  # Python <2.7
+    from cassandra.util import OrderedDict
 
+def deserialize_safe_map(cls, byts):
+    """
+        Temporary work around for CASSANDRA-7267
+    """
+    subkeytype, subvaltype = cls.subtypes
+    unpack = uint16_unpack
+    length = 2
+    numelements = unpack(byts[:length])
+    if numelements == 0 and len(byts) > 2:
+        unpack = int32_unpack
+        length = 4
+        numelements = unpack(byts[:length])
+
+    p = length
+    themap = OrderedDict()
+    for n in xrange(numelements):
+        key_len = unpack(byts[p:p + length])
+        p += length
+        keybytes = byts[p:p + key_len]
+        p += key_len
+        val_len = unpack(byts[p:p + length])
+        p += length
+        valbytes = byts[p:p + val_len]
+        p += val_len
+        key = subkeytype.from_binary(keybytes)
+        val = subvaltype.from_binary(valbytes)
+        themap[key] = val
+    return themap

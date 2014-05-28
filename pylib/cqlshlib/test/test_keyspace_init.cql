@@ -231,3 +231,43 @@ values ('vpupkin',
          {city: 'Chigirinsk', address: null, zip: '676722'}},
         {{country: '+7', number: null},
          {country: null, number: '03'}});
+
+CREATE TYPE band_info_type (
+  founded timestamp,
+  members set<text>,
+  description text
+);
+
+CREATE TYPE tags (
+  tags map<text, text>
+);
+
+CREATE TABLE songs (
+    title text PRIMARY KEY,
+    band text,
+    info band_info_type,
+    tags tags
+);
+
+insert into songs (title, band, info, tags)
+values (
+    'The trooper',
+    'Iron Maiden',
+    {
+        founded:188694000,
+        members: {
+            'Bruce Dickinson',
+            'Dave Murray',
+            'Adrian Smith',
+            'Janick Gers',
+            'Steve Harris',
+            'Nicko McBrain'
+        },
+        description: 'Pure evil metal'
+     },
+    {
+        tags: {
+            'genre':'metal',
+            'origin':'england'
+        }
+    });
