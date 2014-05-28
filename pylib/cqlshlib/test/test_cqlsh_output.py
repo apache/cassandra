@@ -855,3 +855,33 @@ class TestCqlshOutput(BaseTestCase):
             nnnnnnnn
             """),
         ), cqlver=cqlsh.DEFAULT_CQLVER)
+
+    def test_user_types_with_collections(self):
+        self.assertCqlverQueriesGiveColoredOutput((
+            ("select info from songs;", r"""
+             info
+             MMMM
+            ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+             {founded: '1970-01-02 20:24:54-0800', members: {'Adrian Smith', 'Bruce Dickinson', 'Dave Murray', 'Janick Gers', 'Nicko McBrain', 'Steve Harris'}, description: 'Pure evil metal'}
+             BYYYYYYYBBGGGGGGGGGGGGGGGGGGGGGGGGGGBBYYYYYYYBBBYYYYYYYYYYYYYYBBYYYYYYYYYYYYYYYYYBBYYYYYYYYYYYYYBBYYYYYYYYYYYYYBBYYYYYYYYYYYYYYYBBYYYYYYYYYYYYYYBBBYYYYYYYYYYYBBYYYYYYYYYYYYYYYYYB
+
+
+            (1 rows)
+            nnnnnnnn
+            """),
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
+        self.assertCqlverQueriesGiveColoredOutput((
+            ("select tags from songs;", r"""
+             tags
+             MMMM
+            -------------------------------------------------
+
+             {tags: {'genre': 'metal', 'origin': 'england'}}
+             BYYYYBBBYYYYYYYBBYYYYYYYBBYYYYYYYYBBYYYYYYYYYBB
+
+
+            (1 rows)
+            nnnnnnnn
+            """),
+        ), cqlver=cqlsh.DEFAULT_CQLVER)
