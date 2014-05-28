@@ -27,6 +27,7 @@ import java.util.*;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Maps;
 
+import org.apache.cassandra.hadoop.HadoopCompat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -85,14 +86,14 @@ public class CqlRecordReader extends RecordReader<Long, Row>
     public void initialize(InputSplit split, TaskAttemptContext context) throws IOException
     {
         this.split = (ColumnFamilySplit) split;
-        Configuration conf = context.getConfiguration();
+        Configuration conf = HadoopCompat.getConfiguration(context);
         totalRowCount = (this.split.getLength() < Long.MAX_VALUE)
                       ? (int) this.split.getLength()
                       : ConfigHelper.getInputSplitSize(conf);
         cfName = quote(ConfigHelper.getInputColumnFamily(conf));
         keyspace = quote(ConfigHelper.getInputKeyspace(conf));
         cqlQuery = CqlConfigHelper.getInputCql(conf);
-        partitioner = ConfigHelper.getInputPartitioner(context.getConfiguration());
+        partitioner = ConfigHelper.getInputPartitioner(HadoopCompat.getConfiguration(context));
         try
         {
             if (cluster != null)
