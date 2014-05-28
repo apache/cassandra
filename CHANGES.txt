@@ -36,6 +36,7 @@
  * Allow nulls/non-existant fields in UDT (CASSANDRA-7206)
  * Backport Thrift MultiSliceRequest (CASSANDRA-7027)
  * Handle overlapping MultiSlices (CASSANDRA-7279)
+ * Fix DataOutputTest on Windows (CASSANDRA-7265)
 Merged from 2.0:
  * Copy compaction options to make sure they are reloaded (CASSANDRA-7290)
  * Add option to do more aggressive tombstone compactions (CASSANDRA-6563)
