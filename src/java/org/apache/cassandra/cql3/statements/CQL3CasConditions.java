@@ -98,6 +98,7 @@ public class CQL3CasConditions implements CASConditions
             slices[i++] = prefix.slice();
 
         int toGroup = cfm.comparator.isDense() ? -1 : cfm.clusteringColumns().size();
+        assert ColumnSlice.validateSlices(slices, cfm.comparator, false);
         return new SliceQueryFilter(slices, false, slices.length, toGroup);
     }
 

@@ -55,7 +55,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Row returned from a CQL query
+ * Row returned from a CQL query.
+ * 
+ * This struct is used for both CQL2 and CQL3 queries.  For CQL2, the partition key
+ * is special-cased and is always returned.  For CQL3, it is not special cased;
+ * it will be included in the columns list if it was included in the SELECT and
+ * the key field is always null.
  */
 public class CqlRow implements org.apache.thrift.TBase<CqlRow, CqlRow._Fields>, java.io.Serializable, Cloneable, Comparable<CqlRow> {
   private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("CqlRow");

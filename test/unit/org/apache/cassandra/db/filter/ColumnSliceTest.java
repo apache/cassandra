@@ -18,22 +18,23 @@
  * */
 package org.apache.cassandra.db.filter;
 
-import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.composites.CompoundDenseCellNameType;
+
+import java.nio.ByteBuffer;
+import java.util.*;
+
+import org.junit.Test;
+
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.junit.Test;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class ColumnSliceTest
 {
+    private static final CellNameType simpleIntType = new SimpleDenseCellNameType(Int32Type.instance);
+
     @Test
     public void testIntersectsSingleSlice()
     {
@@ -278,6 +279,65 @@ public class ColumnSliceTest
         assertTrue(slice.intersects(columnNames(1, 0, 0), columnNames(2, 2, 2), nameType, true));
     }
 
+    @Test
+    public void testDeoverlapSlices()
+    {
+        ColumnSlice[] slices;
+        ColumnSlice[] deoverlapped;
+
+        // Preserve correct slices
+        slices = slices(s(0, 3), s(4, 5), s(6, 9));
+        assertSlicesValid(slices);
+        assertSlicesEquals(slices, deoverlapSlices(slices));
+
+        // Simple overlap
+        slices = slices(s(0, 3), s(2, 5), s(8, 9));
+        assertSlicesInvalid(slices);
+        assertSlicesEquals(slices(s(0, 5), s(8, 9)), deoverlapSlices(slices));
+
+        // Slice overlaps others fully
+        slices = slices(s(0, 10), s(2, 5), s(8, 9));
+        assertSlicesInvalid(slices);
+        assertSlicesEquals(slices(s(0, 10)), deoverlapSlices(slices));
+
+        // Slice with empty end overlaps others fully
+        slices = slices(s(0, -1), s(2, 5), s(8, 9));
+        assertSlicesInvalid(slices);
+        assertSlicesEquals(slices(s(0, -1)), deoverlapSlices(slices));
+
+        // Overlap with slices selecting only one element
+        slices = slices(s(0, 4), s(4, 4), s(4, 8));
+        assertSlicesInvalid(slices);
+        assertSlicesEquals(slices(s(0, 8)), deoverlapSlices(slices));
+
+        // Unordered slices (without overlap)
+        slices = slices(s(4, 8), s(0, 3), s(9, 9));
+        assertSlicesInvalid(slices);
+        assertSlicesEquals(slices(s(0, 3), s(4, 8), s(9, 9)), deoverlapSlices(slices));
+
+        // All range select but not by a single slice
+        slices = slices(s(5, -1), s(2, 5), s(-1, 2));
+        assertSlicesInvalid(slices);
+        assertSlicesEquals(slices(s(-1, -1)), deoverlapSlices(slices));
+    }
+
+    @Test
+    public void testValidateSlices()
+    {
+        assertSlicesValid(slices(s(0, 3)));
+        assertSlicesValid(slices(s(3, 3)));
+        assertSlicesValid(slices(s(3, 3), s(4, 4)));
+        assertSlicesValid(slices(s(0, 3), s(4, 5), s(6, 9)));
+        assertSlicesValid(slices(s(-1, -1)));
+        assertSlicesValid(slices(s(-1, 3), s(4, -1)));
+
+        assertSlicesInvalid(slices(s(3, 0)));
+        assertSlicesInvalid(slices(s(0, 2), s(2, 4)));
+        assertSlicesInvalid(slices(s(0, 2), s(1, 4)));
+        assertSlicesInvalid(slices(s(0, 2), s(3, 4), s(3, 4)));
+        assertSlicesInvalid(slices(s(-1, 2), s(3, -1), s(5, 9)));
+    }
+
     private static Composite composite(Integer ... components)
     {
         List<AbstractType<?>> types = new ArrayList<>();
@@ -294,5 +354,62 @@ public class ColumnSliceTest
         for (int component : components)
             names.add(ByteBufferUtil.bytes(component));
         return names;
+    }
+
+    private static Composite simpleComposite(int i)
+    {
+        // We special negative values to mean EMPTY for convenience sake
+        if (i < 0)
+            return Composites.EMPTY;
+
+        return simpleIntType.make(i);
+    }
+
+    private static ColumnSlice s(int start, int finish)
+    {
+        return new ColumnSlice(simpleComposite(start), simpleComposite(finish));
+    }
+
+    private static ColumnSlice[] slices(ColumnSlice... slices)
+    {
+        return slices;
+    }
+
+    private static ColumnSlice[] deoverlapSlices(ColumnSlice[] slices)
+    {
+        return ColumnSlice.deoverlapSlices(slices, simpleIntType);
+    }
+
+    private static void assertSlicesValid(ColumnSlice[] slices)
+    {
+        assertTrue("Slices " + toString(slices) + " should be valid", ColumnSlice.validateSlices(slices, simpleIntType));
+    }
+
+    private static void assertSlicesInvalid(ColumnSlice[] slices)
+    {
+        assertFalse("Slices " + toString(slices) + " shouldn't be valid", ColumnSlice.validateSlices(slices, simpleIntType));
+    }
+
+    private static void assertSlicesEquals(ColumnSlice[] expected, ColumnSlice[] actual)
+    {
+        assertTrue("Expected " + toString(expected) + " but got " + toString(actual), Arrays.equals(expected, actual));
+    }
+
+    private static String toString(ColumnSlice[] slices)
+    {
+        StringBuilder sb = new StringBuilder().append("[");
+        for (int i = 0; i < slices.length; i++)
+        {
+            if (i > 0)
+                sb.append(", ");
+
+            ColumnSlice slice = slices[i];
+            sb.append("(");
+            sb.append(slice.start.isEmpty() ? "-1" : simpleIntType.getString(slice.start));
+            sb.append(", ");
+            sb.append(slice.finish.isEmpty() ? "-1" : simpleIntType.getString(slice.finish));
+            sb.append(")");
+        }
+        return sb.append("]").toString();
     }
 }

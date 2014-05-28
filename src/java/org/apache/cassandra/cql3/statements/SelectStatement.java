@@ -533,6 +533,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
     private SliceQueryFilter sliceFilter(ColumnSlice[] slices, int limit, int toGroup)
     {
+        assert ColumnSlice.validateSlices(slices, cfm.comparator, isReversed) : String.format("Invalid slices: " + Arrays.toString(slices) + (isReversed ? " (reversed)" : ""));
         return new SliceQueryFilter(slices, isReversed, limit, toGroup);
     }
 
