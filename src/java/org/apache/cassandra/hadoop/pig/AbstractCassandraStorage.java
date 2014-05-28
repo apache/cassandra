@@ -130,7 +130,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         if(comparator instanceof AbstractCompositeType)
             setTupleValue(pair, 0, composeComposite((AbstractCompositeType)comparator,colName));
         else
-            setTupleValue(pair, 0, cassandraToObj(comparator, col.name().toByteBuffer()));
+            setTupleValue(pair, 0, cassandraToObj(comparator, colName));
 
         // value
         Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
