@@ -158,7 +158,7 @@ public class ClientState
     public String getKeyspace() throws InvalidRequestException
     {
         if (keyspace == null)
-            throw new InvalidRequestException("no keyspace has been specified");
+            throw new InvalidRequestException("No keyspace has been specified. USE a keyspace, or explicity specify keyspace.tablename");
         return keyspace;
     }
 
