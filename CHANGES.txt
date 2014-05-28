@@ -5,6 +5,8 @@
  * Copy compaction options to make sure they are reloaded (CASSANDRA-7290)
  * Add option to do more aggressive tombstone compactions (CASSANDRA-6563)
  * Don't try to compact already-compacting files in HHOM (CASSANDRA-7288)
+ * Add authentication support to shuffle (CASSANDRA-6484)
+
 
 2.0.8
  * Always reallocate buffers in HSHA (CASSANDRA-6285)
@@ -64,6 +66,7 @@ Merged from 1.2:
  * raise streaming phi convict threshold level (CASSANDRA-7063)
  * reduce garbage creation in calculatePendingRanges (CASSANDRA-7191)
  * exit CQLSH with error status code if script fails (CASSANDRA-6344)
+
 
 2.0.7
  * Put nodes in hibernate when join_ring is false (CASSANDRA-6961)
