@@ -29,7 +29,9 @@ New features
      repaired are marked with a timestamp and not included in the next
      repair session. Use nodetool repair -par -inc to use this feature.
      A tool to manually mark/unmark sstables as repaired is available in
-     tools/bin/sstablerepairedset.
+     tools/bin/sstablerepairedset. This is particularly important when
+     using LCS, or any data not repaired in your first incremental repair
+     will be put back in L0.
    - Bootstrapping now ensures that range movements are consistent,
      meaning the data for the new node is taken from the node that is no 
      longer a responsible for that range of keys.  
