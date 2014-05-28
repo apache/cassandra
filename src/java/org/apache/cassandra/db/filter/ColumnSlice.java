@@ -19,6 +19,8 @@ package org.apache.cassandra.db.filter;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
@@ -106,6 +108,101 @@ public class ColumnSlice
                 return comparison;
         }
         return 0;
+    }
+
+    /**
+     * Validates that the provided slice array contains only non-overlapped slices valid for a query {@code reversed}
+     * or not on a table using {@code comparator}.
+     */
+    public static boolean validateSlices(ColumnSlice[] slices, CellNameType comparator, boolean reversed)
+    {
+        return validateSlices(slices, reversed ? comparator.reverseComparator() : comparator);
+    }
+
+    /**
+     * Validates that the provided slice array contains only non-overlapped slices in {@code comparator} order.
+     */
+    public static boolean validateSlices(ColumnSlice[] slices, Comparator<Composite> comparator)
+    {
+        for (int i = 0; i < slices.length; i++)
+        {
+            if (i > 0 && comparator.compare(slices[i-1].finish, slices[i].start) >= 0)
+                return false;
+
+            if (slices[i].finish.isEmpty())
+                return i == slices.length - 1;
+
+            if (comparator.compare(slices[i].start, slices[i].finish) > 0)
+                return false;
+        }
+        return true;
+    }
+
+    /**
+     * Takes an array of slices (potentially overlapping and in any order, though each individual slice must have
+     * its start before or equal its end in {@code comparator} orde) and return an equivalent array of non-overlapping
+     * slices in {@code comparator order}.
+     *
+     * @param slices an array of slices. This may be modified by this method.
+     * @param comparator the order in which to sort the slices.
+     * @return the smallest possible array of non-overlapping slices in {@code compator} order. If the original
+     * slices are already non-overlapping and in comparator order, this may or may not return the provided slices
+     * directly.
+     */
+    public static ColumnSlice[] deoverlapSlices(ColumnSlice[] slices, final Comparator<Composite> comparator)
+    {
+        if (slices.length <= 1)
+            return slices;
+
+        Arrays.sort(slices, new Comparator<ColumnSlice>()
+        {
+            @Override
+            public int compare(ColumnSlice s1, ColumnSlice s2)
+            {
+                int c = comparator.compare(s1.start, s2.start);
+                if (c != 0)
+                    return c;
+
+                // For the finish, empty always means greater
+                return s1.finish.isEmpty() || s2.finish.isEmpty()
+                     ? s1.finish.isEmpty() ? 1 : s2.finish.isEmpty() ? -1 : 0
+                     : comparator.compare(s1.finish, s2.finish);
+            }
+        });
+
+        List<ColumnSlice> slicesCopy = new ArrayList<>(slices.length);
+
+        ColumnSlice last = slices[0];
+
+        for (int i = 1; i < slices.length; i++)
+        {
+            ColumnSlice s2 = slices[i];
+
+            boolean includesStart = last.includes(comparator, s2.start);
+            boolean includesFinish = s2.finish.isEmpty() ? last.finish.isEmpty() : last.includes(comparator, s2.finish);
+
+            if (includesStart && includesFinish)
+                continue;
+
+            if (!includesStart && !includesFinish)
+            {
+                slicesCopy.add(last);
+                last = s2;
+                continue;
+            }
+
+            if (includesStart)
+            {
+                last = new ColumnSlice(last.start, s2.finish);
+                continue;
+            }
+
+            assert !includesFinish;
+        }
+
+        slicesCopy.add(last);
+
+        return slicesCopy.toArray(new ColumnSlice[slicesCopy.size()]);
     }
 
     @Override

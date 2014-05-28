@@ -2065,7 +2065,7 @@ public class CassandraServer implements Cassandra.Iface
             org.apache.cassandra.db.ConsistencyLevel consistencyLevel = ThriftConversion.fromThrift(request.getConsistency_level());
             consistencyLevel.validateForRead(keyspace);
             List<ReadCommand> commands = new ArrayList<>(1);
-            ColumnSlice [] slices = new ColumnSlice[request.getColumn_slices().size()];
+            ColumnSlice[] slices = new ColumnSlice[request.getColumn_slices().size()];
             for (int i = 0 ; i < request.getColumn_slices().size() ; i++)
             {
                 fixOptionalSliceParameters(request.getColumn_slices().get(i));
@@ -2078,7 +2078,9 @@ public class CassandraServer implements Cassandra.Iface
                     throw new InvalidRequestException(String.format("Reversed column slice at index %d had start less than finish", i));
                 slices[i] = new ColumnSlice(start, finish);
             }
-            SliceQueryFilter filter = new SliceQueryFilter(slices, request.reversed, request.count);
+
+            ColumnSlice[] deoverlapped = ColumnSlice.deoverlapSlices(slices, request.reversed ? metadata.comparator.reverseComparator() : metadata.comparator);
+            SliceQueryFilter filter = new SliceQueryFilter(deoverlapped, request.reversed, request.count);
             ThriftValidation.validateKey(metadata, request.key);
             commands.add(ReadCommand.create(keyspace, request.key, request.column_parent.getColumn_family(), System.currentTimeMillis(), filter));
             return getSlice(commands, request.column_parent.isSetSuper_column(), consistencyLevel).entrySet().iterator().next().getValue();

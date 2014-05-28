@@ -60,6 +60,11 @@ public abstract class AbstractCType implements CType
         {
             public int compare(Composite c1, Composite c2)
             {
+                if (c1.isEmpty())
+                    return c2.isEmpty() ? 0 : -1;
+                if (c2.isEmpty())
+                    return 1;
+
                 return AbstractCType.this.compare(c2, c1);
             }
         };

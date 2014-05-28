@@ -114,9 +114,21 @@ public class MultiSliceTest extends SchemaLoader
         req.setCount(6);
         req.reversed = true;
         req.setColumn_slices(Arrays.asList(columnSliceFrom("e", "a"), columnSliceFrom("g", "d")));
-        assertColumnNameMatches(Arrays.asList("g", "e", "d", "c", "b", "a"), server.get_multi_slice(req)); 
+        assertColumnNameMatches(Arrays.asList("g", "f", "e", "d", "c", "b"), server.get_multi_slice(req));
     }
-    
+
+    @Test
+    public void test_with_overlap_with_count() throws TException
+    {
+        ColumnParent cp = new ColumnParent("Standard1");
+        ByteBuffer key = ByteBuffer.wrap("overlap_reversed_count".getBytes());
+        addTheAlphabetToRow(key, cp);
+        MultiSliceRequest req = makeMultiSliceRequest(key);
+        req.setCount(6);
+        req.setColumn_slices(Arrays.asList(columnSliceFrom("a", "e"), columnSliceFrom("d", "g"), columnSliceFrom("d", "g")));
+        assertColumnNameMatches(Arrays.asList("a", "b", "c", "d", "e", "f"), server.get_multi_slice(req));
+    }
+
     private static void addTheAlphabetToRow(ByteBuffer key, ColumnParent parent) 
             throws InvalidRequestException, UnavailableException, TimedOutException
     {
@@ -135,7 +147,7 @@ public class MultiSliceTest extends SchemaLoader
         for (int i = 0 ; i< expected.size() ; i++)
         {
             Assert.assertEquals(actual.get(i) +" did not equal "+ expected.get(i), 
-                    new String(actual.get(i).getColumn().getName()), expected.get(i));
+                    expected.get(i), new String(actual.get(i).getColumn().getName()));
         }
     }
     
