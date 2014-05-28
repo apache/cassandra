@@ -308,9 +308,6 @@ public class Tuples
         public Value bind(List<ByteBuffer> values) throws InvalidRequestException
         {
             ByteBuffer value = values.get(bindIndex);
-            if (value == null)
-                return null;
-
             return value == null ? null : Value.fromSerialized(value, (TupleType)receiver.type);
         }
     }
