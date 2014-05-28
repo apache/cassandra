@@ -25,6 +25,7 @@
  * reduce garbage creation in calculatePendingRanges (CASSANDRA-7191)
  * exit CQLSH with error status code if script fails (CASSANDRA-6344)
 
+
 1.2.16
  * Add UNLOGGED, COUNTER options to BATCH documentation (CASSANDRA-6816)
  * add extra SSL cipher suites (CASSANDRA-6613)
