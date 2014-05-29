@@ -161,6 +161,12 @@ public class DefsTables
      */
     public static synchronized void mergeSchema(Collection<Mutation> mutations) throws ConfigurationException, IOException
     {
+        mergeSchemaInternal(mutations, true);
+        Schema.instance.updateVersionAndAnnounce();
+    }
+
+    public static synchronized void mergeSchemaInternal(Collection<Mutation> mutations, boolean doFlush) throws ConfigurationException, IOException
+    {
         // current state of the schema
         Map<DecoratedKey, ColumnFamily> oldKeyspaces = SystemKeyspace.getSchema(SystemKeyspace.SCHEMA_KEYSPACES_CF);
         Map<DecoratedKey, ColumnFamily> oldColumnFamilies = SystemKeyspace.getSchema(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF);
@@ -169,7 +175,7 @@ public class DefsTables
         for (Mutation mutation : mutations)
             mutation.apply();
 
-        if (!StorageService.instance.isClientMode())
+        if (doFlush && !StorageService.instance.isClientMode())
             flushSchemaCFs();
 
         // with new data applied
@@ -184,8 +190,6 @@ public class DefsTables
         // it is safe to drop a keyspace only when all nested ColumnFamilies where deleted
         for (String keyspaceToDrop : keyspacesToDrop)
             dropKeyspace(keyspaceToDrop);
-
-        Schema.instance.updateVersionAndAnnounce();
     }
 
     private static Set<String> mergeKeyspaces(Map<DecoratedKey, ColumnFamily> old, Map<DecoratedKey, ColumnFamily> updated)

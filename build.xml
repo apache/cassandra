@@ -1078,6 +1078,8 @@
         <jvmarg value="-javaagent:${basedir}/lib/jamm-0.2.6.jar" />
         <jvmarg value="-ea"/>
         <jvmarg value="-Xss256k"/>
+        <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
+        <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
         <optjvmargs/>
         <classpath>
           <path refid="cassandra.classpath" />
@@ -1206,8 +1208,8 @@
 
   <target name="cql-test" depends="build-test" description="Execute CQL tests">
     <testmacro suitename="cql" inputdir="${test.unit.src}"
-               timeout="${test.timeout}" filter="**/cql3/*Test.java">
-      <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
+            timeout="${test.timeout}" filter="**/cql3/*Test.java"
+            forkmode="once">
     </testmacro>
   </target>
 
@@ -1216,7 +1218,7 @@
       <echo message="running ${test.methods} tests from ${test.name}"/>
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
-      <junit fork="on" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
+      <junit fork="on" forkmode="once" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
         <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
         <formatter type="brief" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
@@ -1225,6 +1227,7 @@
         <jvmarg value="-ea"/>
         <jvmarg value="-Xss256k"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
+        <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <classpath>
           <path refid="cassandra.classpath" />
           <pathelement location="${test.classes}"/>

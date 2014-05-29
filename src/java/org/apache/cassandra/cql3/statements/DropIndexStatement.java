@@ -60,14 +60,14 @@ public class DropIndexStatement extends SchemaAlteringStatement
         return ResultMessage.SchemaChange.Change.UPDATED;
     }
 
-    public void announceMigration() throws InvalidRequestException, ConfigurationException
+    public void announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
     {
         CFMetaData cfm = findIndexedCF();
         if (cfm == null)
             return;
 
         CFMetaData updatedCfm = updateCFMetadata(cfm);
-        MigrationManager.announceColumnFamilyUpdate(updatedCfm, false);
+        MigrationManager.announceColumnFamilyUpdate(updatedCfm, false, isLocalOnly);
     }
 
     private CFMetaData updateCFMetadata(CFMetaData cfm)

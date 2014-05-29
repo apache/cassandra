@@ -17,12 +17,16 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Objects;
 import org.junit.AfterClass;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
@@ -30,8 +34,11 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -42,26 +49,79 @@ public abstract class CQLTester
     protected static final Logger logger = LoggerFactory.getLogger(CQLTester.class);
 
     private static final String KEYSPACE = "cql_test_keyspace";
-
     private static final boolean USE_PREPARED_VALUES = Boolean.valueOf(System.getProperty("cassandra.test.use_prepared", "true"));
-
     private static final AtomicInteger seqNumber = new AtomicInteger();
+
+    static
+    {
+        // Once per-JVM is enough
+        SchemaLoader.prepareServer();
+    }
 
     private String currentTable;
 
     @BeforeClass
     public static void setUpClass() throws Throwable
     {
-        // This start gossiper for the sake of schema migrations. We might be able to get rid of that with some work.
-        SchemaLoader.prepareServer();
-
         schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", KEYSPACE));
     }
 
     @AfterClass
     public static void tearDownClass()
     {
-        SchemaLoader.stopGossiper();
+    }
+
+    @After
+    public void afterTest() throws Throwable
+    {
+        if (currentTable == null)
+            return;
+
+        final String toDrop = currentTable;
+        currentTable = null;
+
+        // We want to clean up after the test, but dropping a table is rather long so just do that asynchronously
+        StorageService.tasks.execute(new Runnable()
+        {
+            public void run()
+            {
+                try
+                {
+                    schemaChange(String.format("DROP TABLE %s.%s", KEYSPACE, toDrop));
+
+                    // Dropping doesn't delete the sstables. It's not a huge deal but it's cleaner to cleanup after us
+                    // Thas said, we shouldn't delete blindly before the SSTableDeletingTask for the table we drop
+                    // have run or they will be unhappy. Since those taks are scheduled on StorageService.tasks and that's
+                    // mono-threaded, just push a task on the queue to find when it's empty. No perfect but good enough.
+
+                    final CountDownLatch latch = new CountDownLatch(1);
+                    StorageService.tasks.execute(new Runnable()
+                        {
+                            public void run()
+                    {
+                        latch.countDown();
+                    }
+                    });
+                    latch.await(2, TimeUnit.SECONDS);
+
+                    removeAllSSTables(KEYSPACE, toDrop);
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+    }
+
+    private static void removeAllSSTables(String ks, String table)
+    {
+        // clean up data directory which are stored as data directory/keyspace/data files
+        for (File d : Directories.getKSChildDirectories(ks))
+        {
+            if (d.exists() && d.getName().contains(table))
+                FileUtils.deleteRecursive(d);
+        }
     }
 
     protected void createTable(String query)
@@ -77,7 +137,7 @@ public abstract class CQLTester
         try
         {
             // executeOnceInternal don't work for schema changes
-            QueryProcessor.process(query, ConsistencyLevel.ONE);
+            QueryProcessor.executeOnceInternal(query);
         }
         catch (Exception e)
         {

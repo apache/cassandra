@@ -64,18 +64,26 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
 
     public abstract ResultMessage.SchemaChange.Change changeType();
 
-    public abstract void announceMigration() throws RequestValidationException;
+    public abstract void announceMigration(boolean isLocalOnly) throws RequestValidationException;
 
     public ResultMessage execute(QueryState state, QueryOptions options) throws RequestValidationException
     {
-        announceMigration();
+        announceMigration(false);
         String tableName = cfName == null || columnFamily() == null ? "" : columnFamily();
         return new ResultMessage.SchemaChange(changeType(), keyspace(), tableName);
     }
 
     public ResultMessage executeInternal(QueryState state, QueryOptions options)
     {
-        // executeInternal is for local query only, thus altering schema is not supported
-        throw new UnsupportedOperationException();
+        try
+        {
+            announceMigration(true);
+            String tableName = cfName == null || columnFamily() == null ? "" : columnFamily();
+            return new ResultMessage.SchemaChange(changeType(), keyspace(), tableName);
+        }
+        catch (RequestValidationException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 }
