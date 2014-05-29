@@ -2983,7 +2983,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             int index = (int) Math.round(i * step);
             Token token = tokens.get(index);
             Range<Token> range = new Range<>(prevToken, token);
-            splits.add(Pair.create(range, cfs.estimatedKeysForRange(range)));
+            // always return an estimate > 0 (see CASSANDRA-7322)
+            splits.add(Pair.create(range, Math.max(cfs.metadata.getMinIndexInterval(), cfs.estimatedKeysForRange(range))));
             prevToken = token;
         }
         return splits;
