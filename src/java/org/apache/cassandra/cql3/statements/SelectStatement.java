@@ -941,11 +941,11 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                                                            QueryOptions options) throws InvalidRequestException
     {
         List<List<ByteBuffer>> splitInValues = restriction.splitValues(options);
+        Bound eocBound = isReversed ? Bound.reverse(bound) : bound;
 
         // The IN query might not have listed the values in comparator order, so we need to re-sort
         // the bounds lists to make sure the slices works correctly (also, to avoid duplicates).
         TreeSet<Composite> inValues = new TreeSet<>(isReversed ? type.reverseComparator() : type);
-        Iterator<ColumnDefinition> iter = defs.iterator();
         for (List<ByteBuffer> components : splitInValues)
         {
             for (int i = 0; i < components.size(); i++)
@@ -953,8 +953,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     throw new InvalidRequestException("Invalid null value in condition for column " + defs.get(i));
 
             Composite prefix = builder.buildWith(components);
-            Bound b = isReversed == isReversedType(iter.next()) ? bound : Bound.reverse(bound);
-            inValues.add(b == Bound.END && builder.remainingCount() - components.size() > 0
+            inValues.add(eocBound == Bound.END && builder.remainingCount() - components.size() > 0
                          ? prefix.end()
                          : prefix);
         }

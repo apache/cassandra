@@ -17,26 +17,7 @@
  */
 package org.apache.cassandra.cql3;
 
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.exceptions.RequestValidationException;
-import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.serializers.CollectionSerializer;
-import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.junit.Test;
-
-import java.nio.ByteBuffer;
-import java.util.*;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 public class MultiColumnRelationTest extends CQLTester
 {
@@ -410,6 +391,11 @@ public class MultiColumnRelationTest extends CQLTester
             row(0, 0, 1, 1)
         );
 
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c) IN ((?, ?)) ORDER BY b DESC, c DESC, d DESC", 0, 0, 1),
+            row(0, 0, 1, 1),
+            row(0, 0, 1, 0)
+        );
+
         // IN on both partition key and clustering key
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 0, 0, 0);
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 0, 1, 0);
@@ -495,6 +481,42 @@ public class MultiColumnRelationTest extends CQLTester
             row(0, 1, 0, 0),
             row(0, 1, 1, 1),
             row(0, 1, 1, 0),
+            row(0, 0, 0, 0),
+            row(0, 0, 1, 1),
+            row(0, 0, 1, 0)
+        );
+
+        assertRows(execute("SELECT * FROM %s WHERE a=? AND (b, c, d) IN ((?, ?, ?), (?, ?, ?))", 0, 1, 1, 1, 0, 1, 1),
+            row(0, 1, 1, 1),
+            row(0, 0, 1, 1)
+        );
+
+        // same query, but reversed order for the IN values
+        assertRows(execute("SELECT * FROM %s WHERE a=? AND (b, c, d) IN ((?, ?, ?), (?, ?, ?))", 0, 0, 1, 1, 1, 1, 1),
+           row(0, 1, 1, 1),
+           row(0, 0, 1, 1)
+        );
+
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c, d) IN (?, ?, ?, ?, ?, ?)",
+                           0, tuple(1, 0, 0), tuple(1, 1, 1), tuple(1, 1, 0), tuple(0, 0, 0), tuple(0, 1, 1), tuple(0, 1, 0)),
+            row(0, 1, 0, 0),
+            row(0, 1, 1, 1),
+            row(0, 1, 1, 0),
+            row(0, 0, 0, 0),
+            row(0, 0, 1, 1),
+            row(0, 0, 1, 0)
+        );
+
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c) IN (?)", 0, tuple(0, 1)),
+            row(0, 0, 1, 1),
+            row(0, 0, 1, 0)
+        );
+
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c) IN (?)", 0, tuple(0, 0)),
+            row(0, 0, 0, 0)
+        );
+
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b) IN ((?))", 0, 0),
             row(0, 0, 0, 0),
             row(0, 0, 1, 1),
             row(0, 0, 1, 0)
