@@ -24,6 +24,7 @@
  * raise streaming phi convict threshold level (CASSANDRA-7063)
  * reduce garbage creation in calculatePendingRanges (CASSANDRA-7191)
  * exit CQLSH with error status code if script fails (CASSANDRA-6344)
+ * Fix bug with some IN queries missig results (CASSANDRA-7105)
 
 
 1.2.16
