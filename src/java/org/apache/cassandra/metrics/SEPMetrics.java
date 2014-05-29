@@ -17,43 +17,39 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.concurrent.ThreadPoolExecutor;
-
 import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.*;
+import com.yammer.metrics.core.Gauge;
+import org.apache.cassandra.concurrent.SEPExecutor;
 
-/**
- * Metrics for {@link ThreadPoolExecutor}.
- */
-public class ThreadPoolMetrics
+public class SEPMetrics
 {
     /** Number of active tasks. */
     public final Gauge<Integer> activeTasks;
     /** Number of tasks that had blocked before being accepted (or rejected). */
-    public final Counter totalBlocked;
+    public final Gauge<Integer> totalBlocked;
     /**
      * Number of tasks currently blocked, waiting to be accepted by
      * the executor (because all threads are busy and the backing queue is full).
      */
-    public final Counter currentBlocked;
+    public final Gauge<Long> currentBlocked;
     /** Number of completed tasks. */
     public final Gauge<Long> completedTasks;
+
     /** Number of tasks waiting to be executed. */
     public final Gauge<Long> pendingTasks;
 
     private MetricNameFactory factory;
 
     /**
-     * Create metrics for given ThreadPoolExecutor.
+     * Create metrics for the given LowSignalExecutor.
      *
      * @param executor Thread pool
      * @param path Type of thread pool
      * @param poolName Name of thread pool to identify metrics
      */
-    public ThreadPoolMetrics(final ThreadPoolExecutor executor, String path, String poolName)
+    public SEPMetrics(final SEPExecutor executor, String path, String poolName)
     {
         this.factory = new ThreadPoolMetricNameFactory("ThreadPools", path, poolName);
-
         activeTasks = Metrics.newGauge(factory.createMetricName("ActiveTasks"), new Gauge<Integer>()
         {
             public Integer value()
@@ -61,20 +57,32 @@ public class ThreadPoolMetrics
                 return executor.getActiveCount();
             }
         });
-        totalBlocked = Metrics.newCounter(factory.createMetricName("TotalBlockedTasks"));
-        currentBlocked = Metrics.newCounter(factory.createMetricName("CurrentlyBlockedTasks"));
-        completedTasks = Metrics.newGauge(factory.createMetricName("CompletedTasks"), new Gauge<Long>()
-        {
-            public Long value()
-            {
-                return executor.getCompletedTaskCount();
-            }
-        });
         pendingTasks = Metrics.newGauge(factory.createMetricName("PendingTasks"), new Gauge<Long>()
         {
             public Long value()
             {
-                return executor.getTaskCount() - executor.getCompletedTaskCount();
+                return executor.getPendingTasks();
+            }
+        });
+        totalBlocked = Metrics.newGauge(factory.createMetricName("TotalBlockedTasks"), new Gauge<Integer>()
+        {
+            public Integer value()
+            {
+                return executor.getTotalBlockedTasks();
+            }
+        });
+        currentBlocked = Metrics.newGauge(factory.createMetricName("CurrentlyBlockedTasks"), new Gauge<Long>()
+        {
+            public Long value()
+            {
+                return (long) executor.getCurrentlyBlockedTasks();
+            }
+        });
+        completedTasks = Metrics.newGauge(factory.createMetricName("CompletedTasks"), new Gauge<Long>()
+        {
+            public Long value()
+            {
+                return executor.getCompletedTasks();
             }
         });
     }

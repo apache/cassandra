@@ -15,10 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.utils;
+package org.apache.cassandra.utils.concurrent;
 
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Condition;
 
 // fulfils the Condition interface without spurious wakeup problems
@@ -26,29 +27,40 @@ import java.util.concurrent.locks.Condition;
 // _after_ signal(), it will work as desired.)
 public class SimpleCondition implements Condition
 {
-    private boolean set;
+    private static final AtomicReferenceFieldUpdater<SimpleCondition, WaitQueue> waitingUpdater = AtomicReferenceFieldUpdater.newUpdater(SimpleCondition.class, WaitQueue.class, "waiting");
 
-    public synchronized void await() throws InterruptedException
+    private volatile WaitQueue waiting;
+    private volatile boolean signaled = false;
+
+    public void await() throws InterruptedException
     {
-        while (!set)
-            wait();
+        if (isSignaled())
+            return;
+        if (waiting == null)
+            waitingUpdater.compareAndSet(this, null, new WaitQueue());
+        WaitQueue.Signal s = waiting.register();
+        if (isSignaled())
+            s.cancel();
+        else
+            s.await();
+        assert isSignaled();
     }
 
-    public synchronized void reset()
+    public boolean await(long time, TimeUnit unit) throws InterruptedException
     {
-        set = false;
-    }
-
-    public synchronized boolean await(long time, TimeUnit unit) throws InterruptedException
-    {
+        if (isSignaled())
+            return true;
         long start = System.nanoTime();
-        long timeout = unit.toNanos(time);
-        long elapsed;
-        while (!set && (elapsed = System.nanoTime() - start) < timeout)
+        long until = start + unit.toNanos(time);
+        if (waiting == null)
+            waitingUpdater.compareAndSet(this, null, new WaitQueue());
+        WaitQueue.Signal s = waiting.register();
+        if (isSignaled())
         {
-            TimeUnit.NANOSECONDS.timedWait(this, timeout - elapsed);
+            s.cancel();
+            return true;
         }
-        return set;
+        return s.awaitUntil(until) || isSignaled();
     }
 
     public void signal()
@@ -56,15 +68,16 @@ public class SimpleCondition implements Condition
         throw new UnsupportedOperationException();
     }
 
-    public synchronized void signalAll()
+    public boolean isSignaled()
     {
-        set = true;
-        notifyAll();
+        return signaled;
     }
 
-    public synchronized boolean isSignaled()
+    public void signalAll()
     {
-        return set;
+        signaled = true;
+        if (waiting != null)
+            waiting.signalAll();
     }
 
     public void awaitUninterruptibly()

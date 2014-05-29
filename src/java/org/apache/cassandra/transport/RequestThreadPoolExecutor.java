@@ -18,29 +18,24 @@
 package org.apache.cassandra.transport;
 
 import java.util.List;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import io.netty.util.concurrent.AbstractEventExecutor;
 import io.netty.util.concurrent.EventExecutorGroup;
 import io.netty.util.concurrent.Future;
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.TracingAwareExecutorService;
 import org.apache.cassandra.config.DatabaseDescriptor;
+
+import static org.apache.cassandra.concurrent.JMXEnabledSharedExecutorPool.SHARED;
 
 public class RequestThreadPoolExecutor extends AbstractEventExecutor
 {
-
-    private final static int CORE_THREAD_TIMEOUT_SEC = 30;
-    // Number of request we accept to queue before blocking. We could allow this to be configured...
     private final static int MAX_QUEUED_REQUESTS = 128;
-
     private final static String THREAD_FACTORY_ID = "Native-Transport-Requests";
-    private final JMXEnabledThreadPoolExecutor wrapped = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getNativeTransportMaxThreads(),
-                                                                                          CORE_THREAD_TIMEOUT_SEC, TimeUnit.SECONDS,
-                                                                                          new LinkedBlockingQueue<Runnable>(MAX_QUEUED_REQUESTS),
-                                                                                          new NamedThreadFactory(THREAD_FACTORY_ID),
-                                                                                          "transport");
+    private final TracingAwareExecutorService wrapped = SHARED.newExecutor(DatabaseDescriptor.getNativeTransportMaxThreads(),
+                                                                           MAX_QUEUED_REQUESTS,
+                                                                           THREAD_FACTORY_ID,
+                                                                           "transport");
 
     public boolean isShuttingDown()
     {

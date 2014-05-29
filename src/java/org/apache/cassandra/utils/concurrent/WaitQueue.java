@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.locks.LockSupport;
 
@@ -73,8 +74,6 @@ import java.util.concurrent.locks.LockSupport;
 public final class WaitQueue
 {
 
-    private static final Logger logger = LoggerFactory.getLogger(WaitQueue.class);
-
     private static final int CANCELLED = -1;
     private static final int SIGNALLED = 1;
     private static final int NOT_SET = 0;
@@ -82,11 +81,11 @@ public final class WaitQueue
     private static final AtomicIntegerFieldUpdater signalledUpdater = AtomicIntegerFieldUpdater.newUpdater(RegisteredSignal.class, "state");
 
     // the waiting signals
-    private final ConcurrentLinkedDeque<RegisteredSignal> queue = new ConcurrentLinkedDeque<>();
+    private final ConcurrentLinkedQueue<RegisteredSignal> queue = new ConcurrentLinkedQueue<>();
 
     /**
      * The calling thread MUST be the thread that uses the signal
-     * @return
+     * @return                                x
      */
     public Signal register()
     {
@@ -119,7 +118,7 @@ public final class WaitQueue
         while (true)
         {
             RegisteredSignal s = queue.poll();
-            if (s == null || s.signal())
+            if (s == null || s.signal() != null)
                 return s != null;
         }
     }
@@ -129,42 +128,40 @@ public final class WaitQueue
      */
     public void signalAll()
     {
-        RegisteredSignal last = queue.peekLast();
-        if (last == null)
+        if (!hasWaiters())
             return;
-        List<Thread> woke = null;
-        if (logger.isTraceEnabled())
-            woke = new ArrayList<>();
-        long start = System.nanoTime();
-        // we wake up only a snapshot of the queue, to avoid a race where the condition is not met and the woken thread
-        // immediately waits on the queue again
+
+        // to avoid a race where the condition is not met and the woken thread managed to wait on the queue before
+        // we finish signalling it all, we pick a random thread we have woken-up and hold onto it, so that if we encounter
+        // it again we know we're looping. We reselect a random thread periodically, progressively less often.
+        // the "correct" solution to this problem is to use a queue that permits snapshot iteration, but this solution is sufficient
+        int i = 0, s = 5;
+        Thread randomThread = null;
         Iterator<RegisteredSignal> iter = queue.iterator();
         while (iter.hasNext())
         {
             RegisteredSignal signal = iter.next();
-            if (logger.isTraceEnabled())
+            Thread signalled = signal.signal();
+
+            if (signalled != null)
             {
-                Thread thread = signal.thread;
-                if (signal.signal())
-                    woke.add(thread);
+                if (signalled == randomThread)
+                    break;
+
+                if (++i == s)
+                {
+                    randomThread = signalled;
+                    s <<= 1;
+                }
             }
-            else
-                signal.signal();
 
             iter.remove();
-
-            if (signal == last)
-                break;
         }
-        long end = System.nanoTime();
-        if (woke != null)
-            logger.trace("Woke up {} in {}ms from {}", woke, (end - start) * 0.000001d, Thread.currentThread().getStackTrace()[2]);
     }
 
     private void cleanUpCancelled()
     {
-        // attempt to remove the cancelled from the beginning only, but if we fail to remove any proceed to cover
-        // the whole list
+        // TODO: attempt to remove the cancelled from the beginning only (need atomic cas of head)
         Iterator<RegisteredSignal> iter = queue.iterator();
         while (iter.hasNext())
         {
@@ -185,7 +182,7 @@ public final class WaitQueue
      */
     public int getWaiting()
     {
-        if (queue.isEmpty())
+        if (!hasWaiters())
             return 0;
         Iterator<RegisteredSignal> iter = queue.iterator();
         int count = 0;
@@ -264,11 +261,11 @@ public final class WaitQueue
          * isSignalled() will be true on exit, and the method will return true; if timedout, the method will return
          * false and isCancelled() will be true; if interrupted an InterruptedException will be thrown and isCancelled()
          * will be true.
-         * @param until System.currentTimeMillis() to wait until
+         * @param nanos System.nanoTime() to wait until
          * @return true if signalled, false if timed out
          * @throws InterruptedException
          */
-        public boolean awaitUntil(long until) throws InterruptedException;
+        public boolean awaitUntil(long nanos) throws InterruptedException;
     }
 
     /**
@@ -302,10 +299,12 @@ public final class WaitQueue
 
         public boolean awaitUntil(long until) throws InterruptedException
         {
-            while (until < System.currentTimeMillis() && !isSignalled())
+            long now;
+            while (until > (now = System.nanoTime()) && !isSignalled())
             {
                 checkInterrupted();
-                LockSupport.parkUntil(until);
+                long delta = until - now;
+                LockSupport.parkNanos(delta);
             }
             return checkAndClear();
         }
@@ -343,15 +342,16 @@ public final class WaitQueue
             return state != NOT_SET;
         }
 
-        private boolean signal()
+        private Thread signal()
         {
             if (!isSet() && signalledUpdater.compareAndSet(this, NOT_SET, SIGNALLED))
             {
+                Thread thread = this.thread;
                 LockSupport.unpark(thread);
-                thread = null;
-                return true;
+                this.thread = null;
+                return thread;
             }
-            return false;
+            return null;
         }
 
         public boolean checkAndClear()
