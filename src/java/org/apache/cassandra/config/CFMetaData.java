@@ -75,8 +75,8 @@ public final class CFMetaData
 
     private static final Logger logger = LoggerFactory.getLogger(CFMetaData.class);
 
-    public final static double DEFAULT_READ_REPAIR_CHANCE = 0.1;
-    public final static double DEFAULT_DCLOCAL_READ_REPAIR_CHANCE = 0.0;
+    public final static double DEFAULT_READ_REPAIR_CHANCE = 0.0;
+    public final static double DEFAULT_DCLOCAL_READ_REPAIR_CHANCE = 0.1;
     public final static boolean DEFAULT_REPLICATE_ON_WRITE = true;
     public final static int DEFAULT_GC_GRACE_SECONDS = 864000;
     public final static int DEFAULT_MIN_COMPACTION_THRESHOLD = 4;

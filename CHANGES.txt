@@ -1,5 +1,6 @@
 2.0.9
- * Add missing iso8601 patterns for date strings (6973)
+ * Swap local and global default read repair chances (CASSANDRA-7320)
+ * Add missing iso8601 patterns for date strings (CASSANDRA-6973)
  * Support selecting multiple rows in a partition using IN (CASSANDRA-6875)
  * cqlsh: always emphasize the partition key in DESC output (CASSANDRA-7274)
  * Copy compaction options to make sure they are reloaded (CASSANDRA-7290)
