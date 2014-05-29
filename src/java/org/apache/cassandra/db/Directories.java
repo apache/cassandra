@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db;
 
+import static com.google.common.collect.Sets.newHashSet;
+
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOError;
@@ -39,25 +41,19 @@ import com.google.common.collect.ImmutableSet.Builder;
 import com.google.common.collect.Iterables;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
-
-import static com.google.common.collect.Sets.newHashSet;
 
 /**
  * Encapsulate handling of paths to the data files.
@@ -92,14 +88,12 @@ public class Directories
     public static final String SECONDARY_INDEX_NAME_SEPARATOR = ".";
 
     public static final DataDirectory[] dataDirectories;
-    public static final DataDirectory flushDirectory;
     static
     {
         String[] locations = DatabaseDescriptor.getAllDataFileLocations();
         dataDirectories = new DataDirectory[locations.length];
         for (int i = 0; i < locations.length; ++i)
             dataDirectories[i] = new DataDirectory(new File(locations[i]));
-        flushDirectory = new DataDirectory(new File(DatabaseDescriptor.getFlushLocation()));
     }
 
 
@@ -178,7 +172,6 @@ public class Directories
 
     private final CFMetaData metadata;
     private final File[] dataPaths;
-    private final File flushPath;
 
     /**
      * Create Directories of given ColumnFamily.
@@ -192,7 +185,6 @@ public class Directories
         if (StorageService.instance.isClientMode())
         {
             dataPaths = null;
-            flushPath = null;
             return;
         }
 
@@ -222,9 +214,7 @@ public class Directories
                 dataPaths[i] = new File(dataDirectories[i].location, join(metadata.ksName, directoryName));
         }
 
-        flushPath = new File(flushDirectory.location, join(metadata.ksName, directoryName));
-
-        for (File dir : allSSTablePaths())
+        for (File dir : dataPaths)
         {
             try
             {
@@ -240,26 +230,6 @@ public class Directories
     }
 
     /**
-     * @return an iterable of all possible sstable paths, including flush and post-compaction locations.
-     * Guaranteed to only return one copy of each path, even if there is no dedicated flush location and
-     * it shares with the others.
-     */
-    private Iterable<File> allSSTablePaths()
-    {
-        return ImmutableSet.<File>builder().add(dataPaths).add(flushPath).build();
-    }
-
-    /**
-     * @return an iterable of all possible sstable directories, including flush and post-compaction locations.
-     * Guaranteed to only return one copy of each directories, even if there is no dedicated flush location and
-     * it shares with the others.
-     */
-    private static Iterable<DataDirectory> allSSTableDirectories()
-    {
-        return ImmutableSet.<DataDirectory>builder().add(dataDirectories).add(flushDirectory).build();
-    }
-
-    /**
      * Returns SSTable location which is inside given data directory.
      *
      * @param dataDirectory
@@ -267,7 +237,7 @@ public class Directories
      */
     public File getLocationForDisk(DataDirectory dataDirectory)
     {
-        for (File dir : allSSTablePaths())
+        for (File dir : dataPaths)
         {
             if (dir.getAbsolutePath().startsWith(dataDirectory.location.getAbsolutePath()))
                 return dir;
@@ -277,7 +247,7 @@ public class Directories
 
     public Descriptor find(String filename)
     {
-        for (File dir : allSSTablePaths())
+        for (File dir : dataPaths)
         {
             if (new File(dir, filename).exists())
                 return Descriptor.fromFilename(dir, filename).left;
@@ -285,9 +255,9 @@ public class Directories
         return null;
     }
 
-    public File getDirectoryForCompactedSSTables()
+    public File getDirectoryForNewSSTables()
     {
-        File path = getCompactionLocationAsFile();
+        File path = getWriteableLocationAsFile();
 
         // Requesting GC has a chance to free space only if we're using mmap and a non SUN jvm
         if (path == null
@@ -300,15 +270,15 @@ public class Directories
             // Note: GCInspector will do this already, but only sun JVM supports GCInspector so far
             SSTableDeletingTask.rescheduleFailedTasks();
             Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
-            path = getCompactionLocationAsFile();
+            path = getWriteableLocationAsFile();
         }
 
         return path;
     }
 
-    public File getCompactionLocationAsFile()
+    public File getWriteableLocationAsFile()
     {
-        return getLocationForDisk(getCompactionLocation());
+        return getLocationForDisk(getWriteableLocation());
     }
 
     /**
@@ -316,7 +286,7 @@ public class Directories
      *
      * @throws IOError if all directories are blacklisted.
      */
-    public DataDirectory getCompactionLocation()
+    public DataDirectory getWriteableLocation()
     {
         List<DataDirectory> candidates = new ArrayList<>();
 
@@ -346,13 +316,6 @@ public class Directories
         return candidates.get(0);
     }
 
-    public DataDirectory getFlushLocation()
-    {
-        return BlacklistedDirectories.isUnwritable(flushPath)
-               ? getCompactionLocation()
-               : flushDirectory;
-    }
-
     public static File getSnapshotDirectory(Descriptor desc, String snapshotName)
     {
         return getOrCreate(desc.directory, SNAPSHOT_SUBDIR, snapshotName);
@@ -360,7 +323,7 @@ public class Directories
 
     public File getSnapshotManifestFile(String snapshotName)
     {
-         return new File(getDirectoryForCompactedSSTables(), join(SNAPSHOT_SUBDIR, snapshotName, "manifest.json"));
+         return new File(getDirectoryForNewSSTables(), join(SNAPSHOT_SUBDIR, snapshotName, "manifest.json"));
     }
 
     public static File getBackupsDirectory(Descriptor desc)
@@ -469,7 +432,7 @@ public class Directories
             if (filtered)
                 return;
 
-            for (File location : allSSTablePaths())
+            for (File location : dataPaths)
             {
                 if (BlacklistedDirectories.isUnreadable(location))
                     continue;
@@ -531,7 +494,7 @@ public class Directories
     public Map<String, Pair<Long, Long>> getSnapshotDetails()
     {
         final Map<String, Pair<Long, Long>> snapshotSpaceMap = new HashMap<>();
-        for (final File dir : allSSTablePaths())
+        for (final File dir : dataPaths)
         {
             final File snapshotDir = new File(dir,SNAPSHOT_SUBDIR);
             if (snapshotDir.exists() && snapshotDir.isDirectory())
@@ -561,7 +524,7 @@ public class Directories
     }
     public boolean snapshotExists(String snapshotName)
     {
-        for (File dir : allSSTablePaths())
+        for (File dir : dataPaths)
         {
             File snapshotDir = new File(dir, join(SNAPSHOT_SUBDIR, snapshotName));
             if (snapshotDir.exists())
@@ -589,7 +552,7 @@ public class Directories
     // The snapshot must exist
     public long snapshotCreationTime(String snapshotName)
     {
-        for (File dir : allSSTablePaths())
+        for (File dir : dataPaths)
         {
             File snapshotDir = new File(dir, join(SNAPSHOT_SUBDIR, snapshotName));
             if (snapshotDir.exists())
@@ -601,7 +564,7 @@ public class Directories
     public long trueSnapshotsSize()
     {
         long result = 0L;
-        for (File dir : allSSTablePaths())
+        for (File dir : dataPaths)
             result += getTrueAllocatedSizeIn(new File(dir, join(SNAPSHOT_SUBDIR)));
         return result;
     }
@@ -633,7 +596,7 @@ public class Directories
     public static List<File> getKSChildDirectories(String ksName)
     {
         List<File> result = new ArrayList<>();
-        for (DataDirectory dataDirectory : allSSTableDirectories())
+        for (DataDirectory dataDirectory : dataDirectories)
         {
             File ksDir = new File(dataDirectory.location, ksName);
             File[] cfDirs = ksDir.listFiles();
@@ -651,7 +614,7 @@ public class Directories
     public List<File> getCFDirectories()
     {
         List<File> result = new ArrayList<>();
-        for (File dataDirectory : allSSTablePaths())
+        for (File dataDirectory : dataPaths)
         {
             if (dataDirectory.isDirectory())
                 result.add(dataDirectory);

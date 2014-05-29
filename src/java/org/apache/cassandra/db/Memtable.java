@@ -302,11 +302,6 @@ public class Memtable
                                     * 1.2); // bloom filter and row index overhead
         }
 
-        protected Directories.DataDirectory getWriteableLocation()
-        {
-            return cfs.directories.getFlushLocation();
-        }
-
         public long getExpectedWriteSize()
         {
             return estimatedSize;

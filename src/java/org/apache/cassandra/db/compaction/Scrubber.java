@@ -80,7 +80,7 @@ public class Scrubber implements Closeable
         this.isOffline = isOffline;
 
         // Calculate the expected compacted filesize
-        this.destination = cfs.directories.getDirectoryForCompactedSSTables();
+        this.destination = cfs.directories.getDirectoryForNewSSTables();
         if (destination == null)
             throw new IOException("disk full");
 

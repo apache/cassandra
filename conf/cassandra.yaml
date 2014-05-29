@@ -100,12 +100,6 @@ data_file_directories:
 # separate spindle than the data directories.
 commitlog_directory: /var/lib/cassandra/commitlog
 
-# location to write flushing sstables to.  Ideally, this will also be
-# a separate spindle in HDD deployments.  If you only have two spindles,
-# have it share with the data spindle.  By default, this will point at the data
-# directory.
-# flush_directory: /var/lib/cassandra/flush
-
 # policy for data disk failures:
 # stop_paranoid: shut down gossip and Thrift even for single-sstable errors.
 # stop: shut down gossip and Thrift, leaving the node effectively dead, but
@@ -299,8 +293,8 @@ memtable_allocation_type: heap_buffers
 # This sets the amount of memtable flush writer threads.  These will
 # be blocked by disk io, and each one will hold a memtable in memory
 # while blocked. If your flush directory is backed by SSD, you may
-# want to increase this; by default it will be set to 2.
-#memtable_flush_writers: 2
+# want to increase this.
+memtable_flush_writers: 2
 
 # A fixed memory pool size in MB for for SSTable index summaries. If left
 # empty, this will default to 5% of the heap size. If the memory usage of
