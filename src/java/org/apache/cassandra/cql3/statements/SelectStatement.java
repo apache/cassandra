@@ -845,7 +845,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                             throw new InvalidRequestException(String.format("Invalid null clustering key part %s", def.name));
                         Composite prefix = builder.buildWith(val);
                         // See below for why this
-                        s.add((b == Bound.END && builder.remainingCount() > 0) ? prefix.end() : prefix);
+                        s.add((eocBound == Bound.END && builder.remainingCount() > 0) ? prefix.end() : prefix);
                     }
                     return new ArrayList<>(s);
                 }
@@ -863,7 +863,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         // case using the eoc would be bad, since for the random partitioner we have no guarantee that
         // prefix.end() will sort after prefix (see #5240).
         Composite prefix = builder.build();
-        return Collections.singletonList(bound == Bound.END && builder.remainingCount() > 0 ? prefix.end() : prefix);
+        return Collections.singletonList(eocBound == Bound.END && builder.remainingCount() > 0 ? prefix.end() : prefix);
     }
 
     private static Composite.EOC eocForRelation(Relation.Type op)
