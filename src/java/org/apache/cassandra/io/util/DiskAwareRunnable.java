@@ -34,7 +34,7 @@ public abstract class DiskAwareRunnable extends WrappedRunnable
         while (true)
         {
             writeSize = getExpectedWriteSize();
-            directory = getWriteableLocation();
+            directory = getDirectories().getWriteableLocation();
             if (directory != null || !reduceScopeForLimitedSpace())
                 break;
         }
@@ -53,8 +53,6 @@ public abstract class DiskAwareRunnable extends WrappedRunnable
             directory.currentTasks.decrementAndGet();
         }
     }
-
-    protected abstract Directories.DataDirectory getWriteableLocation();
 
     /**
      * Get sstable directories for the CF.

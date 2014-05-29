@@ -30,7 +30,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import com.google.common.collect.Lists;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -125,7 +124,7 @@ public class DirectoriesTest
         for (CFMetaData cfm : CFM)
         {
             Directories directories = new Directories(cfm);
-            assertEquals(cfDir(cfm), directories.getDirectoryForCompactedSSTables());
+            assertEquals(cfDir(cfm), directories.getDirectoryForNewSSTables());
 
             Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.cfName, 1, Descriptor.Type.FINAL);
             File snapshotDir = new File(cfDir(cfm),  File.separator + Directories.SNAPSHOT_SUBDIR + File.separator + "42");
@@ -187,13 +186,12 @@ public class DirectoriesTest
     public void testDiskFailurePolicy_best_effort()
     {
         DiskFailurePolicy origPolicy = DatabaseDescriptor.getDiskFailurePolicy();
-
-        List<DataDirectory> directories = Lists.asList(Directories.flushDirectory, Directories.dataDirectories);
-        try
+        
+        try 
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.best_effort);
-
-            for (DataDirectory dd : directories)
+            
+            for (DataDirectory dd : Directories.dataDirectories)
             {
                 dd.location.setExecutable(false);
                 dd.location.setWritable(false);
@@ -210,7 +208,7 @@ public class DirectoriesTest
         } 
         finally 
         {
-            for (DataDirectory dd : directories)
+            for (DataDirectory dd : Directories.dataDirectories)
             {
                 dd.location.setExecutable(true);
                 dd.location.setWritable(true);
@@ -226,7 +224,7 @@ public class DirectoriesTest
         for (final CFMetaData cfm : CFM)
         {
             final Directories directories = new Directories(cfm);
-            assertEquals(cfDir(cfm), directories.getDirectoryForCompactedSSTables());
+            assertEquals(cfDir(cfm), directories.getDirectoryForNewSSTables());
             final String n = Long.toString(System.nanoTime());
             Callable<File> directoryGetter = new Callable<File>() {
                 public File call() throws Exception {
