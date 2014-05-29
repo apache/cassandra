@@ -335,7 +335,7 @@ public abstract class Message
             }
             void start()
             {
-                if (running.compareAndSet(false, true))
+                if (!running.get() && running.compareAndSet(false, true))
                 {
                     this.eventLoop.execute(this);
                 }

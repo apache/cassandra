@@ -780,6 +780,7 @@ public class StorageProxy implements StorageProxyMBean
         // only need to create a Message for non-local writes
         MessageOut<Mutation> message = null;
 
+        boolean insertLocal = false;
         for (InetAddress destination : targets)
         {
             // avoid OOMing due to excess hints.  we need to do this check even for "live" nodes, since we can
@@ -797,7 +798,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (destination.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
                 {
-                    insertLocal(mutation, responseHandler);
+                    insertLocal = true;
                 }
                 else
                 {
@@ -834,6 +835,9 @@ public class StorageProxy implements StorageProxyMBean
                 submitHint(mutation, destination, responseHandler);
             }
         }
+
+        if (insertLocal)
+            insertLocal(mutation, responseHandler);
 
         if (dcGroups != null)
         {
@@ -944,7 +948,7 @@ public class StorageProxy implements StorageProxyMBean
 
     private static void insertLocal(final Mutation mutation, final AbstractWriteResponseHandler responseHandler)
     {
-        StageManager.getStage(Stage.MUTATION).execute(new LocalMutationRunnable()
+        StageManager.getStage(Stage.MUTATION).maybeExecuteImmediately(new LocalMutationRunnable()
         {
             public void runMayThrow()
             {

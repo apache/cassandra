@@ -138,6 +138,11 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
                       : new TraceSessionWrapper<Object>(command, state));
     }
 
+    public void maybeExecuteImmediately(Runnable command)
+    {
+        execute(command);
+    }
+
     // execute does not call newTaskFor
     @Override
     public void execute(Runnable command)
