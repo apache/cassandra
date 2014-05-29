@@ -48,10 +48,10 @@ Table of Contents
 
   The CQL binary protocol is a frame based protocol. Frames are defined as:
 
-      0         8        16        24        32
-      +---------+---------+---------+---------+
-      | version |  flags  | stream  | opcode  |
-      +---------+---------+---------+---------+
+      0         8        16        24        32         40
+      +---------+---------+---------+---------+---------+
+      | version |  flags  |      stream       | opcode  |
+      +---------+---------+---------+---------+---------+
       |                length                 |
       +---------+---------+---------+---------+
       |                                       |
@@ -62,7 +62,7 @@ Table of Contents
 
   The protocol is big-endian (network byte order).
 
-  Each frame contains a fixed size header (8 bytes) followed by a variable size
+  Each frame contains a fixed size header (9 bytes) followed by a variable size
   body. The header is described in Section 2. The content of the body depends
   on the header opcode value (the body can in particular be empty for some
   opcode values). The list of allowed opcode is defined Section 2.3 and the
@@ -129,8 +129,8 @@ Table of Contents
 
 2.3. stream
 
-  A frame has a stream id (one signed byte). When sending request messages, this
-  stream id must be set by the client to a positive byte (negative stream id
+  A frame has a stream id (a [short] value). When sending request messages, this
+  stream id must be set by the client to a non-negative value (negative stream id
   are reserved for streams initiated by the server; currently all EVENT messages
   (section 4.2.6) have a streamId of -1). If a client sends a request message
   with the stream id X, it is guaranteed that the stream id of the response to
@@ -142,13 +142,13 @@ Table of Contents
   writes REQ_1, REQ_2, REQ_3 on the wire (in that order), the server might
   respond to REQ_3 (or REQ_2) first. Assigning different stream id to these 3
   requests allows the client to distinguish to which request an received answer
-  respond to. As there can only be 128 different simultaneous stream, it is up
+  respond to. As there can only be 32768 different simultaneous streams, it is up
   to the client to reuse stream id.
 
   Note that clients are free to use the protocol synchronously (i.e. wait for
   the response to REQ_N before sending REQ_N+1). In that case, the stream id
   can be safely set to 0. Clients should also feel free to use only a subset of
-  the 128 maximum possible stream ids if it is simpler for those
+  the 32768 maximum possible stream ids if it is simpler for those
   implementation.
 
 2.4. opcode
@@ -902,6 +902,7 @@ Table of Contents
               bytes] representing the unknown ID.
 
 10. Changes from v2
+  * stream id is now 2 bytes long (a [short] value), so the header is now 1 byte longer (9 bytes total).
   * BATCH messages now have <flags> (like QUERY and EXECUTE) and a corresponding optional
     <serial_consistency> parameters (see Section 4.1.7).
   * User Defined Types and tuple types have to added to ResultSet metadata (see 4.2.5.2) and a

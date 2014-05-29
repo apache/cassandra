@@ -1,4 +1,3 @@
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -39,8 +38,19 @@ public class Frame
     public final ByteBuf body;
 
     /**
-     * On-wire frame.
-     * Frames are defined as:
+     * An on-wire frame consists of a header and a body.
+     *
+     * The header is defined the following way in native protocol version 3 and later:
+     *
+     *   0         8        16        24        32         40
+     *   +---------+---------+---------+---------+---------+
+     *   | version |  flags  |      stream       | opcode  |
+     *   +---------+---------+---------+---------+---------+
+     *   |                length                 |
+     *   +---------+---------+---------+---------+
+     *
+     *
+     * In versions 1 and 2 the header has a smaller (1 byte) stream id, and is thus defined the following way:
      *
      *   0         8        16        24        32
      *   +---------+---------+---------+---------+
@@ -68,9 +78,10 @@ public class Frame
 
     public static class Header
     {
-        public static final int LENGTH = 8;
+        // 8 bytes in protocol versions 1 and 2, 8 bytes in protocol version 3 and later
+        public static final int MODERN_LENGTH = 9;
+        public static final int LEGACY_LENGTH = 8;
 
-        public static final int BODY_LENGTH_OFFSET = 4;
         public static final int BODY_LENGTH_SIZE = 4;
 
         public final int version;
@@ -153,34 +164,52 @@ public class Frame
                 return;
             }
 
-            // Wait until we have read at least the header
-            if (buffer.readableBytes() < Header.LENGTH)
+            // Wait until we have read at least the short header
+            if (buffer.readableBytes() < Header.LEGACY_LENGTH)
                 return;
 
             int idx = buffer.readerIndex();
 
-            int firstByte = buffer.getByte(idx);
+            int firstByte = buffer.getByte(idx++);
             Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
             int version = firstByte & 0x7F;
 
             if (version > Server.CURRENT_VERSION)
                 throw new ProtocolException("Invalid or unsupported protocol version: " + version);
 
-            int flags = buffer.getByte(idx + 1);
-            int streamId = buffer.getByte(idx + 2);
+            // Wait until we have the complete V3+ header
+            if (version >= Server.VERSION_3 && buffer.readableBytes() < Header.MODERN_LENGTH)
+                return;
+
+            int flags = buffer.getByte(idx++);
+
+            int streamId, headerLength;
+            if (version >= Server.VERSION_3)
+            {
+                streamId = buffer.getShort(idx);
+                idx += 2;
+                headerLength = Header.MODERN_LENGTH;
+            }
+            else
+            {
+                streamId = buffer.getByte(idx);
+                idx++;
+                headerLength = Header.LEGACY_LENGTH;
+            }
 
             // This throws a protocol exceptions if the opcode is unknown
-            Message.Type type = Message.Type.fromOpcode(buffer.getByte(idx + 3), direction);
+            Message.Type type = Message.Type.fromOpcode(buffer.getByte(idx++), direction);
 
-            long bodyLength = buffer.getUnsignedInt(idx + Header.BODY_LENGTH_OFFSET);
+            long bodyLength = buffer.getUnsignedInt(idx);
+            idx += Header.BODY_LENGTH_SIZE;
 
             if (bodyLength < 0)
             {
-                buffer.skipBytes(Header.LENGTH);
+                buffer.skipBytes(headerLength);
                 throw new ProtocolException("Invalid frame body length: " + bodyLength);
             }
 
-            long frameLength = bodyLength + Header.LENGTH;
+            long frameLength = bodyLength + headerLength;
             if (frameLength > MAX_FRAME_LENGTH)
             {
                 // Enter the discard mode and discard everything received so far.
@@ -193,14 +222,13 @@ public class Frame
                 return;
             }
 
-            // never overflows because it's less than the max frame length
-            int frameLengthInt = (int) frameLength;
-            if (buffer.readableBytes() < frameLengthInt)
+            if (buffer.readableBytes() < frameLength)
                 return;
 
             // extract body
-            ByteBuf body = CBUtil.allocator.buffer((int) bodyLength).writeBytes(buffer.duplicate().slice(idx + Header.LENGTH, (int) bodyLength));
-            buffer.readerIndex(idx + frameLengthInt);
+            ByteBuf body = CBUtil.allocator.buffer((int) bodyLength).writeBytes(buffer.duplicate().slice(idx, (int) bodyLength));
+            idx += bodyLength;
+            buffer.readerIndex(idx);
 
             Connection connection = ctx.channel().attr(Connection.attributeKey).get();
             if (connection == null)
@@ -239,14 +267,23 @@ public class Frame
     @ChannelHandler.Sharable
     public static class Encoder extends MessageToMessageEncoder<Frame>
     {
-        public void encode(ChannelHandlerContext ctx, Frame frame, List results)
+        public void encode(ChannelHandlerContext ctx, Frame frame, List<Object> results)
         throws IOException
         {
-            ByteBuf header = CBUtil.allocator.buffer(Frame.Header.LENGTH);
+            int headerLength = frame.header.version >= Server.VERSION_3
+                             ? Header.MODERN_LENGTH
+                             : Header.LEGACY_LENGTH;
+            ByteBuf header = CBUtil.allocator.buffer(headerLength);
+
             Message.Type type = frame.header.type;
             header.writeByte(type.direction.addToVersion(frame.header.version));
             header.writeByte(Header.Flag.serialize(frame.header.flags));
-            header.writeByte(frame.header.streamId);
+
+            if (frame.header.version >= Server.VERSION_3)
+                header.writeShort(frame.header.streamId);
+            else
+                header.writeByte(frame.header.streamId);
+
             header.writeByte(type.opcode);
             header.writeInt(frame.body.readableBytes());
 
@@ -257,7 +294,7 @@ public class Frame
     @ChannelHandler.Sharable
     public static class Decompressor extends MessageToMessageDecoder<Frame>
     {
-        public void decode(ChannelHandlerContext ctx, Frame frame, List results)
+        public void decode(ChannelHandlerContext ctx, Frame frame, List<Object> results)
         throws IOException
         {
             Connection connection = ctx.channel().attr(Connection.attributeKey).get();
@@ -282,7 +319,7 @@ public class Frame
     @ChannelHandler.Sharable
     public static class Compressor extends MessageToMessageEncoder<Frame>
     {
-        public void encode(ChannelHandlerContext ctx, Frame frame, List results)
+        public void encode(ChannelHandlerContext ctx, Frame frame, List<Object> results)
         throws IOException
         {
             Connection connection = ctx.channel().attr(Connection.attributeKey).get();
