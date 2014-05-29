@@ -303,11 +303,7 @@ public abstract class CBUtil
         if (length < 0)
             return null;
         ByteBuf slice = cb.readSlice(length);
-        if (slice.nioBufferCount() > 0)
-            return slice.nioBuffer();
-        else
-            return ByteBuffer.wrap(readRawBytes(cb));
-
+        return ByteBuffer.wrap(readRawBytes(slice));
     }
 
     public static void writeValue(byte[] bytes, ByteBuf cb)
