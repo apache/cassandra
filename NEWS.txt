@@ -69,6 +69,17 @@ Upgrading
      has been deprecated.
    - support for supercolumns has been removed from json2sstable
 
+
+2.0.9
+=====
+
+Operations
+----------
+    - Default values for read_repair_chance and local_read_repair_chance have been
+      swapped. Namely, default read_repair_chance is now set to 0.0, and default
+      local_read_repair_chance to 0.1.
+
+
 2.0.8
 =====
 
@@ -81,6 +92,7 @@ Upgrading
 ---------
     - Nothing specific to this release, but please see 2.0.7 if you are upgrading
       from a previous version.
+
 
 2.0.7
 =====
