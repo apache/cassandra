@@ -811,7 +811,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 if (firstRestriction.isSlice())
                     return buildMultiColumnSliceBound(bound, names, (MultiColumnRestriction.Slice) firstRestriction, isReversed, builder, variables);
                 else if (firstRestriction.isIN())
-                    return buildMultiColumnInBound(bound, names, (MultiColumnRestriction.IN) firstRestriction, isReversed, builder, variables);
+                    return buildMultiColumnInBound(bound, (MultiColumnRestriction.IN) firstRestriction, isReversed, builder, variables);
                 else
                     return buildMultiColumnEQBound(bound, (MultiColumnRestriction.EQ) firstRestriction, isReversed, builder, variables);
             }
@@ -920,26 +920,24 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     }
 
     private List<ByteBuffer> buildMultiColumnInBound(Bound bound,
-                                                     Collection<CFDefinition.Name> names,
                                                      MultiColumnRestriction.IN restriction,
                                                      boolean isReversed,
                                                      ColumnNameBuilder builder,
                                                      List<ByteBuffer> variables) throws InvalidRequestException
     {
         List<List<ByteBuffer>> splitInValues = restriction.splitValues(variables);
+        Bound eocBound = isReversed ? Bound.reverse(bound) : bound;
 
         // The IN query might not have listed the values in comparator order, so we need to re-sort
         // the bounds lists to make sure the slices works correctly (also, to avoid duplicates).
         TreeSet<ByteBuffer> inValues = new TreeSet<>(isReversed ? cfDef.cfm.comparator.reverseComparator : cfDef.cfm.comparator);
-        Iterator<CFDefinition.Name> iter = names.iterator();
         for (List<ByteBuffer> components : splitInValues)
         {
             ColumnNameBuilder nameBuilder = builder.copy();
             for (ByteBuffer component : components)
                 nameBuilder.add(component);
 
-            Bound b = isReversed == isReversedType(iter.next()) ? bound : Bound.reverse(bound);
-            inValues.add((bound == Bound.END && nameBuilder.remainingCount() > 0) ? nameBuilder.buildAsEndOfRange() : nameBuilder.build());
+            inValues.add((eocBound == Bound.END && nameBuilder.remainingCount() > 0) ? nameBuilder.buildAsEndOfRange() : nameBuilder.build());
         }
         return new ArrayList<>(inValues);
     }

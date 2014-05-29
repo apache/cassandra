@@ -568,6 +568,68 @@ public class MultiColumnRelationTest
         checkRow(0, results, 0, 0, 0, 0);
         checkRow(1, results, 0, 0, 1, 0);
         checkRow(2, results, 0, 0, 1, 1);
+
+        results = execute("SELECT * FROM %s.multiple_clustering WHERE a=0 AND (b, c) IN ((0, 1)) ORDER BY b DESC, c DESC, d DESC");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1);
+        checkRow(1, results, 0, 0, 1, 0);
+    }
+
+
+    @Test
+    public void testLiteralInReversed() throws Throwable
+    {
+        execute("INSERT INTO %s.multiple_clustering_reversed (a, b, c, d) VALUES (0, 1, 0, 0)");
+        execute("INSERT INTO %s.multiple_clustering_reversed (a, b, c, d) VALUES (0, 0, 0, 0)");
+        execute("INSERT INTO %s.multiple_clustering_reversed (a, b, c, d) VALUES (0, 0, 1, 1)");
+        execute("INSERT INTO %s.multiple_clustering_reversed (a, b, c, d) VALUES (0, 0, 1, 0)");
+        execute("INSERT INTO %s.multiple_clustering_reversed (a, b, c, d) VALUES (0, -1, 0, 0)");
+
+        UntypedResultSet results = execute("SELECT * FROM %s.multiple_clustering_reversed WHERE a=0 AND (b, c, d) IN ((0, 1, 0), (0, 1, 1))");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1);
+        checkRow(1, results, 0, 0, 1, 0);
+
+        // same query, but reversed order for the IN values
+        results = execute("SELECT * FROM %s.multiple_clustering_reversed WHERE a=0 AND (b, c, d) IN ((0, 1, 1), (0, 1, 0))");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1);
+        checkRow(1, results, 0, 0, 1, 0);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_reversed WHERE a=0 AND (b, c, d) IN ((1, 0, 0), (0, 0, 0), (0, 1, 1), (0, 1, 0), (-1, 0, 0))");
+        assertEquals(5, results.size());
+        checkRow(0, results, 0, 1, 0, 0);
+        checkRow(1, results, 0, 0, 0, 0);
+        checkRow(2, results, 0, 0, 1, 1);
+        checkRow(3, results, 0, 0, 1, 0);
+        checkRow(4, results, 0, -1, 0, 0);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_reversed WHERE a=0 AND (b, c, d) IN ((0, 0, 0))");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 0, 0, 0);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_reversed WHERE a=0 AND (b, c, d) IN ((0, 1, 1))");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 0, 1, 1);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_reversed WHERE a=0 AND (b, c, d) IN ((0, 1, 0))");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 0, 1, 0);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_reversed WHERE a=0 and (b, c) IN ((0, 1))");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1);
+        checkRow(1, results, 0, 0, 1, 0);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_reversed WHERE a=0 and (b, c) IN ((0, 0))");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 0, 0, 0);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_reversed WHERE a=0 and (b) IN ((0))");
+        assertEquals(3, results.size());
+        checkRow(0, results, 0, 0, 0, 0);
+        checkRow(1, results, 0, 0, 1, 1);
+        checkRow(2, results, 0, 0, 1, 0);
     }
 
     @Test(expected=InvalidRequestException.class)
