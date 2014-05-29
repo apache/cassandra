@@ -97,7 +97,7 @@ public class DropTypeStatement extends SchemaAlteringStatement
             if (name.getKeyspace().equals(ut.keyspace) && name.getUserTypeName().equals(ut.name))
                 return true;
 
-            for (AbstractType<?> subtype : ut.fieldTypes)
+            for (AbstractType<?> subtype : ut.fieldTypes())
                 if (isUsedBy(subtype))
                     return true;
         }

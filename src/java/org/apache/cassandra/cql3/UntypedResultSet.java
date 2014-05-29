@@ -55,6 +55,9 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
     public abstract int size();
     public abstract Row one();
 
+    // No implemented by all subclasses, but we use it when we know it's there (for tests)
+    public abstract List<ColumnSpecification> metadata();
+
     private static class FromResultSet extends UntypedResultSet
     {
         private final ResultSet cqlRows;
@@ -89,6 +92,11 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                     return new Row(cqlRows.metadata.names, iter.next());
                 }
             };
+        }
+
+        public List<ColumnSpecification> metadata()
+        {
+            return cqlRows.metadata.names;
         }
     }
 
@@ -126,6 +134,11 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                     return new Row(iter.next());
                 }
             };
+        }
+
+        public List<ColumnSpecification> metadata()
+        {
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -175,6 +188,11 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                     }
                 }
             };
+        }
+
+        public List<ColumnSpecification> metadata()
+        {
+            return metadata;
         }
     }
 

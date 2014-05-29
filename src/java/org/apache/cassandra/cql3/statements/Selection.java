@@ -142,13 +142,13 @@ public abstract class Selection
                 throw new InvalidRequestException(String.format("Invalid field selection: %s of type %s is not a user type", withField.selected, type.asCQL3Type()));
 
             UserType ut = (UserType)type;
-            for (int i = 0; i < ut.fieldTypes.size(); i++)
+            for (int i = 0; i < ut.size(); i++)
             {
-                if (!ut.fieldNames.get(i).equals(withField.field.bytes))
+                if (!ut.fieldName(i).equals(withField.field.bytes))
                     continue;
 
                 if (metadata != null)
-                    metadata.add(makeFieldSelectSpec(cfm, withField, ut.fieldTypes.get(i), raw.alias));
+                    metadata.add(makeFieldSelectSpec(cfm, withField, ut.fieldType(i), raw.alias));
                 return new FieldSelector(ut, i, selected);
             }
             throw new InvalidRequestException(String.format("%s of type %s has no field %s", withField.selected, type.asCQL3Type(), withField.field));
@@ -472,13 +472,13 @@ public abstract class Selection
 
         public AbstractType<?> getType()
         {
-            return type.fieldTypes.get(field);
+            return type.fieldType(field);
         }
 
         @Override
         public String toString()
         {
-            return String.format("%s.%s", selected, UTF8Type.instance.getString(type.fieldNames.get(field)));
+            return String.format("%s.%s", selected, UTF8Type.instance.getString(type.fieldName(field)));
         }
     }
 

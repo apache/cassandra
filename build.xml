@@ -61,6 +61,7 @@
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="test.pig.src" value="${test.dir}/pig"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
+
 	
 	<property name="source.version" value="1.7"/>
 	<property name="target.version" value="1.7"/>
@@ -91,6 +92,9 @@
 
     <property name="test.timeout" value="60000" />
     <property name="test.long.timeout" value="600000" />
+
+    <!-- default for cql tests. Can be override by -Dcassandra.test.use_prepared=false -->
+    <property name="cassandra.test.use_prepared" value="true" />
 
     <!-- http://cobertura.sourceforge.net/ -->
     <property name="cobertura.version" value="2.0.3"/>
@@ -427,8 +431,6 @@
                 artifactId="cassandra-parent"
                 version="${version}"/>
         <dependency groupId="joda-time" artifactId="joda-time" version="2.3" />
-        <dependency groupId="org.slf4j" artifactId="slf4j-log4j12" version="1.7.2"/>
-        <dependency groupId="log4j" artifactId="log4j" version="1.2.16" />
       </artifact:pom>
 
       <!-- now the pom's for artifacts being deployed to Maven Central -->
@@ -1185,6 +1187,41 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
     </testmacro>
+  </target>
+
+  <target name="cql-test" depends="build-test" description="Execute CQL tests">
+    <testmacro suitename="cql" inputdir="${test.unit.src}"
+               timeout="${test.timeout}" filter="**/cql3/*Test.java">
+      <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
+    </testmacro>
+  </target>
+
+  <target name="cql-test-some" depends="build-test" description="Execute specific CQL tests" >
+    <sequential>
+      <echo message="running ${test.methods} tests from ${test.name}"/>
+      <mkdir dir="${build.test.dir}/cassandra"/>
+      <mkdir dir="${build.test.dir}/output"/>
+      <junit fork="on" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
+        <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
+        <formatter type="brief" usefile="false"/>
+        <jvmarg value="-Dstorage-config=${test.conf}"/>
+        <jvmarg value="-Djava.awt.headless=true"/>
+        <jvmarg value="-javaagent:${basedir}/lib/jamm-0.2.6.jar" />
+        <jvmarg value="-ea"/>
+        <jvmarg value="-Xss256k"/>
+        <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
+        <classpath>
+          <path refid="cassandra.classpath" />
+          <pathelement location="${test.classes}"/>
+          <path refid="cobertura.classpath"/>
+          <pathelement location="${test.conf}"/>
+          <fileset dir="${test.lib}">
+            <include name="**/*.jar" />
+          </fileset>
+        </classpath>
+        <test name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.dir}/output"/>
+      </junit>
+    </sequential>
   </target>
 
   <target name="pig-test" depends="build-test,maven-ant-tasks-retrieve-pig-test" description="Excute Pig tests">

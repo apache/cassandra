@@ -38,7 +38,7 @@ Table of Contents
       4.2.8. AUTH_SUCCESS
   5. Compression
   6. Collection types
-  7. User Defined types
+  7. User Defined and tuple types
   8. Result paging
   9. Error codes
   10. Changes from v2
@@ -306,13 +306,13 @@ Table of Contents
               Section 4.2.5.2).
         0x04: Page_size. In that case, <result_page_size> is an [int]
               controlling the desired page size of the result (in CQL3 rows).
-              See the section on paging (Section 7) for more details.
+              See the section on paging (Section 8) for more details.
         0x08: With_paging_state. If present, <paging_state> should be present.
               <paging_state> is a [bytes] value that should have been returned
               in a result set (Section 4.2.5.2). If provided, the query will be
               executed but starting from a given paging state. This also to
               continue paging on a different node from the one it has been
-              started (See Section 7 for more details).
+              started (See Section 8 for more details).
         0x10: With serial consistency. If present, <serial_consistency> should be
               present. <serial_consistency> is the [consistency] level for the
               serial phase of conditional updates. That consitency can only be
@@ -529,7 +529,7 @@ Table of Contents
                       <paging_state> will be present. The <paging_state> is a
                       [bytes] value that should be used in QUERY/EXECUTE to
                       continue paging and retrieve the remained of the result for
-                      this query (See Section 7 for more details).
+                      this query (See Section 8 for more details).
             0x0004    No_metadata: if set, the <metadata> is only composed of
                       these <flags>, the <column_count> and optionally the
                       <paging_state> (depending on the Has_more_pages flage) but
@@ -592,6 +592,10 @@ Table of Contents
                                 i_th field of the UDT.
                               - <type_i> is an [option] representing the type of the
                                 i_th field of the UDT.
+            0x0031    Tuple: the value is <n><type_1>...<type_n> where <n> is a [short]
+                             representing the number of value in the type, and <type_i>
+                             are [option] representing the type of the i_th component
+                             of the tuple
 
     - <rows_count> is an [int] representing the number of rows present in this
       result. Those rows are serialized in the <rows_content> part.
@@ -756,15 +760,19 @@ Table of Contents
           value.
 
 
-7. User defined types
+7. User defined and tuple types
 
-  This section describes the serialization format for User defined types (UDT) values.
-  UDT values are the values of the User Defined Types as defined in section 4.2.5.2.
+  This section describes the serialization format for User defined types (UDT) and
+  tuple values. UDT (resp. tuple) values are the values of the User Defined Types
+  (resp. tuple type) as defined in section 4.2.5.2.
 
   A UDT value is composed of successive [bytes] values, one for each field of the UDT
   value (in the order defined by the type). A UDT value will generally have one value
   for each field of the type it represents, but it is allowed to have less values than
   the type has fields.
+
+  A tuple value has the exact same serialization format, i.e. a succession of
+  [bytes] values representing the components of the tuple.
 
 
 8. Result paging
@@ -896,8 +904,8 @@ Table of Contents
 10. Changes from v2
   * BATCH messages now have <flags> (like QUERY and EXECUTE) and a corresponding optional
     <serial_consistency> parameters (see Section 4.1.7).
-  * User Defined Types have to added to ResultSet metadata (see 4.2.5.2) and a new section
-    on the serialization format of UDT values has been added to the documentation
+  * User Defined Types and tuple types have to added to ResultSet metadata (see 4.2.5.2) and a
+    new section on the serialization format of UDT and tuple values has been added to the documentation
     (Section 7).
   * The serialization format for collection has changed (both the collection size and
     the length of each argument is now 4 bytes long). See Section 6.
