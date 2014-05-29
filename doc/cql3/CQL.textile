@@ -1173,6 +1173,7 @@ The following describes the addition/changes brought for each version of CQL.
 h3. 3.1.7
 
 * @SELECT@ statements now support selecting multiple rows in a single partition using an @IN@ clause on combinations of clustering columns.  See "SELECT WHERE":#selectWhere clauses.
+* @IF NOT EXISTS@ and @IF EXISTS@ syntax is now supported by @CREATE USER@ and @DROP USER@ statmenets, respectively.
 
 h3. 3.1.6
 

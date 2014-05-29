@@ -687,17 +687,18 @@ dataResource returns [DataResource res]
     ;
 
 /**
- * CREATE USER <username> [WITH PASSWORD <password>] [SUPERUSER|NOSUPERUSER]
+ * CREATE USER [IF NOT EXISTS] <username> [WITH PASSWORD <password>] [SUPERUSER|NOSUPERUSER]
  */
 createUserStatement returns [CreateUserStatement stmt]
     @init {
         UserOptions opts = new UserOptions();
         boolean superuser = false;
+        boolean ifNotExists = false;
     }
-    : K_CREATE K_USER username
+    : K_CREATE K_USER (K_IF K_NOT K_EXISTS { ifNotExists = true; })? username
       ( K_WITH userOptions[opts] )?
       ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
-      { $stmt = new CreateUserStatement($username.text, opts, superuser); }
+      { $stmt = new CreateUserStatement($username.text, opts, superuser, ifNotExists); }
     ;
 
 /**
@@ -715,10 +716,11 @@ alterUserStatement returns [AlterUserStatement stmt]
     ;
 
 /**
- * DROP USER <username>
+ * DROP USER [IF EXISTS] <username>
  */
 dropUserStatement returns [DropUserStatement stmt]
-    : K_DROP K_USER username { $stmt = new DropUserStatement($username.text); }
+    @init { boolean ifExists = false; }
+    : K_DROP K_USER (K_IF K_EXISTS { ifExists = true; })? username { $stmt = new DropUserStatement($username.text, ifExists); }
     ;
 
 /**

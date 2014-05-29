@@ -1,4 +1,5 @@
 2.0.9
+ * Add conditional CREATE/DROP USER support (CASSANDRA-7264)
  * Swap local and global default read repair chances (CASSANDRA-7320)
  * Add missing iso8601 patterns for date strings (CASSANDRA-6973)
  * Support selecting multiple rows in a partition using IN (CASSANDRA-6875)
