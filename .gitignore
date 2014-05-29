@@ -9,8 +9,9 @@ src/resources/org/apache/cassandra/config/
 build-stamp
 build.properties
 debian/cassandra*debhelper*
-debian/cassandra.substvars
+debian/cassandra*.substvars
 debian/cassandra/
+debian/cassandra-tools/
 debian/files
 
 # gitignore doesn't help with modified files - you may wish to:
