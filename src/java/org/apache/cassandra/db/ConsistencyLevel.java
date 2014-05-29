@@ -252,6 +252,10 @@ public enum ConsistencyLevel
             case ANY:
                 // local hint is acceptable, and local node is always live
                 break;
+            case LOCAL_ONE:
+                if (countLocalEndpoints(liveEndpoints) == 0)
+                    throw new UnavailableException(this, 1, 0);
+                break;
             case LOCAL_QUORUM:
                 int localLive = countLocalEndpoints(liveEndpoints);
                 if (localLive < blockFor)
