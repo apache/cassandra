@@ -81,6 +81,7 @@ Merged from 2.0:
  * Support selecting multiple rows in a partition using IN (CASSANDRA-6875)
  * Add authentication support to shuffle (CASSANDRA-6484)
  * Swap local and global default read repair chances (CASSANDRA-7320)
+ * Add conditional CREATE/DROP USER support (CASSANDRA-7264)
 Merged from 1.2:
  * Add Cloudstack snitch (CASSANDRA-7147)
  * Update system.peers correctly when relocating tokens (CASSANDRA-7126)
