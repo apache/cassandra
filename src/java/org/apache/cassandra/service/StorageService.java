@@ -3098,8 +3098,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private Future<StreamState> streamHints()
     {
-        if (HintedHandOffManager.instance.listEndpointsPendingHints().size() == 0)
-            return Futures.immediateFuture(null);
+        // StreamPlan will not fail if there are zero files to transfer, so flush anyway (need to get any in-memory hints, as well)
+        ColumnFamilyStore hintsCF = Keyspace.open(Keyspace.SYSTEM_KS).getColumnFamilyStore(SystemKeyspace.HINTS_CF);
+        FBUtilities.waitOnFuture(hintsCF.forceFlush());
 
         // gather all live nodes in the cluster that aren't also leaving
         List<InetAddress> candidates = new ArrayList<>(StorageService.instance.getTokenMetadata().cloneAfterAllLeft().getAllEndpoints());
