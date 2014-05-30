@@ -1,4 +1,5 @@
 2.0.9
+ * Fix NPE in StreamTransferTask.createMessageForRetry() (CASSANDRA-7323)
  * Add conditional CREATE/DROP USER support (CASSANDRA-7264)
  * Swap local and global default read repair chances (CASSANDRA-7320)
  * Add missing iso8601 patterns for date strings (CASSANDRA-6973)
