@@ -1,3 +1,9 @@
+cassandra (2.1.0~rc1) unstable; urgency=medium
+
+  * New RC release
+
+ -- Sylvain Lebresne <slebresne@apache.org>  Fri, 30 May 2014 17:25:14 +0200
+
 cassandra (2.1.0~beta2) unstable; urgency=medium
 
   * New beta release

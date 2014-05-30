@@ -682,7 +682,7 @@ class Shell(cmd.Cmd):
         else:
             spaces = ' ' * len(str(self.current_keyspace))
             self.set_prompt(self.keyspace_continue_prompt % spaces)
-        self.empty_lines += 1
+        self.empty_lines = self.empty_lines + 1 if not self.lastcmd else 0
 
     @contextmanager
     def prepare_loop(self):
@@ -708,9 +708,11 @@ class Shell(cmd.Cmd):
 
     def get_input_line(self, prompt=''):
         if self.tty:
-            line = raw_input(prompt) + '\n'
+            self.lastcmd = raw_input(prompt)
+            line = self.lastcmd + '\n'
         else:
-            line = self.stdin.readline()
+            self.lastcmd = self.stdin.readline()
+            line = self.lastcmd
             if not len(line):
                 raise EOFError
         self.lineno += 1
