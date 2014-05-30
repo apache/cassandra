@@ -667,7 +667,7 @@ public class Shuffle extends AbstractJmxClient
     }
 
     /** A self-contained Cassandra.Client; Closeable. */
-    class CassandraClient implements Closeable
+    private static class CassandraClient implements Closeable
     {
         TTransport transport;
         Cassandra.Client client;
