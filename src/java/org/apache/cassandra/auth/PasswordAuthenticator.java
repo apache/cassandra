@@ -271,7 +271,7 @@ public class PasswordAuthenticator implements ISaslAwareAuthenticator
         if (username.equals(DEFAULT_USER_NAME))
             return ConsistencyLevel.QUORUM;
         else
-            return ConsistencyLevel.ONE;
+            return ConsistencyLevel.LOCAL_ONE;
     }
 
     private class PlainTextSaslAuthenticator implements ISaslAwareAuthenticator.SaslAuthenticator

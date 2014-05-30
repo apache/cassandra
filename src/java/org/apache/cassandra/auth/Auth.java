@@ -168,7 +168,7 @@ public class Auth
         if (username.equals(DEFAULT_SUPERUSER_NAME))
             return ConsistencyLevel.QUORUM;
         else
-            return ConsistencyLevel.ONE;
+            return ConsistencyLevel.LOCAL_ONE;
     }
 
     private static void setupAuthKeyspace()
