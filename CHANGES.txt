@@ -1,4 +1,5 @@
 1.2.17
+ * Use LOCAL_ONE for non-superuser auth queries (CASSANDRA-7328)
  * Set keepalive on MessagingService connections (CASSANDRA-7170)
  * Add Cloudstack snitch (CASSANDRA-7147)
  * Update system.peers correctly when relocating tokens (CASSANDRA-7126)
