@@ -26,6 +26,7 @@
  * exit CQLSH with error status code if script fails (CASSANDRA-6344)
  * Fix bug with some IN queries missig results (CASSANDRA-7105)
  * Fix availability validation for LOCAL_ONE CL (CASSANDRA-7319)
+ * Hint streaming can cause decommission to fail (CASSANDRA-7219)
 
 
 1.2.16

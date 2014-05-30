@@ -2966,7 +2966,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private CountDownLatch streamHints()
     {
-        if (HintedHandOffManager.instance.listEndpointsPendingHints().size() == 0)
+        ColumnFamilyStore hintsCF = Table.open(Table.SYSTEM_KS).getColumnFamilyStore(SystemTable.HINTS_CF);
+        if (hintsCF.getMemtableColumnsCount() == 0 && hintsCF.estimateKeys() == 0)
             return new CountDownLatch(0);
 
         // gather all live nodes in the cluster that aren't also leaving
