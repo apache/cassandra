@@ -1,3 +1,8 @@
+2.1.0
+Merged from 1.2:
+* Use LOCAL_ONE for non-superuser auth queries (CASSANDRA-7328)
+
+
 2.1.0-rc1
  * Revert flush directory (CASSANDRA-6357)
  * More efficient executor service for fast operations (CASSANDRA-4718)
