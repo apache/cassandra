@@ -105,7 +105,7 @@ public abstract class AbstractTracingAwareExecutorService implements TracingAwar
                 return (TraceSessionFutureTask<T>) callable;
             return new TraceSessionFutureTask<T>(callable, null);
         }
-        if (callable instanceof java.util.concurrent.FutureTask)
+        if (callable instanceof FutureTask)
             return (FutureTask<T>) callable;
         return new FutureTask<>(callable);
     }
