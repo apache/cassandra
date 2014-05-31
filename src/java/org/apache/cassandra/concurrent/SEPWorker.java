@@ -221,7 +221,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     {
         // pick a random sleep interval based on the number of threads spinning, so that
         // we should always have a thread about to wake up, but most threads are sleeping
-        long sleep = 10000 * pool.spinningCount.get();
+        long sleep = 10000L * pool.spinningCount.get();
         sleep = Math.min(1000000, sleep);
         sleep *= Math.random();
         sleep = Math.max(10000, sleep);
