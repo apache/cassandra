@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.collect.*;
 import org.slf4j.Logger;
@@ -127,6 +128,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
     public final ConnectionHandler handler;
 
     private int retries;
+
+    private AtomicBoolean isAborted = new AtomicBoolean(false);
 
     public static enum State
     {
@@ -339,23 +342,26 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
         }
     }
 
-    private void closeSession(State finalState)
+    private synchronized void closeSession(State finalState)
     {
-        state(finalState);
-
-        if (finalState == State.FAILED)
+        if (isAborted.compareAndSet(false, true))
         {
-            for (StreamTask task : Iterables.concat(receivers.values(), transfers.values()))
-                task.abort();
+            state(finalState);
+
+            if (finalState == State.FAILED)
+            {
+                for (StreamTask task : Iterables.concat(receivers.values(), transfers.values()))
+                    task.abort();
+            }
+
+            // Note that we shouldn't block on this close because this method is called on the handler
+            // incoming thread (so we would deadlock).
+            handler.close();
+
+            Gossiper.instance.unregister(this);
+            FailureDetector.instance.unregisterFailureDetectionEventListener(this);
+            streamResult.handleSessionComplete(this);
         }
-
-        // Note that we shouldn't block on this close because this method is called on the handler
-        // incoming thread (so we would deadlock).
-        handler.close();
-
-        Gossiper.instance.unregister(this);
-        FailureDetector.instance.unregisterFailureDetectionEventListener(this);
-        streamResult.handleSessionComplete(this);
     }
 
     /**
