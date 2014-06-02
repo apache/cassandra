@@ -2549,7 +2549,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     catch (IllegalArgumentException e)
                     {
                         logger.error("Repair session failed:", e);
-                        sendNotification("repair", message, new int[]{cmd, AntiEntropyService.Status.SESSION_FAILED.ordinal()});
+                        sendNotification("repair", e.getMessage(), new int[]{cmd, AntiEntropyService.Status.SESSION_FAILED.ordinal()});
                         continue;
                     }
                     if (future == null)
