@@ -10,6 +10,7 @@
  * Don't try to compact already-compacting files in HHOM (CASSANDRA-7288)
  * Add authentication support to shuffle (CASSANDRA-6484)
  * Cqlsh counts non-empty lines for "Blank lines" warning (CASSANDRA-7325)
+ * Make StreamSession#closeSession() idempotent (CASSANDRA-7262)
 Merged from 1.2:
  * Fix availability validation for LOCAL_ONE CL (CASSANDRA-7319)
  * Use LOCAL_ONE for non-superuser auth queries (CASSANDRA-7328)
