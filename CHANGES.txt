@@ -10,6 +10,7 @@
 
 2.1.0
  * Upgrade to Pig 0.12.1 (CASSANDRA-6556)
+ * Make sure we clear out repair sessions from netstats (CASSANDRA-7329)
 Merged from 2.0:
  * Fix NPE in StreamTransferTask.createMessageForRetry() (CASSANDRA-7323)
  * Make StreamSession#closeSession() idempotent (CASSANDRA-7262)

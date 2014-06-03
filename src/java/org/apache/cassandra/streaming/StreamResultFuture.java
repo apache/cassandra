@@ -65,7 +65,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         this.coordinator = coordinator;
 
         // if there is no session to listen to, we immediately set result for returning
-        if (!coordinator.hasActiveSessions())
+        if (!coordinator.isReceiving() && !coordinator.hasActiveSessions())
             set(getCurrentState());
     }
 
