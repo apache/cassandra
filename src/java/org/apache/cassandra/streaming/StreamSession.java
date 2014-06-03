@@ -616,8 +616,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
         if (!endpoint.equals(peer))
             return;
 
-        // We want a higher confidence in the failure detection than usual because failing a streaming wrongly has a high cost.
-        if (phi < 2 * DatabaseDescriptor.getPhiConvictThreshold())
+        // We want a higher confidence in the failure detection than usual because failing a streaming wrongly has a high cost (CASSANDRA-7063)
+        if (phi < 100 * DatabaseDescriptor.getPhiConvictThreshold())
             return;
 
         closeSession(State.FAILED);

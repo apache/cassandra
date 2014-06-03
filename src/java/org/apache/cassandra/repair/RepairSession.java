@@ -345,8 +345,8 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
         if (!endpoints.contains(endpoint))
             return;
 
-        // We want a higher confidence in the failure detection than usual because failing a repair wrongly has a high cost.
-        if (phi < 2 * DatabaseDescriptor.getPhiConvictThreshold())
+        // We want a higher confidence in the failure detection than usual because failing a repair wrongly has a high cost (CASSANDRA-7063)
+        if (phi < 100 * DatabaseDescriptor.getPhiConvictThreshold())
             return;
 
         // Though unlikely, it is possible to arrive here multiple time and we
