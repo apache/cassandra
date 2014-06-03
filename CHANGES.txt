@@ -1,4 +1,5 @@
 1.2.17
+ * Fix handling of empty counter replication mutations (CASSANDRA-7144)
  * Use LOCAL_ONE for non-superuser auth queries (CASSANDRA-7328)
  * Set keepalive on MessagingService connections (CASSANDRA-7170)
  * Add Cloudstack snitch (CASSANDRA-7147)

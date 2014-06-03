@@ -781,8 +781,18 @@ public class StorageProxy implements StorageProxyMBean
                     {
                         public void runMayThrow() throws OverloadedException
                         {
-                            // send mutation to other replica
-                            sendToHintedEndpoints(cm.makeReplicationMutation(), remotes, responseHandler, localDataCenter, consistency_level);
+                            // send the mutation to other replicas, if not null (see CASSANDRA-7144 for details)
+                            RowMutation replicationMutation = cm.makeReplicationMutation();
+                            if (replicationMutation != null)
+                            {
+                                sendToHintedEndpoints(cm.makeReplicationMutation(), remotes, responseHandler, localDataCenter, consistency_level);
+                            }
+                            else
+                            {
+                                // simulate the rest of the responses to avoid the timeout
+                                for (int i = 0; i < remotes.size(); i++)
+                                    responseHandler.response(null);
+                            }
                         }
                     });
                 }

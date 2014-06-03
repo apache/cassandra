@@ -96,7 +96,8 @@ public class CounterMutation implements IMutation
                 cf.retainAll(rowMutation.getColumnFamily(cf.metadata().cfId));
             replicationMutation.add(cf);
         }
-        return replicationMutation;
+
+        return replicationMutation.isEmpty() ? null : replicationMutation;
     }
 
     private void addReadCommandFromColumnFamily(String table, ByteBuffer key, ColumnFamily columnFamily, List<ReadCommand> commands)
