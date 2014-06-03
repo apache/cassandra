@@ -15,6 +15,7 @@
 Merged from 1.2:
  * Fix availability validation for LOCAL_ONE CL (CASSANDRA-7319)
  * Use LOCAL_ONE for non-superuser auth queries (CASSANDRA-7328)
+ * Fix handling of empty counter replication mutations (CASSANDRA-7144)
 
 
 2.0.8

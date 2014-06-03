@@ -104,7 +104,8 @@ public class CounterMutation implements IMutation
             ColumnFamily cf = row.cf;
             replicationMutation.add(cf);
         }
-        return replicationMutation;
+
+        return replicationMutation.isEmpty() ? null : replicationMutation;
     }
 
     private void addReadCommandFromColumnFamily(String keyspaceName, ByteBuffer key, ColumnFamily columnFamily, long timestamp, List<ReadCommand> commands)
