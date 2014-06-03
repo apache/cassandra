@@ -124,8 +124,12 @@ from cqlshlib.usertypes import deserialize_safe_collection, deserialize_safe_map
 HISTORY_DIR = os.path.expanduser(os.path.join('~', '.cassandra'))
 CONFIG_FILE = os.path.join(HISTORY_DIR, 'cqlshrc')
 HISTORY = os.path.join(HISTORY_DIR, 'cqlsh_history')
+accessible_historyDir = True
 if not os.path.exists(HISTORY_DIR):
-    os.mkdir(HISTORY_DIR)
+    try:
+        os.mkdir(HISTORY_DIR)
+    except OSError:
+        accessible_historyDir = False
 
 OLD_CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
 if os.path.exists(OLD_CONFIG_FILE):
@@ -516,6 +520,10 @@ class Shell(cmd.Cmd):
             print 'Use HELP for help.'
         else:
             self.show_line_nums = True
+                           
+        if not accessible_historyDir:
+            print '\nWarning: Cannot create directory at `~/.cassandra`. Command history will not be saved.\n'
+            
         self.stdin = stdin
         self.query_out = sys.stdout
         self.consistency_level = cassandra.ConsistencyLevel.ONE
