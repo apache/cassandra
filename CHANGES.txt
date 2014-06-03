@@ -79,6 +79,7 @@ Merged from 1.2:
  * Fix bug with some IN queries missig results (CASSANDRA-7105)
  * Fix availability validation for LOCAL_ONE CL (CASSANDRA-7319)
  * Hint streaming can cause decommission to fail (CASSANDRA-7219)
+ * RepairTask didn't send a correct message on IllegalArgumentException (CASSANDRA-7336)
 
 
 2.0.7
