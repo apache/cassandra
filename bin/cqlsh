@@ -674,7 +674,7 @@ class Shell(cmd.Cmd):
 
     def set_continue_prompt(self):
         if self.empty_lines >=3:
-            self.set_prompt("Statements are terminated with a ';'.  You can press CTRL-C to cancel an imcomplete statement.")
+            self.set_prompt("Statements are terminated with a ';'.  You can press CTRL-C to cancel an incomplete statement.")
             self.empty_lines = 0
             return
         if self.current_keyspace is None:
