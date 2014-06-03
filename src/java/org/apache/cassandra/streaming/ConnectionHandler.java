@@ -123,6 +123,7 @@ public class ConnectionHandler
             {
                 Socket socket = OutboundTcpConnectionPool.newSocket(peer);
                 socket.setSoTimeout(DatabaseDescriptor.getStreamingSocketTimeout());
+                socket.setKeepAlive(true);
                 return socket;
             }
             catch (IOException e)

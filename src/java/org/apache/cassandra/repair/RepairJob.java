@@ -58,11 +58,21 @@ public class RepairJob
     /* Count down as sync completes */
     private AtomicInteger waitForSync;
 
+    private final IRepairJobEventListener listener;
+
     /**
      * Create repair job to run on specific columnfamily
      */
-    public RepairJob(UUID parentSessionId, UUID sessionId, String keyspace, String columnFamily, Range<Token> range, boolean isSequential, ListeningExecutorService taskExecutor)
+    public RepairJob(IRepairJobEventListener listener,
+                     UUID parentSessionId,
+                     UUID sessionId,
+                     String keyspace,
+                     String columnFamily,
+                     Range<Token> range,
+                     boolean isSequential,
+                     ListeningExecutorService taskExecutor)
     {
+        this.listener = listener;
         this.desc = new RepairJobDesc(parentSessionId, sessionId, keyspace, columnFamily, range);
         this.isSequential = isSequential;
         this.taskExecutor = taskExecutor;
@@ -114,7 +124,8 @@ public class RepairJob
                 public void onFailure(Throwable throwable)
                 {
                     // TODO need to propagate error to RepairSession
-                    logger.error("Error while snapshot", throwable);
+                    logger.error("Error occurred during snapshot phase", throwable);
+                    listener.failedSnapshot();
                     failed = true;
                 }
             }, taskExecutor);
