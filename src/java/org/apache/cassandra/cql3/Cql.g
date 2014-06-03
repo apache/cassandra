@@ -684,8 +684,8 @@ dropTypeStatement returns [DropTypeStatement stmt]
  */
 dropIndexStatement returns [DropIndexStatement expr]
     @init { boolean ifExists = false; }
-    : K_DROP K_INDEX (K_IF K_EXISTS { ifExists = true; } )? index=IDENT
-      { $expr = new DropIndexStatement($index.text, ifExists); }
+    : K_DROP K_INDEX (K_IF K_EXISTS { ifExists = true; } )? index=indexName
+      { $expr = new DropIndexStatement(index, ifExists); }
     ;
 
 /**
@@ -821,6 +821,17 @@ cident returns [ColumnIdentifier id]
 keyspaceName returns [String id]
     @init { CFName name = new CFName(); }
     : cfOrKsName[name, true] { $id = name.getKeyspace(); }
+    ;
+
+indexName returns [IndexName name]
+    @init { $name = new IndexName(); }
+    : (idxOrKsName[name, true] '.')? idxOrKsName[name, false]
+    ;
+
+idxOrKsName[IndexName name, boolean isKs]
+    : t=IDENT              { if (isKs) $name.setKeyspace($t.text, false); else $name.setIndex($t.text, false); }
+    | t=QUOTED_NAME        { if (isKs) $name.setKeyspace($t.text, true); else $name.setIndex($t.text, true); }
+    | k=unreserved_keyword { if (isKs) $name.setKeyspace(k, false); else $name.setIndex(k, false); }
     ;
 
 columnFamilyName returns [CFName name]

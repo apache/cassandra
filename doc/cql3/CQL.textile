@@ -424,7 +424,8 @@ h3(#createIndexStmt). CREATE INDEX
 
 __Syntax:__
 
-bc(syntax). <create-index-stmt> ::= CREATE ( CUSTOM )? INDEX ( IF NOT EXISTS )? <identifier>? ON <tablename> '(' <identifier> ')'
+bc(syntax). <create-index-stmt> ::= CREATE ( CUSTOM )? INDEX ( IF NOT EXISTS )? ( ( <keyspacename> '.' )? <indexname> )?
+                                        ON <tablename> '(' <identifier> ')'
                                         ( USING <string> ( WITH OPTIONS = <map-literal> )? )?
 
 __Sample:__

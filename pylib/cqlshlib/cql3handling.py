@@ -1004,7 +1004,13 @@ syntax_rules += r'''
 <dropColumnFamilyStatement> ::= "DROP" ( "COLUMNFAMILY" | "TABLE" ) ("IF" "EXISTS")? cf=<columnFamilyName>
                               ;
 
-<dropIndexStatement> ::= "DROP" "INDEX" ("IF" "EXISTS")? indexname=<identifier>
+<indexName> ::= ( ksname=<idxOrKsName> dot="." )? idxname=<idxOrKsName> ;
+
+<idxOrKsName> ::= <identifier>
+               | <quotedName>
+               | <unreservedKeyword>;
+
+<dropIndexStatement> ::= "DROP" "INDEX" ("IF" "EXISTS")? idx=<indexName>
                        ;
 
 <dropUserTypeStatement> ::= "DROP" "TYPE" ut=<userTypeName>
@@ -1012,9 +1018,29 @@ syntax_rules += r'''
 
 '''
 
-@completer_for('dropIndexStatement', 'indexname')
-def drop_index_completer(ctxt, cass):
-    return map(maybe_escape_name, cass.get_index_names())
+@completer_for('indexName', 'ksname')
+def idx_ks_name_completer(ctxt, cass):
+    return [maybe_escape_name(ks) + '.' for ks in cass.get_keyspace_names()]
+
+@completer_for('indexName', 'dot')
+def idx_ks_dot_completer(ctxt, cass):
+    name = dequote_name(ctxt.get_binding('ksname'))
+    if name in cass.get_keyspace_names():
+        return ['.']
+    return []
+
+@completer_for('indexName', 'idxname')
+def idx_ks_idx_name_completer(ctxt, cass):
+    ks = ctxt.get_binding('ksname', None)
+    if ks is not None:
+        ks = dequote_name(ks)
+    try:
+        idxnames = cass.get_index_names(ks)
+    except Exception:
+        if ks is None:
+            return ()
+        raise
+    return map(maybe_escape_name, idxnames)
 
 syntax_rules += r'''
 <alterTableStatement> ::= "ALTER" wat=( "COLUMNFAMILY" | "TABLE" ) cf=<columnFamilyName>
