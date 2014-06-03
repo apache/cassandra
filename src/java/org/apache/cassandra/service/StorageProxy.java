@@ -785,7 +785,7 @@ public class StorageProxy implements StorageProxyMBean
                             RowMutation replicationMutation = cm.makeReplicationMutation();
                             if (replicationMutation != null)
                             {
-                                sendToHintedEndpoints(cm.makeReplicationMutation(), remotes, responseHandler, localDataCenter, consistency_level);
+                                sendToHintedEndpoints(replicationMutation, remotes, responseHandler, localDataCenter, consistency_level);
                             }
                             else
                             {
