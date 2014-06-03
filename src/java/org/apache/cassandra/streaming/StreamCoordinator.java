@@ -73,6 +73,11 @@ public class StreamCoordinator
         return results;
     }
 
+    public boolean isReceiving()
+    {
+        return connectionsPerHost == 0;
+    }
+
     public void connectAllStreamSessions()
     {
         for (HostStreamingData data : peerSessions.values())
