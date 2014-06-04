@@ -77,13 +77,15 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     private static long getInitialValue()
     {
         String newvalue = System.getProperty("cassandra.fd_initial_value_ms");
-        if (newvalue != null)
+        if (newvalue == null)
+        {
+            return Gossiper.intervalInMillis * 30;
+        }
+        else
         {
             logger.info("Overriding FD INITIAL_VALUE to {}ms", newvalue);
             return Integer.parseInt(newvalue);
         }
-        else
-            return Gossiper.intervalInMillis * 30;
     }
 
     public String getAllEndpointStates()
@@ -311,13 +313,15 @@ class ArrivalWindow
     private static long getMaxInterval()
     {
         String newvalue = System.getProperty("cassandra.fd_max_interval_ms");
-        if (newvalue != null)
+        if (newvalue == null)
+        {
+            return FailureDetector.INITIAL_VALUE_NANOS;
+        }
+        else
         {
             logger.info("Overriding FD MAX_INTERVAL to {}ms", newvalue);
             return TimeUnit.NANOSECONDS.convert(Integer.parseInt(newvalue), TimeUnit.MILLISECONDS);
         }
-        else
-            return FailureDetector.INITIAL_VALUE_NANOS;
     }
 
     synchronized void add(long value)
