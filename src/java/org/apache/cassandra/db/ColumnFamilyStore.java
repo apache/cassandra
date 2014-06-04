@@ -1703,7 +1703,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public List<Row> getRangeSlice(ExtendedFilter filter)
     {
-        return filter(getSequentialIterator(filter.dataRange, filter.timestamp), filter);
+        long start = System.nanoTime();
+        try
+        {
+            return filter(getSequentialIterator(filter.dataRange, filter.timestamp), filter);
+        }
+        finally
+        {
+            metric.rangeLatency.addNano(System.nanoTime() - start);
+        }
     }
 
     @VisibleForTesting
