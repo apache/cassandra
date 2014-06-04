@@ -59,6 +59,8 @@ public class ColumnFamilyMetrics
     public final Histogram sstablesPerReadHistogram;
     /** (Local) read metrics */
     public final LatencyMetrics readLatency;
+    /** (Local) range slice metrics */
+    public final LatencyMetrics rangeLatency;
     /** (Local) write metrics */
     public final LatencyMetrics writeLatency;
     /** Estimated number of tasks pending for this column family */
@@ -233,6 +235,7 @@ public class ColumnFamilyMetrics
         });
         readLatency = new LatencyMetrics(factory, "Read");
         writeLatency = new LatencyMetrics(factory, "Write");
+        rangeLatency = new LatencyMetrics(factory, "Range");
         pendingFlushes = Metrics.newCounter(factory.createMetricName("PendingFlushes"));
         pendingCompactions = Metrics.newGauge(factory.createMetricName("PendingCompactions"), new Gauge<Integer>()
         {
@@ -404,6 +407,7 @@ public class ColumnFamilyMetrics
     {
         readLatency.release();
         writeLatency.release();
+        rangeLatency.release();
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("AllMemtablesDataSize"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableColumnsCount"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableDataSize"));
