@@ -484,8 +484,14 @@ public class CommitLogSegmentManager
         while (!segmentManagementTasks.isEmpty())
             Thread.yield();
 
+        for (CommitLogSegment segment : activeSegments)
+            segment.close();
         activeSegments.clear();
+
+        for (CommitLogSegment segment : availableSegments)
+            segment.close();
         availableSegments.clear();
+
         allocatingFrom = null;
     }
 
