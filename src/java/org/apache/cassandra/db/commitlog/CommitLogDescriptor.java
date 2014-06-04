@@ -30,7 +30,6 @@ import java.util.regex.Pattern;
 
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.PureJavaCrc32;
 
 public class CommitLogDescriptor

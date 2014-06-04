@@ -24,9 +24,7 @@ import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.CollectionSerializer;
-import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.ListSerializer;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ListType<T> extends CollectionType<List<T>>
 {

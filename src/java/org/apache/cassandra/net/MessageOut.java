@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.net;
 
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collections;

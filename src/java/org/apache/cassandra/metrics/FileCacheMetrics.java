@@ -22,7 +22,6 @@ import java.util.concurrent.TimeUnit;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Gauge;
 import com.yammer.metrics.core.Meter;
-import com.yammer.metrics.core.MetricName;
 import com.yammer.metrics.util.RatioGauge;
 import org.apache.cassandra.service.FileCacheService;
 

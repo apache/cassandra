@@ -19,12 +19,8 @@
 package org.apache.cassandra.utils.concurrent;
 
 import com.yammer.metrics.core.TimerContext;
-import org.slf4j.*;
 
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.locks.LockSupport;

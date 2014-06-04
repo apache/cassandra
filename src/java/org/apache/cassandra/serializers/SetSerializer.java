@@ -22,8 +22,6 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
-
 public class SetSerializer<T> extends CollectionSerializer<Set<T>>
 {
     // interning instances

@@ -18,8 +18,6 @@
 package org.apache.cassandra.utils;
 
 import java.io.FileDescriptor;
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 

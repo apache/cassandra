@@ -19,9 +19,6 @@ package org.apache.cassandra.io.util;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
-
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * When possible use {@link DataOutputStreamAndChannel} instead of this class, as it will

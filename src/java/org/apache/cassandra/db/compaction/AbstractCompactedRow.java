@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.Closeable;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.security.MessageDigest;
 

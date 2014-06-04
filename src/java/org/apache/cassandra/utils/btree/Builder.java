@@ -18,7 +18,6 @@
  */
 package org.apache.cassandra.utils.btree;
 
-import java.util.Collection;
 import java.util.Comparator;
 
 import static org.apache.cassandra.utils.btree.BTree.EMPTY_LEAF;

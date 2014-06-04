@@ -20,7 +20,6 @@ package org.apache.cassandra.hadoop.cql3;
 *
 */
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;

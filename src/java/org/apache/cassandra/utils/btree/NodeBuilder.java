@@ -25,7 +25,6 @@ import java.util.Comparator;
 
 import static org.apache.cassandra.utils.btree.BTree.EMPTY_BRANCH;
 import static org.apache.cassandra.utils.btree.BTree.FAN_FACTOR;
-import static org.apache.cassandra.utils.btree.BTree.POSITIVE_INFINITY;
 import static org.apache.cassandra.utils.btree.BTree.compare;
 import static org.apache.cassandra.utils.btree.BTree.find;
 import static org.apache.cassandra.utils.btree.BTree.getKeyEnd;

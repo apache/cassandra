@@ -20,7 +20,6 @@ package org.apache.cassandra.io.util;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import com.sun.jna.Native;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import sun.misc.Unsafe;

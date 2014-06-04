@@ -24,7 +24,6 @@ import java.util.List;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.service.pager.PagingState;
 
 public abstract class BatchQueryOptions
 {
