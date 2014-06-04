@@ -2030,9 +2030,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public List<Row> getRangeSlice(ExtendedFilter filter)
     {
+        long start = System.nanoTime();
         try (OpOrder.Group op = readOrdering.start())
         {
             return filter(getSequentialIterator(filter.dataRange, filter.timestamp), filter);
+        }
+        finally
+        {
+            metric.rangeLatency.addNano(System.nanoTime() - start);
         }
     }
 
