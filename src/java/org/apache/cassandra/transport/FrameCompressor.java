@@ -75,7 +75,7 @@ public interface FrameCompressor
         public Frame compress(Frame frame) throws IOException
         {
             byte[] input = CBUtil.readRawBytes(frame.body);
-            ByteBuf output = CBUtil.onHeapAllocator.buffer(Snappy.maxCompressedLength(input.length));
+            ByteBuf output = CBUtil.allocator.heapBuffer(Snappy.maxCompressedLength(input.length));
 
             try
             {
@@ -103,7 +103,7 @@ public interface FrameCompressor
             if (!Snappy.isValidCompressedBuffer(input, 0, input.length))
                 throw new ProtocolException("Provided frame does not appear to be Snappy compressed");
 
-            ByteBuf output = CBUtil.onHeapAllocator.buffer(Snappy.uncompressedLength(input));
+            ByteBuf output = CBUtil.allocator.heapBuffer(Snappy.uncompressedLength(input));
 
             try
             {
@@ -153,7 +153,7 @@ public interface FrameCompressor
             byte[] input = CBUtil.readRawBytes(frame.body);
 
             int maxCompressedLength = compressor.maxCompressedLength(input.length);
-            ByteBuf outputBuf = CBUtil.onHeapAllocator.buffer(INTEGER_BYTES + maxCompressedLength);
+            ByteBuf outputBuf = CBUtil.allocator.heapBuffer(INTEGER_BYTES + maxCompressedLength);
 
             byte[] output = outputBuf.array();
             int outputOffset = outputBuf.arrayOffset();
@@ -191,7 +191,7 @@ public interface FrameCompressor
                                    | ((input[2] & 0xFF) <<  8)
                                    | ((input[3] & 0xFF));
 
-            ByteBuf output = CBUtil.onHeapAllocator.buffer(uncompressedLength);
+            ByteBuf output = CBUtil.allocator.heapBuffer(uncompressedLength);
 
             try
             {

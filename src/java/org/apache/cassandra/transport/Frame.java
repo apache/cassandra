@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -65,9 +66,14 @@ public class Frame
         this.body = body;
     }
 
-    public void release()
+    public void retain()
     {
-        body.release();
+        body.retain();
+    }
+
+    public boolean release()
+    {
+        return body.release();
     }
 
     public static Frame create(Message.Type type, int streamId, int version, EnumSet<Header.Flag> flags, ByteBuf body)
@@ -226,7 +232,9 @@ public class Frame
                 return;
 
             // extract body
-            ByteBuf body = CBUtil.allocator.buffer((int) bodyLength).writeBytes(buffer.duplicate().slice(idx, (int) bodyLength));
+            ByteBuf body = buffer.slice(idx, (int) bodyLength);
+            body.retain();
+            
             idx += bodyLength;
             buffer.readerIndex(idx);
 

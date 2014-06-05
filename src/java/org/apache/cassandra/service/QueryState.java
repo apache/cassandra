@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 import java.util.UUID;
 
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Frame;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -30,6 +31,7 @@ public class QueryState
     private final ClientState clientState;
     private volatile long clock;
     private volatile UUID preparedTracingSession;
+    private Frame sourceFrame;
 
     public QueryState(ClientState clientState)
     {
@@ -58,6 +60,16 @@ public class QueryState
         long current = System.currentTimeMillis() * 1000;
         clock = clock >= current ? clock + 1 : current;
         return clock;
+    }
+
+    public Frame getSourceFrame()
+    {
+        return sourceFrame;
+    }
+
+    public void setSourceFrame(Frame sourceFrame)
+    {
+        this.sourceFrame = sourceFrame;
     }
 
     public boolean traceNextQuery()
