@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.transport.Frame;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -34,12 +35,15 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 // TODO convert this to a Builder pattern instead of encouraging M.add directly,
 // which is less-efficient since we have to keep a mutable HashMap around
 public class Mutation implements IMutation
 {
     public static final MutationSerializer serializer = new MutationSerializer();
+    private static final Logger logger = LoggerFactory.getLogger(Mutation.class);
 
     public static final String FORWARD_TO = "FWD_TO";
     public static final String FORWARD_FROM = "FWD_FRM";
@@ -51,6 +55,8 @@ public class Mutation implements IMutation
     private final ByteBuffer key;
     // map of column family id to mutations for that column family.
     private final Map<UUID, ColumnFamily> modifications;
+
+    private Frame sourceFrame;
 
     public Mutation(String keyspaceName, ByteBuffer key)
     {
@@ -81,7 +87,10 @@ public class Mutation implements IMutation
 
     public Mutation copy()
     {
-        return new Mutation(keyspaceName, key, new HashMap<>(modifications));
+        Mutation copy = new Mutation(keyspaceName, key, new HashMap<>(modifications));
+        copy.setSourceFrame(getSourceFrame());
+
+        return copy;
     }
 
     public String getKeyspaceName()
@@ -102,6 +111,20 @@ public class Mutation implements IMutation
     public Collection<ColumnFamily> getColumnFamilies()
     {
         return modifications.values();
+    }
+
+    @Override
+    public void retain()
+    {
+        if (sourceFrame != null)
+            sourceFrame.retain();
+    }
+
+    @Override
+    public void release()
+    {
+        if (sourceFrame != null)
+            sourceFrame.release();
     }
 
     public ColumnFamily getColumnFamily(UUID cfId)
@@ -206,6 +229,8 @@ public class Mutation implements IMutation
      */
     public void apply()
     {
+        assert sourceFrame == null || sourceFrame.body.refCnt() > 0;
+
         Keyspace ks = Keyspace.open(keyspaceName);
         ks.apply(this, ks.metadata.durableWrites);
     }
@@ -263,6 +288,16 @@ public class Mutation implements IMutation
             if (!entry.getKey().equals(cfId))
                 mutation.add(entry.getValue());
         return mutation;
+    }
+
+    public Frame getSourceFrame()
+    {
+        return sourceFrame;
+    }
+
+    public void setSourceFrame(Frame sourceFrame)
+    {
+        this.sourceFrame = sourceFrame;
     }
 
     public static class MutationSerializer implements IVersionedSerializer<Mutation>

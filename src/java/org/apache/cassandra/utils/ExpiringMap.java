@@ -91,10 +91,12 @@ public class ExpiringMap<K, V>
                 {
                     if (entry.getValue().isReadyToDieAt(start))
                     {
-                        cache.remove(entry.getKey());
-                        n++;
-                        if (postExpireHook != null)
-                            postExpireHook.apply(Pair.create(entry.getKey(), entry.getValue()));
+                        if (cache.remove(entry.getKey()) != null)
+                        {
+                            n++;
+                            if (postExpireHook != null)
+                                postExpireHook.apply(Pair.create(entry.getKey(), entry.getValue()));
+                        }
                     }
                 }
                 logger.trace("Expired {} entries", n);
