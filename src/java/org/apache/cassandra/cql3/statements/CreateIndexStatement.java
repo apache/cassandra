@@ -117,7 +117,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
             throw new InvalidRequestException(String.format("Cannot add secondary index to already primarily indexed column %s", target.column));
     }
 
-    public void announceMigration() throws RequestValidationException
+    public void announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         logger.debug("Updating column {} definition for index {}", target.column, indexName);
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
@@ -147,7 +147,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
         cd.setIndexName(indexName);
         cfm.addDefaultIndexNames();
-        MigrationManager.announceColumnFamilyUpdate(cfm, false);
+        MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);
     }
 
     public ResultMessage.SchemaChange.Change changeType()

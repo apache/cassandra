@@ -105,11 +105,11 @@ public class CreateTableStatement extends SchemaAlteringStatement
         return columnDefs;
     }
 
-    public void announceMigration() throws RequestValidationException
+    public void announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         try
         {
-           MigrationManager.announceNewColumnFamily(getCFMetaData());
+           MigrationManager.announceNewColumnFamily(getCFMetaData(), isLocalOnly);
         }
         catch (AlreadyExistsException e)
         {

@@ -89,7 +89,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
         return name.getKeyspace();
     }
 
-    public void announceMigration() throws InvalidRequestException, ConfigurationException
+    public void announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
     {
         KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
         if (ksm == null)
@@ -104,7 +104,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
 
         // Now, we need to announce the type update to basically change it for new tables using this type,
         // but we also need to find all existing user types and CF using it and change them.
-        MigrationManager.announceTypeUpdate(updated);
+        MigrationManager.announceTypeUpdate(updated, isLocalOnly);
 
         for (KSMetaData ksm2 : Schema.instance.getKeyspaceDefinitions())
         {
@@ -115,7 +115,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
                 for (ColumnDefinition def : copy.allColumns())
                     modified |= updateDefinition(copy, def, toUpdate.keyspace, toUpdate.name, updated);
                 if (modified)
-                    MigrationManager.announceColumnFamilyUpdate(copy, false);
+                    MigrationManager.announceColumnFamilyUpdate(copy, false, isLocalOnly);
             }
 
             // Other user types potentially using the updated type
@@ -131,7 +131,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
                 }
                 AbstractType<?> upd = updateWith(ut, toUpdate.keyspace, toUpdate.name, updated);
                 if (upd != null)
-                    MigrationManager.announceTypeUpdate((UserType)upd);
+                    MigrationManager.announceTypeUpdate((UserType)upd, isLocalOnly);
             }
         }
     }

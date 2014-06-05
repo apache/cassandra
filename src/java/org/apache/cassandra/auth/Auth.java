@@ -181,7 +181,7 @@ public class Auth
             try
             {
                 KSMetaData ksm = KSMetaData.newKeyspace(AUTH_KS, SimpleStrategy.class.getName(), ImmutableMap.of("replication_factor", "1"), true);
-                MigrationManager.announceNewKeyspace(ksm, 0);
+                MigrationManager.announceNewKeyspace(ksm, 0, false);
             }
             catch (Exception e)
             {

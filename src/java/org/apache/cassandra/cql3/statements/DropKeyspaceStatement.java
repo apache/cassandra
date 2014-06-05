@@ -55,11 +55,11 @@ public class DropKeyspaceStatement extends SchemaAlteringStatement
         return keyspace;
     }
 
-    public void announceMigration() throws ConfigurationException
+    public void announceMigration(boolean isLocalOnly) throws ConfigurationException
     {
         try
         {
-            MigrationManager.announceKeyspaceDrop(keyspace);
+            MigrationManager.announceKeyspaceDrop(keyspace, isLocalOnly);
         }
         catch(ConfigurationException e)
         {
