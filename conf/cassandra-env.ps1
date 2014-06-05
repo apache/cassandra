@@ -67,7 +67,7 @@ Function CalculateHeapSizes
 
     $memObject = Get-WMIObject -class win32_physicalmemory
     $memory = ($memObject | Measure-Object Capacity -Sum).sum
-    $memoryMB = $memory / (1024*1024)
+    $memoryMB = [Math]::Truncate($memory / (1024*1024))
 
     $cpu = gwmi Win32_ComputerSystem | Select-Object NumberOfLogicalProcessors
     $systemCores = $cpu.NumberOfLogicalProcessors
@@ -77,8 +77,8 @@ Function CalculateHeapSizes
     # calculate 1/2 ram and cap to 1024MB
     # calculate 1/4 ram and cap to 8192MB
     # pick the max
-    $halfMem = $memoryMB / 2
-    $quarterMem = $halfMem / 2
+    $halfMem = [Math]::Truncate($memoryMB / 2)
+    $quarterMem = [Math]::Truncate($halfMem / 2)
 
     if ($halfMem -gt 1024)
     {
@@ -103,7 +103,7 @@ Function CalculateHeapSizes
     # Young gen: min(max_sensible_per_modern_cpu_core * num_cores, 1/4
     $maxYGPerCore = 100
     $maxYGTotal = $maxYGPerCore * $systemCores
-    $desiredYG = $maxHeapMB / 4
+    $desiredYG = [Math]::Truncate($maxHeapMB / 4)
 
     if ($desiredYG -gt $maxYGTotal)
     {
