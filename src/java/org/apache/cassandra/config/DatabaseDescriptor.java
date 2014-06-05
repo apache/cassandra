@@ -463,35 +463,47 @@ public class DatabaseDescriptor
             throw new ConfigurationException("in_memory_compaction_limit_in_mb must be a positive integer");
         }
 
+        // if data dirs, commitlog dir, or saved caches dir are set in cassandra.yaml, use that.  Otherwise,
+        // use -Dcassandra.storagedir (set in cassandra-env.sh) as the parent dir for data/, commitlog/, and saved_caches/
+        if (conf.commitlog_directory == null)
+        {
+            conf.commitlog_directory = System.getProperty("cassandra.storagedir", null);
+            if (conf.commitlog_directory == null)
+                throw new ConfigurationException("commitlog_directory is missing and -Dcassandra.storagedir is not set");
+            conf.commitlog_directory += File.separator + "commitlog";
+        }
+        if (conf.saved_caches_directory == null)
+        {
+            conf.saved_caches_directory = System.getProperty("cassandra.storagedir", null);
+            if (conf.saved_caches_directory == null)
+                throw new ConfigurationException("saved_caches_directory is missing and -Dcassandra.storagedir is not set");
+            conf.saved_caches_directory += File.separator + "saved_caches";
+        }
+        if (conf.data_file_directories == null)
+        {
+            String defaultDataDir = System.getProperty("cassandra.storagedir", null);
+            if (defaultDataDir == null)
+                throw new ConfigurationException("data_file_directories is not missing and -Dcassandra.storagedir is not set");
+            conf.data_file_directories = new String[]{ defaultDataDir + File.separator + "data" };
+        }
+
+        /* data file and commit log directories. they get created later, when they're needed. */
+        for (String datadir : conf.data_file_directories)
+        {
+            if (datadir.equals(conf.commitlog_directory))
+                throw new ConfigurationException("commitlog_directory must not be the same as any data_file_directories");
+            if (datadir.equals(conf.saved_caches_directory))
+                throw new ConfigurationException("saved_caches_directory must not be the same as any data_file_directories");
+        }
+
+        if (conf.commitlog_directory.equals(conf.saved_caches_directory))
+            throw new ConfigurationException("saved_caches_directory must not be the same as the commitlog_directory");
+
         if (conf.concurrent_compactors == null)
             conf.concurrent_compactors = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
 
         if (conf.concurrent_compactors <= 0)
             throw new ConfigurationException("concurrent_compactors should be strictly greater than 0");
-
-        /* data file and commit log directories. they get created later, when they're needed. */
-        if (conf.commitlog_directory != null && conf.data_file_directories != null && conf.saved_caches_directory != null)
-        {
-            for (String datadir : conf.data_file_directories)
-            {
-                if (datadir.equals(conf.commitlog_directory))
-                    throw new ConfigurationException("commitlog_directory must not be the same as any data_file_directories");
-                if (datadir.equals(conf.saved_caches_directory))
-                    throw new ConfigurationException("saved_caches_directory must not be the same as any data_file_directories");
-            }
-
-            if (conf.commitlog_directory.equals(conf.saved_caches_directory))
-                throw new ConfigurationException("saved_caches_directory must not be the same as the commitlog_directory");
-        }
-        else
-        {
-            if (conf.commitlog_directory == null)
-                throw new ConfigurationException("commitlog_directory missing");
-            if (conf.data_file_directories == null)
-                throw new ConfigurationException("data_file_directories missing; at least one data directory must be specified");
-            if (conf.saved_caches_directory == null)
-                throw new ConfigurationException("saved_caches_directory missing");
-        }
 
         if (conf.initial_token != null)
             for (String token : tokensFromString(conf.initial_token))

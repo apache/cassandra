@@ -16,6 +16,7 @@
  * Reduce run time for CQL tests (CASSANDRA-7327)
  * Fix heap size calculation on Windows (CASSANDRA-7352)
  * RefCount native frames from netty (CASSANDRA-7245)
+ * Use tarball dir instead of /var for default paths (CASSANDRA-7136)
 Merged from 2.0:
  * Add per-CF range read request latency metrics (CASSANDRA-7338)
  * Fix NPE in StreamTransferTask.createMessageForRetry() (CASSANDRA-7323)
