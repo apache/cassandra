@@ -20,9 +20,9 @@
 <configuration scan="true">
   <jmxConfigurator />
   <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-    <file>/var/log/cassandra/system.log</file>
+    <file>${cassandra.logdir}/system.log</file>
     <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
-      <fileNamePattern>/var/log/cassandra/system.log.%i.zip</fileNamePattern>
+      <fileNamePattern>${cassandra.logdir}/system.log.%i.zip</fileNamePattern>
       <minIndex>1</minIndex>
       <maxIndex>20</maxIndex>
     </rollingPolicy>

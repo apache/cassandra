@@ -77,6 +77,10 @@ Function Main
     SetCassandraEnvironment
     $pidfile = "$env:CASSANDRA_HOME/$pidfile"
 
+    $logdir = "$env:CASSANDRA_HOME/logs"
+    $storagedir = "$env:CASSANDRA_HOME/data"
+    $env:CASSANDRA_PARAMS = $env:CASSANDRA_PARAMS + " -Dcassandra.logdir=$logdir -Dcassandra.storagedir=$storagedir"
+
     # Other command line params
     if ($H)
     {

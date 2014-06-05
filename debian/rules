@@ -3,6 +3,8 @@
 # Uncomment to enable verbose mode.
 #export DH_VERBOSE=1
 
+include /usr/share/dpatch/dpatch.make
+
 ANT = /usr/bin/ant
 VERSION = $(shell dpkg-parsechangelog | sed -ne 's/^Version: \(.*\)/\1/p')
 
@@ -10,7 +12,7 @@ test:
 	dh_testdir
 	$(ANT) test
 
-clean:
+clean: unpatch
 	dh_testdir
 	dh_testroot
 	$(ANT) realclean
@@ -22,7 +24,7 @@ clean:
 	dh_clean
 
 build: build-stamp
-build-stamp:
+build-stamp: patch-stamp
 	dh_testdir
 	printf "version=%s" $(VERSION) > build.properties
 

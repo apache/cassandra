@@ -18,6 +18,16 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - Default data and log locations have changed.  If not set in
+     cassandra.yaml, the data file directory, commitlog directory,
+     and saved caches directory will default to $CASSANDRA_HOME/data/data,
+     $CASSANDRA_HOME/data/commitlog, and $CASSANDRA_HOME/data/saved_caches,
+     respectively.  The log directory now defaults to $CASSANDRA_HOME/logs.
+     If not set, $CASSANDRA_HOME, defaults to the top-level directory of
+     the installation.
+     Note that this should only affect source checkouts and tarballs.
+     Deb and RPM packages will continue to use /var/lib/cassandra and
+     /var/log/cassandra in cassandra.yaml.
    - SSTable data directory name is slightly changed. Each directory will
      have hex string appended after CF name, e.g.
          ks/cf-5be396077b811e3a3ab9dc4b9ac088d/
