@@ -27,6 +27,7 @@ import java.util.concurrent.locks.Lock;
 import com.google.common.base.Function;
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.Striped;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.composites.CellName;
@@ -44,6 +45,8 @@ import org.apache.cassandra.utils.*;
 public class CounterMutation implements IMutation
 {
     public static final CounterMutationSerializer serializer = new CounterMutationSerializer();
+
+    private static final Striped<Lock> LOCKS = Striped.lazyWeakLock(DatabaseDescriptor.getConcurrentCounterWriters() * 1024);
 
     private final Mutation mutation;
     private final ConsistencyLevel consistency;
@@ -146,7 +149,7 @@ public class CounterMutation implements IMutation
     {
         long startTime = System.nanoTime();
 
-        for (Lock lock : Keyspace.counterLocksFor(getCounterLockKeys()))
+        for (Lock lock : LOCKS.bulkGet(getCounterLockKeys()))
         {
             long timeout = TimeUnit.MILLISECONDS.toNanos(getTimeout()) - (System.nanoTime() - startTime);
             try
