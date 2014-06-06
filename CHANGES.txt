@@ -9,6 +9,7 @@
 
 
 2.1.0
+ * Reduce likelihood of contention on local paxos locking (CASSANDRA-7359)
  * Upgrade to Pig 0.12.1 (CASSANDRA-6556)
  * Make sure we clear out repair sessions from netstats (CASSANDRA-7329)
  * Don't fail streams on failure detector downs (CASSANDRA-3569)
