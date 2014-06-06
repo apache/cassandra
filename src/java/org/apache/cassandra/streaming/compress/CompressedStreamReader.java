@@ -44,7 +44,7 @@ import org.apache.cassandra.utils.Pair;
  */
 public class CompressedStreamReader extends StreamReader
 {
-    private static final Logger logger = LoggerFactory.getLogger(StreamReader.class);
+    private static final Logger logger = LoggerFactory.getLogger(CompressedStreamReader.class);
 
     protected final CompressionInfo compressionInfo;
 
