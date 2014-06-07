@@ -252,7 +252,7 @@ public class CreateColumnFamilyStatement extends SchemaAlteringStatement
 
                         AbstractType<?> type = getTypeAndRemove(stmt.columns, t);
                         if (type instanceof CounterColumnType)
-                            throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", t.key));
+                            throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", t));
                         types.add(type);
                     }
 
