@@ -31,6 +31,7 @@
  * Fix availability validation for LOCAL_ONE CL (CASSANDRA-7319)
  * Hint streaming can cause decommission to fail (CASSANDRA-7219)
  * RepairTask didn't send a correct message on IllegalArgumentException (CASSANDRA-7336)
+ * Fix race in Thrift server that can exhaust the pool of worker threads (CASSANDRA-6788)
 
 
 1.2.16

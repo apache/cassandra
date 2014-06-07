@@ -21,6 +21,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -97,7 +98,7 @@ public class CustomTThreadPoolServer extends TServer
             {
                 try
                 {
-                    Thread.sleep(100);
+                    Thread.sleep(10);
                 }
                 catch (InterruptedException e)
                 {
@@ -121,6 +122,12 @@ public class CustomTThreadPoolServer extends TServer
                 {
                     logger.warn("Transport error occurred during acceptance of message.", ttx);
                 }
+            }
+            catch (RejectedExecutionException e)
+            {
+                // worker thread decremented activeClients but hadn't finished exiting
+                logger.debug("Dropping client connection because our limit of {} has been reached", args.maxWorkerThreads);
+                continue;
             }
 
             if (activeClients.get() >= args.maxWorkerThreads)
@@ -218,19 +225,13 @@ public class CustomTThreadPoolServer extends TServer
             }
             finally
             {
-                activeClients.decrementAndGet();
                 if (socket != null)
                     ThriftSessionManager.instance.connectionComplete(socket);
-            }
-
-            if (inputTransport != null)
-            {
-                inputTransport.close();
-            }
-
-            if (outputTransport != null)
-            {
-                outputTransport.close();
+                if (inputTransport != null)
+                    inputTransport.close();
+                if (outputTransport != null)
+                    outputTransport.close();
+                activeClients.decrementAndGet();
             }
         }
     }
