@@ -58,7 +58,6 @@ public class GossipDigestAckVerbHandler implements IVerbHandler<GossipDigestAck>
             Gossiper.instance.applyStateLocally(epStateMap);
         }
 
-        Gossiper.instance.checkSeedContact(from);
         if (Gossiper.instance.isInShadowRound())
         {
             if (logger.isDebugEnabled())
