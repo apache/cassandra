@@ -64,11 +64,6 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
      * @param statements a list of UpdateStatements
      * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
-    public BatchStatement(int boundTerms, Type type, List<ModificationStatement> statements, Attributes attrs)
-    {
-        this(boundTerms, type, statements, attrs, false);
-    }
-
     public BatchStatement(int boundTerms, Type type, List<ModificationStatement> statements, Attributes attrs, boolean hasConditions)
     {
         this.boundTerms = boundTerms;
@@ -254,7 +249,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
             return executeWithConditions(variables, cl, serialCl, now);
 
         executeWithoutConditions(getMutations(variables, local, cl, now), cl);
-        return null;
+        return new ResultMessage.Void();
     }
 
     private void executeWithoutConditions(Collection<? extends IMutation> mutations, ConsistencyLevel cl) throws RequestExecutionException, RequestValidationException

@@ -316,8 +316,7 @@ public class QueryProcessor implements QueryHandler
         batch.checkAccess(clientState);
         batch.validate(clientState);
 
-        batch.executeWithPerStatementVariables(options.getConsistency(), queryState, options.getValues());
-        return new ResultMessage.Void();
+        return batch.executeWithPerStatementVariables(options.getConsistency(), queryState, options.getValues());
     }
 
     public static ParsedStatement.Prepared getStatement(String queryStr, ClientState clientState)

@@ -1,4 +1,5 @@
 2.0.9
+ * Fix native protocol CAS batches (CASSANDRA-7337)
  * Add per-CF range read request latency metrics (CASSANDRA-7338)
  * Fix NPE in StreamTransferTask.createMessageForRetry() (CASSANDRA-7323)
  * Add conditional CREATE/DROP USER support (CASSANDRA-7264)
