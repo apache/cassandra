@@ -242,7 +242,19 @@ public class CompactionTask extends AbstractCompactionTask
         replaceCompactedSSTables(toCompact, sstables);
         // TODO: this doesn't belong here, it should be part of the reader to load when the tracker is wired up
         for (SSTableReader sstable : sstables)
-            sstable.preheat(cachedKeyMap.get(sstable.descriptor));
+        {
+            if (sstable.acquireReference())
+            {
+                try
+                {
+                    sstable.preheat(cachedKeyMap.get(sstable.descriptor));
+                }
+                finally
+                {
+                    sstable.releaseReference();
+                }
+            }
+        }
 
         // log a bunch of statistics about the result and save to system table compaction_history
         long dTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
