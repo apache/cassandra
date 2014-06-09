@@ -419,8 +419,7 @@ public class QueryProcessor implements QueryHandler
         ClientState clientState = queryState.getClientState();
         batch.checkAccess(clientState);
         batch.validate(clientState);
-        batch.execute(queryState, options);
-        return new ResultMessage.Void();
+        return batch.execute(queryState, options);
     }
 
     public static ParsedStatement.Prepared getStatement(String queryStr, ClientState clientState)
