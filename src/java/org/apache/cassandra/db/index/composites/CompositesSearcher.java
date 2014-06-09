@@ -79,7 +79,8 @@ public class CompositesSearcher extends SecondaryIndexSearcher
         if (columnFilter instanceof SliceQueryFilter)
         {
             SliceQueryFilter sqf = (SliceQueryFilter)columnFilter;
-            prefix = index.makeIndexColumnPrefix(key, isStart ? sqf.start() : sqf.finish());
+            Composite columnName = isStart ? sqf.start() : sqf.finish();
+            prefix = columnName.isEmpty() ? index.getIndexComparator().make(key) : index.makeIndexColumnPrefix(key, columnName);
         }
         else
         {
