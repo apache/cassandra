@@ -1,4 +1,5 @@
 1.2.17
+ * Check internal addresses for seeds (CASSANDRA-6523)
  * Fix potential / by 0 in HHOM page size calculation (CASSANDRA-7354)
  * Fix handling of empty counter replication mutations (CASSANDRA-7144)
  * Use LOCAL_ONE for non-superuser auth queries (CASSANDRA-7328)
