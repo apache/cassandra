@@ -9,6 +9,7 @@
 
 
 2.1.0
+ * Fix native protocol CAS batches (CASSANDRA-7337)
  * Reduce likelihood of contention on local paxos locking (CASSANDRA-7359)
  * Upgrade to Pig 0.12.1 (CASSANDRA-6556)
  * Make sure we clear out repair sessions from netstats (CASSANDRA-7329)

@@ -170,6 +170,7 @@ public class BatchMessage extends Message.Request
 
             QueryHandler handler = state.getClientState().getCQLQueryHandler();
             List<ParsedStatement.Prepared> prepared = new ArrayList<>(queryOrIdList.size());
+            boolean hasConditions = false;
             for (int i = 0; i < queryOrIdList.size(); i++)
             {
                 Object query = queryOrIdList.get(i);
@@ -206,6 +207,7 @@ public class BatchMessage extends Message.Request
                     throw new InvalidRequestException("Invalid statement in batch: only UPDATE, INSERT and DELETE statements are allowed.");
 
                 ModificationStatement mst = (ModificationStatement)statement;
+                hasConditions |= mst.hasConditions();
                 if (mst.isCounter())
                 {
                     if (type != BatchStatement.Type.COUNTER)
@@ -221,7 +223,7 @@ public class BatchMessage extends Message.Request
 
             // Note: It's ok at this point to pass a bogus value for the number of bound terms in the BatchState ctor
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
-            BatchStatement batch = new BatchStatement(-1, type, statements, Attributes.none());
+            BatchStatement batch = new BatchStatement(-1, type, statements, Attributes.none(), hasConditions);
             Message.Response response = handler.processBatch(batch, state, batchOptions);
 
             if (tracingId != null)
