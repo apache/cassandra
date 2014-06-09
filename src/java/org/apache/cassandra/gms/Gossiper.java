@@ -111,9 +111,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private final Map<InetAddress, Long> expireTimeEndpointMap = new ConcurrentHashMap<InetAddress, Long>();
 
-    // have we ever in our lifetime reached a seed?
-    private boolean seedContacted = false;
-
     private boolean inShadowRound = false;
 
     private volatile long lastProcessedMessageAt = System.currentTimeMillis();
@@ -201,15 +198,23 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         this.lastProcessedMessageAt = timeInMillis;
     }
 
-    protected void checkSeedContact(InetAddress ep)
-    {
-        if (!seedContacted && seeds.contains(ep))
-            seedContacted = true;
-    }
-
     public boolean seenAnySeed()
     {
-        return seedContacted;
+        for (Map.Entry<InetAddress, EndpointState> entry : endpointStateMap.entrySet())
+        {
+            if (seeds.contains(entry.getKey()))
+                return true;
+            try
+            {
+                if (entry.getValue().getApplicationStateMap().keySet().contains(ApplicationState.INTERNAL_IP) && seeds.contains(InetAddress.getByName(entry.getValue().getApplicationState(ApplicationState.INTERNAL_IP).value)))
+                    return true;
+            }
+            catch (UnknownHostException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+        return false;
     }
 
     /**

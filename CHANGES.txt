@@ -24,6 +24,7 @@ Merged from 2.0:
  * Make StreamSession#closeSession() idempotent (CASSANDRA-7262)
  * Fix infinite loop on exception while streaming (CASSANDRA-7330)
 Merged from 1.2:
+ * Check internal addresses for seeds (CASSANDRA-6523)
  * Fix potential / by 0 in HHOM page size calculation (CASSANDRA-7354)
  * Use LOCAL_ONE for non-superuser auth queries (CASSANDRA-7328)
 
