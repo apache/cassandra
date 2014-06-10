@@ -194,7 +194,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 return true;
             try
             {
-                if (entry.getValue().getApplicationStateMap().keySet().contains(ApplicationState.INTERNAL_IP) && seeds.contains(InetAddress.getByName(entry.getValue().getApplicationState(ApplicationState.INTERNAL_IP).value)))
+                if (entry.getValue().getApplicationStateMap().containsKey(ApplicationState.INTERNAL_IP) && seeds.contains(InetAddress.getByName(entry.getValue().getApplicationState(ApplicationState.INTERNAL_IP).value)))
                     return true;
             }
             catch (UnknownHostException e)
