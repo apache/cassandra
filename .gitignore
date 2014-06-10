@@ -4,6 +4,8 @@
 build/
 src/gen-java/
 src/resources/org/apache/cassandra/config/
+logs/
+data/
 
 # C* debs
 build-stamp
