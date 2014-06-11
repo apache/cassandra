@@ -119,13 +119,6 @@ public class UpdateStatement extends AbstractModification
     }
 
     /** {@inheritDoc} */
-    public List<IMutation> prepareRowMutations(String keyspace, ThriftClientState clientState, List<ByteBuffer> variables)
-    throws InvalidRequestException, UnauthorizedException
-    {
-        return prepareRowMutations(keyspace, clientState, null, variables);
-    }
-
-    /** {@inheritDoc} */
     public List<IMutation> prepareRowMutations(String keyspace, ThriftClientState clientState, Long timestamp, List<ByteBuffer> variables)
     throws InvalidRequestException, UnauthorizedException
     {

@@ -66,7 +66,7 @@ public class DeleteStatement extends ModificationStatement
             if (prefix.isEmpty())
             {
                 // No columns specified, delete the row
-                cf.delete(new DeletionInfo(params.timestamp, params.localDeletionTime));
+                cf.delete(params.makeDeletionInfo());
             }
             else if (cfm.comparator.isDense() && prefix.size() == cfm.clusteringColumns().size())
             {
