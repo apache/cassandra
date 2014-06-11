@@ -380,11 +380,17 @@ public class Memtable
 
         protected void runWith(File sstableDirectory) throws Exception
         {
-            assert sstableDirectory != null : "Flush task is not bound to any disk";
+            try
+            {
+                assert sstableDirectory != null : "Flush task is not bound to any disk";
 
-            SSTableReader sstable = writeSortedContents(context, sstableDirectory);
-            cfs.replaceFlushed(Memtable.this, sstable);
-            latch.countDown();
+                SSTableReader sstable = writeSortedContents(context, sstableDirectory);
+                cfs.replaceFlushed(Memtable.this, sstable);
+            }
+            finally
+            {
+                latch.countDown();
+            }
         }
 
         protected Directories getDirectories()
