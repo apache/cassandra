@@ -144,12 +144,6 @@ public final class CFMetaData
                                                      + "PRIMARY KEY (table_name, index_name)"
                                                      + ") WITH COMPACT STORAGE AND COMMENT='indexes that have been completed'");
 
-    public static final CFMetaData CounterIdCf = compile("CREATE TABLE \"" + SystemKeyspace.COUNTER_ID_CF + "\" ("
-                                                         + "key text,"
-                                                         + "id timeuuid,"
-                                                         + "PRIMARY KEY (key, id)"
-                                                         + ") WITH COMPACT STORAGE AND COMMENT='counter node IDs'");
-
     public static final CFMetaData SchemaKeyspacesCf = compile("CREATE TABLE " + SystemKeyspace.SCHEMA_KEYSPACES_CF + " ("
                                                                + "keyspace_name text PRIMARY KEY,"
                                                                + "durable_writes boolean,"

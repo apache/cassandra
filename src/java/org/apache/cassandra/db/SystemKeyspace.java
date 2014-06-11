@@ -29,7 +29,6 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +43,6 @@ import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.composites.Composites;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.Range;
@@ -73,7 +71,6 @@ public class SystemKeyspace
     public static final String PEER_EVENTS_CF = "peer_events";
     public static final String LOCAL_CF = "local";
     public static final String INDEX_CF = "IndexInfo";
-    public static final String COUNTER_ID_CF = "NodeIdInfo";
     public static final String HINTS_CF = "hints";
     public static final String RANGE_XFERS_CF = "range_xfers";
     public static final String BATCHLOG_CF = "batchlog";
@@ -89,7 +86,6 @@ public class SystemKeyspace
     public static final String COMPACTION_HISTORY_CF = "compaction_history";
 
     private static final String LOCAL_KEY = "local";
-    private static final ByteBuffer ALL_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("Local");
 
     public static final List<String> allSchemaCfs = Arrays.asList(SCHEMA_KEYSPACES_CF,
                                                                   SCHEMA_COLUMNFAMILIES_CF,
@@ -688,19 +684,15 @@ public class SystemKeyspace
      */
     public static UUID getLocalHostId()
     {
-        UUID hostId = null;
-
         String req = "SELECT host_id FROM system.%s WHERE key='%s'";
         UntypedResultSet result = executeInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
 
         // Look up the Host UUID (return it if found)
         if (!result.isEmpty() && result.one().has("host_id"))
-        {
             return result.one().getUUID("host_id");
-        }
 
         // ID not found, generate a new one, persist, and then return it.
-        hostId = UUID.randomUUID();
+        UUID hostId = UUID.randomUUID();
         logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
         return setLocalHostId(hostId);
     }
@@ -713,45 +705,6 @@ public class SystemKeyspace
         String req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', ?)";
         executeInternal(String.format(req, LOCAL_CF, LOCAL_KEY), hostId);
         return hostId;
-    }
-
-    /**
-     * Read the current local node id from the system keyspace or null if no
-     * such node id is recorded.
-     */
-    public static CounterId getCurrentLocalCounterId()
-    {
-        Keyspace keyspace = Keyspace.open(Keyspace.SYSTEM_KS);
-
-        // Get the last CounterId (since CounterId are timeuuid is thus ordered from the older to the newer one)
-        QueryFilter filter = QueryFilter.getSliceFilter(decorate(ALL_LOCAL_NODE_ID_KEY),
-                                                        COUNTER_ID_CF,
-                                                        Composites.EMPTY,
-                                                        Composites.EMPTY,
-                                                        true,
-                                                        1,
-                                                        System.currentTimeMillis());
-        ColumnFamily cf = keyspace.getColumnFamilyStore(COUNTER_ID_CF).getColumnFamily(filter);
-        if (cf != null && cf.hasColumns())
-            return CounterId.wrap(cf.iterator().next().name().toByteBuffer());
-        else
-            return null;
-    }
-
-    /**
-     * Write a new current local node id to the system keyspace.
-     *
-     * @param newCounterId the new current local node id to record
-     * @param now microsecond time stamp.
-     */
-    public static void writeCurrentLocalCounterId(CounterId newCounterId, long now)
-    {
-        ByteBuffer ip = ByteBuffer.wrap(FBUtilities.getBroadcastAddress().getAddress());
-
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Keyspace.SYSTEM_KS, COUNTER_ID_CF);
-        cf.addColumn(new BufferCell(cf.getComparator().makeCellName(newCounterId.bytes()), ip, now));
-        new Mutation(Keyspace.SYSTEM_KS, ALL_LOCAL_NODE_ID_KEY, cf).apply();
-        forceBlockingFlush(COUNTER_ID_CF);
     }
 
     /**

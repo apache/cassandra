@@ -560,17 +560,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
 
-        if (Boolean.parseBoolean(System.getProperty("cassandra.renew_counter_id", "false")))
-        {
-            logger.info("Renewing local node id (as requested)");
-            CounterId.renewLocalId();
-        }
-
-        // Can't do this in CassandraDaemon before the SS start b/c local counter id can be renewed afterwards.
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-            if (cfs.metadata.isCounter())
-                cfs.initCounterCache();
-
         // daemon threads, like our executors', continue to run while shutdown hooks are invoked
         Thread drainOnShutdown = new Thread(new WrappedRunnable()
         {
@@ -626,6 +615,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Runtime.getRuntime().addShutdownHook(drainOnShutdown);
 
         prepareToJoin();
+
+        // Has to be called after the host id has potentially changed in prepareToJoin().
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+            if (cfs.metadata.isCounter())
+                cfs.initCounterCache();
+
         if (Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true")))
         {
             joinTokenRing(delay);

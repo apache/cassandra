@@ -1,4 +1,5 @@
 2.1.0
+ * Use node's host id in place of counter ids (CASSANDRA-7366)
  * Explicitly use Long.MAX_VALUE timestamp for counter deletions
    (CASSANDRA-7346)
  * Fix native protocol CAS batches (CASSANDRA-7337)

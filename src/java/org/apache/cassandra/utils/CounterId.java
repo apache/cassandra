@@ -20,15 +20,10 @@ package org.apache.cassandra.utils;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.SystemKeyspace;
 
 public class CounterId implements Comparable<CounterId>
 {
-    private static final Logger logger = LoggerFactory.getLogger(CounterId.class);
-
     public static final int LENGTH = 16; // we assume a fixed length size for all CounterIds
 
     // Lazy holder because this opens the system keyspace and we want to avoid
@@ -48,16 +43,6 @@ public class CounterId implements Comparable<CounterId>
     public static CounterId getLocalId()
     {
         return localId().get();
-    }
-
-    /**
-     * Renew the local counter id.
-     * To use only when this strictly necessary, as using this will make all
-     * counter context grow with time.
-     */
-    public static synchronized void renewLocalId()
-    {
-        localId().renew(FBUtilities.timestampMicros());
     }
 
     /**
@@ -150,28 +135,7 @@ public class CounterId implements Comparable<CounterId>
 
         LocalCounterIdHolder()
         {
-            CounterId id = SystemKeyspace.getCurrentLocalCounterId();
-
-            if (id == null)
-            {
-                // no recorded local counter id, generating a new one and saving it
-                id = generate();
-                logger.info("No saved local counter id, using newly generated: {}", id);
-                SystemKeyspace.writeCurrentLocalCounterId(id, FBUtilities.timestampMicros());
-            }
-            else
-            {
-                logger.info("Using saved local counter id: {}", id);
-            }
-
-            current = new AtomicReference<>(id);
-        }
-
-        synchronized void renew(long now)
-        {
-            CounterId newCounterId = generate();
-            SystemKeyspace.writeCurrentLocalCounterId(newCounterId, now);
-            current.set(newCounterId);
+            current = new AtomicReference<>(wrap(ByteBufferUtil.bytes(SystemKeyspace.getLocalHostId())));
         }
 
         CounterId get()
