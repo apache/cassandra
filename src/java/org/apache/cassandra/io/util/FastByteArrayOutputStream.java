@@ -101,7 +101,9 @@ public class FastByteArrayOutputStream extends OutputStream {
             return;
         }
 
-        byte[] newbuf = new byte[(count + i) * 2];
+        long expectedExtent = (count + i) * 2L; //long to deal with possible int overflow
+        int newSize = (int) Math.min(Integer.MAX_VALUE - 8, expectedExtent); // MAX_ARRAY_SIZE
+        byte[] newbuf = new byte[newSize];
         System.arraycopy(buf, 0, newbuf, 0, count);
         buf = newbuf;
     }
@@ -209,7 +211,8 @@ public class FastByteArrayOutputStream extends OutputStream {
     public void write(byte[] buffer, int offset, int len) {
         // avoid int overflow
         if (offset < 0 || offset > buffer.length || len < 0
-                || len > buffer.length - offset) {
+                || len > buffer.length - offset
+                || this.count + len < 0) {
             throw new IndexOutOfBoundsException();
         }
         if (len == 0) {
