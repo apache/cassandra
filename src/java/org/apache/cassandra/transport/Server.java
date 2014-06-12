@@ -144,6 +144,7 @@ public class Server implements CassandraDaemon.Server
                                     .group(workerGroup)
                                     .channel(NioServerSocketChannel.class)
                                     .childOption(ChannelOption.TCP_NODELAY, true)
+                                    .childOption(ChannelOption.SO_KEEPALIVE, DatabaseDescriptor.getRpcKeepAlive())
                                     .childOption(ChannelOption.ALLOCATOR, CBUtil.allocator)
                                     .childOption(ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, 32 * 1024)
                                     .childOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 8 * 1024);

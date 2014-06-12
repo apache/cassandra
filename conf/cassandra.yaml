@@ -385,7 +385,7 @@ rpc_port: 9160
 # be set.
 # broadcast_rpc_address: 1.2.3.4
 
-# enable or disable keepalive on rpc connections
+# enable or disable keepalive on rpc/native connections
 rpc_keepalive: true
 
 # Cassandra provides two out-of-the-box options for the RPC Server:
