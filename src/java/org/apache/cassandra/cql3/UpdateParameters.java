@@ -29,7 +29,7 @@ import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
- * A simple container that simplifies passing parameters for (mostly) collections methods.
+ * A simple container that simplify passing parameters for collections methods.
  */
 public class UpdateParameters
 {
@@ -61,27 +61,21 @@ public class UpdateParameters
     public Cell makeTombstone(CellName name) throws InvalidRequestException
     {
         QueryProcessor.validateCellName(name, metadata.comparator);
-        return new BufferDeletedCell(name, localDeletionTime, tombstoneTimestamp());
+        return new BufferDeletedCell(name, localDeletionTime, timestamp);
     }
 
     public RangeTombstone makeRangeTombstone(ColumnSlice slice) throws InvalidRequestException
     {
         QueryProcessor.validateComposite(slice.start, metadata.comparator);
         QueryProcessor.validateComposite(slice.finish, metadata.comparator);
-        return new RangeTombstone(slice.start, slice.finish, tombstoneTimestamp(), localDeletionTime);
+        return new RangeTombstone(slice.start, slice.finish, timestamp, localDeletionTime);
     }
 
     public RangeTombstone makeTombstoneForOverwrite(ColumnSlice slice) throws InvalidRequestException
     {
         QueryProcessor.validateComposite(slice.start, metadata.comparator);
         QueryProcessor.validateComposite(slice.finish, metadata.comparator);
-        // As of 2.1, will never be called for a counter table. However, in 3.0, CASSANDRA-6506 might change that, so play safe.
-        return new RangeTombstone(slice.start, slice.finish, tombstoneTimestamp() - 1, localDeletionTime);
-    }
-
-    public DeletionInfo makeDeletionInfo()
-    {
-        return new DeletionInfo(tombstoneTimestamp(), localDeletionTime);
+        return new RangeTombstone(slice.start, slice.finish, timestamp - 1, localDeletionTime);
     }
 
     public List<Cell> getPrefetchedList(ByteBuffer rowKey, ColumnIdentifier cql3ColumnName)
@@ -91,10 +85,5 @@ public class UpdateParameters
 
         CQL3Row row = prefetchedLists.get(rowKey);
         return row == null ? Collections.<Cell>emptyList() : row.getCollection(cql3ColumnName);
-    }
-
-    private long tombstoneTimestamp()
-    {
-        return metadata.isCounter() ? CounterMutation.TOMBSTONE_TIMESTAMP : timestamp;
     }
 }

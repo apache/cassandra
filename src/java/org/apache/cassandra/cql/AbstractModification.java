@@ -107,11 +107,8 @@ public abstract class AbstractModification
      *
      * @throws InvalidRequestException on the wrong request
      */
-    public List<IMutation> prepareRowMutations(String keyspace, ThriftClientState clientState, List<ByteBuffer> variables)
-    throws InvalidRequestException, UnauthorizedException
-    {
-        return prepareRowMutations(keyspace, clientState, null, variables);
-    }
+    public abstract List<IMutation> prepareRowMutations(String keyspace, ThriftClientState clientState, List<ByteBuffer> variables)
+    throws InvalidRequestException, UnauthorizedException;
 
     /**
      * Convert statement into a list of mutations to apply on the server
@@ -124,6 +121,6 @@ public abstract class AbstractModification
      *
      * @throws InvalidRequestException on the wrong request
      */
-    public abstract List<IMutation> prepareRowMutations(String keyspace, ThriftClientState clientState, Long batchTimestamp, List<ByteBuffer> variables)
+    public abstract List<IMutation> prepareRowMutations(String keyspace, ThriftClientState clientState, Long timestamp, List<ByteBuffer> variables)
     throws InvalidRequestException, UnauthorizedException;
 }

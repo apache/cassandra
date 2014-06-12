@@ -2,8 +2,6 @@
  * Fix exception when querying a composite-keyed table with a collection index
    (CASSANDRA-7372)
  * Use node's host id in place of counter ids (CASSANDRA-7366)
- * Explicitly use Long.MAX_VALUE timestamp for counter deletions
-   (CASSANDRA-7346)
  * Fix native protocol CAS batches (CASSANDRA-7337)
  * Reduce likelihood of contention on local paxos locking (CASSANDRA-7359)
  * Upgrade to Pig 0.12.1 (CASSANDRA-6556)

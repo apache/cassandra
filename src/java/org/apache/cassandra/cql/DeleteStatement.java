@@ -24,7 +24,6 @@ import java.util.List;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.IMutation;
@@ -63,7 +62,13 @@ public class DeleteStatement extends AbstractModification
         return keys;
     }
 
-    public List<IMutation> prepareRowMutations(String keyspace, ThriftClientState clientState, Long batchTimestamp, List<ByteBuffer> variables)
+    public List<IMutation> prepareRowMutations(String keyspace, ThriftClientState clientState, List<ByteBuffer> variables)
+    throws InvalidRequestException, UnauthorizedException
+    {
+        return prepareRowMutations(keyspace, clientState, null, variables);
+    }
+
+    public List<IMutation> prepareRowMutations(String keyspace, ThriftClientState clientState, Long timestamp, List<ByteBuffer> variables)
     throws InvalidRequestException, UnauthorizedException
     {
         CFMetaData metadata = validateColumnFamily(keyspace, columnFamily);
@@ -74,22 +79,22 @@ public class DeleteStatement extends AbstractModification
         List<IMutation> mutations = new ArrayList<IMutation>(keys.size());
 
         for (Term key : keys)
-            mutations.add(mutationForKey(key.getByteBuffer(keyType, variables), keyspace, batchTimestamp, clientState, variables, metadata));
+            mutations.add(mutationForKey(key.getByteBuffer(keyType, variables), keyspace, timestamp, clientState, variables, metadata));
 
         return mutations;
     }
 
-    public Mutation mutationForKey(ByteBuffer key, String keyspace, Long batchTimestamp, ThriftClientState clientState, List<ByteBuffer> variables, CFMetaData metadata)
+    public Mutation mutationForKey(ByteBuffer key, String keyspace, Long timestamp, ThriftClientState clientState, List<ByteBuffer> variables, CFMetaData metadata)
     throws InvalidRequestException
     {
         Mutation mutation = new Mutation(keyspace, key);
 
         QueryProcessor.validateKeyAlias(metadata, keyName);
 
-        if (columns.isEmpty())
+        if (columns.size() < 1)
         {
             // No columns, delete the partition
-            mutation.delete(columnFamily, batchTimestamp == null ? getTimestamp(clientState) : batchTimestamp);
+            mutation.delete(columnFamily, (timestamp == null) ? getTimestamp(clientState) : timestamp);
         }
         else
         {
@@ -99,19 +104,11 @@ public class DeleteStatement extends AbstractModification
             {
                 CellName columnName = metadata.comparator.cellFromByteBuffer(column.getByteBuffer(at, variables));
                 validateColumnName(columnName);
-                mutation.delete(columnFamily, columnName, batchTimestamp == null ? getTimestamp(clientState) : batchTimestamp);
+                mutation.delete(columnFamily, columnName, (timestamp == null) ? getTimestamp(clientState) : timestamp);
             }
         }
 
         return mutation;
-    }
-
-    @Override
-    public long getTimestamp(ThriftClientState clientState)
-    {
-        return Schema.instance.getCFMetaData(keyspace, columnFamily).isCounter()
-             ? CounterMutation.TOMBSTONE_TIMESTAMP
-             : super.getTimestamp(clientState);
     }
 
     public String toString()
