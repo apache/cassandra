@@ -3459,7 +3459,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         else
         {
-            throw new UnsupportedOperationException("No tokens to force removal on, call 'removenode' first");
+            logger.warn("No tokens to force removal on, call 'removenode' first");
         }
     }
 
