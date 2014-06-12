@@ -39,15 +39,15 @@ Function SetCassandraMain()
 #-----------------------------------------------------------------------------
 Function BuildClassPath
 {
-    $cp = "$env:CASSANDRA_HOME/conf"
-    foreach ($file in Get-ChildItem "$env:CASSANDRA_HOME/lib/*.jar")
+    $cp = "$env:CASSANDRA_HOME\conf"
+    foreach ($file in Get-ChildItem "$env:CASSANDRA_HOME\lib\*.jar")
     {
         $file = $file -replace "\\", "/"
-        $cp = $cp + ";" + "$file"
+        $cp = $cp + ";" + """$file"""
     }
 
     # Add build/classes/main so it works in development
-    $cp = $cp + ";" + "$env:CASSANDRA_HOME/build/classes/main;$env:CASSANDRA_HOME/build/classes/thrift"
+    $cp = $cp + ";" + "$env:CASSANDRA_HOME\build\classes\main;$env:CASSANDRA_HOME\build\classes\thrift"
     $env:CLASSPATH=$cp
 }
 
@@ -174,7 +174,7 @@ Function SetCassandraEnvironment
     echo "Setting up Cassandra environment"
     if (Test-Path Env:\JAVA_HOME)
     {
-        $env:JAVA_BIN = "$env:JAVA_HOME/bin/java.exe"
+        $env:JAVA_BIN = "$env:JAVA_HOME\bin\java.exe"
     }
     elseif (Get-Command "java.exe")
     {
@@ -186,7 +186,7 @@ Function SetCassandraEnvironment
         exit
     }
     SetCassandraHome
-    $env:CASSANDRA_CONF = "$env:CASSANDRA_HOME/conf"
+    $env:CASSANDRA_CONF = "$env:CASSANDRA_HOME\conf"
     $env:CASSANDRA_PARAMS="-Dcassandra -Dlogback.configurationFile=logback.xml"
     SetCassandraMain
     BuildClassPath
@@ -215,7 +215,7 @@ Function SetCassandraEnvironment
     if (($env:JVM_VENDOR -ne "OpenJDK") -or ($env:JVM_VERSION.CompareTo("1.6.0") -eq 1) -or
         (($env:JVM_VERSION -eq "1.6.0") -and ($env:JVM_PATCH_VERSION.CompareTo("22") -eq 1)))
     {
-        $env:JVM_OPTS = "$env:JVM_OPTS -javaagent:$env:CASSANDRA_HOME/lib/jamm-0.2.6.jar"
+        $env:JVM_OPTS = "$env:JVM_OPTS -javaagent:""$env:CASSANDRA_HOME\lib\jamm-0.2.6.jar"""
     }
 
     # enable assertions.  disabling this in production will give a modest
