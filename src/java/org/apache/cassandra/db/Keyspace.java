@@ -27,6 +27,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.metrics.KeyspaceMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,6 +63,8 @@ public class Keyspace
      * (Enabling fairness in the RRWL is observed to decrease throughput, so we leave it off.)
      */
     public static final ReentrantReadWriteLock switchLock = new ReentrantReadWriteLock();
+
+    public final KeyspaceMetrics metric;
 
     // It is possible to call Keyspace.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
@@ -262,6 +265,7 @@ public class Keyspace
         metadata = Schema.instance.getKSMetaData(keyspaceName);
         assert metadata != null : "Unknown keyspace " + keyspaceName;
         createReplicationStrategy(metadata);
+        metric = new KeyspaceMetrics(this);
 
         for (CFMetaData cfm : new ArrayList<CFMetaData>(metadata.cfMetaData().values()))
         {
