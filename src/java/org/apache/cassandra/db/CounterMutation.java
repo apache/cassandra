@@ -44,9 +44,6 @@ import org.apache.cassandra.utils.*;
 
 public class CounterMutation implements IMutation
 {
-    // Counter deletions are final in C*, because there is no way to provide reliable deletion otherwise.
-    public static final long TOMBSTONE_TIMESTAMP = Long.MAX_VALUE;
-
     public static final CounterMutationSerializer serializer = new CounterMutationSerializer();
 
     private static final Striped<Lock> LOCKS = Striped.lazyWeakLock(DatabaseDescriptor.getConcurrentCounterWriters() * 1024);

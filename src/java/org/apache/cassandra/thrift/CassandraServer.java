@@ -902,18 +902,16 @@ public class CassandraServer implements Cassandra.Iface
 
     private void deleteColumnOrSuperColumn(org.apache.cassandra.db.Mutation mutation, CFMetaData cfm, Deletion del)
     {
-        long timestamp = cfm.isCounter() ? CounterMutation.TOMBSTONE_TIMESTAMP : del.timestamp;
-
         if (del.predicate != null && del.predicate.column_names != null)
         {
             for (ByteBuffer c : del.predicate.column_names)
             {
                 if (del.super_column == null && cfm.isSuper())
-                    mutation.deleteRange(cfm.cfName, SuperColumns.startOf(c), SuperColumns.endOf(c), timestamp);
+                    mutation.deleteRange(cfm.cfName, SuperColumns.startOf(c), SuperColumns.endOf(c), del.timestamp);
                 else if (del.super_column != null)
-                    mutation.delete(cfm.cfName, cfm.comparator.makeCellName(del.super_column, c), timestamp);
+                    mutation.delete(cfm.cfName, cfm.comparator.makeCellName(del.super_column, c), del.timestamp);
                 else
-                    mutation.delete(cfm.cfName, cfm.comparator.cellFromByteBuffer(c), timestamp);
+                    mutation.delete(cfm.cfName, cfm.comparator.cellFromByteBuffer(c), del.timestamp);
             }
         }
         else if (del.predicate != null && del.predicate.slice_range != null)
@@ -922,27 +920,24 @@ public class CassandraServer implements Cassandra.Iface
                 mutation.deleteRange(cfm.cfName,
                                      SuperColumns.startOf(del.predicate.getSlice_range().start),
                                      SuperColumns.startOf(del.predicate.getSlice_range().finish),
-                                     timestamp);
+                                     del.timestamp);
             else if (del.super_column != null)
-                    mutation.deleteRange(cfm.cfName,
-                                         cfm.comparator.makeCellName(del.super_column, del.predicate.getSlice_range().start),
-                                         cfm.comparator.makeCellName(del.super_column, del.predicate.getSlice_range().finish),
-                                         timestamp);
+                mutation.deleteRange(cfm.cfName,
+                                     cfm.comparator.makeCellName(del.super_column, del.predicate.getSlice_range().start),
+                                     cfm.comparator.makeCellName(del.super_column, del.predicate.getSlice_range().finish),
+                                     del.timestamp);
             else
                 mutation.deleteRange(cfm.cfName,
                                      cfm.comparator.cellFromByteBuffer(del.predicate.getSlice_range().start),
                                      cfm.comparator.cellFromByteBuffer(del.predicate.getSlice_range().finish),
-                                     timestamp);
+                                     del.timestamp);
         }
         else
         {
             if (del.super_column != null)
-                mutation.deleteRange(cfm.cfName,
-                                     SuperColumns.startOf(del.super_column),
-                                     SuperColumns.endOf(del.super_column),
-                                     timestamp);
+                mutation.deleteRange(cfm.cfName, SuperColumns.startOf(del.super_column), SuperColumns.endOf(del.super_column), del.timestamp);
             else
-                mutation.delete(cfm.cfName, timestamp);
+                mutation.delete(cfm.cfName, del.timestamp);
         }
     }
 
@@ -1830,7 +1825,7 @@ public class CassandraServer implements Cassandra.Iface
 
         try
         {
-            internal_remove(key, path, CounterMutation.TOMBSTONE_TIMESTAMP, consistency_level, true);
+            internal_remove(key, path, System.currentTimeMillis(), consistency_level, true);
         }
         catch (RequestValidationException e)
         {
