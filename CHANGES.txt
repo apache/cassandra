@@ -1,4 +1,5 @@
 1.2.17
+ * Track metrics at a keyspace level (CASSANDRA-6539)
  * Add replace_address_first_boot flag to only replace if not bootstrapped (CASSANDRA-7356)
  * Enable keepalive for native protocol (CASSANDRA-7380)
  * Check internal addresses for seeds (CASSANDRA-6523)
