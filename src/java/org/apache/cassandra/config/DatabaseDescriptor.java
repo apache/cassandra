@@ -744,8 +744,9 @@ public class DatabaseDescriptor
         {
             if (System.getProperty("cassandra.replace_address", null) != null)
                 return InetAddress.getByName(System.getProperty("cassandra.replace_address", null));
-            else
-                return null;
+            else if (System.getProperty("cassandra.replace_address_first_boot", null) != null)
+                return InetAddress.getByName(System.getProperty("cassandra.replace_address_first_boot", null));
+            return null;
         }
         catch (UnknownHostException e)
         {
@@ -771,6 +772,13 @@ public class DatabaseDescriptor
 
     public static boolean isReplacing()
     {
+        if (System.getProperty("cassandra.replace_address_first_boot", null) != null && SystemTable.bootstrapComplete())
+        {
+            logger.info("Replace address on first boot requested; this node is already bootstrapped");
+            return false;
+        }
+        if (getReplaceAddress() != null && SystemTable.bootstrapComplete())
+            throw new RuntimeException("Cannot replace address with a node that is already bootstrapped");
         return getReplaceAddress() != null;
     }
 
