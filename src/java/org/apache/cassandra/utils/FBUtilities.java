@@ -340,7 +340,7 @@ public class FBUtilities
         if (scpurl == null)
             throw new ConfigurationException("unable to locate " + filename);
 
-        return scpurl.getFile();
+        return new File(scpurl.getFile()).getAbsolutePath();
     }
 
     public static File cassandraTriggerDir()
