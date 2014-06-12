@@ -138,6 +138,7 @@ public class Server implements CassandraDaemon.Server
         ServerBootstrap bootstrap = new ServerBootstrap(factory);
 
         bootstrap.setOption("child.tcpNoDelay", true);
+        bootstrap.setOption("child.keepAlive", DatabaseDescriptor.getRpcKeepAlive());
 
         // Set up the event pipeline factory.
         final EncryptionOptions.ClientEncryptionOptions clientEnc = DatabaseDescriptor.getClientEncryptionOptions();
