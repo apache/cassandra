@@ -9,6 +9,8 @@
 
 
 2.1.0
+ * Fix exception when querying a composite-keyed table with a collection index
+   (CASSANDRA-7372)
  * Use node's host id in place of counter ids (CASSANDRA-7366)
  * Explicitly use Long.MAX_VALUE timestamp for counter deletions
    (CASSANDRA-7346)
