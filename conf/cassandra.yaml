@@ -366,7 +366,7 @@ rpc_address: localhost
 # port for Thrift to listen for clients on
 rpc_port: 9160
 
-# enable or disable keepalive on rpc connections
+# enable or disable keepalive on rpc/native connections
 rpc_keepalive: true
 
 # Cassandra provides three out-of-the-box options for the RPC Server:
