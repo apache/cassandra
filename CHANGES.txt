@@ -16,7 +16,7 @@
  * Fix infinite loop on exception while streaming (CASSANDRA-7330)
  * Reference sstables before populating key cache (CASSANDRA-7234)
 Merged from 1.2:
-1.2.17
+ * Tracke metrics at a keyspace level (CASSANDRA-6539)
  * Add replace_address_first_boot flag to only replace if not bootstrapped (CASSANDRA-7356)
  * Enable keepalive for native protocol (CASSANDRA-7380)
  * Check internal addresses for seeds (CASSANDRA-6523)
