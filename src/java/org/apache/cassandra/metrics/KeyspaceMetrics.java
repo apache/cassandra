@@ -32,16 +32,24 @@ import org.apache.cassandra.db.Keyspace;
  */
 public class KeyspaceMetrics
 {
-    /** Total amount of data stored in the memtable, including column related overhead. */
-    public final Gauge<Long> memtableDataSize;
-    /** Total amount of data stored in the memtables (2i and pending flush memtables included). */
-    public final Gauge<Long> allMemtablesDataSize;
+    /** Total amount of live data stored in the memtable, excluding any data structure overhead */
+    public final Gauge<Long> memtableLiveDataSize;
+    /** Total amount of data stored in the memtable that resides on-heap, including column related overhead and overwritten rows. */
+    public final Gauge<Long> memtableOnHeapDataSize;
+    /** Total amount of data stored in the memtable that resides off-heap, including column related overhead and overwritten rows. */
+    public final Gauge<Long> memtableOffHeapDataSize;
+    /** Total amount of live data stored in the memtables (2i and pending flush memtables included) that resides off-heap, excluding any data structure overhead */
+    public final Gauge<Long> allMemtablesLiveDataSize;
+    /** Total amount of data stored in the memtables (2i and pending flush memtables included) that resides on-heap. */
+    public final Gauge<Long> allMemtablesOnHeapDataSize;
+    /** Total amount of data stored in the memtables (2i and pending flush memtables included) that resides off-heap. */
+    public final Gauge<Long> allMemtablesOffHeapDataSize;
     /** Total number of columns present in the memtable. */
     public final Gauge<Long> memtableColumnsCount;
     /** Number of times flush has resulted in the memtable being switched out. */
     public final Gauge<Long> memtableSwitchCount;
     /** Estimated number of tasks pending for this column family */
-    public final Gauge<Integer> pendingTasks;
+    public final Gauge<Integer> pendingFlushes;
     /** Estimate of number of pending compactios for this CF */
     public final Gauge<Integer> pendingCompactions;
     /** Disk space used by SSTables belonging to this CF */
@@ -74,26 +82,74 @@ public class KeyspaceMetrics
                 return total;
             }
         });
-        memtableDataSize = Metrics.newGauge(factory.createMetricName("MemtableDataSize"), new Gauge<Long>()
+        memtableLiveDataSize = Metrics.newGauge(factory.createMetricName("MemtableLiveDataSize"), new Gauge<Long>()
         {
             public Long value()
             {
                 long total = 0;
                 for (ColumnFamilyStore cf : ks.getColumnFamilyStores())
                 {
-                    total += cf.metric.memtableDataSize.value();
+                    total += cf.metric.memtableLiveDataSize.value();
                 }
                 return total;
             }
         });
-        allMemtablesDataSize = Metrics.newGauge(factory.createMetricName("AllMemtablesDataSize"), new Gauge<Long>()
+        memtableOnHeapDataSize = Metrics.newGauge(factory.createMetricName("MemtableOnHeapDataSize"), new Gauge<Long>()
         {
             public Long value()
             {
                 long total = 0;
                 for (ColumnFamilyStore cf : ks.getColumnFamilyStores())
                 {
-                    total += cf.metric.allMemtablesDataSize.value();
+                    total += cf.metric.memtableOnHeapSize.value();
+                }
+                return total;
+            }
+        });
+        memtableOffHeapDataSize = Metrics.newGauge(factory.createMetricName("MemtableiOffHeapDataSize"), new Gauge<Long>()
+        {
+            public Long value()
+            {
+                long total = 0;
+                for (ColumnFamilyStore cf : ks.getColumnFamilyStores())
+                {
+                    total += cf.metric.memtableOffHeapSize.value();
+                }
+                return total;
+            }
+        });
+        allMemtablesLiveDataSize = Metrics.newGauge(factory.createMetricName("AllMemtablesLiveDataSize"), new Gauge<Long>()
+        {
+            public Long value()
+            {
+                long total = 0;
+                for (ColumnFamilyStore cf : ks.getColumnFamilyStores())
+                {
+                    total += cf.metric.allMemtablesLiveDataSize.value();
+                }
+                return total;
+            }
+        });
+        allMemtablesOnHeapDataSize = Metrics.newGauge(factory.createMetricName("AllMemtablesOnHeapDataSize"), new Gauge<Long>()
+        {
+            public Long value()
+            {
+                long total = 0;
+                for (ColumnFamilyStore cf : ks.getColumnFamilyStores())
+                {
+                    total += cf.metric.allMemtablesOnHeapSize.value();
+                }
+                return total;
+            }
+        });
+        allMemtablesOffHeapDataSize = Metrics.newGauge(factory.createMetricName("AllMemtablesOffHeapDataSize"), new Gauge<Long>()
+        {
+            public Long value()
+            {
+                long total = 0;
+                for (ColumnFamilyStore cf : ks.getColumnFamilyStores())
+                {
+                    total += cf.metric.allMemtablesOffHeapSize.value();
                 }
                 return total;
             }
@@ -120,11 +176,16 @@ public class KeyspaceMetrics
                 return sum;
             }
         });
-        pendingTasks = Metrics.newGauge(factory.createMetricName("PendingTasks"), new Gauge<Integer>()
+        pendingFlushes = Metrics.newGauge(factory.createMetricName("PendingFlushes"), new Gauge<Integer>()
         {
             public Integer value()
             {
-                return Keyspace.switchLock.getQueueLength();
+                int sum = 0;
+                for (ColumnFamilyStore cf : ks.getColumnFamilyStores())
+                {
+                    sum += cf.metric.pendingFlushes.count();
+                }
+                return sum;
             }
         });
         liveDiskSpaceUsed = Metrics.newGauge(factory.createMetricName("LiveDiskSpaceUsed"), new Gauge<Long>()
@@ -168,10 +229,15 @@ public class KeyspaceMetrics
      */
     public void release()
     {
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("AllMemtablesDataSize"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableDataSize"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("AllMemtablesLiveDateSize"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("AllMemtablesOnHeapDataSize"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("AllMemtablesOffHeapDataSize"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableLiveDataSize"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableOnHeapDataSize"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableOffHeapDataSize"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableSwitchCount"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("PendingTasks"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("PendingFlushes"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("PendingCompactions"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("LiveDiskSpaceUsed"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("TotalDiskSpaceUsed"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("BloomFilterDiskSpaceUsed"));
