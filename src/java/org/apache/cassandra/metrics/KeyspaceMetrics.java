@@ -106,7 +106,7 @@ public class KeyspaceMetrics
                 return total;
             }
         });
-        memtableOffHeapDataSize = Metrics.newGauge(factory.createMetricName("MemtableiOffHeapDataSize"), new Gauge<Long>()
+        memtableOffHeapDataSize = Metrics.newGauge(factory.createMetricName("MemtableOffHeapDataSize"), new Gauge<Long>()
         {
             public Long value()
             {
@@ -229,12 +229,13 @@ public class KeyspaceMetrics
      */
     public void release()
     {
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("AllMemtablesLiveDateSize"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("AllMemtablesLiveDataSize"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("AllMemtablesOnHeapDataSize"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("AllMemtablesOffHeapDataSize"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableLiveDataSize"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableOnHeapDataSize"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableOffHeapDataSize"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableColumnsCount"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableSwitchCount"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("PendingFlushes"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("PendingCompactions"));
