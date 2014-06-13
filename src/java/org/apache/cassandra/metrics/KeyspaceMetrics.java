@@ -17,15 +17,12 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.ArrayList;
-import java.util.List;
 
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.*;
-import com.yammer.metrics.stats.Snapshot;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Table;
 
 /**
  * Metrics for {@link ColumnFamilyStore}.
@@ -34,16 +31,12 @@ public class KeyspaceMetrics
 {
     /** Total amount of data stored in the memtable, including column related overhead. */
     public final Gauge<Long> memtableDataSize;
-    /** Total amount of data stored in the memtables (2i and pending flush memtables included). */
-    public final Gauge<Long> allMemtablesDataSize;
     /** Total number of columns present in the memtable. */
     public final Gauge<Long> memtableColumnsCount;
     /** Number of times flush has resulted in the memtable being switched out. */
     public final Gauge<Long> memtableSwitchCount;
     /** Estimated number of tasks pending for this column family */
     public final Gauge<Integer> pendingTasks;
-    /** Estimate of number of pending compactios for this CF */
-    public final Gauge<Integer> pendingCompactions;
     /** Disk space used by SSTables belonging to this CF */
     public final Gauge<Long> liveDiskSpaceUsed;
     /** Total disk space used by SSTables belonging to this CF, including obsolete ones waiting to be GC'd */
@@ -58,7 +51,7 @@ public class KeyspaceMetrics
      *
      * @param ks Keyspace to measure metrics
      */
-    public KeyspaceMetrics(final Keyspace ks)
+    public KeyspaceMetrics(final Table ks)
     {
         factory = new KeyspaceMetricNameFactory(ks);
 
@@ -86,18 +79,6 @@ public class KeyspaceMetrics
                 return total;
             }
         });
-        allMemtablesDataSize = Metrics.newGauge(factory.createMetricName("AllMemtablesDataSize"), new Gauge<Long>()
-        {
-            public Long value()
-            {
-                long total = 0;
-                for (ColumnFamilyStore cf : ks.getColumnFamilyStores())
-                {
-                    total += cf.metric.allMemtablesDataSize.value();
-                }
-                return total;
-            }
-        });
         memtableSwitchCount = Metrics.newGauge(factory.createMetricName("MemtableSwitchCount"), new Gauge<Long>()
         {
             public Long value()
@@ -108,23 +89,11 @@ public class KeyspaceMetrics
                 return sum;
             }
         });
-        pendingCompactions = Metrics.newGauge(factory.createMetricName("PendingCompactions"), new Gauge<Integer>()
-        {
-            public Integer value()
-            {
-                int sum = 0;
-                for (ColumnFamilyStore cf : ks.getColumnFamilyStores())
-                {
-                    sum += cf.metric.pendingCompactions.value();
-                }
-                return sum;
-            }
-        });
         pendingTasks = Metrics.newGauge(factory.createMetricName("PendingTasks"), new Gauge<Integer>()
         {
             public Integer value()
             {
-                return Keyspace.switchLock.getQueueLength();
+                return Table.switchLock.getQueueLength();
             }
         });
         liveDiskSpaceUsed = Metrics.newGauge(factory.createMetricName("LiveDiskSpaceUsed"), new Gauge<Long>()
@@ -169,6 +138,7 @@ public class KeyspaceMetrics
     public void release()
     {
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("AllMemtablesDataSize"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableColumnsCount"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableDataSize"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("MemtableSwitchCount"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("PendingTasks"));
@@ -181,9 +151,9 @@ public class KeyspaceMetrics
     {
         private final String keyspaceName;
 
-        KeyspaceMetricNameFactory(Keyspace ks)
+        KeyspaceMetricNameFactory(Table ks)
         {
-            this.keyspaceName = ks.getName();
+            this.keyspaceName = ks.name;
         }
 
         public MetricName createMetricName(String metricName)
