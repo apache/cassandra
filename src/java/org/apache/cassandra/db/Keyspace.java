@@ -51,6 +51,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.QueryPagers;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.metrics.KeyspaceMetrics;
 
 /**
  * It represents a Keyspace.
@@ -64,6 +65,11 @@ public class Keyspace
 
     public final KeyspaceMetrics metric;
 
+<<<<<<< HEAD
+=======
+    public final KeyspaceMetrics metric;
+
+>>>>>>> cassandra-2.1
     // It is possible to call Keyspace.open without a running daemon, so it makes sense to ensure
     // proper directories here as well as in CassandraDaemon.
     static
@@ -78,6 +84,7 @@ public class Keyspace
     /* ColumnFamilyStore per column family */
     private final ConcurrentMap<UUID, ColumnFamilyStore> columnFamilyStores = new ConcurrentHashMap<UUID, ColumnFamilyStore>();
     private volatile AbstractReplicationStrategy replicationStrategy;
+    public final KeyspaceMetrics metric;
     public static final Function<String,Keyspace> keyspaceTransformer = new Function<String, Keyspace>()
     {
         public Keyspace apply(String keyspaceName)
@@ -278,6 +285,7 @@ public class Keyspace
             logger.debug("Initializing {}.{}", getName(), cfm.cfName);
             initCf(cfm.cfId, cfm.cfName, loadSSTables);
         }
+        this.metric = new KeyspaceMetrics(this);
     }
 
     public void createReplicationStrategy(KSMetaData ksm)

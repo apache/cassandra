@@ -44,6 +44,8 @@ public class KeyspaceMetrics
     public final Gauge<Long> allMemtablesOffHeapDataSize;
     /** Total amount of live data stored in the memtables (2i and pending flush memtables included) that resides off-heap, excluding any data structure overhead */
     public final Gauge<Long> allMemtablesLiveDataSize;
+    /** Total amount of data stored in the memtables (2i and pending flush memtables included). */
+    public final Gauge<Long> allMemtablesDataSize;
     /** Total number of columns present in the memtable. */
     public final Gauge<Long> memtableColumnsCount;
     /** Number of times flush has resulted in the memtable being switched out. */
@@ -216,7 +218,7 @@ public class KeyspaceMetrics
         {
             public Long value()
             {
-                long total = 0;u
+                long total = 0;
                 for (ColumnFamilyStore cf : ks.getColumnFamilyStores())
                     total += cf.metric.bloomFilterDiskSpaceUsed.value();
                 return total;
