@@ -463,7 +463,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             public boolean accept(File pathname)
             {
-                return pathname.toString().endsWith(StreamLockfile.FILE_EXT);
+                return pathname.getPath().endsWith(StreamLockfile.FILE_EXT);
             }
         };
         for (File dir : directories.getCFDirectories())
