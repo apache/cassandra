@@ -33,6 +33,8 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.MemtableAllocator;
 
 /**
  * A combination of a top-level (or row) tombstone and range tombstones describing the deletions
@@ -100,6 +102,16 @@ public class DeletionInfo implements IMeasurableMemory
     public DeletionInfo copy()
     {
         return new DeletionInfo(topLevel, ranges == null ? null : ranges.copy());
+    }
+
+    public DeletionInfo copy(AbstractAllocator allocator)
+    {
+
+        RangeTombstoneList rangesCopy = null;
+        if (ranges != null)
+             rangesCopy = ranges.copy(allocator);
+
+        return new DeletionInfo(topLevel, rangesCopy);
     }
 
     /**

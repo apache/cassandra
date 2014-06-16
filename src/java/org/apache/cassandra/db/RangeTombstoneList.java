@@ -37,6 +37,8 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.HeapPool;
 
 /**
  * Data structure holding the range tombstones of a ColumnFamily.
@@ -112,6 +114,25 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                                       Arrays.copyOf(markedAts, size),
                                       Arrays.copyOf(delTimes, size),
                                       boundaryHeapSize, size);
+    }
+
+    public RangeTombstoneList copy(AbstractAllocator allocator)
+    {
+        RangeTombstoneList copy =  new RangeTombstoneList(comparator,
+                                      new Composite[size],
+                                      new Composite[size],
+                                      Arrays.copyOf(markedAts, size),
+                                      Arrays.copyOf(delTimes, size),
+                                      boundaryHeapSize, size);
+
+
+        for (int i = 0; i < size; i++)
+        {
+            copy.starts[i] = starts[i].copy(null, allocator);
+            copy.ends[i] = ends[i].copy(null, allocator);
+        }
+
+        return copy;
     }
 
     public void add(RangeTombstone tombstone)

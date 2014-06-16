@@ -11,6 +11,8 @@ partitioner: org.apache.cassandra.dht.ByteOrderedPartitioner
 listen_address: 127.0.0.1
 storage_port: 7010
 rpc_port: 9170
+start_native_transport: true
+native_transport_port: 9042
 column_index_size_in_kb: 4
 commitlog_directory: build/test/cassandra/commitlog
 saved_caches_directory: build/test/cassandra/saved_caches
