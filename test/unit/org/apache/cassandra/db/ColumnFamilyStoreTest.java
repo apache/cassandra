@@ -25,6 +25,7 @@ import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
@@ -415,6 +416,60 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         key = ByteBufferUtil.string(rows.get(0).key.key);
         assert "k1".equals( key );
 
+    }
+
+    @Test
+    public void testIndexUpdateOverwritingExpiringColumns() throws Exception
+    {
+        // see CASSANDRA-7268
+        Table table = Table.open("Keyspace2");
+
+        // create a row and update the birthdate value with an expiring column
+        RowMutation rm;
+        rm = new RowMutation("Keyspace2", ByteBufferUtil.bytes("k100"));
+        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(100L), 1, 1000);
+        rm.apply();
+
+        IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(100L));
+        List<IndexExpression> clause = Arrays.asList(expr);
+        IDiskAtomFilter filter = new IdentityQueryFilter();
+        Range<RowPosition> range = Util.range("", "");
+        List<Row> rows = table.getColumnFamilyStore("Indexed1").search(clause, range, 100, filter);
+        assertEquals(1,rows.size());
+
+        // requires a 1s sleep because we calculate local expiry time as (now() / 1000) + ttl
+        TimeUnit.SECONDS.sleep(1);
+
+        // now overwrite with the same name/value/ttl, but the local expiry time will be different
+        rm = new RowMutation("Keyspace2", ByteBufferUtil.bytes("k100"));
+        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(100L), 1, 1000);
+        rm.apply();
+
+        rows = table.getColumnFamilyStore("Indexed1").search(clause, range, 100, filter);
+        assertEquals(1,rows.size());
+
+        // check that modifying the indexed value using the same timestamp behaves as expected
+        rm = new RowMutation("Keyspace2", ByteBufferUtil.bytes("k101"));
+        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(101L), 1, 1000);
+        rm.apply();
+
+        expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(101L));
+        clause = Arrays.asList(expr);
+        rows = table.getColumnFamilyStore("Indexed1").search(clause, range, 100, filter);
+        assertEquals(1,rows.size());
+
+        TimeUnit.SECONDS.sleep(1);
+        rm = new RowMutation("Keyspace2", ByteBufferUtil.bytes("k101"));
+        rm.add(new QueryPath("Indexed1", null, ByteBufferUtil.bytes("birthdate")), ByteBufferUtil.bytes(102L), 1, 1000);
+        rm.apply();
+        // search for the old value
+        rows = table.getColumnFamilyStore("Indexed1").search(clause, range, 100, filter);
+        assertEquals(0,rows.size());
+        // and for the new
+        expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexOperator.EQ, ByteBufferUtil.bytes(102L));
+        clause = Arrays.asList(expr);
+        rows = table.getColumnFamilyStore("Indexed1").search(clause, range, 100, filter);
+        assertEquals(1,rows.size());
     }
 
     @Test
