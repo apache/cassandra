@@ -18,6 +18,7 @@
  * Fix infinite loop on exception while streaming (CASSANDRA-7330)
  * Reference sstables before populating key cache (CASSANDRA-7234)
 Merged from 1.2:
+ * reduce failure detector initial value to 2s (CASSANDRA-7307)
  * Fix problem truncating on a node that was previously in a dead state (CASSANDRA-7318)
  * Don't insert tombstones that hide indexed values into 2i (CASSANDRA-7268)
  * Track metrics at a keyspace level (CASSANDRA-6539)

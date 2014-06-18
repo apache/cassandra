@@ -79,7 +79,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         String newvalue = System.getProperty("cassandra.fd_initial_value_ms");
         if (newvalue == null)
         {
-            return Gossiper.intervalInMillis * 30;
+            return Gossiper.intervalInMillis * 2;
         }
         else
         {
