@@ -65,10 +65,10 @@ public class BatchlogManagerTest extends SchemaLoader
             RowMutation mutation = new RowMutation("Keyspace1", bytes(i));
             mutation.add("Standard1", bytes(i), bytes(i), System.currentTimeMillis());
 
-            long timestamp = System.currentTimeMillis();
-            if (i < 500)
-                timestamp -= DatabaseDescriptor.getWriteRpcTimeout() * 2;
-            BatchlogManager.getBatchlogMutationFor(Collections.singleton(mutation), UUIDGen.getTimeUUID(), timestamp * 1000).apply();
+            long timestamp = i < 500
+                           ? (System.currentTimeMillis() - DatabaseDescriptor.getWriteRpcTimeout() * 2) * 1000
+                           : Long.MAX_VALUE;
+            BatchlogManager.getBatchlogMutationFor(Collections.singleton(mutation), UUIDGen.getTimeUUID(), timestamp).apply();
         }
 
         // Flush the batchlog to disk (see CASSANDRA-6822).
