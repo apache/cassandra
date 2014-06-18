@@ -1531,7 +1531,7 @@ public class NodeCmd
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
             writer.append(sdf.format(new Date()) + ": " + cmdLine + "\n");
         }
-        catch (IOException ioe)
+        catch (IOException | IOError ioe)
         {
             //quietly ignore any errors about not being able to write out history
         }
