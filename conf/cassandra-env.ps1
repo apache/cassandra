@@ -206,7 +206,7 @@ Function SetCassandraEnvironment
     # times. If in doubt, and if you do not particularly want to tweak, go
     # 100 MB per physical CPU core.
 
-    #$env:MAX_HEAP_SIZE="4G"
+    #$env:MAX_HEAP_SIZE="4096M"
     #$env:HEAP_NEWSIZE="800M"
     CalculateHeapSizes
 

@@ -249,18 +249,6 @@ $env:JAVA_BIN
             {
                 $arg2 = $arg2 + " -Dcassandra-pidfile=$pidfile"
             }
-            echo @"
-*********************************************************************
-*********************************************************************
-Warning!  Running cassandra.bat -f on cygwin usually breaks control+c
-functionality.  You'll need to use:
-    stop-server.bat -p $pidfile
-to stop your server or kill the java.exe instance.
-*********************************************************************
-*********************************************************************"
-"@
-            # Note: we can't pause here and force user confirmation for a similar reason as there's a
-            # layer of indirection between powershell and stdin.
         }
 
         $arg2 = $arg2 + " -Dcassandra-foreground=yes"
@@ -294,14 +282,16 @@ WARNING! Failed to write pidfile to $pidfile.  stop-server.bat and
 "@
         }
 
-        $cassPid = $proc.Id
-        if (-Not ($proc) -or $cassPid -eq "")
+        Start-Sleep -m 100
+        $checkProcess = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
+        if ($checkProcess -eq $null)
         {
             echo "Error starting cassandra."
-            echo "Run with -verbose for more information about runtime environment"
+            echo "Run with -v and -f to get foreground verbose information on the error."
         }
-        elseif ($foreground -eq "False")
+        else
         {
+            $cassPid = $proc.Id
             echo "Started cassandra successfully with pid: $cassPid"
         }
     }
