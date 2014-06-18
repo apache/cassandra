@@ -466,7 +466,7 @@ public final class MessagingService implements MessagingServiceMBean
             InetSocketAddress address = new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort());
             try
             {
-                socket.bind(address);
+                socket.bind(address,500);
             }
             catch (BindException e)
             {

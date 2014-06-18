@@ -56,7 +56,7 @@ public final class SSLFactory
         String[] suits = filterCipherSuites(serverSocket.getSupportedCipherSuites(), options.cipher_suites);
         serverSocket.setEnabledCipherSuites(suits);
         serverSocket.setNeedClientAuth(options.require_client_auth);
-        serverSocket.bind(new InetSocketAddress(address, port), 100);
+        serverSocket.bind(new InetSocketAddress(address, port), 500);
         return serverSocket;
     }
 
