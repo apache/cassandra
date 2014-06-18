@@ -180,7 +180,7 @@ public class Memtable
         {
             long last = liveRatioComputedAt.get();
             long operations = currentOperations.get();
-            if (operations < 2 * last)
+            if (operations <= 2L * last)
                 break;
             if (liveRatioComputedAt.compareAndSet(last, operations))
             {
