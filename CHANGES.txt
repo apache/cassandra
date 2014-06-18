@@ -1,4 +1,5 @@
 1.2.17
+ * Fix problem truncating on a node that was previously in a dead state (CASSANDRA-7318)
  * Don't insert tombstones that hide indexed values into 2i (CASSANDRA-7268)
  * Track metrics at a keyspace level (CASSANDRA-6539)
  * Add replace_address_first_boot flag to only replace if not bootstrapped

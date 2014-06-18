@@ -675,6 +675,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public void resetEndpointStateMap()
     {
         endpointStateMap.clear();
+        unreachableEndpoints.clear();
+        liveEndpoints.clear();
     }
 
     public Set<Entry<InetAddress, EndpointState>> getEndpointStates()
