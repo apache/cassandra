@@ -82,7 +82,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             return Integer.parseInt(newvalue);
         }
         else
-            return Gossiper.intervalInMillis * 30;
+            return Gossiper.intervalInMillis * 2;
     }
 
     public String getAllEndpointStates()
