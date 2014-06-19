@@ -128,6 +128,8 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
         for (int i = 0; i < size; i++)
         {
+            assert !(starts[i] instanceof AbstractNativeCell || ends[i] instanceof AbstractNativeCell); //this should never happen
+
             copy.starts[i] = starts[i].copy(null, allocator);
             copy.ends[i] = ends[i].copy(null, allocator);
         }
