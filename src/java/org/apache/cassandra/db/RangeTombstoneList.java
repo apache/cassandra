@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.composites.CType;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -235,10 +236,11 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
      * Returns whether the given name/timestamp pair is deleted by one of the tombstone
      * of this RangeTombstoneList.
      */
-    public boolean isDeleted(Composite name, long timestamp)
+    public boolean isDeleted(Cell cell)
     {
-        int idx = searchInternal(name, 0);
-        return idx >= 0 && markedAts[idx] >= timestamp;
+        int idx = searchInternal(cell.name(), 0);
+        // No matter what the counter cell's timestamp is, a tombstone always takes precedence. See CASSANDRA-7346.
+        return idx >= 0 && (cell instanceof CounterCell || markedAts[idx] >= cell.timestamp());
     }
 
     /**
@@ -833,31 +835,40 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
     {
         private int idx;
 
-        public boolean isDeleted(Composite name, long timestamp)
+        public boolean isDeleted(Cell cell)
         {
+            CellName name = cell.name();
+            long timestamp = cell.timestamp();
+
             while (idx < size)
             {
                 int cmp = comparator.compare(name, starts[idx]);
-                if (cmp == 0)
+
+                if (cmp < 0)
                 {
+                    return false;
+                }
+                else if (cmp == 0)
+                {
+                    // No matter what the counter cell's timestamp is, a tombstone always takes precedence. See CASSANDRA-7346.
+                    if (cell instanceof CounterCell)
+                        return true;
+
                     // As for searchInternal, we need to check the previous end
                     if (idx > 0 && comparator.compare(name, ends[idx-1]) == 0 && markedAts[idx-1] > markedAts[idx])
                         return markedAts[idx-1] >= timestamp;
                     else
                         return markedAts[idx] >= timestamp;
                 }
-                else if (cmp < 0)
-                {
-                    return false;
-                }
                 else
                 {
                     if (comparator.compare(name, ends[idx]) <= 0)
-                        return markedAts[idx] >= timestamp;
+                        return markedAts[idx] >= timestamp || cell instanceof CounterCell;
                     else
                         idx++;
                 }
             }
+
             return false;
         }
     }

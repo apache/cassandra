@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -89,13 +87,13 @@ public class NativeCounterCell extends NativeCell implements CounterCell
     @Override
     public Cell diff(Cell cell)
     {
-        return diff(this, cell);
+        return diffCounter(cell);
     }
 
     @Override
     public Cell reconcile(Cell cell)
     {
-        return reconcile(this, cell);
+        return reconcileCounter(cell);
     }
 
     @Override

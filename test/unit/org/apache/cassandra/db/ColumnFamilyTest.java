@@ -28,11 +28,16 @@ import com.google.common.collect.Iterables;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CounterId;
+import org.apache.cassandra.utils.FBUtilities;
+
+import static junit.framework.Assert.assertTrue;
 
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.cellname;
@@ -207,16 +212,44 @@ public class ColumnFamilyTest extends SchemaLoader
         ColumnStats stats = cf.getColumnStats();
         assertEquals(timestamp, stats.maxTimestamp);
 
-        cf.delete(new RangeTombstone(Util.cellname("col2"), Util.cellname("col21"), timestamp, localDeletionTime));
+        cf.delete(new RangeTombstone(cellname("col2"), cellname("col21"), timestamp, localDeletionTime));
 
         stats = cf.getColumnStats();
         assertEquals(ByteBufferUtil.bytes("col2"), stats.minColumnNames.get(0));
         assertEquals(ByteBufferUtil.bytes("col21"), stats.maxColumnNames.get(0));
 
-        cf.delete(new RangeTombstone(Util.cellname("col6"), Util.cellname("col61"), timestamp, localDeletionTime));
+        cf.delete(new RangeTombstone(cellname("col6"), cellname("col61"), timestamp, localDeletionTime));
         stats = cf.getColumnStats();
 
         assertEquals(ByteBufferUtil.bytes("col2"), stats.minColumnNames.get(0));
         assertEquals(ByteBufferUtil.bytes("col61"), stats.maxColumnNames.get(0));
+    }
+
+    @Test
+    public void testCounterDeletion()
+    {
+        long timestamp = FBUtilities.timestampMicros();
+        CellName name = cellname("counter1");
+
+        BufferCounterCell counter = new BufferCounterCell(name,
+                                                          CounterContext.instance().createGlobal(CounterId.fromInt(1), 1, 1),
+                                                          timestamp);
+        BufferDeletedCell tombstone = new BufferDeletedCell(name, (int) (System.currentTimeMillis() / 1000), 0L);
+
+        // check that the tombstone won the reconcile despite the counter cell having a higher timestamp
+        assertTrue(counter.reconcile(tombstone) == tombstone);
+
+        // check that a range tombstone overrides the counter cell, even with a lower timestamp than the counter
+        ColumnFamily cf0 = ArrayBackedSortedColumns.factory.create("Keyspace1", "Counter1");
+        cf0.addColumn(counter);
+        cf0.delete(new RangeTombstone(cellname("counter0"), cellname("counter2"), 0L, (int) (System.currentTimeMillis() / 1000)));
+        assertTrue(cf0.deletionInfo().isDeleted(counter));
+        assertTrue(cf0.deletionInfo().inOrderTester(false).isDeleted(counter));
+
+        // check that a top-level deletion info overrides the counter cell, even with a lower timestamp than the counter
+        ColumnFamily cf1 = ArrayBackedSortedColumns.factory.create("Keyspace1", "Counter1");
+        cf1.addColumn(counter);
+        cf1.delete(new DeletionInfo(0L, (int) (System.currentTimeMillis() / 1000)));
+        assertTrue(cf1.deletionInfo().isDeleted(counter));
     }
 }

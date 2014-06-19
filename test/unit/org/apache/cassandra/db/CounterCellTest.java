@@ -103,23 +103,19 @@ public class CounterCellTest extends SchemaLoader
         left  = new BufferDeletedCell(cellname("x"), 1, 1L);
         right = BufferCounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
 
-        assert left.reconcile(right) == right;
+        assert left.reconcile(right) == left;
 
         // tombstone == live last delete
         left  = new BufferDeletedCell(cellname("x"), 1, 2L);
         right = BufferCounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
 
-        assert left.reconcile(right) == right;
+        assert left.reconcile(right) == left;
 
         // tombstone > live last delete
         left  = new BufferDeletedCell(cellname("x"), 1, 4L);
         right = BufferCounterCell.createLocal(cellname("x"), 0L, 9L, 1L);
 
-        reconciled = left.reconcile(right);
-        assert reconciled.name() == right.name();
-        assert reconciled.value() == right.value();
-        assert reconciled.timestamp() == right.timestamp();
-        assert ((CounterCell)reconciled).timestampOfLastDelete() == left.timestamp();
+        assert left.reconcile(right) == left;
 
         // live < tombstone
         left  = BufferCounterCell.createLocal(cellname("x"), 0L, 1L, Long.MIN_VALUE);
@@ -131,23 +127,19 @@ public class CounterCellTest extends SchemaLoader
         left  = BufferCounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
         right = new BufferDeletedCell(cellname("x"), 1, 1L);
 
-        assert left.reconcile(right) == left;
+        assert left.reconcile(right) == right;
 
         // live last delete == tombstone
         left  = BufferCounterCell.createLocal(cellname("x"), 0L, 4L, 2L);
         right = new BufferDeletedCell(cellname("x"), 1, 2L);
 
-        assert left.reconcile(right) == left;
+        assert left.reconcile(right) == right;
 
         // live last delete < tombstone
         left  = BufferCounterCell.createLocal(cellname("x"), 0L, 9L, 1L);
         right = new BufferDeletedCell(cellname("x"), 1, 4L);
 
-        reconciled = left.reconcile(right);
-        assert reconciled.name() == left.name();
-        assert reconciled.value() == left.value();
-        assert reconciled.timestamp() == left.timestamp();
-        assert ((CounterCell)reconciled).timestampOfLastDelete() == right.timestamp();
+        assert left.reconcile(right) == right;
 
         // live < live last delete
         left  = new BufferCounterCell(cellname("x"), cc.createRemote(CounterId.fromInt(1), 2L, 3L), 1L, Long.MIN_VALUE);
