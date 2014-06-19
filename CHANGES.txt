@@ -1,4 +1,5 @@
 1.2.17
+ * cqlsh: 'ascii' values weren't formatted as text (CASSANDRA-7407)
  * cqlsh: ignore .cassandra permission errors (CASSANDRA-7266)
  * Errors in FlushRunnable may leave threads hung (CASSANDRA-7275)
  * reduce failure detector initial value to 2s (CASSANDRA-7307)
