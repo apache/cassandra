@@ -416,7 +416,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 }
                 catch (UnknownColumnFamilyException e)
                 {
-                    logger.debug("Skipping delivery of hint for deleted columnfamily", e);
+                    logger.debug("Skipping delivery of hint for deleted table", e);
                     deleteHint(hostIdBytes, hint.name(), hint.timestamp());
                     continue;
                 }
@@ -429,7 +429,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 {
                     if (hint.timestamp() <= SystemKeyspace.getTruncatedAt(cfId))
                     {
-                        logger.debug("Skipping delivery of hint for truncated columnfamily {}", cfId);
+                        logger.debug("Skipping delivery of hint for truncated table {}", cfId);
                         mutation = mutation.without(cfId);
                     }
                 }

@@ -40,6 +40,7 @@ import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
 
 import static org.apache.cassandra.db.index.SecondaryIndexManager.Updater;
@@ -170,6 +171,8 @@ public class AtomicBTreeColumns extends ColumnFamily
     public long addAllWithSizeDelta(final ColumnFamily cm, MemtableAllocator allocator, OpOrder.Group writeOp, Updater indexer)
     {
         ColumnUpdater updater = new ColumnUpdater(this, cm.metadata, allocator, writeOp, indexer);
+        DeletionInfo inputDeletionInfoCopy = null;
+
         while (true)
         {
             Holder current = ref;
@@ -179,7 +182,10 @@ public class AtomicBTreeColumns extends ColumnFamily
             DeletionInfo deletionInfo;
             if (cm.deletionInfo().mayModify(current.deletionInfo))
             {
-                deletionInfo = current.deletionInfo.copy().add(cm.deletionInfo());
+                if (inputDeletionInfoCopy == null)
+                    inputDeletionInfoCopy = cm.deletionInfo().copy(HeapAllocator.instance);
+
+                deletionInfo = current.deletionInfo.copy().add(inputDeletionInfoCopy);
                 updater.allocated(deletionInfo.unsharedHeapSize() - current.deletionInfo.unsharedHeapSize());
             }
             else

@@ -560,17 +560,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
 
-        if (Boolean.parseBoolean(System.getProperty("cassandra.renew_counter_id", "false")))
-        {
-            logger.info("Renewing local node id (as requested)");
-            CounterId.renewLocalId();
-        }
-
-        // Can't do this in CassandraDaemon before the SS start b/c local counter id can be renewed afterwards.
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-            if (cfs.metadata.isCounter())
-                cfs.initCounterCache();
-
         // daemon threads, like our executors', continue to run while shutdown hooks are invoked
         Thread drainOnShutdown = new Thread(new WrappedRunnable()
         {
@@ -626,6 +615,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Runtime.getRuntime().addShutdownHook(drainOnShutdown);
 
         prepareToJoin();
+
+        // Has to be called after the host id has potentially changed in prepareToJoin().
+        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+            if (cfs.metadata.isCounter())
+                cfs.initCounterCache();
+
         if (Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true")))
         {
             joinTokenRing(delay);
@@ -2355,9 +2350,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new IOException("Cannot snapshot until bootstrap completes");
 
         if (columnFamilyName == null)
-            throw new IOException("You must supply a column family name");
+            throw new IOException("You must supply a table name");
         if (columnFamilyName.contains("."))
-            throw new IllegalArgumentException("Cannot take a snapshot of a secondary index by itself. Run snapshot on the column family that owns the index.");
+            throw new IllegalArgumentException("Cannot take a snapshot of a secondary index by itself. Run snapshot on the table that owns the index.");
 
         if (tag == null || tag.equals(""))
             throw new IOException("You must supply a snapshot name.");
@@ -2491,7 +2486,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 if(!allowIndexes)
                 {
-                   logger.warn("Operation not allowed on secondary Index column family ({})", cfName);
+                   logger.warn("Operation not allowed on secondary Index table ({})", cfName);
                     continue;
                 }
 
@@ -2505,7 +2500,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 Collection< SecondaryIndex > indexes = cfStore.indexManager.getIndexesByNames(new HashSet<>(Arrays.asList(cfName)));
                 if (indexes.isEmpty())
-                    logger.warn(String.format("Invalid column family index specified: %s/%s. Proceeding with others.", baseCfName, idxName));
+                    logger.warn(String.format("Invalid index specified: %s/%s. Proceeding with others.", baseCfName, idxName));
                 else
                     valid.add(Iterables.get(indexes, 0).getIndexCfs());
             }
@@ -3459,7 +3454,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         else
         {
-            throw new UnsupportedOperationException("No tokens to force removal on, call 'removenode' first");
+            logger.warn("No tokens to force removal on, call 'removenode' first");
         }
     }
 

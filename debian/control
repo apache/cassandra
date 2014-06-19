@@ -13,6 +13,7 @@ Package: cassandra
 Architecture: all
 Depends: openjdk-7-jre-headless | java7-runtime, adduser, python (>= 2.5), python-support (>= 0.90.0), ${misc:Depends}
 Recommends: ntp | time-daemon
+Suggests: cassandra-tools
 Conflicts: apache-cassandra1
 Replaces: apache-cassandra1
 Description: distributed storage system for structured data

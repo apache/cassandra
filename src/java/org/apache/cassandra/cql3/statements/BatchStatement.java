@@ -23,6 +23,7 @@ import java.util.*;
 import com.google.common.base.Function;
 import com.google.common.collect.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.transport.Frame;
 import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,11 +64,6 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
      * @param statements a list of UpdateStatements
      * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
      */
-    public BatchStatement(int boundTerms, Type type, List<ModificationStatement> statements, Attributes attrs)
-    {
-        this(boundTerms, type, statements, attrs, false);
-    }
-
     public BatchStatement(int boundTerms, Type type, List<ModificationStatement> statements, Attributes attrs, boolean hasConditions)
     {
         this.boundTerms = boundTerms;
@@ -127,7 +123,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
         return statements;
     }
 
-    private Collection<? extends IMutation> getMutations(BatchQueryOptions options, boolean local, long now)
+    private Collection<? extends IMutation> getMutations(BatchQueryOptions options, boolean local, long now, Frame sourceFrame)
     throws RequestExecutionException, RequestValidationException
     {
         Map<String, Map<ByteBuffer, IMutation>> mutations = new HashMap<>();
@@ -136,7 +132,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
             ModificationStatement statement = statements.get(i);
             QueryOptions statementOptions = options.forStatement(i);
             long timestamp = attrs.getTimestamp(now, statementOptions);
-            addStatementMutations(statement, statementOptions, local, timestamp, mutations);
+            addStatementMutations(statement, statementOptions, local, timestamp, mutations, sourceFrame);
         }
         return unzipMutations(mutations);
     }
@@ -157,7 +153,8 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
                                        QueryOptions options,
                                        boolean local,
                                        long now,
-                                       Map<String, Map<ByteBuffer, IMutation>> mutations)
+                                       Map<String, Map<ByteBuffer, IMutation>> mutations,
+                                       Frame sourceFrame)
     throws RequestExecutionException, RequestValidationException
     {
         String ksName = statement.keyspace();
@@ -182,6 +179,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
             if (mutation == null)
             {
                 mut = new Mutation(ksName, key);
+                mut.setSourceFrame(sourceFrame);
                 mutation = type == Type.COUNTER ? new CounterMutation(mut, options.getConsistency()) : mut;
                 ksMap.put(key, mutation);
             }
@@ -224,10 +222,10 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
 
     public ResultMessage execute(QueryState queryState, BatchQueryOptions options) throws RequestExecutionException, RequestValidationException
     {
-        return execute(options, false, options.getTimestamp(queryState));
+        return execute(queryState, options, false, options.getTimestamp(queryState));
     }
 
-    public ResultMessage execute(BatchQueryOptions options, boolean local, long now)
+    private ResultMessage execute(QueryState queryState, BatchQueryOptions options, boolean local, long now)
     throws RequestExecutionException, RequestValidationException
     {
         if (options.getConsistency() == null)
@@ -238,8 +236,8 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
         if (hasConditions)
             return executeWithConditions(options, now);
 
-        executeWithoutConditions(getMutations(options, local, now), options.getConsistency());
-        return null;
+        executeWithoutConditions(getMutations(options, local, now, queryState.getSourceFrame()), options.getConsistency());
+        return new ResultMessage.Void();
     }
 
     private void executeWithoutConditions(Collection<? extends IMutation> mutations, ConsistencyLevel cl) throws RequestExecutionException, RequestValidationException
@@ -314,7 +312,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
     public ResultMessage executeInternal(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
     {
         assert !hasConditions;
-        for (IMutation mutation : getMutations(BatchQueryOptions.withoutPerStatementVariables(options), true, queryState.getTimestamp()))
+        for (IMutation mutation : getMutations(BatchQueryOptions.withoutPerStatementVariables(options), true, queryState.getTimestamp(), queryState.getSourceFrame()))
         {
             // We don't use counters internally.
             assert mutation instanceof Mutation;

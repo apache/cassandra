@@ -98,7 +98,7 @@ public class SSTableLoader implements StreamEventHandler
                 CFMetaData metadata = client.getCFMetaData(keyspace, desc.cfname);
                 if (metadata == null)
                 {
-                    outputHandler.output(String.format("Skipping file %s: column family %s.%s doesn't exist", name, keyspace, desc.cfname));
+                    outputHandler.output(String.format("Skipping file %s: table %s.%s doesn't exist", name, keyspace, desc.cfname));
                     return false;
                 }
 

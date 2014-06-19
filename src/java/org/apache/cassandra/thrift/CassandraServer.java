@@ -1636,7 +1636,7 @@ public class CassandraServer implements Cassandra.Iface
             state().hasKeyspaceAccess(ks_def.name, Permission.ALTER);
             ThriftValidation.validateKeyspace(ks_def.name);
             if (ks_def.getCf_defs() != null && ks_def.getCf_defs().size() > 0)
-                throw new InvalidRequestException("Keyspace update must not contain any column family definitions.");
+                throw new InvalidRequestException("Keyspace update must not contain any table definitions.");
 
             MigrationManager.announceKeyspaceUpdate(KSMetaData.fromThrift(ks_def));
             return Schema.instance.getVersion().toString();
@@ -1661,7 +1661,7 @@ public class CassandraServer implements Cassandra.Iface
             CFMetaData oldCfm = Schema.instance.getCFMetaData(cf_def.keyspace, cf_def.name);
 
             if (oldCfm == null)
-                throw new InvalidRequestException("Could not find column family definition to modify.");
+                throw new InvalidRequestException("Could not find table definition to modify.");
 
             if (!oldCfm.isThriftCompatible())
                 throw new InvalidRequestException("Cannot modify CQL3 table " + oldCfm.cfName + " as it may break the schema. You should use cqlsh to modify CQL3 tables instead.");

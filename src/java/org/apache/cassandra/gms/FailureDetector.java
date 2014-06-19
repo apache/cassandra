@@ -79,7 +79,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         String newvalue = System.getProperty("cassandra.fd_initial_value_ms");
         if (newvalue == null)
         {
-            return Gossiper.intervalInMillis * 30;
+            return Gossiper.intervalInMillis * 2;
         }
         else
         {
@@ -144,6 +144,8 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     private void appendEndpointState(StringBuilder sb, EndpointState endpointState)
     {
+        sb.append("  generation:").append(endpointState.getHeartBeatState().getGeneration()).append("\n");
+        sb.append("  heartbeat:").append(endpointState.getHeartBeatState().getHeartBeatVersion()).append("\n");
         for (Map.Entry<ApplicationState, VersionedValue> state : endpointState.applicationState.entrySet())
         {
             if (state.getKey() == ApplicationState.TOKENS)

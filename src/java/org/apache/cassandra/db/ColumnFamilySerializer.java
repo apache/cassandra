@@ -70,7 +70,7 @@ public class ColumnFamilySerializer implements IVersionedSerializer<ColumnFamily
                 columnSerializer.serialize(cell, out);
                 written++;
             }
-            assert count == written: "Column family had " + count + " columns, but " + written + " written";
+            assert count == written: "Table had " + count + " columns, but " + written + " written";
         }
         catch (IOException e)
         {

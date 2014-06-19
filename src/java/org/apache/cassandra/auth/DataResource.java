@@ -180,7 +180,7 @@ public class DataResource implements IResource
     public String getColumnFamily()
     {
         if (!isColumnFamilyLevel())
-            throw new IllegalStateException(String.format("%s data resource has no column family", level));
+            throw new IllegalStateException(String.format("%s data resource has no table", level));
         return columnFamily;
     }
 

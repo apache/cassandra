@@ -205,7 +205,7 @@ public class Util
     public static ColumnFamily getColumnFamily(Keyspace keyspace, DecoratedKey key, String cfName)
     {
         ColumnFamilyStore cfStore = keyspace.getColumnFamilyStore(cfName);
-        assert cfStore != null : "Column family " + cfName + " has not been defined";
+        assert cfStore != null : "Table " + cfName + " has not been defined";
         return cfStore.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
     }
 

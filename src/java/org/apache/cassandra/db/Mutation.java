@@ -144,7 +144,7 @@ public class Mutation implements IMutation
         ColumnFamily prev = modifications.put(columnFamily.id(), columnFamily);
         if (prev != null)
             // developer error
-            throw new IllegalArgumentException("ColumnFamily " + columnFamily + " already has modifications in this mutation: " + prev);
+            throw new IllegalArgumentException("Table " + columnFamily + " already has modifications in this mutation: " + prev);
     }
 
     /**

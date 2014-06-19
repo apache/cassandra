@@ -150,7 +150,7 @@ public class TriggerExecutor
             for (ColumnFamily cf : mutation.getColumnFamilies())
             {
                 if (! cf.id().equals(cfId))
-                    throw new InvalidRequestException("Column family of additional mutation does not match primary update cf");
+                    throw new InvalidRequestException("table of additional mutation does not match primary update table");
             }
         }
         validate(tmutations);
@@ -196,7 +196,7 @@ public class TriggerExecutor
         }
         catch (Exception ex)
         {
-            throw new RuntimeException(String.format("Exception while creating trigger on CF with ID: %s", columnFamily.id()), ex);
+            throw new RuntimeException(String.format("Exception while creating trigger on table with ID: %s", columnFamily.id()), ex);
         }
         finally
         {

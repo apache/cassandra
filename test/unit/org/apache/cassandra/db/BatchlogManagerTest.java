@@ -68,13 +68,14 @@ public class BatchlogManagerTest extends SchemaLoader
             Mutation mutation = new Mutation("Keyspace1", bytes(i));
             mutation.add("Standard1", comparator.makeCellName(bytes(i)), bytes(i), System.currentTimeMillis());
 
-            long timestamp = System.currentTimeMillis();
-            if (i < 500)
-                timestamp -= DatabaseDescriptor.getWriteRpcTimeout() * 2;
+            long timestamp = i < 500
+                           ? (System.currentTimeMillis() - DatabaseDescriptor.getWriteRpcTimeout() * 2) * 1000
+                           : Long.MAX_VALUE;
+
             BatchlogManager.getBatchlogMutationFor(Collections.singleton(mutation),
                                                    UUIDGen.getTimeUUID(),
                                                    MessagingService.current_version,
-                                                   timestamp * 1000)
+                                                   timestamp)
                            .apply();
         }
 

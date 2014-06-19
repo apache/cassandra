@@ -63,7 +63,6 @@ public class CFPropDefs extends PropertyDefinitions
         keywords.add(KW_DCLOCALREADREPAIRCHANCE);
         keywords.add(KW_GCGRACESECONDS);
         keywords.add(KW_CACHING);
-        keywords.add(KW_ROWS_PER_PARTITION_TO_CACHE);
         keywords.add(KW_DEFAULT_TIME_TO_LIVE);
         keywords.add(KW_MIN_INDEX_INTERVAL);
         keywords.add(KW_MAX_INDEX_INTERVAL);

@@ -437,7 +437,7 @@ public class CommitLogSegment
             // check for deleted CFS
             CFMetaData cfm = columnFamily.metadata();
             if (cfm.isPurged())
-                logger.error("Attempted to write commit log entry for unrecognized column family: {}", columnFamily.id());
+                logger.error("Attempted to write commit log entry for unrecognized table: {}", columnFamily.id());
             else
                 ensureAtleast(cfDirty, cfm.cfId, allocatedPosition);
         }

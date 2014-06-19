@@ -159,7 +159,7 @@ public class DefsTest extends SchemaLoader
         final String cf = "BrandNewCf";
         KSMetaData original = Schema.instance.getKSMetaData(ks);
 
-        CFMetaData newCf = addTestCF(original.name, cf, "A New Column Family");
+        CFMetaData newCf = addTestCF(original.name, cf, "A New Table");
 
         Assert.assertFalse(Schema.instance.getKSMetaData(ks).cfMetaData().containsKey(newCf.cfName));
         MigrationManager.announceNewColumnFamily(newCf);
