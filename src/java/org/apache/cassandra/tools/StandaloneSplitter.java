@@ -79,7 +79,7 @@ public class StandaloneSplitter
                 if (cfName == null)
                     cfName = desc.cfname;
                 else if (!cfName.equals(desc.cfname))
-                    throw new IllegalArgumentException("All sstables must be part of the same column family");
+                    throw new IllegalArgumentException("All sstables must be part of the same table");
 
                 Set<Component> components = new HashSet<Component>(Arrays.asList(new Component[]{
                     Component.DATA,

@@ -109,7 +109,7 @@ public class StatusLogger
                                   rowCacheKeysToSave == Integer.MAX_VALUE ? "all" : rowCacheKeysToSave));
 
         // per-CF stats
-        logger.info(String.format("%-25s%20s", "ColumnFamily", "Memtable ops,data"));
+        logger.info(String.format("%-25s%20s", "Table", "Memtable ops,data"));
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
             logger.info(String.format("%-25s%20s",

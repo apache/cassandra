@@ -79,7 +79,7 @@ public class SSTableImport
         optKeyspace.setRequired(true);
         options.addOption(optKeyspace);
 
-        Option optColfamily = new Option(COLUMN_FAMILY_OPTION, true, "Column Family name.");
+        Option optColfamily = new Option(COLUMN_FAMILY_OPTION, true, "Table name.");
         optColfamily.setRequired(true);
         options.addOption(optColfamily);
 

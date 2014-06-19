@@ -1499,7 +1499,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private ColumnFamily getThroughCache(UUID cfId, QueryFilter filter)
     {
         assert isRowCacheEnabled()
-               : String.format("Row cache is not enabled on column family [" + name + "]");
+               : String.format("Row cache is not enabled on table [" + name + "]");
 
         RowCacheKey key = new RowCacheKey(cfId, filter.key);
 

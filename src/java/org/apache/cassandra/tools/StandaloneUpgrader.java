@@ -48,7 +48,7 @@ public class StandaloneUpgrader
             DatabaseDescriptor.loadSchemas();
 
             if (Schema.instance.getCFMetaData(options.keyspace, options.cf) == null)
-                throw new IllegalArgumentException(String.format("Unknown keyspace/columnFamily %s.%s",
+                throw new IllegalArgumentException(String.format("Unknown keyspace/table %s.%s",
                                                                  options.keyspace,
                                                                  options.cf));
 

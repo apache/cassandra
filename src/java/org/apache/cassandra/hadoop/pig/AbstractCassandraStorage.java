@@ -528,7 +528,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
                     properties.setProperty(signature, sb.toString());
                 }
                 else
-                    throw new IOException(String.format("Column family '%s' not found in keyspace '%s'",
+                    throw new IOException(String.format("Table '%s' not found in keyspace '%s'",
                                                              column_family,
                                                              keyspace));
             }

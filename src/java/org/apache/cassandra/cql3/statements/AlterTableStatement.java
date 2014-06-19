@@ -226,7 +226,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 break;
             case OPTS:
                 if (cfProps == null)
-                    throw new InvalidRequestException(String.format("ALTER COLUMNFAMILY WITH invoked, but no parameters found"));
+                    throw new InvalidRequestException(String.format("ALTER TABLE WITH invoked, but no parameters found"));
 
                 cfProps.validate();
                 cfProps.applyToCFMetadata(cfm);

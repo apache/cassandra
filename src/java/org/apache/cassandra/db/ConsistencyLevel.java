@@ -347,7 +347,7 @@ public enum ConsistencyLevel
     public void validateCounterForWrite(CFMetaData metadata) throws InvalidRequestException
     {
         if (this == ConsistencyLevel.ANY)
-            throw new InvalidRequestException("Consistency level ANY is not yet supported for counter columnfamily " + metadata.cfName);
+            throw new InvalidRequestException("Consistency level ANY is not yet supported for counter table " + metadata.cfName);
 
         if (isSerialConsistency())
             throw new InvalidRequestException("Counter operations are inherently non-serializable");

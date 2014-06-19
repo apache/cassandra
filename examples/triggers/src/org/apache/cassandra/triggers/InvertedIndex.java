@@ -42,7 +42,7 @@ public class InvertedIndex implements ITrigger
         List<Mutation> mutations = new ArrayList<>(update.getColumnCount());
 
         String indexKeySpace = properties.getProperty("keyspace");
-        String indexColumnFamily = properties.getProperty("columnfamily");
+        String indexColumnFamily = properties.getProperty("table");
         for (Cell cell : update)
         {
             // Skip the row marker and other empty values, since they lead to an empty key.

@@ -44,7 +44,7 @@ public class SSTableLevelResetter
         if (args.length == 0)
         {
             out.println("This command should be run with Cassandra stopped!");
-            out.println("Usage: sstablelevelreset <keyspace> <columnfamily>");
+            out.println("Usage: sstablelevelreset <keyspace> <table>");
             System.exit(1);
         }
 
@@ -52,7 +52,7 @@ public class SSTableLevelResetter
         {
             out.println("This command should be run with Cassandra stopped, otherwise you will get very strange behavior");
             out.println("Verify that Cassandra is not running and then execute the command like this:");
-            out.println("Usage: sstablelevelreset --really-reset <keyspace> <columnfamily>");
+            out.println("Usage: sstablelevelreset --really-reset <keyspace> <table>");
             System.exit(1);
         }
 
@@ -78,7 +78,7 @@ public class SSTableLevelResetter
 
         if (!foundSSTable)
         {
-            out.println("Found no sstables, did you give the correct keyspace/columnfamily?");
+            out.println("Found no sstables, did you give the correct keyspace/table?");
         }
     }
 }
