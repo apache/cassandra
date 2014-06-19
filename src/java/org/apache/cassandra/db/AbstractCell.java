@@ -181,66 +181,59 @@ public abstract class AbstractCell implements Cell
                 : new BufferCell(name, value, timestamp);
     }
 
-    public static Cell diff(CounterCell a, Cell b)
+    public Cell diffCounter(Cell cell)
     {
-        if (a.timestamp() < b.timestamp())
-            return b;
+        assert this instanceof CounterCell : "Wrong class type: " + getClass();
+
+        if (timestamp() < cell.timestamp())
+            return cell;
 
         // Note that if at that point, cell can't be a tombstone. Indeed,
         // cell is the result of merging us with other nodes results, and
         // merging a CounterCell with a tombstone never return a tombstone
         // unless that tombstone timestamp is greater that the CounterCell
         // one.
-        assert b instanceof CounterCell : "Wrong class type: " + b.getClass();
+        assert cell instanceof CounterCell : "Wrong class type: " + cell.getClass();
 
-        if (a.timestampOfLastDelete() < ((CounterCell) b).timestampOfLastDelete())
-            return b;
+        if (((CounterCell) this).timestampOfLastDelete() < ((CounterCell) cell).timestampOfLastDelete())
+            return cell;
 
-        CounterContext.Relationship rel = CounterCell.contextManager.diff(b.value(), a.value());
-        return (rel == CounterContext.Relationship.GREATER_THAN || rel == CounterContext.Relationship.DISJOINT) ? b : null;
+        CounterContext.Relationship rel = CounterCell.contextManager.diff(cell.value(), value());
+        return (rel == CounterContext.Relationship.GREATER_THAN || rel == CounterContext.Relationship.DISJOINT) ? cell : null;
     }
 
     /** This is temporary until we start creating Cells of the different type (buffer vs. native) */
-    public static Cell reconcile(CounterCell a, Cell b)
+    public Cell reconcileCounter(Cell cell)
     {
-        assert (b instanceof CounterCell) || (b instanceof DeletedCell) : "Wrong class type: " + b.getClass();
+        assert this instanceof CounterCell : "Wrong class type: " + getClass();
 
-        // live + tombstone: track last tombstone
-        if (!b.isLive()) // cannot be an expired cell, so the current time is irrelevant
-        {
-            // live < tombstone
-            if (a.timestamp() < b.timestamp())
-                return b;
+        // No matter what the counter cell's timestamp is, a tombstone always takes precedence. See CASSANDRA-7346.
+        if (cell instanceof DeletedCell)
+            return cell;
 
-            // live last delete >= tombstone
-            if (a.timestampOfLastDelete() >= b.timestamp())
-                return a;
-
-            // live last delete < tombstone
-            return new BufferCounterCell(a.name(), a.value(), a.timestamp(), b.timestamp());
-        }
-
-        assert b instanceof CounterCell : "Wrong class type: " + b.getClass();
+        assert (cell instanceof CounterCell) : "Wrong class type: " + cell.getClass();
 
         // live < live last delete
-        if (a.timestamp() < ((CounterCell) b).timestampOfLastDelete())
-            return b;
+        if (timestamp() < ((CounterCell) cell).timestampOfLastDelete())
+            return cell;
+
+        long timestampOfLastDelete = ((CounterCell) this).timestampOfLastDelete();
 
         // live last delete > live
-        if (a.timestampOfLastDelete() > b.timestamp())
-            return a;
+        if (timestampOfLastDelete > cell.timestamp())
+            return this;
 
         // live + live. return one of the cells if its context is a superset of the other's, or merge them otherwise
-        ByteBuffer context = CounterCell.contextManager.merge(a.value(), b.value());
-        if (context == a.value() && a.timestamp() >= b.timestamp() && a.timestampOfLastDelete() >= ((CounterCell) b).timestampOfLastDelete())
-            return a;
-        else if (context == b.value() && b.timestamp() >= a.timestamp() && ((CounterCell) b).timestampOfLastDelete() >= a.timestampOfLastDelete())
-            return b;
-        else // merge clocks and timsestamps.
-            return new BufferCounterCell(a.name(),
+        ByteBuffer context = CounterCell.contextManager.merge(value(), cell.value());
+        if (context == value() && timestamp() >= cell.timestamp() && timestampOfLastDelete >= ((CounterCell) cell).timestampOfLastDelete())
+            return this;
+        else if (context == cell.value() && cell.timestamp() >= timestamp() && ((CounterCell) cell).timestampOfLastDelete() >= timestampOfLastDelete)
+            return cell;
+        else // merge clocks and timestamps.
+            return new BufferCounterCell(name(),
                                          context,
-                                         Math.max(a.timestamp(), b.timestamp()),
-                                         Math.max(a.timestampOfLastDelete(), ((CounterCell) b).timestampOfLastDelete()));
+                                         Math.max(timestamp(), cell.timestamp()),
+                                         Math.max(timestampOfLastDelete, ((CounterCell) cell).timestampOfLastDelete()));
     }
 
 }

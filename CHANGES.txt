@@ -12,6 +12,8 @@
 
 
 2.1.0
+ * Modify reconcile logic to always pick a tombstone over a counter cell
+   (CASSANDRA-7346)
  * Avoid incremental compaction on Windows (CASSANDRA-7365)
  * Fix exception when querying a composite-keyed table with a collection index
    (CASSANDRA-7372)

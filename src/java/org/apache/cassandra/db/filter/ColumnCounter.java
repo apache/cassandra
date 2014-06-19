@@ -47,7 +47,7 @@ public class ColumnCounter
 
     protected static boolean isLive(Cell cell, DeletionInfo.InOrderTester tester, long timestamp)
     {
-        return cell.isLive(timestamp) && (!tester.isDeleted(cell));
+        return cell.isLive(timestamp) && !tester.isDeleted(cell);
     }
 
     public int live()

@@ -91,7 +91,7 @@ public class BufferCounterCell extends BufferCell implements CounterCell
     @Override
     public Cell diff(Cell cell)
     {
-        return diff(this, cell);
+        return diffCounter(cell);
     }
 
     /*
@@ -115,7 +115,7 @@ public class BufferCounterCell extends BufferCell implements CounterCell
     @Override
     public Cell reconcile(Cell cell)
     {
-        return reconcile(this, cell);
+        return reconcileCounter(cell);
     }
 
     @Override

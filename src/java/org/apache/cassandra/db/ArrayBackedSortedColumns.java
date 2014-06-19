@@ -208,7 +208,7 @@ public class ArrayBackedSortedColumns extends ColumnFamily
       */
     public void maybeAppendColumn(Cell cell, DeletionInfo.InOrderTester tester, int gcBefore)
     {
-        if (cell.getLocalDeletionTime() >= gcBefore && !tester.isDeleted(cell.name(), cell.timestamp()))
+        if (cell.getLocalDeletionTime() >= gcBefore && !tester.isDeleted(cell))
         {
             internalAdd(cell);
             sortedSize++;
