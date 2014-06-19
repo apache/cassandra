@@ -1613,6 +1613,9 @@ public class NodeTool
             List<String> keyspaces = parseOptionalKeyspace(args, probe);
             String[] cfnames = parseOptionalColumnFamilies(args);
 
+            if (primaryRange && (localDC || !specificHosts.isEmpty() || !specificHosts.isEmpty()))
+                throw new RuntimeException("Primary range repair should be performed on all nodes in the cluster.");
+
             for (String keyspace : keyspaces)
             {
                 try

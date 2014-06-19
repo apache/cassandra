@@ -2553,6 +2553,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean primaryRange, boolean fullRepair, String... columnFamilies) throws IOException
     {
+        // when repairing only primary range, dataCenter nor hosts can be set
+        if (primaryRange && (dataCenters != null || hosts != null))
+        {
+            throw new IllegalArgumentException("You need to run primary range repair on all nodes in the cluster.");
+        }
         Collection<Range<Token>> ranges = primaryRange ? getLocalPrimaryRanges(keyspace) : getLocalRanges(keyspace);
 
         return forceRepairAsync(keyspace, isSequential, dataCenters, hosts, ranges, fullRepair, columnFamilies);
@@ -2573,6 +2578,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int forceRepairAsync(String keyspace, boolean isSequential, boolean isLocal, boolean primaryRange, boolean fullRepair, String... columnFamilies)
     {
+        // when repairing only primary range, you cannot repair only on local DC
+        if (primaryRange && isLocal)
+        {
+            throw new IllegalArgumentException("You need to run primary range repair on all nodes in the cluster.");
+        }
         Collection<Range<Token>> ranges = primaryRange ? getLocalPrimaryRanges(keyspace) : getLocalRanges(keyspace);
         return forceRepairAsync(keyspace, isSequential, isLocal, ranges, fullRepair, columnFamilies);
     }
@@ -2594,22 +2604,48 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean fullRepair, String... columnFamilies) throws IOException
     {
-        Token parsedBeginToken = getPartitioner().getTokenFactory().fromString(beginToken);
-        Token parsedEndToken = getPartitioner().getTokenFactory().fromString(endToken);
+        Collection<Range<Token>> repairingRange = createRepairRangeFrom(beginToken, endToken);
 
-        logger.info("starting user-requested repair of range ({}, {}] for keyspace {} and column families {}",
-                    parsedBeginToken, parsedEndToken, keyspaceName, columnFamilies);
-        return forceRepairAsync(keyspaceName, isSequential, dataCenters, hosts, Collections.singleton(new Range<>(parsedBeginToken, parsedEndToken)), fullRepair, columnFamilies);
+        logger.info("starting user-requested repair of range {} for keyspace {} and column families {}",
+                           repairingRange, keyspaceName, columnFamilies);
+        return forceRepairAsync(keyspaceName, isSequential, dataCenters, hosts, repairingRange, fullRepair, columnFamilies);
     }
 
     public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, boolean fullRepair, String... columnFamilies)
     {
+        Collection<Range<Token>> repairingRange = createRepairRangeFrom(beginToken, endToken);
+
+        logger.info("starting user-requested repair of range {} for keyspace {} and column families {}",
+                           repairingRange, keyspaceName, columnFamilies);
+        return forceRepairAsync(keyspaceName, isSequential, isLocal, repairingRange, fullRepair, columnFamilies);
+    }
+
+    /**
+     * Create collection of ranges that match ring layout from given tokens.
+     *
+     * @param beginToken beginning token of the range
+     * @param endToken end token of the range
+     * @return collection of ranges that match ring layout in TokenMetadata
+     */
+    @SuppressWarnings("unchecked")
+    private Collection<Range<Token>> createRepairRangeFrom(String beginToken, String endToken)
+    {
         Token parsedBeginToken = getPartitioner().getTokenFactory().fromString(beginToken);
         Token parsedEndToken = getPartitioner().getTokenFactory().fromString(endToken);
 
-        logger.info("starting user-requested repair of range ({}, {}] for keyspace {} and column families {}",
-                    parsedBeginToken, parsedEndToken, keyspaceName, columnFamilies);
-        return forceRepairAsync(keyspaceName, isSequential, isLocal, Collections.singleton(new Range<>(parsedBeginToken, parsedEndToken)), fullRepair, columnFamilies);
+        Deque<Range<Token>> repairingRange = new ArrayDeque<>();
+        // Break up given range to match ring layout in TokenMetadata
+        Token previous = tokenMetadata.getPredecessor(TokenMetadata.firstToken(tokenMetadata.sortedTokens(), parsedEndToken));
+        while (parsedBeginToken.compareTo(previous) < 0)
+        {
+            repairingRange.addFirst(new Range<>(previous, parsedEndToken));
+
+            parsedEndToken = previous;
+            previous = tokenMetadata.getPredecessor(previous);
+        }
+        repairingRange.addFirst(new Range<>(parsedBeginToken, parsedEndToken));
+
+        return repairingRange;
     }
 
     private FutureTask<Object> createRepairTask(int cmd,
@@ -2637,6 +2673,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                 final boolean fullRepair,
                                                 final String... columnFamilies)
     {
+        if (dataCenters != null && !dataCenters.contains(DatabaseDescriptor.getLocalDataCenter()))
+        {
+            throw new IllegalArgumentException("the local data center must be part of the repair");
+        }
+
         return new FutureTask<>(new WrappedRunnable()
         {
             protected void runMayThrow() throws Exception
@@ -2648,13 +2689,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (isSequential && !fullRepair)
                 {
                     message = "It is not possible to mix sequential repair and incremental repairs.";
-                    logger.error(message);
-                    sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
-                    return;
-                }
-                if (dataCenters != null && !dataCenters.contains(DatabaseDescriptor.getLocalDataCenter()))
-                {
-                    message = String.format("Cancelling repair command #%d (the local data center must be part of the repair)", cmd);
                     logger.error(message);
                     sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
                     return;
