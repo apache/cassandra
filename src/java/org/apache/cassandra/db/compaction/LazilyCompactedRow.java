@@ -244,6 +244,10 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                 }
                 else
                 {
+                    tombstones.update(t.getLocalDeletionTime());
+
+                    minColumnNameSeen = ColumnNameHelper.minComponents(minColumnNameSeen, t.min, controller.cfs.metadata.comparator);
+                    maxColumnNameSeen = ColumnNameHelper.maxComponents(maxColumnNameSeen, t.max, controller.cfs.metadata.comparator);
                     return t;
                 }
             }
@@ -263,12 +267,6 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                 int localDeletionTime = container.deletionInfo().getTopLevelDeletion().localDeletionTime;
                 if (localDeletionTime < Integer.MAX_VALUE)
                     tombstones.update(localDeletionTime);
-                Iterator<RangeTombstone> rangeTombstoneIterator = container.deletionInfo().rangeIterator();
-                while (rangeTombstoneIterator.hasNext())
-                {
-                    RangeTombstone rangeTombstone = rangeTombstoneIterator.next();
-                    tombstones.update(rangeTombstone.getLocalDeletionTime());
-                }
 
                 Cell reduced = iter.next();
                 container.clear();

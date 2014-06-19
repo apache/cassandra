@@ -33,6 +33,7 @@ Merged from 2.0:
  * Fix NPE in StreamTransferTask.createMessageForRetry() (CASSANDRA-7323)
  * Make StreamSession#closeSession() idempotent (CASSANDRA-7262)
  * Fix infinite loop on exception while streaming (CASSANDRA-7330)
+ * Account for range tombstones in min/max column names (CASSANDRA-7235)
 Merged from 1.2:
  * cqlsh: ignore .cassandra permission errors (CASSANDRA-7266)
  * Errors in FlushRunnable may leave threads hung (CASSANDRA-7275)
