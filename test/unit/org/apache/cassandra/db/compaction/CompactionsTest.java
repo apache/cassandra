@@ -27,12 +27,14 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -41,8 +43,11 @@ import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.SSTableMetadata;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
+import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -341,6 +346,96 @@ public class CompactionsTest extends SchemaLoader
         sstables = cfs.getSSTables();
         assert sstables.size() == 1;
         assert sstables.iterator().next().descriptor.generation == prevGeneration + 1;
+    }
+
+    @Test
+    public void testRangeTombstones() throws IOException, ExecutionException, InterruptedException
+    {
+        boolean lazy = false;
+
+        do
+        {
+            Keyspace keyspace = Keyspace.open(KEYSPACE1);
+            ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard2");
+            cfs.clearUnsafe();
+
+            // disable compaction while flushing
+            cfs.disableAutoCompaction();
+
+            final CFMetaData cfmeta = cfs.metadata;
+            Directories dir = Directories.create(cfmeta.ksName, cfmeta.cfName);
+
+            ArrayList<DecoratedKey> keys = new ArrayList<DecoratedKey>();
+
+            for (int i=0; i < 4; i++)
+            {
+                keys.add(Util.dk(""+i));
+            }
+
+            ArrayBackedSortedColumns cf = ArrayBackedSortedColumns.factory.create(cfmeta);
+            cf.addColumn(Util.column("01", "a", 1)); // this must not resurrect
+            cf.addColumn(Util.column("a", "a", 3));
+            cf.deletionInfo().add(new RangeTombstone(ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("b"), 2, (int) (System.currentTimeMillis()/1000)),cfmeta.comparator);
+
+            SSTableWriter writer = new SSTableWriter(cfs.getTempSSTablePath(dir.getDirectoryForNewSSTables()),
+                                                     0,
+                                                     cfs.metadata,
+                                                     StorageService.getPartitioner(),
+                                                     SSTableMetadata.createCollector(cfs.metadata.comparator));
+
+
+            writer.append(Util.dk("0"), cf);
+            writer.append(Util.dk("1"), cf);
+            writer.append(Util.dk("3"), cf);
+
+            cfs.addSSTable(writer.closeAndOpenReader());
+            writer = new SSTableWriter(cfs.getTempSSTablePath(dir.getDirectoryForNewSSTables()),
+                                       0,
+                                       cfs.metadata,
+                                       StorageService.getPartitioner(),
+                                       SSTableMetadata.createCollector(cfs.metadata.comparator));
+
+            writer.append(Util.dk("0"), cf);
+            writer.append(Util.dk("1"), cf);
+            writer.append(Util.dk("2"), cf);
+            writer.append(Util.dk("3"), cf);
+            cfs.addSSTable(writer.closeAndOpenReader());
+
+            Collection<SSTableReader> toCompact = cfs.getSSTables();
+            assert toCompact.size() == 2;
+
+            // forcing lazy comapction
+            if (lazy)
+                DatabaseDescriptor.setInMemoryCompactionLimit(0);
+
+            // Force compaction on first sstables. Since each row is in only one sstable, we will be using EchoedRow.
+            Util.compact(cfs, toCompact);
+            assertEquals(1, cfs.getSSTables().size());
+
+            // Now assert we do have the 4 keys
+            assertEquals(4, Util.getRangeSlice(cfs).size());
+
+            ArrayList<DecoratedKey> k = new ArrayList<DecoratedKey>();
+            for (Row r : Util.getRangeSlice(cfs))
+            {
+                k.add(r.key);
+                assertEquals(ByteBufferUtil.bytes("a"),r.cf.getColumn(ByteBufferUtil.bytes("a")).value());
+                assertNull(r.cf.getColumn(ByteBufferUtil.bytes("01")));
+                assertEquals(3,r.cf.getColumn(ByteBufferUtil.bytes("a")).timestamp());
+            }
+
+            for (SSTableReader sstable : cfs.getSSTables())
+            {
+                SSTableMetadata stats = sstable.getSSTableMetadata();
+                assertEquals(ByteBufferUtil.bytes("0"), stats.minColumnNames.get(0));
+                assertEquals(ByteBufferUtil.bytes("b"), stats.maxColumnNames.get(0));
+            }
+
+            assertEquals(keys, k);
+
+            lazy=!lazy;
+        }
+        while (lazy);
     }
 
     @Test

@@ -252,6 +252,11 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
                 }
                 else
                 {
+                    tombstones.update(t.getLocalDeletionTime());
+
+                    minColumnNameSeen = ColumnNameHelper.minComponents(minColumnNameSeen, t.min, controller.cfs.metadata.comparator);
+                    maxColumnNameSeen = ColumnNameHelper.maxComponents(maxColumnNameSeen, t.max, controller.cfs.metadata.comparator);
+
                     return t;
                 }
             }
@@ -278,12 +283,6 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
                 int localDeletionTime = purged.deletionInfo().getTopLevelDeletion().localDeletionTime;
                 if (localDeletionTime < Integer.MAX_VALUE)
                     tombstones.update(localDeletionTime);
-                Iterator<RangeTombstone> rangeTombstoneIterator = purged.deletionInfo().rangeIterator();
-                while (rangeTombstoneIterator.hasNext())
-                {
-                    RangeTombstone rangeTombstone = rangeTombstoneIterator.next();
-                    tombstones.update(rangeTombstone.getLocalDeletionTime());
-                }
                 columns++;
                 minTimestampSeen = Math.min(minTimestampSeen, reduced.minTimestamp());
                 maxTimestampSeen = Math.max(maxTimestampSeen, reduced.maxTimestamp());

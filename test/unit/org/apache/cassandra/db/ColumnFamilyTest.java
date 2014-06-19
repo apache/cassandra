@@ -163,5 +163,17 @@ public class ColumnFamilyTest extends SchemaLoader
         cf.delete(new DeletionInfo(timestamp, localDeletionTime));
         ColumnStats stats = cf.getColumnStats();
         assertEquals(timestamp, stats.maxTimestamp);
+
+        cf.delete(new RangeTombstone(ByteBufferUtil.bytes("col2"), ByteBufferUtil.bytes("col21"), timestamp, localDeletionTime));
+
+        stats = cf.getColumnStats();
+        assertEquals(ByteBufferUtil.bytes("col2"), stats.minColumnNames.get(0));
+        assertEquals(ByteBufferUtil.bytes("col21"), stats.maxColumnNames.get(0));
+
+        cf.delete(new RangeTombstone(ByteBufferUtil.bytes("col6"), ByteBufferUtil.bytes("col61"), timestamp, localDeletionTime));
+        stats = cf.getColumnStats();
+
+        assertEquals(ByteBufferUtil.bytes("col2"), stats.minColumnNames.get(0));
+        assertEquals(ByteBufferUtil.bytes("col61"), stats.maxColumnNames.get(0));
     }
 }
