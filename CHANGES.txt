@@ -26,6 +26,7 @@
  * Fix heap size calculation on Windows (CASSANDRA-7352, 7353)
  * RefCount native frames from netty (CASSANDRA-7245)
  * Use tarball dir instead of /var for default paths (CASSANDRA-7136)
+ * Remove rows_per_partition_to_cache keyword (CASSANDRA-7193)
 Merged from 2.0:
  * Fix assertion error in CL.ANY timeout handling (CASSANDRA-7364)
  * Add per-CF range read request latency metrics (CASSANDRA-7338)
