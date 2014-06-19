@@ -1659,6 +1659,9 @@ public class NodeCmd
                     Collection<String> dataCenters = null;
                     Collection<String> hosts = null;
 
+                    if (primaryRange && (localDC || specificDC || specificHosts))
+                        throw new RuntimeException("Primary range repair should be performed on all nodes in the cluster.");
+
                     if (specificDC)
                         dataCenters = Arrays.asList(cmd.getOptionValue(DC_REPAIR_OPT.left).split(","));
                     else if (localDC)
