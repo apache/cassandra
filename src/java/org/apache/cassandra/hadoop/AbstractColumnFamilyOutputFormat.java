@@ -124,16 +124,22 @@ public abstract class AbstractColumnFamilyOutputFormat<K, Y> extends OutputForma
         TProtocol binaryProtocol = new TBinaryProtocol(transport, true, true);
         Cassandra.Client client = new Cassandra.Client(binaryProtocol);
         client.set_keyspace(ConfigHelper.getOutputKeyspace(conf));
-        if ((ConfigHelper.getOutputKeyspaceUserName(conf) != null) && (ConfigHelper.getOutputKeyspacePassword(conf) != null))
-        {
-            Map<String, String> creds = new HashMap<String, String>();
-            creds.put(IAuthenticator.USERNAME_KEY, ConfigHelper.getOutputKeyspaceUserName(conf));
-            creds.put(IAuthenticator.PASSWORD_KEY, ConfigHelper.getOutputKeyspacePassword(conf));
-            AuthenticationRequest authRequest = new AuthenticationRequest(creds);
-            client.login(authRequest);
-        }
+        String user = ConfigHelper.getOutputKeyspaceUserName(conf);
+        String password = ConfigHelper.getOutputKeyspacePassword(conf);
+        if ((user != null) && (password != null))
+            login(user, password, client);
+
         logger.debug("Authenticated client for CF output format created successfully");
         return client;
+    }
+
+    public static void login(String user, String password, Cassandra.Client client) throws Exception
+    {
+        Map<String, String> creds = new HashMap<String, String>();
+        creds.put(IAuthenticator.USERNAME_KEY, user);
+        creds.put(IAuthenticator.PASSWORD_KEY, password);
+        AuthenticationRequest authRequest = new AuthenticationRequest(creds);
+        client.login(authRequest);
     }
 
     /**

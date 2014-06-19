@@ -29,7 +29,7 @@ import org.junit.Test;
 
 import org.junit.Assert;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.utils.KeyGenerator.WordGenerator;
+import org.apache.cassandra.utils.KeyGenerator.RandomStringGenerator;
 import org.apache.cassandra.utils.obs.IBitSet;
 import org.apache.cassandra.utils.obs.OffHeapBitSet;
 import org.apache.cassandra.utils.obs.OpenBitSet;
@@ -44,10 +44,10 @@ public class BitSetTest
     @Test
     public void compareBitSets()
     {
-        BloomFilter bf2 = (BloomFilter) FilterFactory.getFilter(KeyGenerator.WordGenerator.WORDS / 2, FilterTestHelper.MAX_FAILURE_RATE, false);
-        BloomFilter bf3 = (BloomFilter) FilterFactory.getFilter(KeyGenerator.WordGenerator.WORDS / 2, FilterTestHelper.MAX_FAILURE_RATE, true);
-        int skipEven = KeyGenerator.WordGenerator.WORDS % 2 == 0 ? 0 : 2;
-        WordGenerator gen1 = new KeyGenerator.WordGenerator(skipEven, 2);
+        BloomFilter bf2 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, false);
+        BloomFilter bf3 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, true);
+
+        RandomStringGenerator gen1 = new KeyGenerator.RandomStringGenerator(new Random().nextInt(), FilterTestHelper.ELEMENTS);
 
         // make sure both bitsets are empty.
         compare(bf2.bitset, bf3.bitset);

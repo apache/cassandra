@@ -810,7 +810,7 @@ public class CassandraStorage extends AbstractCassandraStorage
         }
         catch (Exception e)
         {
-            throw new IOException("Expected 'cassandra://[username:password@]<keyspace>/<columnfamily>" +
+            throw new IOException("Expected 'cassandra://[username:password@]<keyspace>/<table>" +
                     "[?slice_start=<start>&slice_end=<end>[&reversed=true][&limit=1]" +
                     "[&allow_deletes=true][&widerows=true][&use_secondary=true]" +
                     "[&comparator=<comparator>][&split_size=<size>][&partitioner=<partitioner>]" +

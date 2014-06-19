@@ -85,7 +85,7 @@ public class ConfigHelper
             throw new UnsupportedOperationException("keyspace may not be null");
 
         if (columnFamily == null)
-            throw new UnsupportedOperationException("columnfamily may not be null");
+            throw new UnsupportedOperationException("table may not be null");
 
         conf.set(INPUT_KEYSPACE_CONFIG, keyspace);
         conf.set(INPUT_COLUMNFAMILY_CONFIG, columnFamily);

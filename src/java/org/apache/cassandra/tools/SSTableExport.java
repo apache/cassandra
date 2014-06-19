@@ -430,7 +430,7 @@ public class SSTableExport
         }
         catch (IllegalArgumentException e)
         {
-            System.err.println(String.format("The provided column family is not part of this cassandra keyspace: keyspace = %s, column family = %s",
+            System.err.println(String.format("The provided table is not part of this cassandra keyspace: keyspace = %s, table = %s",
                                              descriptor.ksname, descriptor.cfname));
             System.exit(1);
         }

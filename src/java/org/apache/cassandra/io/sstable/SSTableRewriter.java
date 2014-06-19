@@ -36,6 +36,7 @@ import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.compaction.AbstractCompactedRow;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.utils.CLibrary;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Wraps one or more writers as output for rewriting one or more readers: every sstable_preemptive_open_interval_in_mb
@@ -158,7 +159,7 @@ public class SSTableRewriter
 
     private void maybeReopenEarly(DecoratedKey key)
     {
-        if (writer.getFilePointer() - currentlyOpenedEarlyAt > preemptiveOpenInterval)
+        if (FBUtilities.isUnix() && writer.getFilePointer() - currentlyOpenedEarlyAt > preemptiveOpenInterval)
         {
             if (isOffline)
             {

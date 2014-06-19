@@ -671,7 +671,7 @@ public class CqlStorage extends AbstractCassandraStorage
         }
         catch (Exception e)
         {
-            throw new IOException("Expected 'cql://[username:password@]<keyspace>/<columnfamily>" +
+            throw new IOException("Expected 'cql://[username:password@]<keyspace>/<table>" +
                     "[?[page_size=<size>][&columns=<col1,col2>][&output_query=<prepared_statement>]" +
                     "[&where_clause=<clause>][&split_size=<size>][&partitioner=<partitioner>][&use_secondary=true|false]" +
                     "[&init_address=<host>][&rpc_port=<port>]]': " + e.getMessage());

@@ -405,16 +405,21 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
         List<ByteBuffer> minColumnNamesSeen = Collections.emptyList();
         List<ByteBuffer> maxColumnNamesSeen = Collections.emptyList();
         boolean hasLegacyCounterShards = false;
+
+        if (deletionInfo().getTopLevelDeletion().localDeletionTime < Integer.MAX_VALUE)
+            tombstones.update(deletionInfo().getTopLevelDeletion().localDeletionTime);
+        Iterator<RangeTombstone> it = deletionInfo().rangeIterator();
+        while (it.hasNext())
+        {
+            RangeTombstone rangeTombstone = it.next();
+            tombstones.update(rangeTombstone.getLocalDeletionTime());
+
+            minColumnNamesSeen = ColumnNameHelper.minComponents(minColumnNamesSeen, rangeTombstone.min, metadata.comparator);
+            maxColumnNamesSeen = ColumnNameHelper.maxComponents(maxColumnNamesSeen, rangeTombstone.max, metadata.comparator);
+        }
+
         for (Cell cell : this)
         {
-            if (deletionInfo().getTopLevelDeletion().localDeletionTime < Integer.MAX_VALUE)
-                tombstones.update(deletionInfo().getTopLevelDeletion().localDeletionTime);
-            Iterator<RangeTombstone> it = deletionInfo().rangeIterator();
-            while (it.hasNext())
-            {
-                RangeTombstone rangeTombstone = it.next();
-                tombstones.update(rangeTombstone.getLocalDeletionTime());
-            }
             minTimestampSeen = Math.min(minTimestampSeen, cell.timestamp());
             maxTimestampSeen = Math.max(maxTimestampSeen, cell.timestamp());
             maxLocalDeletionTime = Math.max(maxLocalDeletionTime, cell.getLocalDeletionTime());

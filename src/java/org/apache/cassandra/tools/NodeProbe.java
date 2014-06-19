@@ -207,7 +207,7 @@ public class NodeProbe implements AutoCloseable
         {
             case ABORTED:
                 failed = true;
-                out.println("Aborted cleaning up atleast one column family in keyspace "+keyspaceName+", check server logs for more information.");
+                out.println("Aborted cleaning up atleast one table in keyspace "+keyspaceName+", check server logs for more information.");
                 break;
         }
     }
@@ -218,7 +218,7 @@ public class NodeProbe implements AutoCloseable
         {
             case ABORTED:
                 failed = true;
-                out.println("Aborted scrubbing atleast one column family in keyspace "+keyspaceName+", check server logs for more information.");
+                out.println("Aborted scrubbing atleast one table in keyspace "+keyspaceName+", check server logs for more information.");
                 break;
         }
     }
@@ -229,7 +229,7 @@ public class NodeProbe implements AutoCloseable
         {
             case ABORTED:
                 failed = true;
-                out.println("Aborted upgrading sstables for atleast one column family in keyspace "+keyspaceName+", check server logs for more information.");
+                out.println("Aborted upgrading sstables for atleast one table in keyspace "+keyspaceName+", check server logs for more information.");
                 break;
         }
     }
@@ -466,7 +466,7 @@ public class NodeProbe implements AutoCloseable
         {
             if (keyspaces.length != 1)
             {
-                throw new IOException("When specifying the column family for a snapshot, you must specify one and only one keyspace");
+                throw new IOException("When specifying the table for a snapshot, you must specify one and only one keyspace");
             }
             ssProxy.takeColumnFamilySnapshot(keyspaces[0], columnFamily, snapshotName);
         }
@@ -1034,7 +1034,7 @@ public class NodeProbe implements AutoCloseable
                 case "TombstoneScannedHistogram":
                     return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.HistogramMBean.class);
                 default:
-                    throw new RuntimeException("Unknown column family metric.");
+                    throw new RuntimeException("Unknown table metric.");
             }
         }
         catch (MalformedObjectNameException e)
@@ -1174,7 +1174,7 @@ class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, Colum
                 // get CF name and split it for index name
                 String e1CF[] = e1.getValue().getColumnFamilyName().split("\\.");
                 String e2CF[] = e2.getValue().getColumnFamilyName().split("\\.");
-                assert e1CF.length <= 2 && e2CF.length <= 2 : "unexpected split count for column family name";
+                assert e1CF.length <= 2 && e2CF.length <= 2 : "unexpected split count for table name";
 
                 //if neither are indexes, just compare CF names
                 if(e1CF.length == 1 && e2CF.length == 1)

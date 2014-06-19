@@ -78,7 +78,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
     {
         if (ConfigHelper.getInputKeyspace(conf) == null || ConfigHelper.getInputColumnFamily(conf) == null)
         {
-            throw new UnsupportedOperationException("you must set the keyspace and columnfamily with setInputColumnFamily()");
+            throw new UnsupportedOperationException("you must set the keyspace and table with setInputColumnFamily()");
         }
         if (ConfigHelper.getInputInitialAddress(conf) == null)
             throw new UnsupportedOperationException("You must set the initial output address to a Cassandra node with setInputInitialAddress");
