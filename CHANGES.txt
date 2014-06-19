@@ -34,6 +34,7 @@ Merged from 2.0:
  * Make StreamSession#closeSession() idempotent (CASSANDRA-7262)
  * Fix infinite loop on exception while streaming (CASSANDRA-7330)
  * Account for range tombstones in min/max column names (CASSANDRA-7235)
+ * Improve sub range repair validation (CASSANDRA-7317)
 Merged from 1.2:
  * cqlsh: ignore .cassandra permission errors (CASSANDRA-7266)
  * Errors in FlushRunnable may leave threads hung (CASSANDRA-7275)
