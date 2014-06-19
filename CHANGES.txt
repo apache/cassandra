@@ -33,6 +33,7 @@ Merged from 2.0:
  * Make StreamSession#closeSession() idempotent (CASSANDRA-7262)
  * Fix infinite loop on exception while streaming (CASSANDRA-7330)
 Merged from 1.2:
+ * cqlsh: ignore .cassandra permission errors (CASSANDRA-7266)
  * Errors in FlushRunnable may leave threads hung (CASSANDRA-7275)
  * reduce failure detector initial value to 2s (CASSANDRA-7307)
  * Fix problem truncating on a node that was previously in a dead state (CASSANDRA-7318)
