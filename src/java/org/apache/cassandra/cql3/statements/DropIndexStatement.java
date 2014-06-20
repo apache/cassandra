@@ -26,7 +26,7 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.transport.Event;
 
 public class DropIndexStatement extends SchemaAlteringStatement
 {
@@ -54,10 +54,10 @@ public class DropIndexStatement extends SchemaAlteringStatement
         // validated in findIndexedCf()
     }
 
-    public ResultMessage.SchemaChange.Change changeType()
+    public Event.SchemaChange changeEvent()
     {
         // Dropping an index is akin to updating the CF
-        return ResultMessage.SchemaChange.Change.UPDATED;
+        return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
     }
 
     public void announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException

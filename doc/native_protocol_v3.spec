@@ -639,17 +639,10 @@ Table of Contents
 4.2.5.5. Schema_change
 
   The result to a schema altering query (creation/update/drop of a
-  keyspace/table/index). The body (after the kind [int]) is composed of 3
-  [string]:
-    <change><keyspace><table>
-  where:
-    - <change> describe the type of change that has occured. It can be one of
-      "CREATED", "UPDATED" or "DROPPED".
-    - <keyspace> is the name of the affected keyspace or the keyspace of the
-      affected table.
-    - <table> is the name of the affected table. <table> will be empty (i.e.
-      the empty string "") if the change was affecting a keyspace and not a
-      table.
+  keyspace/table/index). The body (after the kind [int]) is the same
+  as the body for a "SCHEMA_CHANGE" event, so 3 strings:
+    <change_type><target><options>
+  Please refer to the section 4.2.6 below for the meaning of those fields.
 
   Note that queries to create and drop an index are considered as change
   updating the table the index is on.
@@ -674,11 +667,11 @@ Table of Contents
       concerned node.
     - "SCHEMA_CHANGE": events related to schema change. After the event type,
       the rest of the message will be <change_type><target><options> where:
-        - <change_type> is the type of changed involved. It will be one of
-          "CREATED", "UPDATED" or "DROPPED".
-        - <target> can be one of "KEYSPACE", "TABLE" or "TYPE" and describes
-          what has been modified ("TYPE" stands for modifications related to
-          user types).
+        - <change_type> is a [string] representing the type of changed involved.
+          It will be one of "CREATED", "UPDATED" or "DROPPED".
+        - <target> is a [string] that can be one of "KEYSPACE", "TABLE" or "TYPE"
+          and describes what has been modified ("TYPE" stands for modifications
+          related to user types).
         - <options> depends on the preceding <target>. If <target> is
           "KEYSPACE", then <options> will be a single [string] representing the
           keyspace changed. Otherwise, if <target> is "TABLE" or "TYPE", then
@@ -916,6 +909,6 @@ Table of Contents
   * QUERY, EXECUTE and BATCH messages can now optionally provide the names for the values of the
     query. As this feature is optionally enabled by clients, implementing it is at the discretion of the
     client.
-  * The format of "SCHEMA_CHANGE" notifications has been modified, and now includes changes related to
-    user types.
+  * The format of "Schema_change" results (Section 4.2.5.5) and "SCHEMA_CHANGE" events (Section 4.2.6)
+    has been modified, and now includes changes related to user types.
 

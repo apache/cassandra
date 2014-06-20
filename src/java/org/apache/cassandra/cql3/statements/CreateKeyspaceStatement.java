@@ -30,7 +30,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ThriftValidation;
-import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.transport.Event;
 
 /** A <code>CREATE KEYSPACE</code> statement parsed from a CQL query. */
 public class CreateKeyspaceStatement extends SchemaAlteringStatement
@@ -110,8 +110,8 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
         }
     }
 
-    public ResultMessage.SchemaChange.Change changeType()
+    public Event.SchemaChange changeEvent()
     {
-        return ResultMessage.SchemaChange.Change.CREATED;
+        return new Event.SchemaChange(Event.SchemaChange.Change.CREATED, keyspace());
     }
 }
