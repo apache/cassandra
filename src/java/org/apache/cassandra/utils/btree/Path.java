@@ -94,9 +94,9 @@ public class Path<V>
      * @param target     the key to search for
      * @param mode       the type of search to perform
      * @param forwards   if the path should be setup for forward or backward iteration
-     * @param <V>
+     * @param <K>
      */
-    <V> boolean find(Comparator<V> comparator, Object target, Op mode, boolean forwards)
+    <K> boolean find(Comparator<K> comparator, Object target, Op mode, boolean forwards)
     {
         // TODO : should not require parameter 'forwards' - consider modifying index to represent both
         // child and key position, as opposed to just key position (which necessitates a different value depending
@@ -321,7 +321,7 @@ public class Path<V>
         return currentNode()[currentIndex()];
     }
 
-    int compareTo(Path that, boolean forwards)
+    int compareTo(Path<V> that, boolean forwards)
     {
         int d = Math.min(this.depth, that.depth);
         for (int i = 0; i <= d; i++)
