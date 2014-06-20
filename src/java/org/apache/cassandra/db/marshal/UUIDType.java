@@ -189,6 +189,12 @@ public class UUIDType extends AbstractType<UUID>
         }
     }
 
+    @Override
+    public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
+    {
+        return this == otherType || otherType == TimeUUIDType.instance;
+    }
+
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.UUID;

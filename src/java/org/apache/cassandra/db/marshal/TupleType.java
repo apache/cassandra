@@ -251,13 +251,13 @@ public class TupleType extends AbstractType<ByteBuffer>
     }
 
     @Override
-    public boolean isValueCompatibleWith(AbstractType<?> previous)
+    public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
-        if (!(previous instanceof TupleType))
+        if (!(otherType instanceof TupleType))
             return false;
 
         // Extending with new components is fine, removing is not
-        TupleType tt = (TupleType)previous;
+        TupleType tt = (TupleType) otherType;
         if (size() < tt.size())
             return false;
 
