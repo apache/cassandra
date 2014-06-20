@@ -38,6 +38,7 @@ Merged from 2.0:
  * Fix infinite loop on exception while streaming (CASSANDRA-7330)
  * Account for range tombstones in min/max column names (CASSANDRA-7235)
  * Improve sub range repair validation (CASSANDRA-7317)
+ * Accept subtypes for function results, type casts (CASSANDRA-6766)
 Merged from 1.2:
  * Handle possible integer overflow in FastByteArrayOutputStream (CASSANDRA-7373)
  * cqlsh: 'ascii' values weren't formatted as text (CASSANDRA-7407)

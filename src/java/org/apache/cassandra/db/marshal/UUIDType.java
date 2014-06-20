@@ -176,6 +176,12 @@ public class UUIDType extends AbstractType<UUID>
         throw new MarshalException(String.format("unable to coerce '%s' to version 1 UUID", source));
     }
 
+    @Override
+    public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
+    {
+        return this == otherType || otherType == TimeUUIDType.instance;
+    }
+
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.UUID;

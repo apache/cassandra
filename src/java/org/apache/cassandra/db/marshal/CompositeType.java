@@ -252,16 +252,16 @@ public class CompositeType extends AbstractCompositeType
     }
 
     @Override
-    public boolean isValueCompatibleWith(AbstractType<?> previous)
+    public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
-        if (this == previous)
+        if (this == otherType)
             return true;
 
-        if (!(previous instanceof CompositeType))
+        if (!(otherType instanceof CompositeType))
             return false;
 
         // Extending with new components is fine
-        CompositeType cp = (CompositeType)previous;
+        CompositeType cp = (CompositeType) otherType;
         if (types.size() < cp.types.size())
             return false;
 

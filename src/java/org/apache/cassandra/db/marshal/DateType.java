@@ -78,6 +78,12 @@ public class DateType extends AbstractType<Date>
     }
 
     @Override
+    public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
+    {
+        return this == otherType || otherType == TimestampType.instance || otherType == LongType.instance;
+    }
+
+    @Override
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.TIMESTAMP;
