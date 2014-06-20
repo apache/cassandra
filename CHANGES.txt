@@ -12,6 +12,7 @@
 
 
 2.1.0-rc2
+ * Allow counter mutations in UNLOGGED batches (CASSANDRA-7351)
  * Modify reconcile logic to always pick a tombstone over a counter cell
    (CASSANDRA-7346)
  * Avoid incremental compaction on Windows (CASSANDRA-7365)
@@ -43,7 +44,6 @@ Merged from 1.2:
  * Handle possible integer overflow in FastByteArrayOutputStream (CASSANDRA-7373)
  * cqlsh: 'ascii' values weren't formatted as text (CASSANDRA-7407)
  * cqlsh: ignore .cassandra permission errors (CASSANDRA-7266)
- * Errors in FlushRunnable may leave threads hung (CASSANDRA-7275)
  * reduce failure detector initial value to 2s (CASSANDRA-7307)
  * Fix problem truncating on a node that was previously in a dead state (CASSANDRA-7318)
  * Don't insert tombstones that hide indexed values into 2i (CASSANDRA-7268)
