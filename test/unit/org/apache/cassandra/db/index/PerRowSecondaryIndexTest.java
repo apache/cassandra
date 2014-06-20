@@ -23,11 +23,13 @@ import java.util.Arrays;
 import java.util.Set;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -36,12 +38,13 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.junit.Assert.*;
 
-public class PerRowSecondaryIndexTest extends SchemaLoader
+public class PerRowSecondaryIndexTest
 {
 
     // test that when index(key) is called on a PRSI index,
@@ -49,6 +52,19 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
     // key. TestIndex.index(key) simply reads the data to be
     // indexed & stashes it in a static variable for inspection
     // in the test.
+
+    private static final String KEYSPACE1 = "PerRowSecondaryIndexTest";
+    private static final String CF_INDEXED = "Indexed1";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.perRowIndexedCFMD(KEYSPACE1, CF_INDEXED));
+    }
 
     @Before
     public void clearTestStub()
@@ -61,7 +77,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
     {
         // create a row then test that the configured index instance was able to read the row
         Mutation rm;
-        rm = new Mutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k1"));
+        rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", Util.cellname("indexed"), ByteBufferUtil.bytes("foo"), 1);
         rm.apply();
 
@@ -70,7 +86,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         assertEquals(ByteBufferUtil.bytes("foo"), indexedRow.getColumn(Util.cellname("indexed")).value());
 
         // update the row and verify what was indexed
-        rm = new Mutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k1"));
+        rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", Util.cellname("indexed"), ByteBufferUtil.bytes("bar"), 2);
         rm.apply();
 
@@ -85,7 +101,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
     {
         // issue a column delete and test that the configured index instance was notified to update
         Mutation rm;
-        rm = new Mutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k2"));
+        rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k2"));
         rm.delete("Indexed1", Util.cellname("indexed"), 1);
         rm.apply();
 
@@ -103,7 +119,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
     {
         // issue a row level delete and test that the configured index instance was notified to update
         Mutation rm;
-        rm = new Mutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k3"));
+        rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k3"));
         rm.delete("Indexed1", 1);
         rm.apply();
 

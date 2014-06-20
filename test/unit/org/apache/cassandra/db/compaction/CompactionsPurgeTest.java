@@ -22,8 +22,14 @@ import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import org.apache.cassandra.cache.CachingOptions;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -45,10 +51,43 @@ import static org.apache.cassandra.Util.cellname;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
-public class CompactionsPurgeTest extends SchemaLoader
+public class CompactionsPurgeTest
 {
-    public static final String KEYSPACE1 = "Keyspace1";
-    public static final String KEYSPACE2 = "Keyspace2";
+    private static final String KEYSPACE1 = "CompactionsPurgeTest1";
+    private static final String CF_STANDARD1 = "Standard1";
+    private static final String CF_STANDARD2 = "Standard2";
+    private static final String KEYSPACE2 = "CompactionsPurgeTest2";
+    private static final String KEYSPACE_CACHED = "CompactionsPurgeTestCached";
+    private static final String CF_CACHED = "CachedCF";
+    private static final String KEYSPACE_CQL = "cql_keyspace";
+    private static final String CF_CQL = "table1";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2));
+        SchemaLoader.createKeyspace(KEYSPACE2,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD1));
+        SchemaLoader.createKeyspace(KEYSPACE_CACHED,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHED).caching(CachingOptions.ALL));
+        SchemaLoader.createKeyspace(KEYSPACE_CQL,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    CFMetaData.compile("CREATE TABLE " + CF_CQL + " ("
+                                                     + "k int PRIMARY KEY,"
+                                                     + "v1 text,"
+                                                     + "v2 int"
+                                                     + ")", KEYSPACE_CQL));
+    }
 
     @Test
     public void testMajorCompactionPurge() throws ExecutionException, InterruptedException
@@ -235,8 +274,8 @@ public class CompactionsPurgeTest extends SchemaLoader
     {
         CompactionManager.instance.disableAutoCompaction();
 
-        String keyspaceName = "RowCacheSpace";
-        String cfName = "CachedCF";
+        String keyspaceName = KEYSPACE_CACHED;
+        String cfName = CF_CACHED;
         Keyspace keyspace = Keyspace.open(keyspaceName);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
 
@@ -283,7 +322,7 @@ public class CompactionsPurgeTest extends SchemaLoader
     {
         CompactionManager.instance.disableAutoCompaction();
 
-        String keyspaceName = "Keyspace1";
+        String keyspaceName = KEYSPACE1;
         String cfName = "Standard1";
         Keyspace keyspace = Keyspace.open(keyspaceName);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);

@@ -37,9 +37,21 @@ public class SSTableUtils
     public static String KEYSPACENAME = "Keyspace1";
     public static String CFNAME = "Standard1";
 
+    public SSTableUtils(String ksname, String cfname)
+    {
+        KEYSPACENAME = ksname;
+        CFNAME = cfname;
+    }
+
+    /**/
     public static ColumnFamily createCF(long mfda, int ldt, Cell... cols)
     {
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(KEYSPACENAME, CFNAME);
+        return createCF(KEYSPACENAME, CFNAME, mfda, ldt, cols);
+    }
+
+    public static ColumnFamily createCF(String ksname, String cfname, long mfda, int ldt, Cell... cols)
+    {
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(ksname, cfname);
         cf.delete(new DeletionInfo(mfda, ldt));
         for (Cell col : cols)
             cf.addColumn(col);

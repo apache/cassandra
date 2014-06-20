@@ -19,6 +19,7 @@ package org.apache.cassandra.triggers;
 
 import java.util.Collections;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -26,6 +27,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.TriggerDefinition;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.MigrationManager;
 
@@ -33,12 +35,18 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class TriggersSchemaTest extends SchemaLoader
+public class TriggersSchemaTest
 {
     String ksName = "ks" + System.nanoTime();
     String cfName = "cf" + System.nanoTime();
     String triggerName = "trigger_" + System.nanoTime();
     String triggerClass = "org.apache.cassandra.triggers.NoSuchTrigger.class";
+
+    @BeforeClass
+    public static void beforeTest() throws ConfigurationException
+    {
+        SchemaLoader.loadSchema();
+    }
 
     @Test
     public void newKsContainsCfWithTrigger() throws Exception

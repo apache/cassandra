@@ -22,25 +22,42 @@ import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
-public class StreamTransferTaskTest extends SchemaLoader
+public class StreamTransferTaskTest
 {
+    public static final String KEYSPACE1 = "StreamTransferTaskTest";
+    public static final String CF_STANDARD = "Standard1";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD));
+    }
+
     @Test
     public void testScheduleTimeout() throws Exception
     {
-        String ks = "Keyspace1";
+        String ks = KEYSPACE1;
         String cf = "Standard1";
 
         StreamSession session = new StreamSession(FBUtilities.getBroadcastAddress(), 0);
@@ -49,7 +66,7 @@ public class StreamTransferTaskTest extends SchemaLoader
         // create two sstables
         for (int i = 0; i < 2; i++)
         {
-            insertData(ks, cf, i, 1);
+            SchemaLoader.insertData(ks, cf, i, 1);
             cfs.forceBlockingFlush();
         }
 

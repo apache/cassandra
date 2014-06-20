@@ -16,7 +16,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-public class DeleteTest extends SchemaLoader
+public class DeleteTest
 {
 
     private static EmbeddedCassandraService cassandra;
@@ -35,7 +35,7 @@ public class DeleteTest extends SchemaLoader
     @BeforeClass()
     public static void setup() throws ConfigurationException, IOException
     {
-
+        SchemaLoader.loadSchema();
         Schema.instance.clear(); // Schema are now written on disk and will be reloaded
         cassandra = new EmbeddedCassandraService();
         cassandra.start();

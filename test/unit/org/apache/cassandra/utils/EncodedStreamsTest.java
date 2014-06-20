@@ -26,24 +26,41 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ArrayBackedSortedColumns;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.vint.EncodedDataInputStream;
 import org.apache.cassandra.utils.vint.EncodedDataOutputStream;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class EncodedStreamsTest extends SchemaLoader
+public class EncodedStreamsTest
 {
-    private String keyspaceName = "Keyspace1";
-    private String standardCFName = "Standard1";
-    private String counterCFName = "Counter1";
-    private String superCFName = "Super1";
-
+    private static final String KEYSPACE1 = "Keyspace1";
+    private static final String CF_STANDARD = "Standard1";
+    private static final String CF_COUNTER = "Counter1";
     private int version = MessagingService.current_version;
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+    SchemaLoader.prepareServer();
+    SchemaLoader.createKeyspace(KEYSPACE1,
+                                SimpleStrategy.class,
+                                KSMetaData.optsWithRF(1),
+                                SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
+                                CFMetaData.denseCFMetaData(KEYSPACE1, CF_COUNTER, BytesType.instance)
+                                          .defaultValidator(CounterColumnType.instance));
+    }
 
     @Test
     public void testStreams() throws IOException
@@ -97,7 +114,7 @@ public class EncodedStreamsTest extends SchemaLoader
 
     private ColumnFamily createCF()
     {
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(keyspaceName, standardCFName);
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, CF_STANDARD);
         cf.addColumn(column("vijay", "try", 1));
         cf.addColumn(column("to", "be_nice", 1));
         return cf;
@@ -105,7 +122,7 @@ public class EncodedStreamsTest extends SchemaLoader
 
     private ColumnFamily createCounterCF()
     {
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(keyspaceName, counterCFName);
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, CF_COUNTER);
         cf.addCounter(cellname("vijay"), 1);
         cf.addCounter(cellname("wants"), 1000000);
         return cf;

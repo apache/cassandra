@@ -26,22 +26,41 @@ import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessagingService;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
-public class CommitLogTest extends SchemaLoader
+public class CommitLogTest
 {
+    private static final String KEYSPACE1 = "CommitLogTest";
+    private static final String CF1 = "Standard1";
+    private static final String CF2 = "Standard2";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF2));
+    }
+
     @Test
     public void testRecoveryWithEmptyLog() throws Exception
     {
@@ -102,8 +121,8 @@ public class CommitLogTest extends SchemaLoader
     {
         CommitLog.instance.resetUnsafe();
         // Roughly 32 MB mutation
-        Mutation rm = new Mutation("Keyspace1", bytes("k"));
-        rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize()/4), 0);
+        Mutation rm = new Mutation(KEYSPACE1, bytes("k"));
+        rm.add(CF1, Util.cellname("c1"), ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize()/4), 0);
 
         // Adding it 5 times
         CommitLog.instance.add(rm);
@@ -113,8 +132,8 @@ public class CommitLogTest extends SchemaLoader
         CommitLog.instance.add(rm);
 
         // Adding new mutation on another CF
-        Mutation rm2 = new Mutation("Keyspace1", bytes("k"));
-        rm2.add("Standard2", Util.cellname("c1"), ByteBuffer.allocate(4), 0);
+        Mutation rm2 = new Mutation(KEYSPACE1, bytes("k"));
+        rm2.add(CF2, Util.cellname("c1"), ByteBuffer.allocate(4), 0);
         CommitLog.instance.add(rm2);
 
         assert CommitLog.instance.activeSegments() == 2 : "Expecting 2 segments, got " + CommitLog.instance.activeSegments();
@@ -132,8 +151,8 @@ public class CommitLogTest extends SchemaLoader
         DatabaseDescriptor.getCommitLogSegmentSize();
         CommitLog.instance.resetUnsafe();
         // Roughly 32 MB mutation
-        Mutation rm = new Mutation("Keyspace1", bytes("k"));
-        rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()/4) - 1), 0);
+        Mutation rm = new Mutation(KEYSPACE1, bytes("k"));
+        rm.add(CF1, Util.cellname("c1"), ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()/4) - 1), 0);
 
         // Adding it twice (won't change segment)
         CommitLog.instance.add(rm);
@@ -149,8 +168,8 @@ public class CommitLogTest extends SchemaLoader
         assert CommitLog.instance.activeSegments() == 1 : "Expecting 1 segment, got " + CommitLog.instance.activeSegments();
 
         // Adding new mutation on another CF, large enough (including CL entry overhead) that a new segment is created
-        Mutation rm2 = new Mutation("Keyspace1", bytes("k"));
-        rm2.add("Standard2", Util.cellname("c1"), ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()/2) - 100), 0);
+        Mutation rm2 = new Mutation(KEYSPACE1, bytes("k"));
+        rm2.add(CF2, Util.cellname("c1"), ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()/2) - 100), 0);
         CommitLog.instance.add(rm2);
         // also forces a new segment, since each entry-with-overhead is just under half the CL size
         CommitLog.instance.add(rm2);
@@ -172,7 +191,7 @@ public class CommitLogTest extends SchemaLoader
     private static int getMaxRecordDataSize(String keyspace, ByteBuffer key, String table, CellName column)
     {
         Mutation rm = new Mutation(keyspace, bytes("k"));
-        rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate(0), 0);
+        rm.add(CF1, Util.cellname("c1"), ByteBuffer.allocate(0), 0);
 
         int max = (DatabaseDescriptor.getCommitLogSegmentSize() / 2);
         max -= CommitLogSegment.ENTRY_OVERHEAD_SIZE; // log entry overhead
@@ -181,7 +200,7 @@ public class CommitLogTest extends SchemaLoader
 
     private static int getMaxRecordDataSize()
     {
-        return getMaxRecordDataSize("Keyspace1", bytes("k"), "Standard1", Util.cellname("c1"));
+        return getMaxRecordDataSize(KEYSPACE1, bytes("k"), CF1, Util.cellname("c1"));
     }
 
     // CASSANDRA-3615
@@ -190,8 +209,8 @@ public class CommitLogTest extends SchemaLoader
     {
         CommitLog.instance.resetUnsafe();
 
-        Mutation rm = new Mutation("Keyspace1", bytes("k"));
-        rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate(getMaxRecordDataSize()), 0);
+        Mutation rm = new Mutation(KEYSPACE1, bytes("k"));
+        rm.add(CF1, Util.cellname("c1"), ByteBuffer.allocate(getMaxRecordDataSize()), 0);
         CommitLog.instance.add(rm);
     }
 
@@ -201,8 +220,8 @@ public class CommitLogTest extends SchemaLoader
         CommitLog.instance.resetUnsafe();
         try
         {
-            Mutation rm = new Mutation("Keyspace1", bytes("k"));
-            rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate(1 + getMaxRecordDataSize()), 0);
+            Mutation rm = new Mutation(KEYSPACE1, bytes("k"));
+            rm.add(CF1, Util.cellname("c1"), ByteBuffer.allocate(1 + getMaxRecordDataSize()), 0);
             CommitLog.instance.add(rm);
             throw new AssertionError("mutation larger than limit was accepted");
         }

@@ -24,6 +24,7 @@ import java.util.Collections;
 
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -35,6 +36,7 @@ import org.apache.cassandra.db.BufferCell;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.*;
@@ -46,7 +48,7 @@ import static org.junit.Assert.assertTrue;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.apache.cassandra.utils.ByteBufferUtil.toInt;
 
-public class TriggersTest extends SchemaLoader
+public class TriggersTest
 {
     private static boolean triggerCreated = false;
     private static ThriftServer thriftServer;
@@ -54,6 +56,12 @@ public class TriggersTest extends SchemaLoader
     private static String ksName = "triggers_test_ks";
     private static String cfName = "test_table";
     private static String otherCf = "other_table";
+
+    @BeforeClass
+    public static void beforeTest() throws ConfigurationException
+    {
+        SchemaLoader.loadSchema();
+    }
 
     @Before
     public void setup() throws Exception

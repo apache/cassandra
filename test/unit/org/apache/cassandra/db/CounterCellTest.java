@@ -41,7 +41,7 @@ import org.apache.cassandra.utils.*;
 import static org.apache.cassandra.Util.cellname;
 import static org.apache.cassandra.db.context.CounterContext.ContextState;
 
-public class CounterCellTest extends SchemaLoader
+public class CounterCellTest
 {
     private static final CounterContext cc = new CounterContext();
 

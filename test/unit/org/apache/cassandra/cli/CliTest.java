@@ -19,10 +19,14 @@
 package org.apache.cassandra.cli;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.thrift.*;
 import org.apache.thrift.TException;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -33,11 +37,14 @@ import java.util.regex.Pattern;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class CliTest extends SchemaLoader
+public class CliTest
 {
+    private static final String KEYSPACE1 = "CliTest";
+    private static final String CF_STANDARD1 = "Standard1";
+
     // please add new statements here so they could be auto-runned by this test.
     private String[] statements = {
-        "use TestKeySpace;",
+        "use " + KEYSPACE1,
         "create column family SecondaryIndicesWithoutIdxName" +
                 " with comparator = UTF8Type" +
                 " and default_validation_class = UTF8Type" +
@@ -136,7 +143,7 @@ public class CliTest extends SchemaLoader
         "drop index on '123'.617070;",
         "drop index on '123'.'-617071';",
         "drop index on CF3.'big world';",
-        "update keyspace TestKeySpace with durable_writes = false;",
+        "update keyspace " + KEYSPACE1 + " with durable_writes = false;",
         "assume 123 comparator as utf8;",
         "assume 123 sub_comparator as integer;",
         "assume 123 validator as lexicaluuid;",
@@ -179,9 +186,9 @@ public class CliTest extends SchemaLoader
         "set myCF['key']['scName']['firstname'] = 'John';",
         "get myCF['key']['scName']",
         "assume CF3 keys as utf8;",
-        "use TestKEYSpace;",
-        "update keyspace TestKeySpace with placement_strategy='org.apache.cassandra.locator.NetworkTopologyStrategy';",
-        "update keyspace TestKeySpace with strategy_options=[{DC1:3, DC2:4, DC5:1}];",
+        "use " + KEYSPACE1 + ";",
+        "update keyspace " + KEYSPACE1 + " with placement_strategy='org.apache.cassandra.locator.NetworkTopologyStrategy';",
+        "update keyspace " + KEYSPACE1 + " with strategy_options={DC1:3, DC2:4, DC5:1};",
         "describe cluster;",
         "help describe cluster;",
         "show cluster name",
@@ -212,8 +219,19 @@ public class CliTest extends SchemaLoader
         "HELP",
         "?",
         "show schema",
-        "show schema TestKeySpace"
+        "show schema " + KEYSPACE1
     };
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.startGossiper();
+        SchemaLoader.createKeyspace(KEYSPACE1, true, false,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
+    }
 
     @Test
     public void testCli() throws IOException, TException, TimedOutException, NotFoundException, SchemaDisagreementException, NoSuchFieldException, InvalidRequestException, UnavailableException, InstantiationException, IllegalAccessException
@@ -236,13 +254,13 @@ public class CliTest extends SchemaLoader
         try
         {
             // dropping in case it exists e.g. could be left from previous run
-            CliMain.processStatement("drop keyspace TestKeySpace;");
+            CliMain.processStatement(String.format("drop keyspace %s;", KEYSPACE1));
         }
         catch (Exception e)
         {
             // TODO check before drop so we don't have this fragile ignored exception block
         }
-        CliMain.processStatement("create keyspace TestKeySpace;");
+        CliMain.processStatement(String.format("create keyspace %s;", KEYSPACE1));
 
         for (String statement : statements)
         {

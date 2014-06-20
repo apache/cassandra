@@ -40,17 +40,47 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.apache.cassandra.Util.cellname;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class DefsTest extends SchemaLoader
+public class DefsTest
 {
+    private static final String KEYSPACE1 = "Keyspace1";
+    private static final String KEYSPACE3 = "Keyspace3";
+    private static final String KEYSPACE6 = "Keyspace6";
+    private static final String EMPTYKEYSPACE = "DefsTestEmptyKeyspace";
+    private static final String CF_STANDARD1 = "Standard1";
+    private static final String CF_STANDARD2 = "Standard2";
+    private static final String CF_INDEXED = "Indexed1";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.startGossiper();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2));
+        SchemaLoader.createKeyspace(KEYSPACE3, true, false,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(5),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
+                                    SchemaLoader.indexCFMD(KEYSPACE3, CF_INDEXED, true));
+        SchemaLoader.createKeyspace(KEYSPACE6,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.indexCFMD(KEYSPACE6, CF_INDEXED, true));
+    }
+
     @Test
     public void testCFMetaDataApply() throws ConfigurationException
     {
-        CFMetaData cfm = new CFMetaData("Keyspace1",
+        CFMetaData cfm = new CFMetaData(KEYSPACE1,
                                         "TestApplyCFM_CF",
                                         ColumnFamilyType.Standard,
                                         new SimpleDenseCellNameType(BytesType.instance));
@@ -139,7 +169,7 @@ public class DefsTest extends SchemaLoader
     @Test
     public void addNewCfWithNullComment() throws ConfigurationException
     {
-        final String ks = "Keyspace1";
+        final String ks = KEYSPACE1;
         final String cf = "BrandNewCfWithNull";
         KSMetaData original = Schema.instance.getKSMetaData(ks);
 
@@ -155,7 +185,7 @@ public class DefsTest extends SchemaLoader
     @Test
     public void addNewCF() throws ConfigurationException
     {
-        final String ks = "Keyspace1";
+        final String ks = KEYSPACE1;
         final String cf = "BrandNewCf";
         KSMetaData original = Schema.instance.getKSMetaData(ks);
 
@@ -188,7 +218,7 @@ public class DefsTest extends SchemaLoader
     {
         DecoratedKey dk = Util.dk("dropCf");
         // sanity
-        final KSMetaData ks = Schema.instance.getKSMetaData("Keyspace1");
+        final KSMetaData ks = Schema.instance.getKSMetaData(KEYSPACE1);
         Assert.assertNotNull(ks);
         final CFMetaData cfm = ks.cfMetaData().get("Standard1");
         Assert.assertNotNull(cfm);
@@ -262,7 +292,7 @@ public class DefsTest extends SchemaLoader
     {
         DecoratedKey dk = Util.dk("dropKs");
         // sanity
-        final KSMetaData ks = Schema.instance.getKSMetaData("Keyspace1");
+        final KSMetaData ks = Schema.instance.getKSMetaData(KEYSPACE1);
         Assert.assertNotNull(ks);
         final CFMetaData cfm = ks.cfMetaData().get("Standard2");
         Assert.assertNotNull(cfm);
@@ -313,7 +343,7 @@ public class DefsTest extends SchemaLoader
     {
         DecoratedKey dk = Util.dk("dropKs");
         // sanity
-        final KSMetaData ks = Schema.instance.getKSMetaData("Keyspace3");
+        final KSMetaData ks = Schema.instance.getKSMetaData(KEYSPACE3);
         Assert.assertNotNull(ks);
         final CFMetaData cfm = ks.cfMetaData().get("Standard1");
         Assert.assertNotNull(cfm);
@@ -332,14 +362,14 @@ public class DefsTest extends SchemaLoader
     @Test
     public void createEmptyKsAddNewCf() throws ConfigurationException
     {
-        Assert.assertNull(Schema.instance.getKSMetaData("EmptyKeyspace"));
+        Assert.assertNull(Schema.instance.getKSMetaData(EMPTYKEYSPACE));
 
-        KSMetaData newKs = KSMetaData.testMetadata("EmptyKeyspace", SimpleStrategy.class, KSMetaData.optsWithRF(5));
+        KSMetaData newKs = KSMetaData.testMetadata(EMPTYKEYSPACE, SimpleStrategy.class, KSMetaData.optsWithRF(5));
 
         MigrationManager.announceNewKeyspace(newKs);
-        Assert.assertNotNull(Schema.instance.getKSMetaData("EmptyKeyspace"));
+        Assert.assertNotNull(Schema.instance.getKSMetaData(EMPTYKEYSPACE));
 
-        CFMetaData newCf = addTestCF("EmptyKeyspace", "AddedLater", "A new CF to add to an empty KS");
+        CFMetaData newCf = addTestCF(EMPTYKEYSPACE, "AddedLater", "A new CF to add to an empty KS");
 
         //should not exist until apply
         Assert.assertFalse(Schema.instance.getKSMetaData(newKs.name).cfMetaData().containsKey(newCf.cfName));
@@ -498,11 +528,11 @@ public class DefsTest extends SchemaLoader
     public void testDropIndex() throws ConfigurationException
     {
         // persist keyspace definition in the system keyspace
-        Schema.instance.getKSMetaData("Keyspace6").toSchema(System.currentTimeMillis()).apply();
-        ColumnFamilyStore cfs = Keyspace.open("Keyspace6").getColumnFamilyStore("Indexed1");
+        Schema.instance.getKSMetaData(KEYSPACE6).toSchema(System.currentTimeMillis()).apply();
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE6).getColumnFamilyStore("Indexed1");
 
         // insert some data.  save the sstable descriptor so we can make sure it's marked for delete after the drop
-        Mutation rm = new Mutation("Keyspace6", ByteBufferUtil.bytes("k1"));
+        Mutation rm = new Mutation(KEYSPACE6, ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", cellname("notbirthdate"), ByteBufferUtil.bytes(1L), 0);
         rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(1L), 0);
         rm.apply();
