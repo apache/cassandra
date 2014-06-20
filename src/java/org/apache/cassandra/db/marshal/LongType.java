@@ -74,6 +74,12 @@ public class LongType extends AbstractType<Long>
         return decompose(longType);
     }
 
+    @Override
+    public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
+    {
+        return this == otherType || otherType == DateType.instance || otherType == TimestampType.instance;
+    }
+
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.BIGINT;

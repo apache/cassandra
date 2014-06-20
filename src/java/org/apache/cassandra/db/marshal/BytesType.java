@@ -66,7 +66,7 @@ public class BytesType extends AbstractType<ByteBuffer>
     }
 
     @Override
-    public boolean isValueCompatibleWith(AbstractType<?> previous)
+    public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
         // BytesType can read anything
         return true;

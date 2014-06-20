@@ -142,7 +142,7 @@ public class FunctionCall extends Term.NonTerminal
             // is used as argument of another, existing, function. In that case, we return true here because we'll catch
             // the fact that the method is undefined latter anyway and with a more helpful error message that if we were
             // to return false here.
-            return returnType == null || receiver.type.asCQL3Type().equals(returnType.asCQL3Type());
+            return returnType == null || receiver.type.isValueCompatibleWith(returnType);
         }
 
         @Override

@@ -369,7 +369,7 @@ public abstract class Selection
 
         public boolean isAssignableTo(ColumnSpecification receiver)
         {
-            return type.asCQL3Type().equals(receiver.type.asCQL3Type());
+            return receiver.type.isValueCompatibleWith(type);
         }
 
         @Override
@@ -401,7 +401,7 @@ public abstract class Selection
 
         public boolean isAssignableTo(ColumnSpecification receiver)
         {
-            return fun.returnType().asCQL3Type().equals(receiver.type.asCQL3Type());
+            return receiver.type.isValueCompatibleWith(fun.returnType());
         }
 
         @Override
@@ -446,7 +446,7 @@ public abstract class Selection
 
         public boolean isAssignableTo(ColumnSpecification receiver)
         {
-            return receiver.type.asCQL3Type().equals(isWritetime ? CQL3Type.Native.BIGINT : CQL3Type.Native.INT);
+            return receiver.type.isValueCompatibleWith(isWritetime ? LongType.instance : Int32Type.instance);
         }
 
         @Override
