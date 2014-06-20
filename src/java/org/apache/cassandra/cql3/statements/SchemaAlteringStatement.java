@@ -23,6 +23,7 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 /**
@@ -62,15 +63,14 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
         return new Prepared(this);
     }
 
-    public abstract ResultMessage.SchemaChange.Change changeType();
+    public abstract Event.SchemaChange changeEvent();
 
     public abstract void announceMigration(boolean isLocalOnly) throws RequestValidationException;
 
     public ResultMessage execute(QueryState state, QueryOptions options) throws RequestValidationException
     {
         announceMigration(false);
-        String tableName = cfName == null || columnFamily() == null ? "" : columnFamily();
-        return new ResultMessage.SchemaChange(changeType(), keyspace(), tableName);
+        return new ResultMessage.SchemaChange(changeEvent());
     }
 
     public ResultMessage executeInternal(QueryState state, QueryOptions options)
@@ -78,8 +78,7 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
         try
         {
             announceMigration(true);
-            String tableName = cfName == null || columnFamily() == null ? "" : columnFamily();
-            return new ResultMessage.SchemaChange(changeType(), keyspace(), tableName);
+            return new ResultMessage.SchemaChange(changeEvent());
         }
         catch (RequestValidationException e)
         {

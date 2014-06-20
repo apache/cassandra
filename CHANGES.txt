@@ -11,7 +11,7 @@
  
 
 
-2.1.0
+2.1.0-rc2
  * Modify reconcile logic to always pick a tombstone over a counter cell
    (CASSANDRA-7346)
  * Avoid incremental compaction on Windows (CASSANDRA-7365)
@@ -29,6 +29,7 @@
  * RefCount native frames from netty (CASSANDRA-7245)
  * Use tarball dir instead of /var for default paths (CASSANDRA-7136)
  * Remove rows_per_partition_to_cache keyword (CASSANDRA-7193)
+ * Fix schema change response in native protocol v3 (CASSANDRA-7413)
 Merged from 2.0:
  * Fix assertion error in CL.ANY timeout handling (CASSANDRA-7364)
  * Add per-CF range read request latency metrics (CASSANDRA-7338)

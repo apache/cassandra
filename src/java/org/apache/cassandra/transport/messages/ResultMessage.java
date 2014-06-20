@@ -344,56 +344,33 @@ public abstract class ResultMessage extends Message.Response
 
     public static class SchemaChange extends ResultMessage
     {
-        public enum Change { CREATED, UPDATED, DROPPED }
+        public final Event.SchemaChange change;
 
-        public final Change change;
-        public final String keyspace;
-        public final String columnFamily;
-
-        public SchemaChange(Change change, String keyspace)
-        {
-            this(change, keyspace, "");
-        }
-
-        public SchemaChange(Change change, String keyspace, String columnFamily)
+        public SchemaChange(Event.SchemaChange change)
         {
             super(Kind.SCHEMA_CHANGE);
             this.change = change;
-            this.keyspace = keyspace;
-            this.columnFamily = columnFamily;
         }
 
         public static final Message.Codec<ResultMessage> subcodec = new Message.Codec<ResultMessage>()
         {
             public ResultMessage decode(ByteBuf body, int version)
             {
-                Change change = CBUtil.readEnumValue(Change.class, body);
-                String keyspace = CBUtil.readString(body);
-                String columnFamily = CBUtil.readString(body);
-                return new SchemaChange(change, keyspace, columnFamily);
-
+                return new SchemaChange(Event.SchemaChange.deserializeEvent(body, version));
             }
 
             public void encode(ResultMessage msg, ByteBuf dest, int version)
             {
                 assert msg instanceof SchemaChange;
                 SchemaChange scm = (SchemaChange)msg;
-
-                CBUtil.writeEnumValue(scm.change, dest);
-                CBUtil.writeString(scm.keyspace, dest);
-                CBUtil.writeString(scm.columnFamily, dest);
+                scm.change.serializeEvent(dest, version);
             }
 
             public int encodedSize(ResultMessage msg, int version)
             {
                 assert msg instanceof SchemaChange;
                 SchemaChange scm = (SchemaChange)msg;
-
-                int size = 0;
-                size += CBUtil.sizeOfEnumValue(scm.change);
-                size += CBUtil.sizeOfString(scm.keyspace);
-                size += CBUtil.sizeOfString(scm.columnFamily);
-                return size;
+                return scm.change.eventSerializedSize(version);
             }
         };
 
@@ -405,7 +382,7 @@ public abstract class ResultMessage extends Message.Response
         @Override
         public String toString()
         {
-            return "RESULT schema change " + change + " on " + keyspace + (columnFamily.isEmpty() ? "" : "." + columnFamily);
+            return "RESULT schema change " + change;
         }
     }
 }
