@@ -418,6 +418,7 @@ public class QueryProcessor implements QueryHandler
     {
         ClientState clientState = queryState.getClientState();
         batch.checkAccess(clientState);
+        batch.validate();
         batch.validate(clientState);
         return batch.execute(queryState, options);
     }

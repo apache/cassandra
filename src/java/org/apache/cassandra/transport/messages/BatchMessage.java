@@ -209,16 +209,7 @@ public class BatchMessage extends Message.Request
 
                 ModificationStatement mst = (ModificationStatement)statement;
                 hasConditions |= mst.hasConditions();
-                if (mst.isCounter())
-                {
-                    if (type != BatchStatement.Type.COUNTER)
-                        throw new InvalidRequestException("Cannot include counter statement in a non-counter batch");
-                }
-                else
-                {
-                    if (type == BatchStatement.Type.COUNTER)
-                        throw new InvalidRequestException("Cannot include non-counter statement in a counter batch");
-                }
+
                 statements.add(mst);
             }
 
