@@ -1299,7 +1299,10 @@
           </fileset>
         </classfiles>
         <sourcefiles encoding="UTF-8">
-          <fileset dir="${build.src}" />
+          <dirset dir="${build.src}">
+            <include name="java"/>
+            <include name="gen-java"/>
+          </dirset>
         </sourcefiles>
       </structure>
       <!-- to produce reports in different formats. -->
