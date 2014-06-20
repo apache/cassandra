@@ -197,6 +197,7 @@ def format_value_text(val, encoding, colormap, quote=False, **_):
 
 # name alias
 formatter_for('varchar')(format_value_text)
+formatter_for('ascii')(format_value_text)
 
 def format_simple_collection(subtype, val, lbracket, rbracket, encoding,
                              colormap, time_format, float_precision, nullval):
