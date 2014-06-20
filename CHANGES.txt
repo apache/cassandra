@@ -2,7 +2,6 @@
  * Handle possible integer overflow in FastByteArrayOutputStream (CASSANDRA-7373)
  * cqlsh: 'ascii' values weren't formatted as text (CASSANDRA-7407)
  * cqlsh: ignore .cassandra permission errors (CASSANDRA-7266)
- * Errors in FlushRunnable may leave threads hung (CASSANDRA-7275)
  * reduce failure detector initial value to 2s (CASSANDRA-7307)
  * Fix problem truncating on a node that was previously in a dead state (CASSANDRA-7318)
  * Don't insert tombstones that hide indexed values into 2i (CASSANDRA-7268)
