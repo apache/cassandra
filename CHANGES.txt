@@ -25,6 +25,7 @@ Merged from 2.0:
  * Account for range tombstones in min/max column names (CASSANDRA-7235)
  * Improve sub range repair validation (CASSANDRA-7317)
 Merged from 1.2:
+ * Handle possible integer overflow in FastByteArrayOutputStream (CASSANDRA-7373)
  * cqlsh: 'ascii' values weren't formatted as text (CASSANDRA-7407)
  * cqlsh: ignore .cassandra permission errors (CASSANDRA-7266)
  * Errors in FlushRunnable may leave threads hung (CASSANDRA-7275)
