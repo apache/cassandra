@@ -84,9 +84,9 @@ public class BufferCell extends AbstractCell
     }
 
     @Override
-    public long excessHeapSizeExcludingData()
+    public long unsharedHeapSizeExcludingData()
     {
-        return EMPTY_SIZE + name.excessHeapSizeExcludingData() + ObjectSizes.sizeOnHeapExcludingData(value);
+        return EMPTY_SIZE + name.unsharedHeapSizeExcludingData() + ObjectSizes.sizeOnHeapExcludingData(value);
     }
 
     @Override

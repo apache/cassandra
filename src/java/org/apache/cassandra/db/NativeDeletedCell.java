@@ -112,7 +112,7 @@ public class NativeDeletedCell extends NativeCell implements DeletedCell
     }
 
     @Override
-    public long excessHeapSizeExcludingData()
+    public long unsharedHeapSizeExcludingData()
     {
         return SIZE;
     }

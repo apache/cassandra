@@ -51,7 +51,7 @@ public interface Cell extends OnDiskAtom
 
     // returns the size of the Cell and all references on the heap, excluding any costs associated with byte arrays
     // that would be allocated by a localCopy, as these will be accounted for by the allocator
-    public long excessHeapSizeExcludingData();
+    public long unsharedHeapSizeExcludingData();
 
     public int serializedSize(CellNameType type, TypeSizes typeSizes);
 

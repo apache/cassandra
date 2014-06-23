@@ -351,7 +351,7 @@ public class AtomicBTreeColumns extends ColumnFamily
             indexer.insert(insert);
             insert = insert.localCopy(metadata, allocator, writeOp);
             this.dataSize += insert.cellDataSize();
-            this.heapSize += insert.excessHeapSizeExcludingData();
+            this.heapSize += insert.unsharedHeapSizeExcludingData();
             if (inserted == null)
                 inserted = new ArrayList<>();
             inserted.add(insert);
@@ -366,7 +366,7 @@ public class AtomicBTreeColumns extends ColumnFamily
             {
                 reconciled = reconciled.localCopy(metadata, allocator, writeOp);
                 dataSize += reconciled.cellDataSize() - existing.cellDataSize();
-                heapSize += reconciled.excessHeapSizeExcludingData() - existing.excessHeapSizeExcludingData();
+                heapSize += reconciled.unsharedHeapSizeExcludingData() - existing.unsharedHeapSizeExcludingData();
                 if (inserted == null)
                     inserted = new ArrayList<>();
                 inserted.add(reconciled);

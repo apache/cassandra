@@ -160,7 +160,7 @@ public class NativeExpiringCell extends NativeCell implements ExpiringCell
     }
 
     @Override
-    public long excessHeapSizeExcludingData()
+    public long unsharedHeapSizeExcludingData()
     {
         return SIZE;
     }

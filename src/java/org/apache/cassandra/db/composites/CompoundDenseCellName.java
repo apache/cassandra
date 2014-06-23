@@ -73,7 +73,7 @@ public class CompoundDenseCellName extends CompoundComposite implements CellName
     }
 
     @Override
-    public long excessHeapSizeExcludingData()
+    public long unsharedHeapSizeExcludingData()
     {
         return HEAP_SIZE + ObjectSizes.sizeOnHeapExcludingData(elements);
     }
