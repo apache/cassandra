@@ -167,7 +167,7 @@ public class NativeCounterCell extends NativeCell implements CounterCell
     }
 
     @Override
-    public long excessHeapSizeExcludingData()
+    public long unsharedHeapSizeExcludingData()
     {
         return SIZE;
     }

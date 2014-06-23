@@ -207,7 +207,7 @@ public class RowIndexEntry implements IMeasurableMemory
         {
             long entrySize = 0;
             for (IndexHelper.IndexInfo idx : columnsIndex)
-                entrySize += idx.excessHeapSize();
+                entrySize += idx.unsharedHeapSize();
 
             return BASE_SIZE
                    + entrySize

@@ -87,9 +87,9 @@ public class SimpleSparseCellName extends AbstractComposite implements CellName
         return true;
     }
 
-    public long excessHeapSizeExcludingData()
+    public long unsharedHeapSizeExcludingData()
     {
-        return EMPTY_SIZE + columnName.excessHeapSizeExcludingData();
+        return EMPTY_SIZE + columnName.unsharedHeapSizeExcludingData();
     }
 
     public long unsharedHeapSize()
