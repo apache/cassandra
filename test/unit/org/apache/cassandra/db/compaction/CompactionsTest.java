@@ -352,93 +352,81 @@ public class CompactionsTest extends SchemaLoader
     @Test
     public void testRangeTombstones() throws IOException, ExecutionException, InterruptedException
     {
-        boolean lazy = false;
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard2");
+        cfs.clearUnsafe();
 
-        do
+        // disable compaction while flushing
+        cfs.disableAutoCompaction();
+
+        final CFMetaData cfmeta = cfs.metadata;
+        Directories dir = cfs.directories;
+
+        ArrayList<DecoratedKey> keys = new ArrayList<DecoratedKey>();
+
+        for (int i=0; i < 4; i++)
         {
-            Keyspace keyspace = Keyspace.open(KEYSPACE1);
-            ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard2");
-            cfs.clearUnsafe();
-
-            // disable compaction while flushing
-            cfs.disableAutoCompaction();
-
-            final CFMetaData cfmeta = cfs.metadata;
-            Directories dir = cfs.directories;
-
-            ArrayList<DecoratedKey> keys = new ArrayList<DecoratedKey>();
-
-            for (int i=0; i < 4; i++)
-            {
-                keys.add(Util.dk(""+i));
-            }
-
-            ArrayBackedSortedColumns cf = ArrayBackedSortedColumns.factory.create(cfmeta);
-            cf.addColumn(Util.column("01", "a", 1)); // this must not resurrect
-            cf.addColumn(Util.column("a", "a", 3));
-            cf.deletionInfo().add(new RangeTombstone(Util.cellname("0"), Util.cellname("b"), 2, (int) (System.currentTimeMillis()/1000)),cfmeta.comparator);
-
-            SSTableWriter writer = new SSTableWriter(cfs.getTempSSTablePath(dir.getDirectoryForNewSSTables()),
-                                                     0,
-                                                     0,
-                                                     cfs.metadata,
-                                                     StorageService.getPartitioner(),
-                                                     new MetadataCollector(cfs.metadata.comparator));
-
-
-            writer.append(Util.dk("0"), cf);
-            writer.append(Util.dk("1"), cf);
-            writer.append(Util.dk("3"), cf);
-
-            cfs.addSSTable(writer.closeAndOpenReader());
-            writer = new SSTableWriter(cfs.getTempSSTablePath(dir.getDirectoryForNewSSTables()),
-                                       0,
-                                       0,
-                                       cfs.metadata,
-                                       StorageService.getPartitioner(),
-                                       new MetadataCollector(cfs.metadata.comparator));
-
-            writer.append(Util.dk("0"), cf);
-            writer.append(Util.dk("1"), cf);
-            writer.append(Util.dk("2"), cf);
-            writer.append(Util.dk("3"), cf);
-            cfs.addSSTable(writer.closeAndOpenReader());
-
-            Collection<SSTableReader> toCompact = cfs.getSSTables();
-            assert toCompact.size() == 2;
-
-            // forcing lazy comapction
-            if (lazy)
-                DatabaseDescriptor.setInMemoryCompactionLimit(0);
-
-            // Force compaction on first sstables. Since each row is in only one sstable, we will be using EchoedRow.
-            Util.compact(cfs, toCompact);
-            assertEquals(1, cfs.getSSTables().size());
-
-            // Now assert we do have the 4 keys
-            assertEquals(4, Util.getRangeSlice(cfs).size());
-
-            ArrayList<DecoratedKey> k = new ArrayList<DecoratedKey>();
-            for (Row r : Util.getRangeSlice(cfs))
-            {
-                k.add(r.key);
-                assertEquals(ByteBufferUtil.bytes("a"),r.cf.getColumn(Util.cellname("a")).value());
-                assertNull(r.cf.getColumn(Util.cellname("01")));
-                assertEquals(3,r.cf.getColumn(Util.cellname("a")).timestamp());
-            }
-
-            for (SSTableReader sstable : cfs.getSSTables())
-            {
-                StatsMetadata stats = sstable.getSSTableMetadata();
-                assertEquals(ByteBufferUtil.bytes("0"), stats.minColumnNames.get(0));
-                assertEquals(ByteBufferUtil.bytes("b"), stats.maxColumnNames.get(0));
-            }
-
-            assertEquals(keys, k);
-
-            lazy=!lazy;
+            keys.add(Util.dk(""+i));
         }
-        while (lazy);
+
+        ArrayBackedSortedColumns cf = ArrayBackedSortedColumns.factory.create(cfmeta);
+        cf.addColumn(Util.column("01", "a", 1)); // this must not resurrect
+        cf.addColumn(Util.column("a", "a", 3));
+        cf.deletionInfo().add(new RangeTombstone(Util.cellname("0"), Util.cellname("b"), 2, (int) (System.currentTimeMillis()/1000)),cfmeta.comparator);
+
+        SSTableWriter writer = new SSTableWriter(cfs.getTempSSTablePath(dir.getDirectoryForNewSSTables()),
+                                                 0,
+                                                 0,
+                                                 cfs.metadata,
+                                                 StorageService.getPartitioner(),
+                                                 new MetadataCollector(cfs.metadata.comparator));
+
+
+        writer.append(Util.dk("0"), cf);
+        writer.append(Util.dk("1"), cf);
+        writer.append(Util.dk("3"), cf);
+
+        cfs.addSSTable(writer.closeAndOpenReader());
+        writer = new SSTableWriter(cfs.getTempSSTablePath(dir.getDirectoryForNewSSTables()),
+                                   0,
+                                   0,
+                                   cfs.metadata,
+                                   StorageService.getPartitioner(),
+                                   new MetadataCollector(cfs.metadata.comparator));
+
+        writer.append(Util.dk("0"), cf);
+        writer.append(Util.dk("1"), cf);
+        writer.append(Util.dk("2"), cf);
+        writer.append(Util.dk("3"), cf);
+        cfs.addSSTable(writer.closeAndOpenReader());
+
+        Collection<SSTableReader> toCompact = cfs.getSSTables();
+        assert toCompact.size() == 2;
+
+        // Force compaction on first sstables. Since each row is in only one sstable, we will be using EchoedRow.
+        Util.compact(cfs, toCompact);
+        assertEquals(1, cfs.getSSTables().size());
+
+        // Now assert we do have the 4 keys
+        assertEquals(4, Util.getRangeSlice(cfs).size());
+
+        ArrayList<DecoratedKey> k = new ArrayList<DecoratedKey>();
+        for (Row r : Util.getRangeSlice(cfs))
+        {
+            k.add(r.key);
+            assertEquals(ByteBufferUtil.bytes("a"),r.cf.getColumn(Util.cellname("a")).value());
+            assertNull(r.cf.getColumn(Util.cellname("01")));
+            assertEquals(3,r.cf.getColumn(Util.cellname("a")).timestamp());
+        }
+
+        for (SSTableReader sstable : cfs.getSSTables())
+        {
+            StatsMetadata stats = sstable.getSSTableMetadata();
+            assertEquals(ByteBufferUtil.bytes("0"), stats.minColumnNames.get(0));
+            assertEquals(ByteBufferUtil.bytes("b"), stats.maxColumnNames.get(0));
+        }
+
+        assertEquals(keys, k);
     }
 
     @Test

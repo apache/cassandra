@@ -494,7 +494,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             return PAGE_SIZE;
 
         // page size of 1 does not allow actual paging b/c of >= behavior on startColumn
-        return Math.max(2, Math.min(PAGE_SIZE, DatabaseDescriptor.getInMemoryCompactionLimit() / averageColumnSize));
+        return Math.max(2, Math.min(PAGE_SIZE, 4 * 1024 * 1024 / averageColumnSize));
     }
 
     /**
