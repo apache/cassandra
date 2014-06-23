@@ -12,6 +12,7 @@
 
 
 2.1.0-rc2
+ * Allow counter mutations in UNLOGGED batches (CASSANDRA-7351)
  * Modify reconcile logic to always pick a tombstone over a counter cell
    (CASSANDRA-7346)
  * Avoid incremental compaction on Windows (CASSANDRA-7365)
