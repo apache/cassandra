@@ -42,6 +42,7 @@ public class SettingsColumn implements Serializable
     public final List<ByteBuffer> names;
     public final List<String> namestrs;
     public final String comparator;
+    public final String timestamp;
     public final boolean useTimeUUIDComparator;
     public final int superColumns;
     public final boolean useSuperColumns;
@@ -66,6 +67,7 @@ public class SettingsColumn implements Serializable
         dataGenFactory = options.generator.get();
         useSuperColumns = superColumns > 0;
         {
+            timestamp = options.timestamp.value();
             comparator = options.comparator.value();
             AbstractType parsed = null;
 
@@ -149,6 +151,7 @@ public class SettingsColumn implements Serializable
         final OptionSimple superColumns = new OptionSimple("super=", "[0-9]+", "0", "Number of super columns to use (no super columns used if not specified)", false);
         final OptionSimple comparator = new OptionSimple("comparator=", "TimeUUIDType|AsciiType|UTF8Type", "AsciiType", "Column Comparator to use", false);
         final OptionSimple slice = new OptionSimple("slice", "", null, "If set, range slices will be used for reads, otherwise a names query will be", false);
+        final OptionSimple timestamp = new OptionSimple("timestamp=", "[0-9]+", null, "If set, all columns will be written with the given timestamp", false);
         final OptionDistribution size = new OptionDistribution("size=", "FIXED(34)", "Cell size distribution");
         final OptionDataGen generator = new OptionDataGen("data=", "REPEAT(50)");
     }
@@ -160,7 +163,7 @@ public class SettingsColumn implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(name, slice, superColumns, comparator, size, generator);
+            return Arrays.asList(name, slice, superColumns, comparator, timestamp, size, generator);
         }
     }
 
@@ -171,7 +174,7 @@ public class SettingsColumn implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(count, slice, superColumns, comparator, size, generator);
+            return Arrays.asList(count, slice, superColumns, comparator, timestamp, size, generator);
         }
     }
 
