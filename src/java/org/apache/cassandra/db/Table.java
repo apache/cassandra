@@ -269,12 +269,12 @@ public class Table
         for (int i = 0; i < indexLocks.length; i++)
             indexLocks[i] = new Object();
 
+        this.metric = new KeyspaceMetrics(this);
         for (CFMetaData cfm : new ArrayList<CFMetaData>(Schema.instance.getTableDefinition(table).cfMetaData().values()))
         {
             logger.debug("Initializing {}.{}", name, cfm.cfName);
             initCf(cfm.cfId, cfm.cfName, loadSSTables);
         }
-        this.metric = new KeyspaceMetrics(this);
     }
 
     public void createReplicationStrategy(KSMetaData ksm)

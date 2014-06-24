@@ -1916,12 +1916,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public double getTombstonesPerSlice()
     {
-        return metric.tombstoneScannedHistogram.getSnapshot().getMedian();
+        return metric.tombstoneScannedHistogram.cf.getSnapshot().getMedian();
     }
 
     public double getLiveCellsPerSlice()
     {
-        return metric.liveScannedHistogram.getSnapshot().getMedian();
+        return metric.liveScannedHistogram.cf.getSnapshot().getMedian();
     }
 
     // End JMX get/set.
