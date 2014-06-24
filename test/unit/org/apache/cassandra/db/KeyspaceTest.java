@@ -465,18 +465,18 @@ public class KeyspaceTest extends SchemaLoader
             rm.apply();
             cfStore.forceBlockingFlush();
         }
-        cfStore.metric.sstablesPerReadHistogram.clear();
+        cfStore.metric.sstablesPerReadHistogram.cf.clear();
         ColumnFamily cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes(""), ByteBufferUtil.bytes("col1499"), false, 1000, System.currentTimeMillis());
-        assertEquals(cfStore.metric.sstablesPerReadHistogram.max(), 5, 0.1);
+        assertEquals(cfStore.metric.sstablesPerReadHistogram.cf.max(), 5, 0.1);
         int i = 0;
         for (Column c : cf.getSortedColumns())
         {
             assertEquals(ByteBufferUtil.string(c.name), "col" + (1000 + i++));
         }
         assertEquals(i, 500);
-        cfStore.metric.sstablesPerReadHistogram.clear();
+        cfStore.metric.sstablesPerReadHistogram.cf.clear();
         cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col1500"), ByteBufferUtil.bytes("col2000"), false, 1000, System.currentTimeMillis());
-        assertEquals(cfStore.metric.sstablesPerReadHistogram.max(), 5, 0.1);
+        assertEquals(cfStore.metric.sstablesPerReadHistogram.cf.max(), 5, 0.1);
 
         for (Column c : cf.getSortedColumns())
         {
@@ -485,9 +485,9 @@ public class KeyspaceTest extends SchemaLoader
         assertEquals(i, 1000);
 
         // reverse
-        cfStore.metric.sstablesPerReadHistogram.clear();
+        cfStore.metric.sstablesPerReadHistogram.cf.clear();
         cf = cfStore.getColumnFamily(key, ByteBufferUtil.bytes("col2000"), ByteBufferUtil.bytes("col1500"), true, 1000, System.currentTimeMillis());
-        assertEquals(cfStore.metric.sstablesPerReadHistogram.max(), 5, 0.1);
+        assertEquals(cfStore.metric.sstablesPerReadHistogram.cf.max(), 5, 0.1);
         i = 500;
         for (Column c : cf.getSortedColumns())
         {
@@ -534,13 +534,13 @@ public class KeyspaceTest extends SchemaLoader
         }
         ByteBuffer start = ct.builder().add(ByteBufferUtil.bytes("a5")).add(ByteBufferUtil.bytes(85)).build();
         ByteBuffer finish = ct.builder().add(ByteBufferUtil.bytes("a5")).buildAsEndOfRange();
-        cfs.metric.sstablesPerReadHistogram.clear();
+        cfs.metric.sstablesPerReadHistogram.cf.clear();
         ColumnFamily cf = cfs.getColumnFamily(key, start, finish, false, 1000, System.currentTimeMillis());
         int colCount = 0;
         for (Column c : cf)
             colCount++;
         assertEquals(2, colCount);
-        assertEquals(2, cfs.metric.sstablesPerReadHistogram.max(), 0.1);
+        assertEquals(2, cfs.metric.sstablesPerReadHistogram.cf.max(), 0.1);
     }
 
     private void validateSliceLarge(ColumnFamilyStore cfStore) throws IOException

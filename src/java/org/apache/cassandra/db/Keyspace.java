@@ -265,12 +265,12 @@ public class Keyspace
         assert metadata != null : "Unknown keyspace " + keyspaceName;
         createReplicationStrategy(metadata);
 
+        this.metric = new KeyspaceMetrics(this);
         for (CFMetaData cfm : new ArrayList<CFMetaData>(metadata.cfMetaData().values()))
         {
             logger.debug("Initializing {}.{}", getName(), cfm.cfName);
             initCf(cfm.cfId, cfm.cfName, loadSSTables);
         }
-        this.metric = new KeyspaceMetrics(this);
     }
 
     public void createReplicationStrategy(KSMetaData ksm)

@@ -21,6 +21,7 @@
  * Improve sub range repair validation (CASSANDRA-7317)
  * Accept subtypes for function results, type casts (CASSANDRA-6766)
 Merged from 1.2:
+ * Expose global ColumnFamily metrics (CASSANDRA-7273)
  * Handle possible integer overflow in FastByteArrayOutputStream (CASSANDRA-7373)
  * cqlsh: 'ascii' values weren't formatted as text (CASSANDRA-7407)
  * cqlsh: ignore .cassandra permission errors (CASSANDRA-7266)
