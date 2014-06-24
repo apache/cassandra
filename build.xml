@@ -1292,7 +1292,7 @@
       <executiondata>
         <file file="${jacoco.execfile}" />
       </executiondata>
-      <structure name="JaCoCo Cassandara Unit Test Coverage">
+      <structure name="JaCoCo Cassandara Coverage Report">
         <classfiles>
           <fileset dir="${build.classes}">
             <include name="**/*.class"/>
