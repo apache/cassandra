@@ -33,7 +33,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-public class DeleteTest
+public class DeleteTest extends SchemaLoader
 {
     private static EmbeddedCassandraService cassandra;
 
@@ -51,6 +51,8 @@ public class DeleteTest
     @BeforeClass()
     public static void setup() throws ConfigurationException, IOException
     {
+        Schema.instance.clear();
+
         cassandra = new EmbeddedCassandraService();
         cassandra.start();
 
