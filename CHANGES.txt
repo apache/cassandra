@@ -1,5 +1,6 @@
 2.1.0
 Merged from 2.0:
+ * Fix CC#collectTimeOrderedData() tombstone optimisations (CASSANDRA-7394)
  * Support DISTINCT for static columns and fix behaviour when DISTINC is
    not use (CASSANDRA-7305).
 
