@@ -1,4 +1,5 @@
 2.0.9
+ * Fix CC#collectTimeOrderedData() tombstone optimisations (CASSANDRA-7394)
  * Fix assertion error in CL.ANY timeout handling (CASSANDRA-7364)
  * Handle empty CFs in Memtable#maybeUpdateLiveRatio() (CASSANDRA-7401)
  * Fix native protocol CAS batches (CASSANDRA-7337)

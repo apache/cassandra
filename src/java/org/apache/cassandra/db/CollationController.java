@@ -77,6 +77,7 @@ public class CollationController
         try
         {
             Tracing.trace("Merging memtable contents");
+            long mostRecentRowTombstone = Long.MIN_VALUE;
             for (Memtable memtable : view.memtables)
             {
                 OnDiskAtomIterator iter = filter.getMemtableColumnIterator(memtable);
@@ -89,6 +90,7 @@ public class CollationController
                 }
 
                 container.addAll(temp, HeapAllocator.instance);
+                mostRecentRowTombstone = container.deletionInfo().getTopLevelDeletion().markedForDeleteAt;
                 temp.clear();
             }
 
@@ -102,7 +104,6 @@ public class CollationController
             Collections.sort(view.sstables, SSTable.maxTimestampComparator);
 
             // read sorted sstables
-            long mostRecentRowTombstone = Long.MIN_VALUE;
             for (SSTableReader sstable : view.sstables)
             {
                 // if we've already seen a row tombstone with a timestamp greater
@@ -122,8 +123,6 @@ public class CollationController
                 if (iter.getColumnFamily() != null)
                 {
                     ColumnFamily cf = iter.getColumnFamily();
-                    if (cf.isMarkedForDelete())
-                        mostRecentRowTombstone = cf.deletionInfo().getTopLevelDeletion().markedForDeleteAt;
                     temp.delete(cf);
                     sstablesIterated++;
                     while (iter.hasNext())
@@ -131,6 +130,7 @@ public class CollationController
                 }
 
                 container.addAll(temp, HeapAllocator.instance);
+                mostRecentRowTombstone = container.deletionInfo().getTopLevelDeletion().markedForDeleteAt;
                 temp.clear();
             }
 
