@@ -20,6 +20,7 @@ package org.apache.cassandra.cli;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.SimpleStrategy;
@@ -244,7 +245,7 @@ public class CliTest
         ByteArrayOutputStream outStream = new ByteArrayOutputStream();
 
         // checking if we can connect to the running cassandra node on localhost
-        CliMain.connect("127.0.0.1", 9170);
+        CliMain.connect("127.0.0.1", DatabaseDescriptor.getRpcPort());
 
         // setting new output stream
         CliMain.sessionState.setOut(new PrintStream(outStream));
