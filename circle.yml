@@ -1,0 +1,5 @@
+general:
+  branches:
+    only:
+      - build # list of branches to build
+      - build-2.0 # or regexes
