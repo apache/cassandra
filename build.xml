@@ -57,6 +57,7 @@
     <property name="test.data" value="${test.dir}/data"/>
     <property name="test.name" value="*Test"/>
     <property name="test.methods" value=""/>
+    <property name="test.runners" value="1"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="test.pig.src" value="${test.dir}/pig"/>
@@ -1060,11 +1061,13 @@
   <macrodef name="testmacro">
     <attribute name="suitename" />
     <attribute name="inputdir" />
-    <attribute name="timeout" />
+    <attribute name="timeout" default="${test.timeout}" />
     <attribute name="forkmode" default="perTest"/>
     <element name="optjvmargs" implicit="true" optional="true" />
     <attribute name="filter" default="**/${test.name}.java"/>
     <attribute name="exclude" default="" />
+    <attribute name="filelist" default="" />
+    <attribute name="poffset" default="0"/>
     <sequential>
       <echo message="running @{suitename} tests"/>
       <mkdir dir="${build.test.dir}/cassandra"/>
@@ -1080,7 +1083,8 @@
         <jvmarg value="-Xss256k"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
-        <optjvmargs/>
+	<jvmarg value="-Dcassandra.test.offsetseed=@{poffset}"/>        
+	<optjvmargs/>
         <classpath>
           <path refid="cassandra.classpath" />
           <pathelement location="${test.classes}"/>
@@ -1092,6 +1096,7 @@
         </classpath>
         <batchtest todir="${build.test.dir}/output">
             <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
+	    <filelist dir="@{inputdir}" files="@{filelist}"/>
         </batchtest>
       </junit>
       <fail message="Some @{suitename} test(s) failed.">
@@ -1134,7 +1139,7 @@
     </junit>
   </target>
 
-  <target name="test" depends="build-test" description="Execute unit tests">
+  <target name="testold" depends="build-test" description="Execute unit tests">
     <testmacro suitename="unit" inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
@@ -1145,6 +1150,17 @@
     <fileset dir="${test.unit.src}">
         <exclude name="**/pig/*.java" />
     </fileset>
+  </target>
+  
+  <target name="testlist">
+    <testmacro suitename="${testlist.name}" inputdir="${test.unit.src}" filelist="${test.file.list}" poffset="${testlist.offset}" exclude="**/*.java" timeout="${test.timeout}">
+      <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
+      <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
+      <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+      <jvmarg value="-Dcassandra.config.loader=org.apache.cassandra.OffsetAwareConfigurationLoader"/>
+    </testmacro>
   </target>
 
   <target name="testsome" depends="build-test" description="Execute specific unit tests" >
@@ -1333,6 +1349,62 @@
       </filesets>
     </create-javadoc>
    </target>
+
+  <!-- Split test classes into n buckets and run across processes -->
+  <target name="test" depends="build-test" description="Parallel Test Runner">
+    <path id="all-test-classes-path">
+      <fileset dir="${test.unit.src}" excludes="**/pig/*.java" includes="**/${test.name}.java" />   
+    </path>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <script language="javascript"> <![CDATA[
+	importClass(java.lang.Integer)
+	sep = project.getProperty("path.separator");
+	all = project.getProperty("all-test-classes").split(sep);
+	dir = project.getProperty("test.unit.src");
+
+	numRunners = parseInt(project.getProperty("test.runners"));  	
+	
+	buckets = new Array(numRunners);
+	for (i = 0; i < all.length; i++) {
+	    bucketNum = i % numRunners;
+	    if (buckets[bucketNum] == undefined) 
+		buckets[bucketNum] = "";
+	    else
+		buckets[bucketNum] += ",";
+	
+	    buckets[bucketNum] += all[i];
+	}
+
+
+	var p = project.createTask('parallel');
+	p.setThreadCount(numRunners);
+
+  	for (i = 0; i < buckets.length; i++) {
+
+	    if (buckets[i] == undefined) continue;
+
+	    task = project.createTask( 'antcall' );
+
+	    task.setTarget("testlist");
+	    param = task.createParam();
+	    param.setName("test.file.list");
+	    param.setValue(buckets[i]);
+
+	    param = task.createParam();
+	    param.setName("testlist.name");
+	    param.setValue("test bucket "+i);	  
+
+	    param = task.createParam();
+	    param.setName("testlist.offset");
+	    param.setValue(i);  
+
+	    p.addTask(task); 
+  	}
+	
+	p.perform();
+	  			    
+]]> </script>
+  </target>
 
   <!-- Generate Eclipse project description files -->
   <target name="generate-eclipse-files" depends="build" description="Generate eclipse files">
