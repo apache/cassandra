@@ -1,3 +1,9 @@
+2.1.0
+Merged from 2.0:
+ * Support DISTINCT for static columns and fix behaviour when DISTINC is
+   not use (CASSANDRA-7305).
+
+
 2.1.0-rc2
  * Fix heap size calculation for CompoundSparseCellName and 
    CompoundSparseCellName.WithCollection (CASSANDRA-7421)

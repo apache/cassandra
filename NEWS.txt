@@ -74,11 +74,16 @@ Upgrading
 2.0.9
 =====
 
-Operations
-----------
+Upgrading
+---------
     - Default values for read_repair_chance and local_read_repair_chance have been
       swapped. Namely, default read_repair_chance is now set to 0.0, and default
       local_read_repair_chance to 0.1.
+    - Queries selecting only CQL static columns were (mistakenly) not returning one
+      result per row in the partition. This has been fixed and a SELECT DISTINCT
+      can be used when only the static column of a partition needs to be fetch
+      without fetching the whole partition. But if you use static columns, please
+      make sure this won't affect you (see CASSANDRA-7305 for details).
 
 
 2.0.8

@@ -423,16 +423,28 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         }
     }
 
+    private ColumnSlice makeStaticSlice()
+    {
+        // Note: we could use staticPrefix.start() for the start bound, but EMPTY gives us the
+        // same effect while saving a few CPU cycles.
+        return isReversed
+             ? new ColumnSlice(cfm.comparator.staticPrefix().end(), Composites.EMPTY)
+             : new ColumnSlice(Composites.EMPTY, cfm.comparator.staticPrefix().end());
+    }
+
     private IDiskAtomFilter makeFilter(QueryOptions options, int limit)
     throws InvalidRequestException
     {
+        int toGroup = cfm.comparator.isDense() ? -1 : cfm.clusteringColumns().size();
         if (parameters.isDistinct)
         {
-            return new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, false, 1, -1);
+            // For distinct, we only care about fetching the beginning of each partition. If we don't have
+            // static columns, we in fact only care about the first cell, so we query only that (we don't "group").
+            // If we do have static columns, we do need to fetch the first full group (to have the static columns values).
+            return new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, false, 1, selectsStaticColumns ? toGroup : -1);
         }
         else if (isColumnRange())
         {
-            int toGroup = cfm.comparator.isDense() ? -1 : cfm.clusteringColumns().size();
             List<Composite> startBounds = getRequestedBound(Bound.START, options);
             List<Composite> endBounds = getRequestedBound(Bound.END, options);
             assert startBounds.size() == endBounds.size();
@@ -440,20 +452,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             // Handles fetching static columns. Note that for 2i, the filter is just used to restrict
             // the part of the index to query so adding the static slice would be useless and confusing.
             // For 2i, static columns are retrieve in CompositesSearcher with each index hit.
-            ColumnSlice staticSlice = null;
-            if (selectsStaticColumns && !usesSecondaryIndexing)
-            {
-                // Note: we could use staticPrefix.start() for the start bound, but EMPTY gives us the
-                // same effect while saving a few CPU cycles.
-                staticSlice = isReversed
-                            ? new ColumnSlice(cfm.comparator.staticPrefix().end(), Composites.EMPTY)
-                            : new ColumnSlice(Composites.EMPTY, cfm.comparator.staticPrefix().end());
-
-                // In the case where we only select static columns, we want to really only check the static columns.
-                // So we return early as the rest of that method would actually make us query everything
-                if (selectsOnlyStaticColumns)
-                    return sliceFilter(staticSlice, limit, toGroup);
-            }
+            ColumnSlice staticSlice = selectsStaticColumns && !usesSecondaryIndexing
+                                    ? makeStaticSlice()
+                                    : null;
 
             // The case where startBounds == 1 is common enough that it's worth optimizing
             if (startBounds.size() == 1)
@@ -1311,6 +1312,23 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return false;
     }
 
+    private void validateDistinctSelection()
+    throws InvalidRequestException
+    {
+        Collection<ColumnDefinition> requestedColumns = selection.getColumns();
+        for (ColumnDefinition def : requestedColumns)
+            if (def.kind != ColumnDefinition.Kind.PARTITION_KEY && def.kind != ColumnDefinition.Kind.STATIC)
+                throw new InvalidRequestException(String.format("SELECT DISTINCT queries must only request partition key columns and/or static columns (not %s)", def.name));
+
+        // If it's a key range, we require that all partition key columns are selected so we don't have to bother with post-query grouping.
+        if (!isKeyRange)
+            return;
+
+        for (ColumnDefinition def : cfm.partitionKeyColumns())
+            if (!requestedColumns.contains(def))
+                throw new InvalidRequestException(String.format("SELECT DISTINCT queries must request all the partition key columns (missing %s)", def.name));
+    }
+
     public static class RawStatement extends CFStatement
     {
         private final Parameters parameters;
@@ -1339,9 +1357,6 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             Selection selection = selectClause.isEmpty()
                                 ? Selection.wildcard(cfm)
                                 : Selection.fromSelectors(cfm, selectClause);
-
-            if (parameters.isDistinct)
-                validateDistinctSelection(selection.getColumns(), cfm.partitionKeyColumns());
 
             SelectStatement stmt = new SelectStatement(cfm, boundNames.size(), parameters, selection, prepareLimit(boundNames));
 
@@ -1419,6 +1434,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 processOrderingClause(stmt, cfm);
 
             checkNeedsFiltering(stmt);
+
+            if (parameters.isDistinct)
+                stmt.validateDistinctSelection();
 
             return new ParsedStatement.Prepared(stmt, boundNames);
         }
@@ -1948,18 +1966,6 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                                                    return def.name.equals(n.name);
                                                }
                                            });
-        }
-
-        private void validateDistinctSelection(Collection<ColumnDefinition> requestedColumns, Collection<ColumnDefinition> partitionKey)
-        throws InvalidRequestException
-        {
-            for (ColumnDefinition def : requestedColumns)
-                if (!partitionKey.contains(def))
-                    throw new InvalidRequestException(String.format("SELECT DISTINCT queries must only request partition key columns (not %s)", def.name));
-
-            for (ColumnDefinition def : partitionKey)
-                if (!requestedColumns.contains(def))
-                    throw new InvalidRequestException(String.format("SELECT DISTINCT queries must request all the partition key columns (missing %s)", def.name));
         }
 
         private boolean containsAlias(final ColumnIdentifier name)
