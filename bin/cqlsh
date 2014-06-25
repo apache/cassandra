@@ -527,6 +527,8 @@ class Shell(cmd.Cmd):
         self.empty_lines = 0
         self.statement_error = False
         self.single_statement = single_statement
+        # see CASSANDRA-7399
+        cql.cqltypes.CompositeType.cql_parameterized_type = classmethod(lambda cls: "'%s'" % cls.cass_parameterized_type_with(cls.subtypes, True))
 
     def set_expanded_cql_version(self, ver):
         ver, vertuple = full_cql_version(ver)
