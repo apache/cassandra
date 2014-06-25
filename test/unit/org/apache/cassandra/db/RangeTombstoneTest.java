@@ -324,22 +324,13 @@ public class RangeTombstoneTest
     }
 
     @Test
-    public void testPreCompactedRowWithRangeTombstonesUpdatesSecondaryIndex() throws Exception
+    public void testRowWithRangeTombstonesUpdatesSecondaryIndex() throws Exception
     {
-        // nothing special to do here, just run the test
         runCompactionWithRangeTombstoneAndCheckSecondaryIndex();
     }
 
     @Test
-    public void testLazilyCompactedRowWithRangeTombstonesUpdatesSecondaryIndex() throws Exception
-    {
-        // make sure we use LazilyCompactedRow by exceeding in_memory_compaction_limit
-        DatabaseDescriptor.setInMemoryCompactionLimit(0);
-        runCompactionWithRangeTombstoneAndCheckSecondaryIndex();
-    }
-
-    @Test
-    public void testLazilyCompactedRowGeneratesSameSSTablesAsPreCompactedRow() throws Exception
+    public void testRangeTombstoneCompaction() throws Exception
     {
         Keyspace table = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);
