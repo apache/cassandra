@@ -1294,7 +1294,7 @@
       </executiondata>
       <structure name="JaCoCo Cassandara Coverage Report">
         <classfiles>
-          <fileset dir="${build.classes}">
+          <fileset dir="${build.classes.main}">
             <include name="**/*.class"/>
           </fileset>
         </classfiles>
