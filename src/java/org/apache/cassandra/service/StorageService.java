@@ -608,6 +608,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new RuntimeException("Replace method removed; use cassandra.replace_address instead");
         if (DatabaseDescriptor.isReplacing())
         {
+            if (SystemTable.bootstrapComplete())
+                throw new RuntimeException("Cannot replace address with a node that is already bootstrapped");
             if (!DatabaseDescriptor.isAutoBootstrap())
                 throw new RuntimeException("Trying to replace_address with auto_bootstrap disabled will not work, check your configuration");
             tokens = prepareReplacementInfo();

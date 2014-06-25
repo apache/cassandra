@@ -777,8 +777,6 @@ public class DatabaseDescriptor
             logger.info("Replace address on first boot requested; this node is already bootstrapped");
             return false;
         }
-        if (getReplaceAddress() != null && SystemTable.bootstrapComplete())
-            throw new RuntimeException("Cannot replace address with a node that is already bootstrapped");
         return getReplaceAddress() != null;
     }
 
