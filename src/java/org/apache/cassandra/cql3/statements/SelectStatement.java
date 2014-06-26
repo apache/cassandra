@@ -1950,6 +1950,24 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                                                       "thus may have unpredictable performance. If you want to execute " +
                                                       "this query despite the performance unpredictability, use ALLOW FILTERING");
             }
+
+            // We don't internally support exclusive slice bounds on non-composite tables. To deal with it we do an
+            // inclusive slice and remove post-query the value that shouldn't be returned. One problem however is that
+            // if there is a user limit, that limit may make the query return before the end of the slice is reached,
+            // in which case, once we'll have removed bound post-query, we might end up with less results than
+            // requested which would be incorrect. For single-partition query, this is not a problem, we just ask for
+            // one more result (see updateLimitForQuery()) since that's enough to compensate for that problem. For key
+            // range however, each returned row may include one result that will have to be trimmed, so we would have
+            // to bump the query limit by N where N is the number of rows we will return, but we don't know that in
+            // advance. So, since we currently don't have a good way to handle such query, we refuse it (#7059) rather
+            // than answering with something that is wrong.
+            if (stmt.sliceRestriction != null && stmt.isKeyRange && limit != null)
+            {
+                SingleColumnRelation rel = findInclusiveClusteringRelationForCompact(stmt.cfm);
+                throw new InvalidRequestException(String.format("The query requests a restriction of rows with a strict bound (%s) over a range of partitions. "
+                                                              + "This is not supported by the underlying storage engine for COMPACT tables if a LIMIT is provided. "
+                                                              + "Please either make the condition non strict (%s) or remove the user LIMIT", rel, rel.withNonStrictOperator()));
+            }
         }
 
         private int indexOf(ColumnDefinition def, Selection selection)
@@ -1966,6 +1984,22 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                                                    return def.name.equals(n.name);
                                                }
                                            });
+        }
+
+        private SingleColumnRelation findInclusiveClusteringRelationForCompact(CFMetaData cfm)
+        {
+            for (Relation r : whereClause)
+            {
+                // We only call this when sliceRestriction != null, i.e. for compact table with non composite comparator,
+                // so it can't be a MultiColumnRelation.
+                SingleColumnRelation rel = (SingleColumnRelation)r;
+                if (cfm.getColumnDefinition(rel.getEntity()).kind == ColumnDefinition.Kind.CLUSTERING_COLUMN
+                    && (rel.operator() == Relation.Type.GT || rel.operator() == Relation.Type.LT))
+                    return rel;
+            }
+
+            // We're not supposed to call this method unless we know this can't happen
+            throw new AssertionError();
         }
 
         private boolean containsAlias(final ColumnIdentifier name)
