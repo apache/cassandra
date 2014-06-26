@@ -47,7 +47,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class ThriftColumnFamilyTest extends PigTestBase
-{    
+{
     private static String[] statements = {
             "create keyspace thriftKs with placement_strategy = 'org.apache.cassandra.locator.SimpleStrategy' and" +
             " strategy_options={replication_factor:1};",
@@ -125,7 +125,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
              "create column family U8 with " +
                      "key_validation_class = UTF8Type and " +
                      "comparator = UTF8Type;",
-                     
+
              "create column family Bytes with " +
                       "key_validation_class = BytesType and " +
                       "comparator = UTF8Type;",
@@ -181,7 +181,22 @@ public class ThriftColumnFamilyTest extends PigTestBase
             "create column family CompoKeyCopy " +
                         "with key_validation_class = 'CompositeType(UTF8Type,LongType)' " +
                         "and default_validation_class = UTF8Type " +
-                        "and comparator = LongType;"
+                        "and comparator = LongType;",
+
+
+             "create column family WideCf " +
+                        " with comparator = UTF8Type " +
+                        " and default_validation_class = UTF8Type " +
+                        " and key_validation_class = UTF8Type " +
+                        " and comparator = UTF8Type;",
+
+             "set WideCf['2014-06-06']['1'] = 'event1';",
+             "set WideCf['2014-06-06']['2'] = 'event2';",
+
+             "set WideCf['2014-06-07']['3'] = 'event3';",
+             "set WideCf['2014-06-07']['4'] = 'event4';",
+             "set WideCf['2014-06-07']['5'] = 'event5';",
+             "set WideCf['2014-06-07']['6'] = 'event6';",
     };
 
     @BeforeClass
@@ -323,6 +338,36 @@ public class ThriftColumnFamilyTest extends PigTestBase
             }
         }
         Assert.assertEquals(count, 4);
+    }
+
+    @Test
+    public void testCqlStorageWithThriftWideRowCf() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
+    {
+        //regular thrift wide row column family with  page size set to 1 to cause CASSANDRA-7445
+        pig.registerQuery("rows = load 'cql://thriftKs/WideCf?" + defaultParameters + "&page_size=1' using CqlStorage();");
+
+        /**
+             "set WideCf['2014-06-06']['1'] = 'event1';",
+             "set WideCf['2014-06-06']['2'] = 'event2';",
+             ---------------------------------------------
+             "set WideCf['2014-06-07']['3'] = 'event3';",
+             "set WideCf['2014-06-07']['4'] = 'event4';",
+             "set WideCf['2014-06-07']['5'] = 'event5';",
+             "set WideCf['2014-06-07']['6'] = 'event6';",
+         */
+
+        Iterator<Tuple> it = pig.openIterator("rows");
+        for (Integer i = 1; i <= 6; i++) {
+            Assert.assertTrue(it.hasNext());
+            Tuple t = it.next();
+            if (i < 3) {
+                Assert.assertEquals(t.get(0).toString(), "2014-06-06");
+            } else {
+                Assert.assertEquals(t.get(0).toString(), "2014-06-07");
+            }
+            Assert.assertEquals(t.get(1).toString(), i.toString());
+            Assert.assertEquals(t.get(2).toString(), "event" + i);
+        }
     }
 
     @Test
@@ -707,7 +752,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
         Iterator<Tuple> it = pig.openIterator("compokeys");
         if (it.hasNext()) {
             Tuple t = it.next();
-            Tuple key = (Tuple) t.get(0); 
+            Tuple key = (Tuple) t.get(0);
             Assert.assertEquals(key.get(0), "clock");
             Assert.assertEquals(key.get(1), 40L);
             DataBag columns = (DataBag) t.get(1);
@@ -735,7 +780,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
             count ++;
             if (count == 1)
             {
-                Tuple key = (Tuple) t.get(0); 
+                Tuple key = (Tuple) t.get(0);
                 Assert.assertEquals(key.get(0), "clock");
                 Assert.assertEquals(key.get(1), 10L);
                 DataBag columns = (DataBag) t.get(1);
@@ -749,7 +794,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
             }
             else if (count == 2)
             {
-                Tuple key = (Tuple) t.get(0); 
+                Tuple key = (Tuple) t.get(0);
                 Assert.assertEquals(key.get(0), "clock");
                 Assert.assertEquals(key.get(1), 20L);
                 DataBag columns = (DataBag) t.get(1);
@@ -763,7 +808,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
             }
             else if (count == 3)
             {
-                Tuple key = (Tuple) t.get(0); 
+                Tuple key = (Tuple) t.get(0);
                 Assert.assertEquals(key.get(0), "clock");
                 Assert.assertEquals(key.get(1), 30L);
                 DataBag columns = (DataBag) t.get(1);
@@ -777,7 +822,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
             }
             else if (count == 4)
             {
-                Tuple key = (Tuple) t.get(0); 
+                Tuple key = (Tuple) t.get(0);
                 Assert.assertEquals(key.get(0), "clock");
                 Assert.assertEquals(key.get(1), 40L);
                 DataBag columns = (DataBag) t.get(1);
