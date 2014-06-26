@@ -17,13 +17,16 @@
  */
 package org.apache.cassandra.metrics;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.utils.EstimatedHistogram;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Counter;
 import com.yammer.metrics.core.Timer;
-
-import org.apache.cassandra.utils.EstimatedHistogram;
 
 /**
  * Metrics about latencies
@@ -35,6 +38,9 @@ public class LatencyMetrics
     /** Total latency in micro sec */
     public final Counter totalLatency;
 
+    /** parent metrics to replicate any updates to **/
+    private List<LatencyMetrics> parents = Lists.newArrayList();
+    
     protected final MetricNameFactory factory;
     protected final String namePrefix;
 
@@ -80,6 +86,20 @@ public class LatencyMetrics
         latency = Metrics.newTimer(factory.createMetricName(namePrefix + "Latency"), TimeUnit.MICROSECONDS, TimeUnit.SECONDS);
         totalLatency = Metrics.newCounter(factory.createMetricName(namePrefix + "TotalLatency"));
     }
+    
+    /**
+     * Create LatencyMetrics with given group, type, prefix to append to each metric name, and scope.  Any updates
+     * to this will also run on parent
+     *
+     * @param factory MetricName factory to use
+     * @param namePrefix Prefix to append to each metric name
+     * @param parents... any amount of parents to replicate updates to
+     */
+    public LatencyMetrics(MetricNameFactory factory, String namePrefix, LatencyMetrics ... parents)
+    {
+        this(factory, namePrefix);
+        this.parents.addAll(ImmutableList.copyOf(parents));
+    }
 
     /** takes nanoseconds **/
     public void addNano(long nanos)
@@ -89,6 +109,10 @@ public class LatencyMetrics
         totalLatency.inc(nanos / 1000);
         totalLatencyHistogram.add(nanos / 1000);
         recentLatencyHistogram.add(nanos / 1000);
+        for(LatencyMetrics parent : parents)
+        {
+            parent.addNano(nanos);
+        }
     }
 
     public void release()
