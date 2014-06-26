@@ -84,6 +84,16 @@ public class SingleColumnRelation extends Relation
         return false;
     }
 
+    public SingleColumnRelation withNonStrictOperator()
+    {
+        switch (relationType)
+        {
+            case GT: return new SingleColumnRelation(entity, Type.GTE, value);
+            case LT:  return new SingleColumnRelation(entity, Type.LTE, value);
+            default: return this;
+        }
+    }
+
     @Override
     public String toString()
     {

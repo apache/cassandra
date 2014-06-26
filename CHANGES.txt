@@ -36,6 +36,10 @@ Merged from 2.0:
  * Account for range tombstones in min/max column names (CASSANDRA-7235)
  * Improve sub range repair validation (CASSANDRA-7317)
  * Accept subtypes for function results, type casts (CASSANDRA-6766)
+ * Support DISTINCT for static columns and fix behaviour when DISTINC is
+   not use (CASSANDRA-7305).
+ * Refuse range queries with strict bounds on compact tables since they
+   are broken (CASSANDRA-7059)
 Merged from 1.2:
  * Expose global ColumnFamily metrics (CASSANDRA-7273)
  * cqlsh: Fix CompositeType columns in DESCRIBE TABLE output (CASSANDRA-7399)
