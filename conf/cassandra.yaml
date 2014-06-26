@@ -17,7 +17,8 @@ cluster_name: 'Test Cluster'
 # If you leave this unspecified, Cassandra will use the default of 1 token for legacy compatibility,
 # and will use the initial_token as described below.
 #
-# Specifying initial_token will override this setting.
+# Specifying initial_token will override this setting on the node's initial start,
+# on subsequent starts, this setting will apply even if initial token is set.
 #
 # If you already have a cluster with 1 token per node, and wish to migrate to 
 # multiple tokens per node, see http://wiki.apache.org/cassandra/Operations
