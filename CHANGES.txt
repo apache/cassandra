@@ -22,6 +22,7 @@ Merged from 2.0:
  * Fix inconsistent use of consistencyForCommit that allowed LOCAL_QUORUM
    operations to incorrect become full QUORUM (CASSANDRA-7345)
  * Properly handle unrecognized opcodes and flags (CASSANDRA-7440)
+ * (Hadoop) close CqlRecordWriter clients when finished (CASSANDRA-7459)
 
 
 2.1.0-rc2
