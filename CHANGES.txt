@@ -16,6 +16,9 @@ Merged from 2.0:
  * Fix CC#collectTimeOrderedData() tombstone optimisations (CASSANDRA-7394)
  * Support DISTINCT for static columns and fix behaviour when DISTINC is
    not use (CASSANDRA-7305).
+ * Fix race in FileCacheService RemovalListener (CASSANDRA-7278)
+ * Fix inconsistent use of consistencyForCommit that allowed LOCAL_QUORUM
+   operations to incorrect become full QUORUM (CASSANDRA-7345)
 
 
 2.1.0-rc2
