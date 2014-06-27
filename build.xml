@@ -693,13 +693,17 @@
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
-        <javac debug="true" debuglevel="${debuglevel}"
-               destdir="${build.classes.thrift}" includeantruntime="false" source="${source.version}" target="${target.version}">
+        <javac fork="true"
+               debug="true" debuglevel="${debuglevel}"
+               destdir="${build.classes.thrift}" includeantruntime="false" source="${source.version}" target="${target.version}"
+               memorymaximumsize="512M">
             <src path="${interface.thrift.dir}/gen-java"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
-        <javac debug="true" debuglevel="${debuglevel}"
-               destdir="${build.classes.main}" includeantruntime="false" source="${source.version}" target="${target.version}">
+        <javac fork="true"
+               debug="true" debuglevel="${debuglevel}"
+               destdir="${build.classes.main}" includeantruntime="false" source="${source.version}" target="${target.version}"
+               memorymaximumsize="512M">
             <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
         	<compilerarg value="-XDignore.symbol.file"/>
