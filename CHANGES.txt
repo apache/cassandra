@@ -7,6 +7,7 @@ Merged from 2.0:
  * Fix race in FileCacheService RemovalListener (CASSANDRA-7278)
  * Fix inconsistent use of consistencyForCommit that allowed LOCAL_QUORUM
    operations to incorrect become full QUORUM (CASSANDRA-7345)
+ * Properly handle unrecognized opcodes and flags (CASSANDRA-7440)
 
 
 2.1.0-rc2
