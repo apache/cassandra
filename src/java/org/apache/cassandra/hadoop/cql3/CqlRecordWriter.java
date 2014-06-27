@@ -279,6 +279,9 @@ class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String, ByteB
                     }
                 }
             }
+
+            // close all our connections once we are done.
+            closeInternal();
         }
 
         /** get prepared statement id from cache, otherwise prepare it from Cassandra server*/
