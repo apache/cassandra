@@ -12,6 +12,7 @@
 
 
 2.1.0
+ * Improve schema merge performance (CASSANDRA-7444)
 Merged from 2.0:
  * Fix CC#collectTimeOrderedData() tombstone optimisations (CASSANDRA-7394)
  * Support DISTINCT for static columns and fix behaviour when DISTINC is
