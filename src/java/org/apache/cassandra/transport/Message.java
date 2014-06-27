@@ -103,6 +103,8 @@ public abstract class Message
 
         public static Type fromOpcode(int opcode, Direction direction)
         {
+            if (opcode >= opcodeIdx.length)
+                throw new ProtocolException(String.format("Unknown opcode %d", opcode));
             Type t = opcodeIdx[opcode];
             if (t == null)
                 throw new ProtocolException(String.format("Unknown opcode %d", opcode));
