@@ -102,11 +102,11 @@ public class ExecuteMessage extends Message.Request
         {
             QueryHandler handler = state.getClientState().getCQLQueryHandler();
             ParsedStatement.Prepared prepared = handler.getPrepared(statementId);
+            if (prepared == null)
+                throw new PreparedQueryNotFoundException(statementId);
+
             options.prepare(prepared.boundNames);
             CQLStatement statement = prepared.statement;
-
-            if (statement == null)
-                throw new PreparedQueryNotFoundException(statementId);
 
             if (options.getPageSize() == 0)
                 throw new ProtocolException("The page size cannot be 0");
