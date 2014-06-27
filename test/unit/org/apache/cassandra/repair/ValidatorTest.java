@@ -46,6 +46,7 @@ import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.ValidationComplete;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static org.junit.Assert.*;
@@ -103,10 +104,11 @@ public class ValidatorTest extends SchemaLoader
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
 
         Validator validator = new Validator(desc, remote, 0);
-        validator.prepare(cfs);
+        MerkleTree tree = new MerkleTree(cfs.partitioner, validator.desc.range, MerkleTree.RECOMMENDED_DEPTH, (int) Math.pow(2, 15));
+        validator.prepare(cfs, tree);
 
         // and confirm that the tree was split
-        assertTrue(validator.tree.size() > 1);
+        assertTrue(tree.size() > 1);
 
         // add a row
         Token mid = partitioner.midpoint(range.left, range.right);
@@ -114,8 +116,8 @@ public class ValidatorTest extends SchemaLoader
         validator.complete();
 
         // confirm that the tree was validated
-        Token min = validator.tree.partitioner().getMinimumToken();
-        assertNotNull(validator.tree.hash(new Range<>(min, min)));
+        Token min = tree.partitioner().getMinimumToken();
+        assertNotNull(tree.hash(new Range<>(min, min)));
 
         if (!lock.isSignaled())
             lock.await();
