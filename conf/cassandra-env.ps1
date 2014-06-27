@@ -39,7 +39,7 @@ Function SetCassandraMain()
 #-----------------------------------------------------------------------------
 Function BuildClassPath
 {
-    $cp = "$env:CASSANDRA_HOME\conf"
+    $cp = """$env:CASSANDRA_HOME\conf"""
     foreach ($file in Get-ChildItem "$env:CASSANDRA_HOME\lib\*.jar")
     {
         $file = $file -replace "\\", "/"
@@ -47,7 +47,7 @@ Function BuildClassPath
     }
 
     # Add build/classes/main so it works in development
-    $cp = $cp + ";" + "$env:CASSANDRA_HOME\build\classes\main;$env:CASSANDRA_HOME\build\classes\thrift"
+    $cp = $cp + ";" + """$env:CASSANDRA_HOME\build\classes\main"";""$env:CASSANDRA_HOME\build\classes\thrift"""
     $env:CLASSPATH=$cp
 }
 

@@ -35,7 +35,7 @@ goto runLegacy
 REM -----------------------------------------------------------------------------
 :runPowerShell
 echo Detected powershell execution permissions.  Running with enhanced startup scripts.
-powershell /file %CASSANDRA_HOME%\bin\cassandra.ps1 %*
+powershell /file "%CASSANDRA_HOME%\bin\cassandra.ps1" %*
 goto finally
 
 REM -----------------------------------------------------------------------------
