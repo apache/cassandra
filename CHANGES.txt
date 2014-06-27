@@ -11,9 +11,13 @@
  * Switch external naming of 'column families' to 'tables' (CASSANDRA-4369) 
 
 
-2.1.0
+2.1.1
  * Improve schema merge performance (CASSANDRA-7444)
  * Fix NPE when unknown prepared statement ID is used (CASSANDRA-7454)
+
+
+2.1.0
+ * (Windows) handle spaces in path names (CASSANDRA-7451)
 Merged from 2.0:
  * Fix CC#collectTimeOrderedData() tombstone optimisations (CASSANDRA-7394)
  * Support DISTINCT for static columns and fix behaviour when DISTINC is
