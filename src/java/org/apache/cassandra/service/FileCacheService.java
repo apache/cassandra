@@ -69,7 +69,7 @@ public class FileCacheService
                 if (cachedInstances.size() > 0)
                     logger.debug("Evicting cold readers for {}", cachedInstances.peek().getPath());
 
-                for (RandomAccessReader reader : cachedInstances)
+                for (RandomAccessReader reader = cachedInstances.poll(); reader != null; reader = cachedInstances.poll())
                 {
                     memoryUsage.addAndGet(-1 * reader.getTotalBufferSize());
                     reader.deallocate();
