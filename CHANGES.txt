@@ -28,8 +28,8 @@ Merged from 2.0:
    operations to incorrect become full QUORUM (CASSANDRA-7345)
  * Properly handle unrecognized opcodes and flags (CASSANDRA-7440)
  * (Hadoop) close CqlRecordWriter clients when finished (CASSANDRA-7459)
- * Make sure high level sstables get compacted (CASSANDRA-7414)
  * Commit disk failure policy (CASSANDRA-7429)
+ * Make sure high level sstables get compacted (CASSANDRA-7414)
 
 
 2.1.0-rc2
