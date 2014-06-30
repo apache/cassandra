@@ -55,6 +55,8 @@ public interface CType extends Comparator<Composite>
      */
     public int size();
 
+    int compare(Composite o1, Composite o2);
+
     /**
      * Gets a subtype of this CType.
      */

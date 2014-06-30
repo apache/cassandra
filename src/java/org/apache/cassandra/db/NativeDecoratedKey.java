@@ -20,13 +20,14 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.memory.NativeAllocator;
 
 public class NativeDecoratedKey extends DecoratedKey
 {
-    private final long peer;
+    final long peer;
 
     public NativeDecoratedKey(Token token, NativeAllocator allocator, OpOrder.Group writeOp, ByteBuffer key)
     {

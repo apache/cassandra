@@ -40,6 +40,8 @@ import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
+import org.apache.cassandra.utils.memory.NativeAllocator;
+import org.apache.cassandra.utils.memory.NativePool;
 
 import static org.apache.cassandra.db.index.SecondaryIndexManager.Updater;
 
@@ -186,7 +188,7 @@ public class AtomicBTreeColumns extends ColumnFamily
                 deletionInfo = current.deletionInfo;
             }
 
-            Object[] tree = BTree.update(current.tree, metadata.comparator.columnComparator(), cm, cm.getColumnCount(), true, updater);
+            Object[] tree = BTree.update(current.tree, metadata.comparator.columnComparator(Memtable.MEMORY_POOL instanceof NativePool), cm, cm.getColumnCount(), true, updater);
 
             if (tree != null && refUpdater.compareAndSet(this, current, new Holder(tree, deletionInfo)))
             {
@@ -226,14 +228,7 @@ public class AtomicBTreeColumns extends ColumnFamily
 
     private Comparator<Object> asymmetricComparator()
     {
-        final Comparator<Composite> cmp = metadata.comparator;
-        return new Comparator<Object>()
-        {
-            public int compare(Object o1, Object o2)
-            {
-                return cmp.compare((Composite) o1, ((Cell) o2).name());
-            }
-        };
+        return metadata.comparator.asymmetricColumnComparator(Memtable.MEMORY_POOL instanceof NativePool);
     }
 
     public Iterable<CellName> getColumnNames()

@@ -111,8 +111,8 @@ public class IndexHelper
      */
     public static int indexFor(Composite name, List<IndexInfo> indexList, CType comparator, boolean reversed, int lastIndex)
     {
-        if (name.isEmpty() && reversed)
-            return indexList.size() - 1;
+        if (name.isEmpty())
+            return lastIndex >= 0 ? lastIndex : reversed ? indexList.size() - 1 : 0;
 
         if (lastIndex >= indexList.size())
             return -1;

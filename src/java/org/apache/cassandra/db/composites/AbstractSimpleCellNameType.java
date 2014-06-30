@@ -20,13 +20,50 @@ package org.apache.cassandra.db.composites;
 import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Comparator;
 
+import net.nicoulaj.compilecommand.annotations.Inline;
+import org.apache.cassandra.db.Cell;
+import org.apache.cassandra.db.NativeCell;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class AbstractSimpleCellNameType extends AbstractCellNameType
 {
     protected final AbstractType<?> type;
+
+    static final Comparator<Cell> rightNativeCell = new Comparator<Cell>()
+    {
+        public int compare(Cell o1, Cell o2)
+        {
+            return -((NativeCell) o2).compareToSimple(o1.name());
+        }
+    };
+
+    static final Comparator<Cell> neitherNativeCell = new Comparator<Cell>()
+    {
+        public int compare(Cell o1, Cell o2)
+        {
+            return compareUnsigned(o1.name(), o2.name());
+        }
+    };
+
+    // only one or the other of these will ever be used
+    static final Comparator<Object> asymmetricRightNativeCell = new Comparator<Object>()
+    {
+        public int compare(Object o1, Object o2)
+        {
+            return -((NativeCell) o2).compareToSimple((Composite) o1);
+        }
+    };
+
+    static final Comparator<Object> asymmetricNeitherNativeCell = new Comparator<Object>()
+    {
+        public int compare(Object o1, Object o2)
+        {
+            return compareUnsigned((Composite) o1, ((Cell) o2).name());
+        }
+    };
 
     protected AbstractSimpleCellNameType(AbstractType<?> type)
     {
@@ -44,29 +81,36 @@ public abstract class AbstractSimpleCellNameType extends AbstractCellNameType
         return 1;
     }
 
+    @Inline
+    static int compareUnsigned(Composite c1, Composite c2)
+    {
+        ByteBuffer b1 = c1.toByteBuffer();
+        ByteBuffer b2 = c2.toByteBuffer();
+        assert b1.hasRemaining() & b2.hasRemaining();
+        return ByteBufferUtil.compareUnsigned(b1, b2);
+    }
+
     public int compare(Composite c1, Composite c2)
     {
-        // This method assumes that simple composites never have an EOC != NONE. This assumption
-        // stands in particular on the fact that a Composites.EMPTY never has a non-NONE EOC. If
-        // this ever change, we'll need to update this.
-
         if (isByteOrderComparable)
-        {
-            // toByteBuffer is always cheap for simple types, and we keep virtual method calls to a minimum:
-            // hasRemaining will always be inlined, as will most of the call-stack for BBU.compareUnsigned
-            ByteBuffer b1 = c1.toByteBuffer();
-            ByteBuffer b2 = c2.toByteBuffer();
-            if (!b1.hasRemaining() || !b2.hasRemaining())
-                return b1.hasRemaining() ? 1 : (b2.hasRemaining() ? -1 : 0);
-            return ByteBufferUtil.compareUnsigned(b1, b2);
-        }
+            return compareUnsigned(c1, c2);
 
-        boolean c1isEmpty = c1.isEmpty();
-        boolean c2isEmpty = c2.isEmpty();
-        if (c1isEmpty || c2isEmpty)
-            return !c1isEmpty ? 1 : (!c2isEmpty ? -1 : 0);
-
+        assert !(c1.isEmpty() | c2.isEmpty());
         return type.compare(c1.get(0), c2.get(0));
+    }
+
+    protected Comparator<Cell> getByteOrderColumnComparator(boolean isRightNative)
+    {
+        if (isRightNative)
+            return rightNativeCell;
+        return neitherNativeCell;
+    }
+
+    protected Comparator<Object> getByteOrderAsymmetricColumnComparator(boolean isRightNative)
+    {
+        if (isRightNative)
+            return asymmetricRightNativeCell;
+        return asymmetricNeitherNativeCell;
     }
 
     public AbstractType<?> subtype(int i)

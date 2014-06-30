@@ -382,12 +382,12 @@ public class ColumnSliceTest
 
     private static void assertSlicesValid(ColumnSlice[] slices)
     {
-        assertTrue("Slices " + toString(slices) + " should be valid", ColumnSlice.validateSlices(slices, simpleIntType));
+        assertTrue("Slices " + toString(slices) + " should be valid", ColumnSlice.validateSlices(slices, simpleIntType, false));
     }
 
     private static void assertSlicesInvalid(ColumnSlice[] slices)
     {
-        assertFalse("Slices " + toString(slices) + " shouldn't be valid", ColumnSlice.validateSlices(slices, simpleIntType));
+        assertFalse("Slices " + toString(slices) + " shouldn't be valid", ColumnSlice.validateSlices(slices, simpleIntType, false));
     }
 
     private static void assertSlicesEquals(ColumnSlice[] expected, ColumnSlice[] actual)
