@@ -72,6 +72,7 @@ Merged from 2.0:
 Merged from 1.2:
  * Expose global ColumnFamily metrics (CASSANDRA-7273)
  * cqlsh: Fix CompositeType columns in DESCRIBE TABLE output (CASSANDRA-7399)
+ * Expose global ColumnFamily metrics (CASSANDRA-7273)
  * Handle possible integer overflow in FastByteArrayOutputStream (CASSANDRA-7373)
  * cqlsh: 'ascii' values weren't formatted as text (CASSANDRA-7407)
  * cqlsh: ignore .cassandra permission errors (CASSANDRA-7266)
