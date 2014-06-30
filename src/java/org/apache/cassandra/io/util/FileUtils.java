@@ -390,19 +390,6 @@ public class FileUtils
         }
     }
 
-    public static void skipBytesFully(DataInput in, long bytes) throws IOException
-    {
-        long n = 0;
-        while (n < bytes)
-        {
-            int m = (int) Math.min(Integer.MAX_VALUE, bytes - n);
-            int skipped = in.skipBytes(m);
-            if (skipped == 0)
-                throw new EOFException("EOF after " + n + " bytes out of " + bytes);
-            n += skipped;
-        }
-    }
-
     public static void handleCorruptSSTable(CorruptSSTableException e)
     {
         if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.stop_paranoid)
