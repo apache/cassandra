@@ -40,8 +40,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class AbstractCellNameType extends AbstractCType implements CellNameType
 {
-    private final Comparator<Cell> columnComparator;
+    final Comparator<Cell> columnComparator;
     private final Comparator<Cell> columnReverseComparator;
+    final Comparator<Object> asymmetricComparator;
     private final Comparator<OnDiskAtom> onDiskAtomComparator;
 
     private final ISerializer<CellName> cellSerializer;
@@ -58,6 +59,13 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
             public int compare(Cell c1, Cell c2)
             {
                 return AbstractCellNameType.this.compare(c1.name(), c2.name());
+            }
+        };
+        asymmetricComparator = new Comparator<Object>()
+        {
+            public int compare(Object c1, Object c2)
+            {
+                return AbstractCellNameType.this.compare((Composite) c1, ((Cell) c2).name());
             }
         };
         columnReverseComparator = new Comparator<Cell>()
@@ -125,9 +133,18 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
         diskAtomFilterSerializer = new IDiskAtomFilter.Serializer(this);
     }
 
-    public Comparator<Cell> columnComparator()
+    public final Comparator<Cell> columnComparator(boolean isRightNative)
     {
-        return columnComparator;
+        if (!isByteOrderComparable)
+            return columnComparator;
+        return getByteOrderColumnComparator(isRightNative);
+    }
+
+    public final Comparator<Object> asymmetricColumnComparator(boolean isRightNative)
+    {
+        if (!isByteOrderComparable)
+            return asymmetricComparator;
+        return getByteOrderAsymmetricColumnComparator(isRightNative);
     }
 
     public Comparator<Cell> columnReverseComparator()

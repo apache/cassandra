@@ -186,7 +186,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
 
     public Comparator<Cell> getColumnComparator(CellNameType comparator)
     {
-        return reversed ? comparator.columnReverseComparator() : comparator.columnComparator();
+        return reversed ? comparator.columnReverseComparator() : comparator.columnComparator(false);
     }
 
     public void collectReducedColumns(ColumnFamily container, Iterator<Cell> reducedColumns, int gcBefore, long now)

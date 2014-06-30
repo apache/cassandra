@@ -174,7 +174,8 @@ public interface CellNameType extends CType
     // Ultimately, those might be split into an IVersionedSerializer and an ISSTableSerializer
     public ISerializer<CellName> cellSerializer();
 
-    public Comparator<Cell> columnComparator();
+    public Comparator<Cell> columnComparator(boolean isRightNative);
+    public Comparator<Object> asymmetricColumnComparator(boolean isRightNative);
     public Comparator<Cell> columnReverseComparator();
     public Comparator<OnDiskAtom> onDiskAtomComparator();
 

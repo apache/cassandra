@@ -20,10 +20,13 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 
+import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FastByteOperations;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 /**
  * Represents a decorated key, handy for certain operations

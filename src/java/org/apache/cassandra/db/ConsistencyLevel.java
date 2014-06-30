@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.google.common.collect.Iterables;
+import net.nicoulaj.compilecommand.annotations.Inline;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -244,6 +245,7 @@ public enum ConsistencyLevel
         }
     }
 
+    @Inline
     public void assureSufficientLiveNodes(Keyspace keyspace, Iterable<InetAddress> liveEndpoints) throws UnavailableException
     {
         int blockFor = blockFor(keyspace);

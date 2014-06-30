@@ -91,15 +91,11 @@ public class CTypeTest
     {
         CellName a = stype2.makeCellName(UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"));
         CellName z = stype2.makeCellName(UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"));
-        Composite empty = Composites.EMPTY;
 
         assert stype2.compare(a,z) < 0;
         assert stype2.compare(z,a) > 0;
         assert stype2.compare(a,a) == 0;
         assert stype2.compare(z,z) == 0;
-        assert stype2.compare(empty, a) < 0;
-        assert stype2.compare(a,empty) > 0;
-        assert stype2.compare(empty, empty) == 0;
     }
 
 
@@ -108,16 +104,11 @@ public class CTypeTest
     {
         CellName a = stype1.makeCellName(ByteBufferUtil.bytes("a"));
         CellName z = stype1.makeCellName(ByteBufferUtil.bytes("z"));
-        Composite empty = Composites.EMPTY;
 
         assert stype1.compare(a,z) < 0;
         assert stype1.compare(z,a) > 0;
         assert stype1.compare(a,a) == 0;
         assert stype1.compare(z,z) == 0;
-        assert stype1.compare(empty, a) < 0;
-        assert stype1.compare(a,empty) > 0;
-        assert stype1.compare(empty, empty) == 0;
-
     }
 
 }

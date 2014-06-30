@@ -144,7 +144,7 @@ final class NodeBuilder
             // and simply avoids performing a binary search until we've checked the proceeding key;
             // possibly we should disable this check if we determine that it fails more than a handful of times
             // during any given builder use to get the best of both worlds
-            int c = comparator.compare(copyFrom[i], key);
+            int c = -comparator.compare(key, copyFrom[i]);
             if (c >= 0)
             {
                 found = c == 0;
@@ -167,7 +167,7 @@ final class NodeBuilder
                 return null;
             key = next;
         }
-        else if (i == copyFromKeyEnd && compare(comparator, upperBound, key) <= 0)
+        else if (i == copyFromKeyEnd && compare(comparator, key, upperBound) >= 0)
             owns = false;
 
         if (isLeaf(copyFrom))
