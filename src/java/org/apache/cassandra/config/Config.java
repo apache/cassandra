@@ -57,6 +57,7 @@ public class Config
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
 
     public DiskFailurePolicy disk_failure_policy = DiskFailurePolicy.ignore;
+    public CommitFailurePolicy commit_failure_policy = CommitFailurePolicy.stop;
 
     /* initial token in the ring */
     public String initial_token;
@@ -298,6 +299,13 @@ public class Config
         stop,
         ignore,
         stop_paranoid,
+    }
+
+    public static enum CommitFailurePolicy
+    {
+        stop,
+        stop_commit,
+        ignore,
     }
 
     public static enum RequestSchedulerId

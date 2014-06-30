@@ -1192,6 +1192,16 @@ public class DatabaseDescriptor
         return conf.disk_failure_policy;
     }
 
+    public static void setCommitFailurePolicy(Config.CommitFailurePolicy policy)
+    {
+        conf.commit_failure_policy = policy;
+    }
+
+    public static Config.CommitFailurePolicy getCommitFailurePolicy()
+    {
+        return conf.commit_failure_policy;
+    }
+
     public static boolean isSnapshotBeforeCompaction()
     {
         return conf.snapshot_before_compaction;
