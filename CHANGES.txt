@@ -15,7 +15,7 @@
  * Improve schema merge performance (CASSANDRA-7444)
  * Fix NPE when unknown prepared statement ID is used (CASSANDRA-7454)
  * Adjust MT depth based on # of partition validating (CASSANDRA-5263)
-
+ * Optimise NativeCell comparisons (CASSANDRA-6755)
 
 2.1.0
  * (Windows) handle spaces in path names (CASSANDRA-7451)
@@ -29,6 +29,7 @@ Merged from 2.0:
  * Properly handle unrecognized opcodes and flags (CASSANDRA-7440)
  * (Hadoop) close CqlRecordWriter clients when finished (CASSANDRA-7459)
  * Make sure high level sstables get compacted (CASSANDRA-7414)
+ * Commit disk failure policy (CASSANDRA-7429)
 
 
 2.1.0-rc2
