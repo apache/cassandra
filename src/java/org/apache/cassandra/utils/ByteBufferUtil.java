@@ -158,10 +158,7 @@ public class ByteBufferUtil
         if (buffer.hasArray())
         {
             int boff = buffer.arrayOffset() + buffer.position();
-            if (boff == 0 && length == buffer.array().length)
-                return buffer.array();
-            else
-                return Arrays.copyOfRange(buffer.array(), boff, boff + length);
+            return Arrays.copyOfRange(buffer.array(), boff, boff + length);
         }
         // else, DirectByteBuffer.get() is the fastest route
         byte[] bytes = new byte[length];
