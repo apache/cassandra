@@ -152,7 +152,7 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
 
     public Collection<Name> staticColumns()
     {
-        return regularColumns.values();
+        return staticColumns.values();
     }
 
     public Name compactValue()
