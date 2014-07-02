@@ -50,7 +50,7 @@ public class TypeCast implements Term.Raw
     {
         try
         {
-            return receiver.type.asCQL3Type().equals(type.prepare(keyspace));
+            return receiver.type.isValueCompatibleWith(type.prepare(keyspace).getType());
         }
         catch (InvalidRequestException e)
         {

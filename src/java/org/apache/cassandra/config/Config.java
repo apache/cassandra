@@ -57,6 +57,7 @@ public class Config
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
 
     public DiskFailurePolicy disk_failure_policy = DiskFailurePolicy.ignore;
+    public CommitFailurePolicy commit_failure_policy = CommitFailurePolicy.stop;
 
     /* initial token in the ring */
     public String initial_token;
@@ -131,7 +132,6 @@ public class Config
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     public Integer column_index_size_in_kb = 64;
     public Integer batch_size_warn_threshold_in_kb = 5;
-    public Integer in_memory_compaction_limit_in_mb = 64;
     public Integer concurrent_compactors;
     public volatile Integer compaction_throughput_mb_per_sec = 16;
 
@@ -299,6 +299,13 @@ public class Config
         stop,
         ignore,
         stop_paranoid,
+    }
+
+    public static enum CommitFailurePolicy
+    {
+        stop,
+        stop_commit,
+        ignore,
     }
 
     public static enum RequestSchedulerId

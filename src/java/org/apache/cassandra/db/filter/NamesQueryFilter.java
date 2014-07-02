@@ -104,7 +104,7 @@ public class NamesQueryFilter implements IDiskAtomFilter
 
     public Comparator<Cell> getColumnComparator(CellNameType comparator)
     {
-        return comparator.columnComparator();
+        return comparator.columnComparator(false);
     }
 
     @Override

@@ -27,9 +27,11 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.Sets;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -38,16 +40,18 @@ import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 
-public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
+public abstract class AntiEntropyServiceTestAbstract
 {
     // keyspace and column family to test against
     public ActiveRepairService aes;
@@ -66,11 +70,27 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
 
     public abstract List<IMutation> getWriteData();
 
+    public static final String KEYSPACE5 = "Keyspace5";
+    public static final String CF_STANDRAD1 = "Standard1";
+    public static final String CF_COUNTER = "Counter1";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE5,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(2),
+                                    SchemaLoader.standardCFMD(KEYSPACE5, CF_COUNTER),
+                                    SchemaLoader.standardCFMD(KEYSPACE5, CF_STANDRAD1));
+    }
+
     @Before
     public void prepare() throws Exception
     {
         if (!initialized)
         {
+            SchemaLoader.startGossiper();
             initialized = true;
 
             init();

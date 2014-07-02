@@ -25,7 +25,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="2.1.0-rc1"/>
+    <property name="base.version" value="2.1.0-rc2"/>
     <property name="scm.connection" value="scm:git://git.apache.org/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:git://git.apache.org/cassandra.git"/>
     <property name="scm.url" value="http://git-wip-us.apache.org/repos/asf?p=cassandra.git;a=tree"/>
@@ -57,11 +57,11 @@
     <property name="test.data" value="${test.dir}/data"/>
     <property name="test.name" value="*Test"/>
     <property name="test.methods" value=""/>
+    <property name="test.runners" value="1"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="test.pig.src" value="${test.dir}/pig"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
-
 	
 	<property name="source.version" value="1.7"/>
 	<property name="target.version" value="1.7"/>
@@ -392,6 +392,7 @@
           <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2" />
           <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" version="2.0.1" />
           <dependency groupId="net.sf.supercsv" artifactId="super-csv" version="2.1.0" />
+	  <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" version="1.2.0" />
         </dependencyManagement>
         <developer id="alakshman" name="Avinash Lakshman"/>
         <developer id="antelder" name="Anthony Elder"/>
@@ -424,6 +425,7 @@
       	<dependency groupId="com.google.code.findbugs" artifactId="jsr305"/>
         <dependency groupId="org.antlr" artifactId="antlr"/>
         <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core"/>
+	<dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations"/>
       </artifact:pom>
 
       <artifact:pom id="coverage-deps-pom"
@@ -692,13 +694,17 @@
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
-        <javac debug="true" debuglevel="${debuglevel}"
-               destdir="${build.classes.thrift}" includeantruntime="false" source="${source.version}" target="${target.version}">
+        <javac fork="true"
+               debug="true" debuglevel="${debuglevel}"
+               destdir="${build.classes.thrift}" includeantruntime="false" source="${source.version}" target="${target.version}"
+               memorymaximumsize="512M">
             <src path="${interface.thrift.dir}/gen-java"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
-        <javac debug="true" debuglevel="${debuglevel}"
-               destdir="${build.classes.main}" includeantruntime="false" source="${source.version}" target="${target.version}">
+        <javac fork="true"
+               debug="true" debuglevel="${debuglevel}"
+               destdir="${build.classes.main}" includeantruntime="false" source="${source.version}" target="${target.version}"
+               memorymaximumsize="512M">
             <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
         	<compilerarg value="-XDignore.symbol.file"/>
@@ -708,6 +714,7 @@
         <copy todir="${build.classes.main}">
             <fileset dir="${build.src.resources}" />
         </copy>
+	<copy todir="${basedir}/conf" file="${build.classes.main}/META-INF/hotspot_compiler"/>
     </target>
 
     <!-- Stress build file -->
@@ -1068,11 +1075,13 @@
   <macrodef name="testmacro">
     <attribute name="suitename" />
     <attribute name="inputdir" />
-    <attribute name="timeout" />
+    <attribute name="timeout" default="${test.timeout}" />
     <attribute name="forkmode" default="perTest"/>
     <element name="optjvmargs" implicit="true" optional="true" />
     <attribute name="filter" default="**/${test.name}.java"/>
     <attribute name="exclude" default="" />
+    <attribute name="filelist" default="" />
+    <attribute name="poffset" default="0"/>
     
     <attribute name="usejacoco" default="no"/>
     <sequential>
@@ -1095,7 +1104,8 @@
         <jvmarg value="-Xss256k"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
-        <optjvmargs/>
+	<jvmarg value="-Dcassandra.test.offsetseed=@{poffset}"/>        
+	<optjvmargs/>
         <classpath>
           <path refid="cassandra.classpath" />
           <pathelement location="${test.classes}"/>
@@ -1107,6 +1117,7 @@
         </classpath>
         <batchtest todir="${build.test.dir}/output">
             <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
+            <filelist dir="@{inputdir}" files="@{filelist}"/>
         </batchtest>
       </junit>
       <fail message="Some @{suitename} test(s) failed.">
@@ -1149,7 +1160,7 @@
     </junit>
   </target>
 
-  <target name="test" depends="build-test" description="Execute unit tests">
+  <target name="testold" depends="build-test" description="Execute unit tests">
     <testmacro suitename="unit" inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
@@ -1160,6 +1171,17 @@
     <fileset dir="${test.unit.src}">
         <exclude name="**/pig/*.java" />
     </fileset>
+  </target>
+  
+  <target name="testlist">
+    <testmacro suitename="${testlist.name}" inputdir="${test.unit.src}" filelist="${test.file.list}" poffset="${testlist.offset}" exclude="**/*.java" timeout="${test.timeout}">
+      <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
+      <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
+      <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+      <jvmarg value="-Dcassandra.config.loader=org.apache.cassandra.OffsetAwareConfigurationLoader"/>
+    </testmacro>
   </target>
 
   <!--
@@ -1234,10 +1256,45 @@
   </target>
 
   <target name="cql-test" depends="build-test" description="Execute CQL tests">
-    <testmacro suitename="cql" inputdir="${test.unit.src}"
-            timeout="${test.timeout}" filter="**/cql3/*Test.java"
-            forkmode="once">
-    </testmacro>
+    <sequential>
+      <echo message="running CQL tests"/>
+      <mkdir dir="${build.test.dir}/cassandra"/>
+      <mkdir dir="${build.test.dir}/output"/>
+      <junit fork="on" forkmode="once" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
+        <formatter type="brief" usefile="false"/>
+        <jvmarg value="-Dstorage-config=${test.conf}"/>
+        <jvmarg value="-Djava.awt.headless=true"/>
+        <jvmarg value="-javaagent:${basedir}/lib/jamm-0.2.6.jar" />
+        <jvmarg value="-ea"/>
+        <jvmarg value="-Xss256k"/>
+        <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
+        <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
+        <classpath>
+          <path refid="cassandra.classpath" />
+          <pathelement location="${test.classes}"/>
+          <path refid="cobertura.classpath"/>
+          <pathelement location="${test.conf}"/>
+          <fileset dir="${test.lib}">
+            <include name="**/*.jar" />
+          </fileset>
+        </classpath>
+        <batchtest todir="${build.test.dir}/output">
+            <fileset dir="${test.unit.src}" includes="**/cql3/*Test.java">
+                <contains text="CQLTester" casesensitive="yes"/>
+            </fileset>
+        </batchtest>
+      </junit>
+      <fail message="Some CQL test(s) failed.">
+        <condition>
+            <and>
+            <isset property="testfailed"/>
+            <not>
+              <isset property="ant.test.failure.ignore"/>
+            </not>
+          </and>
+        </condition>
+      </fail>
+    </sequential>
   </target>
 
   <target name="cql-test-some" depends="build-test" description="Execute specific CQL tests" >
@@ -1292,14 +1349,17 @@
       <executiondata>
         <file file="${jacoco.execfile}" />
       </executiondata>
-      <structure name="JaCoCo Cassandara Unit Test Coverage">
+      <structure name="JaCoCo Cassandara Coverage Report">
         <classfiles>
-          <fileset dir="${build.classes}">
+          <fileset dir="${build.classes.main}">
             <include name="**/*.class"/>
           </fileset>
         </classfiles>
         <sourcefiles encoding="UTF-8">
-          <fileset dir="${build.src}" />
+          <dirset dir="${build.src}">
+            <include name="java"/>
+            <include name="gen-java"/>
+          </dirset>
         </sourcefiles>
       </structure>
       <!-- to produce reports in different formats. -->
@@ -1395,6 +1455,62 @@
       </filesets>
     </create-javadoc>
    </target>
+
+  <!-- Split test classes into n buckets and run across processes -->
+  <target name="test" depends="build-test" description="Parallel Test Runner">
+    <path id="all-test-classes-path">
+      <fileset dir="${test.unit.src}" excludes="**/pig/*.java" includes="**/${test.name}.java" />   
+    </path>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <script language="javascript"> <![CDATA[
+	importClass(java.lang.Integer)
+	sep = project.getProperty("path.separator");
+	all = project.getProperty("all-test-classes").split(sep);
+	dir = project.getProperty("test.unit.src");
+
+	numRunners = parseInt(project.getProperty("test.runners"));  	
+	
+	buckets = new Array(numRunners);
+	for (i = 0; i < all.length; i++) {
+	    bucketNum = i % numRunners;
+	    if (buckets[bucketNum] == undefined) 
+		buckets[bucketNum] = "";
+	    else
+		buckets[bucketNum] += ",";
+	
+	    buckets[bucketNum] += all[i];
+	}
+
+
+	var p = project.createTask('parallel');
+	p.setThreadCount(numRunners);
+
+  	for (i = 0; i < buckets.length; i++) {
+
+	    if (buckets[i] == undefined) continue;
+
+	    task = project.createTask( 'antcall' );
+
+	    task.setTarget("testlist");
+	    param = task.createParam();
+	    param.setName("test.file.list");
+	    param.setValue(buckets[i]);
+
+	    param = task.createParam();
+	    param.setName("testlist.name");
+	    param.setValue("test bucket "+i);	  
+
+	    param = task.createParam();
+	    param.setName("testlist.offset");
+	    param.setValue(i);  
+
+	    p.addTask(task); 
+  	}
+	
+	p.perform();
+	  			    
+]]> </script>
+  </target>
 
   <!-- Generate Eclipse project description files -->
   <target name="generate-eclipse-files" depends="build" description="Generate eclipse files">

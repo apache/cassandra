@@ -109,7 +109,9 @@ public final class ThriftInserter extends Operation
         for (int i = 0 ; i < values.size() ; i++)
             columns.get(i)
                     .setValue(values.get(i))
-                    .setTimestamp(FBUtilities.timestampMicros());
+                    .setTimestamp(state.settings.columns.timestamp != null
+                                  ? Long.parseLong(state.settings.columns.timestamp)
+                                  : FBUtilities.timestampMicros());
 
         return columns;
     }

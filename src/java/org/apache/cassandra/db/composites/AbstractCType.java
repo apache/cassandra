@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 
+import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.NativeCell;
 import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.TypeSizes;
@@ -39,6 +41,39 @@ import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
 
 public abstract class AbstractCType implements CType
 {
+    static final Comparator<Cell> rightNativeCell = new Comparator<Cell>()
+    {
+        public int compare(Cell o1, Cell o2)
+        {
+            return -((NativeCell) o2).compareTo(o1.name());
+        }
+    };
+
+    static final Comparator<Cell> neitherNativeCell = new Comparator<Cell>()
+    {
+        public int compare(Cell o1, Cell o2)
+        {
+            return compareUnsigned(o1.name(), o2.name());
+        }
+    };
+
+    // only one or the other of these will ever be used
+    static final Comparator<Object> asymmetricRightNativeCell = new Comparator<Object>()
+    {
+        public int compare(Object o1, Object o2)
+        {
+            return -((NativeCell) o2).compareTo((Composite) o1);
+        }
+    };
+
+    static final Comparator<Object> asymmetricNeitherNativeCell = new Comparator<Object>()
+    {
+        public int compare(Object o1, Object o2)
+        {
+            return compareUnsigned((Composite) o1, ((Cell) o2).name());
+        }
+    };
+
     private final Comparator<Composite> reverseComparator;
     private final Comparator<IndexInfo> indexComparator;
     private final Comparator<IndexInfo> indexReverseComparator;
@@ -60,11 +95,6 @@ public abstract class AbstractCType implements CType
         {
             public int compare(Composite c1, Composite c2)
             {
-                if (c1.isEmpty())
-                    return c2.isEmpty() ? 0 : -1;
-                if (c2.isEmpty())
-                    return 1;
-
                 return AbstractCType.this.compare(c2, c1);
             }
         };
@@ -102,35 +132,56 @@ public abstract class AbstractCType implements CType
         return isByteOrderComparable;
     }
 
+    static int compareUnsigned(Composite c1, Composite c2)
+    {
+        int s1 = c1.size();
+        int s2 = c2.size();
+        int minSize = Math.min(s1, s2);
+
+        for (int i = 0; i < minSize; i++)
+        {
+            int cmp = ByteBufferUtil.compareUnsigned(c1.get(i), c2.get(i));
+            if (cmp != 0)
+                return cmp;
+        }
+
+        if (s1 == s2)
+            return c1.eoc().compareTo(c2.eoc());
+        return s1 < s2 ? c1.eoc().prefixComparisonResult : -c2.eoc().prefixComparisonResult;
+    }
+
     public int compare(Composite c1, Composite c2)
     {
         int s1 = c1.size();
         int s2 = c2.size();
         int minSize = Math.min(s1, s2);
 
-        if (isByteOrderComparable)
+        for (int i = 0; i < minSize; i++)
         {
-            for (int i = 0; i < minSize; i++)
-            {
-                int cmp = ByteBufferUtil.compareUnsigned(c1.get(i), c2.get(i));
-                if (cmp != 0)
-                    return cmp;
-            }
-        }
-        else
-        {
-            for (int i = 0; i < minSize; i++)
-            {
-                AbstractType<?> comparator = subtype(i);
-                int cmp = comparator.compare(c1.get(i), c2.get(i));
-                if (cmp != 0)
-                    return cmp;
-            }
+            int cmp = isByteOrderComparable
+                      ? ByteBufferUtil.compareUnsigned(c1.get(i), c2.get(i))
+                      : subtype(i).compare(c1.get(i), c2.get(i));
+            if (cmp != 0)
+                return cmp;
         }
 
         if (s1 == s2)
             return c1.eoc().compareTo(c2.eoc());
         return s1 < s2 ? c1.eoc().prefixComparisonResult : -c2.eoc().prefixComparisonResult;
+    }
+
+    protected Comparator<Cell> getByteOrderColumnComparator(boolean isRightNative)
+    {
+        if (isRightNative)
+            return rightNativeCell;
+        return neitherNativeCell;
+    }
+
+    protected Comparator<Object> getByteOrderAsymmetricColumnComparator(boolean isRightNative)
+    {
+        if (isRightNative)
+            return asymmetricRightNativeCell;
+        return asymmetricNeitherNativeCell;
     }
 
     public void validate(Composite name)

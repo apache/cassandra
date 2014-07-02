@@ -769,12 +769,16 @@ public class SystemKeyspace
         }
     }
 
-    public static Map<DecoratedKey, ColumnFamily> getSchema(String cfName)
+    public static Map<DecoratedKey, ColumnFamily> getSchema(String schemaCfName, Set<String> keyspaces)
     {
-        Map<DecoratedKey, ColumnFamily> schema = new HashMap<DecoratedKey, ColumnFamily>();
+        Map<DecoratedKey, ColumnFamily> schema = new HashMap<>();
 
-        for (Row schemaEntity : SystemKeyspace.serializedSchema(cfName))
-            schema.put(schemaEntity.key, schemaEntity.cf);
+        for (String keyspace : keyspaces)
+        {
+            Row schemaEntity = readSchemaRow(schemaCfName, keyspace);
+            if (schemaEntity.cf != null)
+                schema.put(schemaEntity.key, schemaEntity.cf);
+        }
 
         return schema;
     }
@@ -784,12 +788,19 @@ public class SystemKeyspace
         return AsciiType.instance.fromString(ksName);
     }
 
-    public static Row readSchemaRow(String ksName)
+    /**
+     * Fetches a subset of schema (table data, columns metadata or triggers) for the keyspace.
+     *
+     * @param schemaCfName the schema table to get the data from (schema_keyspaces, schema_columnfamilies, schema_columns or schema_triggers)
+     * @param ksName the keyspace of the tables we are interested in
+     * @return a Row containing the schema data of a particular type for the keyspace
+     */
+    public static Row readSchemaRow(String schemaCfName, String ksName)
     {
         DecoratedKey key = StorageService.getPartitioner().decorateKey(getSchemaKSKey(ksName));
 
-        ColumnFamilyStore schemaCFS = SystemKeyspace.schemaCFS(SCHEMA_KEYSPACES_CF);
-        ColumnFamily result = schemaCFS.getColumnFamily(QueryFilter.getIdentityFilter(key, SCHEMA_KEYSPACES_CF, System.currentTimeMillis()));
+        ColumnFamilyStore schemaCFS = SystemKeyspace.schemaCFS(schemaCfName);
+        ColumnFamily result = schemaCFS.getColumnFamily(QueryFilter.getIdentityFilter(key, schemaCfName, System.currentTimeMillis()));
 
         return new Row(key, result);
     }

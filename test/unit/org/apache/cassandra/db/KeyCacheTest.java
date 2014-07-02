@@ -26,31 +26,46 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.KeyCacheKey;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
 
-public class KeyCacheTest extends SchemaLoader
+public class KeyCacheTest
 {
-    private static final String KEYSPACE1 = "KeyCacheSpace";
+    private static final String KEYSPACE1 = "KeyCacheTest1";
     private static final String COLUMN_FAMILY1 = "Standard1";
     private static final String COLUMN_FAMILY2 = "Standard2";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY2));
+    }
 
     @AfterClass
     public static void cleanup()
     {
-        cleanupSavedCaches();
+        SchemaLoader.cleanupSavedCaches();
     }
 
     @Test
@@ -65,11 +80,11 @@ public class KeyCacheTest extends SchemaLoader
         assertKeyCacheSize(0, KEYSPACE1, COLUMN_FAMILY2);
 
         // insert data and force to disk
-        insertData(KEYSPACE1, COLUMN_FAMILY2, 0, 100);
+        SchemaLoader.insertData(KEYSPACE1, COLUMN_FAMILY2, 0, 100);
         store.forceBlockingFlush();
 
         // populate the cache
-        readData(KEYSPACE1, COLUMN_FAMILY2, 0, 100);
+        SchemaLoader.readData(KEYSPACE1, COLUMN_FAMILY2, 0, 100);
         assertKeyCacheSize(100, KEYSPACE1, COLUMN_FAMILY2);
 
         // really? our caches don't implement the map interface? (hence no .addAll)

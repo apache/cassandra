@@ -4,7 +4,6 @@
 #
 cluster_name: Test Cluster
 memtable_allocation_type: offheap_objects
-in_memory_compaction_limit_in_mb: 1
 commitlog_sync: batch
 commitlog_sync_batch_window_in_ms: 1.0
 partitioner: org.apache.cassandra.dht.ByteOrderedPartitioner
@@ -34,4 +33,5 @@ server_encryption_options:
     truststore: conf/.truststore
     truststore_password: cassandra
 incremental_backups: true
+concurrent_compactors: 4
 compaction_throughput_mb_per_sec: 0

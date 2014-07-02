@@ -28,6 +28,7 @@ import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 
+import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.composites.CellName;
@@ -68,6 +69,7 @@ public class CollationController
      * Once we have data for all requests columns that is newer than the newest remaining maxtimestamp,
      * we stop.
      */
+    @Inline
     private ColumnFamily collectTimeOrderedData(boolean copyOnHeap)
     {
         final ColumnFamily container = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());
@@ -79,6 +81,7 @@ public class CollationController
         try
         {
             Tracing.trace("Merging memtable contents");
+            long mostRecentRowTombstone = Long.MIN_VALUE;
             for (Memtable memtable : view.memtables)
             {
                 ColumnFamily cf = memtable.getColumnFamily(filter.key);
@@ -95,6 +98,7 @@ public class CollationController
                         container.addColumn(cell);
                     }
                 }
+                mostRecentRowTombstone = container.deletionInfo().getTopLevelDeletion().markedForDeleteAt;
             }
 
             // avoid changing the filter columns of the original filter
@@ -107,7 +111,6 @@ public class CollationController
             Collections.sort(view.sstables, SSTableReader.maxTimestampComparator);
 
             // read sorted sstables
-            long mostRecentRowTombstone = Long.MIN_VALUE;
             for (SSTableReader sstable : view.sstables)
             {
                 // if we've already seen a row tombstone with a timestamp greater
@@ -127,14 +130,12 @@ public class CollationController
                 isEmpty = false;
                 if (iter.getColumnFamily() != null)
                 {
-                    ColumnFamily cf = iter.getColumnFamily();
-                    if (cf.isMarkedForDelete())
-                        mostRecentRowTombstone = cf.deletionInfo().getTopLevelDeletion().markedForDeleteAt;
-                    container.delete(cf);
+                    container.delete(iter.getColumnFamily());
                     sstablesIterated++;
                     while (iter.hasNext())
                         container.addAtom(iter.next());
                 }
+                mostRecentRowTombstone = container.deletionInfo().getTopLevelDeletion().markedForDeleteAt;
             }
 
             // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)

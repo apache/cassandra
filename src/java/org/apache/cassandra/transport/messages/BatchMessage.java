@@ -31,6 +31,7 @@ import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.*;
@@ -168,9 +169,8 @@ public class BatchMessage extends Message.Request
                 Tracing.instance.begin("Execute batch of CQL3 queries", Collections.<String, String>emptyMap());
             }
 
-            QueryHandler handler = state.getClientState().getCQLQueryHandler();
+            QueryHandler handler = ClientState.getCQLQueryHandler();
             List<ParsedStatement.Prepared> prepared = new ArrayList<>(queryOrIdList.size());
-            boolean hasConditions = false;
             for (int i = 0; i < queryOrIdList.size(); i++)
             {
                 Object query = queryOrIdList.get(i);
@@ -201,29 +201,16 @@ public class BatchMessage extends Message.Request
             {
                 ParsedStatement.Prepared p = prepared.get(i);
                 batchOptions.forStatement(i).prepare(p.boundNames);
-                CQLStatement statement = p.statement;
 
-                if (!(statement instanceof ModificationStatement))
+                if (!(p.statement instanceof ModificationStatement))
                     throw new InvalidRequestException("Invalid statement in batch: only UPDATE, INSERT and DELETE statements are allowed.");
 
-                ModificationStatement mst = (ModificationStatement)statement;
-                hasConditions |= mst.hasConditions();
-                if (mst.isCounter())
-                {
-                    if (type != BatchStatement.Type.COUNTER)
-                        throw new InvalidRequestException("Cannot include counter statement in a non-counter batch");
-                }
-                else
-                {
-                    if (type == BatchStatement.Type.COUNTER)
-                        throw new InvalidRequestException("Cannot include non-counter statement in a counter batch");
-                }
-                statements.add(mst);
+                statements.add((ModificationStatement)p.statement);
             }
 
             // Note: It's ok at this point to pass a bogus value for the number of bound terms in the BatchState ctor
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
-            BatchStatement batch = new BatchStatement(-1, type, statements, Attributes.none(), hasConditions);
+            BatchStatement batch = new BatchStatement(-1, type, statements, Attributes.none());
             Message.Response response = handler.processBatch(batch, state, batchOptions);
 
             if (tracingId != null)

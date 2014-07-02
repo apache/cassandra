@@ -458,11 +458,6 @@ public class DatabaseDescriptor
             requestSchedulerId = RequestSchedulerId.keyspace;
         }
 
-        if (conf.in_memory_compaction_limit_in_mb != null && conf.in_memory_compaction_limit_in_mb <= 0)
-        {
-            throw new ConfigurationException("in_memory_compaction_limit_in_mb must be a positive integer");
-        }
-
         // if data dirs, commitlog dir, or saved caches dir are set in cassandra.yaml, use that.  Otherwise,
         // use -Dcassandra.storagedir (set in cassandra-env.sh) as the parent dir for data/, commitlog/, and saved_caches/
         if (conf.commitlog_directory == null)
@@ -813,8 +808,6 @@ public class DatabaseDescriptor
             logger.info("Replace address on first boot requested; this node is already bootstrapped");
             return false;
         }
-        if (getReplaceAddress() != null && SystemKeyspace.bootstrapComplete())
-            throw new RuntimeException("Cannot replace address with a node that is already bootstrapped");
         return getReplaceAddress() != null;
     }
 
@@ -985,16 +978,6 @@ public class DatabaseDescriptor
     public static int getFlushWriters()
     {
             return conf.memtable_flush_writers;
-    }
-
-    public static int getInMemoryCompactionLimit()
-    {
-        return conf.in_memory_compaction_limit_in_mb * 1024 * 1024;
-    }
-
-    public static void setInMemoryCompactionLimit(int sizeInMB)
-    {
-        conf.in_memory_compaction_limit_in_mb = sizeInMB;
     }
 
     public static int getConcurrentCompactors()
@@ -1218,6 +1201,16 @@ public class DatabaseDescriptor
     public static Config.DiskFailurePolicy getDiskFailurePolicy()
     {
         return conf.disk_failure_policy;
+    }
+
+    public static void setCommitFailurePolicy(Config.CommitFailurePolicy policy)
+    {
+        conf.commit_failure_policy = policy;
+    }
+
+    public static Config.CommitFailurePolicy getCommitFailurePolicy()
+    {
+        return conf.commit_failure_policy;
     }
 
     public static boolean isSnapshotBeforeCompaction()

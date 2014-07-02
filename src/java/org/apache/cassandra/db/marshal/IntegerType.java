@@ -136,6 +136,12 @@ public final class IntegerType extends AbstractType<BigInteger>
         return decompose(integerType);
     }
 
+    @Override
+    public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
+    {
+        return this == otherType || Int32Type.instance.isValueCompatibleWith(otherType) || LongType.instance.isValueCompatibleWith(otherType);
+    }
+
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.VARINT;

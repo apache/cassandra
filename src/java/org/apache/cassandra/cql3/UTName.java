@@ -50,6 +50,11 @@ public class UTName
         return utName.bytes;
     }
 
+    public String getStringTypeName()
+    {
+        return utName.toString();
+    }
+
     @Override
     public String toString()
     {

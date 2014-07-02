@@ -1,4 +1,5 @@
 3.0
+ * Permit configurable timestamps with cassandra-stress (CASSANDRA-7416)
  * Move sstable RandomAccessReader to nio2, which allows using the
    FILE_SHARE_DELETE flag on Windows (CASSANDRA-4050)
  * Remove CQL2 (CASSANDRA-5918)
@@ -8,10 +9,39 @@
  * Make incremental repair default (CASSANDRA-7250)
  * Enable code coverage thru JaCoCo (CASSANDRA-7226)
  * Switch external naming of 'column families' to 'tables' (CASSANDRA-4369) 
- 
 
+
+2.1.1
+ * Improve schema merge performance (CASSANDRA-7444)
+ * Fix NPE when unknown prepared statement ID is used (CASSANDRA-7454)
+ * Adjust MT depth based on # of partition validating (CASSANDRA-5263)
+ * Optimise NativeCell comparisons (CASSANDRA-6755)
 
 2.1.0
+ * (Windows) handle spaces in path names (CASSANDRA-7451)
+Merged from 2.0:
+ * Fix CC#collectTimeOrderedData() tombstone optimisations (CASSANDRA-7394)
+ * Support DISTINCT for static columns and fix behaviour when DISTINC is
+   not use (CASSANDRA-7305).
+ * Fix race in FileCacheService RemovalListener (CASSANDRA-7278)
+ * Fix inconsistent use of consistencyForCommit that allowed LOCAL_QUORUM
+   operations to incorrect become full QUORUM (CASSANDRA-7345)
+ * Properly handle unrecognized opcodes and flags (CASSANDRA-7440)
+ * (Hadoop) close CqlRecordWriter clients when finished (CASSANDRA-7459)
+ * Commit disk failure policy (CASSANDRA-7429)
+ * Make sure high level sstables get compacted (CASSANDRA-7414)
+ * Fix AssertionError when using empty clustering columns and static columns
+   (CASSANDRA-7455)
+ * Upgrade to snappy-java 1.0.5.2 (CASSANDRA-7476)
+
+
+
+2.1.0-rc2
+ * Fix heap size calculation for CompoundSparseCellName and 
+   CompoundSparseCellName.WithCollection (CASSANDRA-7421)
+ * Allow counter mutations in UNLOGGED batches (CASSANDRA-7351)
+ * Modify reconcile logic to always pick a tombstone over a counter cell
+   (CASSANDRA-7346)
  * Avoid incremental compaction on Windows (CASSANDRA-7365)
  * Fix exception when querying a composite-keyed table with a collection index
    (CASSANDRA-7372)
@@ -27,6 +57,7 @@
  * RefCount native frames from netty (CASSANDRA-7245)
  * Use tarball dir instead of /var for default paths (CASSANDRA-7136)
  * Remove rows_per_partition_to_cache keyword (CASSANDRA-7193)
+ * Fix schema change response in native protocol v3 (CASSANDRA-7413)
 Merged from 2.0:
  * Fix assertion error in CL.ANY timeout handling (CASSANDRA-7364)
  * Add per-CF range read request latency metrics (CASSANDRA-7338)
@@ -34,9 +65,19 @@ Merged from 2.0:
  * Make StreamSession#closeSession() idempotent (CASSANDRA-7262)
  * Fix infinite loop on exception while streaming (CASSANDRA-7330)
  * Account for range tombstones in min/max column names (CASSANDRA-7235)
+ * Improve sub range repair validation (CASSANDRA-7317)
+ * Accept subtypes for function results, type casts (CASSANDRA-6766)
+ * Support DISTINCT for static columns and fix behaviour when DISTINC is
+   not use (CASSANDRA-7305).
+ * Refuse range queries with strict bounds on compact tables since they
+   are broken (CASSANDRA-7059)
 Merged from 1.2:
+ * Expose global ColumnFamily metrics (CASSANDRA-7273)
+ * cqlsh: Fix CompositeType columns in DESCRIBE TABLE output (CASSANDRA-7399)
+ * Expose global ColumnFamily metrics (CASSANDRA-7273)
+ * Handle possible integer overflow in FastByteArrayOutputStream (CASSANDRA-7373)
+ * cqlsh: 'ascii' values weren't formatted as text (CASSANDRA-7407)
  * cqlsh: ignore .cassandra permission errors (CASSANDRA-7266)
- * Errors in FlushRunnable may leave threads hung (CASSANDRA-7275)
  * reduce failure detector initial value to 2s (CASSANDRA-7307)
  * Fix problem truncating on a node that was previously in a dead state (CASSANDRA-7318)
  * Don't insert tombstones that hide indexed values into 2i (CASSANDRA-7268)
@@ -95,11 +136,8 @@ Merged from 2.0:
  * (Hadoop) support authentication in CqlRecordReader (CASSANDRA-7221)
  * (Hadoop) Close java driver Cluster in CQLRR.close (CASSANDRA-7228)
  * Warn when 'USING TIMESTAMP' is used on a CAS BATCH (CASSANDRA-7067)
- * Starting threads in OutboundTcpConnectionPool constructor causes race conditions (CASSANDRA-7177)
  * return all cpu values from BackgroundActivityMonitor.readAndCompute (CASSANDRA-7183)
  * Correctly delete scheduled range xfers (CASSANDRA-7143)
- * Make batchlog replica selection rack-aware (CASSANDRA-6551)
- * Suggest CTRL-C or semicolon after three blank lines in cqlsh (CASSANDRA-7142)
  * return all cpu values from BackgroundActivityMonitor.readAndCompute (CASSANDRA-7183)  
  * reduce garbage creation in calculatePendingRanges (CASSANDRA-7191)
  * fix c* launch issues on Russian os's due to output of linux 'free' cmd (CASSANDRA-6162)
@@ -116,17 +154,7 @@ Merged from 2.0:
  * Improve compaction visibility (CASSANDRA-7242)
  * Correctly delete scheduled range xfers (CASSANDRA-7143)
  * Make batchlog replica selection rack-aware (CASSANDRA-6551)
- * Allow overriding cassandra-rackdc.properties file (CASSANDRA-7072)
- * Set JMX RMI port to 7199 (CASSANDRA-7087)
- * Use LOCAL_QUORUM for data reads at LOCAL_SERIAL (CASSANDRA-6939)
- * Log a warning for large batches (CASSANDRA-6487)
- * Queries on compact tables can return more rows that requested (CASSANDRA-7052)
- * USING TIMESTAMP for batches does not work (CASSANDRA-7053)
- * Fix performance regression from CASSANDRA-5614 (CASSANDRA-6949)
- * Merge groupable mutations in TriggerExecutor#execute() (CASSANDRA-7047)
  * Fix CFMetaData#getColumnDefinitionFromColumnName() (CASSANDRA-7074)
- * Plug holes in resource release when wiring up StreamSession (CASSANDRA-7073)
- * Re-add parameter columns to tracing session (CASSANDRA-6942)
  * Fix writetime/ttl functions for static columns (CASSANDRA-7081)
  * Suggest CTRL-C or semicolon after three blank lines in cqlsh (CASSANDRA-7142)
  * Fix 2ndary index queries with DESC clustering order (CASSANDRA-6950)
@@ -221,7 +249,6 @@ Merged from 2.0:
  * Fix EstimatedHistogram races (CASSANDRA-6682)
  * Failure detector correctly converts initial value to nanos (CASSANDRA-6658)
  * Add nodetool taketoken to relocate vnodes (CASSANDRA-4445)
- * Fix upgradesstables NPE for non-CF-based indexes (CASSANDRA-6645)
  * Expose bulk loading progress over JMX (CASSANDRA-4757)
  * Correctly handle null with IF conditions and TTL (CASSANDRA-6623)
  * Account for range/row tombstones in tombstone drop
@@ -249,15 +276,6 @@ Merged from 2.0:
  * Fix CQLSStableWriter.addRow(Map<String, Object>) (CASSANDRA-6526)
  * Fix HSHA server introducing corrupt data (CASSANDRA-6285)
  * Fix CAS conditions for COMPACT STORAGE tables (CASSANDRA-6813)
- * Fix saving triggers to schema (CASSANDRA-6789)
- * Fix trigger mutations when base mutation list is immutable (CASSANDRA-6790)
- * Fix accounting in FileCacheService to allow re-using RAR (CASSANDRA-6838)
- * Fix static counter columns (CASSANDRA-6827)
- * Restore expiring->deleted (cell) compaction optimization (CASSANDRA-6844)
- * Fix CompactionManager.needsCleanup (CASSANDRA-6845)
- * Correctly compare BooleanType values other than 0 and 1 (CASSANDRA-6779)
- * Read message id as string from earlier versions (CASSANDRA-6840)
- * Properly use the Paxos consistency for (non-protocol) batch (CASSANDRA-6837)
  * Starting threads in OutboundTcpConnectionPool constructor causes race conditions (CASSANDRA-7177)
  * Allow overriding cassandra-rackdc.properties file (CASSANDRA-7072)
  * Set JMX RMI port to 7199 (CASSANDRA-7087)
@@ -283,7 +301,6 @@ Merged from 2.0:
  * Fix truncate to not abort due to unreachable fat clients (CASSANDRA-6864)
  * Fix schema concurrency exceptions (CASSANDRA-6841)
  * Fix leaking validator FH in StreamWriter (CASSANDRA-6832)
- * fix nodetool getsstables for blob PK (CASSANDRA-6803)
  * Fix saving triggers to schema (CASSANDRA-6789)
  * Fix trigger mutations when base mutation list is immutable (CASSANDRA-6790)
  * Fix accounting in FileCacheService to allow re-using RAR (CASSANDRA-6838)
@@ -507,12 +524,7 @@ Merged from 1.2:
    (CASSANDRA-5750)
  * Invalidate row cache when dropping CF (CASSANDRA-6351)
  * add non-jamm path for cached statements (CASSANDRA-6293)
- * (Hadoop) Require CFRR batchSize to be at least 2 (CASSANDRA-6114)
- * Fix altering column types (CASSANDRA-6185)
- * cqlsh: fix CREATE/ALTER WITH completion (CASSANDRA-6196)
  * add windows bat files for shell commands (CASSANDRA-6145)
- * Fix potential stack overflow during range tombstones insertion (CASSANDRA-6181)
- * (Hadoop) Make LOCAL_ONE the default consistency level (CASSANDRA-6214)
  * Require logging in for Thrift CQL2/3 statement preparation (CASSANDRA-6254)
  * restrict max_num_tokens to 1536 (CASSANDRA-6267)
  * Nodetool gets default JMX port from cassandra-env.sh (CASSANDRA-6273)
@@ -563,9 +575,6 @@ Merged from 1.2:
  * Reject bootstrapping if the node already exists in gossip (CASSANDRA-5571)
  * Fix NPE while loading paxos state (CASSANDRA-6211)
  * cqlsh: add SHOW SESSION <tracing-session> command (CASSANDRA-6228)
- * Reject bootstrapping if the node already exists in gossip (CASSANDRA-5571)
- * Fix NPE while loading paxos state (CASSANDRA-6211)
- * cqlsh: add SHOW SESSION <tracing-session> command (CASSANDRA-6228)
 Merged from 1.2:
  * (Hadoop) Require CFRR batchSize to be at least 2 (CASSANDRA-6114)
  * Add a warning for small LCS sstable size (CASSANDRA-6191)
@@ -578,7 +587,6 @@ Merged from 1.2:
  * Allow estimated memtable size to exceed slab allocator size (CASSANDRA-6078)
  * Start MeteredFlusher earlier to prevent OOM during CL replay (CASSANDRA-6087)
  * Avoid sending Truncate command to fat clients (CASSANDRA-6088)
- * Allow cache-keys-to-save to be set at runtime (CASSANDRA-5980)
  * Allow where clause conditions to be in parenthesis (CASSANDRA-6037)
  * Do not open non-ssl storage port if encryption option is all (CASSANDRA-3916)
  * Move batchlog replay to its own executor (CASSANDRA-6079)
@@ -601,8 +609,6 @@ Merged from 1.2:
  * Fix validation of empty column names for compact tables (CASSANDRA-6152)
  * Skip replaying mutations that pass CRC but fail to deserialize (CASSANDRA-6183)
  * Rework token replacement to use replace_address (CASSANDRA-5916)
- * Fix altering column types (CASSANDRA-6185)
- * cqlsh: fix CREATE/ALTER WITH completion (CASSANDRA-6196)
  * Fix altering column types (CASSANDRA-6185)
  * cqlsh: fix CREATE/ALTER WITH completion (CASSANDRA-6196)
  * add windows bat files for shell commands (CASSANDRA-6145)
@@ -651,7 +657,6 @@ Merged from 1.2:
  * Fix possible divide-by-zero in HHOM (CASSANDRA-5990)
  * Allow local batchlog writes for CL.ANY (CASSANDRA-5967)
  * Upgrade metrics-core to version 2.2.0 (CASSANDRA-5947)
- * Add snitch, schema version, cluster, partitioner to JMX (CASSANDRA-5881)
  * Fix CqlRecordWriter with composite keys (CASSANDRA-5949)
  * Add snitch, schema version, cluster, partitioner to JMX (CASSANDRA-5881)
  * Allow disabling SlabAllocator (CASSANDRA-5935)
@@ -769,13 +774,9 @@ Merged from 1.2:
  * Add timeout events to query traces (CASSANDRA-5520)
  * Fix serialization of the LEFT gossip value (CASSANDRA-5696)
  * Pig: support for cql3 tables (CASSANDRA-5234)
- * cqlsh: Don't show 'null' in place of empty values (CASSANDRA-5675)
- * Race condition in detecting version on a mixed 1.1/1.2 cluster
-   (CASSANDRA-5692)
  * Fix skipping range tombstones with reverse queries (CASSANDRA-5712)
  * Expire entries out of ThriftSessionManager (CASSANDRA-5719)
  * Don't keep ancestor information in memory (CASSANDRA-5342)
- * cqlsh: fix handling of semicolons inside BATCH queries (CASSANDRA-5697)
  * Expose native protocol server status in nodetool info (CASSANDRA-5735)
  * Fix pathetic performance of range tombstones (CASSANDRA-5677)
  * Fix querying with an empty (impossible) range (CASSANDRA-5573)
@@ -957,7 +958,6 @@ Merged from 1.1:
  * Add nodetool enablebackup/disablebackup (CASSANDRA-5556)
  * cqlsh: fix DESCRIBE after case insensitive USE (CASSANDRA-5567)
 Merged from 1.1
- * Remove buggy thrift max message length option (CASSANDRA-5529)
  * Add retry mechanism to OTC for non-droppable_verbs (CASSANDRA-5393)
  * Use allocator information to improve memtable memory usage estimate
    (CASSANDRA-5497)
@@ -1034,7 +1034,6 @@ Merged from 1.1:
  * Fix AssertionError during repair (CASSANDRA-5245)
  * Don't announce migrations to pre-1.2 nodes (CASSANDRA-5334)
 Merged from 1.1:
- * Fix trying to load deleted row into row cache on startup (CASSANDRA-4463)
  * Update offline scrub for 1.0 -> 1.1 directory structure (CASSANDRA-5195)
  * add tmp flag to Descriptor hashcode (CASSANDRA-4021)
  * fix logging of "Found table data in data directories" when only system tables
@@ -1133,9 +1132,7 @@ Merged from 1.1:
  * Detect (and warn) unintentional use of the cql2 thrift methods when cql3 was
    intended (CASSANDRA-5172)
  * cli: Quote ks and cf names in schema output when needed (CASSANDRA-5052)
- * Fix bad default for min/max timestamp in SSTableMetadata (CASSANDRA-5372)
  * Fix cf name extraction from manifest in Directories.migrateFile() (CASSANDRA-5242)
- * Support pluggable internode authentication (CASSANDRA-5401)
  * Replace mistaken usage of commons-logging with slf4j (CASSANDRA-5464)
  * Ensure Jackson dependency matches lib (CASSANDRA-5126)
  * Expose droppable tombstone ratio stats over JMX (CASSANDRA-5159)
@@ -1459,7 +1456,6 @@ Merged from 1.0:
  * (Hadoop) fix setting key length for old-style mapred api (CASSANDRA-4534)
  * (Hadoop) fix iterating through a resultset consisting entirely
    of tombstoned rows (CASSANDRA-4466)
- * Fix multiple values for CurrentLocal NodeID (CASSANDRA-4626)
 
 
 1.1.3
@@ -1488,8 +1484,6 @@ Merged from 1.0:
  * Ensure compacted files are never used, to avoid counter overcount (CASSANDRA-4436)
 Merged from 1.0:
  * Push the validation of secondary index values to the SecondaryIndexManager (CASSANDRA-4240)
- * (Hadoop) fix iterating through a resultset consisting entirely
-   of tombstoned rows (CASSANDRA-4466)
  * allow dropping columns shadowed by not-yet-expired supercolumn or row
    tombstones in PrecompactedRow (CASSANDRA-4396)
 

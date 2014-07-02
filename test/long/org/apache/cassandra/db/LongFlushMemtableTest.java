@@ -24,22 +24,36 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class LongFlushMemtableTest extends SchemaLoader
+public class LongFlushMemtableTest
 {
+    public static final String KEYSPACE1 = "LongFlushMemtableTest";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.loadSchema();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1));
+    }
+
     @Test
     public void testFlushMemtables() throws IOException, ConfigurationException
     {
-        Keyspace keyspace = Keyspace.open("Keyspace1");
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
         for (int i = 0; i < 100; i++)
         {
             CFMetaData metadata = CFMetaData.denseCFMetaData(keyspace.getName(), "_CF" + i, UTF8Type.instance);
@@ -50,8 +64,8 @@ public class LongFlushMemtableTest extends SchemaLoader
         {
             for (int i = 0; i < 100; i++)
             {
-                Mutation rm = new Mutation("Keyspace1", ByteBufferUtil.bytes("key" + j));
-                ColumnFamily cf = ArrayBackedSortedColumns.factory.create("Keyspace1", "_CF" + i);
+                Mutation rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("key" + j));
+                ColumnFamily cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, "_CF" + i);
                 // don't cheat by allocating this outside of the loop; that defeats the purpose of deliberately using lots of memory
                 ByteBuffer value = ByteBuffer.allocate(100000);
                 cf.addColumn(new BufferCell(Util.cellname("c"), value));

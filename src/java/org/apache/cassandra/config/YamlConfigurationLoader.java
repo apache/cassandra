@@ -33,7 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.FBUtilities;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.YAMLException;
@@ -46,7 +45,6 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     private static final Logger logger = LoggerFactory.getLogger(YamlConfigurationLoader.class);
 
     private final static String DEFAULT_CONFIGURATION = "cassandra.yaml";
-    private static final String FILE_PREFIX = "file:///";
 
     /**
      * Inspect the classpath to find storage configuration file
@@ -55,15 +53,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     {
         String configUrl = System.getProperty("cassandra.config");
         if (configUrl == null)
-        {
             configUrl = DEFAULT_CONFIGURATION;
-        }
-        else if (!FBUtilities.isUnix() && !configUrl.startsWith(FILE_PREFIX))
-        {
-            String format = "Non-unix environment detected, %s prefix not supplied at the beginning of file path but is required. Changing path to %s";
-            configUrl = FILE_PREFIX + configUrl;
-            logger.warn(String.format(format, FILE_PREFIX, configUrl));
-        }
 
         URL url;
         try

@@ -28,25 +28,33 @@ import java.util.List;
 import junit.framework.Assert;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.thrift.TException;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class MultiSliceTest extends SchemaLoader
+public class MultiSliceTest
 {
     private static CassandraServer server;
-    
+    public static final String KEYSPACE1 = "MultiSliceTest";
+    public static final String CF_STANDARD = "Standard1";
+
     @BeforeClass
-    public static void setup() throws IOException, TException 
+    public static void defineSchema() throws ConfigurationException, IOException, TException
     {
-        Schema.instance.clear(); // Schema are now written on disk and will be reloaded
+        SchemaLoader.prepareServer();
         new EmbeddedCassandraService().start();
-        ThriftSessionManager.instance.setCurrentSocket(new InetSocketAddress(9160));        
+        ThriftSessionManager.instance.setCurrentSocket(new InetSocketAddress(9160));
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD));
         server = new CassandraServer();
-        server.set_keyspace("Keyspace1");
+        server.set_keyspace(KEYSPACE1);
     }
 
     private static MultiSliceRequest makeMultiSliceRequest(ByteBuffer key)

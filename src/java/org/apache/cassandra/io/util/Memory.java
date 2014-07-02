@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import sun.misc.Unsafe;
 import sun.nio.ch.DirectBuffer;
@@ -272,7 +273,7 @@ public class Memory
         long end = memoryOffset + count;
         checkPosition(end - 1);
 
-        unsafe.copyMemory(null, peer + memoryOffset, buffer, BYTE_ARRAY_BASE_OFFSET + bufferOffset, count);
+        FastByteOperations.UnsafeOperations.copy(null, peer + memoryOffset, buffer, bufferOffset, count);
     }
 
     private void checkPosition(long offset)

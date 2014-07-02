@@ -31,8 +31,8 @@ public class AntiEntropyServiceStandardTest extends AntiEntropyServiceTestAbstra
 {
     public void init()
     {
-        keyspaceName = "Keyspace5";
-        cfname    = "Standard1";
+        keyspaceName = AntiEntropyServiceStandardTest.KEYSPACE5;
+        cfname    = AntiEntropyServiceStandardTest.CF_STANDRAD1;
     }
 
     public List<IMutation> getWriteData()

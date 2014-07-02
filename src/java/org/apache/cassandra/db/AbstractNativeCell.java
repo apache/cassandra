@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.security.MessageDigest;
 
+import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -30,6 +31,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.*;
 
@@ -286,13 +288,24 @@ public abstract class AbstractNativeCell extends AbstractCell implements CellNam
 
     public ByteBuffer get(int i)
     {
+        return get(i, null);
+    }
+
+    @Inline
+    private ByteBuffer get(int i, AbstractAllocator copy)
+    {
         // remember to take dense/sparse into account, and only return EOC when not dense
         int size = size();
         assert i >= 0 && i < size();
         int cellNamesOffset = nameDeltaOffset(size);
         int startDelta = i == 0 ? 0 : getShort(nameDeltaOffset(i));
         int endDelta = i < size - 1 ? getShort(nameDeltaOffset(i + 1)) : valueStartOffset() - cellNamesOffset;
-        return getByteBuffer(cellNamesOffset + startDelta, endDelta - startDelta).order(ByteOrder.BIG_ENDIAN);
+        int length = endDelta - startDelta;
+        if (copy == null)
+            return getByteBuffer(cellNamesOffset + startDelta, length).order(ByteOrder.BIG_ENDIAN);
+        ByteBuffer result = copy.allocate(length);
+        FastByteOperations.UnsafeOperations.copy(null, peer + cellNamesOffset + startDelta, result, 0, length);
+        return result;
     }
 
     private static final ThreadLocal<byte[]> BUFFER = new ThreadLocal<byte[]>()
@@ -496,12 +509,12 @@ public abstract class AbstractNativeCell extends AbstractCell implements CellNam
         switch (nametype())
         {
             case SIMPLE_DENSE:
-                return CellNames.simpleDense(allocator.clone(get(0)));
+                return CellNames.simpleDense(get(0, allocator));
 
             case COMPOUND_DENSE:
                 r = new ByteBuffer[size()];
                 for (int i = 0; i < r.length; i++)
-                    r[i] = allocator.clone(get(i));
+                    r[i] = get(i, allocator);
                 return CellNames.compositeDense(r);
 
             case COMPOUND_SPARSE_STATIC:
@@ -509,7 +522,7 @@ public abstract class AbstractNativeCell extends AbstractCell implements CellNam
                 int clusteringSize = clusteringSize();
                 r = clusteringSize == 0 ? EMPTY : new ByteBuffer[clusteringSize()];
                 for (int i = 0; i < clusteringSize; i++)
-                    r[i] = allocator.clone(get(i));
+                    r[i] = get(i, allocator);
 
                 ByteBuffer nameBuffer = get(r.length);
                 ColumnIdentifier name;
@@ -644,5 +657,39 @@ public abstract class AbstractNativeCell extends AbstractCell implements CellNam
     {
         checkPosition(offset, length);
         return MemoryUtil.getByteBuffer(peer + offset, length);
+    }
+
+    // requires isByteOrderComparable to be true. Compares the name components only; ; may need to compare EOC etc still
+    public final int compareTo(final Composite that)
+    {
+        int size = size();
+        int size2 = that.size();
+        int minSize = Math.min(size, size2);
+        int startDelta = 0;
+        int cellNamesOffset = nameDeltaOffset(size);
+        for (int i = 0 ; i < minSize ; i++)
+        {
+            int endDelta = i < size - 1 ? getShort(nameDeltaOffset(i + 1)) : valueStartOffset() - cellNamesOffset;
+            long offset = peer + cellNamesOffset + startDelta;
+            int length = endDelta - startDelta;
+            int cmp = FastByteOperations.UnsafeOperations.compareTo(null, offset, length, that.get(i));
+            if (cmp != 0)
+                return cmp;
+            startDelta = endDelta;
+        }
+
+        EOC eoc = that.eoc();
+        if (size == size2)
+            return this.eoc().compareTo(eoc);
+
+        return size < size2 ? this.eoc().prefixComparisonResult : -eoc.prefixComparisonResult;
+    }
+
+    public final int compareToSimple(final Composite that)
+    {
+        assert size() == 1 && that.size() == 1;
+        int length = valueStartOffset() - nameDeltaOffset(1);
+        long offset = peer + nameDeltaOffset(1);
+        return FastByteOperations.UnsafeOperations.compareTo(null, offset, length, that.get(0));
     }
 }

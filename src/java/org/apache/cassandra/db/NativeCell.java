@@ -75,7 +75,7 @@ public class NativeCell extends AbstractNativeCell
     }
 
     @Override
-    public long excessHeapSizeExcludingData()
+    public long unsharedHeapSizeExcludingData()
     {
         return SIZE;
     }

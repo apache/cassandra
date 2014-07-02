@@ -26,25 +26,37 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.service.PendingRangeCalculatorService;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageServiceAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.*;
 
-public class SimpleStrategyTest extends SchemaLoader
+public class SimpleStrategyTest
 {
+    public static final String KEYSPACE1 = "SimpleStrategyTest";
+
+    @BeforeClass
+    public static void defineSchema() throws Exception
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1));
+    }
+
     @Test
     public void tryValidKeyspace()
     {
-        assert Keyspace.open("Keyspace1").getReplicationStrategy() != null;
+        assert Keyspace.open(KEYSPACE1).getReplicationStrategy() != null;
     }
 
     @Test

@@ -23,30 +23,51 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 
 import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.cache.RowCacheKey;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.junit.Assert.assertEquals;
 
-public class RowCacheTest extends SchemaLoader
+public class RowCacheTest
 {
-    private String KEYSPACE = "RowCacheSpace";
-    private String COLUMN_FAMILY = "CachedCF";
+    private static final String KEYSPACE_CACHED = "RowCacheTest";
+    private static final String CF_CACHED = "CachedCF";
+    private static final String CF_CACHEDINT = "CachedIntCF";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE_CACHED,
+                SimpleStrategy.class,
+                KSMetaData.optsWithRF(1),
+                SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHED).caching(CachingOptions.ALL),
+                SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHEDINT)
+                            .defaultValidator(IntegerType.instance)
+                            .caching(new CachingOptions(new CachingOptions.KeyCache(CachingOptions.KeyCache.Type.ALL),
+                                     new CachingOptions.RowCache(CachingOptions.RowCache.Type.HEAD, 100))));
+    }
 
     @AfterClass
     public static void cleanup()
     {
-        cleanupSavedCaches();
+        SchemaLoader.cleanupSavedCaches();
     }
 
     @Test
@@ -54,8 +75,8 @@ public class RowCacheTest extends SchemaLoader
     {
         CompactionManager.instance.disableAutoCompaction();
 
-        Keyspace keyspace = Keyspace.open(KEYSPACE);
-        ColumnFamilyStore cachedStore  = keyspace.getColumnFamilyStore(COLUMN_FAMILY);
+        Keyspace keyspace = Keyspace.open(KEYSPACE_CACHED);
+        ColumnFamilyStore cachedStore  = keyspace.getColumnFamilyStore(CF_CACHED);
 
         // empty the row cache
         CacheService.instance.invalidateRowCache();
@@ -64,7 +85,7 @@ public class RowCacheTest extends SchemaLoader
         CacheService.instance.setRowCacheCapacityInMB(1);
 
         // inserting 100 rows into both column families
-        insertData(KEYSPACE, COLUMN_FAMILY, 0, 100);
+        SchemaLoader.insertData(KEYSPACE_CACHED, CF_CACHED, 0, 100);
 
         // now reading rows one by one and checking if row change grows
         for (int i = 0; i < 100; i++)
@@ -87,7 +108,7 @@ public class RowCacheTest extends SchemaLoader
         }
 
         // insert 10 more keys
-        insertData(KEYSPACE, COLUMN_FAMILY, 100, 10);
+        SchemaLoader.insertData(KEYSPACE_CACHED, CF_CACHED, 100, 10);
 
         for (int i = 100; i < 110; i++)
         {
@@ -134,7 +155,7 @@ public class RowCacheTest extends SchemaLoader
         CacheService.instance.setRowCacheCapacityInMB(1);
         rowCacheLoad(100, Integer.MAX_VALUE, 1000);
 
-        ColumnFamilyStore store = Keyspace.open(KEYSPACE).getColumnFamilyStore(COLUMN_FAMILY);
+        ColumnFamilyStore store = Keyspace.open(KEYSPACE_CACHED).getColumnFamilyStore(CF_CACHED);
         assertEquals(CacheService.instance.rowCache.getKeySet().size(), 100);
         store.cleanupCache();
         assertEquals(CacheService.instance.rowCache.getKeySet().size(), 100);
@@ -161,7 +182,7 @@ public class RowCacheTest extends SchemaLoader
     {
         CompactionManager.instance.disableAutoCompaction();
 
-        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        Keyspace keyspace = Keyspace.open(KEYSPACE_CACHED);
         String cf = "CachedIntCF";
         ColumnFamilyStore cachedStore  = keyspace.getColumnFamilyStore(cf);
         long startRowCacheHits = cachedStore.metric.rowCacheHit.count();
@@ -175,7 +196,7 @@ public class RowCacheTest extends SchemaLoader
         ByteBuffer key = ByteBufferUtil.bytes("rowcachekey");
         DecoratedKey dk = cachedStore.partitioner.decorateKey(key);
         RowCacheKey rck = new RowCacheKey(cachedStore.metadata.cfId, dk);
-        Mutation mutation = new Mutation(KEYSPACE, key);
+        Mutation mutation = new Mutation(KEYSPACE_CACHED, key);
         for (int i = 0; i < 200; i++)
             mutation.add(cf, Util.cellname(i), ByteBufferUtil.bytes("val" + i), System.currentTimeMillis());
         mutation.applyUnsafe();
@@ -234,15 +255,15 @@ public class RowCacheTest extends SchemaLoader
     {
         CompactionManager.instance.disableAutoCompaction();
 
-        ColumnFamilyStore store = Keyspace.open(KEYSPACE).getColumnFamilyStore(COLUMN_FAMILY);
+        ColumnFamilyStore store = Keyspace.open(KEYSPACE_CACHED).getColumnFamilyStore(CF_CACHED);
 
         // empty the cache
         CacheService.instance.invalidateRowCache();
         assert CacheService.instance.rowCache.size() == 0;
 
         // insert data and fill the cache
-        insertData(KEYSPACE, COLUMN_FAMILY, offset, totalKeys);
-        readData(KEYSPACE, COLUMN_FAMILY, offset, totalKeys);
+        SchemaLoader.insertData(KEYSPACE_CACHED, CF_CACHED, offset, totalKeys);
+        SchemaLoader.readData(KEYSPACE_CACHED, CF_CACHED, offset, totalKeys);
         assert CacheService.instance.rowCache.size() == totalKeys;
 
         // force the cache to disk

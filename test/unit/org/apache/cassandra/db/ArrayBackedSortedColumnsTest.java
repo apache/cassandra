@@ -21,21 +21,39 @@
 package org.apache.cassandra.db;
 
 import java.util.*;
+
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.utils.SearchIterator;
 
-public class ArrayBackedSortedColumnsTest extends SchemaLoader
+public class ArrayBackedSortedColumnsTest
 {
+    private static final String KEYSPACE1 = "ArrayBackedSortedColumnsTest";
+    private static final String CF_STANDARD1 = "Standard1";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
+    }
+
     @Test
     public void testAdd()
     {
@@ -45,7 +63,7 @@ public class ArrayBackedSortedColumnsTest extends SchemaLoader
 
     private CFMetaData metadata()
     {
-        return Schema.instance.getCFMetaData("Keyspace1", "Standard1");
+        return Schema.instance.getCFMetaData(KEYSPACE1, CF_STANDARD1);
     }
 
     private void testAddInternal(boolean reversed)

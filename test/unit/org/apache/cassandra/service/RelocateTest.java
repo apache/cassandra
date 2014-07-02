@@ -82,7 +82,6 @@ public class RelocateTest
     public static void tearDown() throws Exception
     {
         StorageService.instance.setPartitionerUnsafe(oldPartitioner);
-        SchemaLoader.stopGossiper();
     }
 
     /** Setup a virtual node ring */

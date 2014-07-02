@@ -345,7 +345,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             // We should not share the slice filter amongst the commands (hence the cloneShallow), due to
             // SliceQueryFilter not being immutable due to its columnCounter used by the lastCounted() method
             // (this is fairly ugly and we should change that but that's probably not a tiny refactor to do that cleanly)
-            commands.add(ReadCommand.create(keyspace(), key, columnFamily(), now, filter.cloneShallow()));
+            commands.add(ReadCommand.create(keyspace(), ByteBufferUtil.clone(key), columnFamily(), now, filter.cloneShallow()));
         }
 
         return commands;
@@ -423,16 +423,28 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         }
     }
 
+    private ColumnSlice makeStaticSlice()
+    {
+        // Note: we could use staticPrefix.start() for the start bound, but EMPTY gives us the
+        // same effect while saving a few CPU cycles.
+        return isReversed
+             ? new ColumnSlice(cfm.comparator.staticPrefix().end(), Composites.EMPTY)
+             : new ColumnSlice(Composites.EMPTY, cfm.comparator.staticPrefix().end());
+    }
+
     private IDiskAtomFilter makeFilter(QueryOptions options, int limit)
     throws InvalidRequestException
     {
+        int toGroup = cfm.comparator.isDense() ? -1 : cfm.clusteringColumns().size();
         if (parameters.isDistinct)
         {
-            return new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, false, 1, -1);
+            // For distinct, we only care about fetching the beginning of each partition. If we don't have
+            // static columns, we in fact only care about the first cell, so we query only that (we don't "group").
+            // If we do have static columns, we do need to fetch the first full group (to have the static columns values).
+            return new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, false, 1, selectsStaticColumns ? toGroup : -1);
         }
         else if (isColumnRange())
         {
-            int toGroup = cfm.comparator.isDense() ? -1 : cfm.clusteringColumns().size();
             List<Composite> startBounds = getRequestedBound(Bound.START, options);
             List<Composite> endBounds = getRequestedBound(Bound.END, options);
             assert startBounds.size() == endBounds.size();
@@ -440,20 +452,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             // Handles fetching static columns. Note that for 2i, the filter is just used to restrict
             // the part of the index to query so adding the static slice would be useless and confusing.
             // For 2i, static columns are retrieve in CompositesSearcher with each index hit.
-            ColumnSlice staticSlice = null;
-            if (selectsStaticColumns && !usesSecondaryIndexing)
-            {
-                // Note: we could use staticPrefix.start() for the start bound, but EMPTY gives us the
-                // same effect while saving a few CPU cycles.
-                staticSlice = isReversed
-                            ? new ColumnSlice(cfm.comparator.staticPrefix().end(), Composites.EMPTY)
-                            : new ColumnSlice(Composites.EMPTY, cfm.comparator.staticPrefix().end());
-
-                // In the case where we only select static columns, we want to really only check the static columns.
-                // So we return early as the rest of that method would actually make us query everything
-                if (selectsOnlyStaticColumns)
-                    return sliceFilter(staticSlice, limit, toGroup);
-            }
+            ColumnSlice staticSlice = selectsStaticColumns && !usesSecondaryIndexing
+                                    ? makeStaticSlice()
+                                    : null;
 
             // The case where startBounds == 1 is common enough that it's worth optimizing
             if (startBounds.size() == 1)
@@ -1311,6 +1312,23 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return false;
     }
 
+    private void validateDistinctSelection()
+    throws InvalidRequestException
+    {
+        Collection<ColumnDefinition> requestedColumns = selection.getColumns();
+        for (ColumnDefinition def : requestedColumns)
+            if (def.kind != ColumnDefinition.Kind.PARTITION_KEY && def.kind != ColumnDefinition.Kind.STATIC)
+                throw new InvalidRequestException(String.format("SELECT DISTINCT queries must only request partition key columns and/or static columns (not %s)", def.name));
+
+        // If it's a key range, we require that all partition key columns are selected so we don't have to bother with post-query grouping.
+        if (!isKeyRange)
+            return;
+
+        for (ColumnDefinition def : cfm.partitionKeyColumns())
+            if (!requestedColumns.contains(def))
+                throw new InvalidRequestException(String.format("SELECT DISTINCT queries must request all the partition key columns (missing %s)", def.name));
+    }
+
     public static class RawStatement extends CFStatement
     {
         private final Parameters parameters;
@@ -1339,9 +1357,6 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             Selection selection = selectClause.isEmpty()
                                 ? Selection.wildcard(cfm)
                                 : Selection.fromSelectors(cfm, selectClause);
-
-            if (parameters.isDistinct)
-                validateDistinctSelection(selection.getColumns(), cfm.partitionKeyColumns());
 
             SelectStatement stmt = new SelectStatement(cfm, boundNames.size(), parameters, selection, prepareLimit(boundNames));
 
@@ -1419,6 +1434,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 processOrderingClause(stmt, cfm);
 
             checkNeedsFiltering(stmt);
+
+            if (parameters.isDistinct)
+                stmt.validateDistinctSelection();
 
             return new ParsedStatement.Prepared(stmt, boundNames);
         }
@@ -1932,6 +1950,24 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                                                       "thus may have unpredictable performance. If you want to execute " +
                                                       "this query despite the performance unpredictability, use ALLOW FILTERING");
             }
+
+            // We don't internally support exclusive slice bounds on non-composite tables. To deal with it we do an
+            // inclusive slice and remove post-query the value that shouldn't be returned. One problem however is that
+            // if there is a user limit, that limit may make the query return before the end of the slice is reached,
+            // in which case, once we'll have removed bound post-query, we might end up with less results than
+            // requested which would be incorrect. For single-partition query, this is not a problem, we just ask for
+            // one more result (see updateLimitForQuery()) since that's enough to compensate for that problem. For key
+            // range however, each returned row may include one result that will have to be trimmed, so we would have
+            // to bump the query limit by N where N is the number of rows we will return, but we don't know that in
+            // advance. So, since we currently don't have a good way to handle such query, we refuse it (#7059) rather
+            // than answering with something that is wrong.
+            if (stmt.sliceRestriction != null && stmt.isKeyRange && limit != null)
+            {
+                SingleColumnRelation rel = findInclusiveClusteringRelationForCompact(stmt.cfm);
+                throw new InvalidRequestException(String.format("The query requests a restriction of rows with a strict bound (%s) over a range of partitions. "
+                                                              + "This is not supported by the underlying storage engine for COMPACT tables if a LIMIT is provided. "
+                                                              + "Please either make the condition non strict (%s) or remove the user LIMIT", rel, rel.withNonStrictOperator()));
+            }
         }
 
         private int indexOf(ColumnDefinition def, Selection selection)
@@ -1950,16 +1986,20 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                                            });
         }
 
-        private void validateDistinctSelection(Collection<ColumnDefinition> requestedColumns, Collection<ColumnDefinition> partitionKey)
-        throws InvalidRequestException
+        private SingleColumnRelation findInclusiveClusteringRelationForCompact(CFMetaData cfm)
         {
-            for (ColumnDefinition def : requestedColumns)
-                if (!partitionKey.contains(def))
-                    throw new InvalidRequestException(String.format("SELECT DISTINCT queries must only request partition key columns (not %s)", def.name));
+            for (Relation r : whereClause)
+            {
+                // We only call this when sliceRestriction != null, i.e. for compact table with non composite comparator,
+                // so it can't be a MultiColumnRelation.
+                SingleColumnRelation rel = (SingleColumnRelation)r;
+                if (cfm.getColumnDefinition(rel.getEntity()).kind == ColumnDefinition.Kind.CLUSTERING_COLUMN
+                    && (rel.operator() == Relation.Type.GT || rel.operator() == Relation.Type.LT))
+                    return rel;
+            }
 
-            for (ColumnDefinition def : partitionKey)
-                if (!requestedColumns.contains(def))
-                    throw new InvalidRequestException(String.format("SELECT DISTINCT queries must request all the partition key columns (missing %s)", def.name));
+            // We're not supposed to call this method unless we know this can't happen
+            throw new AssertionError();
         }
 
         private boolean containsAlias(final ColumnIdentifier name)

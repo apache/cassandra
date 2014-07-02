@@ -41,6 +41,8 @@ public class CqlInserter extends CqlOperation<Integer>
     protected String buildQuery()
     {
         StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotes(state.type.table));
+        if (state.settings.columns.timestamp != null)
+            query.append(" USING TIMESTAMP ").append(state.settings.columns.timestamp);
 
         query.append(" SET ");
 

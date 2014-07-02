@@ -23,9 +23,11 @@ import java.security.MessageDigest;
 import java.util.UUID;
 
 import org.junit.After;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -37,6 +39,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -46,15 +49,26 @@ import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.ValidationComplete;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static org.junit.Assert.*;
 
-public class ValidatorTest extends SchemaLoader
+public class ValidatorTest
 {
-    private final String keyspace = "Keyspace1";
-    private final String columnFamily = "Standard1";
+    private static final String keyspace = "ValidatorTest";
+    private static final String columnFamily = "Standard1";
     private final IPartitioner partitioner = StorageService.getPartitioner();
+
+    @BeforeClass
+    public static void defineSchema() throws Exception
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(keyspace,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(keyspace, columnFamily));
+    }
 
     @After
     public void tearDown()
@@ -103,10 +117,11 @@ public class ValidatorTest extends SchemaLoader
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
 
         Validator validator = new Validator(desc, remote, 0);
-        validator.prepare(cfs);
+        MerkleTree tree = new MerkleTree(cfs.partitioner, validator.desc.range, MerkleTree.RECOMMENDED_DEPTH, (int) Math.pow(2, 15));
+        validator.prepare(cfs, tree);
 
         // and confirm that the tree was split
-        assertTrue(validator.tree.size() > 1);
+        assertTrue(tree.size() > 1);
 
         // add a row
         Token mid = partitioner.midpoint(range.left, range.right);
@@ -114,8 +129,8 @@ public class ValidatorTest extends SchemaLoader
         validator.complete();
 
         // confirm that the tree was validated
-        Token min = validator.tree.partitioner().getMinimumToken();
-        assertNotNull(validator.tree.hash(new Range<>(min, min)));
+        Token min = tree.partitioner().getMinimumToken();
+        assertNotNull(tree.hash(new Range<>(min, min)));
 
         if (!lock.isSignaled())
             lock.await();

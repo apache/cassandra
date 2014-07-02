@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
  */
 
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.slf4j.Logger;
@@ -28,14 +29,32 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.Util.column;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class RecoveryManager2Test extends SchemaLoader
+public class RecoveryManager2Test
 {
     private static Logger logger = LoggerFactory.getLogger(RecoveryManager2Test.class);
+
+    private static final String KEYSPACE1 = "RecoveryManager2Test";
+    private static final String CF_STANDARD1 = "Standard1";
+    private static final String CF_STANDARD2 = "Standard2";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2));
+    }
 
     @Test
     /* test that commit logs do not replay flushed data */
@@ -55,7 +74,7 @@ public class RecoveryManager2Test extends SchemaLoader
             insertRow("Standard1", key);
         }
 
-        Keyspace keyspace1 = Keyspace.open("Keyspace1");
+        Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace1.getColumnFamilyStore("Standard1");
         logger.debug("forcing flush");
         cfs.forceBlockingFlush();
@@ -70,9 +89,9 @@ public class RecoveryManager2Test extends SchemaLoader
 
     private void insertRow(String cfname, String key) 
     {
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create("Keyspace1", cfname);
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, cfname);
         cf.addColumn(column("col1", "val1", 1L));
-        Mutation rm = new Mutation("Keyspace1", ByteBufferUtil.bytes(key), cf);
+        Mutation rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes(key), cf);
         rm.apply();
     }
 }

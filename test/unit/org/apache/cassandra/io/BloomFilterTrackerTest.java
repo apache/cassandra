@@ -23,12 +23,11 @@ package org.apache.cassandra.io;
 
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.io.sstable.BloomFilterTracker;
 
 import static org.junit.Assert.assertEquals;
 
-public class BloomFilterTrackerTest extends SchemaLoader
+public class BloomFilterTrackerTest
 {
     @Test
     public void testAddingFalsePositives()

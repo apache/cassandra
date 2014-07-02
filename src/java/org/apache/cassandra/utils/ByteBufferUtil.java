@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.UUID;
 
+import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
@@ -78,16 +79,19 @@ public class ByteBufferUtil
 {
     public static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(new byte[0]);
 
+    @Inline
     public static int compareUnsigned(ByteBuffer o1, ByteBuffer o2)
     {
         return FastByteOperations.compareUnsigned(o1, o2);
     }
 
+    @Inline
     public static int compare(byte[] o1, ByteBuffer o2)
     {
         return FastByteOperations.compareUnsigned(o1, 0, o1.length, o2);
     }
 
+    @Inline
     public static int compare(ByteBuffer o1, byte[] o2)
     {
         return FastByteOperations.compareUnsigned(o1, o2, 0, o2.length);
@@ -158,10 +162,7 @@ public class ByteBufferUtil
         if (buffer.hasArray())
         {
             int boff = buffer.arrayOffset() + buffer.position();
-            if (boff == 0 && length == buffer.array().length)
-                return buffer.array();
-            else
-                return Arrays.copyOfRange(buffer.array(), boff, boff + length);
+            return Arrays.copyOfRange(buffer.array(), boff, boff + length);
         }
         // else, DirectByteBuffer.get() is the fastest route
         byte[] bytes = new byte[length];

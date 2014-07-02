@@ -123,7 +123,7 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
 
     public void addCounter(CellName name, long value)
     {
-        addColumn(new BufferCounterUpdateCell(name, value, System.currentTimeMillis()));
+        addColumn(new BufferCounterUpdateCell(name, value, FBUtilities.timestampMicros()));
     }
 
     public void addTombstone(CellName name, ByteBuffer localDeletionTime, long timestamp)

@@ -41,7 +41,6 @@ public class CompoundSparseCellNameType extends AbstractCompoundCellNameType
     protected final Map<ByteBuffer, ColumnIdentifier> internedIds;
 
     private final Composite staticPrefix;
-    private final boolean isByteOrderComparable;
 
     public CompoundSparseCellNameType(List<AbstractType<?>> types)
     {
@@ -64,7 +63,6 @@ public class CompoundSparseCellNameType extends AbstractCompoundCellNameType
         this.columnNameType = columnNameType;
         this.internedIds = internedIds;
         this.staticPrefix = makeStaticPrefix(clusteringType.size());
-        this.isByteOrderComparable = isByteOrderComparable(fullType.types);
     }
 
     private static Composite makeStaticPrefix(int size)

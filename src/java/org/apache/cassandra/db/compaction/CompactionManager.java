@@ -86,6 +86,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
@@ -891,13 +892,26 @@ public class CompactionManager implements CompactionManagerMBean
                 gcBefore = getDefaultGcBefore(cfs);
         }
 
+        // Create Merkle tree suitable to hold estimated partitions for given range.
+        // We blindly assume that partition is evenly distributed on all sstables for now.
+        long numPartitions = 0;
+        for (SSTableReader sstable : sstables)
+        {
+            numPartitions += sstable.estimatedKeysForRanges(Collections.singleton(validator.desc.range));
+        }
+        // determine tree depth from number of partitions, but cap at 20 to prevent large tree.
+        int depth = numPartitions > 0 ? (int) Math.min(Math.floor(Math.log(numPartitions)), 20) : 0;
+        MerkleTree tree = new MerkleTree(cfs.partitioner, validator.desc.range, MerkleTree.RECOMMENDED_DEPTH, (int) Math.pow(2, depth));
+
         CompactionIterable ci = new ValidationCompactionIterable(cfs, sstables, validator.desc.range, gcBefore);
         CloseableIterator<AbstractCompactedRow> iter = ci.iterator();
+
+        long start = System.nanoTime();
         metrics.beginCompaction(ci);
         try
         {
             // validate the CF as we iterate over it
-            validator.prepare(cfs);
+            validator.prepare(cfs, tree);
             while (iter.hasNext())
             {
                 if (ci.isStopRequested())
@@ -917,6 +931,18 @@ public class CompactionManager implements CompactionManagerMBean
             }
 
             metrics.finishCompaction(ci);
+        }
+
+        if (logger.isDebugEnabled())
+        {
+            // MT serialize may take time
+            long duration = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            logger.debug("Validation finished in {} msec, depth {} for {} keys, serialized size {} bytes for {}",
+                         duration,
+                         depth,
+                         numPartitions,
+                         MerkleTree.serializer.serializedSize(tree, 0),
+                         validator.desc);
         }
     }
 

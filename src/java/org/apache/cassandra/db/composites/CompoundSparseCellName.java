@@ -50,6 +50,18 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         this.columnName = columnName;
     }
 
+    @Override
+    public long unsharedHeapSize()
+    {
+        return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(elements);
+    }
+
+    @Override
+    public long unsharedHeapSizeExcludingData()
+    {
+        return HEAP_SIZE + ObjectSizes.sizeOnHeapExcludingData(elements);
+    }
+
     public int size()
     {
         return size + 1;
@@ -156,13 +168,15 @@ public class CompoundSparseCellName extends CompoundComposite implements CellNam
         @Override
         public long unsharedHeapSize()
         {
-            return super.unsharedHeapSize() + ObjectSizes.sizeOnHeapOf(collectionElement);
+            return HEAP_SIZE + ObjectSizes.sizeOnHeapOf(elements)
+                   + ObjectSizes.sizeOnHeapExcludingData(collectionElement);
         }
 
         @Override
-        public long excessHeapSizeExcludingData()
+        public long unsharedHeapSizeExcludingData()
         {
-            return super.excessHeapSizeExcludingData() + ObjectSizes.sizeOnHeapExcludingData(collectionElement);
+            return HEAP_SIZE + ObjectSizes.sizeOnHeapExcludingData(elements)
+                   + ObjectSizes.sizeOnHeapExcludingData(collectionElement);
         }
     }
 }

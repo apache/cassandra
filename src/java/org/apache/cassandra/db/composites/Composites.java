@@ -57,7 +57,10 @@ public abstract class Composites
 
         public ByteBuffer get(int i)
         {
-            throw new IndexOutOfBoundsException();
+            if (i > 0)
+                throw new IndexOutOfBoundsException();
+
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
         }
 
         public EOC eoc()

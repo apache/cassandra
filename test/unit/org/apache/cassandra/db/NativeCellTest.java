@@ -133,6 +133,86 @@ public class NativeCellTest
         }
     }
 
+
+    @Test
+    public void testComparator()
+    {
+
+        Random rand = ThreadLocalRandom.current();
+        for (Name test : TESTS)
+        {
+            byte[] bytes = new byte[7];
+            byte[] bytes2 = new byte[7];
+            rand.nextBytes(bytes);
+            rand.nextBytes(bytes2);
+
+            // test regular Cell
+            Cell buf, nat, buf2, nat2;
+            buf = new BufferCell(test.name, ByteBuffer.wrap(bytes), rand.nextLong());
+            nat = buf.localCopy(metadata, nativeAllocator, group);
+
+            buf2 = new BufferCell(test.name, ByteBuffer.wrap(bytes2), rand.nextLong());
+            nat2 = buf2.localCopy(metadata, nativeAllocator, group);
+
+            assert test.type.compare(buf.name(), nat.name()) == 0;
+            assert test.type.compare(buf2.name(), nat2.name()) == 0;
+
+            int val = test.type.compare(buf.name(), buf2.name());
+            assert test.type.compare(nat.name(), nat2.name()) == val;
+            assert test.type.compare(nat.name(), buf2.name()) == val;
+            assert test.type.compare(buf.name(), nat2.name()) == val;
+
+
+            // test DeletedCell
+            buf = new BufferDeletedCell(test.name, rand.nextInt(100000), rand.nextLong());
+            nat = buf.localCopy(metadata, nativeAllocator, group);
+            buf2 = new BufferDeletedCell(test.name, rand.nextInt(100000), rand.nextLong());
+            nat2 = buf2.localCopy(metadata, nativeAllocator, group);
+
+            assert test.type.compare(buf.name(), nat.name()) == 0;
+            assert test.type.compare(buf2.name(), nat2.name()) == 0;
+
+            val = test.type.compare(buf.name(), buf2.name());
+            assert test.type.compare(nat.name(), nat2.name()) == val;
+            assert test.type.compare(nat.name(), buf2.name()) == val;
+            assert test.type.compare(buf.name(), nat2.name()) == val;
+
+
+
+            // test ExpiringCell
+            buf = new BufferExpiringCell(test.name, ByteBuffer.wrap(bytes), rand.nextLong(),  rand.nextInt(100000));
+            nat = buf.localCopy(metadata, nativeAllocator, group);
+
+            buf2 = new BufferExpiringCell(test.name, ByteBuffer.wrap(bytes2), rand.nextLong(),  rand.nextInt(100000));
+            nat2 = buf2.localCopy(metadata, nativeAllocator, group);
+
+            assert test.type.compare(buf.name(), nat.name()) == 0;
+            assert test.type.compare(buf2.name(), nat2.name()) == 0;
+
+            val = test.type.compare(buf.name(), buf2.name());
+            assert test.type.compare(nat.name(), nat2.name()) == val;
+            assert test.type.compare(nat.name(), buf2.name()) == val;
+            assert test.type.compare(buf.name(), nat2.name()) == val;
+
+
+            // test CounterCell
+            buf = new BufferCounterCell(test.name, CounterContext.instance().createLocal(rand.nextLong()), rand.nextLong(),  rand.nextInt(100000));
+            nat = buf.localCopy(metadata, nativeAllocator, group);
+
+            buf2 = new BufferCounterCell(test.name, CounterContext.instance().createLocal(rand.nextLong()), rand.nextLong(),  rand.nextInt(100000));
+            nat2 = buf2.localCopy(metadata, nativeAllocator, group);
+
+            assert test.type.compare(buf.name(), nat.name()) == 0;
+            assert test.type.compare(buf2.name(), nat2.name()) == 0;
+
+            val = test.type.compare(buf.name(), buf2.name());
+            assert test.type.compare(nat.name(), nat2.name()) == val;
+            assert test.type.compare(nat.name(), buf2.name()) == val;
+            assert test.type.compare(buf.name(), nat2.name()) == val;
+
+        }
+    }
+
     static void test(Name test, Cell buf, Cell nat) throws IOException
     {
         Assert.assertTrue(buf.equals(nat));

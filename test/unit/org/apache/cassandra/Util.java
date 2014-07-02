@@ -116,11 +116,6 @@ public class Util
         return new BufferExpiringCell(cellname(name), ByteBufferUtil.bytes(value), timestamp, ttl);
     }
 
-    public static Cell counterColumn(String name, long value, long timestamp)
-    {
-        return new BufferCounterUpdateCell(cellname(name), value, timestamp);
-    }
-
     public static Token token(String key)
     {
         return StorageService.getPartitioner().getToken(ByteBufferUtil.bytes(key));

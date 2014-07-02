@@ -377,7 +377,7 @@ public abstract class Selection
 
         public boolean isAssignableTo(String keyspace, ColumnSpecification receiver)
         {
-            return getType().asCQL3Type().equals(receiver.type.asCQL3Type());
+            return receiver.type.isValueCompatibleWith(getType());
         }
     }
 

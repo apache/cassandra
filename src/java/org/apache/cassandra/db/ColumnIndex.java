@@ -136,7 +136,7 @@ public class ColumnIndex
                     tombstone = rangeIter.hasNext() ? rangeIter.next() : null;
                 }
 
-                // We can skip any cell if it's shadowed by a tombstone already.  This is a more
+                // We can skip any cell if it's shadowed by a tombstone already. This is a more
                 // general case than was handled by CASSANDRA-2589.
                 if (!tester.isDeleted(c))
                     add(c);
