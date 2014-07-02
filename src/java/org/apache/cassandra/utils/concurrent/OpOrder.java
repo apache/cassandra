@@ -124,6 +124,13 @@ public class OpOrder
         return current;
     }
 
+    public void awaitNewBarrier()
+    {
+        Barrier barrier = newBarrier();
+        barrier.issue();
+        barrier.await();
+    }
+
     /**
      * Represents a group of identically ordered operations, i.e. all operations started in the interval between
      * two barrier issuances. For each register() call this is returned, close() must be called exactly once.
