@@ -1,5 +1,7 @@
 2.1.0
  * (Windows) handle spaces in path names (CASSANDRA-7451)
+ * Ensure writes have completed after dropping a table, before recycling
+   commit log segments (CASSANDRA-7437)
 Merged from 2.0:
  * Fix CC#collectTimeOrderedData() tombstone optimisations (CASSANDRA-7394)
  * Support DISTINCT for static columns and fix behaviour when DISTINC is
