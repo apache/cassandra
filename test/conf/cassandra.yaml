@@ -33,4 +33,5 @@ server_encryption_options:
     truststore: conf/.truststore
     truststore_password: cassandra
 incremental_backups: true
+concurrent_compactors: 4
 compaction_throughput_mb_per_sec: 0
