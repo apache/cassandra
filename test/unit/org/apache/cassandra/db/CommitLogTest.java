@@ -297,7 +297,7 @@ public class CommitLogTest
 
             DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.stop);
             commitDir.setWritable(false);
-            Mutation rm = new Mutation("Keyspace1", bytes("k"));
+            Mutation rm = new Mutation(KEYSPACE1, bytes("k"));
             rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate(100), 0);
 
             // Adding it twice (won't change segment)
