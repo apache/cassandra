@@ -74,7 +74,6 @@ import org.apache.cassandra.io.util.FileUtils;
  */
 public class ByteBufferUtil
 {
-    private static final Charset UTF_8 = Charset.forName("UTF-8");
     public static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(new byte[0]);
 
     public static int compareUnsigned(ByteBuffer o1, ByteBuffer o2)
@@ -121,7 +120,7 @@ public class ByteBufferUtil
      */
     public static String string(ByteBuffer buffer) throws CharacterCodingException
     {
-        return string(buffer, UTF_8);
+        return string(buffer, FBUtilities.UTF_8);
     }
 
     /**
@@ -135,7 +134,7 @@ public class ByteBufferUtil
      */
     public static String string(ByteBuffer buffer, int position, int length) throws CharacterCodingException
     {
-        return string(buffer, position, length, UTF_8);
+        return string(buffer, position, length, FBUtilities.UTF_8);
     }
 
     /**
@@ -228,7 +227,7 @@ public class ByteBufferUtil
      */
     public static ByteBuffer bytes(String s)
     {
-        return ByteBuffer.wrap(s.getBytes(UTF_8));
+        return ByteBuffer.wrap(s.getBytes(FBUtilities.UTF_8));
     }
 
     /**

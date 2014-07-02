@@ -27,6 +27,7 @@ import java.net.SocketException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
@@ -63,6 +64,8 @@ import org.codehaus.jackson.map.ObjectMapper;
 
 public class FBUtilities
 {
+    public static final Charset UTF_8 = Charset.forName("UTF-8");
+
     private static final Logger logger = LoggerFactory.getLogger(FBUtilities.class);
 
     private static ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());

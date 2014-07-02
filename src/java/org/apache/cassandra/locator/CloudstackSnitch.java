@@ -27,7 +27,6 @@ import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.URL;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
@@ -137,7 +136,7 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
             byte[] b = new byte[cl];
             is = new DataInputStream(new BufferedInputStream(conn.getInputStream()));
             is.readFully(b);
-            return new String(b, StandardCharsets.UTF_8);
+            return new String(b, FBUtilities.UTF_8);
         } 
         finally 
         {
