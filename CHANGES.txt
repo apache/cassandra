@@ -8,6 +8,7 @@
  * Fix AssertionError when using empty clustering columns and static columns
    (CASSANDRA-7455)
  * Add inter_dc_stream_throughput_outbound_megabits_per_sec (CASSANDRA-6596)
+Merged from 1.2:
 
 
 2.0.9
