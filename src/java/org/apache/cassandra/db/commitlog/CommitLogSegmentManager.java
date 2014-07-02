@@ -286,17 +286,23 @@ public class CommitLogSegmentManager
      * Flushes any dirty CFs for this segment and any older segments, and then recycles
      * the segments
      */
-    void forceRecycleAll()
+    void forceRecycleAll(Iterable<UUID> droppedCfs)
     {
         List<CommitLogSegment> segmentsToRecycle = new ArrayList<>(activeSegments);
         CommitLogSegment last = segmentsToRecycle.get(segmentsToRecycle.size() - 1);
         advanceAllocatingFrom(last);
+
+        last.waitForModifications();
 
         // flush and wait for all CFs that are dirty in segments up-to and including 'last'
         Future<?> future = flushDataFrom(segmentsToRecycle, true);
         try
         {
             future.get();
+
+            for (CommitLogSegment segment : activeSegments)
+                for (UUID cfId : droppedCfs)
+                    segment.markClean(cfId, segment.getContext());
 
             // now recycle segments that are unused, as we may not have triggered a discardCompletedSegments()
             // if the previous active segment was the only one to recycle (since an active segment isn't
@@ -306,7 +312,8 @@ public class CommitLogSegmentManager
                     recycleSegment(segment);
 
             CommitLogSegment first;
-            assert (first = activeSegments.peek()) == null || first.id > last.id;
+            if ((first = activeSegments.peek()) != null && first.id <= last.id)
+                logger.error("Failed to force-recycle all segments; at least one segment is still in use with dirty CFs.");
         }
         catch (Throwable t)
         {

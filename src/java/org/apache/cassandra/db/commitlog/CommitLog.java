@@ -158,9 +158,17 @@ public class CommitLog implements CommitLogMBean
     /**
      * Flushes all dirty CFs, waiting for them to free and recycle any segments they were retaining
      */
+    public void forceRecycleAllSegments(Iterable<UUID> droppedCfs)
+    {
+        allocator.forceRecycleAll(droppedCfs);
+    }
+
+    /**
+     * Flushes all dirty CFs, waiting for them to free and recycle any segments they were retaining
+     */
     public void forceRecycleAllSegments()
     {
-        allocator.forceRecycleAll();
+        allocator.forceRecycleAll(Collections.<UUID>emptyList());
     }
 
     /**
@@ -238,13 +246,6 @@ public class CommitLog implements CommitLogMBean
 
         executor.finishWriteFor(alloc);
         return alloc;
-    }
-
-    public void discardColumnFamily(final UUID cfId)
-    {
-        ReplayPosition context = getContext();
-        for (CommitLogSegment cls : allocator.getActiveSegments())
-            cls.markClean(cfId, context);
     }
 
     /**
