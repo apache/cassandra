@@ -8,6 +8,7 @@
  * (Windows) handle spaces in path names (CASSANDRA-7451)
  * Ensure writes have completed after dropping a table, before recycling
    commit log segments (CASSANDRA-7437)
+ * Remove left-over rows_per_partition_to_cache (CASSANDRA-7493)
 Merged from 2.0:
  * Fix CC#collectTimeOrderedData() tombstone optimisations (CASSANDRA-7394)
  * Support DISTINCT for static columns and fix behaviour when DISTINC is
