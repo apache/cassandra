@@ -548,7 +548,6 @@ A number of optional keyword arguments can be supplied to control the configurat
 |default_validation|text|Determines the default storage type of column values (which itself determines the validation for column values). This option does not affect the types of columns which were defined in a @CREATE COLUMNFAMILY@ statement-- only new columns. Valid values are listed in the "Data Storage Types":#storageTypes table above.|
 |min_compaction_threshold|4|Minimum number of SSTables needed to start a minor compaction.|
 |max_compaction_threshold|32|Maximum number of SSTables allowed before a minor compaction is forced.|
-|replicate_on_write|false| |
 |compaction_strategy_options|none|CompactionStrategy specific options such as "sstable_size_in_mb" for LeveledCompactionStrategy and "min_sstable_size" for SizeTieredCompactionStrategy|
 |compression_parameters|none|Compression parameters such as "sstable_compressor" and "chunk_length_kb"|
 

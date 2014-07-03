@@ -64,7 +64,6 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('min_index_interval', None),
         ('max_index_interval', None),
         ('read_repair_chance', None),
-        ('populate_io_cache_on_flush', None),
         ('default_time_to_live', None),
         ('speculative_retry', None),
         ('memtable_flush_period_in_ms', None),
@@ -435,8 +434,6 @@ def cf_prop_val_completer(ctxt, cass):
     if this_opt in ('read_repair_chance', 'bloom_filter_fp_chance',
                     'dclocal_read_repair_chance'):
         return [Hint('<float_between_0_and_1>')]
-    if this_opt in ('replicate_on_write', 'populate_io_cache_on_flush'):
-        return ["'yes'", "'no'"]
     if this_opt in ('min_compaction_threshold', 'max_compaction_threshold',
                     'gc_grace_seconds', 'min_index_interval', 'max_index_interval'):
         return [Hint('<integer>')]

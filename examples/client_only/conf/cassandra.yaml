@@ -49,11 +49,6 @@ hinted_handoff_throttle_in_kb: 1024
 # cross-dc handoff tends to be slower
 max_hints_delivery_threads: 2
 
-# The following setting populates the page cache on memtable flush and compaction
-# WARNING: Enable this setting only when the whole node's data fits in memory.
-# Defaults to: false
-# populate_io_cache_on_flush: false
-
 # authentication backend, implementing IAuthenticator; used to identify users
 authenticator: org.apache.cassandra.auth.AllowAllAuthenticator
 

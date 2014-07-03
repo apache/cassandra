@@ -1,4 +1,3 @@
-package org.apache.cassandra.stress.settings;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,14 +18,12 @@ package org.apache.cassandra.stress.settings;
  * under the License.
  * 
  */
-
+package org.apache.cassandra.stress.settings;
 
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -40,7 +37,6 @@ public class SettingsSchema implements Serializable
     private final Map<String, String> replicationStrategyOptions;
 
     private final IndexType indexType;
-    private final boolean replicateOnWrite;
     private final String compression;
     private final String compactionStrategy;
     private final Map<String, String> compactionStrategyOptions;
@@ -48,7 +44,6 @@ public class SettingsSchema implements Serializable
 
     public SettingsSchema(Options options)
     {
-        replicateOnWrite = !options.noReplicateOnWrite.setByUser();
         replicationStrategy = options.replication.getStrategy();
         replicationStrategyOptions = options.replication.getOptions();
         if (options.index.setByUser())
@@ -112,14 +107,12 @@ public class SettingsSchema implements Serializable
         CfDef counterCfDef = new CfDef(keyspace, "Counter1")
                 .setComparator_type(comparator)
                 .setDefault_validation_class("CounterColumnType")
-                .setReplicate_on_write(replicateOnWrite)
                 .setCompression_options(compressionOptions);
 
         // column family with counter super columns
         CfDef counterSuperCfDef = new CfDef(keyspace, "SuperCounter1")
                 .setComparator_type(comparator)
                 .setDefault_validation_class("CounterColumnType")
-                .setReplicate_on_write(replicateOnWrite)
                 .setColumn_type("Super")
                 .setCompression_options(compressionOptions);
 
@@ -200,13 +193,12 @@ public class SettingsSchema implements Serializable
         final OptionCompaction compaction = new OptionCompaction();
         final OptionSimple index = new OptionSimple("index=", "KEYS|CUSTOM|COMPOSITES", null, "Type of index to create on needed column families (KEYS)", false);
         final OptionSimple keyspace = new OptionSimple("keyspace=", ".*", "Keyspace1", "The keyspace name to use", false);
-        final OptionSimple noReplicateOnWrite = new OptionSimple("no-replicate-on-write", "", null, "Set replicate_on_write to false for counters. Only counter add with CL=ONE will work", false);
         final OptionSimple compression = new OptionSimple("compression=", ".*", null, "Specify the compression to use for sstable, default:no compression", false);
 
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(replication, index, keyspace, compaction, noReplicateOnWrite, compression);
+            return Arrays.asList(replication, index, keyspace, compaction, compression);
         }
     }
 
