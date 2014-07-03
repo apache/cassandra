@@ -67,7 +67,6 @@ public class Legacy implements Serializable
         availableOptions.addOption("x",  "create-index",         true,   "Type of index to create on needed column families (KEYS)");
         availableOptions.addOption("R",  "replication-strategy", true,   "Replication strategy to use (only on insert if keyspace does not exist), default:org.apache.cassandra.locator.SimpleStrategy");
         availableOptions.addOption("O",  "strategy-properties",  true,   "Replication strategy properties in the following format <dc_name>:<num>,<dc_name>:<num>,...");
-        availableOptions.addOption("W",  "no-replicate-on-write",false,  "Set replicate_on_write to false for counters. Only counter add with CL=ONE will work");
         availableOptions.addOption("V",  "average-size-values",  false,  "Generate column values of average rather than specific size");
         availableOptions.addOption("T",  "send-to",              true,   "Send this as a request to the stress daemon at specified address.");
         availableOptions.addOption("I",  "compression",          true,   "Specify the compression to use for sstable, default:no compression");
@@ -236,9 +235,6 @@ public class Legacy implements Serializable
                 r.add("-mode", (cmd.hasOption("P") ? "prepared" : "") + (cmd.hasOption("b") ? "native" : "") +  "cql3");
             else
                 r.add("-mode", "thrift");
-
-            if (cmd.hasOption("W"))
-                r.add("-schema", "no-replicate-on-write");
 
             if (cmd.hasOption("I"))
                 r.add("-schema", "compression=" + cmd.getOptionValue("I"));

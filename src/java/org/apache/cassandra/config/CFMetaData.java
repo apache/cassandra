@@ -177,7 +177,6 @@ public final class CFMetaData
                                                                     + "column_aliases text,"
                                                                     + "compaction_strategy_options text,"
                                                                     + "speculative_retry text,"
-                                                                    + "populate_io_cache_on_flush boolean,"
                                                                     + "index_interval int,"
                                                                     + "min_index_interval int,"
                                                                     + "max_index_interval int,"
