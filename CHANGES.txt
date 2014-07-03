@@ -1,4 +1,6 @@
 2.1.0
+ * Remove left-over populate_io_cache_on_flush and replicate_on_write
+   uses (CASSANDRA-7493)
  * (Windows) handle spaces in path names (CASSANDRA-7451)
  * Ensure writes have completed after dropping a table, before recycling
    commit log segments (CASSANDRA-7437)

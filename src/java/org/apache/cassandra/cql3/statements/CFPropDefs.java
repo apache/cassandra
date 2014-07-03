@@ -43,7 +43,6 @@ public class CFPropDefs extends PropertyDefinitions
     public static final String KW_MIN_INDEX_INTERVAL = "min_index_interval";
     public static final String KW_MAX_INDEX_INTERVAL = "max_index_interval";
     public static final String KW_SPECULATIVE_RETRY = "speculative_retry";
-    public static final String KW_POPULATE_IO_CACHE_ON_FLUSH = "populate_io_cache_on_flush";
     public static final String KW_BF_FP_CHANCE = "bloom_filter_fp_chance";
     public static final String KW_MEMTABLE_FLUSH_PERIOD = "memtable_flush_period_in_ms";
 
@@ -66,7 +65,6 @@ public class CFPropDefs extends PropertyDefinitions
         keywords.add(KW_MIN_INDEX_INTERVAL);
         keywords.add(KW_MAX_INDEX_INTERVAL);
         keywords.add(KW_SPECULATIVE_RETRY);
-        keywords.add(KW_POPULATE_IO_CACHE_ON_FLUSH);
         keywords.add(KW_BF_FP_CHANCE);
         keywords.add(KW_COMPACTION);
         keywords.add(KW_COMPRESSION);
@@ -74,6 +72,7 @@ public class CFPropDefs extends PropertyDefinitions
 
         obsoleteKeywords.add("index_interval");
         obsoleteKeywords.add("replicate_on_write");
+        obsoleteKeywords.add("populate_io_cache_on_flush");
     }
 
     private Class<? extends AbstractCompactionStrategy> compactionStrategyClass = null;

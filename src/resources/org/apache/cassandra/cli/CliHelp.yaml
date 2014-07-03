@@ -541,12 +541,6 @@ commands:
         boundaries are the number of tables Cassandra attempts to merge together at
         once.
 
-        - replicate_on_write: Replicate every counter update from the leader to the
-        follower replicas. Accepts the values true and false.
-
-        - populate_io_cache_on_flush: Populates the page cache on memtable flush
-        and compaction. Accepts the values true and false.
-
         - compression_options: Options related to compression.
           Options have the form {key:value}.
           The main recognized options are:
@@ -837,12 +831,6 @@ commands:
         be more intensive. The min_compaction_threshold and max_compaction_threshold
         boundaries are the number of tables Cassandra attempts to merge together at
         once.
-
-        - replicate_on_write: Replicate every counter update from the leader to the
-        follower replicas. Accepts the values true and false.
-
-        - populate_io_cache_on_flush: Populates the page cache on memtable flush
-        and compaction. Accepts the values true and false.
 
         - compression_options: Options related to compression.
           Options have the form {key:value}.

@@ -52,7 +52,6 @@ public class CFPropDefs {
     public static final String KW_ROWS_PER_PARTITION_TO_CACHE = "rows_per_partition_to_cache";
     public static final String KW_DEFAULT_TIME_TO_LIVE = "default_time_to_live";
     public static final String KW_SPECULATIVE_RETRY = "speculative_retry";
-    public static final String KW_POPULATE_IO_CACHE_ON_FLUSH = "populate_io_cache_on_flush";
     public static final String KW_BF_FP_CHANCE = "bloom_filter_fp_chance";
     public static final String KW_MEMTABLE_FLUSH_PERIOD = "memtable_flush_period_in_ms";
 
@@ -95,7 +94,6 @@ public class CFPropDefs {
         keywords.add(KW_ROWS_PER_PARTITION_TO_CACHE);
         keywords.add(KW_DEFAULT_TIME_TO_LIVE);
         keywords.add(KW_SPECULATIVE_RETRY);
-        keywords.add(KW_POPULATE_IO_CACHE_ON_FLUSH);
         keywords.add(KW_BF_FP_CHANCE);
         keywords.add(KW_MEMTABLE_FLUSH_PERIOD);
 
@@ -108,6 +106,7 @@ public class CFPropDefs {
         obsoleteKeywords.add("memtable_flush_after_mins");
         obsoleteKeywords.add("row_cache_provider");
         obsoleteKeywords.add("replicate_on_write");
+        obsoleteKeywords.add("populate_io_cache_on_flush");
 
         allowedKeywords.addAll(keywords);
         allowedKeywords.addAll(obsoleteKeywords);
