@@ -39,7 +39,6 @@ public class CFPropDefs extends PropertyDefinitions
     public static final String KW_MINCOMPACTIONTHRESHOLD = "min_threshold";
     public static final String KW_MAXCOMPACTIONTHRESHOLD = "max_threshold";
     public static final String KW_CACHING = "caching";
-    public static final String KW_ROWS_PER_PARTITION_TO_CACHE = "rows_per_partition_to_cache";
     public static final String KW_DEFAULT_TIME_TO_LIVE = "default_time_to_live";
     public static final String KW_MIN_INDEX_INTERVAL = "min_index_interval";
     public static final String KW_MAX_INDEX_INTERVAL = "max_index_interval";
