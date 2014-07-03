@@ -34,6 +34,7 @@ Merged from 2.0:
  * Make sure high level sstables get compacted (CASSANDRA-7414)
  * Fix AssertionError when using empty clustering columns and static columns
    (CASSANDRA-7455)
+ * Add option to disable STCS in L0 (CASSANDRA-6621)
  * Upgrade to snappy-java 1.0.5.2 (CASSANDRA-7476)
 
 

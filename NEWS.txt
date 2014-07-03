@@ -80,6 +80,15 @@ Upgrading
    - support for supercolumns has been removed from json2sstable
 
 
+2.0.10
+====
+New features
+------------
+    - If you are using Leveled Compaction, you can now disable doing size-tiered
+      compaction in L0 by starting Cassandra with -Dcassandra.disable_stcs_in_l0
+      (see CASSANDRA-6621 for details).
+
+
 2.0.9
 =====
 

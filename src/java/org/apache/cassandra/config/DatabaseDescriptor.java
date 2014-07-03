@@ -995,6 +995,11 @@ public class DatabaseDescriptor
         conf.compaction_throughput_mb_per_sec = value;
     }
 
+    public static boolean getDisableSTCSInL0()
+    {
+        return Boolean.getBoolean("cassandra.disable_stcs_in_l0");
+    }
+
     public static int getStreamThroughputOutboundMegabitsPerSec()
     {
         return conf.stream_throughput_outbound_megabits_per_sec;
