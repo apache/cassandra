@@ -6,6 +6,7 @@ src/gen-java/
 src/resources/org/apache/cassandra/config/
 logs/
 data/
+conf/hotspot_compiler
 
 # C* debs
 build-stamp
