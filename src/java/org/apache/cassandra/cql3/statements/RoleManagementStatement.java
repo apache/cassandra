@@ -17,50 +17,43 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.Set;
-
-import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.IGrantee;
-import org.apache.cassandra.auth.IResource;
-import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.Role;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 
-public abstract class PermissionAlteringStatement extends AuthorizationStatement
+public abstract class RoleManagementStatement extends AuthorizationStatement
 {
-    protected final Set<Permission> permissions;
-    protected DataResource resource;
+    protected final Role role;
     protected final IGrantee grantee;
 
-    protected PermissionAlteringStatement(Set<Permission> permissions, IResource resource, IGrantee grantee)
+    public RoleManagementStatement(Role role, IGrantee grantee)
     {
-        this.permissions = permissions;
-        this.resource = (DataResource) resource;
+        this.role = role;
         this.grantee = grantee;
     }
 
+    @Override
+    public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
+    {
+        if (!state.getUser().isSuper())
+            throw new UnauthorizedException("Only superusers are allowed to perform role management queries");
+    }
+
+    @Override
     public void validate(ClientState state) throws RequestValidationException
     {
-        // validate login here before checkAccess to avoid leaking user existence to anonymous users.
         state.ensureNotAnonymous();
+
+        if (!role.isExisting())
+            throw new InvalidRequestException(String.format("%s %s doesn't exist", role.getType(), role.getName()));
 
         if (!grantee.isExisting())
             throw new InvalidRequestException(String.format("%s %s doesn't exist", grantee.getType(), grantee.getName()));
 
-        // if a keyspace is omitted when GRANT/REVOKE ON TABLE <table>, we need to correct the resource.
-        resource = maybeCorrectResource(resource, state);
-        if (!resource.exists())
-            throw new InvalidRequestException(String.format("%s doesn't exist", resource));
-    }
-
-    public void checkAccess(ClientState state) throws UnauthorizedException
-    {
-        // check that the user has AUTHORIZE permission on the resource or its parents, otherwise reject GRANT/REVOKE.
-        state.ensureHasPermission(Permission.AUTHORIZE, resource);
-        // check that the user has [a single permission or all in case of ALL] on the resource or its parents.
-        for (Permission p : permissions)
-            state.ensureHasPermission(p, resource);
+        if (role.equals(grantee))
+            throw new InvalidRequestException("A role cannot operate on itself");
     }
 }

@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.Set;
 
+import org.apache.cassandra.auth.IGrantee;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -30,14 +31,14 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class GrantStatement extends PermissionAlteringStatement
 {
-    public GrantStatement(Set<Permission> permissions, IResource resource, String username)
+    public GrantStatement(Set<Permission> permissions, IResource resource, IGrantee grantee)
     {
-        super(permissions, resource, username);
+        super(permissions, resource, grantee);
     }
 
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
-        DatabaseDescriptor.getAuthorizer().grant(state.getUser(), permissions, resource, username);
+        DatabaseDescriptor.getAuthorizer().grant(state.getUser(), permissions, resource, grantee);
         return null;
     }
 }

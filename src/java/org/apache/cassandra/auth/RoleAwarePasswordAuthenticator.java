@@ -17,10 +17,21 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.Map;
+
+import org.apache.cassandra.exceptions.AuthenticationException;
+
 /**
- * CassandraAuthorizer is an IAuthorizer implementation that keeps
- * permissions internally in C* - in system_auth.permissions CQL3 table.
+ * An implementation of the PasswordAuthenticator that adds any roles, that have
+ * been granted to the user, to the returned AuthenticatedUser. This should be
+ * used with the CassandraRoleAwareAuthorizer to enable role based access control
  */
-public class CassandraAuthorizer extends AbstractCassandraAuthorizer
+public class RoleAwarePasswordAuthenticator extends PasswordAuthenticator
 {
+    @Override
+    public AuthenticatedUser authenticate(Map<String, String> credentials) throws AuthenticationException
+    {
+        AuthenticatedUser user = super.authenticate(credentials);
+        return new AuthenticatedUser(user.getName(), Auth.getRoles(Grantee.asUser(user.getName()), true));
+    }
 }

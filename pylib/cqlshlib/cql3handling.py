@@ -247,10 +247,15 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                             | <alterUserStatement>
                             | <dropUserStatement>
                             | <listUsersStatement>
+                            | <createRoleStatement>
+                            | <dropRoleStatement>
+                            | <listRolesStatement>
                             ;
 
 <authorizationStatement> ::= <grantStatement>
+                           | <grantRoleStatement>
                            | <revokeStatement>
+                           | <revokeRoleStatement>
                            | <listPermissionsStatement>
                            ;
 
@@ -1106,14 +1111,36 @@ syntax_rules += r'''
 '''
 
 syntax_rules += r'''
-<grantStatement> ::= "GRANT" <permissionExpr> "ON" <resource> "TO" <username>
+<rolename> ::= name=( <identifier> | <stringLiteral> )
+             ;
+
+<createRoleStatement> ::= "CREATE" "ROLE" <rolename>
+                        ;
+
+<dropRoleStatement> ::= "DROP" "ROLE" <rolename>
+                      ;
+
+<grantRoleStatement> ::= "GRANT" "ROLE" <rolename> "TO" ( "ROLE" <rolename> | "USER" <username> )?
+                       ;
+
+<revokeRoleStatement> ::= "REVOKE" "ROLE" <rolename> "FROM" ( "ROLE" <rolename> | "USER" <username> )?
+                       ;
+
+<listRolesStatement> ::= "LIST" "ROLES"
+                              ( "OF" ( "ROLE" <rolename> | "USER" <username> )? )? "NORECURSIVE"?
+                       ;
+'''
+
+syntax_rules += r'''
+<grantStatement> ::= "GRANT" <permissionExpr> "ON" <resource> "TO" ( "USER"? <username> | "ROLE" <rolename> )?
                    ;
 
-<revokeStatement> ::= "REVOKE" <permissionExpr> "ON" <resource> "FROM" <username>
+<revokeStatement> ::= "REVOKE" <permissionExpr> "ON" <resource> "FROM" ( "USER"? <username> | "ROLE" <rolename> )?
                     ;
 
 <listPermissionsStatement> ::= "LIST" <permissionExpr>
-                                    ( "ON" <resource> )? ( "OF" <username> )? "NORECURSIVE"?
+                                    ( "ON" <resource> )? ( "OF" ( "USER"? <username> | "ROLE" <rolename> )? )?
+                                    "NORECURSIVE"?
                              ;
 
 <permission> ::= "AUTHORIZE"
@@ -1150,6 +1177,20 @@ def username_name_completer(ctxt, cass):
 
     session = cass.session
     return [maybe_quote(row[0].replace("'", "''")) for row in session.execute("LIST USERS")]
+
+@completer_for('rolename', 'role')
+def rolename_completer(ctxt, cass):
+    def maybe_quote(name):
+        if CqlRuleSet.is_valid_cql3_name(name):
+            return name
+        return "'%s'" % name
+
+    # disable completion for CREATE ROLE.
+    if ctxt.matched[0][0] == 'K_CREATE':
+        return [Hint('<rolename>')]
+
+    session = cass.session
+    return [maybe_quote(row[0].replace("'", "''")) for row in session.execute("LIST ROLES")]
 
 # END SYNTAX/COMPLETION RULE DEFINITIONS
 

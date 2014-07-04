@@ -40,6 +40,10 @@ options {
     import org.apache.cassandra.auth.Permission;
     import org.apache.cassandra.auth.DataResource;
     import org.apache.cassandra.auth.IResource;
+    import org.apache.cassandra.auth.IGrantee;
+    import org.apache.cassandra.auth.Grantee;
+    import org.apache.cassandra.auth.User;
+    import org.apache.cassandra.auth.Role;
     import org.apache.cassandra.cql3.*;
     import org.apache.cassandra.cql3.statements.*;
     import org.apache.cassandra.cql3.functions.FunctionCall;
@@ -245,6 +249,11 @@ cqlStatement returns [ParsedStatement stmt]
     | st25=createTypeStatement         { $stmt = st25; }
     | st26=alterTypeStatement          { $stmt = st26; }
     | st27=dropTypeStatement           { $stmt = st27; }
+    | st28=createRoleStatement         { $stmt = st28; }
+    | st29=dropRoleStatement           { $stmt = st29; }
+    | st30=listRolesStatement          { $stmt = st30; }
+    | st31=grantRoleStatement          { $stmt = st31; }
+    | st32=revokeRoleStatement         { $stmt = st32; }
     ;
 
 /*
@@ -696,43 +705,76 @@ truncateStatement returns [TruncateStatement stmt]
     ;
 
 /**
- * GRANT <permission> ON <resource> TO <username>
+ * GRANT <permission> ON <resource> TO [[USER] <username> | ROLE <rolename>]
  */
 grantStatement returns [GrantStatement stmt]
+    @init {
+        IGrantee grantee = null;
+    }
     : K_GRANT
-          permissionOrAll
-      K_ON
-          resource
-      K_TO
-          username
-      { $stmt = new GrantStatement($permissionOrAll.perms, $resource.res, $username.text); }
+       permissionOrAll K_ON resource K_TO (K_ROLE rolename { grantee = new Role($rolename.text); }
+                                           | (K_USER)? username { grantee = new User($username.text); } )?
+      { $stmt = new GrantStatement($permissionOrAll.perms, $resource.res, grantee); }
     ;
 
 /**
- * REVOKE <permission> ON <resource> FROM <username>
+ * GRANT ROLE <rolename> TO [USER <username> | ROLE <rolename>]
+ */
+grantRoleStatement returns [GrantRoleStatement stmt]
+    @init {
+        Role role = null;
+        IGrantee grantee = null;
+    }
+    : K_GRANT K_ROLE
+        granted_role=rolename { role = new Role($granted_role.text); }
+      K_TO
+        (K_USER grantee_user=username { grantee = new User($grantee_user.text); }
+         | K_ROLE grantee_role=rolename { grantee = new Role($grantee_role.text); })?
+      { $stmt = new GrantRoleStatement(role, grantee); }
+    ;
+
+/**
+ * REVOKE <permission> ON <resource> FROM [[USER] <username> | ROLE <rolename>]
  */
 revokeStatement returns [RevokeStatement stmt]
+    @init {
+        IGrantee grantee = null;
+    }
     : K_REVOKE
-          permissionOrAll
-      K_ON
-          resource
+       permissionOrAll K_ON resource K_FROM (K_ROLE rolename { grantee = new Role($rolename.text); }
+                                           | (K_USER)? username { grantee = new User($username.text); } )?
+      { $stmt = new RevokeStatement($permissionOrAll.perms, $resource.res, grantee); }
+    ;
+
+/**
+ * REVOKE ROLE <rolename> FROM [USER <username> | ROLE <rolename>]
+ */
+revokeRoleStatement returns [RevokeRoleStatement stmt]
+    @init {
+        Role role = null;
+        IGrantee grantee = null;
+    }
+    : K_REVOKE K_ROLE
+        revoked_role=rolename { role = new Role($revoked_role.text); }
       K_FROM
-          username
-      { $stmt = new RevokeStatement($permissionOrAll.perms, $resource.res, $username.text); }
+        (K_USER grantee_user=username { grantee = new User($grantee_user.text); }
+         | K_ROLE grantee_role=rolename { grantee = new Role($grantee_role.text); })?
+      { $stmt = new RevokeRoleStatement(role, grantee); }
     ;
 
 listPermissionsStatement returns [ListPermissionsStatement stmt]
     @init {
         IResource resource = null;
-        String username = null;
+        IGrantee grantee = null;
         boolean recursive = true;
     }
     : K_LIST
           permissionOrAll
       ( K_ON resource { resource = $resource.res; } )?
-      ( K_OF username { username = $username.text; } )?
+      ( K_OF (K_ROLE rolename { grantee = new Role($rolename.text); }
+              | (K_USER)? username { grantee = new User($username.text); }) )?
       ( K_NORECURSIVE { recursive = false; } )?
-      { $stmt = new ListPermissionsStatement($permissionOrAll.perms, resource, username, recursive); }
+      { $stmt = new ListPermissionsStatement($permissionOrAll.perms, resource, grantee, recursive); }
     ;
 
 permission returns [Permission perm]
@@ -806,6 +848,46 @@ userOptions[UserOptions opts]
 
 userOption[UserOptions opts]
     : k=K_PASSWORD v=STRING_LITERAL { opts.put($k.text, $v.text); }
+    ;
+
+/**
+ * CREATE ROLE [IF NOT EXISTS] <rolename>
+ */
+createRoleStatement returns [CreateRoleStatement stmt]
+    @init {
+        Role role = null;
+        boolean ifNotExists = false;
+    }
+    : K_CREATE K_ROLE (K_IF K_NOT K_EXISTS { ifNotExists = true; })? rolename
+      { role = Grantee.asRole($rolename.text); $stmt = new CreateRoleStatement(role, ifNotExists); }
+    ;
+
+/**
+ * DROP ROLE [IF EXISTS] <rolename>
+ */
+dropRoleStatement returns [DropRoleStatement stmt]
+    @init {
+        Role role = null;
+        boolean ifExists = false;
+    }
+    : K_DROP K_ROLE (K_IF K_EXISTS { ifExists = true; })? rolename
+      { role = Grantee.asRole($rolename.text); $stmt = new DropRoleStatement(role, ifExists); }
+    ;
+
+/**
+ * LIST ROLES [OF [ROLE <rolename> | USER <username>]] [NORECURSIVE]
+ */
+listRolesStatement returns [ListRolesStatement stmt]
+    @init {
+        IGrantee grantee = null;
+        boolean recursive = true;
+    }
+    : K_LIST
+      K_ROLES
+      ( K_OF (K_ROLE rolename { grantee = Grantee.asRole($rolename.text); }
+              | K_USER username { grantee = Grantee.asUser($username.text); }) )?
+      ( K_NORECURSIVE { recursive = false; } )?
+      { $stmt = new ListRolesStatement(grantee, recursive); }
     ;
 
 /** DEFINITIONS **/
@@ -1138,6 +1220,11 @@ username
     | STRING_LITERAL
     ;
 
+rolename
+    : IDENT
+    | STRING_LITERAL
+    ;
+
 // Basically the same than cident, but we need to exlude existing CQL3 types
 // (which for some reason are not reserved otherwise)
 non_type_ident returns [ColumnIdentifier id]
@@ -1174,6 +1261,8 @@ basic_unreserved_keyword returns [String str]
         | K_ALL
         | K_USER
         | K_USERS
+        | K_ROLE
+        | K_ROLES
         | K_SUPERUSER
         | K_NOSUPERUSER
         | K_PASSWORD
@@ -1254,6 +1343,8 @@ K_NORECURSIVE: N O R E C U R S I V E;
 
 K_USER:        U S E R;
 K_USERS:       U S E R S;
+K_ROLE:        R O L E;
+K_ROLES:       R O L E S;
 K_SUPERUSER:   S U P E R U S E R;
 K_NOSUPERUSER: N O S U P E R U S E R;
 K_PASSWORD:    P A S S W O R D;
