@@ -27,7 +27,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.stress.generatedata.Distribution;
+import org.apache.cassandra.stress.generate.Distribution;
 
 public class SettingsMisc implements Serializable
 {
