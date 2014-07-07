@@ -50,7 +50,7 @@ public class Descriptor
     public static class Version
     {
         // This needs to be at the begining for initialization sake
-        public static final String current_version = "ka";
+        public static final String current_version = "la";
 
         // ja (2.0.0): super columns are serialized as composites (note that there is no real format change,
         //               this is mostly a marker to know if we should expect super columns or not. We do need
@@ -63,10 +63,10 @@ public class Descriptor
         // jb (2.0.1): switch from crc32 to adler32 for compression checksums
         //             checksum the compressed data
         // ka (2.1.0): new Statistics.db file format
-        //             new file name format
         //             index summaries can be downsampled and the sampling level is persisted
         //             switch uncompressed checksums to adler32
         //             tracks presense of legacy (local and remote) counter shards
+        // la (3.0.0): new file name format
 
         public static final Version CURRENT = new Version(current_version);
 
@@ -91,7 +91,7 @@ public class Descriptor
             hasAllAdlerChecksums = version.compareTo("ka") >= 0;
             hasRepairedAt = version.compareTo("ka") >= 0;
             tracksLegacyCounterShards = version.compareTo("ka") >= 0;
-            newFileName = version.compareTo("ka") >= 0;
+            newFileName = version.compareTo("la") >= 0;
         }
 
         /**
