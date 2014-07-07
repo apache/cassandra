@@ -110,8 +110,6 @@ public abstract class QueryOptions
      */
     public abstract int getProtocolVersion();
 
-    public abstract QueryOptions withProtocolVersion(int version);
-
     // Mainly for the sake of BatchQueryOptions
     abstract SpecificOptions getSpecificOptions();
 
@@ -137,11 +135,6 @@ public abstract class QueryOptions
             this.skipMetadata = skipMetadata;
             this.options = options;
             this.protocolVersion = protocolVersion;
-        }
-
-        public QueryOptions withProtocolVersion(int version)
-        {
-            return new DefaultQueryOptions(consistency, values, skipMetadata, options, version);
         }
 
         public ConsistencyLevel getConsistency()
@@ -204,11 +197,6 @@ public abstract class QueryOptions
         {
             wrapped.prepare(specs);
             return this;
-        }
-
-        public QueryOptions withProtocolVersion(int version)
-        {
-            return new DefaultQueryOptions(getConsistency(), getValues(), skipMetadata(),  getSpecificOptions(), version);
         }
     }
 

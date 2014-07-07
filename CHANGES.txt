@@ -18,6 +18,7 @@
  * Optimise NativeCell comparisons (CASSANDRA-6755)
 
 2.1.0
+ * Fix prepared marker for collections inside UDT (CASSANDRA-7472)
  * Remove left-over populate_io_cache_on_flush and replicate_on_write
    uses (CASSANDRA-7493)
  * (Windows) handle spaces in path names (CASSANDRA-7451)
