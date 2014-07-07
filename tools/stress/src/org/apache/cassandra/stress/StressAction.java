@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -29,10 +30,15 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
-import org.apache.cassandra.stress.operations.*;
+
+import org.apache.cassandra.stress.generate.Partition;
+import org.apache.cassandra.stress.generate.SeedGenerator;
+import org.apache.cassandra.stress.operations.OpDistribution;
+import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.settings.*;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ThriftClient;
+import org.apache.cassandra.stress.util.Timer;
 import org.apache.cassandra.transport.SimpleClient;
 
 public class StressAction implements Runnable
@@ -52,7 +58,8 @@ public class StressAction implements Runnable
         // creating keyspace and column families
         settings.maybeCreateKeyspaces();
 
-        warmup(settings.command.type, settings.command);
+        if (!settings.command.noWarmup)
+            warmup(settings.command.getFactory(settings));
 
         output.println("Sleeping 2s...");
         Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
@@ -61,7 +68,7 @@ public class StressAction implements Runnable
         if (settings.rate.auto)
             success = runAuto();
         else
-            success = null != run(settings.command.type, settings.rate.threadCount, settings.command.count, output);
+            success = null != run(settings.command.getFactory(settings), settings.rate.threadCount, settings.command.count, output);
 
         if (success)
             output.println("END");
@@ -72,33 +79,18 @@ public class StressAction implements Runnable
     }
 
     // type provided separately to support recursive call for mixed command with each command type it is performing
-    private void warmup(Command type, SettingsCommand command)
+    private void warmup(OpDistributionFactory operations)
     {
         // warmup - do 50k iterations; by default hotspot compiles methods after 10k invocations
         PrintStream warmupOutput = new PrintStream(new OutputStream() { @Override public void write(int b) throws IOException { } } );
-        int iterations;
-        switch (type.category)
+        int iterations = 50000 * settings.node.nodes.size();
+        for (OpDistributionFactory single : operations.each())
         {
-            case BASIC:
-                iterations = 50000;
-                break;
-            case MIXED:
-                for (Command subtype : ((SettingsCommandMixed) command).getCommands())
-                    warmup(subtype, command);
-                return;
-            case MULTI:
-                int keysAtOnce = command.keysAtOnce;
-                iterations = Math.min(50000, (int) Math.ceil(500000d / keysAtOnce));
-                break;
-            default:
-                throw new IllegalStateException();
+            // we need to warm up all the nodes in the cluster ideally, but we may not be the only stress instance;
+            // so warm up all the nodes we're speaking to only.
+            output.println(String.format("Warming up %s with %d iterations...", single.desc(), iterations));
+            run(single, 20, iterations, warmupOutput);
         }
-
-        // we need to warm up all the nodes in the cluster ideally, but we may not be the only stress instance;
-        // so warm up all the nodes we're speaking to only.
-        iterations *= settings.node.nodes.size();
-        output.println(String.format("Warming up %s with %d iterations...", type, iterations));
-        run(type, 20, iterations, warmupOutput);
     }
 
     // TODO : permit varying more than just thread count
@@ -113,7 +105,7 @@ public class StressAction implements Runnable
         {
             output.println(String.format("Running with %d threadCount", threadCount));
 
-            StressMetrics result = run(settings.command.type, threadCount, settings.command.count, output);
+            StressMetrics result = run(settings.command.getFactory(settings), threadCount, settings.command.count, output);
             if (result == null)
                 return false;
             results.add(result);
@@ -170,13 +162,13 @@ public class StressAction implements Runnable
         return improvement / count;
     }
 
-    private StressMetrics run(Command type, int threadCount, long opCount, PrintStream output)
+    private StressMetrics run(OpDistributionFactory operations, int threadCount, long opCount, PrintStream output)
     {
 
         output.println(String.format("Running %s with %d threads %s",
-                type.toString(),
-                threadCount,
-                opCount > 0 ? " for " + opCount + " iterations" : "until stderr of mean < " + settings.command.targetUncertainty));
+                                     operations.desc(),
+                                     threadCount,
+                                     opCount > 0 ? " for " + opCount + " iterations" : "until stderr of mean < " + settings.command.targetUncertainty));
         final WorkQueue workQueue;
         if (opCount < 0)
             workQueue = new ContinuousWorkQueue(50);
@@ -193,7 +185,7 @@ public class StressAction implements Runnable
         final CountDownLatch done = new CountDownLatch(threadCount);
         final Consumer[] consumers = new Consumer[threadCount];
         for (int i = 0; i < threadCount; i++)
-            consumers[i] = new Consumer(type, done, workQueue, metrics, rateLimiter);
+            consumers[i] = new Consumer(operations, done, workQueue, metrics, rateLimiter);
 
         // starting worker threadCount
         for (int i = 0; i < threadCount; i++)
@@ -236,18 +228,24 @@ public class StressAction implements Runnable
     private class Consumer extends Thread
     {
 
-        private final Operation.State state;
+        private final OpDistribution operations;
+        private final StressMetrics metrics;
+        private final Timer timer;
+        private final SeedGenerator seedGenerator;
         private final RateLimiter rateLimiter;
         private volatile boolean success = true;
         private final WorkQueue workQueue;
         private final CountDownLatch done;
 
-        public Consumer(Command type, CountDownLatch done, WorkQueue workQueue, StressMetrics metrics, RateLimiter rateLimiter)
+        public Consumer(OpDistributionFactory operations, CountDownLatch done, WorkQueue workQueue, StressMetrics metrics, RateLimiter rateLimiter)
         {
             this.done = done;
             this.rateLimiter = rateLimiter;
             this.workQueue = workQueue;
-            this.state = new Operation.State(type, settings, metrics);
+            this.metrics = metrics;
+            this.timer = metrics.getTiming().newTimer();
+            this.seedGenerator = settings.keys.newSeedGenerator();
+            this.operations = operations.get(timer);
         }
 
         public void run()
@@ -269,63 +267,89 @@ public class StressAction implements Runnable
                         sclient = settings.getSimpleNativeClient();
                         break;
                     case THRIFT:
-                        tclient = settings.getThriftClient();
-                        break;
                     case THRIFT_SMART:
-                        tclient = settings.getSmartThriftClient();
+                        tclient = settings.getThriftClient();
                         break;
                     default:
                         throw new IllegalStateException();
                 }
 
-                Work work;
-                while ( null != (work = workQueue.poll()) )
+                int maxBatchSize = operations.maxBatchSize();
+                Work work = workQueue.poll();
+                Partition[] partitions = new Partition[maxBatchSize];
+                int workDone = 0;
+                while (work != null)
                 {
 
-                    if (rateLimiter != null)
-                        rateLimiter.acquire(work.count);
+                    Operation op = operations.next();
+                    op.generator.reset();
+                    int batchSize = Math.max(1, (int) op.partitionCount.next());
+                    int partitionCount = 0;
 
-                    for (int i = 0 ; i < work.count ; i++)
+                    while (partitionCount < batchSize)
                     {
-                        try
+                        int count = Math.min((work.count - workDone), batchSize - partitionCount);
+                        for (int i = 0 ; i < count ; i++)
                         {
-                            Operation op = createOperation(state, i + work.offset);
-                            switch (settings.mode.api)
-                            {
-                                case JAVA_DRIVER_NATIVE:
-                                    op.run(jclient);
-                                    break;
-                                case SIMPLE_NATIVE:
-                                    op.run(sclient);
-                                    break;
-                                case THRIFT:
-                                case THRIFT_SMART:
-                                default:
-                                    op.run(tclient);
-                            }
-                        } catch (Exception e)
+                            long seed = seedGenerator.next(work.offset + workDone + i);
+                            partitions[partitionCount + i] = op.generator.generate(seed);
+                        }
+                        workDone += count;
+                        partitionCount += count;
+                        if (workDone == work.count)
                         {
-                            if (output == null)
+                            workDone = 0;
+                            work = workQueue.poll();
+                            if (work == null)
                             {
-                                System.err.println(e.getMessage());
-                                success = false;
-                                System.exit(-1);
+                                if (partitionCount == 0)
+                                    return;
+                                break;
                             }
-
-                            e.printStackTrace(output);
-                            success = false;
-                            workQueue.stop();
-                            state.metrics.cancel();
-                            return;
+                            if (rateLimiter != null)
+                                rateLimiter.acquire(work.count);
                         }
                     }
-                }
 
+                    op.setPartitions(Arrays.asList(partitions).subList(0, partitionCount));
+
+                    try
+                    {
+                        switch (settings.mode.api)
+                        {
+                            case JAVA_DRIVER_NATIVE:
+                                op.run(jclient);
+                                break;
+                            case SIMPLE_NATIVE:
+                                op.run(sclient);
+                                break;
+                            case THRIFT:
+                            case THRIFT_SMART:
+                            default:
+                                op.run(tclient);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        if (output == null)
+                        {
+                            System.err.println(e.getMessage());
+                            success = false;
+                            System.exit(-1);
+                        }
+
+                        e.printStackTrace(output);
+                        success = false;
+                        workQueue.stop();
+                        metrics.cancel();
+                        return;
+                    }
+                }
             }
             finally
             {
                 done.countDown();
-                state.timer.close();
+                timer.close();
             }
 
         }
@@ -441,108 +465,6 @@ public class StressAction implements Runnable
             stop = true;
         }
 
-    }
-
-    private Operation createOperation(Operation.State state, long index)
-    {
-        return createOperation(state.type, state, index);
-    }
-    private Operation createOperation(Command type, Operation.State state, long index)
-    {
-        switch (type)
-        {
-            case READ:
-                switch(state.settings.mode.style)
-                {
-                    case THRIFT:
-                        return new ThriftReader(state, index);
-                    case CQL:
-                    case CQL_PREPARED:
-                        return new CqlReader(state, index);
-                    default:
-                        throw new UnsupportedOperationException();
-                }
-
-
-            case COUNTER_READ:
-                switch(state.settings.mode.style)
-                {
-                    case THRIFT:
-                        return new ThriftCounterGetter(state, index);
-                    case CQL:
-                    case CQL_PREPARED:
-                        return new CqlCounterGetter(state, index);
-                    default:
-                        throw new UnsupportedOperationException();
-                }
-
-            case WRITE:
-                switch(state.settings.mode.style)
-                {
-                    case THRIFT:
-                        return new ThriftInserter(state, index);
-                    case CQL:
-                    case CQL_PREPARED:
-                        return new CqlInserter(state, index);
-                    default:
-                        throw new UnsupportedOperationException();
-                }
-
-            case COUNTER_WRITE:
-                switch(state.settings.mode.style)
-                {
-                    case THRIFT:
-                        return new ThriftCounterAdder(state, index);
-                    case CQL:
-                    case CQL_PREPARED:
-                        return new CqlCounterAdder(state, index);
-                    default:
-                        throw new UnsupportedOperationException();
-                }
-
-            case RANGE_SLICE:
-                switch(state.settings.mode.style)
-                {
-                    case THRIFT:
-                        return new ThriftRangeSlicer(state, index);
-                    case CQL:
-                    case CQL_PREPARED:
-                        return new CqlRangeSlicer(state, index);
-                    default:
-                        throw new UnsupportedOperationException();
-                }
-
-            case INDEXED_RANGE_SLICE:
-                switch(state.settings.mode.style)
-                {
-                    case THRIFT:
-                        return new ThriftIndexedRangeSlicer(state, index);
-                    case CQL:
-                    case CQL_PREPARED:
-                        return new CqlIndexedRangeSlicer(state, index);
-                    default:
-                        throw new UnsupportedOperationException();
-                }
-
-            case READ_MULTI:
-                switch(state.settings.mode.style)
-                {
-                    case THRIFT:
-                        return new ThriftMultiGetter(state, index);
-                    case CQL:
-                    case CQL_PREPARED:
-                        return new CqlMultiGetter(state, index);
-                    default:
-                        throw new UnsupportedOperationException();
-                }
-
-            case MIXED:
-                Command subcommand = state.commandSelector.next();
-                return createOperation(subcommand, state.substate(subcommand), index);
-
-        }
-
-        throw new UnsupportedOperationException();
     }
 
 }

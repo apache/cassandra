@@ -156,7 +156,8 @@ abstract class OptionMulti extends Option
             String[] args = param.split("=");
             if (args.length == 2 && args[1].length() > 0 && args[0].length() > 0)
             {
-                options.put(args[0], args[1]);
+                if (options.put(args[0], args[1]) != null)
+                    throw new IllegalArgumentException(args[0] + " set twice");
                 return true;
             }
             return false;

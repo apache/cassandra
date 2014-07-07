@@ -21,6 +21,7 @@ package org.apache.cassandra.stress.settings;
  */
 
 
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -30,7 +31,7 @@ import com.google.common.base.Function;
 /**
  * For parsing a simple (sub)option for a command/major option
  */
-class OptionSimple extends Option
+class OptionSimple extends Option implements Serializable
 {
 
     final String displayPrefix;
@@ -41,7 +42,7 @@ class OptionSimple extends Option
     private final boolean required;
     private String value;
 
-    private static final class ValueMatcher implements Function<String, String>
+    private static final class ValueMatcher implements Function<String, String>, Serializable
     {
         final Pattern pattern;
         private ValueMatcher(Pattern pattern)

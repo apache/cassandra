@@ -25,6 +25,8 @@ import java.util.Collection;
 import java.util.Random;
 import java.util.UUID;
 
+import com.google.common.annotations.VisibleForTesting;
+
 
 /**
  * The goods are here: www.ietf.org/rfc/rfc4122.txt.
@@ -76,6 +78,12 @@ public class UUIDGen
      * @return a UUID instance
      */
     public static UUID getTimeUUID(long when)
+    {
+        return new UUID(createTime(fromUnixTimestamp(when)), clockSeqAndNode);
+    }
+
+    @VisibleForTesting
+    public static UUID getTimeUUID(long when, long clockSeqAndNode)
     {
         return new UUID(createTime(fromUnixTimestamp(when)), clockSeqAndNode);
     }

@@ -1,4 +1,5 @@
 2.1.0-rc3
+ * Introduce CQL support for stress tool (CASSANDRA-6146)
  * Fix ClassCastException processing expired messages (CASSANDRA-7496)
  * Fix prepared marker for collections inside UDT (CASSANDRA-7472)
  * Remove left-over populate_io_cache_on_flush and replicate_on_write
