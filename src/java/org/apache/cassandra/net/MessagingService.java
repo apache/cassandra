@@ -349,19 +349,19 @@ public final class MessagingService implements MessagingServiceMBean
                     });
                 }
 
-                Mutation mutation = (Mutation) ((WriteCallbackInfo) expiredCallbackInfo).sentMessage.payload;
-
-                try
+                if (expiredCallbackInfo.shouldHint())
                 {
-                    if (expiredCallbackInfo.shouldHint())
+                    Mutation mutation = (Mutation) ((WriteCallbackInfo) expiredCallbackInfo).sentMessage.payload;
+
+                    try
                     {
                         return StorageProxy.submitHint(mutation, expiredCallbackInfo.target, null);
                     }
-                }
-                finally
-                {
-                    //We serialized a hint so we don't need this mutation anymore
-                    mutation.release();
+                    finally
+                    {
+                        //We serialized a hint so we don't need this mutation anymore
+                        mutation.release();
+                    }
                 }
 
                 return null;

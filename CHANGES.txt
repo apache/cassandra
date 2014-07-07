@@ -18,6 +18,7 @@
  * Optimise NativeCell comparisons (CASSANDRA-6755)
 
 2.1.0
+ * Fix ClassCastException processing expired messages (CASSANDRA-7496)
  * Fix prepared marker for collections inside UDT (CASSANDRA-7472)
  * Remove left-over populate_io_cache_on_flush and replicate_on_write
    uses (CASSANDRA-7493)
@@ -29,6 +30,7 @@ Merged from 2.0:
  * Fix CC#collectTimeOrderedData() tombstone optimisations (CASSANDRA-7394)
  * Support DISTINCT for static columns and fix behaviour when DISTINC is
    not use (CASSANDRA-7305).
+ * Workaround JVM NPE on JMX bind failure (CASSANDRA-7254)
  * Fix race in FileCacheService RemovalListener (CASSANDRA-7278)
  * Fix inconsistent use of consistencyForCommit that allowed LOCAL_QUORUM
    operations to incorrect become full QUORUM (CASSANDRA-7345)
