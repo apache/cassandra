@@ -397,7 +397,8 @@ public class CompactionManager implements CompactionManagerMBean
                                       Collection<SSTableReader> validatedForRepair,
                                       long repairedAt) throws InterruptedException, ExecutionException, IOException
     {
-        logger.info("Starting anticompaction for ranges {}", ranges);
+        logger.info("Starting anticompaction");
+        logger.debug("Starting anticompaction for ranges {}", ranges);
         Set<SSTableReader> sstables = new HashSet<>(validatedForRepair);
         Set<SSTableReader> mutatedRepairStatuses = new HashSet<>();
         Set<SSTableReader> nonAnticompacting = new HashSet<>();
