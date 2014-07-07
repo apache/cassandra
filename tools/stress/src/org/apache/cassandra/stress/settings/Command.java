@@ -41,19 +41,6 @@ public enum Command
             "Interleaving of any basic commands, with configurable ratio and distribution - the cluster must first be populated by a write test",
             CommandCategory.MIXED
     ),
-    RANGE_SLICE(false, "Standard1", "Super1",
-            "Range slice queries - the cluster must first be populated by a write test",
-            CommandCategory.MULTI
-    ),
-    INDEXED_RANGE_SLICE(false, "Standard1", "Super1",
-            "Range slice queries through a secondary index. The cluster must first be populated by a write test, with indexing enabled.",
-            CommandCategory.BASIC
-    ),
-    READ_MULTI(false, "Standard1", "Super1",
-            "multi_read",
-            "Multiple concurrent reads fetching multiple rows at once. The cluster must first be populated by a write test.",
-            CommandCategory.MULTI
-    ),
     COUNTER_WRITE(true, "Counter1", "SuperCounter1",
             "counter_add",
             "Multiple concurrent updates of counters.",
@@ -63,6 +50,10 @@ public enum Command
             "counter_get",
             "Multiple concurrent reads of counters. The cluster must first be populated by a counterwrite test.",
             CommandCategory.BASIC
+    ),
+    USER(true, null, null,
+          "Interleaving of user provided queries, with configurable ratio and distribution",
+          CommandCategory.USER
     ),
 
     HELP(false, null, null, "-?", "Print help for a command or option", null),
@@ -136,11 +127,12 @@ public enum Command
         }
         switch (category)
         {
+            case USER:
+                return SettingsCommandUser.helpPrinter();
             case BASIC:
-            case MULTI:
-                return SettingsCommand.helpPrinter(this);
+                return SettingsCommandPreDefined.helpPrinter(this);
             case MIXED:
-                return SettingsCommandMixed.helpPrinter();
+                return SettingsCommandPreDefinedMixed.helpPrinter();
         }
         throw new AssertionError();
     }

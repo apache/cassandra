@@ -43,7 +43,8 @@ public final class Timer
     private int opCount;
 
     // aggregate info
-    private int keyCount;
+    private long partitionCount;
+    private long rowCount;
     private long total;
     private long max;
     private long maxStart;
@@ -65,7 +66,7 @@ public final class Timer
         return 1 + (index >>> SAMPLE_SIZE_SHIFT);
     }
 
-    public void stop(int keys)
+    public void stop(long partitionCount, long rowCount)
     {
         maybeReport();
         long now = System.nanoTime();
@@ -79,7 +80,8 @@ public final class Timer
         }
         total += time;
         opCount += 1;
-        keyCount += keys;
+        this.partitionCount += partitionCount;
+        this.rowCount += rowCount;
         upToDateAsOf = now;
     }
 
@@ -94,11 +96,12 @@ public final class Timer
                 (       new SampleOfLongs(Arrays.copyOf(sample, index(opCount)), p(opCount)),
                         new SampleOfLongs(Arrays.copyOfRange(sample, index(opCount), Math.min(opCount, sample.length)), p(opCount) - 1)
                 );
-        final TimingInterval report = new TimingInterval(lastSnap, upToDateAsOf, max, maxStart, max, keyCount, total, opCount,
+        final TimingInterval report = new TimingInterval(lastSnap, upToDateAsOf, max, maxStart, max, partitionCount, rowCount, total, opCount,
                 SampleOfLongs.merge(rnd, sampleLatencies, Integer.MAX_VALUE));
         // reset counters
         opCount = 0;
-        keyCount = 0;
+        partitionCount = 0;
+        rowCount = 0;
         total = 0;
         max = 0;
         lastSnap = upToDateAsOf;
@@ -145,6 +148,4 @@ public final class Timer
             reportRequest = null;
         }
     }
-
 }
-

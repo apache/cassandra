@@ -26,23 +26,25 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.stress.generatedata.DataGenHexFromDistribution;
-import org.apache.cassandra.stress.generatedata.DataGenHexFromOpIndex;
-import org.apache.cassandra.stress.generatedata.DistributionFactory;
-import org.apache.cassandra.stress.generatedata.KeyGen;
+import org.apache.cassandra.stress.generate.DistributionFactory;
+import org.apache.cassandra.stress.generate.SeedGenerator;
+import org.apache.cassandra.stress.generate.SeedRandomGenerator;
+import org.apache.cassandra.stress.generate.SeedSeriesGenerator;
 
 // Settings for key generation
 public class SettingsKey implements Serializable
 {
 
-    private final int keySize;
+    final int keySize;
     private final DistributionFactory distribution;
+    private final DistributionFactory clustering;
     private final long[] range;
 
     public SettingsKey(DistributionOptions options)
     {
         this.keySize = Integer.parseInt(options.size.value());
         this.distribution = options.dist.get();
+        this.clustering = options.clustering.get();
         this.range = null;
     }
 
@@ -50,8 +52,9 @@ public class SettingsKey implements Serializable
     {
         this.keySize = Integer.parseInt(options.size.value());
         this.distribution = null;
+        this.clustering = null;
         String[] bounds = options.populate.value().split("\\.\\.+");
-        this.range = new long[] { Long.parseLong(bounds[0]), Long.parseLong(bounds[1]) };
+        this.range = new long[] { OptionDistribution.parseLong(bounds[0]), OptionDistribution.parseLong(bounds[1]) };
     }
 
     // Option Declarations
@@ -59,6 +62,7 @@ public class SettingsKey implements Serializable
     private static final class DistributionOptions extends GroupedOptions
     {
         final OptionDistribution dist;
+        final OptionDistribution clustering = new OptionDistribution("cluster=", "fixed(1)", "Keys are clustered in adjacent value runs of this size");
         final OptionSimple size = new OptionSimple("size=", "[0-9]+", "10", "Key size in bytes", false);
 
         public DistributionOptions(String defaultLimit)
@@ -69,7 +73,7 @@ public class SettingsKey implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(dist, size);
+            return Arrays.asList(dist, size, clustering);
         }
     }
 
@@ -80,7 +84,7 @@ public class SettingsKey implements Serializable
 
         public PopulateOptions(String defaultLimit)
         {
-            populate = new OptionSimple("populate=", "[0-9]+\\.\\.+[0-9]+",
+            populate = new OptionSimple("populate=", "[0-9]+\\.\\.+[0-9]+[MBK]?",
                     "1.." + defaultLimit,
                     "Populate all keys in sequence", true);
         }
@@ -92,12 +96,9 @@ public class SettingsKey implements Serializable
         }
     }
 
-    public KeyGen newKeyGen()
+    public SeedGenerator newSeedGenerator()
     {
-        return new KeyGen(range == null
-                            ? new DataGenHexFromDistribution(distribution.get())
-                            : new DataGenHexFromOpIndex(range[0], range[1]),
-                          keySize);
+        return range == null ? new SeedRandomGenerator(distribution.get(), clustering.get()) : new SeedSeriesGenerator(range[0], range[1]);
     }
 
     // CLI Utility Methods

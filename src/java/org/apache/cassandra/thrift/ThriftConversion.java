@@ -51,6 +51,25 @@ public class ThriftConversion
         throw new AssertionError();
     }
 
+    public static ConsistencyLevel toThrift(org.apache.cassandra.db.ConsistencyLevel cl)
+    {
+        switch (cl)
+        {
+            case ANY: return ConsistencyLevel.ANY;
+            case ONE: return ConsistencyLevel.ONE;
+            case TWO: return ConsistencyLevel.TWO;
+            case THREE: return ConsistencyLevel.THREE;
+            case QUORUM: return ConsistencyLevel.QUORUM;
+            case ALL: return ConsistencyLevel.ALL;
+            case LOCAL_QUORUM: return ConsistencyLevel.LOCAL_QUORUM;
+            case EACH_QUORUM: return ConsistencyLevel.EACH_QUORUM;
+            case SERIAL: return ConsistencyLevel.SERIAL;
+            case LOCAL_SERIAL: return ConsistencyLevel.LOCAL_SERIAL;
+            case LOCAL_ONE: return ConsistencyLevel.LOCAL_ONE;
+        }
+        throw new AssertionError();
+    }
+
     // We never return, but returning a RuntimeException allows to write "throw rethrow(e)" without java complaining
     // for methods that have a return value.
     public static RuntimeException rethrow(RequestExecutionException e) throws UnavailableException, TimedOutException
