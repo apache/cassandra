@@ -48,6 +48,11 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
         return deserializeForNativeProtocol(bytes, 3);
     }
 
+    public ByteBuffer reserializeToV3(ByteBuffer bytes)
+    {
+        return serialize(deserializeForNativeProtocol(bytes, 2));
+    }
+
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         // Same thing than above

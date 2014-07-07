@@ -71,7 +71,7 @@ public class Tuples
 
                 values.add(value);
             }
-            DelayedValue value = new DelayedValue(values);
+            DelayedValue value = new DelayedValue((TupleType)receiver.type, values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
@@ -81,6 +81,7 @@ public class Tuples
                 throw new InvalidRequestException(String.format("Expected %d elements in value tuple, but got %d: %s", receivers.size(), elements.size(), this));
 
             List<Term> values = new ArrayList<>(elements.size());
+            List<AbstractType<?>> types = new ArrayList<>(elements.size());
             boolean allTerminal = true;
             for (int i = 0; i < elements.size(); i++)
             {
@@ -89,8 +90,9 @@ public class Tuples
                     allTerminal = false;
 
                 values.add(t);
+                types.add(receivers.get(i).type);
             }
-            DelayedValue value = new DelayedValue(values);
+            DelayedValue value = new DelayedValue(new TupleType(types), values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
@@ -166,10 +168,12 @@ public class Tuples
      */
     public static class DelayedValue extends Term.NonTerminal
     {
+        public final TupleType type;
         public final List<Term> elements;
 
-        public DelayedValue(List<Term> elements)
+        public DelayedValue(TupleType type, List<Term> elements)
         {
+            this.type = type;
             this.elements = elements;
         }
 
@@ -190,13 +194,17 @@ public class Tuples
 
         private ByteBuffer[] bindInternal(QueryOptions options) throws InvalidRequestException
         {
-            // Inside tuples, we must force the serialization of collections whatever the protocol version is in
-            // use since we're going to store directly that serialized value.
-            options = options.withProtocolVersion(3);
+            int version = options.getProtocolVersion();
 
             ByteBuffer[] buffers = new ByteBuffer[elements.size()];
             for (int i = 0; i < elements.size(); i++)
+            {
                 buffers[i] = elements.get(i).bindAndGet(options);
+                // Inside tuples, we must force the serialization of collections to v3 whatever protocol
+                // version is in use since we're going to store directly that serialized value.
+                if (version < 3 && type.type(i).isCollection())
+                    buffers[i] = ((CollectionType)type.type(i)).getSerializer().reserializeToV3(buffers[i]);
+            }
             return buffers;
         }
 
