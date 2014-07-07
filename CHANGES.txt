@@ -1,4 +1,4 @@
-2.1.0
+2.1.0-rc3
  * Fix ClassCastException processing expired messages (CASSANDRA-7496)
  * Fix prepared marker for collections inside UDT (CASSANDRA-7472)
  * Remove left-over populate_io_cache_on_flush and replicate_on_write
@@ -7,6 +7,7 @@
  * Ensure writes have completed after dropping a table, before recycling
    commit log segments (CASSANDRA-7437)
  * Remove left-over rows_per_partition_to_cache (CASSANDRA-7493)
+ * Fix error when CONTAINS is used with a bind marker (CASSANDRA-7502)
 Merged from 2.0:
  * Fix CC#collectTimeOrderedData() tombstone optimisations (CASSANDRA-7394)
  * Support DISTINCT for static columns and fix behaviour when DISTINC is
