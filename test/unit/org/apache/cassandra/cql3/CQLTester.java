@@ -62,8 +62,6 @@ public abstract class CQLTester
     private String currentTable;
     private final Set<String> currentTypes = new HashSet<>();
 
-    private final Set<String> currentTypes = new HashSet<>();
-
     @BeforeClass
     public static void setUpClass() throws Throwable
     {
