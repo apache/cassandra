@@ -16,6 +16,13 @@ using the provided 'sstableupgrade' tool.
 3.0
 ===
 
+New features
+------------
+   - SSTable file name is changed. Now you don't have Keyspace/CF name
+     in file name. Also, secondary index has its own directory under parent's
+     directory.
+     
+
 Upgrading
 ---------
    - CQL2 has been removed entirely in this release (previously deprecated

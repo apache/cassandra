@@ -66,7 +66,8 @@ public interface CompactionManagerMBean
      * If you do so, user defined compaction is performed several times to the groups of files
      * in the same keyspace/columnfamily.
      *
-     * @param dataFiles a comma separated list of sstable filename to compact
+     * @param dataFiles a comma separated list of sstable file to compact.
+     *                  must contain keyspace and columnfamily name in path(for 2.1+) or file name itself.
      */
     public void forceUserDefinedCompaction(String dataFiles);
 

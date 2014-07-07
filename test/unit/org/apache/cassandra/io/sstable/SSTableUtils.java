@@ -69,10 +69,10 @@ public class SSTableUtils
         if(!tempdir.delete() || !tempdir.mkdir())
             throw new IOException("Temporary directory creation failed.");
         tempdir.deleteOnExit();
-        File keyspaceDir = new File(tempdir, keyspaceName);
-        keyspaceDir.mkdir();
-        keyspaceDir.deleteOnExit();
-        File datafile = new File(new Descriptor(keyspaceDir, keyspaceName, cfname, generation, Descriptor.Type.FINAL).filenameFor("Data.db"));
+        File cfDir = new File(tempdir, keyspaceName + File.separator + cfname);
+        cfDir.mkdirs();
+        cfDir.deleteOnExit();
+        File datafile = new File(new Descriptor(cfDir, keyspaceName, cfname, generation, Descriptor.Type.FINAL).filenameFor("Data.db"));
         if (!datafile.createNewFile())
             throw new IOException("unable to create file " + datafile);
         datafile.deleteOnExit();

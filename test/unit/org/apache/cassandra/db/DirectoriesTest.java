@@ -173,7 +173,7 @@ public class DirectoriesTest
             {
                 if (f.getPath().contains(Directories.SNAPSHOT_SUBDIR) || f.getPath().contains(Directories.BACKUPS_SUBDIR))
                     assert !listed.contains(f) : f + " should not be listed";
-                else if (f.getName().contains("-tmp-"))
+                else if (f.getName().contains("tmp-"))
                     assert !listed.contains(f) : f + " should not be listed";
                 else
                     assert listed.contains(f) : f + " is missing";

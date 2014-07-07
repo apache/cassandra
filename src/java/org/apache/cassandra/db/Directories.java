@@ -191,7 +191,15 @@ public class Directories
         String cfId = ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(metadata.cfId));
         int idx = metadata.cfName.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
         // secondary indicies go in the same directory as the base cf
-        String directoryName = idx > 0 ? metadata.cfName.substring(0, idx) + "-" + cfId : metadata.cfName + "-" + cfId;
+        String directoryName;
+        if (idx >= 0)
+        {
+            directoryName = metadata.cfName.substring(0, idx) + "-" + cfId + File.separator + metadata.cfName.substring(idx);
+        }
+        else
+        {
+             directoryName = metadata.cfName + "-" + cfId;
+        }
 
         this.dataPaths = new File[dataDirectories.length];
         // If upgraded from version less than 2.1, use existing directories
@@ -318,7 +326,19 @@ public class Directories
 
     public static File getSnapshotDirectory(Descriptor desc, String snapshotName)
     {
-        return getOrCreate(desc.directory, SNAPSHOT_SUBDIR, snapshotName);
+        return getSnapshotDirectory(desc.directory, snapshotName);
+    }
+
+    public static File getSnapshotDirectory(File location, String snapshotName)
+    {
+        if (location.getName().startsWith(SECONDARY_INDEX_NAME_SEPARATOR))
+        {
+            return getOrCreate(location.getParentFile(), SNAPSHOT_SUBDIR, snapshotName, location.getName());
+        }
+        else
+        {
+            return getOrCreate(location, SNAPSHOT_SUBDIR, snapshotName);
+        }
     }
 
     public File getSnapshotManifestFile(String snapshotName)
@@ -328,7 +348,19 @@ public class Directories
 
     public static File getBackupsDirectory(Descriptor desc)
     {
-        return getOrCreate(desc.directory, BACKUPS_SUBDIR);
+        return getBackupsDirectory(desc.directory);
+    }
+
+    public static File getBackupsDirectory(File location)
+    {
+        if (location.getName().startsWith(SECONDARY_INDEX_NAME_SEPARATOR))
+        {
+            return getOrCreate(location.getParentFile(), BACKUPS_SUBDIR, location.getName());
+        }
+        else
+        {
+            return getOrCreate(location, BACKUPS_SUBDIR);
+        }
     }
 
     public SSTableLister sstableLister()
@@ -439,7 +471,7 @@ public class Directories
 
                 if (snapshotName != null)
                 {
-                    new File(location, join(SNAPSHOT_SUBDIR, snapshotName)).listFiles(getFilter());
+                    getSnapshotDirectory(location, snapshotName).listFiles(getFilter());
                     continue;
                 }
 
@@ -447,26 +479,27 @@ public class Directories
                     location.listFiles(getFilter());
 
                 if (includeBackups)
-                    new File(location, BACKUPS_SUBDIR).listFiles(getFilter());
+                    getBackupsDirectory(location).listFiles(getFilter());
             }
             filtered = true;
         }
 
         private FileFilter getFilter()
         {
-            // Note: the prefix needs to include cfname + separator to distinguish between a cfs and it's secondary indexes
-            final String sstablePrefix = getSSTablePrefix();
             return new FileFilter()
             {
                 // This function always return false since accepts adds to the components map
                 public boolean accept(File file)
                 {
-                    // we are only interested in the SSTable files that belong to the specific ColumnFamily
-                    if (file.isDirectory() || !file.getName().startsWith(sstablePrefix))
+                    if (file.isDirectory())
                         return false;
 
                     Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file.getParentFile(), file.getName());
                     if (pair == null)
+                        return false;
+
+                    // we are only interested in the SSTable files that belong to the specific ColumnFamily
+                    if (!pair.left.ksname.equals(metadata.ksName) || !pair.left.cfname.equals(metadata.cfName))
                         return false;
 
                     if (skipTemporary && pair.left.type.isTemporary)
@@ -569,11 +602,6 @@ public class Directories
         return result;
     }
 
-    private String getSSTablePrefix()
-    {
-        return metadata.ksName + Component.separator + metadata.cfName + Component.separator;
-    }
-
     public long getTrueAllocatedSizeIn(File input)
     {
         if (!input.isDirectory())
@@ -662,7 +690,6 @@ public class Directories
         private final AtomicLong size = new AtomicLong(0);
         private final Set<String> visited = newHashSet(); //count each file only once
         private final Set<String> alive;
-        private final String prefix = getSSTablePrefix();
 
         public TrueFilesSizeVisitor()
         {
@@ -675,8 +702,11 @@ public class Directories
 
         private boolean isAcceptable(Path file)
         {
-            String fileName = file.toFile().getName(); 
-            return fileName.startsWith(prefix)
+            String fileName = file.toFile().getName();
+            Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file.getParent().toFile(), fileName);
+            return pair != null
+                    && pair.left.ksname.equals(metadata.ksName)
+                    && pair.left.cfname.equals(metadata.cfName)
                     && !visited.contains(fileName)
                     && !alive.contains(fileName);
         }
