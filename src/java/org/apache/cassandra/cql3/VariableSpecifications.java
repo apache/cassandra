@@ -49,4 +49,10 @@ public class VariableSpecifications
             spec = new ColumnSpecification(spec.ksName, spec.cfName, name, spec.type);
         specs[bindIndex] = spec;
     }
+
+    @Override
+    public String toString()
+    {
+        return Arrays.toString(specs);
+    }
 }

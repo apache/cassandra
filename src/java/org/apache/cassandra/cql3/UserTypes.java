@@ -57,12 +57,15 @@ public abstract class UserTypes
             UserType ut = (UserType)receiver.type;
             boolean allTerminal = true;
             List<Term> values = new ArrayList<>(entries.size());
+            int foundValues = 0;
             for (int i = 0; i < ut.size(); i++)
             {
                 ColumnIdentifier field = new ColumnIdentifier(ut.fieldName(i), UTF8Type.instance);
                 Term.Raw raw = entries.get(field);
                 if (raw == null)
                     raw = Constants.NULL_LITERAL;
+                else
+                    ++foundValues;
                 Term value = raw.prepare(keyspace, fieldSpecOf(receiver, i));
 
                 if (value instanceof Term.NonTerminal)
@@ -70,6 +73,14 @@ public abstract class UserTypes
 
                 values.add(value);
             }
+            if (foundValues != entries.size())
+            {
+                // We had some field that are not part of the type
+                for (ColumnIdentifier id : entries.keySet())
+                    if (!ut.fieldNames().contains(id.bytes))
+                        throw new InvalidRequestException(String.format("Unknown field '%s' in value of user defined type %s", id, ut.getNameAsString()));
+            }
+
             DelayedValue value = new DelayedValue(((UserType)receiver.type), values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
