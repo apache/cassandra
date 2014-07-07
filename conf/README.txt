@@ -9,3 +9,5 @@ Optional configuration files
 ============================
 
 cassandra-topology.properties: used by PropertyFileSnitch
+
+
