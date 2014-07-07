@@ -57,6 +57,12 @@ public abstract class Constants
                 // We return null because that makes life easier for collections
                 return null;
             }
+
+            @Override
+            public String toString()
+            {
+                return "null";
+            }
         };
 
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
@@ -75,7 +81,7 @@ public abstract class Constants
         @Override
         public String toString()
         {
-            return null;
+            return "null";
         }
     };
 

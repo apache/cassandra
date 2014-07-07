@@ -270,41 +270,48 @@ public abstract class Message
             EnumSet<Frame.Header.Flag> flags = EnumSet.noneOf(Frame.Header.Flag.class);
 
             Codec<Message> codec = (Codec<Message>)message.type.codec;
-            int messageSize = codec.encodedSize(message, version);
-            ByteBuf body;
-            if (message instanceof Response)
+            try
             {
-                UUID tracingId = ((Response)message).getTracingId();
-                if (tracingId != null)
+                int messageSize = codec.encodedSize(message, version);
+                ByteBuf body;
+                if (message instanceof Response)
                 {
-                    body = CBUtil.allocator.buffer(CBUtil.sizeOfUUID(tracingId) + messageSize);
-                    CBUtil.writeUUID(tracingId, body);
-                    flags.add(Frame.Header.Flag.TRACING);
+                    UUID tracingId = ((Response)message).getTracingId();
+                    if (tracingId != null)
+                    {
+                        body = CBUtil.allocator.buffer(CBUtil.sizeOfUUID(tracingId) + messageSize);
+                        CBUtil.writeUUID(tracingId, body);
+                        flags.add(Frame.Header.Flag.TRACING);
+                    }
+                    else
+                    {
+                        body = CBUtil.allocator.buffer(messageSize);
+                    }
                 }
                 else
                 {
+                    assert message instanceof Request;
                     body = CBUtil.allocator.buffer(messageSize);
+                    if (((Request)message).isTracingRequested())
+                        flags.add(Frame.Header.Flag.TRACING);
                 }
-            }
-            else
-            {
-                assert message instanceof Request;
-                body = CBUtil.allocator.buffer(messageSize);
-                if (((Request)message).isTracingRequested())
-                    flags.add(Frame.Header.Flag.TRACING);
-            }
 
-            try
-            {
-                codec.encode(message, body, version);
+                try
+                {
+                    codec.encode(message, body, version);
+                }
+                catch (Throwable e)
+                {
+                    body.release();
+                    throw e;
+                }
+
+                results.add(Frame.create(message.type, message.getStreamId(), version, flags, body));
             }
             catch (Throwable e)
             {
-                body.release();
                 throw ErrorMessage.wrap(e, message.getStreamId());
             }
-
-            results.add(Frame.create(message.type, message.getStreamId(), version, flags, body));
         }
     }
 

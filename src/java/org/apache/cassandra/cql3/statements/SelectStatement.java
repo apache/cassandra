@@ -1697,6 +1697,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     boolean isKey = newRel.operator() == Relation.Type.CONTAINS_KEY;
                     receiver = makeCollectionReceiver(receiver, isKey);
                     Term t = newRel.getValue().prepare(keyspace(), receiver);
+                    t.collectMarkerSpecification(boundNames);
                     ((SingleColumnRestriction.Contains)existingRestriction).add(t, isKey);
                 }
             }
