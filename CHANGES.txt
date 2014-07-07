@@ -19,6 +19,7 @@
  * Optimise NativeCell comparisons (CASSANDRA-6755)
 
 2.1.0-rc3
+ * Consider expiry when reconciling otherwise equal cells (CASSANDRA-7403)
  * Introduce CQL support for stress tool (CASSANDRA-6146)
  * Fix ClassCastException processing expired messages (CASSANDRA-7496)
  * Fix prepared marker for collections inside UDT (CASSANDRA-7472)

@@ -120,16 +120,12 @@ public abstract class AbstractCell implements Cell
 
     public Cell reconcile(Cell cell)
     {
-        // tombstones take precedence.  (if both are tombstones, then it doesn't matter which one we use.)
-        if (!isLive())
-            return timestamp() < cell.timestamp() ? cell : this;
-        if (!cell.isLive())
-            return timestamp() > cell.timestamp() ? this : cell;
-        // break ties by comparing values.
-        if (timestamp() == cell.timestamp())
-            return value().compareTo(cell.value()) < 0 ? cell : this;
-        // neither is tombstoned and timestamps are different
-        return timestamp() < cell.timestamp() ? cell : this;
+        long ts1 = timestamp(), ts2 = cell.timestamp();
+        if (ts1 != ts2)
+            return ts1 < ts2 ? cell : this;
+        if (isLive() != cell.isLive())
+            return isLive() ? cell : this;
+        return value().compareTo(cell.value()) < 0 ? cell : this;
     }
 
     @Override
