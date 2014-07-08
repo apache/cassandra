@@ -4,6 +4,7 @@
  * Adjust MT depth based on # of partition validating (CASSANDRA-5263)
  * Optimise NativeCell comparisons (CASSANDRA-6755)
 
+
 2.1.0-rc3
  * Consider expiry when reconciling otherwise equal cells (CASSANDRA-7403)
  * Introduce CQL support for stress tool (CASSANDRA-6146)
@@ -33,7 +34,6 @@ Merged from 2.0:
    (CASSANDRA-7455)
  * Add option to disable STCS in L0 (CASSANDRA-6621)
  * Upgrade to snappy-java 1.0.5.2 (CASSANDRA-7476)
-
 
 
 2.1.0-rc2

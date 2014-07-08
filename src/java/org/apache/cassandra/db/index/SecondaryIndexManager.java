@@ -620,6 +620,22 @@ public class SecondaryIndexManager
         return true;
     }
 
+    static boolean shouldCleanupOldValue(Cell oldCell, Cell newCell)
+    {
+        // If any one of name/value/timestamp are different, then we
+        // should delete from the index. If not, then we can infer that
+        // at least one of the cells is an ExpiringColumn and that the
+        // difference is in the expiry time. In this case, we don't want to
+        // delete the old value from the index as the tombstone we insert
+        // will just hide the inserted value.
+        // Completely identical cells (including expiring columns with
+        // identical ttl & localExpirationTime) will not get this far due
+        // to the oldCell.equals(newColumn) in StandardUpdater.update
+        return !oldCell.name().equals(newCell.name())
+            || !oldCell.value().equals(newCell.value())
+            || oldCell.timestamp() != newCell.timestamp();
+    }
+
     public static interface Updater
     {
         /** called when constructing the index against pre-existing data */
@@ -744,20 +760,5 @@ public class SecondaryIndexManager
                 ((PerRowSecondaryIndex) index).index(key.getKey(), cf);
         }
 
-        private boolean shouldCleanupOldValue(Cell oldCell, Cell newCell)
-        {
-            // If any one of name/value/timestamp are different, then we
-            // should delete from the index. If not, then we can infer that
-            // at least one of the cells is an ExpiringColumn and that the
-            // difference is in the expiry time. In this case, we don't want to
-            // delete the old value from the index as the tombstone we insert
-            // will just hide the inserted value.
-            // Completely identical cells (including expiring columns with
-            // identical ttl & localExpirationTime) will not get this far due
-            // to the oldCell.equals(newColumn) in StandardUpdater.update
-            return !oldCell.name().equals(newCell.name())
-                || !oldCell.value().equals(newCell.value())
-                || oldCell.timestamp() != newCell.timestamp();
-        }
     }
 }

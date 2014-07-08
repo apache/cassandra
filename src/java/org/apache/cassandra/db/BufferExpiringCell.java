@@ -142,6 +142,7 @@ public class BufferExpiringCell extends BufferCell implements ExpiringCell
             throw new MarshalException("The local expiration time should not be negative");
     }
 
+    @Override
     public Cell reconcile(Cell cell)
     {
         long ts1 = timestamp(), ts2 = cell.timestamp();
@@ -150,11 +151,10 @@ public class BufferExpiringCell extends BufferCell implements ExpiringCell
         // we should prefer tombstones
         if (cell instanceof DeletedCell)
             return cell;
-        // however if we're both ExpiringCells, we should prefer the one with the longest ttl
-        // (really in preference _always_ to the value comparison)
         int c = value().compareTo(cell.value());
         if (c != 0)
             return c < 0 ? cell : this;
+        // If we have same timestamp and value, prefer the longest ttl
         if (cell instanceof ExpiringCell)
         {
             int let1 = localExpirationTime, let2 = cell.getLocalDeletionTime();
