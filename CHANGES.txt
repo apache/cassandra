@@ -21,6 +21,7 @@
 
 2.1.0-final
  * (Windows) fix startup when WMI memory query fails (CASSANDRA-7505)
+ * Anti-compaction proceeds if any part of the repair failed (CASANDRA-7521)
 
 
 2.1.0-rc3
