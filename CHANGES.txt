@@ -1,3 +1,7 @@
+2.1.0-final
+ * (Windows) fix startup when WMI memory query fails (CASSANDRA-7505)
+
+
 2.1.0-rc3
  * Consider expiry when reconciling otherwise equal cells (CASSANDRA-7403)
  * Introduce CQL support for stress tool (CASSANDRA-6146)

@@ -66,6 +66,14 @@ Function CalculateHeapSizes
     }
 
     $memObject = Get-WMIObject -class win32_physicalmemory
+    if ($memObject -eq $null)
+    {
+        echo "WARNING!  Could not determine system memory.  Defaulting to 2G heap, 512M newgen.  Manually override in conf/cassandra-env.ps1 for different heap values."
+        $env:MAX_HEAP_SIZE = "2048M"
+        $env:HEAP_NEWSIZE = "512M"
+        return
+    }
+
     $memory = ($memObject | Measure-Object Capacity -Sum).sum
     $memoryMB = [Math]::Truncate($memory / (1024*1024))
 
