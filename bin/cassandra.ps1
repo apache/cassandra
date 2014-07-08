@@ -66,7 +66,14 @@ Function Main
 {
     ValidateArguments
 
+    # support direct run of .ps1 file w/out batch file
+    if ($env:CASSANDRA_HOME -eq $null)
+    {
+        $scriptDir = Split-Path $script:MyInvocation.MyCommand.Path
+        $env:CASSANDRA_HOME = (Get-Item $scriptDir).parent.FullName
+    }
     . "$env:CASSANDRA_HOME\bin\source-conf.ps1"
+
     $conf = Find-Conf
     if ($verbose)
     {
