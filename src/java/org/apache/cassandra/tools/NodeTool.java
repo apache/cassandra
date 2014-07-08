@@ -1835,7 +1835,8 @@ public class NodeTool
             {
                 ownerships = probe.effectiveOwnership(keyspace);
                 hasEffectiveOwns = true;
-            } catch (IllegalStateException e)
+            }
+            catch (IllegalStateException e)
             {
                 ownerships = probe.getOwnership();
                 System.out.printf("Note: Ownership information does not include topology; for complete information, specify a keyspace%n");
@@ -1943,7 +1944,7 @@ public class NodeTool
                 buf.append(addressPlaceholder);               // address
                 buf.append("%-9s  ");                         // load
                 if (!isTokenPerNode)
-                    buf.append("%-6s  ");                     // "Tokens"
+                    buf.append("%-11s  ");                     // "Tokens"
                 if (hasEffectiveOwns)
                     buf.append("%-16s  ");                    // "Owns (effective)"
                 else
