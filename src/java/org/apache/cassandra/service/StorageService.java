@@ -2765,6 +2765,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     }
                 }
 
+                boolean successful = true;
                 for (RepairFuture future : futures)
                 {
                     try
@@ -2776,19 +2777,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     }
                     catch (ExecutionException e)
                     {
+                        successful = false;
                         message = String.format("Repair session %s for range %s failed with error %s", future.session.getId(), future.session.getRange().toString(), e.getCause().getMessage());
                         logger.error(message, e);
                         sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.SESSION_FAILED.ordinal()});
                     }
                     catch (Exception e)
                     {
+                        successful = false;
                         message = String.format("Repair session %s for range %s failed with error %s", future.session.getId(), future.session.getRange().toString(), e.getMessage());
                         logger.error(message, e);
                         sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.SESSION_FAILED.ordinal()});
                     }
                 }
                 if (!fullRepair)
-                    ActiveRepairService.instance.finishParentSession(parentSession, allNeighbors);
+                    ActiveRepairService.instance.finishParentSession(parentSession, allNeighbors, successful);
                 sendNotification("repair", String.format("Repair command #%d finished", cmd), new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
             }
         }, null);
