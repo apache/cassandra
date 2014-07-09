@@ -56,7 +56,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class LegacySSTableTest
 {
     public static final String LEGACY_SSTABLE_PROP = "legacy-sstable-root";
-    public static final String KSNAME = "LegacySSTableTest";
+    public static final String KSNAME = "Keyspace1";
     public static final String CFNAME = "Standard1";
 
     public static Set<String> TEST_DATA;
