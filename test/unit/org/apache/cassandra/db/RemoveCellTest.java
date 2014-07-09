@@ -58,13 +58,13 @@ public class RemoveCellTest
         // add data
         rm = new Mutation(KEYSPACE1, dk.getKey());
         rm.add("Standard1", Util.cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);
-        rm.apply();
+        rm.applyUnsafe();
         store.forceBlockingFlush();
 
         // remove
         rm = new Mutation(KEYSPACE1, dk.getKey());
         rm.delete("Standard1", Util.cellname("Column1"), 1);
-        rm.apply();
+        rm.applyUnsafe();
 
         ColumnFamily retrieved = store.getColumnFamily(Util.namesQueryFilter(store, dk, "Column1"));
         assertFalse(retrieved.getColumn(Util.cellname("Column1")).isLive());

@@ -79,7 +79,7 @@ public class PerRowSecondaryIndexTest
         Mutation rm;
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", Util.cellname("indexed"), ByteBufferUtil.bytes("foo"), 1);
-        rm.apply();
+        rm.applyUnsafe();
 
         ColumnFamily indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_ROW;
         assertNotNull(indexedRow);
@@ -88,7 +88,7 @@ public class PerRowSecondaryIndexTest
         // update the row and verify what was indexed
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", Util.cellname("indexed"), ByteBufferUtil.bytes("bar"), 2);
-        rm.apply();
+        rm.applyUnsafe();
 
         indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_ROW;
         assertNotNull(indexedRow);
@@ -103,7 +103,7 @@ public class PerRowSecondaryIndexTest
         Mutation rm;
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k2"));
         rm.delete("Indexed1", Util.cellname("indexed"), 1);
-        rm.apply();
+        rm.applyUnsafe();
 
         ColumnFamily indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_ROW;
         assertNotNull(indexedRow);
@@ -121,7 +121,7 @@ public class PerRowSecondaryIndexTest
         Mutation rm;
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k3"));
         rm.delete("Indexed1", 1);
-        rm.apply();
+        rm.applyUnsafe();
 
         ColumnFamily indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_ROW;
         assertNotNull(indexedRow);

@@ -77,7 +77,7 @@ public class AntiCompactionTest
                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                        timestamp,
                        0);
-            rm.apply();
+            rm.applyUnsafe();
         }
         store.forceBlockingFlush();
         Collection<SSTableReader> sstables = store.getUnrepairedSSTables();

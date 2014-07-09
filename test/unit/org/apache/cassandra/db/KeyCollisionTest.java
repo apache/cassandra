@@ -103,7 +103,7 @@ public class KeyCollisionTest
         Mutation rm;
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes(key));
         rm.add(CF, Util.cellname("column"), ByteBufferUtil.bytes("asdf"), 0);
-        rm.apply();
+        rm.applyUnsafe();
     }
 
     public static class LengthPartitioner extends AbstractPartitioner<BigIntegerToken>

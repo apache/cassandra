@@ -71,7 +71,7 @@ public class OneCompactionTest
             DecoratedKey key = Util.dk(String.valueOf(j));
             Mutation rm = new Mutation(KEYSPACE1, key.getKey());
             rm.add(columnFamilyName, Util.cellname("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
-            rm.apply();
+            rm.applyUnsafe();
             inserted.add(key);
             store.forceBlockingFlush();
             assertEquals(inserted.size(), Util.getRangeSlice(store).size());

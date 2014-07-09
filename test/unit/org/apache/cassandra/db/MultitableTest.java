@@ -64,12 +64,12 @@ public class MultitableTest
         cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, "Standard1");
         cf.addColumn(column("col1", "val1", 1L));
         rm = new Mutation(KEYSPACE1, dk.getKey(), cf);
-        rm.apply();
+        rm.applyUnsafe();
 
         cf = ArrayBackedSortedColumns.factory.create(KEYSPACE2, "Standard1");
         cf.addColumn(column("col2", "val2", 1L));
         rm = new Mutation(KEYSPACE2, dk.getKey(), cf);
-        rm.apply();
+        rm.applyUnsafe();
 
         keyspace1.getColumnFamilyStore("Standard1").forceBlockingFlush();
         keyspace2.getColumnFamilyStore("Standard1").forceBlockingFlush();

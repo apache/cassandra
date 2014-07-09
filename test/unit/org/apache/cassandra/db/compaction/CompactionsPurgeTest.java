@@ -107,7 +107,7 @@ public class CompactionsPurgeTest
         {
             rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         }
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         // deletes
@@ -115,14 +115,14 @@ public class CompactionsPurgeTest
         {
             rm = new Mutation(KEYSPACE1, key.getKey());
             rm.delete(cfName, cellname(String.valueOf(i)), 1);
-            rm.apply();
+            rm.applyUnsafe();
         }
         cfs.forceBlockingFlush();
 
         // resurrect one column
         rm = new Mutation(KEYSPACE1, key.getKey());
         rm.add(cfName, cellname(String.valueOf(5)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         // major compact and test that all columns but the resurrected one is completely gone
@@ -152,7 +152,7 @@ public class CompactionsPurgeTest
             {
                 rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
             }
-            rm.apply();
+            rm.applyUnsafe();
             cfs.forceBlockingFlush();
 
             // deletes
@@ -160,7 +160,7 @@ public class CompactionsPurgeTest
             {
                 rm = new Mutation(KEYSPACE2, key.getKey());
                 rm.delete(cfName, cellname(String.valueOf(i)), 1);
-                rm.apply();
+                rm.applyUnsafe();
             }
             cfs.forceBlockingFlush();
         }
@@ -174,7 +174,7 @@ public class CompactionsPurgeTest
         Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
         rm = new Mutation(KEYSPACE2, key1.getKey());
         rm.add(cfName, cellname(String.valueOf(5)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 2);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
         cfs.getCompactionStrategy().getUserDefinedTask(sstablesIncomplete, Integer.MAX_VALUE).execute(null);
 
@@ -207,19 +207,19 @@ public class CompactionsPurgeTest
         rm = new Mutation(KEYSPACE2, key3.getKey());
         rm.add(cfName, cellname("c1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 8);
         rm.add(cfName, cellname("c2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 8);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
         // delete c1
         rm = new Mutation(KEYSPACE2, key3.getKey());
         rm.delete(cfName, cellname("c1"), 10);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
         Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
 
         // delete c2 so we have new delete in a diffrent SSTable
         rm = new Mutation(KEYSPACE2, key3.getKey());
         rm.delete(cfName, cellname("c2"), 9);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         // compact the sstables with the c1/c2 data and the c1 tombstone
@@ -250,14 +250,14 @@ public class CompactionsPurgeTest
         {
             rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         }
-        rm.apply();
+        rm.applyUnsafe();
 
         // deletes
         for (int i = 0; i < 5; i++)
         {
             rm = new Mutation(KEYSPACE1, key.getKey());
             rm.delete(cfName, cellname(String.valueOf(i)), 1);
-            rm.apply();
+            rm.applyUnsafe();
         }
         cfs.forceBlockingFlush();
         assertEquals(String.valueOf(cfs.getSSTables()), 1, cfs.getSSTables().size()); // inserts & deletes were in the same memtable -> only deletes in sstable
@@ -288,7 +288,7 @@ public class CompactionsPurgeTest
         {
             rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         }
-        rm.apply();
+        rm.applyUnsafe();
 
         // move the key up in row cache
         cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
@@ -296,7 +296,7 @@ public class CompactionsPurgeTest
         // deletes row
         rm = new Mutation(keyspaceName, key.getKey());
         rm.delete(cfName, 1);
-        rm.apply();
+        rm.applyUnsafe();
 
         // flush and major compact
         cfs.forceBlockingFlush();
@@ -308,7 +308,7 @@ public class CompactionsPurgeTest
         {
             rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
         }
-        rm.apply();
+        rm.applyUnsafe();
 
         // Check that the second insert did went in
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
@@ -334,12 +334,12 @@ public class CompactionsPurgeTest
         rm = new Mutation(keyspaceName, key.getKey());
         for (int i = 0; i < 10; i++)
             rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
-        rm.apply();
+        rm.applyUnsafe();
 
         // deletes row with timestamp such that not all columns are deleted
         rm = new Mutation(keyspaceName, key.getKey());
         rm.delete(cfName, 4);
-        rm.apply();
+        rm.applyUnsafe();
         ColumnFamily cf = cfs.getColumnFamily(filter);
         assertTrue(cf.isMarkedForDelete());
 
@@ -352,7 +352,7 @@ public class CompactionsPurgeTest
         rm = new Mutation(keyspaceName, key.getKey());
         for (int i = 0; i < 5; i++)
             rm.add(cfName, cellname(String.valueOf(i)), ByteBufferUtil.EMPTY_BYTE_BUFFER, i);
-        rm.apply();
+        rm.applyUnsafe();
 
         // Check that the second insert went in
         cf = cfs.getColumnFamily(filter);

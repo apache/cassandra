@@ -83,7 +83,7 @@ public class HintedHandOffTest
                                               System.currentTimeMillis(),
                                               HintedHandOffManager.calculateHintTTL(rm),
                                               UUID.randomUUID())
-                                     .apply();
+                                     .applyUnsafe();
 
         // flush data to disk
         hintStore.forceBlockingFlush();
@@ -126,7 +126,7 @@ public class HintedHandOffTest
                                               System.currentTimeMillis(),
                                               HintedHandOffManager.calculateHintTTL(rm),
                                               UUID.randomUUID())
-                                     .apply();
+                                     .applyUnsafe();
 
         assert getNoOfHints() == 1;
 

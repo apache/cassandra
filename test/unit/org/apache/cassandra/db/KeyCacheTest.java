@@ -139,10 +139,10 @@ public class KeyCacheTest
         // inserts
         rm = new Mutation(KEYSPACE1, key1.getKey());
         rm.add(COLUMN_FAMILY1, Util.cellname("1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
-        rm.apply();
+        rm.applyUnsafe();
         rm = new Mutation(KEYSPACE1, key2.getKey());
         rm.add(COLUMN_FAMILY1, Util.cellname("2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
-        rm.apply();
+        rm.applyUnsafe();
 
         // to make sure we have SSTable
         cfs.forceBlockingFlush();

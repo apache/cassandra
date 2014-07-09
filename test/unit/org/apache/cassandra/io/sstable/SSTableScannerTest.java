@@ -86,7 +86,7 @@ public class SSTableScannerTest
         DecoratedKey decoratedKey = Util.dk(toKey(key));
         Mutation rm = new Mutation(KEYSPACE, decoratedKey.getKey());
         rm.add(TABLE, Util.cellname("col"), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp, 1000);
-        rm.apply();
+        rm.applyUnsafe();
     }
 
     private static void assertScanMatches(SSTableReader sstable, int scanStart, int scanEnd, int expectedStart, int expectedEnd)
