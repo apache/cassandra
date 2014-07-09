@@ -472,10 +472,17 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 if (slice.isAlwaysEmpty(cfDef.cfm.comparator, isReversed))
                     return staticSlice == null ? null : sliceFilter(staticSlice, limit, toGroup);
 
-                return staticSlice == null
-                     ? sliceFilter(slice, limit, toGroup)
-                     : (slice.includes(cfDef.cfm.comparator, staticSlice.finish) ? sliceFilter(new ColumnSlice(staticSlice.start, slice.finish), limit, toGroup)
-                                                                                 : sliceFilter(new ColumnSlice[]{ staticSlice, slice }, limit, toGroup));
+                if (staticSlice == null)
+                    return sliceFilter(slice, limit, toGroup);
+
+                if (isReversed)
+                    return slice.includes(cfDef.cfm.comparator.reverseComparator, staticSlice.start)
+                            ? sliceFilter(new ColumnSlice(slice.start, staticSlice.finish), limit, toGroup)
+                            : sliceFilter(new ColumnSlice[]{ slice, staticSlice }, limit, toGroup);
+                else
+                    return slice.includes(cfDef.cfm.comparator, staticSlice.finish)
+                            ? sliceFilter(new ColumnSlice(staticSlice.start, slice.finish), limit, toGroup)
+                            : sliceFilter(new ColumnSlice[]{ staticSlice, slice }, limit, toGroup);
             }
 
             List<ColumnSlice> l = new ArrayList<ColumnSlice>(startBounds.size());
@@ -497,7 +504,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             ColumnSlice[] slices;
             if (isReversed)
             {
-                if (l.get(l.size() - 1).includes(cfDef.cfm.comparator, staticSlice.start))
+                if (l.get(l.size() - 1).includes(cfDef.cfm.comparator.reverseComparator, staticSlice.start))
                 {
                     slices = l.toArray(new ColumnSlice[l.size()]);
                     slices[slices.length-1] = new ColumnSlice(slices[slices.length-1].start, ByteBufferUtil.EMPTY_BYTE_BUFFER);
