@@ -156,9 +156,18 @@ public class LegacySSTableTest
     @Test
     public void testVersions() throws Throwable
     {
+        boolean notSkipped = false;
+
         for (File version : LEGACY_SSTABLE_ROOT.listFiles())
+        {
             if (Descriptor.Version.validate(version.getName()) && new Descriptor.Version(version.getName()).isCompatible())
+            {
+                notSkipped = true;
                 testVersion(version.getName());
+            }
+        }
+
+        assert notSkipped;
     }
 
     public void testVersion(String version) throws Throwable
