@@ -11,6 +11,7 @@
  * Switch external naming of 'column families' to 'tables' (CASSANDRA-4369) 
  * Shorten SSTable path (CASSANDRA-6962)
  * Use unsafe mutations for most unit tests (CASSANDRA-6969)
+ * Fix race condition during calculation of pending ranges (CASSANDRA-7390)
 
 
 2.1.1
