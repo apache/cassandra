@@ -1,4 +1,5 @@
 2.0.10
+ * Warn when SSL certificates have expired (CASSANDRA-7528)
  * Workaround JVM NPE on JMX bind failure (CASSANDRA-7254)
  * Fix race in FileCacheService RemovalListener (CASSANDRA-7278)
  * Fix inconsistent use of consistencyForCommit that allowed LOCAL_QUORUM
