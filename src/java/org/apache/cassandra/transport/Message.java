@@ -312,7 +312,7 @@ public abstract class Message
 
                 ctx.getChannel().write(response);
             }
-            catch (Exception ex)
+            catch (Throwable ex)
             {
                 // Don't let the exception propagate to exceptionCaught() if we can help it so that we can assign the right streamID.
                 ctx.getChannel().write(ErrorMessage.fromException(ex).setStreamId(request.getStreamId()));
