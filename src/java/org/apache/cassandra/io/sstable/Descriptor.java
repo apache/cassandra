@@ -18,10 +18,13 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.StringTokenizer;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.LegacyMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
@@ -47,7 +50,7 @@ public class Descriptor
     public static class Version
     {
         // This needs to be at the begining for initialization sake
-        public static final String current_version = "ka";
+        public static final String current_version = "la";
 
         // ja (2.0.0): super columns are serialized as composites (note that there is no real format change,
         //               this is mostly a marker to know if we should expect super columns or not. We do need
@@ -63,6 +66,7 @@ public class Descriptor
         //             index summaries can be downsampled and the sampling level is persisted
         //             switch uncompressed checksums to adler32
         //             tracks presense of legacy (local and remote) counter shards
+        // la (3.0.0): new file name format
 
         public static final Version CURRENT = new Version(current_version);
 
@@ -75,6 +79,7 @@ public class Descriptor
         public final boolean hasAllAdlerChecksums;
         public final boolean hasRepairedAt;
         public final boolean tracksLegacyCounterShards;
+        public final boolean newFileName;
 
         public Version(String version)
         {
@@ -86,6 +91,7 @@ public class Descriptor
             hasAllAdlerChecksums = version.compareTo("ka") >= 0;
             hasRepairedAt = version.compareTo("ka") >= 0;
             tracksLegacyCounterShards = version.compareTo("ka") >= 0;
+            newFileName = version.compareTo("la") >= 0;
         }
 
         /**
@@ -188,8 +194,11 @@ public class Descriptor
 
     private void appendFileName(StringBuilder buff)
     {
-        buff.append(ksname).append(separator);
-        buff.append(cfname).append(separator);
+        if (!version.newFileName)
+        {
+            buff.append(ksname).append(separator);
+            buff.append(cfname).append(separator);
+        }
         if (type.isTemporary)
             buff.append(type.marker).append(separator);
         buff.append(version).append(separator);
@@ -230,13 +239,20 @@ public class Descriptor
         return fromFilename(file.getParentFile(), file.getName(), skipComponent).left;
     }
 
-    public static Pair<Descriptor,String> fromFilename(File directory, String name)
+    public static Pair<Descriptor, String> fromFilename(File directory, String name)
     {
         return fromFilename(directory, name, false);
     }
 
     /**
-     * Filename of the form "<ksname>-<cfname>-[tmp-][<version>-]<gen>-<component>"
+     * Filename of the form is vary by version:
+     *
+     * <ul>
+     *     <li>&lt;ksname&gt;-&lt;cfname&gt;-(tmp-)?&lt;version&gt;-&lt;gen&gt;-&lt;component&gt; for cassandra 2.0 and before</li>
+     *     <li>(&lt;tmp marker&gt;-)?&lt;version&gt;-&lt;gen&gt;-&lt;component&gt; for cassandra 2.1 and later</li>
+     * </ul>
+     *
+     * If this is for SSTable of secondary index, directory should ends with index name for 2.1+.
      *
      * @param directory The directory of the SSTable files
      * @param name The name of the SSTable file
@@ -244,43 +260,79 @@ public class Descriptor
      *
      * @return A Descriptor for the SSTable, and the Component remainder.
      */
-    public static Pair<Descriptor,String> fromFilename(File directory, String name, boolean skipComponent)
+    public static Pair<Descriptor, String> fromFilename(File directory, String name, boolean skipComponent)
     {
+        File parentDirectory = directory != null ? directory : new File(".");
+
         // tokenize the filename
         StringTokenizer st = new StringTokenizer(name, String.valueOf(separator));
         String nexttok;
 
-        // all filenames must start with keyspace and column family
-        String ksname = st.nextToken();
-        String cfname = st.nextToken();
-
-        // optional temporary marker
-        nexttok = st.nextToken();
-        Type type = Type.FINAL;
-        if (nexttok.equals(Type.TEMP.marker))
+        // read tokens backwards to determine version
+        Deque<String> tokenStack = new ArrayDeque<>();
+        while (st.hasMoreTokens())
         {
-            type = Type.TEMP;
-            nexttok = st.nextToken();
-        }
-        else if (nexttok.equals(Type.TEMPLINK.marker))
-        {
-            type = Type.TEMPLINK;
-            nexttok = st.nextToken();
+            tokenStack.push(st.nextToken());
         }
 
+        // component suffix
+        String component = skipComponent ? null : tokenStack.pop();
+
+        // generation
+        int generation = Integer.parseInt(tokenStack.pop());
+
+        // version
+        nexttok = tokenStack.pop();
         if (!Version.validate(nexttok))
             throw new UnsupportedOperationException("SSTable " + name + " is too old to open.  Upgrade to 2.0 first, and run upgradesstables");
         Version version = new Version(nexttok);
 
-        nexttok = st.nextToken();
-        int generation = Integer.parseInt(nexttok);
+        // optional temporary marker
+        Type type = Type.FINAL;
+        nexttok = tokenStack.peek();
+        if (Type.TEMP.marker.equals(nexttok))
+        {
+            type = Type.TEMP;
+            tokenStack.pop();
+        }
+        else if (Type.TEMPLINK.marker.equals(nexttok))
+        {
+            type = Type.TEMPLINK;
+            tokenStack.pop();
+        }
 
-        // component suffix
-        String component = null;
-        if (!skipComponent)
-            component = st.nextToken();
-        directory = directory != null ? directory : new File(".");
-        return Pair.create(new Descriptor(version, directory, ksname, cfname, generation, type), component);
+        // ks/cf names
+        String ksname, cfname;
+        if (version.newFileName)
+        {
+            // for 2.1+ read ks and cf names from directory
+            File cfDirectory = parentDirectory;
+            // check if this is secondary index
+            String indexName = "";
+            if (cfDirectory.getName().startsWith(Directories.SECONDARY_INDEX_NAME_SEPARATOR))
+            {
+                indexName = cfDirectory.getName();
+                cfDirectory = cfDirectory.getParentFile();
+            }
+            if (cfDirectory.getName().equals(Directories.BACKUPS_SUBDIR))
+            {
+                cfDirectory = cfDirectory.getParentFile();
+            }
+            else if (cfDirectory.getParentFile().getName().equals(Directories.SNAPSHOT_SUBDIR))
+            {
+                cfDirectory = cfDirectory.getParentFile().getParentFile();
+            }
+            cfname = cfDirectory.getName().split("-")[0] + indexName;
+            ksname = cfDirectory.getParentFile().getName();
+        }
+        else
+        {
+            cfname = tokenStack.pop();
+            ksname = tokenStack.pop();
+        }
+        assert tokenStack.isEmpty() : "Invalid file name " + name + " in " + directory;
+
+        return Pair.create(new Descriptor(version, parentDirectory, ksname, cfname, generation, type), component);
     }
 
     /**

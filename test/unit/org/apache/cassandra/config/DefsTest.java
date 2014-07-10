@@ -202,7 +202,7 @@ public class DefsTest
         DecoratedKey dk = Util.dk("key0");
         Mutation rm = new Mutation(ks, dk.getKey());
         rm.add(cf, col0, ByteBufferUtil.bytes("value0"), 1L);
-        rm.apply();
+        rm.applyUnsafe();
         ColumnFamilyStore store = Keyspace.open(ks).getColumnFamilyStore(cf);
         Assert.assertNotNull(store);
         store.forceBlockingFlush();
@@ -227,7 +227,7 @@ public class DefsTest
         Mutation rm = new Mutation(ks.name, dk.getKey());
         for (int i = 0; i < 100; i++)
             rm.add(cfm.cfName, cellname("col" + i), ByteBufferUtil.bytes("anyvalue"), 1L);
-        rm.apply();
+        rm.applyUnsafe();
         ColumnFamilyStore store = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         Assert.assertNotNull(store);
         store.forceBlockingFlush();
@@ -243,7 +243,7 @@ public class DefsTest
         try
         {
             rm.add("Standard1", cellname("col0"), ByteBufferUtil.bytes("value0"), 1L);
-            rm.apply();
+            rm.applyUnsafe();
         }
         catch (Throwable th)
         {
@@ -276,7 +276,7 @@ public class DefsTest
         CellName col0 = cellname("col0");
         Mutation rm = new Mutation(newCf.ksName, dk.getKey());
         rm.add(newCf.cfName, col0, ByteBufferUtil.bytes("value0"), 1L);
-        rm.apply();
+        rm.applyUnsafe();
         ColumnFamilyStore store = Keyspace.open(newCf.ksName).getColumnFamilyStore(newCf.cfName);
         Assert.assertNotNull(store);
         store.forceBlockingFlush();
@@ -301,7 +301,7 @@ public class DefsTest
         Mutation rm = new Mutation(ks.name, dk.getKey());
         for (int i = 0; i < 100; i++)
             rm.add(cfm.cfName, cellname("col" + i), ByteBufferUtil.bytes("anyvalue"), 1L);
-        rm.apply();
+        rm.applyUnsafe();
         ColumnFamilyStore store = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         Assert.assertNotNull(store);
         store.forceBlockingFlush();
@@ -317,7 +317,7 @@ public class DefsTest
         try
         {
             rm.add("Standard1", cellname("col0"), ByteBufferUtil.bytes("value0"), 1L);
-            rm.apply();
+            rm.applyUnsafe();
         }
         catch (Throwable th)
         {
@@ -352,7 +352,7 @@ public class DefsTest
         Mutation rm = new Mutation(ks.name, dk.getKey());
         for (int i = 0; i < 100; i++)
             rm.add(cfm.cfName, cellname("col" + i), ByteBufferUtil.bytes("anyvalue"), 1L);
-        rm.apply();
+        rm.applyUnsafe();
 
         MigrationManager.announceKeyspaceDrop(ks.name);
 
@@ -385,7 +385,7 @@ public class DefsTest
         DecoratedKey dk = Util.dk("key0");
         Mutation rm = new Mutation(newKs.name, dk.getKey());
         rm.add(newCf.cfName, col0, ByteBufferUtil.bytes("value0"), 1L);
-        rm.apply();
+        rm.applyUnsafe();
         ColumnFamilyStore store = Keyspace.open(newKs.name).getColumnFamilyStore(newCf.cfName);
         Assert.assertNotNull(store);
         store.forceBlockingFlush();
@@ -528,14 +528,14 @@ public class DefsTest
     public void testDropIndex() throws ConfigurationException
     {
         // persist keyspace definition in the system keyspace
-        Schema.instance.getKSMetaData(KEYSPACE6).toSchema(System.currentTimeMillis()).apply();
+        Schema.instance.getKSMetaData(KEYSPACE6).toSchema(System.currentTimeMillis()).applyUnsafe();
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE6).getColumnFamilyStore("Indexed1");
 
         // insert some data.  save the sstable descriptor so we can make sure it's marked for delete after the drop
         Mutation rm = new Mutation(KEYSPACE6, ByteBufferUtil.bytes("k1"));
         rm.add("Indexed1", cellname("notbirthdate"), ByteBufferUtil.bytes(1L), 0);
         rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(1L), 0);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
         ColumnFamilyStore indexedCfs = cfs.indexManager.getIndexForColumn(ByteBufferUtil.bytes("birthdate")).getIndexCfs();
         Descriptor desc = indexedCfs.getSSTables().iterator().next().descriptor;

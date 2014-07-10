@@ -71,7 +71,7 @@ public class TTLExpiryTest
                timestamp,
                1);
 
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         rm = new Mutation(KEYSPACE1, Util.dk("ttl").getKey());
@@ -79,21 +79,21 @@ public class TTLExpiryTest
                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                        timestamp,
                        1);
-                rm.apply();
+                rm.applyUnsafe();
         cfs.forceBlockingFlush();
         rm = new Mutation(KEYSPACE1, Util.dk("ttl").getKey());
         rm.add("Standard1", Util.cellname("col3"),
                    ByteBufferUtil.EMPTY_BYTE_BUFFER,
                    timestamp,
                    1);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
         rm = new Mutation(KEYSPACE1, Util.dk("ttl").getKey());
         rm.add("Standard1", Util.cellname("col311"),
                    ByteBufferUtil.EMPTY_BYTE_BUFFER,
                    timestamp,
                    1);
-        rm.apply();
+        rm.applyUnsafe();
 
         cfs.forceBlockingFlush();
         Thread.sleep(2000); // wait for ttl to expire
@@ -119,7 +119,7 @@ public class TTLExpiryTest
                timestamp,
                1);
 
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         rm = new Mutation(KEYSPACE1, Util.dk("ttl").getKey());
@@ -127,21 +127,21 @@ public class TTLExpiryTest
                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
                        timestamp,
                        1);
-                rm.apply();
+                rm.applyUnsafe();
         cfs.forceBlockingFlush();
         rm = new Mutation(KEYSPACE1, Util.dk("ttl").getKey());
         rm.add("Standard1", Util.cellname("col3"),
                    ByteBufferUtil.EMPTY_BYTE_BUFFER,
                    timestamp,
                    1);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
         DecoratedKey noTTLKey = Util.dk("nottl");
         rm = new Mutation(KEYSPACE1, noTTLKey.getKey());
         rm.add("Standard1", Util.cellname("col311"),
                    ByteBufferUtil.EMPTY_BYTE_BUFFER,
                    timestamp);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
         Thread.sleep(2000); // wait for ttl to expire
         assertEquals(4, cfs.getSSTables().size());

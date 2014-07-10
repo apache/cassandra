@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableSet;
 import org.junit.AfterClass;
 import org.junit.After;
 import org.junit.Assert;
@@ -59,6 +60,7 @@ public abstract class CQLTester
     }
 
     private String currentTable;
+    private final Set<String> currentTypes = new HashSet<>();
 
     @BeforeClass
     public static void setUpClass() throws Throwable
@@ -77,8 +79,10 @@ public abstract class CQLTester
         if (currentTable == null)
             return;
 
-        final String toDrop = currentTable;
+        final String tableToDrop = currentTable;
+        final Set<String> typesToDrop = currentTypes.isEmpty() ? Collections.emptySet() : new HashSet(currentTypes);
         currentTable = null;
+        currentTypes.clear();
 
         // We want to clean up after the test, but dropping a table is rather long so just do that asynchronously
         StorageService.tasks.execute(new Runnable()
@@ -87,7 +91,10 @@ public abstract class CQLTester
             {
                 try
                 {
-                    schemaChange(String.format("DROP TABLE %s.%s", KEYSPACE, toDrop));
+                    schemaChange(String.format("DROP TABLE %s.%s", KEYSPACE, tableToDrop));
+
+                    for (String typeName : typesToDrop)
+                        schemaChange(String.format("DROP TYPE %s.%s", KEYSPACE, typeName));
 
                     // Dropping doesn't delete the sstables. It's not a huge deal but it's cleaner to cleanup after us
                     // Thas said, we shouldn't delete blindly before the SSTableDeletingTask for the table we drop
@@ -96,15 +103,15 @@ public abstract class CQLTester
 
                     final CountDownLatch latch = new CountDownLatch(1);
                     StorageService.tasks.execute(new Runnable()
-                        {
-                            public void run()
                     {
-                        latch.countDown();
-                    }
+                            public void run()
+                            {
+                                latch.countDown();
+                            }
                     });
                     latch.await(2, TimeUnit.SECONDS);
 
-                    removeAllSSTables(KEYSPACE, toDrop);
+                    removeAllSSTables(KEYSPACE, tableToDrop);
                 }
                 catch (Exception e)
                 {
@@ -124,9 +131,26 @@ public abstract class CQLTester
         }
     }
 
+    protected String createType(String query)
+    {
+        String typeName = "type_" + seqNumber.getAndIncrement();
+        String fullQuery = String.format(query, KEYSPACE + "." + typeName);
+        currentTypes.add(typeName);
+        logger.info(fullQuery);
+        schemaChange(fullQuery);
+        return typeName;
+    }
+
     protected void createTable(String query)
     {
         currentTable = "table_" + seqNumber.getAndIncrement();
+        String fullQuery = String.format(query, KEYSPACE + "." + currentTable);
+        logger.info(fullQuery);
+        schemaChange(fullQuery);
+    }
+
+    protected void createIndex(String query)
+    {
         String fullQuery = String.format(query, KEYSPACE + "." + currentTable);
         logger.info(fullQuery);
         schemaChange(fullQuery);
@@ -466,6 +490,23 @@ public abstract class CQLTester
         return Arrays.asList(values);
     }
 
+    protected Object set(Object...values)
+    {
+        return ImmutableSet.copyOf(values);
+    }
+
+    protected Object map(Object...values)
+    {
+        if (values.length % 2 != 0)
+            throw new IllegalArgumentException();
+
+        int size = values.length / 2;
+        Map m = new HashMap(size);
+        for (int i = 0; i < size; i++)
+            m.put(values[2 * i], values[(2 * i) + 1]);
+        return m;
+    }
+
     // Attempt to find an AbstracType from a value (for serialization/printing sake).
     // Will work as long as we use types we know of, which is good enough for testing
     private static AbstractType typeFor(Object value)
@@ -493,6 +534,31 @@ public abstract class CQLTester
             List l = (List)value;
             AbstractType elt = l.isEmpty() ? BytesType.instance : typeFor(l.get(0));
             return ListType.getInstance(elt);
+        }
+
+        if (value instanceof Set)
+        {
+            Set s = (Set)value;
+            AbstractType elt = s.isEmpty() ? BytesType.instance : typeFor(s.iterator().next());
+            return SetType.getInstance(elt);
+        }
+
+        if (value instanceof Map)
+        {
+            Map m = (Map)value;
+            AbstractType keys, values;
+            if (m.isEmpty())
+            {
+                keys = BytesType.instance;
+                values = BytesType.instance;
+            }
+            else
+            {
+                Map.Entry entry = (Map.Entry)m.entrySet().iterator().next();
+                keys = typeFor(entry.getKey());
+                values = typeFor(entry.getValue());
+            }
+            return MapType.getInstance(keys, values);
         }
 
         throw new IllegalArgumentException("Unsupported value type (value is " + value + ")");

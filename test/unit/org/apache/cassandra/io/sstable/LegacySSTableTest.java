@@ -56,7 +56,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class LegacySSTableTest
 {
     public static final String LEGACY_SSTABLE_PROP = "legacy-sstable-root";
-    public static final String KSNAME = "LegacySSTableTest";
+    public static final String KSNAME = "Keyspace1";
     public static final String CFNAME = "Standard1";
 
     public static Set<String> TEST_DATA;
@@ -156,9 +156,18 @@ public class LegacySSTableTest
     @Test
     public void testVersions() throws Throwable
     {
+        boolean notSkipped = false;
+
         for (File version : LEGACY_SSTABLE_ROOT.listFiles())
+        {
             if (Descriptor.Version.validate(version.getName()) && new Descriptor.Version(version.getName()).isCompatible())
+            {
+                notSkipped = true;
                 testVersion(version.getName());
+            }
+        }
+
+        assert notSkipped;
     }
 
     public void testVersion(String version) throws Throwable

@@ -111,7 +111,7 @@ public class SettingsTransport implements Serializable
 
     // Option Declarations
 
-    static class TOptions extends GroupedOptions
+    static class TOptions extends GroupedOptions implements Serializable
     {
         final OptionSimple factory = new OptionSimple("factory=", ".*", TFramedTransportFactory.class.getName(), "Fully-qualified ITransportFactory class name for creating a connection. Note: For Thrift over SSL, use org.apache.cassandra.thrift.SSLTransportFactory.", false);
         final OptionSimple trustStore = new OptionSimple("truststore=", ".*", null, "SSL: full path to truststore", false);

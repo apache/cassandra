@@ -16,6 +16,13 @@ using the provided 'sstableupgrade' tool.
 3.0
 ===
 
+New features
+------------
+   - SSTable file name is changed. Now you don't have Keyspace/CF name
+     in file name. Also, secondary index has its own directory under parent's
+     directory.
+     
+
 Upgrading
 ---------
    - CQL2 has been removed entirely in this release (previously deprecated
@@ -78,6 +85,15 @@ Upgrading
      min_index_interval and max_index_interval paratemeters. index_interval
      has been deprecated.
    - support for supercolumns has been removed from json2sstable
+
+
+2.0.10
+====
+New features
+------------
+    - If you are using Leveled Compaction, you can now disable doing size-tiered
+      compaction in L0 by starting Cassandra with -Dcassandra.disable_stcs_in_l0
+      (see CASSANDRA-6621 for details).
 
 
 2.0.9

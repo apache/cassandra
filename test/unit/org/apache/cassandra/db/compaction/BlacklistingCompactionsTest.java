@@ -107,7 +107,7 @@ public class BlacklistingCompactionsTest
                 long timestamp = j * ROWS_PER_SSTABLE + i;
                 rm.add("Standard1", cellname(i / 2), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp);
                 maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
-                rm.apply();
+                rm.applyUnsafe();
                 inserted.add(key);
             }
             cfs.forceBlockingFlush();

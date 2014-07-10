@@ -25,7 +25,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="2.1.0-rc2"/>
+    <property name="base.version" value="2.1.0-rc3"/>
     <property name="scm.connection" value="scm:git://git.apache.org/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:git://git.apache.org/cassandra.git"/>
     <property name="scm.url" value="http://git-wip-us.apache.org/repos/asf?p=cassandra.git;a=tree"/>
@@ -443,6 +443,8 @@
         <parent groupId="org.apache.cassandra"
                 artifactId="cassandra-parent"
                 version="${version}"/>
+        <!-- do NOT remove this, it breaks pig-test -->
+        <dependency groupId="org.slf4j" artifactId="slf4j-log4j12" version="1.7.2"/>
         <dependency groupId="joda-time" artifactId="joda-time" version="2.3" />
       </artifact:pom>
 

@@ -61,6 +61,9 @@ public abstract class CollectionType<T> extends AbstractType<T>
     public abstract List<ByteBuffer> serializedValues(List<Cell> cells);
 
     @Override
+    public abstract CollectionSerializer<T> getSerializer();
+
+    @Override
     public String toString()
     {
         StringBuilder sb = new StringBuilder();

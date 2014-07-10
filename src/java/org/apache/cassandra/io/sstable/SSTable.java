@@ -150,18 +150,17 @@ public abstract class SSTable
     }
 
     /**
-     * @return A Descriptor,Component pair. If component is of unknown type, returns CUSTOM component.
+     * @return Descriptor and Component pair. null if given file is not acceptable as SSTable component.
+     *         If component is of unknown type, returns CUSTOM component.
      */
-    public static Pair<Descriptor,Component> tryComponentFromFilename(File dir, String name)
+    public static Pair<Descriptor, Component> tryComponentFromFilename(File dir, String name)
     {
         try
         {
             return Component.fromFilename(dir, name);
         }
-        catch (NoSuchElementException e)
+        catch (Throwable e)
         {
-            // A NoSuchElementException is thrown if the name does not match the Descriptor format
-            // This is the less impacting change (all calls to this method test for null return)
             return null;
         }
     }

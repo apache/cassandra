@@ -250,12 +250,10 @@ public class CommitLogSegment
     /**
      * Wait for any appends or discardUnusedTail() operations started before this method was called
      */
-    private synchronized void waitForModifications()
+    void waitForModifications()
     {
         // issue a barrier and wait for it
-        OpOrder.Barrier barrier = appendOrder.newBarrier();
-        barrier.issue();
-        barrier.await();
+        appendOrder.awaitNewBarrier();
     }
 
     /**

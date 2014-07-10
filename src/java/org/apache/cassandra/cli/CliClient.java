@@ -1816,11 +1816,9 @@ public class CliClient
 
         writeAttr(output, false, "read_repair_chance", cfDef.read_repair_chance);
         writeAttr(output, false, "dclocal_read_repair_chance", cfDef.dclocal_read_repair_chance);
-        writeAttr(output, false, "populate_io_cache_on_flush", cfDef.populate_io_cache_on_flush);
         writeAttr(output, false, "gc_grace", cfDef.gc_grace_seconds);
         writeAttr(output, false, "min_compaction_threshold", cfDef.min_compaction_threshold);
         writeAttr(output, false, "max_compaction_threshold", cfDef.max_compaction_threshold);
-        writeAttr(output, false, "replicate_on_write", cfDef.replicate_on_write);
         writeAttr(output, false, "compaction_strategy", cfDef.compaction_strategy);
         writeAttr(output, false, "caching", cfDef.caching);
         writeAttr(output, false, "cells_per_row_to_cache", cfDef.cells_per_row_to_cache);
@@ -2189,8 +2187,6 @@ public class CliClient
         sessionState.out.printf("      Compaction min/max thresholds: %s/%s%n", cf_def.min_compaction_threshold, cf_def.max_compaction_threshold);
         sessionState.out.printf("      Read repair chance: %s%n", cf_def.read_repair_chance);
         sessionState.out.printf("      DC Local Read repair chance: %s%n", cf_def.dclocal_read_repair_chance);
-        sessionState.out.printf("      Populate IO Cache on flush: %b%n", cf_def.populate_io_cache_on_flush);
-        sessionState.out.printf("      Replicate on write: %s%n", cf_def.replicate_on_write);
         sessionState.out.printf("      Caching: %s%n", cf_def.caching);
         sessionState.out.printf("      Default time to live: %s%n", cf_def.default_time_to_live);
         sessionState.out.printf("      Bloom Filter FP chance: %s%n", cf_def.isSetBloom_filter_fp_chance() ? cf_def.bloom_filter_fp_chance : "default");

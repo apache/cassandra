@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -33,10 +34,11 @@ public abstract class UserTypes
 
     public static ColumnSpecification fieldSpecOf(ColumnSpecification column, int field)
     {
+        UserType ut = (UserType)column.type;
         return new ColumnSpecification(column.ksName,
                                        column.cfName,
-                                       new ColumnIdentifier(column.name + "." + field, true),
-                                       ((UserType)column.type).fieldType(field));
+                                       new ColumnIdentifier(column.name + "." + UTF8Type.instance.compose(ut.fieldName(field)), true),
+                                       ut.fieldType(field));
     }
 
     public static class Literal implements Term.Raw
@@ -55,12 +57,15 @@ public abstract class UserTypes
             UserType ut = (UserType)receiver.type;
             boolean allTerminal = true;
             List<Term> values = new ArrayList<>(entries.size());
+            int foundValues = 0;
             for (int i = 0; i < ut.size(); i++)
             {
                 ColumnIdentifier field = new ColumnIdentifier(ut.fieldName(i), UTF8Type.instance);
                 Term.Raw raw = entries.get(field);
                 if (raw == null)
                     raw = Constants.NULL_LITERAL;
+                else
+                    ++foundValues;
                 Term value = raw.prepare(keyspace, fieldSpecOf(receiver, i));
 
                 if (value instanceof Term.NonTerminal)
@@ -68,6 +73,14 @@ public abstract class UserTypes
 
                 values.add(value);
             }
+            if (foundValues != entries.size())
+            {
+                // We had some field that are not part of the type
+                for (ColumnIdentifier id : entries.keySet())
+                    if (!ut.fieldNames().contains(id.bytes))
+                        throw new InvalidRequestException(String.format("Unknown field '%s' in value of user defined type %s", id, ut.getNameAsString()));
+            }
+
             DelayedValue value = new DelayedValue(((UserType)receiver.type), values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
@@ -150,13 +163,17 @@ public abstract class UserTypes
 
         private ByteBuffer[] bindInternal(QueryOptions options) throws InvalidRequestException
         {
-            // Inside UDT values, we must force the serialization of collections whatever the protocol version is in
-            // use since we're going to store directly that serialized value.
-            options = options.withProtocolVersion(3);
+            int version = options.getProtocolVersion();
 
             ByteBuffer[] buffers = new ByteBuffer[values.size()];
             for (int i = 0; i < type.size(); i++)
+            {
                 buffers[i] = values.get(i).bindAndGet(options);
+                // Inside UDT values, we must force the serialization of collections to v3 whatever protocol
+                // version is in use since we're going to store directly that serialized value.
+                if (version < 3 && type.fieldType(i).isCollection())
+                    buffers[i] = ((CollectionType)type.fieldType(i)).getSerializer().reserializeToV3(buffers[i]);
+            }
             return buffers;
         }
 

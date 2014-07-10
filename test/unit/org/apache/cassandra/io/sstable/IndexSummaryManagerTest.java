@@ -432,7 +432,7 @@ public class IndexSummaryManagerTest
             DecoratedKey key = Util.dk(String.valueOf(row));
             Mutation rm = new Mutation(ksname, key.getKey());
             rm.add(cfname, Util.cellname("column"), value, 0);
-            rm.apply();
+            rm.applyUnsafe();
         }
         cfs.forceBlockingFlush();
 
@@ -492,7 +492,7 @@ public class IndexSummaryManagerTest
                 DecoratedKey key = Util.dk(String.valueOf(row));
                 Mutation rm = new Mutation(ksname, key.getKey());
                 rm.add(cfname, Util.cellname("column"), value, 0);
-                rm.apply();
+                rm.applyUnsafe();
             }
             cfs.forceBlockingFlush();
         }

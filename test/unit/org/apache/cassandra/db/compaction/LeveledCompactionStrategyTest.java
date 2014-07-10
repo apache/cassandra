@@ -105,7 +105,7 @@ public class LeveledCompactionStrategyTest
             {
                 rm.add(CF_STANDARDDLEVELED, Util.cellname("column" + c), value, 0);
             }
-            rm.apply();
+            rm.applyUnsafe();
             cfs.forceBlockingFlush();
         }
 
@@ -150,7 +150,7 @@ public class LeveledCompactionStrategyTest
             {
                 rm.add(CF_STANDARDDLEVELED, Util.cellname("column" + c), value, 0);
             }
-            rm.apply();
+            rm.applyUnsafe();
             cfs.forceBlockingFlush();
         }
 
@@ -189,7 +189,7 @@ public class LeveledCompactionStrategyTest
             {
                 rm.add(CF_STANDARDDLEVELED, Util.cellname("column" + c), value, 0);
             }
-            rm.apply();
+            rm.applyUnsafe();
             cfs.forceBlockingFlush();
         }
         waitForLeveling(cfs);
@@ -235,7 +235,7 @@ public class LeveledCompactionStrategyTest
             {
                 rm.add(CF_STANDARDDLEVELED, Util.cellname("column" + c), value, 0);
             }
-            rm.apply();
+            rm.applyUnsafe();
             cfs.forceBlockingFlush();
         }
         waitForLeveling(cfs);

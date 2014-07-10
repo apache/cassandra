@@ -172,12 +172,12 @@ public class ColumnFamilyStoreTest
         Mutation rm;
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("key1"));
         rm.add(CF_STANDARD1, cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("key1"));
         rm.add(CF_STANDARD1, cellname("Column1"), ByteBufferUtil.bytes("asdf"), 1);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         cfs.getRecentSSTablesPerReadHistogram(); // resets counts
@@ -215,7 +215,7 @@ public class ColumnFamilyStoreTest
 
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("key1"));
         rm.delete(CF_STANDARD2, System.currentTimeMillis());
-        rm.apply();
+        rm.applyUnsafe();
 
         Runnable r = new WrappedRunnable()
         {
@@ -261,22 +261,22 @@ public class ColumnFamilyStoreTest
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k1"));
         rm.add(CF_INDEX1, nobirthdate, ByteBufferUtil.bytes(1L), 0);
         rm.add(CF_INDEX1, birthdate, ByteBufferUtil.bytes(1L), 0);
-        rm.apply();
+        rm.applyUnsafe();
 
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k2"));
         rm.add(CF_INDEX1, nobirthdate, ByteBufferUtil.bytes(2L), 0);
         rm.add(CF_INDEX1, birthdate, ByteBufferUtil.bytes(2L), 0);
-        rm.apply();
+        rm.applyUnsafe();
 
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k3"));
         rm.add(CF_INDEX1, nobirthdate, ByteBufferUtil.bytes(2L), 0);
         rm.add(CF_INDEX1, birthdate, ByteBufferUtil.bytes(1L), 0);
-        rm.apply();
+        rm.applyUnsafe();
 
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k4aaaa"));
         rm.add(CF_INDEX1, nobirthdate, ByteBufferUtil.bytes(2L), 0);
         rm.add(CF_INDEX1, birthdate, ByteBufferUtil.bytes(3L), 0);
-        rm.apply();
+        rm.applyUnsafe();
 
         // basic single-expression query
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexExpression.Operator.EQ, ByteBufferUtil.bytes(1L));
@@ -371,7 +371,7 @@ public class ColumnFamilyStoreTest
 
         rm = new Mutation(KEYSPACE3, ByteBufferUtil.bytes("k1"));
         rm.add(CF_INDEX1, cellname("birthdate"), ByteBufferUtil.bytes(1L), 0);
-        rm.apply();
+        rm.applyUnsafe();
 
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexExpression.Operator.EQ, ByteBufferUtil.bytes(1L));
         List<IndexExpression> clause = Arrays.asList(expr);
@@ -385,7 +385,7 @@ public class ColumnFamilyStoreTest
         // delete the column directly
         rm = new Mutation(KEYSPACE3, ByteBufferUtil.bytes("k1"));
         rm.delete(CF_INDEX1, cellname("birthdate"), 1);
-        rm.apply();
+        rm.applyUnsafe();
         rows = cfs.search(range, clause, filter, 100);
         assert rows.isEmpty();
 
@@ -400,7 +400,7 @@ public class ColumnFamilyStoreTest
         // resurrect w/ a newer timestamp
         rm = new Mutation(KEYSPACE3, ByteBufferUtil.bytes("k1"));
         rm.add(CF_INDEX1, cellname("birthdate"), ByteBufferUtil.bytes(1L), 2);
-        rm.apply();
+        rm.applyUnsafe();
         rows = cfs.search(range, clause, filter, 100);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         key = ByteBufferUtil.string(rows.get(0).key.getKey());
@@ -409,7 +409,7 @@ public class ColumnFamilyStoreTest
         // verify that row and delete w/ older timestamp does nothing
         rm = new Mutation(KEYSPACE3, ByteBufferUtil.bytes("k1"));
         rm.delete(CF_INDEX1, 1);
-        rm.apply();
+        rm.applyUnsafe();
         rows = cfs.search(range, clause, filter, 100);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         key = ByteBufferUtil.string(rows.get(0).key.getKey());
@@ -418,7 +418,7 @@ public class ColumnFamilyStoreTest
         // similarly, column delete w/ older timestamp should do nothing
         rm = new Mutation(KEYSPACE3, ByteBufferUtil.bytes("k1"));
         rm.delete(CF_INDEX1, cellname("birthdate"), 1);
-        rm.apply();
+        rm.applyUnsafe();
         rows = cfs.search(range, clause, filter, 100);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         key = ByteBufferUtil.string(rows.get(0).key.getKey());
@@ -427,14 +427,14 @@ public class ColumnFamilyStoreTest
         // delete the entire row (w/ newer timestamp this time)
         rm = new Mutation(KEYSPACE3, ByteBufferUtil.bytes("k1"));
         rm.delete(CF_INDEX1, 3);
-        rm.apply();
+        rm.applyUnsafe();
         rows = cfs.search(range, clause, filter, 100);
         assert rows.isEmpty() : StringUtils.join(rows, ",");
 
         // make sure obsolete mutations don't generate an index entry
         rm = new Mutation(KEYSPACE3, ByteBufferUtil.bytes("k1"));
         rm.add(CF_INDEX1, cellname("birthdate"), ByteBufferUtil.bytes(1L), 3);
-        rm.apply();
+        rm.applyUnsafe();
         rows = cfs.search(range, clause, filter, 100);
         assert rows.isEmpty() : StringUtils.join(rows, ",");
 
@@ -442,7 +442,7 @@ public class ColumnFamilyStoreTest
         rm = new Mutation(KEYSPACE3, ByteBufferUtil.bytes("k1"));
         rm.add(CF_INDEX1, cellname("birthdate"), ByteBufferUtil.bytes(1L), 1);
         rm.delete(CF_INDEX1, 2);
-        rm.apply();
+        rm.applyUnsafe();
         rows = cfs.search(range, clause, filter, 100);
         assert rows.isEmpty() : StringUtils.join(rows, ",");
 
@@ -450,7 +450,7 @@ public class ColumnFamilyStoreTest
         rm = new Mutation(KEYSPACE3, ByteBufferUtil.bytes("k1"));
         rm.delete(CF_INDEX1, 3);
         rm.add(CF_INDEX1, cellname("birthdate"), ByteBufferUtil.bytes(1L), 4);
-        rm.apply();
+        rm.applyUnsafe();
         rows = cfs.search(range, clause, filter, 100);
         assert rows.size() == 1 : StringUtils.join(rows, ",");
         key = ByteBufferUtil.string(rows.get(0).key.getKey());
@@ -468,10 +468,10 @@ public class ColumnFamilyStoreTest
         Mutation rm;
         rm = new Mutation(KEYSPACE2, ByteBufferUtil.bytes("k1"));
         rm.add(CF_INDEX1, birthdate, ByteBufferUtil.bytes(1L), 1);
-        rm.apply();
+        rm.applyUnsafe();
         rm = new Mutation(KEYSPACE2, ByteBufferUtil.bytes("k1"));
         rm.add(CF_INDEX1, birthdate, ByteBufferUtil.bytes(2L), 2);
-        rm.apply();
+        rm.applyUnsafe();
 
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexExpression.Operator.EQ, ByteBufferUtil.bytes(1L));
         List<IndexExpression> clause = Arrays.asList(expr);
@@ -489,7 +489,7 @@ public class ColumnFamilyStoreTest
         // update the birthdate value with an OLDER timestamp, and test that the index ignores this
         rm = new Mutation(KEYSPACE2, ByteBufferUtil.bytes("k1"));
         rm.add(CF_INDEX1, birthdate, ByteBufferUtil.bytes(3L), 0);
-        rm.apply();
+        rm.applyUnsafe();
 
         rows = keyspace.getColumnFamilyStore(CF_INDEX1).search(range, clause, filter, 100);
         key = ByteBufferUtil.string(rows.get(0).key.getKey());
@@ -507,7 +507,7 @@ public class ColumnFamilyStoreTest
         Mutation rm;
         rm = new Mutation(KEYSPACE2, ByteBufferUtil.bytes("k100"));
         rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(100L), 1, 1000);
-        rm.apply();
+        rm.applyUnsafe();
 
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexExpression.Operator.EQ, ByteBufferUtil.bytes(100L));
         List<IndexExpression> clause = Arrays.asList(expr);
@@ -522,7 +522,7 @@ public class ColumnFamilyStoreTest
         // now overwrite with the same name/value/ttl, but the local expiry time will be different
         rm = new Mutation(KEYSPACE2, ByteBufferUtil.bytes("k100"));
         rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(100L), 1, 1000);
-        rm.apply();
+        rm.applyUnsafe();
 
         rows = keyspace.getColumnFamilyStore("Indexed1").search(range, clause, filter, 100);
         assertEquals(1, rows.size());
@@ -530,7 +530,7 @@ public class ColumnFamilyStoreTest
         // check that modifying the indexed value using the same timestamp behaves as expected
         rm = new Mutation(KEYSPACE2, ByteBufferUtil.bytes("k101"));
         rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(101L), 1, 1000);
-        rm.apply();
+        rm.applyUnsafe();
 
         expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexExpression.Operator.EQ, ByteBufferUtil.bytes(101L));
         clause = Arrays.asList(expr);
@@ -540,7 +540,7 @@ public class ColumnFamilyStoreTest
         TimeUnit.SECONDS.sleep(1);
         rm = new Mutation(KEYSPACE2, ByteBufferUtil.bytes("k101"));
         rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(102L), 1, 1000);
-        rm.apply();
+        rm.applyUnsafe();
         // search for the old value
         rows = keyspace.getColumnFamilyStore("Indexed1").search(range, clause, filter, 100);
         assertEquals(0, rows.size());
@@ -570,7 +570,7 @@ public class ColumnFamilyStoreTest
         Mutation rm;
         rm = new Mutation(keySpace, rowKey);
         rm.add(cfName, colName, val1, 0);
-        rm.apply();
+        rm.applyUnsafe();
         IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexExpression.Operator.EQ, val1);
         List<IndexExpression> clause = Arrays.asList(expr);
         IDiskAtomFilter filter = new IdentityQueryFilter();
@@ -638,7 +638,7 @@ public class ColumnFamilyStoreTest
         Mutation rm;
         rm = new Mutation(keySpace, rowKey);
         rm.add(cfName, compositeName, val1, 0);
-        rm.apply();
+        rm.applyUnsafe();
 
         // test that the index query fetches this version
         IndexExpression expr = new IndexExpression(colName, IndexExpression.Operator.EQ, val1);
@@ -710,12 +710,12 @@ public class ColumnFamilyStoreTest
         Mutation rm;
         rm = new Mutation(keySpace, rowKey);
         rm.add(cfName, compositeName, val1, 0);
-        rm.apply();
+        rm.applyUnsafe();
 
         // Now delete the value and flush too.
         rm = new Mutation(keySpace, rowKey);
         rm.delete(cfName, 1);
-        rm.apply();
+        rm.applyUnsafe();
 
         // We want the data to be gcable, but even if gcGrace == 0, we still need to wait 1 second
         // since we won't gc on a tie.
@@ -745,22 +745,22 @@ public class ColumnFamilyStoreTest
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("kk1"));
         rm.add(CF_INDEX1, nobirthdate, ByteBufferUtil.bytes(1L), 0);
         rm.add(CF_INDEX1, birthdate, ByteBufferUtil.bytes(1L), 0);
-        rm.apply();
+        rm.applyUnsafe();
 
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("kk2"));
         rm.add(CF_INDEX1, nobirthdate, ByteBufferUtil.bytes(2L), 0);
         rm.add(CF_INDEX1, birthdate, ByteBufferUtil.bytes(1L), 0);
-        rm.apply();
+        rm.applyUnsafe();
 
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("kk3"));
         rm.add(CF_INDEX1, nobirthdate, ByteBufferUtil.bytes(2L), 0);
         rm.add(CF_INDEX1, birthdate, ByteBufferUtil.bytes(1L), 0);
-        rm.apply();
+        rm.applyUnsafe();
 
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("kk4"));
         rm.add(CF_INDEX1, nobirthdate, ByteBufferUtil.bytes(2L), 0);
         rm.add(CF_INDEX1, birthdate, ByteBufferUtil.bytes(1L), 0);
-        rm.apply();
+        rm.applyUnsafe();
 
         // basic single-expression query
         IndexExpression expr1 = new IndexExpression(ByteBufferUtil.bytes("birthdate"), IndexExpression.Operator.EQ, ByteBufferUtil.bytes(1L));
@@ -784,7 +784,7 @@ public class ColumnFamilyStoreTest
         Mutation rm;
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k1"));
         rm.add(CF_INDEX2, cellname("birthdate"), ByteBufferUtil.bytes(1L), 1);
-        rm.apply();
+        rm.applyUnsafe();
 
         ColumnDefinition old = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("birthdate"));
         ColumnDefinition cd = ColumnDefinition.regularDef(cfs.metadata, old.name.bytes, old.type, null).setIndex("birthdate_index", IndexType.KEYS, null);
@@ -828,13 +828,13 @@ public class ColumnFamilyStoreTest
         Mutation rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k1"));
         CellName column1 = cellname(ByteBuffer.wrap(new byte[]{1}));
         rm.add(cfname, column1, ByteBufferUtil.bytes("data1"), 1);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k1"));
         CellName column2 = cellname(ByteBuffer.wrap(new byte[]{0, 0, 1}));
         rm.add(cfname, column2, ByteBufferUtil.bytes("data2"), 2);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         // fetch by the first column name; we should get the second version of the column value
@@ -908,7 +908,7 @@ public class ColumnFamilyStoreTest
         // delete
         Mutation rm = new Mutation(keyspace.getName(), key.getKey());
         rm.deleteRange(cfName, SuperColumns.startOf(scfName), SuperColumns.endOf(scfName), 2);
-        rm.apply();
+        rm.applyUnsafe();
 
         // verify delete.
         assertRowAndColCount(1, 0, false, cfs.getRangeSlice(Util.range("f", "g"), null, ThriftValidation.asIFilter(sp, cfs.metadata, scfName), 100));
@@ -961,7 +961,7 @@ public class ColumnFamilyStoreTest
         for (Cell col : cols)
             cf.addColumn(col.withUpdatedName(CellNames.compositeDense(scfName, col.name().toByteBuffer())));
         Mutation rm = new Mutation(cfs.keyspace.getName(), key.getKey(), cf);
-        rm.apply();
+        rm.applyUnsafe();
     }
 
     private static void putColsStandard(ColumnFamilyStore cfs, DecoratedKey key, Cell... cols) throws Throwable
@@ -970,7 +970,7 @@ public class ColumnFamilyStoreTest
         for (Cell col : cols)
             cf.addColumn(col);
         Mutation rm = new Mutation(cfs.keyspace.getName(), key.getKey(), cf);
-        rm.apply();
+        rm.applyUnsafe();
     }
 
     @Test
@@ -1003,7 +1003,7 @@ public class ColumnFamilyStoreTest
         // delete (from sstable and memtable)
         Mutation rm = new Mutation(keyspace.getName(), key.getKey());
         rm.delete(cfs.name, 2);
-        rm.apply();
+        rm.applyUnsafe();
 
         // verify delete
         assertRowAndColCount(1, 0, true, cfs.getRangeSlice(Util.range("f", "g"), null, ThriftValidation.asIFilter(sp, cfs.metadata, null), 100));
@@ -1458,7 +1458,7 @@ public class ColumnFamilyStoreTest
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf("k" + i));
             Mutation rm = new Mutation(KEYSPACE1, key);
             rm.add(CF_INDEX1, cellname("birthdate"), LongType.instance.decompose(1L), System.currentTimeMillis());
-            rm.apply();
+            rm.applyUnsafe();
         }
 
         store.forceBlockingFlush();

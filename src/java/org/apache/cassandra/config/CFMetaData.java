@@ -177,12 +177,10 @@ public final class CFMetaData
                                                                     + "column_aliases text,"
                                                                     + "compaction_strategy_options text,"
                                                                     + "speculative_retry text,"
-                                                                    + "populate_io_cache_on_flush boolean,"
                                                                     + "index_interval int,"
                                                                     + "min_index_interval int,"
                                                                     + "max_index_interval int,"
                                                                     + "dropped_columns map<text, bigint>,"
-                                                                    + "rows_per_partition_to_cache text,"
                                                                     + "PRIMARY KEY (keyspace_name, columnfamily_name)"
                                                                     + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=8640");
 

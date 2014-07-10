@@ -39,7 +39,8 @@ public final class TimingInterval
     public final long totalLatency;
 
     // discrete
-    public final long keyCount;
+    public final long partitionCount;
+    public final long rowCount;
     public final long operationCount;
 
     final SampleOfLongs sample;
@@ -48,16 +49,17 @@ public final class TimingInterval
     {
         start = end = time;
         maxLatency = totalLatency = 0;
-        keyCount = operationCount = 0;
+        partitionCount = rowCount = operationCount = 0;
         pauseStart = pauseLength = 0;
         sample = new SampleOfLongs(new long[0], 1d);
     }
-    TimingInterval(long start, long end, long maxLatency, long pauseStart, long pauseLength, long keyCount, long totalLatency, long operationCount, SampleOfLongs sample)
+    TimingInterval(long start, long end, long maxLatency, long pauseStart, long pauseLength, long partitionCount, long rowCount, long totalLatency, long operationCount, SampleOfLongs sample)
     {
         this.start = start;
         this.end = Math.max(end, start);
         this.maxLatency = maxLatency;
-        this.keyCount = keyCount;
+        this.partitionCount = partitionCount;
+        this.rowCount = rowCount;
         this.totalLatency = totalLatency;
         this.operationCount = operationCount;
         this.pauseStart = pauseStart;
@@ -68,7 +70,7 @@ public final class TimingInterval
     // merge multiple timer intervals together
     static TimingInterval merge(Random rnd, List<TimingInterval> intervals, int maxSamples, long start)
     {
-        int operationCount = 0, keyCount = 0;
+        long operationCount = 0, partitionCount = 0, rowCount = 0;
         long maxLatency = 0, totalLatency = 0;
         List<SampleOfLongs> latencies = new ArrayList<>();
         long end = 0;
@@ -79,7 +81,8 @@ public final class TimingInterval
             operationCount += interval.operationCount;
             maxLatency = Math.max(interval.maxLatency, maxLatency);
             totalLatency += interval.totalLatency;
-            keyCount += interval.keyCount;
+            partitionCount += interval.partitionCount;
+            rowCount += interval.rowCount;
             latencies.addAll(Arrays.asList(interval.sample));
             if (interval.pauseLength > 0)
             {
@@ -89,7 +92,7 @@ public final class TimingInterval
         }
         if (pauseEnd < pauseStart)
             pauseEnd = pauseStart = 0;
-        return new TimingInterval(start, end, maxLatency, pauseStart, pauseEnd - pauseStart, keyCount, totalLatency, operationCount,
+        return new TimingInterval(start, end, maxLatency, pauseStart, pauseEnd - pauseStart, partitionCount, rowCount, totalLatency, operationCount,
                 SampleOfLongs.merge(rnd, latencies, maxSamples));
 
     }
@@ -104,9 +107,14 @@ public final class TimingInterval
         return operationCount / ((end - (start + pauseLength)) * 0.000000001d);
     }
 
-    public double keyRate()
+    public double partitionRate()
     {
-        return keyCount / ((end - start) * 0.000000001d);
+        return partitionCount / ((end - start) * 0.000000001d);
+    }
+
+    public double rowRate()
+    {
+        return rowCount / ((end - start) * 0.000000001d);
     }
 
     public double meanLatency()

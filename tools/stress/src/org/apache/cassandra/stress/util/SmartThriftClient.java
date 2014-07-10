@@ -63,8 +63,10 @@ public class SmartThriftClient implements ThriftClient
             return r;
         r = queryIdCounter.incrementAndGet();
         if (queryIds.putIfAbsent(query, r) == null)
+        {
+            queryStrings.put(r, query);
             return r;
-        queryStrings.put(r, query);
+        }
         return queryIds.get(query);
     }
 

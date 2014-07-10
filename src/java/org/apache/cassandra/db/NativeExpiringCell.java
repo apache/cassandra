@@ -128,6 +128,28 @@ public class NativeExpiringCell extends NativeCell implements ExpiringCell
         FBUtilities.updateWithInt(digest, getTimeToLive());
     }
 
+    @Override
+    public Cell reconcile(Cell cell)
+    {
+        long ts1 = timestamp(), ts2 = cell.timestamp();
+        if (ts1 != ts2)
+            return ts1 < ts2 ? cell : this;
+        // we should prefer tombstones
+        if (cell instanceof DeletedCell)
+            return cell;
+        int c = value().compareTo(cell.value());
+        if (c != 0)
+            return c < 0 ? cell : this;
+        // If we have same timestamp and value, prefer the longest ttl
+        if (cell instanceof ExpiringCell)
+        {
+            int let1 = getLocalDeletionTime(), let2 = cell.getLocalDeletionTime();
+            if (let1 < let2)
+                return cell;
+        }
+        return this;
+    }
+
     public boolean equals(Cell cell)
     {
         return cell instanceof ExpiringCell && equals((ExpiringCell) cell);

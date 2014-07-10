@@ -298,6 +298,10 @@ public class Keyspace
         if (cfs == null)
             return;
 
+        // wait for any outstanding reads/writes that might affect the CFS
+        cfs.keyspace.writeOrder.awaitNewBarrier();
+        cfs.readOrdering.awaitNewBarrier();
+
         unloadCf(cfs);
     }
 

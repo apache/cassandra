@@ -397,7 +397,8 @@ public class CompactionManager implements CompactionManagerMBean
                                       Collection<SSTableReader> validatedForRepair,
                                       long repairedAt) throws InterruptedException, ExecutionException, IOException
     {
-        logger.info("Starting anticompaction for ranges {}", ranges);
+        logger.info("Starting anticompaction");
+        logger.debug("Starting anticompaction for ranges {}", ranges);
         Set<SSTableReader> sstables = new HashSet<>(validatedForRepair);
         Set<SSTableReader> mutatedRepairStatuses = new HashSet<>();
         Set<SSTableReader> nonAnticompacting = new HashSet<>();
@@ -478,7 +479,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
             // group by keyspace/columnfamily
             ColumnFamilyStore cfs = Keyspace.open(desc.ksname).getColumnFamilyStore(desc.cfname);
-            descriptors.put(cfs, cfs.directories.find(filename.trim()));
+            descriptors.put(cfs, cfs.directories.find(new File(filename.trim()).getName()));
         }
 
         List<Future<?>> futures = new ArrayList<>();

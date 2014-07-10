@@ -140,8 +140,10 @@ public class SettingsMode implements Serializable
         String[] params = clArgs.remove("-mode");
         if (params == null)
         {
-            ThriftOptions opts = new ThriftOptions();
-            opts.smart.accept("smart");
+            Cql3NativeOptions opts = new Cql3NativeOptions();
+            opts.accept("cql3");
+            opts.accept("native");
+            opts.accept("prepared");
             return new SettingsMode(opts);
         }
 

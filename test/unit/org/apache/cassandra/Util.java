@@ -190,7 +190,7 @@ public class Util
         UUID cfid = first.getColumnFamilyIds().iterator().next();
 
         for (Mutation rm : mutations)
-            rm.apply();
+            rm.applyUnsafe();
 
         ColumnFamilyStore store = Keyspace.open(keyspaceName).getColumnFamilyStore(cfid);
         store.forceBlockingFlush();

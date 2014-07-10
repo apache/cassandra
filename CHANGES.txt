@@ -9,20 +9,44 @@
  * Make incremental repair default (CASSANDRA-7250)
  * Enable code coverage thru JaCoCo (CASSANDRA-7226)
  * Switch external naming of 'column families' to 'tables' (CASSANDRA-4369) 
+ * Shorten SSTable path (CASSANDRA-6962)
+ * Use unsafe mutations for most unit tests (CASSANDRA-6969)
+ * Fix race condition during calculation of pending ranges (CASSANDRA-7390)
 
 
 2.1.1
+ * Fail to start if commit log replay detects a problem (CASSANDRA-7125)
  * Improve schema merge performance (CASSANDRA-7444)
  * Fix NPE when unknown prepared statement ID is used (CASSANDRA-7454)
  * Adjust MT depth based on # of partition validating (CASSANDRA-5263)
  * Optimise NativeCell comparisons (CASSANDRA-6755)
 
-2.1.0
+
+2.1.0-final
+ * (Windows) fix startup when WMI memory query fails (CASSANDRA-7505)
+ * Anti-compaction proceeds if any part of the repair failed (CASANDRA-7521)
+Merged from 2.0:
+ * Fix error when doing reversed queries with static columns (CASSANDRA-7490)
+
+
+2.1.0-rc3
+ * Consider expiry when reconciling otherwise equal cells (CASSANDRA-7403)
+ * Introduce CQL support for stress tool (CASSANDRA-6146)
+ * Fix ClassCastException processing expired messages (CASSANDRA-7496)
+ * Fix prepared marker for collections inside UDT (CASSANDRA-7472)
+ * Remove left-over populate_io_cache_on_flush and replicate_on_write
+   uses (CASSANDRA-7493)
  * (Windows) handle spaces in path names (CASSANDRA-7451)
+ * Ensure writes have completed after dropping a table, before recycling
+   commit log segments (CASSANDRA-7437)
+ * Remove left-over rows_per_partition_to_cache (CASSANDRA-7493)
+ * Fix error when CONTAINS is used with a bind marker (CASSANDRA-7502)
+ * Properly reject unknown UDT field (CASSANDRA-7484)
 Merged from 2.0:
  * Fix CC#collectTimeOrderedData() tombstone optimisations (CASSANDRA-7394)
  * Support DISTINCT for static columns and fix behaviour when DISTINC is
    not use (CASSANDRA-7305).
+ * Workaround JVM NPE on JMX bind failure (CASSANDRA-7254)
  * Fix race in FileCacheService RemovalListener (CASSANDRA-7278)
  * Fix inconsistent use of consistencyForCommit that allowed LOCAL_QUORUM
    operations to incorrect become full QUORUM (CASSANDRA-7345)
@@ -32,8 +56,8 @@ Merged from 2.0:
  * Make sure high level sstables get compacted (CASSANDRA-7414)
  * Fix AssertionError when using empty clustering columns and static columns
    (CASSANDRA-7455)
+ * Add option to disable STCS in L0 (CASSANDRA-6621)
  * Upgrade to snappy-java 1.0.5.2 (CASSANDRA-7476)
-
 
 
 2.1.0-rc2

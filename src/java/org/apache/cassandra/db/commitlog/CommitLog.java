@@ -133,9 +133,20 @@ public class CommitLog implements CommitLogMBean
      */
     public int recover(File... clogs) throws IOException
     {
-        CommitLogReplayer recovery = new CommitLogReplayer();
-        recovery.recover(clogs);
-        return recovery.blockForWrites();
+        try
+        {
+            CommitLogReplayer recovery = new CommitLogReplayer();
+            recovery.recover(clogs);
+            return recovery.blockForWrites();
+        }
+        catch (IOException e)
+        {
+            if (e instanceof UnknownColumnFamilyException)
+                logger.error("Commit log replay failed due to replaying a mutation for a missing table. This error can be ignored by providing -Dcassandra.commitlog.stop_on_missing_tables=false on the command line");
+            if (e instanceof MalformedCommitLogException)
+                logger.error("Commit log replay failed due to a non-fatal exception. This error can be ignored by providing -Dcassandra.commitlog.stop_on_errors=false on the command line");
+            throw e;
+        }
     }
 
     /**
@@ -158,9 +169,17 @@ public class CommitLog implements CommitLogMBean
     /**
      * Flushes all dirty CFs, waiting for them to free and recycle any segments they were retaining
      */
+    public void forceRecycleAllSegments(Iterable<UUID> droppedCfs)
+    {
+        allocator.forceRecycleAll(droppedCfs);
+    }
+
+    /**
+     * Flushes all dirty CFs, waiting for them to free and recycle any segments they were retaining
+     */
     public void forceRecycleAllSegments()
     {
-        allocator.forceRecycleAll();
+        allocator.forceRecycleAll(Collections.<UUID>emptyList());
     }
 
     /**
@@ -238,13 +257,6 @@ public class CommitLog implements CommitLogMBean
 
         executor.finishWriteFor(alloc);
         return alloc;
-    }
-
-    public void discardColumnFamily(final UUID cfId)
-    {
-        ReplayPosition context = getContext();
-        for (CommitLogSegment cls : allocator.getActiveSegments())
-            cls.markClean(cfId, context);
     }
 
     /**

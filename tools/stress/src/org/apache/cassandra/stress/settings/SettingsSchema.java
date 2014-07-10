@@ -1,4 +1,3 @@
-package org.apache.cassandra.stress.settings;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,51 +18,58 @@ package org.apache.cassandra.stress.settings;
  * under the License.
  * 
  */
-
+package org.apache.cassandra.stress.settings;
 
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SettingsSchema implements Serializable
 {
 
-    public static final String DEFAULT_COMPARATOR = "AsciiType";
     public static final String DEFAULT_VALIDATOR  = "BytesType";
 
     private final String replicationStrategy;
     private final Map<String, String> replicationStrategyOptions;
 
-    private final IndexType indexType;
-    private final boolean replicateOnWrite;
     private final String compression;
     private final String compactionStrategy;
     private final Map<String, String> compactionStrategyOptions;
     public final String keyspace;
 
-    public SettingsSchema(Options options)
+    public SettingsSchema(Options options, SettingsCommand command)
     {
-        replicateOnWrite = !options.noReplicateOnWrite.setByUser();
+        if (command instanceof SettingsCommandUser)
+        {
+            if (options.compaction.setByUser() || options.keyspace.setByUser() || options.compression.setByUser() || options.replication.setByUser())
+                throw new IllegalArgumentException("Cannot provide command line schema settings if a user profile is provided");
+
+            keyspace = ((SettingsCommandUser) command).profile.keyspaceName;
+        }
+        else
+            keyspace = options.keyspace.value();
+
         replicationStrategy = options.replication.getStrategy();
         replicationStrategyOptions = options.replication.getOptions();
-        if (options.index.setByUser())
-            indexType = IndexType.valueOf(options.index.value().toUpperCase());
-        else
-            indexType = null;
         compression = options.compression.value();
         compactionStrategy = options.compaction.getStrategy();
         compactionStrategyOptions = options.compaction.getOptions();
-        keyspace = options.keyspace.value();
     }
 
     public void createKeySpaces(StressSettings settings)
     {
-        createKeySpacesThrift(settings);
+        if (!(settings.command instanceof SettingsCommandUser))
+        {
+            createKeySpacesThrift(settings);
+        }
+        else
+        {
+            ((SettingsCommandUser) settings.command).profile.maybeCreateSchema(settings);
+        }
     }
 
 
@@ -76,7 +82,7 @@ public class SettingsSchema implements Serializable
 
         // column family for standard columns
         CfDef standardCfDef = new CfDef(keyspace, "Standard1");
-        Map<String, String> compressionOptions = new HashMap<String, String>();
+        Map<String, String> compressionOptions = new HashMap<>();
         if (compression != null)
             compressionOptions.put("sstable_compression", compression);
 
@@ -85,42 +91,13 @@ public class SettingsSchema implements Serializable
                 .setDefault_validation_class(DEFAULT_VALIDATOR)
                 .setCompression_options(compressionOptions);
 
-        if (!settings.columns.useTimeUUIDComparator)
-        {
-            for (int i = 0; i < settings.columns.maxColumnsPerKey; i++)
-            {
-                standardCfDef.addToColumn_metadata(new ColumnDef(ByteBufferUtil.bytes("C" + i), "BytesType"));
-            }
-        }
-
-        if (indexType != null)
-        {
-            ColumnDef standardColumn = new ColumnDef(ByteBufferUtil.bytes("C1"), "BytesType");
-            standardColumn.setIndex_type(indexType).setIndex_name("Idx1");
-            standardCfDef.setColumn_metadata(Arrays.asList(standardColumn));
-        }
-
-        // column family with super columns
-        CfDef superCfDef = new CfDef(keyspace, "Super1")
-                .setColumn_type("Super");
-        superCfDef.setComparator_type(DEFAULT_COMPARATOR)
-                .setSubcomparator_type(comparator)
-                .setDefault_validation_class(DEFAULT_VALIDATOR)
-                .setCompression_options(compressionOptions);
+        for (int i = 0; i < settings.columns.names.size(); i++)
+            standardCfDef.addToColumn_metadata(new ColumnDef(settings.columns.names.get(i), "BytesType"));
 
         // column family for standard counters
         CfDef counterCfDef = new CfDef(keyspace, "Counter1")
                 .setComparator_type(comparator)
                 .setDefault_validation_class("CounterColumnType")
-                .setReplicate_on_write(replicateOnWrite)
-                .setCompression_options(compressionOptions);
-
-        // column family with counter super columns
-        CfDef counterSuperCfDef = new CfDef(keyspace, "SuperCounter1")
-                .setComparator_type(comparator)
-                .setDefault_validation_class("CounterColumnType")
-                .setReplicate_on_write(replicateOnWrite)
-                .setColumn_type("Super")
                 .setCompression_options(compressionOptions);
 
         ksdef.setName(keyspace);
@@ -134,19 +111,15 @@ public class SettingsSchema implements Serializable
         if (compactionStrategy != null)
         {
             standardCfDef.setCompaction_strategy(compactionStrategy);
-            superCfDef.setCompaction_strategy(compactionStrategy);
             counterCfDef.setCompaction_strategy(compactionStrategy);
-            counterSuperCfDef.setCompaction_strategy(compactionStrategy);
             if (!compactionStrategyOptions.isEmpty())
             {
                 standardCfDef.setCompaction_strategy_options(compactionStrategyOptions);
-                superCfDef.setCompaction_strategy_options(compactionStrategyOptions);
                 counterCfDef.setCompaction_strategy_options(compactionStrategyOptions);
-                counterSuperCfDef.setCompaction_strategy_options(compactionStrategyOptions);
             }
         }
 
-        ksdef.setCf_defs(new ArrayList<>(Arrays.asList(standardCfDef, superCfDef, counterCfDef, counterSuperCfDef)));
+        ksdef.setCf_defs(new ArrayList<>(Arrays.asList(standardCfDef, counterCfDef)));
 
         Cassandra.Client client = settings.getRawThriftClient(false);
 
@@ -198,25 +171,23 @@ public class SettingsSchema implements Serializable
     {
         final OptionReplication replication = new OptionReplication();
         final OptionCompaction compaction = new OptionCompaction();
-        final OptionSimple index = new OptionSimple("index=", "KEYS|CUSTOM|COMPOSITES", null, "Type of index to create on needed column families (KEYS)", false);
         final OptionSimple keyspace = new OptionSimple("keyspace=", ".*", "Keyspace1", "The keyspace name to use", false);
-        final OptionSimple noReplicateOnWrite = new OptionSimple("no-replicate-on-write", "", null, "Set replicate_on_write to false for counters. Only counter add with CL=ONE will work", false);
         final OptionSimple compression = new OptionSimple("compression=", ".*", null, "Specify the compression to use for sstable, default:no compression", false);
 
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(replication, index, keyspace, compaction, noReplicateOnWrite, compression);
+            return Arrays.asList(replication, keyspace, compaction, compression);
         }
     }
 
     // CLI Utility Methods
 
-    public static SettingsSchema get(Map<String, String[]> clArgs)
+    public static SettingsSchema get(Map<String, String[]> clArgs, SettingsCommand command)
     {
         String[] params = clArgs.remove("-schema");
         if (params == null)
-            return new SettingsSchema(new Options());
+            return new SettingsSchema(new Options(), command);
 
         GroupedOptions options = GroupedOptions.select(params, new Options());
         if (options == null)
@@ -225,7 +196,7 @@ public class SettingsSchema implements Serializable
             System.out.println("Invalid -schema options provided, see output for valid options");
             System.exit(1);
         }
-        return new SettingsSchema((Options) options);
+        return new SettingsSchema((Options) options, command);
     }
 
     public static void printHelp()

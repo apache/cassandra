@@ -316,19 +316,21 @@ public class ActiveRepairService
         parentRepairSessions.put(parentRepairSession, new ParentRepairSession(columnFamilyStores, ranges, sstablesToRepair, System.currentTimeMillis()));
     }
 
-    public void finishParentSession(UUID parentSession, Set<InetAddress> neighbors) throws InterruptedException, ExecutionException, IOException
+    public void finishParentSession(UUID parentSession, Set<InetAddress> neighbors, boolean doAntiCompaction) throws InterruptedException, ExecutionException, IOException
     {
-
-        for (InetAddress neighbor : neighbors)
-        {
-            AnticompactionRequest acr = new AnticompactionRequest(parentSession);
-            MessageOut<RepairMessage> req = acr.createMessage();
-            MessagingService.instance().sendOneWay(req, neighbor);
-        }
         try
         {
-            List<Future<?>> futures = doAntiCompaction(parentSession);
-            FBUtilities.waitOnFutures(futures);
+            if (doAntiCompaction)
+            {
+                for (InetAddress neighbor : neighbors)
+                {
+                    AnticompactionRequest acr = new AnticompactionRequest(parentSession);
+                    MessageOut<RepairMessage> req = acr.createMessage();
+                    MessagingService.instance().sendOneWay(req, neighbor);
+                }
+                List<Future<?>> futures = doAntiCompaction(parentSession);
+                FBUtilities.waitOnFutures(futures);
+            }
         }
         finally
         {
