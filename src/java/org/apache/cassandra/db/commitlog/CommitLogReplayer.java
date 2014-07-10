@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
@@ -48,6 +49,8 @@ public class CommitLogReplayer
     private static final Logger logger = LoggerFactory.getLogger(CommitLogReplayer.class);
     private static final int MAX_OUTSTANDING_REPLAY_COUNT = 1024;
     private static final int LEGACY_END_OF_SEGMENT_MARKER = 0;
+    private static boolean IGNORE_ERRORS = System.getProperty("cassandra.commitlog.stop_on_errors", "true").equals("false");
+    private static boolean IGNORE_MISSING_TABLES = IGNORE_ERRORS || System.getProperty("cassandra.commitlog.stop_on_missing_tables", "true").equals("false");
 
     private final Set<Keyspace> keyspacesRecovered;
     private final List<Future<?>> futures;
@@ -60,16 +63,16 @@ public class CommitLogReplayer
 
     public CommitLogReplayer()
     {
-        this.keyspacesRecovered = new NonBlockingHashSet<Keyspace>();
-        this.futures = new ArrayList<Future<?>>();
+        this.keyspacesRecovered = new NonBlockingHashSet<>();
+        this.futures = new ArrayList<>();
         this.buffer = new byte[4096];
-        this.invalidMutations = new HashMap<UUID, AtomicInteger>();
+        this.invalidMutations = new HashMap<>();
         // count the number of replayed mutation. We don't really care about atomicity, but we need it to be a reference.
         this.replayedCount = new AtomicInteger();
         this.checksum = new PureJavaCrc32();
 
         // compute per-CF and global replay positions
-        cfPositions = new HashMap<UUID, ReplayPosition>();
+        cfPositions = new HashMap<>();
         Ordering<ReplayPosition> replayPositionOrdering = Ordering.from(ReplayPosition.comparator);
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
@@ -117,7 +120,12 @@ public class CommitLogReplayer
         if (offset > reader.length() - CommitLogSegment.SYNC_MARKER_SIZE)
         {
             if (offset != reader.length() && offset != Integer.MAX_VALUE)
-                logger.warn("Encountered bad header at position {} of Commit log {}; not enough room for a header", offset, reader.getPath());
+            {
+                String message = String.format("Encountered bad header at position %d of Commit log %s; not enough room for a header", offset, reader.getPath());
+                if (!IGNORE_ERRORS)
+                    throw new MalformedCommitLogException(message);
+                logger.warn(message);
+            }
             // cannot possibly be a header here. if we're == length(), assume it's a correctly written final segment
             return -1;
         }
@@ -136,13 +144,19 @@ public class CommitLogReplayer
         {
             if (end != 0 || filecrc != 0)
             {
-                logger.warn("Encountered bad header at position {} of commit log {}, with invalid CRC. The end of segment marker should be zero.", offset, reader.getPath());
+                String message = String.format("Encountered bad header at position %d of Commit log %s, with invalid CRC. The end of segment marker should be zero.", offset, reader.getPath());
+                if (!IGNORE_ERRORS)
+                    throw new MalformedCommitLogException(message);
+                logger.warn(message);
             }
             return -1;
         }
         else if (end < offset || end > reader.length())
         {
-            logger.warn("Encountered bad header at position {} of commit log {}, with bad position but valid CRC", offset, reader.getPath());
+            String message = String.format("Encountered bad header at position %d of Commit log %s, with bad position but valid CRC.", offset, reader.getPath());
+            if (!IGNORE_ERRORS)
+                throw new MalformedCommitLogException(message);
+            logger.warn(message);
             return -1;
         }
         return end;
@@ -271,8 +285,9 @@ public class CommitLogReplayer
                  /* read the logs populate Mutation and apply */
                 while (reader.getPosition() < end && !reader.isEOF())
                 {
+                    long mutationStart = reader.getFilePointer();
                     if (logger.isDebugEnabled())
-                        logger.debug("Reading mutation at {}", reader.getFilePointer());
+                        logger.debug("Reading mutation at {}", mutationStart);
 
                     long claimedCRC32;
                     int serializedSize;
@@ -282,7 +297,7 @@ public class CommitLogReplayer
                         serializedSize = reader.readInt();
                         if (serializedSize == LEGACY_END_OF_SEGMENT_MARKER)
                         {
-                            logger.debug("Encountered end of segment marker at {}", reader.getFilePointer());
+                            logger.debug("Encountered end of segment marker at {}", mutationStart);
                             break main;
                         }
 
@@ -291,7 +306,11 @@ public class CommitLogReplayer
                         // 2-byte length from writeUTF/writeWithShortLength) and 4 bytes for column count.
                         // This prevents CRC by being fooled by special-case garbage in the file; see CASSANDRA-2128
                         if (serializedSize < 10)
+                        {
+                            if (!IGNORE_ERRORS)
+                                throw new MalformedCommitLogException("Too small mutation encountered at position " + mutationStart);
                             break main;
+                        }
 
                         long claimedSizeChecksum;
                         if (desc.version < CommitLogDescriptor.VERSION_21)
@@ -305,7 +324,11 @@ public class CommitLogReplayer
                             checksum.updateInt(serializedSize);
 
                         if (checksum.getValue() != claimedSizeChecksum)
+                        {
+                            if (!IGNORE_ERRORS)
+                                throw new IOException("Invalid size checksum for mutation at position " + mutationStart + " of " + file);
                             break main; // entry wasn't synced correctly/fully. that's
+                        }
                         // ok.
 
                         if (serializedSize > buffer.length)
@@ -318,12 +341,17 @@ public class CommitLogReplayer
                     }
                     catch (EOFException eof)
                     {
+                        if (!IGNORE_ERRORS)
+                            throw new MalformedCommitLogException("Encountered end-of-file unexpectedly", eof);
+
                         break main; // last CL entry didn't get completely written. that's ok.
                     }
 
                     checksum.update(buffer, 0, serializedSize);
                     if (claimedCRC32 != checksum.getValue())
                     {
+                        if (!IGNORE_ERRORS)
+                            throw new IOException("Invalid checksum for mutation at position " + mutationStart + " of " + file);
                         // this entry must not have been fsynced. probably the rest is bad too,
                         // but just in case there is no harm in trying them (since we still read on an entry boundary)
                         continue;
@@ -344,6 +372,9 @@ public class CommitLogReplayer
                     }
                     catch (UnknownColumnFamilyException ex)
                     {
+                        if (!IGNORE_MISSING_TABLES)
+                            throw ex;
+
                         if (ex.cfId == null)
                             continue;
                         AtomicInteger i = invalidMutations.get(ex.cfId);
@@ -358,15 +389,13 @@ public class CommitLogReplayer
                     }
                     catch (Throwable t)
                     {
+                        if (!IGNORE_ERRORS)
+                            throw new MalformedCommitLogException("Encountered bad mutation", t);
+
                         File f = File.createTempFile("mutation", "dat");
-                        DataOutputStream out = new DataOutputStream(new FileOutputStream(f));
-                        try
+                        try (DataOutputStream out = new DataOutputStream(new FileOutputStream(f)))
                         {
                             out.write(buffer, 0, serializedSize);
-                        }
-                        finally
-                        {
-                            out.close();
                         }
                         String st = String.format("Unexpected error deserializing mutation; saved to %s and ignored.  This may be caused by replaying a mutation against a table with the same name but incompatible schema.  Exception follows: ",
                                                   f.getAbsolutePath());
@@ -383,7 +412,11 @@ public class CommitLogReplayer
                         public void runMayThrow() throws IOException
                         {
                             if (Schema.instance.getKSMetaData(mutation.getKeyspaceName()) == null)
+                            {
+                                if (!IGNORE_MISSING_TABLES)
+                                    throw new UnknownColumnFamilyException("Keyspace for this table is missing", mutation.getColumnFamilyIds().iterator().next());
                                 return;
+                            }
                             if (pointInTimeExceeded(mutation))
                                 return;
 
@@ -398,7 +431,12 @@ public class CommitLogReplayer
                             for (ColumnFamily columnFamily : replayFilter.filter(mutation))
                             {
                                 if (Schema.instance.getCF(columnFamily.id()) == null)
+                                {
+                                    if (!IGNORE_MISSING_TABLES)
+                                        throw new UnknownColumnFamilyException("Missing table with cfid=" + columnFamily.id(),
+                                                                               mutation.getColumnFamilyIds().iterator().next());
                                     continue; // dropped
+                                }
 
                                 ReplayPosition rp = cfPositions.get(columnFamily.id());
 
@@ -415,7 +453,7 @@ public class CommitLogReplayer
                             if (newMutation != null)
                             {
                                 assert !newMutation.isEmpty();
-                                Keyspace.open(newMutation.getKeyspaceName()).apply(newMutation, false);
+                                keyspace.apply(newMutation, false);
                                 keyspacesRecovered.add(keyspace);
                             }
                         }
@@ -452,5 +490,11 @@ public class CommitLogReplayer
                 return true;
         }
         return false;
+    }
+
+    @VisibleForTesting
+    public static void setIgnoreErrors(boolean ignore)
+    {
+        IGNORE_ERRORS = IGNORE_MISSING_TABLES = ignore;
     }
 }
