@@ -1,3 +1,7 @@
+1.2.19
+ * Set correct stream ID on responses when non-Exception Throwables
+   are thrown while handling native protocol messages (CASSANDRA-7470)
+
 1.2.18
  * Support Thrift tables clustering columns on CqlPagingInputFormat (CASSANDRA-7445)
  * Fix compilation with java 6 broke by CASSANDRA-7147
