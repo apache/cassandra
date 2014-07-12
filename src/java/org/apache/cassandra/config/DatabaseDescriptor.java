@@ -21,12 +21,15 @@ import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,7 +40,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.AllowAllAuthorizer;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
@@ -309,8 +311,12 @@ public class DatabaseDescriptor
         if (conf.memtable_flush_writers < 1)
             throw new ConfigurationException("memtable_flush_writers must be at least 1");
 
-        /* Local IP or hostname to bind services to */
-        if (conf.listen_address != null)
+        /* Local IP, hostname or interface to bind services to */
+        if (conf.listen_address != null && conf.listen_interface != null)
+        {
+            throw new ConfigurationException("Set listen_address OR listen_interface, not both");
+        }
+        else if (conf.listen_address != null)
         {
             if (conf.listen_address.equals("0.0.0.0"))
                 throw new ConfigurationException("listen_address cannot be 0.0.0.0!");
@@ -322,6 +328,21 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("Unknown listen_address '" + conf.listen_address + "'");
             }
+        }
+        else if (conf.listen_interface != null)
+        {
+            try
+            {
+                Enumeration<InetAddress> addrs = NetworkInterface.getByName(conf.listen_interface).getInetAddresses();
+                listenAddress = addrs.nextElement();
+                if (addrs.hasMoreElements())
+                    throw new ConfigurationException("Interface " + conf.listen_interface +" can't have more than one address");
+            }
+            catch (SocketException e)
+            {
+                throw new ConfigurationException("Unknown network interface in listen_interface " + conf.listen_interface);
+            }
+
         }
 
         /* Gossip Address to broadcast */
@@ -342,8 +363,12 @@ public class DatabaseDescriptor
             }
         }
 
-        /* Local IP or hostname to bind RPC server to */
-        if (conf.rpc_address != null)
+        /* Local IP, hostname or interface to bind RPC server to */
+        if (conf.rpc_address != null && conf.rpc_interface != null)
+        {
+            throw new ConfigurationException("Set rpc_address OR rpc_interface, not both");
+        }
+        else if (conf.rpc_address != null)
         {
             try
             {
@@ -352,6 +377,20 @@ public class DatabaseDescriptor
             catch (UnknownHostException e)
             {
                 throw new ConfigurationException("Unknown host in rpc_address " + conf.rpc_address);
+            }
+        }
+        else if (conf.rpc_interface != null)
+        {
+            try
+            {
+                Enumeration<InetAddress> addrs = NetworkInterface.getByName(conf.rpc_interface).getInetAddresses();
+                rpcAddress = addrs.nextElement();
+                if (addrs.hasMoreElements())
+                    throw new ConfigurationException("Interface " + conf.rpc_interface +" can't have more than one address");
+            }
+            catch (SocketException e)
+            {
+                throw new ConfigurationException("Unknown network interface in rpc_interface " + conf.rpc_interface);
             }
         }
         else

@@ -15,6 +15,7 @@
 
 
 2.1.1
+ * Add listen_interface and rpc_interface options (CASSANDRA-7417)
  * Fail to start if commit log replay detects a problem (CASSANDRA-7125)
  * Improve schema merge performance (CASSANDRA-7444)
  * Fix NPE when unknown prepared statement ID is used (CASSANDRA-7454)
