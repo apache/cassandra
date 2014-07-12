@@ -4,6 +4,7 @@
  * Fix NPE when unknown prepared statement ID is used (CASSANDRA-7454)
  * Adjust MT depth based on # of partition validating (CASSANDRA-5263)
  * Optimise NativeCell comparisons (CASSANDRA-6755)
+ * Configurable client timeout for cqlsh (CASSANDRA-7516)
 
 
 2.1.0-final
