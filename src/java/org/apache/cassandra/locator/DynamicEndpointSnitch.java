@@ -45,6 +45,11 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     private int UPDATE_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicUpdateInterval();
     private int RESET_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicResetInterval();
     private double BADNESS_THRESHOLD = DatabaseDescriptor.getDynamicBadnessThreshold();
+
+    // the score for a merged set of endpoints must be this much worse than the score for separate endpoints to
+    // warrant not merging two ranges into a single range
+    private double RANGE_MERGING_PREFERENCE = 1.5;
+
     private String mbeanName;
     private boolean registered = false;
 
@@ -320,7 +325,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         if (maxMerged < 0 || maxL1 < 0 || maxL2 < 0)
             return true;
 
-        return maxMerged < maxL1 + maxL2;
+        return maxMerged <= (maxL1 + maxL2) * RANGE_MERGING_PREFERENCE;
     }
 
     // Return the max score for the endpoint in the provided list, or -1.0 if no node have a score.
