@@ -1,4 +1,5 @@
 2.0.10
+ * Fix range merging when DES scores are zero (CASSANDRA-7535)
  * Warn when SSL certificates have expired (CASSANDRA-7528)
  * Workaround JVM NPE on JMX bind failure (CASSANDRA-7254)
  * Fix race in FileCacheService RemovalListener (CASSANDRA-7278)
