@@ -2544,6 +2544,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         logger.info("starting user-requested repair of range {} for keyspace {} and column families {}",
                     repairingRange, keyspaceName, columnFamilies);
+
+        if (!FBUtilities.isUnix() && isSequential)
+        {
+            logger.warn("Snapshot-based repair is not yet supported on Windows.  Reverting to parallel repair.");
+            isSequential = false;
+        }
         return forceRepairAsync(keyspaceName, isSequential, dataCenters, hosts, repairingRange, columnFamilies);
     }
 
