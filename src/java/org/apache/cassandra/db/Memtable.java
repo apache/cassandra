@@ -157,8 +157,6 @@ public class Memtable
         {
             // if the writeBarrier is set, we want to maintain lastReplayPosition; this is an optimisation to avoid
             // casing it for every write, but still ensure it is correct when writeBarrier.await() completes.
-            // we clone the replay position so that the object passed in does not "escape", permitting stack allocation
-            replayPosition = replayPosition.clone();
             while (true)
             {
                 ReplayPosition last = lastReplayPosition.get();
