@@ -290,7 +290,7 @@ memtable_cleanup_threshold: 0.4
 #   heap_buffers:    on heap nio buffers
 #   offheap_buffers: off heap (direct) nio buffers
 #   offheap_objects: native memory, eliminating nio buffer heap overhead
-memtable_allocation_type: offheap_objects
+memtable_allocation_type: heap_buffers
 
 # Total space to use for commitlogs.  Since commitlog segments are
 # mmapped, and hence use up address space, the default size is 32
