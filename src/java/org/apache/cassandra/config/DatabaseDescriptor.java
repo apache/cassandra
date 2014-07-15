@@ -522,6 +522,12 @@ public class DatabaseDescriptor
         if (conf.commitlog_directory.equals(conf.saved_caches_directory))
             throw new ConfigurationException("saved_caches_directory must not be the same as the commitlog_directory");
 
+        if (conf.memtable_flush_writers == null)
+            conf.memtable_flush_writers = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
+
+        if (conf.memtable_cleanup_threshold == null)
+            conf.memtable_cleanup_threshold = 1.0 / (1 + conf.memtable_flush_writers);
+
         if (conf.concurrent_compactors == null)
             conf.concurrent_compactors = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
 
