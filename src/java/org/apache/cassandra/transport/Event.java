@@ -218,6 +218,8 @@ public abstract class Event
             this.target = target;
             this.keyspace = keyspace;
             this.tableOrType = tableOrType;
+            if (target != Target.KEYSPACE)
+                assert this.tableOrType != null : "Table or type should be set for non-keyspace schema change events";
         }
 
         public SchemaChange(Change change, String keyspace)
