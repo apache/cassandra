@@ -28,6 +28,7 @@
  * (Windows) fix startup when WMI memory query fails (CASSANDRA-7505)
  * Anti-compaction proceeds if any part of the repair failed (CASANDRA-7521)
 Merged from 2.0:
+ * (Windows) force range-based repair to non-sequential mode (CASSANDRA-7541)
  * Fix range merging when DES scores are zero (CASSANDRA-7535)
  * Warn when SSL certificates have expired (CASSANDRA-7528)
  * Fix error when doing reversed queries with static columns (CASSANDRA-7490)
