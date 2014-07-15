@@ -34,17 +34,22 @@ import static org.apache.cassandra.concurrent.SEPWorker.Work;
  * To keep producers from incurring unnecessary delays, once an executor is "spun up" (i.e. is processing tasks at a steady
  * rate), adding tasks to the executor often involves only placing the task on the work queue and updating the
  * task permits (which imposes our max queue length constraints). Only when it cannot be guaranteed the task will be serviced
- * promptly does the producer have to signal a thread itself to perform the work.
+ * promptly, and the maximum concurrency has not been reached, does the producer have to schedule a thread itself to perform 
+ * the work ('promptly' in this context means we already have a worker spinning for work, as described next).
  *
- * We do this by scheduling only if
- *
- * The worker threads schedule themselves as far as possible: when they are assigned a task, they will attempt to spawn
+ * Otherwise the worker threads schedule themselves: when they are assigned a task, they will attempt to spawn
  * a partner worker to service any other work outstanding on the queue (if any); once they have finished the task they
  * will either take another (if any remaining) and repeat this, or they will attempt to assign themselves to another executor
  * that does have tasks remaining. If both fail, it will enter a non-busy-spinning phase, where it will sleep for a short
  * random interval (based upon the number of threads in this mode, so that the total amount of non-sleeping time remains
- * approximately fixed regardless of the number of spinning threads), and upon waking up will again try to assign themselves
- * an executor with outstanding tasks to perform.
+ * approximately fixed regardless of the number of spinning threads), and upon waking will again try to assign itself to
+ * an executor with outstanding tasks to perform. As a result of always scheduling a partner before committing to performing
+ * any work, with a steady state of task arrival we should generally have either one spinning worker ready to promptly respond 
+ * to incoming work, or all possible workers actively committed to tasks.
+ * 
+ * In order to prevent this executor pool acting like a noisy neighbour to other processes on the system, workers also deschedule
+ * themselves when it is detected that there are too many for the current rate of operation arrival. This is decided as a function 
+ * of the total time spent spinning by all workers in an interval; as more workers spin, workers are descheduled more rapidly.
  */
 public class SharedExecutorPool
 {
