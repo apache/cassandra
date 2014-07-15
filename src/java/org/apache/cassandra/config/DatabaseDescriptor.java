@@ -288,15 +288,6 @@ public class DatabaseDescriptor
             logger.info("Global memtable off-heap threshold is disabled, HeapAllocator will be used instead");
         else
             logger.info("Global memtable off-heap threshold is enabled at {}MB", conf.memtable_offheap_space_in_mb);
-        if (conf.memtable_cleanup_threshold < 0.01f)
-            throw new ConfigurationException("memtable_cleanup_threshold must be >= 0.01");
-        if (conf.memtable_cleanup_threshold > 0.99f)
-            throw new ConfigurationException("memtable_cleanup_threshold must be <= 0.99");
-        if (conf.memtable_cleanup_threshold < 0.1f)
-            logger.warn("memtable_cleanup_threshold is set very low, which may cause performance degradation");
-
-        if (conf.memtable_flush_writers < 1)
-            throw new ConfigurationException("memtable_flush_writers must be at least 1");
 
         /* Local IP or hostname to bind services to */
         if (conf.listen_address != null)
@@ -486,8 +477,18 @@ public class DatabaseDescriptor
         if (conf.memtable_flush_writers == null)
             conf.memtable_flush_writers = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
 
+        if (conf.memtable_flush_writers < 1)
+            throw new ConfigurationException("memtable_flush_writers must be at least 1");
+
         if (conf.memtable_cleanup_threshold == null)
             conf.memtable_cleanup_threshold = (float) (1.0 / (1 + conf.memtable_flush_writers));
+
+        if (conf.memtable_cleanup_threshold < 0.01f)
+            throw new ConfigurationException("memtable_cleanup_threshold must be >= 0.01");
+        if (conf.memtable_cleanup_threshold > 0.99f)
+            throw new ConfigurationException("memtable_cleanup_threshold must be <= 0.99");
+        if (conf.memtable_cleanup_threshold < 0.1f)
+            logger.warn("memtable_cleanup_threshold is set very low, which may cause performance degradation");
 
         if (conf.concurrent_compactors == null)
             conf.concurrent_compactors = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
