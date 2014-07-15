@@ -16,6 +16,7 @@
  * Anti-compaction proceeds if any part of the repair failed (CASANDRA-7521)
  * Add missing table name to DROP INDEX responses and notifications (CASSANDRA-7539)
  * Bump CQL version to 3.2.0 and update CQL documentation (CASSANDRA-7527)
+ * Fix configuration error message when running nodetool ring (CASSANDRA-7508)
 Merged from 2.0:
  * (Windows) force range-based repair to non-sequential mode (CASSANDRA-7541)
  * Fix range merging when DES scores are zero (CASSANDRA-7535)
