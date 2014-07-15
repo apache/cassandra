@@ -39,7 +39,6 @@ import com.yammer.metrics.reporting.JmxReporter;
 import io.airlift.command.*;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
@@ -432,8 +431,12 @@ public class NodeTool
         {
             Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap();
             LinkedHashMultimap<String, String> endpointsToTokens = LinkedHashMultimap.create();
+            boolean haveVnodes = false;
             for (Map.Entry<String, String> entry : tokensToEndpoints.entrySet())
+            {
+                haveVnodes |= endpointsToTokens.containsKey(entry.getValue());
                 endpointsToTokens.put(entry.getValue(), entry.getKey());
+            }
 
             int maxAddressLength = Collections.max(endpointsToTokens.keys(), new Comparator<String>()
             {
@@ -461,7 +464,7 @@ public class NodeTool
             for (Entry<String, SetHostStat> entry : getOwnershipByDc(probe, resolveIp, tokensToEndpoints, ownerships).entrySet())
                 printDc(probe, format, entry.getKey(), endpointsToTokens, entry.getValue());
 
-            if (DatabaseDescriptor.getNumTokens() > 1)
+            if (haveVnodes)
             {
                 System.out.println("  Warning: \"nodetool ring\" is used to output all the tokens of a node.");
                 System.out.println("  To view status related info of a node use \"nodetool status\" instead.\n");
