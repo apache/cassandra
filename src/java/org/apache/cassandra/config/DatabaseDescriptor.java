@@ -537,7 +537,7 @@ public class DatabaseDescriptor
             conf.memtable_flush_writers = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
 
         if (conf.memtable_cleanup_threshold == null)
-            conf.memtable_cleanup_threshold = 1.0 / (1 + conf.memtable_flush_writers);
+            conf.memtable_cleanup_threshold = (float) (1.0 / (1 + conf.memtable_flush_writers));
 
         if (conf.concurrent_compactors == null)
             conf.concurrent_compactors = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
