@@ -1,4 +1,6 @@
 2.1.0-final
+ * Updated memtable_cleanup_threshold and memtable_flush_writers defaults 
+   (CASSANDRA-7551)
  * (Windows) fix startup when WMI memory query fails (CASSANDRA-7505)
  * Anti-compaction proceeds if any part of the repair failed (CASANDRA-7521)
  * Add missing table name to DROP INDEX responses and notifications (CASSANDRA-7539)
