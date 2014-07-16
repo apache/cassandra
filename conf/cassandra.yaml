@@ -421,13 +421,15 @@ auto_snapshot: true
 tombstone_warn_threshold: 1000
 tombstone_failure_threshold: 100000
 
-# Add column indexes to a row after its contents reach this size.
-# Increase if your column values are large, or if you have a very large
-# number of columns.  The competing causes are, Cassandra has to
-# deserialize this much of the row to read a single column, so you want
-# it to be small - at least if you do many partial-row reads - but all
-# the index data is read for each access, so you don't want to generate
-# that wastefully either.
+# Granularity of the collation index of rows within a partition.
+# Increase if your rows are large, or if you have a very large
+# number of rows per partition.  The competing goals are these:
+#   1) a smaller granularity means more index entries are generated
+#      and looking up rows withing the partition by collation column
+#      is faster
+#   2) but, Cassandra will keep the collation index in memory for hot
+#      rows (as part of the key cache), so a larger granularity means
+#      you can cache more hot rows
 column_index_size_in_kb: 64
 
 
