@@ -107,6 +107,30 @@ public class ErrorCollectorTest
         assertEquals(expected, builder.toString());
     }
 
+    /**
+     * With ANTLR 3.5.2 it appears that some tokens can contains unexpected values: a line = 0 
+     * and a charPositionInLine = -1.
+     */
+    @Test
+    public void testAppendSnippetWithInvalidToken()
+    {
+        String query = "select * fom users";
+
+        ErrorCollector collector = new ErrorCollector(query);
+
+        StringBuilder builder = new StringBuilder();
+
+        Token from = new MockToken(1, 5, "select");
+        Token to = new MockToken(0, -1, "");
+        Token offending = new MockToken(0, -1, "");
+
+        collector.appendSnippet(builder, from, to, offending);
+
+        String expected = "";
+
+        assertEquals(expected, builder.toString());
+    }
+
     private final static class MockToken implements Token
     {
         /**
