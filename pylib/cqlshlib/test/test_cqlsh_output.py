@@ -661,7 +661,7 @@ class TestCqlshOutput(BaseTestCase):
                 AND max_index_interval = 2048
                 AND memtable_flush_period_in_ms = 0
                 AND min_index_interval = 128
-                AND read_repair_chance = 0.1
+                AND read_repair_chance = 0.0
                 AND speculative_retry = '99.0PERCENTILE';
 
         """ % quote_name(get_test_keyspace()))
