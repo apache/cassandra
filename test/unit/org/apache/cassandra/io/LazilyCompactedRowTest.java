@@ -29,6 +29,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -93,8 +94,12 @@ public class LazilyCompactedRowTest extends SchemaLoader
             AbstractCompactedRow row2 = iter2.next();
             DataOutputBuffer out1 = new DataOutputBuffer();
             DataOutputBuffer out2 = new DataOutputBuffer();
-            row1.write(out1);
-            row2.write(out2);
+            long size1 = row1.write(out1);
+            long size2 = row2.write(out2);
+
+            // check if written size is the same as reported row size
+            assert size1 == out1.getLength() - 8;
+            assert size2 == out2.getLength() - 8;
 
             File tmpFile1 = File.createTempFile("lcrt1", null);
             File tmpFile2 = File.createTempFile("lcrt2", null);
@@ -127,9 +132,9 @@ public class LazilyCompactedRowTest extends SchemaLoader
             assert columns == in2.readInt();
             for (int i = 0; i < columns; i++)
             {
-                IColumn c1 = (IColumn)cf1.getOnDiskSerializer().deserializeFromSSTable(in1, Descriptor.Version.CURRENT);
-                IColumn c2 = (IColumn)cf2.getOnDiskSerializer().deserializeFromSSTable(in2, Descriptor.Version.CURRENT);
-                assert c1.equals(c2) : c1.getString(cfs.metadata.comparator) + " != " + c2.getString(cfs.metadata.comparator);
+                OnDiskAtom c1 = cf1.getOnDiskSerializer().deserializeFromSSTable(in1, Descriptor.Version.CURRENT);
+                OnDiskAtom c2 = cf2.getOnDiskSerializer().deserializeFromSSTable(in2, Descriptor.Version.CURRENT);
+                assert c1.equals(c2) : "column mismatch";
             }
             // that should be everything
             assert in1.available() == 0;
@@ -164,6 +169,14 @@ public class LazilyCompactedRowTest extends SchemaLoader
 
             assert MessageDigest.isEqual(digest1.digest(), digest2.digest());
         }
+    }
+
+    @Before
+    public void setUp()
+    {
+        Table table = Table.open("Keyspace1");
+        ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
+        cfs.clearUnsafe();
     }
 
     @Test
@@ -314,12 +327,43 @@ public class LazilyCompactedRowTest extends SchemaLoader
         assertBytes(cfs, Integer.MAX_VALUE);
     }
 
+    @Test
+    public void testOneRowWithRangeTombstone() throws Exception
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        Table table = Table.open("Keyspace1");
+        ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
+
+        ByteBuffer key = ByteBufferUtil.bytes("k");
+        RowMutation rm = new RowMutation("Keyspace1", key);
+        ColumnFamily cf = rm.addOrGet(cfs.metadata);
+        cf.addColumn(new QueryPath("Standard1", null, ByteBufferUtil.bytes("a")), ByteBuffer.allocate(DatabaseDescriptor.getColumnIndexSize()), 1);
+        cf.addColumn(new QueryPath("Standard1", null, ByteBufferUtil.bytes("c")), ByteBuffer.allocate(DatabaseDescriptor.getColumnIndexSize()), 1);
+        cf.addColumn(new QueryPath("Standard1", null, ByteBufferUtil.bytes("d")), ByteBuffer.allocate(DatabaseDescriptor.getColumnIndexSize()), 1);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        rm = new RowMutation("Keyspace1", key);
+        cf = rm.addOrGet(cfs.metadata);
+        cf.addAtom(new RangeTombstone(ByteBufferUtil.bytes("b"), ByteBufferUtil.bytes("d"), 0, (int)(System.currentTimeMillis()/1000)));
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        assertBytes(cfs, 0);
+    }
 
     private static class LazilyCompactingController extends CompactionController
     {
         public LazilyCompactingController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
         {
             super(cfs, sstables, gcBefore);
+        }
+
+        @Override
+        public boolean shouldPurge(DecoratedKey key, long maxDeletionTimestamp)
+        {
+            return false;
         }
 
         @Override
@@ -334,6 +378,12 @@ public class LazilyCompactedRowTest extends SchemaLoader
         public PreCompactingController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
         {
             super(cfs, sstables, gcBefore);
+        }
+
+        @Override
+        public boolean shouldPurge(DecoratedKey key, long maxDeletionTimestamp)
+        {
+            return false;
         }
 
         @Override

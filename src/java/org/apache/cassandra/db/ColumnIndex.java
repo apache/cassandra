@@ -64,6 +64,7 @@ public class ColumnIndex
         private final RangeTombstone.Tracker tombstoneTracker;
         private final OnDiskAtom.Serializer atomSerializer;
         private int atomCount;
+        private long openedMarkerSize = 0;
 
         public Builder(ColumnFamily cf,
                        ByteBuffer key,
@@ -159,7 +160,11 @@ public class ColumnIndex
                 startPosition = endPosition;
                 // TODO: have that use the firstColumn as min + make sure we optimize that on read
                 if (tombstoneTracker != null)
-                    endPosition += tombstoneTracker.writeOpenedMarker(firstColumn, output, atomSerializer);
+                {
+                    long tombstoneSize = tombstoneTracker.writeOpenedMarker(firstColumn, output, atomSerializer);
+                    endPosition += tombstoneSize;
+                    openedMarkerSize += tombstoneSize;
+                }
                 blockSize = 0; // We don't count repeated tombstone marker in the block size, to avoid a situation
                                // where we wouldn't make any progress because a block is filled by said marker
             }
@@ -203,6 +208,11 @@ public class ColumnIndex
             // we should always have at least one computed index block, but we only write it out if there is more than that.
             assert result.columnsIndex.size() > 0;
             return result;
+        }
+
+        public long getOpenedMarkerSize()
+        {
+            return openedMarkerSize;
         }
     }
 }

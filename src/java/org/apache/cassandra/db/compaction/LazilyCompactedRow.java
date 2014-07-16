@@ -118,7 +118,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         DataOutputBuffer clockOut = new DataOutputBuffer();
         DeletionTime.serializer.serialize(emptyColumnFamily.deletionInfo().getTopLevelDeletion(), clockOut);
 
-        long dataSize = clockOut.getLength() + columnSerializedSize;
+        long dataSize = clockOut.getLength() + columnSerializedSize + this.indexBuilder.getOpenedMarkerSize();
         if (logger.isDebugEnabled())
             logger.debug(String.format("clock / column sizes are %s / %s", clockOut.getLength(), columnSerializedSize));
         assert dataSize > 0;
