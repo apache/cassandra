@@ -1450,14 +1450,19 @@ public class StorageProxy implements StorageProxyMBean
     private static float estimateResultRowsPerRange(AbstractRangeCommand command, Keyspace keyspace)
     {
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.columnFamily);
-        float resultRowsPerRange;
+        float resultRowsPerRange = Float.POSITIVE_INFINITY;
         if (command.rowFilter != null && !command.rowFilter.isEmpty())
         {
-            // secondary index query (cql3 or otherwise)
-            SecondaryIndexSearcher searcher = Iterables.getOnlyElement(cfs.indexManager.getIndexSearchersForQuery(command.rowFilter));
-            SecondaryIndex highestSelectivityIndex = searcher.highestSelectivityIndex(command.rowFilter);
-            // use our own mean column count as our estimate for how many matching rows each node will have
-            resultRowsPerRange = highestSelectivityIndex.estimateResultRows();
+            List<SecondaryIndexSearcher> searchers = cfs.indexManager.getIndexSearchersForQuery(command.rowFilter);
+            assert !searchers.isEmpty() : "Got row filter with no matching SecondaryIndexSearchers";
+
+            // Secondary index query (cql3 or otherwise).  Estimate result rows based on most selective 2ary index.
+            for (SecondaryIndexSearcher searcher : searchers)
+            {
+                // use our own mean column count as our estimate for how many matching rows each node will have
+                SecondaryIndex highestSelectivityIndex = searcher.highestSelectivityIndex(command.rowFilter);
+                resultRowsPerRange = Math.min(resultRowsPerRange, highestSelectivityIndex.estimateResultRows());
+            }
         }
         else if (!command.countCQL3Rows())
         {
