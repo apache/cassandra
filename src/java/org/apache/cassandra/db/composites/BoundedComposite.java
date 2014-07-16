@@ -23,6 +23,9 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.ObjectSizes;
 
+/**
+ * Wraps another Composite and adds an EOC byte to track whether this is a slice start or end.
+ */
 public class BoundedComposite extends AbstractComposite
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new BoundedComposite(null, false));
