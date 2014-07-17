@@ -18,8 +18,12 @@
 package org.apache.cassandra.auth;
 
 import java.util.Map;
+import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.exceptions.AuthenticationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 
 /**
  * An implementation of the PasswordAuthenticator that adds any roles, that have
@@ -28,10 +32,31 @@ import org.apache.cassandra.exceptions.AuthenticationException;
  */
 public class RoleAwarePasswordAuthenticator extends PasswordAuthenticator
 {
+    public Set<Option> supportedOptions()
+    {
+        return ImmutableSet.of(Option.PASSWORD, Option.ROLES);
+    }
+
+    // Let users alter their own password.
+    public Set<Option> alterableOptions()
+    {
+        return ImmutableSet.of(Option.PASSWORD, Option.ROLES);
+    }
+
     @Override
     public AuthenticatedUser authenticate(Map<String, String> credentials) throws AuthenticationException
     {
         AuthenticatedUser user = super.authenticate(credentials);
         return new AuthenticatedUser(user.getName(), Auth.getRoles(Grantee.asUser(user.getName()), true));
+    }
+
+    public void create(String username, Map<Option, Object> options) throws InvalidRequestException, RequestExecutionException
+    {
+        super.create(username, options);
+    }
+
+    public void alter(String username, Map<Option, Object> options) throws RequestExecutionException
+    {
+        super.alter(username, options);
     }
 }

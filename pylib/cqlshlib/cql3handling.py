@@ -1095,6 +1095,7 @@ syntax_rules += r'''
 
 <createUserStatement> ::= "CREATE" "USER" <username>
                               ( "WITH" "PASSWORD" <stringLiteral> )?
+                              ( "WITH" "ROLES" <rolename> ("AND" <rolename>)*)?
                               ( "SUPERUSER" | "NOSUPERUSER" )?
                         ;
 

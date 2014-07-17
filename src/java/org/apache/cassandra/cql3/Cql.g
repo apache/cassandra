@@ -796,7 +796,7 @@ dataResource returns [DataResource res]
     ;
 
 /**
- * CREATE USER [IF NOT EXISTS] <username> [WITH PASSWORD <password>] [SUPERUSER|NOSUPERUSER]
+ * CREATE USER [IF NOT EXISTS] <username> [WITH PASSWORD <password>] [WITH ROLES <rolename> AND ...] [SUPERUSER|NOSUPERUSER]
  */
 createUserStatement returns [CreateUserStatement stmt]
     @init {
@@ -805,7 +805,7 @@ createUserStatement returns [CreateUserStatement stmt]
         boolean ifNotExists = false;
     }
     : K_CREATE K_USER (K_IF K_NOT K_EXISTS { ifNotExists = true; })? username
-      ( K_WITH userOptions[opts] )?
+      ( K_WITH userOptions[opts] )*
       ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
       { $stmt = new CreateUserStatement($username.text, opts, superuser, ifNotExists); }
     ;
@@ -819,7 +819,7 @@ alterUserStatement returns [AlterUserStatement stmt]
         Boolean superuser = null;
     }
     : K_ALTER K_USER username
-      ( K_WITH userOptions[opts] )?
+      ( K_WITH userOptions[opts] )*
       ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
       { $stmt = new AlterUserStatement($username.text, opts, superuser); }
     ;
@@ -844,7 +844,10 @@ userOptions[UserOptions opts]
     ;
 
 userOption[UserOptions opts]
-    : k=K_PASSWORD v=STRING_LITERAL { opts.put($k.text, $v.text); }
+    @init { Set<Role> roles = new HashSet<Role>(); }
+    : (k=K_PASSWORD v=STRING_LITERAL { opts.put($k.text, $v.text); })?
+      (r=K_ROLES role1=rolename { roles.add(Grantee.asRole($role1.text)); opts.put($r.text, roles); }
+       (K_AND rolen=rolename { roles.add(Grantee.asRole($rolen.text)); })* )?
     ;
 
 /**
