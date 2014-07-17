@@ -119,7 +119,7 @@ if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
 from cqlshlib import cqlhandling, cql3handling, pylexotron, sslhandling
-from cqlshlib.displaying import (RED, BLUE, ANSI_RESET, COLUMN_NAME_COLORS,
+from cqlshlib.displaying import (RED, BLUE, CYAN, ANSI_RESET, COLUMN_NAME_COLORS,
                                  FormattedValue, colorme)
 from cqlshlib.formatting import format_by_type, formatter_for, format_value_utype
 from cqlshlib.util import trim_if_present
@@ -583,8 +583,14 @@ class Shell(cmd.Cmd):
             self.decoding_errors.append(err)
             return format_value(err, self.output_codec.name, addcolor=self.color)
 
-    def myformat_colname(self, name):
-        return self.myformat_value(name, colormap=COLUMN_NAME_COLORS)
+    def myformat_colname(self, name, cfMetaData):
+        column_colors = COLUMN_NAME_COLORS.copy()
+        # check column role and color appropriately
+        if name in [col.name for col in cfMetaData.partition_key]:
+            column_colors.default_factory = lambda : RED
+        elif name in [col.name for col in cfMetaData.clustering_key]:
+            column_colors.default_factory = lambda : CYAN
+        return self.myformat_value(name, colormap=column_colors)
 
     def report_connection(self):
         self.show_host()
@@ -910,7 +916,11 @@ class Shell(cmd.Cmd):
                 return False
 
         if statement.query_string[:6].lower() == 'select' or statement.query_string.lower().startswith("list"):
-            self.print_result(rows, with_default_limit)
+            parsed = cqlruleset.cql_parse(statement.query_string)[1]
+            ks =  self.cql_unprotect_name(parsed.get_binding('ksname', None))
+            cf = self.cql_unprotect_name(parsed.get_binding('cfname'))
+            cfMetaData = self.get_table_meta(ks, cf)
+            self.print_result(rows, with_default_limit, cfMetaData)
         elif rows:
             # CAS INSERT/UPDATE
             self.writeresult("")
@@ -918,12 +928,12 @@ class Shell(cmd.Cmd):
         self.flush_output()
         return True
 
-    def print_result(self, rows, with_default_limit):
+    def print_result(self, rows, with_default_limit, cfMetaData):
         self.decoding_errors = []
 
         self.writeresult("")
-        if rows :
-            self.print_static_result(rows)
+        self.print_static_result(rows, cfMetaData)
+
         self.writeresult("(%d rows)" % len(rows))
         self.writeresult("")
 
@@ -941,12 +951,16 @@ class Shell(cmd.Cmd):
                                  % DEFAULT_SELECT_LIMIT, color=RED)
                 self.writeresult("")
 
-
-    def print_static_result(self, rows):
+    def print_static_result(self, rows, cfMetaData):
         if not rows:
+            # print header only
+            colnames = cfMetaData.columns.keys()  # full header
+            formatted_names = [self.myformat_colname(name, cfMetaData) for name in colnames]
+            self.print_formatted_result(formatted_names, None)
             return
+
         colnames = rows[0]._fields
-        formatted_names = [self.myformat_colname(name) for name in colnames]
+        formatted_names = [self.myformat_colname(name, cfMetaData) for name in colnames]
         formatted_values = [map(self.myformat_value, row) for row in rows]
         if self.expand_enabled:
             self.print_formatted_result_vertically(formatted_names, formatted_values)
@@ -956,14 +970,20 @@ class Shell(cmd.Cmd):
     def print_formatted_result(self, formatted_names, formatted_values):
         # determine column widths
         widths = [n.displaywidth for n in formatted_names]
-        for fmtrow in formatted_values:
-            for num, col in enumerate(fmtrow):
-                widths[num] = max(widths[num], col.displaywidth)
+        if formatted_values is not None:
+            for fmtrow in formatted_values:
+                for num, col in enumerate(fmtrow):
+                    widths[num] = max(widths[num], col.displaywidth)
 
         # print header
         header = ' | '.join(hdr.ljust(w, color=self.color) for (hdr, w) in zip(formatted_names, widths))
         self.writeresult(' ' + header.rstrip())
         self.writeresult('-%s-' % '-+-'.join('-' * w for w in widths))
+
+        # stop if there are no rows
+        if formatted_values is None:
+            self.writeresult("")
+            return;
 
         # print row data
         for row in formatted_values:
