@@ -43,12 +43,13 @@ Function ValidateArguments
 Function PrintUsage
 {
     echo @"
-usage: cassandra.ps1 [-f] [-h] [-p pidfile] [-H dumpfile] [-E errorfile] [-install | -uninstall] [-help]
+usage: cassandra.ps1 [-f] [-h] [-p pidfile] [-H dumpfile] [-D arg] [-E errorfile] [-install | -uninstall] [-help]
     -f              Run cassandra in foreground
     -install        install cassandra as a service
     -uninstall      remove cassandra service
     -p              pidfile tracked by server and removed on close (defaults to pid.txt)
     -H              change JVM HeapDumpPath
+    -D              items to append to JVM_OPTS
     -E              change JVM ErrorFile
     -help           print this message
     -verbose        Show detailed command-line parameters for cassandra run
@@ -101,6 +102,16 @@ Function Main
     {
         $pidfile = "$p"
         $env:CASSANDRA_PARAMS = $env:CASSANDRA_PARAMS + ' -Dcassandra-pidfile="' + "$pidfile" + '"'
+    }
+
+    # Parse -D JVM_OPTS
+    for ($i = 0; $i -lt $script:args.Length; ++$i)
+    {
+        if ($script:args[$i].Substring(0,2) -eq "-D")
+        {
+            $param = $script:args[$i].Substring(2)
+            $env:JVM_OPTS = "$env:JVM_OPTS -D$param"
+        }
     }
 
     if ($install -or $uninstall)
@@ -191,8 +202,8 @@ Function RunCassandra([string]$foreground)
     $cmd = @"
 $env:JAVA_BIN
 "@
-    $arg1 = $env:JVM_OPTS
-    $arg2 = $env:CASSANDRA_PARAMS
+    $arg1 = $env:CASSANDRA_PARAMS
+    $arg2 = $env:JVM_OPTS
     $arg3 = "-cp $env:CLASSPATH"
     $arg4 = @"
 "$env:CASSANDRA_MAIN"
