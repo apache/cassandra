@@ -2299,10 +2299,10 @@ public class NodeTool
         }
     }
     
-    @Command(name = "setlogginglevel", description = "Set a log level for a given logger. If both classQualifer and level are empty/null, it will reset based on the initial configuration")
+    @Command(name = "setlogginglevel", description = "Set the log level threshold for a given class. If both class and level are empty/null, it will reset to the initial configuration")
     public static class SetLoggingLevel extends NodeToolCmd
     {
-        @Arguments(usage = "<classQualifer> <level>", description = "The logger classQualifer and the logger level (can be empty)")
+        @Arguments(usage = "<class> <level>", description = "The class to change the level for and the log level threshold to set (can be empty)")
         private List<String> args = new ArrayList<>();
 
         @Override
