@@ -47,11 +47,20 @@ public abstract class SecondaryIndexSearcher
     public abstract List<Row> search(ExtendedFilter filter);
 
     /**
-     * @return true this index is able to handle given clauses.
+     * @return true this index is able to handle the given index expressions.
      */
-    public boolean isIndexing(List<IndexExpression> clause)
+    public boolean canHandleIndexClause(List<IndexExpression> clause)
     {
-        return highestSelectivityPredicate(clause) != null;
+        for (IndexExpression expression : clause)
+        {
+            if (!columns.contains(expression.column) || !expression.operator.allowsIndexQuery())
+                continue;
+
+            SecondaryIndex index = indexManager.getIndexForColumn(expression.column);
+            if (index != null && index.getIndexCfs() != null)
+                return true;
+        }
+        return false;
     }
 
     protected IndexExpression highestSelectivityPredicate(List<IndexExpression> clause)

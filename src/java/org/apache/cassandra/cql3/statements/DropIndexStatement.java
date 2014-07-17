@@ -33,6 +33,9 @@ public class DropIndexStatement extends SchemaAlteringStatement
     public final String indexName;
     public final boolean ifExists;
 
+    // initialized in announceMigration()
+    private String indexedCF;
+
     public DropIndexStatement(IndexName indexName, boolean ifExists)
     {
         super(indexName.getCfName());
@@ -67,6 +70,7 @@ public class DropIndexStatement extends SchemaAlteringStatement
             return;
 
         CFMetaData updatedCfm = updateCFMetadata(cfm);
+        indexedCF = updatedCfm.cfName;
         MigrationManager.announceColumnFamilyUpdate(updatedCfm, false, isLocalOnly);
     }
 
@@ -105,5 +109,12 @@ public class DropIndexStatement extends SchemaAlteringStatement
                 return column;
         }
         return null;
+    }
+
+    @Override
+    public String columnFamily()
+    {
+        assert indexedCF != null;
+        return indexedCF;
     }
 }

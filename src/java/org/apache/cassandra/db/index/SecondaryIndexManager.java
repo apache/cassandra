@@ -213,24 +213,18 @@ public class SecondaryIndexManager
     }
 
     /**
-     * @return true if the indexes can handle the clause.
+     * @return true if at least one of the indexes can handle the clause.
      */
     public boolean hasIndexFor(List<IndexExpression> clause)
     {
         if (clause == null || clause.isEmpty())
             return false;
 
-        // It doesn't seem a clause can have multiple searchers, but since
-        // getIndexSearchersForQuery returns a list ...
-        List<SecondaryIndexSearcher> searchers = getIndexSearchersForQuery(clause);
-        if (searchers.isEmpty())
-            return false;
+        for (SecondaryIndexSearcher searcher : getIndexSearchersForQuery(clause))
+            if (searcher.canHandleIndexClause(clause))
+                return true;
 
-        for (SecondaryIndexSearcher searcher : searchers)
-            if (!searcher.isIndexing(clause))
-                return false;
-
-        return true;
+        return false;
     }
 
     /**
@@ -570,7 +564,6 @@ public class SecondaryIndexManager
 
     /**
      * Performs a search across a number of column indexes
-     * TODO: add support for querying across index types
      *
      * @param filter the column range to restrict to
      * @return found indexed rows
@@ -582,11 +575,20 @@ public class SecondaryIndexManager
         if (indexSearchers.isEmpty())
             return Collections.emptyList();
 
-        //We currently don't support searching across multiple index types
-        if (indexSearchers.size() > 1)
-            throw new RuntimeException("Unable to search across multiple secondary index types");
+        SecondaryIndexSearcher mostSelective = null;
+        long bestEstimate = Long.MAX_VALUE;
+        for (SecondaryIndexSearcher searcher : indexSearchers)
+        {
+            SecondaryIndex highestSelectivityIndex = searcher.highestSelectivityIndex(filter.getClause());
+            long estimate = highestSelectivityIndex.estimateResultRows();
+            if (estimate <= bestEstimate)
+            {
+                bestEstimate = estimate;
+                mostSelective = searcher;
+            }
+        }
 
-        return indexSearchers.get(0).search(filter);
+        return mostSelective.search(filter);
     }
 
     public Set<SecondaryIndex> getIndexesByNames(Set<String> idxNames)

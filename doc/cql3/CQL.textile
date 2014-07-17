@@ -1,6 +1,6 @@
 <link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
-h1. Cassandra Query Language (CQL) v3.1.7
+h1. Cassandra Query Language (CQL) v3.2.0
 
 
  <span id="tableOfContents">
@@ -216,7 +216,7 @@ __Syntax:__
 
 bc(syntax).. 
 <create-table-stmt> ::= CREATE ( TABLE | COLUMNFAMILY ) ( IF NOT EXISTS )? <tablename>
-                          '(' <definition> ( ',' <definition> )* ')'
+                          '(' <column-definition> ( ',' <column-definition> )* ')'
                           ( WITH <option> ( AND <option>)* )?
 
 <column-definition> ::= <identifier> <type> ( STATIC )? ( PRIMARY KEY )?
@@ -255,7 +255,7 @@ Attempting to create an already existing table will return an error unless the @
 
 h4(#createTableName). @<tablename>@
 
-Valid table names are the same than valid "keyspace names":#createKeyspaceStmt (up to 32 characters long alphanumerical identifiers). If the table name is provided alone, the table is created within the current keyspace (see <a href="#useStmt"><tt>USE</tt></a>), but if it is prefixed by an existing keyspace name (see "@<tablename>@":#statements grammar), it is created in the specified keyspace (but does *not* change the current keyspace).
+Valid table names are the same as valid "keyspace names":#createKeyspaceStmt (up to 32 characters long alphanumerical identifiers). If the table name is provided alone, the table is created within the current keyspace (see <a href="#useStmt"><tt>USE</tt></a>), but if it is prefixed by an existing keyspace name (see "@<tablename>@":#statements grammar), it is created in the specified keyspace (but does *not* change the current keyspace).
 
 
 h4(#createTableColumn). @<column-definition>@
@@ -385,7 +385,7 @@ ALTER TABLE addamsFamily
 WITH comment = 'A most excellent and useful column family'
  AND read_repair_chance = 0.2;
 p. 
-The @ALTER@ statement is used to manipulate table definitions. It allows to add new columns, drop existing ones, change the type of existing columns, or update the table options. As for table creation, @ALTER COLUMNFAMILY@ is allowed as an alias for @ALTER TABLE@.
+The @ALTER@ statement is used to manipulate table definitions. It allows for adding new columns, dropping existing ones, changing the type of existing columns, or updating the table options. As with table creation, @ALTER COLUMNFAMILY@ is allowed as an alias for @ALTER TABLE@.
 
 The @<tablename>@ is the table name optionally preceded by the keyspace name.  The @<instruction>@ defines the alteration to perform:
 * @ALTER@: Update the type of a given defined column. Note that the type of the "clustering columns":#createTablepartitionClustering cannot be modified as it induces the on-disk ordering of rows. Columns on which a "secondary index":#createIndexStmt is defined have the same restriction. Other columns are free from those restrictions (no validation of existing data is performed), but it is usually a bad idea to change the type to a non-compatible one, unless no data have been inserted for that column yet, as this could confuse CQL drivers/tools.
@@ -405,7 +405,7 @@ bc(sample). DROP TABLE worldSeriesAttendees;
 
 The @DROP TABLE@ statement results in the immediate, irreversible removal of a table, including all data contained in it. As for table creation, @DROP COLUMNFAMILY@ is allowed as an alias for @DROP TABLE@.
 
-If the table does not exists, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
+If the table does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 
 h3(#truncateStmt). TRUNCATE
 
@@ -424,15 +424,20 @@ h3(#createIndexStmt). CREATE INDEX
 
 __Syntax:__
 
-bc(syntax). <create-index-stmt> ::= CREATE ( CUSTOM )? INDEX ( IF NOT EXISTS )? ( ( <keyspacename> '.' )? <indexname> )?
-                                        ON <tablename> '(' <identifier> ')'
-                                        ( USING <string> ( WITH OPTIONS = <map-literal> )? )?
+bc(syntax).. 
+<create-index-stmt> ::= CREATE ( CUSTOM )? INDEX ( IF NOT EXISTS )? ( ( <keyspacename> '.' )? <indexname> )?
+                            ON <tablename> '(' <index-identifier> ')'
+                            ( USING <string> ( WITH OPTIONS = <map-literal> )? )?
 
+<index-identifier> ::= <identifier>
+                     | keys( <identifier> )
+p. 
 __Sample:__
 
 bc(sample). 
 CREATE INDEX userIndex ON NerdMovies (user);
 CREATE INDEX ON Mutants (abilityId);
+CREATE INDEX ON users (keys(favs));
 CREATE CUSTOM INDEX ON users (email) USING 'path.to.the.IndexClass';
 CREATE CUSTOM INDEX ON users (email) USING 'path.to.the.IndexClass' WITH OPTIONS = {'storage': '/mnt/ssd/indexes/'};
 
@@ -440,19 +445,100 @@ The @CREATE INDEX@ statement is used to create a new (automatic) secondary index
 
 Attempting to create an already existing index will return an error unless the @IF NOT EXISTS@ option is used. If it is used, the statement will be a no-op if the index already exists.
 
+h4(#keysIndex). Indexes on Map Keys
+
+When creating an index on a "map column":#map, you may index either the keys or the values.  If the column identifier is placed within the @keys()@ function, the index will be on the map keys, allowing you to use @CONTAINS KEY@ in @WHERE@ clauses.  Otherwise, the index will be on the map values.
+
 h3(#dropIndexStmt). DROP INDEX
 
 __Syntax:__
 
-bc(syntax).  <drop-index-stmt> ::= DROP INDEX ( IF EXISTS )? <identifier>
+bc(syntax).  <drop-index-stmt> ::= DROP INDEX ( IF EXISTS )? ( <keyspace> '.' )? <identifier>
 
 __Sample:__
 
-bc(sample). DROP INDEX userIndex;
+bc(sample).. 
+DROP INDEX userIndex;
 
-The @DROP INDEX@ statement is used to drop an existing secondary index. The argument of the statement is the index name.
+DROP INDEX userkeyspace.address_index;
+p. 
+The @DROP INDEX@ statement is used to drop an existing secondary index. The argument of the statement is the index name, which may optionally specify the keyspace of the index.
 
 If the index does not exists, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
+
+h3(#createTypeStmt). CREATE TYPE
+
+__Syntax:__
+
+bc(syntax).. 
+<create-type-stmt> ::= CREATE TYPE ( IF NOT EXISTS )? <typename>
+                         '(' <field-definition> ( ',' <field-definition> )* ')'
+
+<typename> ::= ( <keyspace-name> '.' )? <identifier>
+
+<field-definition> ::= <identifier> <type>
+
+p. 
+__Sample:__
+
+bc(sample).. 
+CREATE TYPE address (
+    street_name text,
+    street_number int,
+    city text,
+    state text,
+    zip int
+)
+
+CREATE TYPE work_and_home_addresses (
+    home_address address,
+    work_address address
+)
+p. 
+The @CREATE TYPE@ statement creates a new user-defined type.  Each type is a set of named, typed fields.  Field types may be any valid type, including collections and other existing user-defined types.
+
+Attempting to create an already existing type will result in an error unless the @IF NOT EXISTS@ option is used.  If it is used, the statement will be a no-op if the type already exists.
+
+h4(#createTypeName). @<typename>@
+
+Valid type names are identifiers.  The names of existing CQL types and "reserved type names":#appendixB may not be used.
+
+If the type name is provided alone, the type is created with the current keyspace (see <a href="#useStmt"><tt>USE</tt></a>). If it is prefixed by an existing keyspace name, the type is created within the specified keyspace instead of the current keyspace.
+
+h3(#alterTypeStmt). ALTER TYPE
+
+__Syntax:__
+
+bc(syntax).. 
+<alter-type-stmt> ::= ALTER TYPE <typename> <instruction>
+
+<instruction> ::= ALTER <field-name> TYPE <type>
+                | ADD <field-name> <type>
+                | RENAME <field-name> TO <field-name> ( AND <field-name> TO <field-name> )*
+p. 
+__Sample:__
+
+bc(sample).. 
+ALTER TYPE address ALTER zip TYPE varint
+
+ALTER TYPE address ADD country text
+
+ALTER TYPE address RENAME zip TO zipcode AND street_name TO street
+p. 
+The @ALTER TYPE@ statement is used to manipulate type definitions. It allows for adding new fields, renaming existing fields, or changing the type of existing fields.
+
+When altering the type of a column, the new type must be compatible with the previous type.
+
+h3(#dropTypeStmt). DROP TYPE
+
+__Syntax:__
+
+bc(syntax).. 
+<drop-type-stmt> ::= DROP TYPE ( IF EXISTS )? <typename>
+p. 
+The @DROP TYPE@ statement results in the immediate, irreversible removal of a type.  Attempting to drop a type that is still in use by another type or a table will result in an error.
+
+If the type does not exist, an error will be returned unless @IF EXISTS@ is used, in which case the operation is a no-op.
 
 h2(#dataManipulation). Data Manipulation
 
@@ -671,7 +757,7 @@ bc(syntax)..
              | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
              | TOKEN '(' <identifier> ( ',' <identifer>)* ')' <op> <term>
 
-<op> ::= '=' | '<' | '>' | '<=' | '>='
+<op> ::= '=' | '<' | '>' | '<=' | '>=' | CONTAINS | CONTAINS KEY
 <order-by> ::= <ordering> ( ',' <odering> )*
 <ordering> ::= <identifer> ( ASC | DESC )?
 <term-tuple> ::= '(' <term> (',' <term>)* ')'
@@ -756,6 +842,8 @@ The tuple notation may also be used for @IN@ clauses on @CLUSTERING COLUMNS@:
 bc(sample). 
 SELECT * FROM posts WHERE userid='john doe' AND (blog_title, posted_at) IN (('John''s Blog', '2012-01-01), ('Extreme Chess', '2014-06-01'))
 
+The @CONTAINS@ operator may only be used on collection columns (lists, sets, and maps).  In the case of maps, @CONTAINS@ applies to the map values. The @CONTAINS KEY@ operator may only be used on map columns and applies to the map keys.
+
 h4(#selectOrderBy). @<order-by>@
 
 The @ORDER BY@ option allows to select the order of the returned results. It takes as argument a list of column names along with the order for the column (@ASC@ for ascendant and @DESC@ for descendant, omitting the order being equivalent to @ASC@). Currently the possible orderings are limited (which depends on the table "@CLUSTERING ORDER@":#createTableOptions):
@@ -812,6 +900,7 @@ CQL supports a rich set of data types for columns defined in a table, including 
 bc(syntax).. 
 <type> ::= <native-type>
          | <collection-type>
+         | <tuple-type>
          | <string>       // Used for custom types. The fully-qualified name of a JAVA class
 
 <native-type> ::= ascii
@@ -834,6 +923,7 @@ bc(syntax)..
 <collection-type> ::= list '<' <native-type> '>'
                     | set  '<' <native-type> '>'
                     | map  '<' <native-type> ',' <native-type> '>'
+<tuple-type> ::= tuple '<' <type> (',' <type>)* '>'
 p. Note that the native types are keywords and as such are case-insensitive. They are however not reserved ones.
 
 p. The following table gives additional informations on the native data types, and on which kind of "constants":#constants each type supports:
@@ -1165,10 +1255,31 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @WRITETIME@    | no  |
 | @DISTINCT@     | no  |
 
+h2(#appendixB). Appendix B: CQL Reserved Types
+
+The following type names are not currently used by CQL, but are reserved for potential future use.  User-defined types may not use reserved type names as their name.
+
+|_. type      |
+| @byte@      |
+| @smallint@  |
+| @complex@   |
+| @enum@      |
+| @date@      |
+| @interval@  |
+| @macaddr@   |
+| @bitstring@ |
 
 h2(#changes). Changes
 
-The following describes the addition/changes brought for each version of CQL.
+The following describes the changes in each version of CQL.
+
+h3. 3.2.0
+
+* User-defined types are now supported through "@CREATE TYPE@":#createTypeStmt, "@ALTER TYPE@":#alterTypeStmt, and "@DROP TYPE@":#dropTypeStmt
+* "@CREATE INDEX@":#createIndexStmt now supports indexing collection columns, including indexing the keys of map collections through the @keys()@ function
+* Indexes on collections may be queried using the new @CONTAINS@ and @CONTAINS KEY@ operators
+* Tuple types were added to hold fixed-length sets of typed positional fields (see the section on "types":#types)
+* "@DROP INDEX@":#dropIndexStmt now supports optionally specifying a keyspace
 
 h3. 3.1.7
 

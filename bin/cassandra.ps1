@@ -47,7 +47,7 @@ usage: cassandra.ps1 [-f] [-h] [-p pidfile] [-H dumpfile] [-E errorfile] [-insta
     -f              Run cassandra in foreground
     -install        install cassandra as a service
     -uninstall      remove cassandra service
-    -p              pidfile tracked by server and removed on close
+    -p              pidfile tracked by server and removed on close (defaults to pid.txt)
     -H              change JVM HeapDumpPath
     -E              change JVM ErrorFile
     -help           print this message
@@ -109,7 +109,6 @@ Function Main
     }
     else
     {
-        CleanOldRun
         RunCassandra($f)
     }
 }
@@ -186,34 +185,6 @@ Function HandleInstallation
 }
 
 #-----------------------------------------------------------------------------
-Function CleanOldRun
-{
-    # see if we already have an instance of cassandra running from this folder
-    if (Test-Path $pidfile)
-    {
-        $a = Get-Content $pidfile
-
-        # file is there but empty
-        if ($a -eq $null)
-        {
-            Remove-Item $pidfile
-            return
-        }
-
-        $proc = Get-Process -Id $a -ErrorAction SilentlyContinue
-        if ($proc)
-        {
-            echo "ERROR!  There is already an instance of cassandra running from this folder with pid: $a.  Please use stop-server.bat to stop this instance before starting cassandra."
-            exit
-        }
-        else
-        {
-            Remove-Item $pidfile
-        }
-    }
-}
-
-#-----------------------------------------------------------------------------
 Function RunCassandra([string]$foreground)
 {
     echo "Starting cassandra server"
@@ -275,8 +246,8 @@ $env:JAVA_BIN
     {
         $proc = Start-Process -FilePath "$cmd" -ArgumentList $arg1,$arg2,$arg3,$arg4 -PassThru -WindowStyle Hidden
 
-        # Always store the pid, even if we're not registering it with the server
-        # The startup script uses this pid file as a protection against duplicate startup from the same folder
+        $exitCode = $?
+
         try
         {
             echo $proc.Id > $pidfile
@@ -287,19 +258,12 @@ $env:JAVA_BIN
 WARNING! Failed to write pidfile to $pidfile.  stop-server.bat and
     startup protection will not be available.
 "@
+            exit 1
         }
 
-        Start-Sleep -m 100
-        $checkProcess = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
-        if ($checkProcess -eq $null)
+        if (-Not $exitCode)
         {
-            echo "Error starting cassandra."
-            echo "Run with -v and -f to get foreground verbose information on the error."
-        }
-        else
-        {
-            $cassPid = $proc.Id
-            echo "Started cassandra successfully with pid: $cassPid"
+            exit 1
         }
     }
 }
