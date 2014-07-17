@@ -20,6 +20,7 @@
  * Support conditional updates, tuple type, and the v3 protocol in cqlsh (CASSANDRA-7509)
  * Handle queries on multiple secondary index types (CASSANDRA-7525)
  * Fix cqlsh authentication with v3 native protocol (CASSANDRA-7564)
+ * Fix NPE when unknown prepared statement ID is used (CASSANDRA-7454)
 Merged from 2.0:
  * (Windows) force range-based repair to non-sequential mode (CASSANDRA-7541)
  * Fix range merging when DES scores are zero (CASSANDRA-7535)
