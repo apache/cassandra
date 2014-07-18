@@ -21,6 +21,7 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
+import java.lang.reflect.UndeclaredThrowableException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -49,8 +50,28 @@ public class GCInspector
     final List<GarbageCollectorMXBean> beans = new ArrayList<GarbageCollectorMXBean>();
     final MemoryMXBean membean = ManagementFactory.getMemoryMXBean();
 
-    public GCInspector()
+    public void start()
     {
+        buildMXBeanList();
+
+        // don't bother starting a thread that will do nothing.
+        if (beans.isEmpty())
+            return;
+
+        Runnable t = new Runnable()
+        {
+            public void run()
+            {
+                logGCResults();
+            }
+        };
+        StorageService.scheduledTasks.scheduleWithFixedDelay(t, INTERVAL_IN_MS, INTERVAL_IN_MS, TimeUnit.MILLISECONDS);
+    }
+
+    private void buildMXBeanList()
+    {
+        beans.clear();
+
         MBeanServer server = ManagementFactory.getPlatformMBeanServer();
         try
         {
@@ -67,62 +88,67 @@ public class GCInspector
         }
     }
 
-    public void start()
-    {
-        // don't bother starting a thread that will do nothing.
-        if (beans.size() == 0)
-            return;
-        Runnable t = new Runnable()
-        {
-            public void run()
-            {
-                logGCResults();
-            }
-        };
-        StorageService.scheduledTasks.scheduleWithFixedDelay(t, INTERVAL_IN_MS, INTERVAL_IN_MS, TimeUnit.MILLISECONDS);
-    }
-
     private void logGCResults()
     {
-        for (GarbageCollectorMXBean gc : beans)
+        boolean gcChanged = false;
+        try
         {
-            Long previousTotal = gctimes.get(gc.getName());
-            Long total = gc.getCollectionTime();
-            if (previousTotal == null)
-                previousTotal = 0L;
-            if (previousTotal.equals(total))
-                continue;
-            gctimes.put(gc.getName(), total);
-            Long duration = total - previousTotal; // may be zero for a really fast collection
+            for (GarbageCollectorMXBean gc : beans)
+            {
+                if (!gc.isValid())
+                {
+                    gcChanged = true;
+                    continue;
+                }
 
-            Long previousCount = gccounts.get(gc.getName());
-            Long count = gc.getCollectionCount();
+                Long previousTotal = gctimes.get(gc.getName());
+                Long total = gc.getCollectionTime();
+                if (previousTotal == null)
+                    previousTotal = 0L;
+                if (previousTotal.equals(total))
+                    continue;
+                gctimes.put(gc.getName(), total);
+                Long duration = total - previousTotal; // may be zero for a really fast collection
 
-            if (previousCount == null)
-                previousCount = 0L;
-            if (count.equals(previousCount))
-                continue;
+                Long previousCount = gccounts.get(gc.getName());
+                Long count = gc.getCollectionCount();
 
-            gccounts.put(gc.getName(), count);
+                if (previousCount == null)
+                    previousCount = 0L;
+                if (count.equals(previousCount))
+                    continue;
 
-            MemoryUsage mu = membean.getHeapMemoryUsage();
-            long memoryUsed = mu.getUsed();
-            long memoryMax = mu.getMax();
+                gccounts.put(gc.getName(), count);
 
-            String st = String.format("GC for %s: %s ms for %s collections, %s used; max is %s",
-                                      gc.getName(), duration, count - previousCount, memoryUsed, memoryMax);
-            long durationPerCollection = duration / (count - previousCount);
-            if (durationPerCollection > MIN_DURATION)
-                logger.info(st);
-            else if (logger.isDebugEnabled())
-                logger.debug(st);
+                MemoryUsage mu = membean.getHeapMemoryUsage();
+                long memoryUsed = mu.getUsed();
+                long memoryMax = mu.getMax();
 
-            if (durationPerCollection > MIN_DURATION_TPSTATS)
-                StatusLogger.log();
+                String st = String.format("GC for %s: %s ms for %s collections, %s used; max is %s",
+                                          gc.getName(), duration, count - previousCount, memoryUsed, memoryMax);
+                long durationPerCollection = duration / (count - previousCount);
+                if (durationPerCollection > MIN_DURATION)
+                    logger.info(st);
+                else if (logger.isDebugEnabled())
+                    logger.debug(st);
 
-            // if we just finished a full collection and we're still using a lot of memory, try to reduce the pressure
-            if (gc.getName().equals("ConcurrentMarkSweep"))
-                SSTableDeletingTask.rescheduleFailedTasks();
+                if (durationPerCollection > MIN_DURATION_TPSTATS)
+                    StatusLogger.log();
+
+                // if we just finished a full collection and we're still using a lot of memory, try to reduce the pressure
+                if (gc.getName().equals("ConcurrentMarkSweep"))
+                    SSTableDeletingTask.rescheduleFailedTasks();
+            }
         }
+        catch (UndeclaredThrowableException e)
+        {
+            // valid-ness may have changed out from under us, even though we check for it explicitly.
+            // if so, gc.getName() will throw UTE when reflection runs into InstanceNotFoundException.
+            // See CASSANDRA-5345
+            gcChanged = true;
+        }
+
+        if (gcChanged)
+            buildMXBeanList();
     }
 }
