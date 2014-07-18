@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.cassandra.auth.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.ResultSet;
@@ -33,6 +34,7 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.commons.lang.StringUtils;
 
 public class ListRolesStatement extends AuthenticationStatement
 {
@@ -73,9 +75,14 @@ public class ListRolesStatement extends AuthenticationStatement
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
         if (state.getUser().isSuper())
-            return resultMessage(Auth.getRoles(username));
+        {
+            if (StringUtils.isEmpty(username))
+                return resultMessage(Auth.getRoles());
+            else
+                return resultMessage(DatabaseDescriptor.getAuthenticator().listRoles(username));
+        }
         else
-            return resultMessage(Auth.getRoles(state.getUser().getName()));
+            return resultMessage(DatabaseDescriptor.getAuthenticator().listRoles(state.getUser().getName()));
     }
 
     private ResultMessage resultMessage(Set<String> roles)

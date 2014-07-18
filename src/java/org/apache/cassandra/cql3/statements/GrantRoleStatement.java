@@ -21,6 +21,7 @@ import org.apache.cassandra.auth.Auth;
 import org.apache.cassandra.auth.IGrantee;
 import org.apache.cassandra.auth.Role;
 import org.apache.cassandra.auth.User;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -34,17 +35,12 @@ public class GrantRoleStatement extends RoleManagementStatement
         super(username, rolename);
     }
 
-    @Override
-    public void validate(ClientState state) throws RequestValidationException
-    {
-        super.validate(state);
-        if (Auth.getRoles(username).contains(rolename))
-            throw new InvalidRequestException(String.format("User %s is already granted role %s", username, rolename));
-    }
-
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
-        Auth.grantRole(username, rolename);
+        if (DatabaseDescriptor.getAuthenticator().listRoles(username).contains(rolename))
+            throw new InvalidRequestException(String.format("User %s is already granted role %s", username, rolename));
+
+        DatabaseDescriptor.getAuthenticator().grantRole(username, rolename);
         return null;
     }
 }

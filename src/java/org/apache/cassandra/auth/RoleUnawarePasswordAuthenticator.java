@@ -20,10 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public abstract class RoleUnawarePasswordAuthenticator implements ISaslAwareAuthenticator
@@ -148,7 +145,7 @@ public abstract class RoleUnawarePasswordAuthenticator implements ISaslAwareAuth
 
     public Set<String> listRoles(String username) throws RequestValidationException, RequestExecutionException
     {
-        throw new InvalidRequestException("LIST ROLES is not supported by the RoleUnawarePasswordAuthenticator");
+        return Collections.emptySet();
     }
 
     public Set<DataResource> protectedResources()

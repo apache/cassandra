@@ -63,7 +63,18 @@ public class RoleAwarePasswordAuthenticator extends RoleUnawarePasswordAuthentic
     public AuthenticatedUser authenticate(Map<String, String> credentials) throws AuthenticationException
     {
         AuthenticatedUser user = super.authenticate(credentials);
-        return new AuthenticatedUser(user.getName(), Auth.getRoles(user.getName()));
+        try
+        {
+            return new AuthenticatedUser(user.getName(), listRoles(user.getName()));
+        }
+        catch (RequestValidationException e)
+        {
+            throw new AssertionError(e); // not supposed to happen
+        }
+        catch (RequestExecutionException e)
+        {
+            throw new AuthenticationException(e.toString());
+        }
     }
 
     public void create(String username, Map<Option, Object> options) throws InvalidRequestException, RequestExecutionException

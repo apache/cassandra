@@ -186,54 +186,23 @@ public class Auth
     }
 
     /**
-     * Grant a role to a user
+     * Get a set of all the roles in the system
      *
-     * @param username User that will get role
-     * @param rolename Role to grant
-     * @throws RequestExecutionException
+     * @return the set of roles
      */
-    public static void grantRole(String username, String rolename) throws RequestExecutionException, RequestValidationException
+    public static Set<String> getRoles()
     {
-        DatabaseDescriptor.getAuthenticator().grantRole(username, rolename);
-    }
-
-    /**
-     * Revoke a role from a user
-     *
-     * @param username User that will have the role removed
-     * @param rolename Role to revoke
-     * @throws RequestExecutionException
-     */
-    public static void revokeRole(String username, String rolename) throws RequestExecutionException, RequestValidationException
-    {
-        DatabaseDescriptor.getAuthenticator().revokeRole(username, rolename);
-    }
-
-    /**
-     * Get a set of roles that the user has been granted
-     *
-     * @param username User
-     * @return the set of roles that have been granted to the user
-     */
-    public static Set<String> getRoles(String username)
-    {
-        Set<String> roles;
-        if (username == null)
+        Set<String> roles = new HashSet<>();
+        try
         {
-            roles = new HashSet<>();
-            for (Row row : selectRoles())
+            for (Row row : QueryProcessor.process(String.format("SELECT role FROM %s.%s",
+                                                                Auth.AUTH_KS, ROLES_CF),
+                                                  ConsistencyLevel.LOCAL_ONE))
                 roles.add(row.getString("role"));
         }
-        else
+        catch (RequestExecutionException e)
         {
-            try
-            {
-                roles = DatabaseDescriptor.getAuthenticator().listRoles(username);
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
+            throw new RuntimeException(e);
         }
         return roles;
     }

@@ -21,6 +21,7 @@ import org.apache.cassandra.auth.Auth;
 import org.apache.cassandra.auth.IGrantee;
 import org.apache.cassandra.auth.Role;
 import org.apache.cassandra.auth.User;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -35,18 +36,13 @@ public class RevokeRoleStatement extends RoleManagementStatement
     }
 
     @Override
-    public void validate(ClientState state) throws RequestValidationException
-    {
-        super.validate(state);
-        if (!Auth.getRoles(username).contains(rolename))
-            throw new InvalidRequestException(String.format("User %s has not been granted role %s",
-                                                            username, rolename));
-    }
-
-    @Override
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
-        Auth.revokeRole(username, rolename);
+        if (!DatabaseDescriptor.getAuthenticator().listRoles(username).contains(rolename))
+            throw new InvalidRequestException(String.format("User %s has not been granted role %s",
+                                                            username, rolename));
+
+        DatabaseDescriptor.getAuthenticator().revokeRole(username, rolename);
         return null;
     }
 

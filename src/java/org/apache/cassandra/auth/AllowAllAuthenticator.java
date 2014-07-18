@@ -76,7 +76,7 @@ public class AllowAllAuthenticator implements IAuthenticator
 
     public Set<String> listRoles(String username) throws RequestValidationException, RequestExecutionException
     {
-        throw new InvalidRequestException("LIST ROLES operation is not supported by AllowAllAuthenticator");
+        return Collections.emptySet();
     }
 
     public Set<IResource> protectedResources()

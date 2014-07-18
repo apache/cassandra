@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.cassandra.auth.IGrantee.Type;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -221,7 +222,7 @@ public class RoleAwareAuthorizer extends RoleUnawareAuthorizer
         else if (grantee.getType() == Type.User)
         {
             details = super.list(performer, permissions, resource, grantee.getName());
-            for (String rolename : Auth.getRoles(grantee.getName()))
+            for (String rolename : DatabaseDescriptor.getAuthenticator().listRoles(grantee.getName()))
             {
                 addPermissionDetailsForRole(details, permissions, resource, rolename);
             }
