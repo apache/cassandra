@@ -67,4 +67,26 @@ public class AllowAllAuthorizer implements IAuthorizer
     public void setup()
     {
     }
+
+    public void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, IGrantee grantee)
+    throws InvalidRequestException
+    {
+        throw new InvalidRequestException("GRANT operation is not supported by AllowAllAuthorizer");
+    }
+
+    public void revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, IGrantee grantee)
+    throws InvalidRequestException
+    {
+        throw new InvalidRequestException("REVOKE operation is not supported by AllowAllAuthorizer");
+    }
+
+    public Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, IGrantee grantee)
+    throws InvalidRequestException
+    {
+        throw new InvalidRequestException("LIST PERMISSIONS operation is not supported by AllowAllAuthorizer");
+    }
+
+    public void revokeAll(IGrantee grantee)
+    {
+    }
 }

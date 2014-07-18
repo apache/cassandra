@@ -17,10 +17,47 @@
  */
 package org.apache.cassandra.auth;
 
+import com.google.common.base.Objects;
+
 /**
- * CassandraAuthorizer is an IAuthorizer implementation that keeps
- * permissions internally in C* - in system_auth.permissions CQL3 table.
+ * Defines a role in the authorization sub-system
  */
-public class CassandraAuthorizer extends RoleUnawareAuthorizer
+public class Role extends Grantee
 {
+    public Role(String name)
+    {
+        super(name);
+    }
+
+    @Override
+    public Type getType()
+    {
+        return Type.Role;
+    }
+
+    @Override
+    public boolean isExisting()
+    {
+        return Auth.isExistingRole(name);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(Type.Role, name);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+            return true;
+
+        if (!(o instanceof Role))
+            return false;
+
+        Role r = (Role) o;
+
+        return Objects.equal(name, r.name);
+    }
 }

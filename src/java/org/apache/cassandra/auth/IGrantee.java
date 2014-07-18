@@ -18,9 +18,39 @@
 package org.apache.cassandra.auth;
 
 /**
- * CassandraAuthorizer is an IAuthorizer implementation that keeps
- * permissions internally in C* - in system_auth.permissions CQL3 table.
+ * This interface defines an entity that can have permissions
+ * granted to it.
+ *
  */
-public class CassandraAuthorizer extends RoleUnawareAuthorizer
+public interface IGrantee extends Comparable<IGrantee>
 {
+    /**
+     * The types of grantees currently supported
+     *
+     */
+    enum Type
+    {
+        User,
+        Role
+    }
+    /**
+     * Return the type of the grantee
+     *
+     * @return the type of the grantee
+     */
+    public Type getType();
+
+    /**
+     * Return the name of the grantee
+     *
+     * @return the name of the grantee
+     */
+    public String getName();
+
+    /**
+     * Tests if the auth sub-system is aware of the grantee
+     *
+     * @return true if the grantee exists in the auth sub-system
+     */
+    public boolean isExisting();
 }

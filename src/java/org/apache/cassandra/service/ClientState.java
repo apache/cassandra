@@ -70,6 +70,7 @@ public class ClientState
         for (String cf : cfs)
             READABLE_SYSTEM_RESOURCES.add(DataResource.columnFamily(Keyspace.SYSTEM_KS, cf));
 
+        PROTECTED_AUTH_RESOURCES.addAll(Auth.protectedResources());
         PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthenticator().protectedResources());
         PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthorizer().protectedResources());
     }

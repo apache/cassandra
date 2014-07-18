@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.Collections;
+import java.util.Set;
+
 import com.google.common.base.Objects;
 
 /**
@@ -28,10 +31,18 @@ public class AuthenticatedUser
     public static final AuthenticatedUser ANONYMOUS_USER = new AuthenticatedUser(ANONYMOUS_USERNAME);
 
     private final String name;
+    private final Set<String> roles;
 
     public AuthenticatedUser(String name)
     {
         this.name = name;
+        this.roles = Collections.emptySet();
+    }
+
+    public AuthenticatedUser(String name, Set<String> roles)
+    {
+        this.name = name;
+        this.roles = roles;
     }
 
     public String getName()
@@ -56,6 +67,11 @@ public class AuthenticatedUser
     public boolean isAnonymous()
     {
         return this == ANONYMOUS_USER;
+    }
+
+    public Set<String> getRoles()
+    {
+        return roles;
     }
 
     @Override

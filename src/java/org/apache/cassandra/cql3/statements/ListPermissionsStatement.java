@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.util.*;
 
 import org.apache.cassandra.auth.*;
+import org.apache.cassandra.auth.IGrantee.Type;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -42,6 +43,7 @@ public class ListPermissionsStatement extends AuthorizationStatement
     {
         List<ColumnSpecification> columns = new ArrayList<ColumnSpecification>(4);
         columns.add(new ColumnSpecification(KS, CF, new ColumnIdentifier("username", true), UTF8Type.instance));
+        columns.add(new ColumnSpecification(KS, CF, new ColumnIdentifier("rolename", true), UTF8Type.instance));
         columns.add(new ColumnSpecification(KS, CF, new ColumnIdentifier("resource", true), UTF8Type.instance));
         columns.add(new ColumnSpecification(KS, CF, new ColumnIdentifier("permission", true), UTF8Type.instance));
         metadata = Collections.unmodifiableList(columns);
@@ -49,14 +51,14 @@ public class ListPermissionsStatement extends AuthorizationStatement
 
     private final Set<Permission> permissions;
     private DataResource resource;
-    private final String username;
+    private final IGrantee grantee;
     private final boolean recursive;
 
-    public ListPermissionsStatement(Set<Permission> permissions, IResource resource, String username, boolean recursive)
+    public ListPermissionsStatement(Set<Permission> permissions, IResource resource, IGrantee grantee, boolean recursive)
     {
         this.permissions = permissions;
         this.resource = (DataResource) resource;
-        this.username = username;
+        this.grantee = grantee;
         this.recursive = recursive;
     }
 
@@ -65,8 +67,8 @@ public class ListPermissionsStatement extends AuthorizationStatement
         // a check to ensure the existence of the user isn't being leaked by user existence check.
         state.ensureNotAnonymous();
 
-        if (username != null && !Auth.isExistingUser(username))
-            throw new InvalidRequestException(String.format("User %s doesn't exist", username));
+        if (grantee != null && !grantee.isExisting())
+            throw new InvalidRequestException(String.format("%s %s doesn't exist", grantee.getType(), grantee.getName()));
 
         if (resource != null)
         {
@@ -108,7 +110,16 @@ public class ListPermissionsStatement extends AuthorizationStatement
         ResultSet result = new ResultSet(metadata);
         for (PermissionDetails pd : details)
         {
-            result.addColumnValue(UTF8Type.instance.decompose(pd.username));
+            if (pd.grantee.getType() == Type.Role)
+            {
+                result.addColumnValue(null);
+                result.addColumnValue(UTF8Type.instance.decompose(pd.grantee.getName()));
+            }
+            else
+            {
+                result.addColumnValue(UTF8Type.instance.decompose(pd.grantee.getName()));
+                result.addColumnValue(null);
+            }
             result.addColumnValue(UTF8Type.instance.decompose(pd.resource.toString()));
             result.addColumnValue(UTF8Type.instance.decompose(pd.permission.toString()));
         }
@@ -118,6 +129,6 @@ public class ListPermissionsStatement extends AuthorizationStatement
     private Set<PermissionDetails> list(ClientState state, IResource resource)
     throws RequestValidationException, RequestExecutionException
     {
-        return DatabaseDescriptor.getAuthorizer().list(state.getUser(), permissions, resource, username);
+        return DatabaseDescriptor.getAuthorizer().list(state.getUser(), permissions, resource, grantee);
     }
 }
