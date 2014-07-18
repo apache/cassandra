@@ -70,21 +70,18 @@ public abstract class LegacyAuthorizer implements IAuthorizer
         return permissions;
     }
 
-    @Override
     public void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String to)
     throws InvalidRequestException
     {
         throw new InvalidRequestException("GRANT operation is not supported by LegacyAuthorizer");
     }
 
-    @Override
     public void revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String from)
     throws InvalidRequestException
     {
         throw new InvalidRequestException("REVOKE operation is not supported by LegacyAuthorizer");
     }
 
-    @Override
     public void revokeAll(String droppedUser)
     {
     }
@@ -94,7 +91,6 @@ public abstract class LegacyAuthorizer implements IAuthorizer
     {
     }
 
-    @Override
     public Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String of)
     throws InvalidRequestException, UnauthorizedException
     {

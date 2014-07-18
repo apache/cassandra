@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import org.apache.cassandra.auth.Auth;
 import org.apache.cassandra.auth.IGrantee;
 import org.apache.cassandra.auth.Role;
+import org.apache.cassandra.auth.User;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -28,26 +29,22 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class GrantRoleStatement extends RoleManagementStatement
 {
-    public GrantRoleStatement(Role role, IGrantee grantee)
+    public GrantRoleStatement(String username, String rolename)
     {
-        super(role, grantee);
+        super(username, rolename);
     }
 
     @Override
     public void validate(ClientState state) throws RequestValidationException
     {
         super.validate(state);
-        if (Auth.getRoles(grantee, true).contains(role))
-            throw new InvalidRequestException(String.format("%s %s is already granted %s %s",
-                                                            grantee.getType(), grantee.getName(),
-                                                            role.getType(), role.getName()));
-        if (Auth.getRoles(role, true).contains(grantee))
-            throw new InvalidRequestException("Grant will create circular dependency");
+        if (Auth.getRoles(username).contains(rolename))
+            throw new InvalidRequestException(String.format("User %s is already granted role %s", username, rolename));
     }
 
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
-        Auth.grantRole(role, grantee);
+        Auth.grantRole(username, rolename);
         return null;
     }
 }

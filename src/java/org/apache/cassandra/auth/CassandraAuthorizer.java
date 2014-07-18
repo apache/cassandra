@@ -21,6 +21,6 @@ package org.apache.cassandra.auth;
  * CassandraAuthorizer is an IAuthorizer implementation that keeps
  * permissions internally in C* - in system_auth.permissions CQL3 table.
  */
-public class CassandraAuthorizer extends AbstractCassandraAuthorizer
+public class CassandraAuthorizer extends RoleUnawareAuthorizer
 {
 }

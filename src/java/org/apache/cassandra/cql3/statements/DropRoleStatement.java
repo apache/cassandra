@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.statements;
 
 import org.apache.cassandra.auth.Auth;
+import org.apache.cassandra.auth.Grantee;
 import org.apache.cassandra.auth.Role;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -29,12 +30,12 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class DropRoleStatement extends AuthenticationStatement
 {
-    private final Role role;
+    private final String rolename;
     private final boolean ifExists;
 
-    public DropRoleStatement(Role role, boolean ifExists)
+    public DropRoleStatement(String rolename, boolean ifExists)
     {
-        this.role = role;
+        this.rolename = rolename;
         this.ifExists = ifExists;
     }
 
@@ -43,8 +44,8 @@ public class DropRoleStatement extends AuthenticationStatement
         // validate login here before checkAccess to avoid leaking user existence to anonymous users.
         state.ensureNotAnonymous();
 
-        if (!ifExists && !role.isExisting())
-            throw new InvalidRequestException(String.format("Role %s doesn't exist", role.getName()));
+        if (!ifExists && !Auth.isExistingRole(rolename))
+            throw new InvalidRequestException(String.format("Role %s doesn't exist", rolename));
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException
@@ -56,12 +57,13 @@ public class DropRoleStatement extends AuthenticationStatement
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
         // not rejected in validate()
-        if (ifExists && !role.isExisting())
+        if (ifExists && !Auth.isExistingRole(rolename))
             return null;
 
-        // clean up permissions after the dropped user.
-        DatabaseDescriptor.getAuthorizer().revokeAll(role);
-        Auth.deleteRole(role);
+        // clean up permissions after the dropped role.
+        DatabaseDescriptor.getAuthorizer().revokeAll(Grantee.asRole(rolename));
+        DatabaseDescriptor.getAuthenticator().revokeAll(rolename);
+        Auth.deleteRole(rolename);
         return null;
     }
 }

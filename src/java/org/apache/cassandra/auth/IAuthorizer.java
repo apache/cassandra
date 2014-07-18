@@ -38,63 +38,60 @@ public interface IAuthorizer
     Set<Permission> authorize(AuthenticatedUser user, IResource resource);
 
     /**
-     * Grants a set of permissions on a resource to a user.
+     * Grants a set of permissions on a resource to a grantee that can be a role or a user.
      * The opposite of revoke().
      *
      * @param performer User who grants the permissions.
      * @param permissions Set of permissions to grant.
-     * @param to Grantee of the permissions.
+     * @param grantee Grantee of the permissions.
      * @param resource Resource on which to grant the permissions.
      *
      * @throws RequestValidationException
      * @throws RequestExecutionException
-     * @deprecated
      */
-    void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String to)
-    throws RequestValidationException, RequestExecutionException;
+    void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, IGrantee grantee)
+            throws RequestValidationException, RequestExecutionException;
 
     /**
-     * Revokes a set of permissions on a resource from a user.
+     * Revokes a set of permissions on a resource from a revokee that can be a role or a user.
      * The opposite of grant().
      *
      * @param performer User who revokes the permissions.
      * @param permissions Set of permissions to revoke.
-     * @param from Revokee of the permissions.
+     * @param revokee Revokee of the permissions.
      * @param resource Resource on which to revoke the permissions.
      *
      * @throws RequestValidationException
      * @throws RequestExecutionException
-     * @deprecated
      */
-    void revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String from)
-    throws RequestValidationException, RequestExecutionException;
+    void revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, IGrantee revokee)
+            throws RequestValidationException, RequestExecutionException;
 
     /**
-     * Returns a list of permissions on a resource of a user.
+     * Returns a list of permissions on a resource of a grantee that can be a role or a user.
      *
      * @param performer User who wants to see the permissions.
      * @param permissions Set of Permission values the user is interested in. The result should only include the matching ones.
      * @param resource The resource on which permissions are requested. Can be null, in which case permissions on all resources
      *                 should be returned.
-     * @param of The user whose permissions are requested. Can be null, in which case permissions of every user should be returned.
+     * @param grantee Grantee whose permissions are requested. Can be null, in which case permissions of every user and role
+     *                should be returned.
      *
      * @return All of the matching permission that the requesting user is authorized to know about.
      *
      * @throws RequestValidationException
      * @throws RequestExecutionException
-     * @deprecated
      */
-    Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String of)
-    throws RequestValidationException, RequestExecutionException;
+    Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, IGrantee grantee)
+            throws RequestValidationException, RequestExecutionException;
 
     /**
-     * This method is called before deleting a user with DROP USER query so that a new user with the same
-     * name wouldn't inherit permissions of the deleted user in the future.
+     * This method is called before deleting a user or role with a DROP USER or DROP ROLE query so that a new user or role
+     * with the same name wouldn't inherit permissions of the deleted user or role in the future.
      *
-     * @param droppedUser The user to revoke all permissions from.
-     * @deprecated
+     * @param revokee The user or role to revoke all permissions from.
      */
-    void revokeAll(String droppedUser);
+    void revokeAll(IGrantee revokee);
 
     /**
      * This method is called after a resource is removed (i.e. keyspace or a table is dropped).
@@ -123,60 +120,4 @@ public interface IAuthorizer
      * For example, use this method to create any required keyspaces/column families.
      */
     void setup();
-
-    /**
-     * Grants a set of permissions on a resource to a grantee that can be a role or a user.
-     * The opposite of revoke().
-     *
-     * @param performer User who grants the permissions.
-     * @param permissions Set of permissions to grant.
-     * @param grantee Grantee of the permissions.
-     * @param resource Resource on which to grant the permissions.
-     *
-     * @throws RequestValidationException
-     * @throws RequestExecutionException
-     */
-    void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, IGrantee grantee)
-    throws RequestValidationException, RequestExecutionException;
-
-    /**
-     * Revokes a set of permissions on a resource from a revokee that can be a role or a user.
-     * The opposite of grant().
-     *
-     * @param performer User who revokes the permissions.
-     * @param permissions Set of permissions to revoke.
-     * @param revokee Revokee of the permissions.
-     * @param resource Resource on which to revoke the permissions.
-     *
-     * @throws RequestValidationException
-     * @throws RequestExecutionException
-     */
-    void revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, IGrantee revokee)
-    throws RequestValidationException, RequestExecutionException;
-
-    /**
-     * Returns a list of permissions on a resource of a grantee that can be a role or a user.
-     *
-     * @param performer User who wants to see the permissions.
-     * @param permissions Set of Permission values the user is interested in. The result should only include the matching ones.
-     * @param resource The resource on which permissions are requested. Can be null, in which case permissions on all resources
-     *                 should be returned.
-     * @param grantee Grantee whose permissions are requested. Can be null, in which case permissions of every user and role
-     *                should be returned.
-     *
-     * @return All of the matching permission that the requesting user is authorized to know about.
-     *
-     * @throws RequestValidationException
-     * @throws RequestExecutionException
-     */
-    Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, IGrantee grantee)
-    throws RequestValidationException, RequestExecutionException;
-
-    /**
-     * This method is called before deleting a user or role with a DROP USER or DROP ROLE query so that a new user or role
-     * with the same name wouldn't inherit permissions of the deleted user or role in the future.
-     *
-     * @param revokee The user or role to revoke all permissions from.
-     */
-    void revokeAll(IGrantee revokee);
 }

@@ -21,9 +21,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.cassandra.exceptions.AuthenticationException;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.*;
 
 public class AllowAllAuthenticator implements IAuthenticator
 {
@@ -60,6 +58,25 @@ public class AllowAllAuthenticator implements IAuthenticator
     public void drop(String username) throws InvalidRequestException
     {
         throw new InvalidRequestException("DROP USER operation is not supported by AllowAllAuthenticator");
+    }
+
+    public void grantRole(String username, String rolename) throws RequestValidationException, RequestExecutionException
+    {
+        throw new InvalidRequestException("GRANT ROLE operation is not supported by AllowAllAuthenticator");
+    }
+
+    public void revokeRole(String username, String rolename) throws RequestValidationException, RequestExecutionException
+    {
+        throw new InvalidRequestException("REVOKE ROLE operation is not supported by AllowAllAuthenticator");
+    }
+
+    public void revokeAll(String rolename) throws RequestValidationException, RequestExecutionException
+    {
+    }
+
+    public Set<String> listRoles(String username) throws RequestValidationException, RequestExecutionException
+    {
+        throw new InvalidRequestException("LIST ROLES operation is not supported by AllowAllAuthenticator");
     }
 
     public Set<IResource> protectedResources()

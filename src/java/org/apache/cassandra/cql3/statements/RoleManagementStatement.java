@@ -17,8 +17,11 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.auth.Auth;
 import org.apache.cassandra.auth.IGrantee;
 import org.apache.cassandra.auth.Role;
+import org.apache.cassandra.auth.User;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -26,13 +29,13 @@ import org.apache.cassandra.service.ClientState;
 
 public abstract class RoleManagementStatement extends AuthorizationStatement
 {
-    protected final Role role;
-    protected final IGrantee grantee;
+    protected final String username;
+    protected final String rolename;
 
-    public RoleManagementStatement(Role role, IGrantee grantee)
+    public RoleManagementStatement(String username, String rolename)
     {
-        this.role = role;
-        this.grantee = grantee;
+        this.username = username;
+        this.rolename = rolename;
     }
 
     @Override
@@ -47,13 +50,10 @@ public abstract class RoleManagementStatement extends AuthorizationStatement
     {
         state.ensureNotAnonymous();
 
-        if (!role.isExisting())
-            throw new InvalidRequestException(String.format("%s %s doesn't exist", role.getType(), role.getName()));
+        if (!Auth.isExistingUser(username))
+            throw new InvalidRequestException(String.format("User %s doesn't exist", username));
 
-        if (!grantee.isExisting())
-            throw new InvalidRequestException(String.format("%s %s doesn't exist", grantee.getType(), grantee.getName()));
-
-        if (role.equals(grantee))
-            throw new InvalidRequestException("A role cannot operate on itself");
+        if (!Auth.isExistingRole(rolename))
+            throw new InvalidRequestException(String.format("Role %s doesn't exist", rolename));
     }
 }

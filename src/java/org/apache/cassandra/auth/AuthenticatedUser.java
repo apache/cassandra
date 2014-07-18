@@ -31,7 +31,7 @@ public class AuthenticatedUser
     public static final AuthenticatedUser ANONYMOUS_USER = new AuthenticatedUser(ANONYMOUS_USERNAME);
 
     private final String name;
-    private final Set<Role> roles;
+    private final Set<String> roles;
 
     public AuthenticatedUser(String name)
     {
@@ -39,7 +39,7 @@ public class AuthenticatedUser
         this.roles = Collections.emptySet();
     }
 
-    public AuthenticatedUser(String name, Set<Role> roles)
+    public AuthenticatedUser(String name, Set<String> roles)
     {
         this.name = name;
         this.roles = roles;
@@ -69,7 +69,7 @@ public class AuthenticatedUser
         return this == ANONYMOUS_USER;
     }
 
-    public Set<Role> getRoles()
+    public Set<String> getRoles()
     {
         return roles;
     }

@@ -38,7 +38,7 @@ public class Role extends Grantee
     @Override
     public boolean isExisting()
     {
-        return Auth.isExistingRole(this);
+        return Auth.isExistingRole(name);
     }
 
     @Override

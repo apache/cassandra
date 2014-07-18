@@ -110,6 +110,7 @@ from cassandra.cluster import Cluster
 from cassandra.query import SimpleStatement
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.metadata import protect_name, protect_names, protect_value
+from cassandra.auth import PlainTextAuthProvider
 
 # cqlsh should run correctly when run out of a Cassandra source tree,
 # out of an unpacked Cassandra tarball, and after a proper package install.
@@ -500,7 +501,7 @@ class Shell(cmd.Cmd):
         if username:
             if not password:
                 password = getpass.getpass()
-            self.auth_provider = lambda host: dict(username=username, password=password)
+            self.auth_provider = PlainTextAuthProvider(username=username, password=password)
         self.keyspace = keyspace
         self.tracing_enabled = tracing_enabled
         self.expand_enabled = expand_enabled

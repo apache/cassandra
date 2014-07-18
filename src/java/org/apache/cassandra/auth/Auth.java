@@ -19,7 +19,9 @@ package org.apache.cassandra.auth;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
@@ -66,7 +68,6 @@ public class Auth
     public static final String AUTH_KS = "system_auth";
     public static final String USERS_CF = "users";
     public static final String ROLES_CF = "roles";
-    public static final String GRANTS_CF = "grants";
 
     private static final String USERS_CF_SCHEMA = String.format("CREATE TABLE %s.%s ("
                                                                 + "name text,"
@@ -79,25 +80,14 @@ public class Auth
 
     private static final String ROLES_CF_SCHEMA = String.format("CREATE TABLE %s.%s ("
                                                                 + "role text,"
-                                                                + "grantees set<text>,"
                                                                 + "PRIMARY KEY(role)"
                                                                 + ") WITH gc_grace_seconds=%d",
                                                                 AUTH_KS,
                                                                 ROLES_CF,
                                                                 THREE_MONTHS);
 
-    private static final String GRANTS_CF_SCHEMA = String.format("CREATE TABLE %s.%s ("
-                                                                 + "grantee text,"
-                                                                 + "roles set<text>,"
-                                                                 + "PRIMARY KEY(grantee)"
-                                                                 + ") WITH gc_grace_seconds=%d",
-                                                                 Auth.AUTH_KS,
-                                                                 GRANTS_CF,
-                                                                 THREE_MONTHS);
-
     private static SelectStatement selectUserStatement;
     private static SelectStatement selectRoleStatement;
-    private static SelectStatement selectGrantStatement;
 
     /**
      * Checks if the username is stored in AUTH_KS.USERS_CF.
@@ -140,7 +130,7 @@ public class Auth
     }
 
     /**
-     * Deletes the user from AUTH_KS.USERS_CF and removes any grants from the AUTH_KS.GRANTS_CF.
+     * Deletes the user from AUTH_KS.USERS_CF.
      *
      * @param username Username to delete.
      * @throws RequestExecutionException
@@ -152,113 +142,98 @@ public class Auth
                                              USERS_CF,
                                              escape(username)),
                                consistencyForUser(username));
-        QueryProcessor.process(String.format("DELETE FROM %s.%s WHERE grantee = '%s'",
-                                             AUTH_KS,
-                                             GRANTS_CF,
-                                             Grantee.asUser(username).getId()),
-                               ConsistencyLevel.LOCAL_ONE);
     }
 
     /**
      * Checks if the role is stored in AUTH_KS.ROLES_CF.
      *
-     * @param role Role to query.
+     * @param rolename Role to query.
      * @return whether or not Cassandra knows about the role.
      */
-    public static boolean isExistingRole(Role role)
+    public static boolean isExistingRole(String rolename)
     {
-        return !selectRole(role).isEmpty();
+        return !selectRole(rolename).isEmpty();
     }
 
     /**
      * Inserts the role into AUTH_KS.ROLES_CF.
      *
-     * @param role Role to insert.
+     * @param rolename Role to insert.
      * @throws RequestExecutionException
      */
-    public static void insertRole(Role role) throws RequestExecutionException
+    public static void insertRole(String rolename) throws RequestExecutionException
     {
         QueryProcessor.process(String.format("INSERT INTO %s.%s (role) VALUES ('%s')",
                                              AUTH_KS,
                                              ROLES_CF,
-                                             escape(role.getName())),
+                                             escape(rolename)),
                                ConsistencyLevel.LOCAL_ONE);
     }
 
     /**
-     * Deletes the role by:
+     * Deletes the role from AUTH_KS.ROLES_CF.
      *
-     *   Removing any role entries in AUTH_KS.GRANTS_CF
-     *   Removing any grantee entries in AUTH_KS.ROLES_CF
-     *   Removing it's entry from AUTH_KS.ROLES_CF
-     *   Removing it's entry from AUTH_KS.GRANTS_CF
-     *
-     * @param role Role to delete.
+     * @param rolename Role to delete.
      * @throws RequestExecutionException
      */
-    public static void deleteRole(Role role) throws RequestExecutionException
+    public static void deleteRole(String rolename) throws RequestExecutionException
     {
-        for (IGrantee grantee : getRoleGrantees(role))
-            modifyGrants(role, grantee, "-");
-        for (Role grantedRole : getGrantedRoles(new HashSet<Role>(), role, false))
-            modifyRoles(grantedRole, role, "-");
         QueryProcessor.process(String.format("DELETE FROM %s.%s WHERE role = '%s'",
                                              AUTH_KS,
                                              ROLES_CF,
-                                             escape(role.getName())),
-                               ConsistencyLevel.LOCAL_ONE);
-        QueryProcessor.process(String.format("DELETE FROM %s.%s WHERE grantee = '%s'",
-                                             AUTH_KS,
-                                             GRANTS_CF,
-                                             role.getId()),
+                                             escape(rolename)),
                                ConsistencyLevel.LOCAL_ONE);
     }
 
     /**
-     * Grant a role to another role or user
+     * Grant a role to a user
      *
-     * @param role Role to grant
-     * @param grantee Grantee that will get role
+     * @param username User that will get role
+     * @param rolename Role to grant
      * @throws RequestExecutionException
      */
-    public static void grantRole(Role role, IGrantee grantee) throws RequestExecutionException
+    public static void grantRole(String username, String rolename) throws RequestExecutionException, RequestValidationException
     {
-        modifyRoles(role, grantee, "+");
-        modifyGrants(role, grantee, "+");
+        DatabaseDescriptor.getAuthenticator().grantRole(username, rolename);
     }
 
     /**
-     * Revoke a role from another role or user
+     * Revoke a role from a user
      *
-     * @param role Role to revoke
-     * @param grantee Grantee that will have the role removed
+     * @param username User that will have the role removed
+     * @param rolename Role to revoke
      * @throws RequestExecutionException
      */
-    public static void revokeRole(Role role, IGrantee grantee) throws RequestExecutionException
+    public static void revokeRole(String username, String rolename) throws RequestExecutionException, RequestValidationException
     {
-        modifyRoles(role, grantee, "-");
-        modifyGrants(role, grantee, "-");
+        DatabaseDescriptor.getAuthenticator().revokeRole(username, rolename);
     }
 
     /**
-     * Get a set of roles that the role or user has been granted
+     * Get a set of roles that the user has been granted
      *
-     * @param grantee Role or User
-     * @param recursive If true return all roles in the role heirarchy that this
-     *                  grantee has been granted
-     * @return
+     * @param username User
+     * @return the set of roles that have been granted to the user
      */
-    public static Set<Role> getRoles(IGrantee grantee, boolean recursive)
+    public static Set<String> getRoles(String username)
     {
-        Set<Role> roles = new HashSet<Role>();
-        if (grantee == null)
+        Set<String> roles;
+        if (username == null)
         {
+            roles = new HashSet<>();
             for (Row row : selectRoles())
-                roles.add(Grantee.asRole(row.getString("role")));
+                roles.add(row.getString("role"));
         }
         else
         {
-            getGrantedRoles(roles, grantee, recursive);
+            try
+            {
+                roles = DatabaseDescriptor.getAuthenticator().listRoles(username);
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
         }
         return roles;
     }
@@ -274,7 +249,6 @@ public class Auth
         setupAuthKeyspace();
         setupTable(USERS_CF, USERS_CF_SCHEMA);
         setupTable(ROLES_CF, ROLES_CF_SCHEMA);
-        setupTable(GRANTS_CF, GRANTS_CF_SCHEMA);
 
         DatabaseDescriptor.getAuthenticator().setup();
         DatabaseDescriptor.getAuthorizer().setup();
@@ -304,8 +278,6 @@ public class Auth
             selectUserStatement = (SelectStatement) QueryProcessor.parseStatement(query).prepare().statement;
             query = String.format("SELECT * FROM %s.%s WHERE role = ?", AUTH_KS, ROLES_CF);
             selectRoleStatement = (SelectStatement) QueryProcessor.parseStatement(query).prepare().statement;
-            query = String.format("SELECT * FROM %s.%s WHERE grantee = ?", AUTH_KS, GRANTS_CF);
-            selectGrantStatement = (SelectStatement) QueryProcessor.parseStatement(query).prepare().statement;
         }
         catch (RequestValidationException e)
         {
@@ -316,8 +288,7 @@ public class Auth
     public static Set<DataResource> protectedResources()
     {
         return ImmutableSet.of(DataResource.columnFamily(Auth.AUTH_KS, USERS_CF),
-                               DataResource.columnFamily(AUTH_KS, ROLES_CF),
-                               DataResource.columnFamily(AUTH_KS, GRANTS_CF));
+                               DataResource.columnFamily(AUTH_KS, ROLES_CF));
     }
 
     // Only use QUORUM cl for the default superuser.
@@ -371,31 +342,6 @@ public class Auth
         }
     }
 
-    /**
-     * Set up an index for the column on the given table.
-     *
-     * @param tableName name of the table
-     * @param column the column to index
-     */
-    public static void setupIndex(String tableName, ColumnIdentifier column)
-    {
-        CFMetaData cfm = Schema.instance.getCFMetaData(AUTH_KS, tableName).copy();
-        ColumnDefinition cd = cfm.getColumnDefinition(column);
-        if (cd.getIndexType() != null)
-            return;
-
-        cd.setIndexType(IndexType.KEYS, Collections.<String, String>emptyMap());
-        try
-        {
-            cfm.addDefaultIndexNames();
-            MigrationManager.announceColumnFamilyUpdate(cfm, false, false);
-        }
-        catch (Exception e)
-        {
-            throw new AssertionError(e);
-        }
-    }
-
     private static void setupDefaultSuperuser()
     {
         try
@@ -416,28 +362,6 @@ public class Auth
         {
             logger.warn("Skipped default superuser setup: some nodes were not ready");
         }
-    }
-
-    private static void modifyRoles(Role role, IGrantee grantee, String op) throws RequestExecutionException
-    {
-        QueryProcessor.process(String.format("UPDATE %s.%s SET grantees = grantees %s {%s} WHERE role = '%s'",
-                                             Auth.AUTH_KS,
-                                             ROLES_CF,
-                                             op,
-                                             "'" + grantee.getId() + "'",
-                                             escape(role.getName())),
-                               ConsistencyLevel.QUORUM);
-    }
-
-    private static void modifyGrants(Role role, IGrantee grantee, String op) throws RequestExecutionException
-    {
-        QueryProcessor.process(String.format("UPDATE %s.%s SET roles = roles %s {%s} WHERE grantee = '%s'",
-                                             Auth.AUTH_KS,
-                                             GRANTS_CF,
-                                             op,
-                                             "'" + escape(role.getName()) + "'",
-                                             grantee.getId()),
-                               ConsistencyLevel.QUORUM);
     }
 
     private static boolean hasExistingUsers() throws RequestExecutionException
@@ -474,13 +398,13 @@ public class Auth
         }
     }
 
-    private static UntypedResultSet selectRole(Role role)
+    private static UntypedResultSet selectRole(String rolename)
     {
         try
         {
             ResultMessage.Rows rows = selectRoleStatement.execute(QueryState.forInternalCalls(),
                                                                   QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
-                                                                                                Lists.newArrayList(ByteBufferUtil.bytes(role.getName()))));
+                                                                                                Lists.newArrayList(ByteBufferUtil.bytes(rolename))));
             return UntypedResultSet.create(rows.result);
         }
         catch (RequestValidationException e)
@@ -491,20 +415,6 @@ public class Auth
         {
             throw new RuntimeException(e);
         }
-    }
-
-    private static Set<IGrantee> getRoleGrantees(Role role)
-    {
-        Set<IGrantee> grantees = new HashSet<IGrantee>();
-        UntypedResultSet resultSet = selectRole(role);
-        if (!resultSet.isEmpty())
-        {
-            Set<String> granteeIds = resultSet.one().getSet("grantees", UTF8Type.instance);
-            if (granteeIds != null)
-                for (String granteeId : granteeIds)
-                    grantees.add(Grantee.fromId(granteeId));
-        }
-        return grantees;
     }
 
     private static UntypedResultSet selectRoles()
@@ -517,49 +427,6 @@ public class Auth
         {
             throw new RuntimeException(e);
         }
-    }
-
-    private static UntypedResultSet selectGrant(IGrantee grantee)
-    {
-        try
-        {
-            ResultMessage.Rows rows = selectGrantStatement.execute(QueryState.forInternalCalls(),
-                                                                   QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
-                                                                                                 Lists.newArrayList(ByteBufferUtil.bytes(grantee.getId()))));
-            return UntypedResultSet.create(rows.result);
-        }
-        catch (RequestValidationException e)
-        {
-            throw new AssertionError(e); // not supposed to happen
-        }
-        catch (RequestExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * This will recursively (optional) go through the role heirarchy and produce a set of all
-     * the roles that the grantee supports
-     */
-    private static Set<Role> getGrantedRoles(Set<Role> roles, IGrantee grantee, boolean recursive)
-    {
-        UntypedResultSet grant = selectGrant(grantee);
-        if (!grant.isEmpty())
-        {
-            for (String rolename : grant.one().getSet("roles", UTF8Type.instance))
-            {
-                Role role = Grantee.asRole(rolename);
-                // Protect against circular dependencies. This shouldn't be possible because of the statement validation
-                // but it doesn't stop someone manually adding to the tables
-                if (roles.contains(role))
-                    throw new RuntimeException(String.format("Detected circular dependency in system_auth.grants. %s is already in the role chain", rolename));
-                roles.add(role);
-                if (recursive)
-                    getGrantedRoles(roles, role, recursive);
-            }
-        }
-        return roles;
     }
 
     /**

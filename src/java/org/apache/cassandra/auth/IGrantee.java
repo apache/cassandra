@@ -48,14 +48,6 @@ public interface IGrantee extends Comparable<IGrantee>
     public String getName();
 
     /**
-     * Return the id of the grantee. The id is a concatenation of
-     * the type and name in the form <type>:<name>
-     *
-     * @return the id of the grantee
-     */
-    public String getId();
-
-    /**
      * Tests if the auth sub-system is aware of the grantee
      *
      * @return true if the grantee exists in the auth sub-system

@@ -715,19 +715,12 @@ grantStatement returns [GrantStatement stmt]
     ;
 
 /**
- * GRANT ROLE <rolename> TO [USER <username> | ROLE <rolename>]
+ * GRANT ROLE <rolename> TO USER <username>
  */
 grantRoleStatement returns [GrantRoleStatement stmt]
-    @init {
-        Role role = null;
-        IGrantee grantee = null;
-    }
-    : K_GRANT K_ROLE
-        granted_role=rolename { role = new Role($granted_role.text); }
-      K_TO
-        (K_USER grantee_user=username { grantee = new User($grantee_user.text); }
-         | K_ROLE grantee_role=rolename { grantee = new Role($grantee_role.text); })?
-      { $stmt = new GrantRoleStatement(role, grantee); }
+    : K_GRANT K_ROLE rolename
+      K_TO K_USER username
+      { $stmt = new GrantRoleStatement($username.text, $rolename.text); }
     ;
 
 /**
@@ -744,19 +737,12 @@ revokeStatement returns [RevokeStatement stmt]
     ;
 
 /**
- * REVOKE ROLE <rolename> FROM [USER <username> | ROLE <rolename>]
+ * REVOKE ROLE <rolename> FROM USER <username>
  */
 revokeRoleStatement returns [RevokeRoleStatement stmt]
-    @init {
-        Role role = null;
-        IGrantee grantee = null;
-    }
-    : K_REVOKE K_ROLE
-        revoked_role=rolename { role = new Role($revoked_role.text); }
-      K_FROM
-        (K_USER grantee_user=username { grantee = new User($grantee_user.text); }
-         | K_ROLE grantee_role=rolename { grantee = new Role($grantee_role.text); })?
-      { $stmt = new RevokeRoleStatement(role, grantee); }
+    : K_REVOKE K_ROLE rolename
+      K_FROM K_USER username
+      { $stmt = new RevokeRoleStatement($username.text, $rolename.text); }
     ;
 
 listPermissionsStatement returns [ListPermissionsStatement stmt]
@@ -855,11 +841,10 @@ userOption[UserOptions opts]
  */
 createRoleStatement returns [CreateRoleStatement stmt]
     @init {
-        Role role = null;
         boolean ifNotExists = false;
     }
     : K_CREATE K_ROLE (K_IF K_NOT K_EXISTS { ifNotExists = true; })? rolename
-      { role = Grantee.asRole($rolename.text); $stmt = new CreateRoleStatement(role, ifNotExists); }
+      { $stmt = new CreateRoleStatement($rolename.text, ifNotExists); }
     ;
 
 /**
@@ -867,27 +852,23 @@ createRoleStatement returns [CreateRoleStatement stmt]
  */
 dropRoleStatement returns [DropRoleStatement stmt]
     @init {
-        Role role = null;
         boolean ifExists = false;
     }
     : K_DROP K_ROLE (K_IF K_EXISTS { ifExists = true; })? rolename
-      { role = Grantee.asRole($rolename.text); $stmt = new DropRoleStatement(role, ifExists); }
+      { $stmt = new DropRoleStatement($rolename.text, ifExists); }
     ;
 
 /**
- * LIST ROLES [OF [ROLE <rolename> | USER <username>]] [NORECURSIVE]
+ * LIST ROLES [OF USER <username>]
  */
 listRolesStatement returns [ListRolesStatement stmt]
     @init {
-        IGrantee grantee = null;
-        boolean recursive = true;
+        String user = null;
     }
     : K_LIST
       K_ROLES
-      ( K_OF (K_ROLE rolename { grantee = Grantee.asRole($rolename.text); }
-              | K_USER username { grantee = Grantee.asUser($username.text); }) )?
-      ( K_NORECURSIVE { recursive = false; } )?
-      { $stmt = new ListRolesStatement(grantee, recursive); }
+      ( K_OF K_USER username { user = $username.text; } )?
+      { $stmt = new ListRolesStatement(user); }
     ;
 
 /** DEFINITIONS **/

@@ -64,12 +64,6 @@ public abstract class Grantee implements IGrantee
         return name;
     }
 
-    @Override
-    public String getId()
-    {
-        return getType() + ":" + escape(getName());
-    }
-
     private String escape(String name)
     {
         return StringUtils.replace(name, "'", "''");

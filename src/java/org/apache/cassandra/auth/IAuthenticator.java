@@ -91,7 +91,6 @@ public interface IAuthenticator
      */
     void alter(String username, Map<Option, Object> options) throws RequestValidationException, RequestExecutionException;
 
-
     /**
      * Called during execution of DROP USER query.
      *
@@ -101,7 +100,15 @@ public interface IAuthenticator
      */
     void drop(String username) throws RequestValidationException, RequestExecutionException;
 
-     /**
+    void grantRole(String username, String rolename) throws RequestValidationException, RequestExecutionException;
+
+    void revokeRole(String username, String rolename) throws RequestValidationException, RequestExecutionException;
+
+    void revokeAll(String rolename) throws RequestValidationException, RequestExecutionException;
+
+    Set<String> listRoles(String username) throws RequestValidationException, RequestExecutionException;
+
+    /**
      * Set of resources that should be made inaccessible to users and only accessible internally.
      *
      * @return Keyspaces, column families that will be unmodifiable by users; other resources.

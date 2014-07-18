@@ -25,15 +25,16 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.commons.lang.StringUtils;
 
 public class CreateRoleStatement extends AuthenticationStatement
 {
-    private final Role role;
+    private final String rolename;
     private final boolean ifNotExists;
 
-    public CreateRoleStatement(Role role, boolean ifNotExists)
+    public CreateRoleStatement(String rolename, boolean ifNotExists)
     {
-        this.role = role;
+        this.rolename = rolename;
         this.ifNotExists = ifNotExists;
     }
 
@@ -47,24 +48,24 @@ public class CreateRoleStatement extends AuthenticationStatement
     @Override
     public void validate(ClientState state) throws RequestValidationException
     {
-        if (role.getName().isEmpty())
+        if (StringUtils.isEmpty(rolename))
             throw new InvalidRequestException("Rolename can't be an empty string");
 
         // validate login here before checkAccess to avoid leaking role existence to anonymous users.
         state.ensureNotAnonymous();
 
-        if (!ifNotExists && role.isExisting())
-            throw new InvalidRequestException(String.format("Role %s already exists", role.getName()));
+        if (!ifNotExists && Auth.isExistingRole(rolename))
+            throw new InvalidRequestException(String.format("Role %s already exists", rolename));
     }
 
     @Override
     public ResultMessage execute(ClientState state) throws RequestExecutionException, RequestValidationException
     {
         // not rejected in validate()
-        if (ifNotExists && role.isExisting())
+        if (ifNotExists && Auth.isExistingRole(rolename))
             return null;
 
-        Auth.insertRole(role);
+        Auth.insertRole(rolename);
         return null;
     }
 }

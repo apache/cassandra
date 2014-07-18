@@ -44,9 +44,9 @@ import org.slf4j.LoggerFactory;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
-public abstract class AbstractCassandraAuthorizer implements IAuthorizer
+public abstract class RoleUnawareAuthorizer implements IAuthorizer
 {
-    private static final Logger logger = LoggerFactory.getLogger(AbstractCassandraAuthorizer.class);
+    private static final Logger logger = LoggerFactory.getLogger(RoleUnawareAuthorizer.class);
 
     private static final String USERNAME = "username";
     protected static final String RESOURCE = "resource";

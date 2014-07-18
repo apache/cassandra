@@ -22,10 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.cassandra.auth.Auth;
-import org.apache.cassandra.auth.Grantee;
-import org.apache.cassandra.auth.IGrantee;
-import org.apache.cassandra.auth.Role;
+import org.apache.cassandra.auth.*;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.ResultSet;
@@ -51,24 +48,22 @@ public class ListRolesStatement extends AuthenticationStatement
         metadata = Collections.unmodifiableList(columns);
     }
 
-    private final IGrantee grantee;
-    private final boolean recursive;
+    private final String username;
 
-    public ListRolesStatement(IGrantee grantee, boolean recursive)
+    public ListRolesStatement(String username)
     {
-        this.grantee = grantee;
-        this.recursive = recursive;
+        this.username = username;
     }
 
     public void validate(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
         state.ensureNotAnonymous();
 
-        if (!state.getUser().isSuper() && (grantee != null))
+        if (!state.getUser().isSuper() && (username != null))
             throw new UnauthorizedException("Only superusers are allowed to LIST ROLES for another user or role");
 
-        if ((grantee != null) && !grantee.isExisting())
-            throw new InvalidRequestException(String.format("%s %s doesn't exist", grantee.getType(), grantee.getName()));
+        if ((username != null) && !Auth.isExistingUser(username))
+            throw new InvalidRequestException(String.format("User %s doesn't exist", username));
     }
 
     public void checkAccess(ClientState state)
@@ -78,20 +73,20 @@ public class ListRolesStatement extends AuthenticationStatement
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
         if (state.getUser().isSuper())
-            return resultMessage(Auth.getRoles(grantee, recursive));
+            return resultMessage(Auth.getRoles(username));
         else
-            return resultMessage(Auth.getRoles(Grantee.asUser(state.getUser().getName()), recursive));
+            return resultMessage(Auth.getRoles(state.getUser().getName()));
     }
 
-    private ResultMessage resultMessage(Set<Role> roles)
+    private ResultMessage resultMessage(Set<String> roles)
     {
         if (roles.isEmpty())
             return new ResultMessage.Void();
 
         ResultSet result = new ResultSet(metadata);
-        for (Role role : roles)
+        for (String rolename : roles)
         {
-            result.addColumnValue(UTF8Type.instance.decompose(role.getName()));
+            result.addColumnValue(UTF8Type.instance.decompose(rolename));
         }
         return new ResultMessage.Rows(result);
     }

@@ -51,7 +51,7 @@ public class PermissionDetails implements Comparable<PermissionDetails>
     public String toString()
     {
         return String.format("<PermissionDetails grantee:%s resource:%s permission:%s>",
-                             grantee.getId(),
+                             grantee,
                              resource.getName(),
                              permission);
     }
