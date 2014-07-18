@@ -6,6 +6,7 @@
  * Optimise NativeCell comparisons (CASSANDRA-6755)
  * Configurable client timeout for cqlsh (CASSANDRA-7516)
  * Include snippet of CQL query near syntax error in messages (CASSANDRA-7111)
+ * Fix native protocol drop user type notification (CASSANDRA-7571)
 
 
 2.1.0-final
