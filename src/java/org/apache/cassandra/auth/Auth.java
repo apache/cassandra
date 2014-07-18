@@ -152,7 +152,21 @@ public class Auth
      */
     public static boolean isExistingRole(String rolename)
     {
-        return !selectRole(rolename).isEmpty();
+        try
+        {
+            ResultMessage.Rows rows = selectRoleStatement.execute(QueryState.forInternalCalls(),
+                                                                  QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
+                                                                                                Lists.newArrayList(ByteBufferUtil.bytes(rolename))));
+            return !UntypedResultSet.create(rows.result).isEmpty();
+        }
+        catch (RequestValidationException e)
+        {
+            throw new AssertionError(e); // not supposed to happen
+        }
+        catch (RequestExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -360,37 +374,6 @@ public class Auth
         catch (RequestValidationException e)
         {
             throw new AssertionError(e); // not supposed to happen
-        }
-        catch (RequestExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static UntypedResultSet selectRole(String rolename)
-    {
-        try
-        {
-            ResultMessage.Rows rows = selectRoleStatement.execute(QueryState.forInternalCalls(),
-                                                                  QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
-                                                                                                Lists.newArrayList(ByteBufferUtil.bytes(rolename))));
-            return UntypedResultSet.create(rows.result);
-        }
-        catch (RequestValidationException e)
-        {
-            throw new AssertionError(e); // not supposed to happen
-        }
-        catch (RequestExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static UntypedResultSet selectRoles()
-    {
-        try
-        {
-            return QueryProcessor.process(String.format("SELECT role FROM %s.%s", Auth.AUTH_KS, ROLES_CF), ConsistencyLevel.LOCAL_ONE);
         }
         catch (RequestExecutionException e)
         {
