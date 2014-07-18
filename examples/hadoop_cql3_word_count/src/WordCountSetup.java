@@ -70,7 +70,10 @@ public class WordCountSetup
 
             client.execute_cql3_query(ByteBufferUtil.bytes(query), Compression.NONE, ConsistencyLevel.ONE);
 
-            int magnitude = client.describe_ring(WordCount.KEYSPACE).size();
+	    String verifyQuery = "select count(*) from system.peers";
+            CqlResult result = client.execute_cql3_query(ByteBufferUtil.bytes(verifyQuery), Compression.NONE, ConsistencyLevel.ONE);
+
+            long magnitude = ByteBufferUtil.toLong(result.rows.get(0).columns.get(0).value);
             try
             {
                 Thread.sleep(1000 * magnitude);

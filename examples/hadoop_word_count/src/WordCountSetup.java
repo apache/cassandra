@@ -176,8 +176,31 @@ public class WordCountSetup
         KsDef ksDef = new KsDef(WordCount.KEYSPACE, "org.apache.cassandra.locator.SimpleStrategy", cfDefList);
         ksDef.putToStrategy_options("replication_factor", "1");
         client.system_add_keyspace(ksDef);
-        int magnitude = client.describe_ring(WordCount.KEYSPACE).size();
+
+	int magnitude = getNumberOfHosts(client);
         Uninterruptibles.sleepUninterruptibly(magnitude, TimeUnit.SECONDS);
+    }
+
+    private static int getNumberOfHosts(Cassandra.Iface client)
+            throws InvalidRequestException, UnavailableException, TimedOutException, TException
+    {
+        client.set_keyspace("system");
+        SlicePredicate predicate = new SlicePredicate();
+        SliceRange sliceRange = new SliceRange();
+        sliceRange.setStart(new byte[0]);
+        sliceRange.setFinish(new byte[0]);
+        predicate.setSlice_range(sliceRange);
+
+        KeyRange keyrRange = new KeyRange();
+        keyrRange.setStart_key(new byte[0]);
+        keyrRange.setEnd_key(new byte[0]);
+        //keyrRange.setCount(100);
+
+        ColumnParent parent = new ColumnParent("peers");
+
+        List<KeySlice> ls = client.get_range_slices(parent, predicate, keyrRange, ConsistencyLevel.ONE);
+
+        return ls.size();
     }
 
     private static Cassandra.Iface createConnection() throws TTransportException
